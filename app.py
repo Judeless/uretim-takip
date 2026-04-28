@@ -200,6 +200,12 @@ def andon_v4_preview():
     return render_template('andon_v4.html')
 
 
+@app.route('/andon_v5')
+def andon_v5_preview():
+    """Andon v5 — komuta merkezi tema önizlemesi (Robot Kaynak)."""
+    return render_template('andon_v5.html')
+
+
 @app.route('/andon_montaj')
 def andon_montaj_sayfasi():
     """Montaj hattı Andon ekranı."""
