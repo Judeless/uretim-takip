@@ -1,0 +1,258 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cofle Manage - Cyber-Vision Andon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Cyber-Vision Palette */
+            --bg-deep: #050814;
+            --bg-darker: #0a0f1d;
+            --bg-card: rgba(15, 23, 42, 0.7);
+            --bg-glass: rgba(15, 23, 42, 0.4);
+            
+            --electric-blue: #00e5ff;
+            --electric-blue-glow: rgba(0, 229, 255, 0.5);
+            --neon-purple: #bc13fe;
+            --neon-purple-glow: rgba(188, 19, 254, 0.4);
+            --neon-amber: #ffaa00;
+            --neon-amber-glow: rgba(255, 170, 0, 0.4);
+            --neon-red: #ff0055;
+            --neon-green: #00ff88;
+            
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            
+            --font-tech: 'Rajdhani', sans-serif;
+            --font-cyber: 'Orbitron', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            
+            --glass-blur: blur(12px);
+            --card-border: 1px solid rgba(255, 255, 255, 0.08);
+            --neon-border: 1px solid rgba(0, 229, 255, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: var(--font-tech);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(188, 19, 254, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 229, 255, 0.03) 0%, transparent 40%),
+                linear-gradient(rgba(0, 229, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 229, 255, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+        }
+
+        .cyber-root {
+            display: grid;
+            grid-template-rows: auto 1fr auto auto;
+            height: 100vh;
+            padding: 20px;
+            gap: 15px;
+        }
+
+        /* ── HEADER ── */
+        .cyber-header {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            padding: 10px 20px;
+            background: var(--bg-glass);
+            backdrop-filter: var(--glass-blur);
+            border-radius: 15px;
+            border: var(--card-border);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .header-logo-wrap { display: flex; align-items: center; gap: 15px; }
+        .cyber-logo { height: 40px; filter: drop-shadow(0 0 10px var(--electric-blue-glow)); }
+        .brand-text { font-family: var(--font-cyber); font-weight: 900; letter-spacing: 2px; font-size: 1.4rem; color: #fff; }
+        .brand-sub { color: var(--electric-blue); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 3px; }
+
+        .header-clock-wrap { text-align: center; }
+        #clock-time { 
+            font-family: var(--font-cyber); font-size: 3rem; font-weight: 700; 
+            color: #fff; text-shadow: 0 0 20px var(--electric-blue-glow);
+            line-height: 1;
+        }
+        #clock-date { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; }
+
+        .header-status { justify-self: end; display: flex; align-items: center; gap: 15px; }
+        .status-pill { 
+            padding: 5px 15px; background: rgba(0, 255, 136, 0.1); border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 20px; font-size: 0.7rem; font-weight: 700; color: var(--neon-green);
+            text-transform: uppercase; display: flex; align-items: center; gap: 8px;
+        }
+        .pulse-dot { width: 8px; height: 8px; background: var(--neon-green); border-radius: 50%; box-shadow: 0 0 10px var(--neon-green); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+
+        /* ── ROBOT GRID ── */
+        .cyber-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .robot-card {
+            background: var(--bg-card);
+            border: var(--card-border);
+            border-radius: 18px;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            backdrop-filter: var(--glass-blur);
+        }
+
+        .robot-card::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--electric-blue); box-shadow: 0 0 15px var(--electric-blue);
+        }
+
+        /* Identity Section */
+        .id-section {
+            width: 140px; padding: 15px; border-right: 1px solid rgba(255,255,255,0.05);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .robot-id { font-family: var(--font-cyber); font-size: 1.8rem; font-weight: 900; color: #fff; line-height: 1; margin-bottom: 5px; }
+        .operator-name { font-size: 0.8rem; color: var(--electric-blue); font-weight: 600; text-align: center; }
+
+        /* Data Section */
+        .data-section { flex: 1; padding: 10px 20px; display: flex; align-items: center; gap: 30px; }
+
+        /* circular progress */
+        .ring-wrap { position: relative; width: 80px; height: 80px; }
+        .ring-svg { transform: rotate(-90deg); }
+        .ring-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 8; }
+        .ring-fill { fill: none; stroke: var(--electric-blue); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 226; stroke-dashoffset: 226; transition: stroke-dashoffset 1s ease-out; filter: drop-shadow(0 0 5px var(--electric-blue)); }
+        .ring-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: var(--font-cyber); font-size: 1rem; color: #fff; font-weight: 700; }
+        .ring-label { position: absolute; top: 75%; left: 50%; transform: translateX(-50%); font-size: 0.5rem; color: var(--text-dim); text-transform: uppercase; }
+
+        /* Numbers stats */
+        .stats-grid { display: grid; grid-template-columns: auto auto auto; gap: 20px; flex: 1; }
+        .stat-box { display: flex; flex-direction: column; }
+        .stat-lbl { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+        .stat-val { font-family: var(--font-cyber); font-size: 1.8rem; font-weight: 700; color: #fff; }
+        .stat-val.neon-blue { color: var(--electric-blue); text-shadow: 0 0 10px var(--electric-blue-glow); }
+        .stat-val.neon-amber { color: var(--neon-amber); text-shadow: 0 0 10px var(--neon-amber-glow); }
+
+        /* Right Panel: Job/Downtime */
+        .side-section { width: 220px; padding: 15px; background: rgba(0,0,0,0.2); border-left: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 8px; }
+        .side-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 8px; position: relative; overflow: hidden; }
+        .side-lbl { font-size: 0.6rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+        .side-val { font-size: 0.85rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); }
+        
+        .side-card.warning::after { content: ''; position: absolute; left: 0; top: 0; width: 2px; height: 100%; background: var(--neon-amber); }
+        .side-card.danger::after { content: ''; position: absolute; left: 0; top: 0; width: 2px; height: 100%; background: var(--neon-red); }
+
+        /* ── BOTTOM BAR ── */
+        .cyber-bottom { background: var(--bg-glass); backdrop-filter: var(--glass-blur); border: var(--card-border); border-radius: 15px; padding: 12px 20px; }
+        .bottom-title { font-family: var(--font-cyber); font-size: 0.7rem; color: var(--electric-blue); text-transform: uppercase; letter-spacing: 4px; margin-bottom: 8px; }
+        .launch-scroll { display: flex; gap: 10px; overflow: hidden; white-space: nowrap; }
+        .launch-chip { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 15px; display: inline-flex; flex-direction: column; }
+        .chip-ref { font-family: var(--font-cyber); font-size: 0.85rem; font-weight: 700; color: #fff; }
+        .chip-sub { font-size: 0.65rem; color: var(--text-dim); }
+
+        /* ── TICKER ── */
+        .cyber-ticker { padding: 8px 20px; font-size: 0.9rem; font-weight: 600; color: var(--electric-blue); font-family: var(--font-tech); text-transform: uppercase; letter-spacing: 1px; display: flex; gap: 20px; align-items: center; }
+        .ticker-label { background: var(--electric-blue); color: #000; padding: 2px 10px; border-radius: 4px; font-weight: 900; font-size: 0.7rem; }
+        .ticker-text { flex: 1; overflow: hidden; white-space: nowrap; }
+        .ticker-inner { display: inline-block; animation: scrollText 40s linear infinite; }
+        @keyframes scrollText { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+    </style>
+</head>
+<body>
+    <div class="cyber-root">
+        <header class="cyber-header">
+            <div class="header-left">
+                <div class="header-logo-wrap">
+                    <img src="/logo" class="cyber-logo" alt="Cofle">
+                    <div>
+                        <div class="brand-text">COFLE MANAGE</div>
+                        <div class="brand-sub">Cyber-Vision OS</div>
+                    </div>
+                </div>
+            </div>
+            <div class="header-clock-wrap">
+                <div id="clock-time">--:--:--</div>
+                <div id="clock-date">--</div>
+            </div>
+            <div class="header-status"><div class="status-pill"><span class="pulse-dot"></span><span>System Online</span></div></div>
+        </header>
+        <div class="cyber-grid" id="robot-grid"></div>
+        <div class="cyber-bottom"><div class="bottom-title">Active Job Orders</div><div class="launch-scroll" id="launch-list"></div></div>
+        <div class="cyber-ticker"><span class="ticker-label">COMMUNICATION</span><div class="ticker-text"><div class="ticker-inner" id="announcement-text">WELCOME TO THE FUTURE...</div></div></div>
+    </div>
+    <script>
+        const REFRESH_RATE = 30;
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock-time').textContent = now.toLocaleTimeString('tr-TR', { hour12: false });
+            document.getElementById('clock-date').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        async function updateData() {
+            try {
+                const response = await fetch('/api/andon');
+                const data = await response.json();
+                renderRobots(data.robotlar);
+                renderLaunchList(data.referans_takip);
+                if (data.duyuru && data.duyuru.metin) document.getElementById('announcement-text').textContent = data.duyuru.metin.toUpperCase();
+            } catch (error) { console.error('Data fetch error:', error); }
+        }
+        function renderRobots(robots) {
+            const grid = document.getElementById('robot-grid');
+            grid.innerHTML = '';
+            robots.filter(r => r.robot_no !== 'ABB9').forEach(robot => {
+                const oee = 85; 
+                const card = document.createElement('div');
+                card.className = 'robot-card';
+                card.innerHTML = `
+                    <div class="id-section"><div class="robot-id">${robot.robot_no.replace('ABB', '')}</div><div class="operator-name">${robot.operator || 'SYSTEM IDLE'}</div></div>
+                    <div class="data-section">
+                        <div class="ring-wrap"><svg class="ring-svg" width="80" height="80"><circle class="ring-bg" cx="40" cy="40" r="36"></circle><circle class="ring-fill" cx="40" cy="40" r="36" style="stroke-dashoffset: ${226 - (226 * oee / 100)}"></circle></svg><div class="ring-text">${oee}%</div><div class="ring-label">OEE</div></div>
+                        <div class="stats-grid">${renderIstasyon(robot.istasyon_1, 'IST-1', 'neon-blue')}${renderIstasyon(robot.istasyon_2, 'IST-2', 'neon-purple')}</div>
+                    </div>
+                    <div class="side-section">${renderNextJob(robot.atamalar)}${renderLastDowntime(robot.durus_detay)}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+        function renderIstasyon(list, label, colorClass) {
+            const currentRef = list.length > 0 ? list[0] : null;
+            return `<div class="stat-box"><span class="stat-lbl">${label}</span><span class="stat-val ${colorClass}">${currentRef ? currentRef.launch : '---'}</span><div style="font-size:0.55rem; color:var(--text-dim); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${currentRef ? currentRef.ref : 'SYSTEM STANDBY'}</div></div>`;
+        }
+        function renderNextJob(atamalar) {
+            const job = atamalar.length > 0 ? atamalar[0] : null;
+            return `<div class="side-card warning"><div class="side-lbl"><span>⚡</span> NEXT JOB</div><div class="side-val">${job ? job.referans_kodu : 'AWAITING DISPATCH'}</div></div>`;
+        }
+        function renderLastDowntime(duruslar) {
+            const d = duruslar.length > 0 ? duruslar[0] : null;
+            return `<div class="side-card ${d && d.tip === 'plansiz' ? 'danger' : ''}"><div class="side-lbl"><span>⏸</span> DOWNTIME</div><div class="side-val">${d ? d.sebep + ' (' + d.sure_dk + 'm)' : 'STABLE PRODUCTION'}</div></div>`;
+        }
+        function renderLaunchList(list) {
+            const container = document.getElementById('launch-list');
+            container.innerHTML = '';
+            list.filter(item => item.durum !== 'uretim_tamamlandi').slice(0, 10).forEach(item => {
+                const chip = document.createElement('div');
+                chip.className = `launch-chip`;
+                chip.innerHTML = `<div class="chip-ref">${item.referans_kodu}</div><div class="chip-sub">TARGET: ${item.hedef_adet}</div>`;
+                container.appendChild(chip);
+            });
+        }
+        setInterval(updateClock, 1000);
+        setInterval(updateData, REFRESH_RATE * 1000);
+        updateClock();
+        updateData();
+    </script>
+</body>
+</html>

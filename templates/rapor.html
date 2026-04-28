@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Günlük Üretim Raporu</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+          crossorigin="anonymous"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family:'Segoe UI', Arial, sans-serif;
+      background:#1e293b;
+      min-height:100vh;
+      padding:14px 10px 110px;
+    }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      display:flex; align-items:center; gap:8px;
+      margin-bottom:12px; flex-wrap:wrap;
+    }
+    .toolbar input[type=date],
+    .toolbar select {
+      padding:10px 11px;
+      border-radius:10px; border:1.5px solid #334155;
+      background:#0f172a; color:#f1f5f9;
+      font-size:.87rem; flex:1; min-width:110px;
+    }
+    .toolbar select option { background:#0f172a; }
+    .btn-yukle {
+      padding:10px 20px;
+      background:#2563eb; color:#fff; border:none;
+      border-radius:10px; font-size:.87rem; font-weight:700;
+      cursor:pointer; white-space:nowrap;
+    }
+    .btn-yukle:active { transform:scale(.97); }
+
+    /* ── DURUM ── */
+    .durum {
+      text-align:center; color:#94a3b8;
+      font-size:.88rem; padding:40px 10px;
+    }
+    .spinner {
+      width:28px; height:28px;
+      border:3px solid #334155; border-top-color:#2563eb;
+      border-radius:50%;
+      animation:spin .7s linear infinite;
+      display:inline-block; margin-bottom:10px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── RAPOR KAPSAYICI ── */
+    #rapor-wrap {
+      background:#fff; border-radius:6px;
+      overflow-x:auto;
+    }
+
+    /* ── TABLO ── */
+    table.rapor {
+      border-collapse:collapse;
+      min-width:460px; width:100%;
+      font-family:Arial,sans-serif;
+      table-layout:fixed;
+    }
+    table.rapor th,
+    table.rapor td {
+      border:1.5px solid #000;
+      padding:3px 5px;
+      font-size:11px;
+      vertical-align:middle;
+      text-align:center;
+    }
+
+    /* Ana başlık */
+    .r-baslik td {
+      background:#1f3864; color:#f9d71c;
+      font-size:12.5px; font-weight:900;
+    }
+    /* Sütun başlığı (her robot grubunda) */
+    .r-col-hdr td {
+      background:#1f3864; color:#f9d71c;
+      font-weight:700; font-size:10px;
+    }
+    /* Robot numarası büyük hücre */
+    .r-robot {
+      background:#bfbfbf;
+      font-size:28px; font-weight:900;
+      color:#000; vertical-align:middle;
+    }
+    /* Veri sütunları */
+    .c-adet  { background:#92d050 !important; font-weight:700; width:58px; }
+    .c-tamir { background:#ed7d31 !important; font-weight:700; width:58px; }
+    .c-hurda { background:#ff0000 !important; color:#fff; font-weight:700; width:58px; }
+    .c-op    { text-align:left; padding-left:6px; font-size:10.5px; }
+    .c-parca { text-align:left; padding-left:6px; font-weight:700; font-size:9.5px; }
+    /* Robot ayıracı kalın çizgi */
+    tbody.robot-group { border-bottom: 3.5px solid #000; }
+
+    /* ── SHARE BAR ── */
+    .share-bar {
+      position:fixed; bottom:0; left:0; right:0;
+      background:#0f172a; border-top:1px solid #334155;
+      padding:10px 12px 20px;
+      display:flex; gap:9px; z-index:500;
+    }
+    .btn-share {
+      flex:1; padding:13px 8px;
+      border:none; border-radius:11px;
+      font-size:.88rem; font-weight:700;
+      cursor:pointer; display:flex;
+      align-items:center; justify-content:center;
+      gap:6px;
+    }
+    .btn-share:disabled { opacity:.45; cursor:not-allowed; }
+    .btn-share:active:not(:disabled) { transform:scale(.96); }
+    .btn-wp  { background:#25D366; color:#fff; }
+    .btn-sav { background:#334155; color:#f1f5f9; }
+
+    .hata-kutu {
+      background:#fee2e2; border:1.5px solid #ef4444;
+      border-radius:10px; padding:14px; margin-top:8px;
+      color:#991b1b; font-size:.84rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Araç çubuğu -->
+  <div class="toolbar">
+    <input type="date" id="rep-tarih" onchange="yukleVardiyalar()">
+    <select id="rep-vardiya">
+      <option value="">— Vardiya seçin —</option>
+    </select>
+    <button class="btn-yukle" onclick="yukleRapor()">🔄 Yükle</button>
+  </div>
+
+  <div id="rapor-icerik">
+    <div class="durum">Tarih seçerek vardiyaları yükleyin.</div>
+  </div>
+
+  <!-- Paylaşım çubuğu -->
+  <div class="share-bar">
+    <button class="btn-share btn-wp"  id="btn-wp"  onclick="wpPaylas()"    disabled>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+      WhatsApp'a Gönder
+    </button>
+    <button class="btn-share btn-sav" id="btn-sav" onclick="gorselKaydet()" disabled>
+      💾 Kaydet
+    </button>
+  </div>
+
+<script>
+// ── Helpers ──
+function pad(n){ return String(n).padStart(2,'0'); }
+function bugunStr(){
+  const d=new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function formatTarih(s){
+  const p=s.split('-');
+  return p.length===3 ? `${p[2]}.${p[1]}.${p[0]}` : s;
+}
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('rep-tarih').value = bugunStr();
+  yukleVardiyalar();
+});
+
+// ── Vardiya listesi ──
+async function yukleVardiyalar(){
+  const tarih = document.getElementById('rep-tarih').value;
+  const sel   = document.getElementById('rep-vardiya');
+  sel.innerHTML = '<option value="">— Yükleniyor... —</option>';
+  btnAktif(false);
+
+  if(!tarih){ sel.innerHTML='<option value="">— Tarih seçin —</option>'; return; }
+
+  try{
+    const res  = await fetch(`/api/rapor/vardiya_listesi?tarih=${tarih}`, {cache:'no-store'});
+    const list = await res.json();
+    if(!Array.isArray(list) || list.length===0){
+      sel.innerHTML='<option value="">Bu tarihte kayıt yok</option>';
+      document.getElementById('rapor-icerik').innerHTML =
+        '<div class="durum">Bu tarihte üretim verisi bulunamadı.</div>';
+      return;
+    }
+    sel.innerHTML = list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    // Otomatik ilk vardiyayı yükle
+    yukleRapor();
+  }catch(e){
+    sel.innerHTML='<option value="">— Hata —</option>';
+  }
+}
+
+// ── Rapor yükleme ──
+async function yukleRapor(){
+  const tarih   = document.getElementById('rep-tarih').value;
+  const vardiya = document.getElementById('rep-vardiya').value;
+  const ic      = document.getElementById('rapor-icerik');
+  btnAktif(false);
+
+  if(!tarih||!vardiya){
+    ic.innerHTML='<div class="durum">Tarih ve vardiyayı seçin, ardından Yükle\'ye basın.</div>';
+    return;
+  }
+
+  ic.innerHTML='<div class="durum"><div class="spinner"></div><br>Veriler yükleniyor...</div>';
+
+  try{
+    const url = `/api/rapor/gunluk_detay?tarih=${tarih}&vardiya=${encodeURIComponent(vardiya)}`;
+    const res  = await fetch(url, {cache:'no-store'});
+    const text = await res.text();
+    let veri;
+    try{ veri=JSON.parse(text); }
+    catch(e){
+      ic.innerHTML=`<div class="hata-kutu">❌ Sunucu geçersiz yanıt döndürdü.<br><small style="font-size:9px">${text.substring(0,300)}</small></div>`;
+      return;
+    }
+    if(veri.hata){
+      ic.innerHTML=`<div class="hata-kutu">❌ ${esc(veri.hata)}</div>`;
+      return;
+    }
+    renderTablo(veri,tarih,vardiya);
+    btnAktif(true);
+  }catch(e){
+    ic.innerHTML=`<div class="hata-kutu">❌ Bağlantı hatası: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Tablo render ──
+function renderTablo(veri, tarih, vardiya){
+  const data   = veri.data || {};
+  const robots = ['1','2','3','4','5','6','7','8','9','M'];
+  const tarihL = formatTarih(tarih);
+
+  let html=`<div id="rapor-wrap"><table class="rapor">
+    <colgroup>
+      <col style="width:46px">
+      <col style="width:90px">
+      <col>
+      <col style="width:58px">
+      <col style="width:58px">
+      <col style="width:58px">
+    </colgroup>
+    <thead>
+      <tr class="r-baslik">
+        <td colspan="3" style="text-align:center">GÜNLÜK ÜRETİM RAPORU</td>
+        <td colspan="3" style="font-size:9.5px">Vardiya:${esc(vardiya)}&nbsp;|&nbsp;${tarihL}</td>
+      </tr>
+      <tr class="r-col-hdr">
+        <td>ROBOT</td><td>OPERATÖR</td><td>PARÇA KODU</td>
+        <td>ADET</td><td>TAMİR</td><td>HURDA</td>
+      </tr>
+    </thead>`;
+
+  robots.forEach(function(rKey){
+    const rawItems = data[rKey] || [];
+    // Boş referanslı ve 0 adetli satırları filtrele
+    const items = rawItems.filter(function(i){ return i.parca_kodu || i.adet>0; });
+
+    html += `<tbody class="robot-group">`;
+
+    if(items.length===0){
+      html += `<tr>
+        <td class="r-robot">${rKey}</td>
+        <td class="c-op">—</td><td class="c-parca">—</td>
+        <td class="c-adet"></td><td class="c-tamir"></td><td class="c-hurda"></td>
+      </tr>`;
+    } else {
+      items.forEach(function(item, idx){
+        const a=item.adet||0, t=item.tamir||0, h=item.hurda||0;
+        
+        html += `<tr>`;
+        if(idx===0){
+          html+=`<td class="r-robot" rowspan="${items.length}">${rKey}</td>`;
+        }
+        html+=`<td class="c-op">${esc(item.operator)}</td>
+               <td class="c-parca">${esc(item.parca_kodu)}</td>
+               <td class="c-adet">${a||''}</td>
+               <td class="c-tamir">${t||''}</td>
+               <td class="c-hurda">${h||''}</td>
+        </tr>`;
+      });
+    }
+    
+    html += `</tbody>`;
+  });
+
+  html+='</table></div>';
+  document.getElementById('rapor-icerik').innerHTML=html;
+}
+
+// ── Canvas yakala ──
+async function yakalaCanvas(){
+  const el=document.querySelector('#rapor-wrap table');
+  if(!el) return null;
+  return await html2canvas(el, {
+    scale:2.5, useCORS:true, backgroundColor:'#ffffff', logging:false
+  });
+}
+
+// ── WhatsApp paylaş ──
+async function wpPaylas(){
+  const btn=document.getElementById('btn-wp');
+  btn.disabled=true;
+  btn.textContent='⏳ Hazırlanıyor...';
+  try{
+    const canvas=await yakalaCanvas();
+    if(!canvas) throw new Error('Tablo oluşturulamadı');
+    const blob=await new Promise(function(res){ canvas.toBlob(res,'image/png'); });
+    const file=new File([blob],'uretim_raporu.png',{type:'image/png'});
+
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({
+        files:[file],
+        title:'Günlük Üretim Raporu',
+        text:'Günlük Üretim Raporu'
+      });
+    } else {
+      // Fallback: indir + WhatsApp Web
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download='uretim_raporu.png'; a.click();
+      URL.revokeObjectURL(url);
+      setTimeout(function(){ window.open('https://web.whatsapp.com','_blank'); }, 800);
+      alert('Resim indirildi.\nWhatsApp\'ta gruba gönderebilirsiniz.');
+    }
+  }catch(e){
+    if(e.name!=='AbortError') alert('Paylaşım hatası: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='<svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> WhatsApp\'a Gönder';
+  }
+}
+
+// ── Görseli kaydet ──
+async function gorselKaydet(){
+  const btn=document.getElementById('btn-sav');
+  btn.disabled=true; btn.textContent='⏳ Kaydediliyor...';
+  try{
+    const canvas=await yakalaCanvas();
+    if(!canvas) throw new Error('Tablo oluşturulamadı');
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png');
+    a.download='uretim_raporu.png'; a.click();
+  }catch(e){
+    alert('Hata: '+e.message);
+  }finally{
+    btn.disabled=false; btn.textContent='💾 Kaydet';
+  }
+}
+
+function btnAktif(aktif){
+  document.getElementById('btn-wp').disabled=!aktif;
+  document.getElementById('btn-sav').disabled=!aktif;
+}
+</script>
+</body>
+</html>

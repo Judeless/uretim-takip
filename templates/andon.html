@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cofle Manage - Andon v2 Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    /* ╔══════════════════════════════════════════════════════════════╗
+       ║  ANDON V2 — YATAY KART TASARIMI                            ║
+       ╚══════════════════════════════════════════════════════════════╝ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:    #060e1f;
+      --bg-secondary:  #0d1a30;
+      --bg-card:       #0f1f3a;
+      --bg-elevated:   #1a3050;
+      --border:        #1c3460;
+      --border-subtle: #152a4d;
+
+      --text-primary:   #edf2f7;
+      --text-secondary: #9db5d4;
+      --text-muted:     #5a7da3;
+
+      --accent-green:   #34d399;
+      --accent-green-soft: #a7f3d0;
+      --accent-green-glow: rgba(52, 211, 153, 0.18);
+      --accent-blue:    #60a5fa;
+      --accent-blue-soft: #bfdbfe;
+      --accent-blue-glow: rgba(96, 165, 250, 0.14);
+      --accent-indigo:  #a5b4fc;
+      --accent-purple:  #c4b5fd;
+      --accent-yellow:  #fcd34d;
+      --accent-yellow-glow: rgba(252, 211, 77, 0.15);
+      --accent-orange:  #fb923c;
+      --accent-red:     #f87171;
+      --accent-red-soft: #fecaca;
+      --accent-cyan:    #67e8f9;
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+      --card-radius: 12px;
+
+      /* Dinamik Ayarlar (JS ile güncellenir) */
+      --ref-fs: 0.72rem;
+      --st-fs: 0.85rem;
+      --op-fs: 0.75rem;
+      --ref-color: #bef264;
+      --dw-color: #fcd34d;
+      --dw-fs: 0.74rem;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ╔══════════════════════════════════════════════════════════════╗
+       ║  LAYOUT                                                     ║
+       ╚══════════════════════════════════════════════════════════════╝ */
+    .andon-root {
+      display: grid;
+      grid-template-rows: auto 1fr auto auto;
+      height: 100vh;
+      gap: 6px;
+      padding: 8px 14px 6px;
+    }
+
+    /* ╔══════════════════════════════════════════════════════════════╗
+       ║  HEADER                                                     ║
+       ╚══════════════════════════════════════════════════════════════╝ */
+    .andon-header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo {
+      height: 34px; width: auto; object-fit: contain;
+      filter: drop-shadow(0 0 8px rgba(96,165,250,.25));
+    }
+    .header-brand { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.04em; }
+    .header-brand-sub { font-size: 0.62rem; color: var(--text-muted); font-weight: 500; }
+
+    .header-center { text-align: center; }
+    .header-clock {
+      font-family: var(--font-mono);
+      font-size: 2.4rem; font-weight: 700;
+      letter-spacing: 0.08em; line-height: 1;
+      background: linear-gradient(135deg, #e0eaff, var(--accent-blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-date { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
+
+    .header-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .header-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px;
+      font-size: 0.62rem; color: var(--text-secondary);
+    }
+    .header-badge .pulse-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent-green); }
+      50% { opacity: 0.35; box-shadow: 0 0 2px var(--accent-green); }
+    }
+    .header-btn {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-secondary); border-radius: 10px;
+      padding: 4px 11px; font-size: 0.62rem; font-weight: 600;
+      cursor: pointer; font-family: var(--font-sans);
+      transition: all 0.2s ease;
+    }
+    .header-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+    .header-btn.accent { border-color: var(--accent-indigo); color: var(--accent-indigo); }
+
+    /* ╔══════════════════════════════════════════════════════════════╗
+       ║  ROBOT GRID — YATAY KARTLAR (2 sütun, 4 satır)             ║
+       ╚══════════════════════════════════════════════════════════════╝ */
+    .robots-section { overflow: hidden; display: flex; flex-direction: column; }
+    .section-label {
+      font-size: 0.58rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--text-muted); margin-bottom: 4px; flex-shrink: 0;
+    }
+    .robot-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-auto-rows: 1fr; /* eşit satır yükseklikleri */
+      gap: 6px;
+      flex: 1; min-height: 0;
+    }
+
+    /* ── ROBOT KART (yatay) ── */
+    .robot-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--card-radius);
+      display: grid;
+      grid-template-columns: 120px 1fr;  /* kimlik sol, geri kalanı sağ bölüm */
+      position: relative;
+      overflow: hidden;
+      min-height: 0;
+      transition: all 0.3s ease;
+    }
+
+    /* Sağ bölüm: istasyonlar + yan panel birlikte, kendi içinde flex-row */
+    .card-right {
+      display: flex;
+      flex-direction: row;
+      min-width: 0;
+      overflow: hidden;
+    }
+    /* Sol kenar glow */
+    .robot-card::before {
+      content: '';
+      position: absolute; top: 10%; bottom: 10%; left: 0; width: 3px;
+      border-radius: 0 4px 4px 0;
+      transition: all 0.4s ease;
+    }
+    .robot-card.active { border-color: rgba(52,211,153,.35); }
+    .robot-card.active::before { background: var(--accent-green); box-shadow: 0 0 18px var(--accent-green-glow); top: 5%; bottom: 5%; }
+    .robot-card.pending { border-color: rgba(252,211,77,.3); }
+    .robot-card.pending::before { background: var(--accent-yellow); box-shadow: 0 0 18px var(--accent-yellow-glow); top: 5%; bottom: 5%; }
+    .robot-card.idle { opacity: 0.4; }
+
+    /* İdentite paneli (sol) */
+    .card-identity {
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      padding: 6px 8px;
+      border-right: 1px solid var(--border-subtle);
+      gap: 2px;
+    }
+    .card-robot-name {
+      font-size: 1.15rem; font-weight: 900;
+      letter-spacing: 0.06em; 
+      color: #fff;
+      background: #1e3a8a; /* Koyu Lacivert Badge */
+      padding: 2px 10px;
+      border-radius: 6px;
+      margin: 4px 0;
+      box-shadow: 0 0 10px rgba(30, 58, 138, 0.4);
+    }
+    .card-status-dot {
+      width: 8px; height: 8px; border-radius: 50%; margin-bottom: 2px;
+    }
+    .card-status-dot.on  { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+    .card-status-dot.wait { background: var(--accent-yellow); box-shadow: 0 0 8px var(--accent-yellow); }
+    .card-status-dot.off { background: var(--text-muted); }
+    .card-operator {
+      font-size: var(--op-fs); font-weight: 700;
+      color: var(--accent-purple);
+      text-transform: uppercase;
+      text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      max-width: 100%;
+    }
+    .card-shift {
+      font-size: 0.56rem; color: var(--text-muted); font-weight: 500;
+      text-align: center;
+    }
+
+    /* İstasyonlar paneli (orta) */
+    .card-stations {
+      display: grid; grid-template-columns: 1fr 1fr;
+      flex: 1 1 0;        /* kalan yeri al */
+      min-width: 0;       /* taşmayı engelle */
+      overflow: hidden;
+    }
+    .station-pane {
+      display: flex; flex-direction: column;
+      overflow: hidden; padding: 4px 6px;
+    }
+    .station-pane + .station-pane { border-left: 1px solid var(--border-subtle); }
+
+    .station-header {
+      font-size: var(--st-fs);
+      font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 6px; flex-shrink: 0;
+      padding-bottom: 2px;
+      border-bottom: 2px solid transparent;
+    }
+    .station-header.st1 { color: var(--accent-yellow); border-color: rgba(252, 211, 77, 0.3); }
+    .station-header.st2 { color: var(--accent-cyan); border-color: rgba(103, 232, 249, 0.3); }
+
+    .ref-list {
+      flex: 1; min-height: 0;
+      overflow-y: auto; overflow-x: hidden;
+      scrollbar-width: none;
+    }
+    .ref-list::-webkit-scrollbar { display: none; }
+
+    .ref-row {
+      display: flex; flex-direction: column; align-items: flex-start;
+      padding: 4px 8px; border-radius: 6px;
+      margin-bottom: 4px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      gap: 2px;
+      min-height: 28px;
+    }
+    .ref-row:hover { background: rgba(255, 255, 255, 0.07); }
+    .ref-row.done {
+      background: rgba(100, 116, 139, 0.06);
+      opacity: 0.55;
+    }
+    .ref-row.done .ref-code { text-decoration: line-through; }
+
+    .ref-code {
+      font-size: var(--ref-fs);
+      font-weight: 800;
+      color: var(--ref-color);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      filter: drop-shadow(0 0 2px rgba(190, 242, 100, 0.2));
+    }
+    .ref-done-icon {
+      color: var(--accent-green); font-size: 0.65rem; flex-shrink: 0;
+    }
+    .ref-launch {
+      font-size: 0.58rem; font-weight: 600;
+      color: var(--dw-color);
+      opacity: 0.85;
+      white-space: nowrap;
+    }
+    .ref-empty {
+      font-size: 0.62rem; color: var(--text-muted);
+      padding: 4px; text-align: center;
+    }
+
+    /* ── YAN PANEL (sağ) — sabit genişlikli sütunlar ve tasmanın yönetimi ── */
+    .card-side {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      border-left: 1px solid var(--border-subtle);
+      min-width: 180px;
+      max-width: 360px;
+      flex-shrink: 0;
+      height: 100%;
+      padding: 4px;
+      gap: 4px;
+      overflow: hidden;
+    }
+
+    .side-col {
+      display: flex;
+      flex-direction: column;
+      width: 172px;
+      flex-shrink: 0;
+      gap: 3px;
+      overflow: hidden;
+    }
+
+    /* Sıradaki iş */
+    .next-job-label {
+      font-size: 0.72rem; 
+      font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--accent-orange); 
+      margin-top: 1px;
+      padding: 0 2px;
+    }
+    .next-job-item {
+      background: rgba(249, 115, 22, 0.07);
+      border: 1px solid rgba(249, 115, 22, 0.25);
+      border-radius: 4px; padding: 4px 6px;
+      font-size: 0.78rem; 
+      font-weight: 700;
+      color: var(--accent-yellow);
+      font-family: var(--font-mono);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* Duruş bloğu */
+    .downtime-header {
+      background: rgba(248, 113, 113, 0.08);
+      border: 1px solid rgba(248, 113, 113, 0.2);
+      border-radius: 4px;
+      padding: 4px 7px;
+      font-size: 0.72rem;
+      font-weight: 800; color: var(--accent-red-soft);
+      margin-top: 1px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* Tek satır: sebep (ellipsis) + tür + süre — hepsi aynı satırda */
+    .downtime-row {
+      display: flex; align-items: center; gap: 4px;
+      padding: 3px 6px;
+      font-size: var(--dw-fs);
+      background: rgba(248, 113, 113, 0.04);
+      border: 1px solid rgba(248, 113, 113, 0.12);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .downtime-reason {
+      color: var(--dw-color); font-weight: 600;
+      flex: 1 1 0; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .downtime-meta {
+      display: flex; align-items: center; gap: 4px;
+      flex-shrink: 0; white-space: nowrap;
+    }
+    .downtime-type { font-size: 0.62rem; }
+    .downtime-type.planned { color: var(--accent-green-soft); }
+    .downtime-type.unplanned { color: var(--accent-red-soft); }
+    .downtime-dur { color: var(--accent-red); font-weight: 700; flex-shrink: 0; }
+
+    /* Boş yan panel dolgu */
+    .card-side-empty {
+      display: flex; align-items: center; justify-content: center;
+      flex: 1; min-height: 100%;
+      font-size: 0.6rem; color: var(--text-muted); font-style: italic;
+    }
+
+    /* ── BOŞ KART TAMPON ── */
+    .card-empty-content {
+      grid-column: 2 / 3; /* 2 sütunlu grid'e uygun */
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px;
+    }
+    .card-empty-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); opacity: 0.3; }
+    .card-empty-text { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
+
+    /* ╔══════════════════════════════════════════════════════════════╗
+       ║  REFERANS TAKİP                                             ║
+       ╚══════════════════════════════════════════════════════════════╝ */
+    .ref-track-bar {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 6px 14px;
+    }
+    .ref-track-title {
+      font-size: 0.56rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--text-muted); margin-bottom: 4px;
+    }
+    .ref-track-scroll { display: flex; gap: 8px; flex-wrap: wrap; }
+    
+    .rt-match-group {
+      border: 1px dashed rgba(52, 211, 153, 0.4);
+      border-radius: 12px;
+      padding: 6px;
+      margin-bottom: 2px;
+      background: rgba(52, 211, 153, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+    }
+    .rt-match-group-title {
+      font-size: 0.65rem;
+      color: var(--accent-green);
+      font-weight: 800;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 2px 0;
+      width: 100%;
+      border-bottom: 1px dashed rgba(52, 211, 153, 0.2);
+      margin-bottom: 2px;
+    }
+
+    .rt-match-group-items {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .rt-pill {
+      border-radius: 10px; padding: 5px 11px;
+      min-width: 125px; transition: transform 0.2s ease;
+    }
+    .rt-pill-ref { font-size: 0.72rem; font-weight: 800; }
+    .rt-pill-sub { font-size: 0.56rem; opacity: 0.75; margin-top: 1px; }
+    .rt-pill-badge {
+      font-size: 0.54rem; font-weight: 700;
+      border-radius: 5px; padding: 2px 7px;
+      display: inline-block; margin-top: 3px;
+      background: rgba(0,0,0,.25);
+    }
+    .rt-launch-alinacak   { background: #1e293b; border: 1px solid #334155; }
+    .rt-launch-alindi     { background: #172554; border: 1px solid #1d4ed8; }
+    .rt-launch-hazir      { background: #14532d; border: 1px solid #16a34a; }
+    .rt-uretimde          { background: #451a03; border: 1px solid #ea580c; }
+    .rt-uretim-tamamlandi { background: #365314; border: 1px solid #65a30d; }
+
+    /* ╔══════════════════════════════════════════════════════════════╗
+       ║  TICKER BAR                                                 ║
+       ╚══════════════════════════════════════════════════════════════╝ */
+    .ticker-bar {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 5px 14px;
+      display: flex; align-items: center; gap: 12px;
+      overflow: hidden; min-height: 26px;
+    }
+    .ticker-label {
+      font-size: 0.56rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--accent-blue); white-space: nowrap; flex-shrink: 0;
+    }
+    .ticker-marquee { flex: 1; overflow: hidden; position: relative; }
+    .ticker-inner {
+      display: inline-block; white-space: nowrap;
+      font-size: 0.7rem; color: var(--text-primary);
+      animation: ticker-scroll 30s linear infinite;
+    }
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    .ticker-inner.paused { animation: none; }
+    .ticker-ts {
+      font-size: 0.56rem; color: var(--text-muted);
+      white-space: nowrap; flex-shrink: 0;
+      font-family: var(--font-mono);
+    }
+
+    /* ╔══════════════════════════════════════════════════════════════╗
+       ║  DUYURU MODAL                                               ║
+       ╚══════════════════════════════════════════════════════════════╝ */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 24px 26px;
+      width: 420px; max-width: 90vw;
+      box-shadow: 0 24px 60px rgba(0,0,0,.45);
+    }
+    .modal-box h3 { font-size: 1rem; font-weight: 800; margin-bottom: 14px; }
+    .modal-box textarea {
+      width: 100%; height: 80px;
+      background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 12px; color: var(--text-primary);
+      font-size: 0.85rem; padding: 12px; font-family: var(--font-sans); resize: none;
+    }
+    .modal-box textarea:focus { outline: none; border-color: var(--accent-blue); }
+    .modal-box input[type="text"] {
+      width: 100%; background: var(--bg-primary);
+      border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text-primary); font-size: 0.82rem;
+      padding: 10px 14px; font-family: var(--font-sans); margin-top: 10px;
+    }
+    .modal-box input[type="text"]:focus { outline: none; border-color: var(--accent-blue); }
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .modal-actions button {
+      flex: 1; padding: 10px; border-radius: 12px;
+      font-weight: 700; font-size: 0.82rem;
+      cursor: pointer; border: none; font-family: var(--font-sans);
+      transition: all 0.2s ease;
+    }
+    .modal-btn-primary { background: var(--accent-blue); color: #fff; }
+    .modal-btn-primary:hover { background: #3b82f6; }
+    .modal-btn-danger  { background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.3) !important; color: var(--accent-red); }
+    .modal-btn-ghost   { background: var(--bg-elevated); border: 1px solid var(--border) !important; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+
+<div class="andon-root">
+
+  <header class="andon-header">
+    <div class="header-left">
+      <img src="/logo" class="header-logo" alt="Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <div style="display:none">
+        <div class="header-brand">Cofle Manage</div>
+        <div class="header-brand-sub">Production Tracking</div>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="header-clock" id="clock-time">--:--:--</div>
+      <div class="header-date" id="clock-date">--</div>
+    </div>
+    <div class="header-right">
+      <div class="header-badge">
+        <span class="pulse-dot"></span>
+        <span id="refresh-label">Yenileniyor...</span>
+      </div>
+      <button class="header-btn" onclick="AndonApp.toggleFullscreen()">Tam Ekran</button>
+      <button class="header-btn accent" onclick="AndonApp.openAnnouncementModal()">Duyuru</button>
+    </div>
+  </header>
+
+  <div class="robots-section">
+    <div class="section-label">Robot Durum Paneli</div>
+    <div class="robot-grid" id="robot-grid"></div>
+  </div>
+
+  <div class="ref-track-bar">
+    <div class="ref-track-title">Referans Takip &mdash; Launch / Is Emri</div>
+    <div class="ref-track-scroll" id="ref-track-scroll">
+      <div style="color:var(--text-muted);font-size:.72rem">Yukleniyor...</div>
+    </div>
+  </div>
+
+  <div class="ticker-bar">
+    <div class="ticker-label">DUYURU</div>
+    <div class="ticker-marquee">
+      <div class="ticker-inner paused" id="ticker-inner">Cofle Manage Uretim Takip Sistemi aktif.</div>
+    </div>
+    <div class="ticker-ts" id="ticker-ts"></div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="announce-modal">
+  <div class="modal-box">
+    <h3>Andon Duyuru Mesaji</h3>
+    <textarea id="announce-text" placeholder="Duyuru mesajini buraya yazin..."></textarea>
+    <input type="text" id="announce-author" placeholder="Yazan (istege bagli)">
+    <div class="modal-actions">
+      <button class="modal-btn-ghost" onclick="AndonApp.closeAnnouncementModal()">Iptal</button>
+      <button class="modal-btn-danger" onclick="AndonApp.clearAnnouncement()">Temizle</button>
+      <button class="modal-btn-primary" onclick="AndonApp.saveAnnouncement()">Yayinla</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  'use strict';
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MODULE 1: DataService
+  // ═══════════════════════════════════════════════════════════════
+  const DataService = (() => {
+    const API_URL = '/api/andon';
+    const SETTINGS_URL = '/api/andon_robot_ayarlari';
+    const ANNOUNCE_URL = '/api/andon/mesaj';
+    const REFRESH_SEC = 30;
+    let _data = null, _robots = [], _countdown = REFRESH_SEC, _listeners = [];
+
+    function subscribe(fn) { _listeners.push(fn); }
+    function _notify() { _listeners.forEach(fn => fn(_data)); }
+
+    async function fetchRobotSettings() {
+      try {
+        const res = await fetch(SETTINGS_URL);
+        const arr = await res.json();
+        _robots = arr.filter(r => r.goster).sort((a, b) => a.sira - b.sira).map(r => r.robot_no);
+      } catch (e) {
+        _robots = ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8'];
+      }
+      return _robots;
+    }
+    async function fetchData() {
+      try {
+        const res = await fetch(API_URL);
+        _data = await res.json();
+        _notify();
+        _countdown = REFRESH_SEC;
+        ClockModule.updateBadge('Canli · ' + REFRESH_SEC + 's');
+      } catch (e) { ClockModule.updateBadge('Baglanti hatasi'); }
+    }
+    async function postAnnouncement(metin, yazar) {
+      await fetch(ANNOUNCE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ metin, yazar }) });
+      await fetchData();
+    }
+    function start() {
+      fetchData();
+      setInterval(() => {
+        _countdown--;
+        if (_countdown <= 0) fetchData();
+        else ClockModule.updateBadge('Canli · ' + _countdown + 's');
+      }, 1000);
+    }
+    function getData() { return _data; }
+    function getRobots() { return _robots; }
+    return { subscribe, fetchRobotSettings, fetchData, postAnnouncement, start, getData, getRobots };
+  })();
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MODULE 2: ClockModule
+  // ═══════════════════════════════════════════════════════════════
+  const ClockModule = (() => {
+    function tick() {
+      const now = new Date();
+      document.getElementById('clock-time').textContent = now.toLocaleTimeString('tr-TR', { hour12: false });
+      document.getElementById('clock-date').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('ticker-ts').textContent = now.toLocaleTimeString('tr-TR', { hour12: false });
+    }
+    function updateBadge(text) { document.getElementById('refresh-label').textContent = text; }
+    function start() { tick(); setInterval(tick, 1000); }
+    return { start, updateBadge };
+  })();
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MODULE 3: RobotRenderer — ESNEK SAĞ PANEL Düzeni
+  // ═══════════════════════════════════════════════════════════════
+  const RobotRenderer = (() => {
+    function renderRefList(entries) {
+      if (!entries || !entries.length) return '<div class="ref-empty">&mdash;</div>';
+      return entries.map(e => {
+        const cls = e.tamamlandi ? 'ref-row done' : 'ref-row';
+        const icon = e.tamamlandi ? '<span class="ref-done-icon">&#10003;</span>' : '';
+        const launch = e.launch > 0 ? `<span class="ref-launch">Launch Adeti: ${e.launch} adet</span>` : '';
+        return `<div class="${cls}" title="${e.ref}">
+          <div style="display:flex; align-items:center; gap:6px; width:100%">
+            <span class="ref-code">${e.ref}</span>${icon}
+          </div>
+          ${launch}
+        </div>`;
+      }).join('');
+    }
+
+    function render(data) {
+      const grid = document.getElementById('robot-grid');
+      const robots = DataService.getRobots();
+      const robotMap = {};
+      (data.robotlar || []).forEach(r => { robotMap[r.robot_no] = r; });
+
+      if (data.andon_font_size) {
+        document.documentElement.style.setProperty('--ref-fs', data.andon_font_size + 'rem');
+      }
+
+      grid.innerHTML = '';
+      robots.forEach(rName => {
+        const r = robotMap[rName];
+        const card = document.createElement('div');
+
+        if (r) {
+          const haveWork = (r.istasyon_1 && r.istasyon_1.length)
+                        || (r.istasyon_2 && r.istasyon_2.length)
+                        || (r.diger && r.diger.length);
+          const haveAtama = r.atamalar && r.atamalar.length > 0;
+          card.className = 'robot-card ' + (haveWork ? 'active' : haveAtama ? 'pending' : 'idle');
+          const sCls = haveWork ? 'on' : haveAtama ? 'wait' : 'off';
+
+          // ESNEK YAN PANEL İÇERİĞİ OLUŞTURMA - CHUNKING YÖNTEMİ
+          // Elemanları bir listeye toplayıp sonra sütunlara böleceğiz
+          let sideItems = [];
+          
+          if (haveAtama) {
+            sideItems.push(`<div class="next-job-label">SIRADAKİ İŞ</div>`);
+            r.atamalar.forEach(a => {
+              const ist = a.istasyon == 1 ? 'İst.1: ' : a.istasyon == 2 ? 'İst.2: ' : '';
+              sideItems.push(`<div class="next-job-item" title="${a.referans_kodu}">${ist}${a.referans_kodu}</div>`);
+            });
+          }
+
+          const dk = r.durus_dk || 0;
+          const detay = r.durus_detay || [];
+          if (dk > 0) {
+            sideItems.push(`<div class="downtime-header">${dk} dk Duruş</div>`);
+            detay.forEach(d => {
+              const tc = d.tip === 'planli' ? 'planned' : 'unplanned';
+              const tl = d.tip === 'planli' ? 'Pl.' : 'Plsz.';
+              sideItems.push(`
+              <div class="downtime-row">
+                <span class="downtime-reason">${d.sebep}</span>
+                <div class="downtime-meta">
+                  <span class="downtime-type ${tc}">${tl}</span>
+                  <span class="downtime-dur">${d.sure_dk}dk</span>
+                </div>
+              </div>`);
+            });
+          }
+
+          // Satırları sütunlara (col) kırpma (Her sütunda maks 5-6 öğe)
+          const MAX_ITEMS_PER_COL = 5;
+          let sideContentHtml = '';
+          if (sideItems.length > 0) {
+            for (let i = 0; i < sideItems.length; i += MAX_ITEMS_PER_COL) {
+              const chunk = sideItems.slice(i, i + MAX_ITEMS_PER_COL);
+              sideContentHtml += `<div class="side-col">${chunk.join('')}</div>`;
+            }
+          } else {
+            sideContentHtml = '<div class="card-side-empty"></div>';
+          }
+
+          card.innerHTML = `
+            <div class="card-identity">
+              <span class="card-status-dot ${sCls}"></span>
+              <span class="card-robot-name">${rName}</span>
+              <span class="card-operator">${r.operator || '—'}</span>
+              <span class="card-shift">${r.vardiya || ''} · ${r.baslangic || ''}-${r.bitis || ''}</span>
+            </div>
+
+            <div class="card-right">
+              <div class="card-stations">
+                <div class="station-pane">
+                  <div class="station-header st1">İSTASYON 1</div>
+                  <div class="ref-list">
+                    ${renderRefList([...(r.istasyon_1 || []), ...(r.diger || [])])}
+                  </div>
+                </div>
+                <div class="station-pane">
+                  <div class="station-header st2">İSTASYON 2</div>
+                  <div class="ref-list">
+                    ${renderRefList(r.istasyon_2)}
+                  </div>
+                </div>
+              </div>
+
+              <div class="card-side">
+                ${sideContentHtml}
+              </div>
+            </div>
+          `;
+        } else {
+          card.className = 'robot-card idle';
+          card.innerHTML = `
+            <div class="card-identity">
+              <span class="card-status-dot off"></span>
+              <span class="card-robot-name">${rName}</span>
+            </div>
+            <div class="card-empty-content">
+              <span class="card-empty-dot"></span>
+              <span class="card-empty-text">Kayıt Yok</span>
+            </div>
+          `;
+        }
+        grid.appendChild(card);
+      });
+    }
+    return { render };
+  })();
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MODULE 4: RefTrackRenderer
+  // ═══════════════════════════════════════════════════════════════
+  const RefTrackRenderer = (() => {
+    const S = {
+      launch_alinacak:   { label:'Launch Alinacak', cls:'rt-launch-alinacak',   color:'#94a3b8' },
+      launch_alindi:     { label:'Launch Alindi',   cls:'rt-launch-alindi',     color:'#93c5fd' },
+      launch_hazir:      { label:'Launch Hazir',    cls:'rt-launch-hazir',      color:'#86efac' },
+      uretimde:          { label:'Uretimde',        cls:'rt-uretimde',          color:'#fb923c' },
+      uretim_tamamlandi: { label:'Tamamlandi',      cls:'rt-uretim-tamamlandi', color:'#a3e635' }
+    };
+
+    function renderItem(r) {
+      const di = S[r.durum] || S['launch_alinacak'];
+      const adet = r.hedef_adet > 0 ? `${r.hedef_adet} adet` : '';
+      const ct = r.hedef_cycle_time_sn > 0 ? `${r.hedef_cycle_time_sn}sn` : '';
+      const parts = [adet, ct, r.aciklama].filter(Boolean).join(' · ');
+      return `<div class="rt-pill ${di.cls}">
+        <div class="rt-pill-ref">${r.referans_kodu}</div>
+        ${parts ? `<div class="rt-pill-sub">${parts}</div>` : ''}
+        <div class="rt-pill-badge" style="color:${di.color}">${di.label}</div>
+      </div>`;
+    }
+
+    function render(data) {
+      const el = document.getElementById('ref-track-scroll');
+      let list = data.referans_takip || [];
+      if (!list.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:.72rem;padding:4px 0">Kayit yok</div>'; return; }
+
+      // Aktif Launch durumundakileri al
+      const launchDurumlar = ['launch_alinacak', 'launch_alindi', 'launch_hazir'];
+      let activeItems = list.filter(r => launchDurumlar.includes(r.durum) && r.hedef_cycle_time_sn > 0);
+      let otherItems = list.filter(r => !(launchDurumlar.includes(r.durum) && r.hedef_cycle_time_sn > 0));
+
+      // Suresine gore sirala
+      activeItems.sort((a, b) => a.hedef_cycle_time_sn - b.hedef_cycle_time_sn);
+
+      let groups = [];
+      let currentGroup = [];
+
+      // 20 Saniye farkina gore grupla
+      for (let i = 0; i < activeItems.length; i++) {
+        const item = activeItems[i];
+        if (currentGroup.length === 0) {
+          currentGroup.push(item);
+        } else {
+          // Gruptaki en dusuk (ilk) eleman ile kiyasla (<= 20sn)
+          if (item.hedef_cycle_time_sn - currentGroup[0].hedef_cycle_time_sn <= 20) {
+            currentGroup.push(item);
+          } else {
+            groups.push(currentGroup);
+            currentGroup = [item];
+          }
+        }
+      }
+      if (currentGroup.length > 0) {
+        groups.push(currentGroup);
+      }
+
+      let html = '';
+
+      // Temsil edilen gruplar (en az 2 elemanli olanlari ciz)
+      groups.forEach(g => {
+        if (g.length > 1) {
+          html += `
+            <div class="rt-match-group">
+              <div class="rt-match-group-title">🤝 EŞ ÜRETİME UYGUN</div>
+              <div class="rt-match-group-items">
+                ${g.map(renderItem).join('')}
+              </div>
+            </div>
+          `;
+        } else if (g.length === 1) {
+          // Grup olamayanlari (tek kalanlari) digerlerine at
+          otherItems.push(g[0]);
+        }
+      });
+
+      // Geri kalanlari en alta ekle
+      html += otherItems.map(renderItem).join('');
+
+      el.innerHTML = html;
+    }
+    return { render };
+  })();
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MODULE 5: TickerRenderer
+  // ═══════════════════════════════════════════════════════════════
+  const TickerRenderer = (() => {
+    function render(data) {
+      const inner = document.getElementById('ticker-inner');
+      let metin = data.duyuru && data.duyuru.metin ? data.duyuru.metin : null;
+      if (data.plansiz_duruslar && data.plansiz_duruslar.length > 0 && !metin)
+        metin = 'Plansiz Duruslar: ' + data.plansiz_duruslar.map(x => x.sebep + ' (' + x.sure_dk + ' dk)').join(' · ');
+      if (metin) {
+        inner.textContent = metin + ((data.duyuru && data.duyuru.yazar) ? '  —  ' + data.duyuru.yazar : '');
+        inner.classList.remove('paused');
+      } else {
+        inner.textContent = 'Sistem aktif · Tum veriler otomatik yenilenmektedir.';
+        inner.classList.add('paused');
+      }
+    }
+    return { render };
+  })();
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MODULE 6: AndonApp — Orchestrator
+  // ═══════════════════════════════════════════════════════════════
+  const AndonApp = (() => {
+    function onData(d) { 
+      // Görünüm Ayarlarını Uygula
+      const root = document.documentElement.style;
+      if (d.andon_st1_color) root.setProperty('--accent-yellow', d.andon_st1_color);
+      if (d.andon_st2_color) root.setProperty('--accent-cyan',   d.andon_st2_color);
+      if (d.andon_op_color)  root.setProperty('--accent-purple', d.andon_op_color);
+      if (d.andon_ref_color) root.setProperty('--ref-color',     d.andon_ref_color);
+      if (d.andon_dw_color)  root.setProperty('--dw-color',      d.andon_dw_color);
+      
+      if (d.andon_st_fs)     root.setProperty('--st-fs', d.andon_st_fs + 'rem');
+      if (d.andon_op_fs)     root.setProperty('--op-fs', d.andon_op_fs + 'rem');
+      if (d.andon_dw_fs)     root.setProperty('--dw-fs', d.andon_dw_fs + 'rem');
+      if (d.andon_ref_fs)    root.setProperty('--ref-fs', d.andon_ref_fs + 'rem');
+      else if (d.andon_font_size) root.setProperty('--ref-fs', d.andon_font_size + 'rem');
+
+      RobotRenderer.render(d); 
+      RefTrackRenderer.render(d); 
+      TickerRenderer.render(d); 
+    }
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+    function openAnnouncementModal() {
+      document.getElementById('announce-modal').classList.add('open');
+      const d = DataService.getData();
+      if (d && d.duyuru) {
+        document.getElementById('announce-text').value = d.duyuru.metin || '';
+        document.getElementById('announce-author').value = d.duyuru.yazar || '';
+      }
+    }
+    function closeAnnouncementModal() { document.getElementById('announce-modal').classList.remove('open'); }
+    async function saveAnnouncement() {
+      await DataService.postAnnouncement(document.getElementById('announce-text').value.trim(), document.getElementById('announce-author').value.trim());
+      closeAnnouncementModal();
+    }
+    async function clearAnnouncement() { await DataService.postAnnouncement('', ''); closeAnnouncementModal(); }
+    async function init() {
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeAnnouncementModal();
+        if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); }
+      });
+      DataService.subscribe(onData);
+      ClockModule.start();
+      await DataService.fetchRobotSettings();
+      DataService.start();
+    }
+    return { init, toggleFullscreen, openAnnouncementModal, closeAnnouncementModal, saveAnnouncement, clearAnnouncement };
+  })();
+
+  AndonApp.init();
+</script>
+</body>
+</html>

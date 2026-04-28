@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cofle Manage - Montaj Hattı Andon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:    #071210;
+      --bg-secondary:  #0d2420;
+      --bg-card:       #0f2e28;
+      --bg-elevated:   #1a4a3f;
+      --border:        #1c5044;
+      --border-subtle: #15402d;
+
+      --text-primary:   #edf7f3;
+      --text-secondary: #9dd4be;
+      --text-muted:     #5a9d83;
+
+      --accent-green:   #34d399;
+      --accent-green-soft: #a7f3d0;
+      --accent-green-glow: rgba(52, 211, 153, 0.18);
+      --accent-blue:    #60a5fa;
+      --accent-emerald: #10b981;
+      --accent-teal:    #2dd4bf;
+      --accent-yellow:  #fcd34d;
+      --accent-orange:  #fb923c;
+      --accent-red:     #f87171;
+      --accent-red-soft: #fecaca;
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+      --card-radius: 14px;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* LAYOUT */
+    .andon-root {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+      gap: 8px;
+      padding: 10px 16px 8px;
+    }
+
+    /* HEADER */
+    .andon-header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { height: 36px; width: auto; object-fit: contain; filter: drop-shadow(0 0 8px rgba(52,211,153,.25)); }
+    .header-brand { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.04em; }
+    .header-brand-sub { font-size: 0.64rem; color: var(--text-muted); font-weight: 600; }
+    .header-dept-badge {
+      display: inline-block; background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff; padding: 3px 14px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; margin-left: 12px;
+      box-shadow: 0 0 12px rgba(16,185,129,0.3);
+    }
+
+    .header-center { text-align: center; }
+    .header-clock {
+      font-family: var(--font-mono);
+      font-size: 2.6rem; font-weight: 700;
+      letter-spacing: 0.08em; line-height: 1;
+      background: linear-gradient(135deg, #d1fae5, var(--accent-emerald));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-date { font-size: 0.66rem; color: var(--text-muted); margin-top: 2px; }
+
+    .header-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .header-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px;
+      font-size: 0.64rem; color: var(--text-secondary);
+    }
+    .pulse-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.35; }
+    }
+    .header-btn {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-secondary); border-radius: 10px;
+      padding: 5px 12px; font-size: 0.64rem; font-weight: 600;
+      cursor: pointer; font-family: var(--font-sans); transition: all 0.2s ease;
+    }
+    .header-btn:hover { border-color: var(--accent-emerald); color: var(--accent-emerald); }
+
+    /* MAIN CONTENT */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    /* OPERATOR CARD */
+    .op-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 16px;
+      display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .op-card::before {
+      content: '';
+      position: absolute; top: 8%; bottom: 8%; left: 0; width: 3px;
+      border-radius: 0 4px 4px 0;
+      transition: all 0.4s ease;
+    }
+    .op-card.active { border-color: rgba(52,211,153,.35); }
+    .op-card.active::before { background: var(--accent-green); box-shadow: 0 0 18px var(--accent-green-glow); }
+    .op-card.idle { opacity: 0.45; }
+
+    .op-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .op-status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .op-status-dot.on { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+    .op-status-dot.off { background: var(--text-muted); }
+    .op-name {
+      font-size: 1.1rem; font-weight: 900; color: #fff;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .op-shift {
+      font-size: 0.68rem; color: var(--text-muted); font-weight: 500;
+      margin-left: auto;
+    }
+
+    /* REF LIST INSIDE CARD */
+    .op-refs { flex: 1; overflow-y: auto; scrollbar-width: none; }
+    .op-refs::-webkit-scrollbar { display: none; }
+    .op-ref-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px; border-radius: 8px;
+      margin-bottom: 5px; gap: 8px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border-subtle);
+    }
+    .op-ref-row:hover { background: rgba(255,255,255,0.06); }
+    .op-ref-row.done { opacity: 0.5; }
+    .op-ref-row.done .op-ref-code { text-decoration: line-through; }
+    .op-ref-code {
+      font-size: 0.82rem; font-weight: 800;
+      color: #a7f3d0; font-family: var(--font-mono);
+      filter: drop-shadow(0 0 2px rgba(167,243,208,0.2));
+    }
+    .op-ref-launch {
+      font-size: 0.66rem; font-weight: 600;
+      color: var(--accent-yellow); opacity: 0.85;
+    }
+    .op-ref-empty {
+      font-size: 0.72rem; color: var(--text-muted); text-align: center;
+      padding: 20px;
+    }
+
+    /* SUMMARY FOOTER */
+    .op-footer {
+      display: flex; gap: 8px; margin-top: 10px; padding-top: 8px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .op-stat {
+      flex: 1; text-align: center; padding: 4px;
+      background: rgba(255,255,255,0.02); border-radius: 6px;
+    }
+    .op-stat-val { font-size: 1rem; font-weight: 900; color: var(--accent-teal); }
+    .op-stat-label { font-size: 0.56rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+
+    /* TICKER */
+    .ticker-bar {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 6px 16px;
+      display: flex; align-items: center; gap: 12px;
+      overflow: hidden; min-height: 30px;
+    }
+    .ticker-label {
+      font-size: 0.58rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--accent-emerald); white-space: nowrap; flex-shrink: 0;
+    }
+    .ticker-marquee { flex: 1; overflow: hidden; position: relative; }
+    .ticker-inner {
+      display: inline-block; white-space: nowrap;
+      font-size: 0.72rem; color: var(--text-primary);
+      animation: ticker-scroll 30s linear infinite;
+    }
+    @keyframes ticker-scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+    .ticker-inner.paused { animation: none; }
+    .ticker-ts {
+      font-size: 0.58rem; color: var(--text-muted);
+      white-space: nowrap; flex-shrink: 0; font-family: var(--font-mono);
+    }
+
+    /* EMPTY STATE */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 12px; grid-column: 1 / -1;
+    }
+    .empty-icon { font-size: 3rem; opacity: 0.4; }
+    .empty-text { font-size: 1rem; color: var(--text-muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<div class="andon-root">
+
+  <header class="andon-header">
+    <div class="header-left">
+      <img src="/logo" class="header-logo" alt="Logo" onerror="this.style.display='none'">
+      <div>
+        <div class="header-brand">Cofle Manage</div>
+        <div class="header-brand-sub">Üretim Takip Sistemi</div>
+      </div>
+      <span class="header-dept-badge">🔩 MONTAJ HATTI</span>
+    </div>
+    <div class="header-center">
+      <div class="header-clock" id="clock-time">--:--:--</div>
+      <div class="header-date" id="clock-date">--</div>
+    </div>
+    <div class="header-right">
+      <div class="header-badge">
+        <span class="pulse-dot"></span>
+        <span id="refresh-label">Yenileniyor...</span>
+      </div>
+      <button class="header-btn" onclick="toggleFullscreen()">Tam Ekran</button>
+    </div>
+  </header>
+
+  <div class="main-grid" id="main-grid">
+    <div class="empty-state">
+      <div class="empty-icon">⏳</div>
+      <div class="empty-text">Veriler yükleniyor...</div>
+    </div>
+  </div>
+
+  <div class="ticker-bar">
+    <div class="ticker-label">MONTAJ</div>
+    <div class="ticker-marquee">
+      <div class="ticker-inner paused" id="ticker-inner">Montaj Hattı Andon Ekranı aktif.</div>
+    </div>
+    <div class="ticker-ts" id="ticker-ts"></div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const API_URL = '/api/andon?bolum=montaj';
+const REFRESH_SEC = 30;
+let _countdown = REFRESH_SEC;
+
+// Clock
+function tickClock() {
+  const now = new Date();
+  document.getElementById('clock-time').textContent = now.toLocaleTimeString('tr-TR', { hour12: false });
+  document.getElementById('clock-date').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('ticker-ts').textContent = now.toLocaleTimeString('tr-TR', { hour12: false });
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+}
+
+function renderData(data) {
+  const grid = document.getElementById('main-grid');
+  const robotlar = data.robotlar || [];
+
+  if (!robotlar.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Bugün montaj hattında aktif vardiya yok</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+  robotlar.forEach(r => {
+    const card = document.createElement('div');
+    const allRefs = [...(r.istasyon_1 || []), ...(r.istasyon_2 || []), ...(r.diger || [])];
+    const hasWork = allRefs.length > 0;
+    card.className = 'op-card ' + (hasWork ? 'active' : 'idle');
+
+    // Referans listesi
+    let refHtml = '';
+    if (allRefs.length) {
+      refHtml = allRefs.map(e => {
+        const cls = e.tamamlandi ? 'op-ref-row done' : 'op-ref-row';
+        const launch = e.launch > 0 ? `<span class="op-ref-launch">Launch: ${e.launch}</span>` : '';
+        return `<div class="${cls}"><span class="op-ref-code">${e.ref}</span>${launch}</div>`;
+      }).join('');
+    } else {
+      refHtml = '<div class="op-ref-empty">Kayıt yok</div>';
+    }
+
+    // Duruş bilgisi
+    const dk = r.durus_dk || 0;
+    const durusAdet = r.durus_adet || 0;
+
+    card.innerHTML = `
+      <div class="op-header">
+        <span class="op-status-dot ${hasWork ? 'on' : 'off'}"></span>
+        <span class="op-name">${r.operator || '—'}</span>
+        <span class="op-shift">${r.vardiya || ''} · ${r.baslangic || ''} - ${r.bitis || ''}</span>
+      </div>
+      <div class="op-refs">${refHtml}</div>
+      <div class="op-footer">
+        <div class="op-stat">
+          <div class="op-stat-val">${allRefs.length}</div>
+          <div class="op-stat-label">Referans</div>
+        </div>
+        <div class="op-stat">
+          <div class="op-stat-val" style="color:${dk > 0 ? 'var(--accent-red)' : 'var(--accent-teal)'}">${dk} dk</div>
+          <div class="op-stat-label">Duruş</div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // Ticker
+  const inner = document.getElementById('ticker-inner');
+  let metin = data.duyuru && data.duyuru.metin ? data.duyuru.metin : null;
+  if (data.plansiz_duruslar && data.plansiz_duruslar.length > 0 && !metin)
+    metin = 'Plansız Duruşlar: ' + data.plansiz_duruslar.map(x => x.sebep + ' (' + x.sure_dk + ' dk)').join(' · ');
+  if (metin) {
+    inner.textContent = metin;
+    inner.classList.remove('paused');
+  } else {
+    inner.textContent = 'Montaj Hattı Andon Ekranı aktif · Veriler otomatik yenilenir.';
+    inner.classList.add('paused');
+  }
+}
+
+async function fetchData() {
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    renderData(data);
+    _countdown = REFRESH_SEC;
+    document.getElementById('refresh-label').textContent = 'Canlı · ' + REFRESH_SEC + 's';
+  } catch (e) {
+    document.getElementById('refresh-label').textContent = 'Bağlantı hatası';
+  }
+}
+
+// Init
+tickClock();
+setInterval(tickClock, 1000);
+fetchData();
+setInterval(() => {
+  _countdown--;
+  if (_countdown <= 0) fetchData();
+  else document.getElementById('refresh-label').textContent = 'Canlı · ' + _countdown + 's';
+}, 1000);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); }
+});
+</script>
+</body>
+</html>

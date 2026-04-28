@@ -1,0 +1,3437 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cofle Manage - Yönetici Paneli</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+        :root {
+            /* LIGHT TEMA (Varsayılan) */
+            --bg: #f8fafc;
+            --sidebar-bg: rgba(255, 255, 255, 0.7);
+            --sidebar-border: rgba(255, 255, 255, 0.5);
+            --card: rgba(255, 255, 255, 0.85);
+            --card-border: rgba(255, 255, 255, 0.5);
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #e2e8f0;
+            --border-subtle: #f1f5f9;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #06b6d4;
+            --table-hover: #f1f5f9;
+            --table-header: rgba(248, 250, 252, 0.8);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+            --radius: 16px;
+            --font-main: 'Inter', system-ui, sans-serif;
+            --glass-blur: blur(12px);
+        }
+
+        [data-theme="dark"] {
+            /* DARK TEMA */
+            --bg: #0f172a;
+            --sidebar-bg: rgba(30, 41, 59, 0.4);
+            --sidebar-border: rgba(255, 255, 255, 0.05);
+            --card: rgba(30, 41, 59, 0.6);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --primary: #60a5fa;
+            --primary-hover: #3b82f6;
+            --success: #34d399;
+            --danger: #f87171;
+            --warning: #fbbf24;
+            --info: #22d3ee;
+            --table-hover: rgba(255,255,255,0.03);
+            --table-header: rgba(15, 23, 42, 0.6);
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box; margin: 0; padding: 0;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        /* ── YARDIMCI SINIFLAR & SCROLLBAR ── */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.5); }
+
+        /* ── GÜNLÜK ÜRETİM RAPORU (Excel Style) ── */
+        /* Bu kisim yazdirilabilir oldugu icin cok degistirmiyoruz ama biraz toparliyoruz */
+        .report-table {
+            width: 100%; border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif;
+            border: 2px solid #000; background: #fff; color: #000; table-layout: fixed;
+        }
+        .report-table th, .report-table td {
+            border: 1px solid #000; padding: 4px 6px; font-size: 11px; text-align: center;
+            height: 24px; vertical-align: middle;
+        }
+        .re-header-row th { background: #92d050; font-weight: 800; font-size: 13px; }
+        .re-sub-header th { font-weight: 700; background: #f2f2f2; }
+        .re-robot-cell { font-size: 32px; font-weight: 900; background: #a6a6a6; }
+        .re-col-robot { width: 60px; } .re-col-op { width: 120px; } .re-col-part { width: 120px; }
+        .re-col-adet { width: 70px; background: #92d050 !important; font-weight: 700; }
+        .re-col-tamir { width: 70px; background: #ed7d31 !important; font-weight: 700; }
+        .re-col-hurda { width: 70px; background: #ff0000 !important; font-weight: 700; color: #fff; }
+
+        .report-modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: var(--glass-blur);
+            display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px;
+        }
+        .report-modal-content {
+            background: var(--card); border: 1px solid var(--card-border); padding: 30px; border-radius: var(--radius);
+            max-width: 800px; width: 100%; max-height: 95vh; overflow-y: auto; box-shadow: var(--shadow);
+            position: relative;
+        }
+        .report-controls {
+            display: flex; gap: 10px; margin-bottom: 20px; align-items: center;
+            background: var(--bg); padding: 15px; border-radius: 10px; border: 1px solid var(--border);
+        }
+        @media print {
+            .no-print { display: none !important; }
+            .report-modal-overlay { position: absolute; background: #fff; display: block; overflow: visible; }
+            .report-modal-content { box-shadow: none; padding: 0; border:none; }
+            body { background: #fff; color: #000; }
+        }
+
+        /* ── LAYOUT & SIDEBAR ── */
+        .layout { display: flex; min-height: 100vh; position: relative; }
+
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border-right: 1px solid var(--sidebar-border);
+            display: flex; flex-direction: column;
+            position: fixed; top: 0; left: 0; height: 100vh; z-index: 100;
+            padding: 24px 0;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.02);
+            transition: all 0.3s ease;
+        }
+        .sidebar-logo {
+            padding: 0 24px 24px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+        .sidebar-logo h2 {
+            font-size: 1.1rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em;
+        }
+        .sidebar-logo p {
+            color: var(--muted); font-size: 0.75rem; margin-top: 4px; font-weight: 500;
+        }
+        .nav-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 24px; color: var(--muted);
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative; text-decoration: none;
+        }
+        .nav-item::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            background: var(--primary); border-top-right-radius: 4px; border-bottom-right-radius: 4px;
+            transform: scaleY(0); transition: transform 0.2s ease;
+        }
+        .nav-item:hover { color: var(--text); background: rgba(59, 130, 246, 0.05); }
+        .nav-item.active { color: var(--primary); background: rgba(59, 130, 246, 0.08); }
+        .nav-item.active::before { transform: scaleY(1); }
+        .nav-icon { font-size: 1.25rem; width: 24px; text-align: center; }
+
+        .sidebar-footer {
+            margin-top: auto; padding: 20px 24px 0;
+            border-top: 1px solid var(--border);
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .sidebar-footer a {
+            display: flex; align-items: center; gap: 8px; color: var(--primary);
+            font-size: 0.85rem; text-decoration: none; font-weight: 700;
+        }
+
+        /* Tema Değiştirici */
+        .theme-toggle {
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
+            color: var(--muted); font-size: 0.85rem; font-weight: 600;
+            padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--bg); transition: all 0.2s;
+        }
+        .theme-toggle:hover { color: var(--text); border-color: var(--primary); }
+
+        .main {
+            margin-left: 260px; padding: 30px 40px 60px; flex: 1;
+            transition: margin 0.3s ease;
+        }
+
+        /* ── TOPBAR ── */
+        .topbar { margin-bottom: 24px; }
+        .topbar h1 { font-size: 1.8rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+        .topbar p { font-size: 0.85rem; color: var(--muted); font-weight: 500; margin-top: 4px; }
+
+        /* ── FORMLAR & FİLTRELER (Glassmorphism) ── */
+        .filter-bar {
+            background: var(--card); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--card-border); border-radius: var(--radius);
+            padding: 20px 24px; margin-bottom: 28px; box-shadow: var(--shadow);
+            display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;
+        }
+        .filter-bar .f-group { display: flex; flex-direction: column; gap: 6px; }
+        .filter-bar label {
+            font-size: 0.75rem; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .filter-bar input, .filter-bar select {
+            padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px;
+            font-size: 0.9rem; color: var(--text); background: var(--bg); font-family: var(--font-main);
+            outline: none; transition: all 0.2s; min-width: 140px; font-weight: 500;
+        }
+        .filter-bar input:focus, .filter-bar select:focus {
+            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        /* ── BUTONLAR ── */
+        .btn {
+            padding: 10px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700;
+            border: none; cursor: pointer; transition: all 0.2s ease; font-family: var(--font-main);
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary {
+            background: var(--primary); color: #fff;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 14px rgba(59, 130, 246, 0.4); }
+        .btn-outline {
+            background: transparent; border: 2px solid var(--border); color: var(--muted);
+        }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: rgba(59, 130, 246, 0.05); }
+        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: #fff; }
+
+        /* ── KPI KARTLARI (Glassmorphism) ── */
+        .kpi-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 28px;
+        }
+        .kpi-card {
+            background: var(--card); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--card-border); border-radius: var(--radius);
+            padding: 24px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
+        .kpi-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; opacity: 0.9;
+        }
+        .kpi-card.oee::before { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
+        .kpi-card.avail::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .kpi-card.perf::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .kpi-card.quality::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+        
+        .kpi-label {
+            font-size: 0.75rem; font-weight: 800; color: var(--muted); text-transform: uppercase;
+            letter-spacing: 0.05em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+        }
+        .kpi-value { font-size: 2.5rem; font-weight: 900; line-height: 1; color: var(--text); letter-spacing: -0.03em; }
+        .kpi-sub { font-size: 0.8rem; color: var(--muted); margin-top: 10px; font-weight: 500; }
+        .kpi-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 2.5rem; opacity: 0.1; filter: grayscale(100%); transition: all 0.3s; }
+        .kpi-card:hover .kpi-icon { opacity: 0.2; transform: translateY(-50%) scale(1.1); filter: none; }
+
+        /* ── SEKME BAR ── */
+        .inner-tab-bar {
+            display: flex; gap: 8px; margin-bottom: 24px;
+            background: var(--card); border: 1px solid var(--card-border);
+            backdrop-filter: var(--glass-blur); border-radius: 12px; padding: 8px;
+            flex-wrap: wrap; box-shadow: var(--shadow);
+        }
+        .inner-tab-btn {
+            padding: 10px 20px; border-radius: 8px; border: none; background: transparent;
+            color: var(--muted); font-size: 0.85rem; font-weight: 700; cursor: pointer;
+            transition: all 0.2s; font-family: var(--font-main);
+        }
+        .inner-tab-btn:hover { color: var(--text); background: rgba(0,0,0,0.03); }
+        .inner-tab-btn.active { background: var(--bg); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .tab-pin-btn {
+            margin-left: auto; background: transparent; border: 1px dashed var(--border); color: var(--muted);
+            padding: 8px 16px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+        }
+        .tab-pin-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(59,130,246,0.05); }
+
+        /* ── CHARTS ── */
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+        .chart-card {
+            background: var(--card); backdrop-filter: var(--glass-blur); border: 1px solid var(--card-border);
+            border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+        }
+        .chart-title { font-size: 1rem; font-weight: 800; color: var(--text); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+        .chart-wrap { position: relative; height: 260px; }
+
+        /* ── TABLES (Glassmorphism) ── */
+        .table-card {
+            background: var(--card); backdrop-filter: var(--glass-blur); border: 1px solid var(--card-border);
+            border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 24px;
+        }
+        .table-header {
+            padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.01);
+        }
+        .table-header h3 { font-size: 1.05rem; font-weight: 800; color: var(--text); }
+        .table-wrap { overflow-x: auto; scrollbar-width: thin; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left; }
+        th {
+            padding: 14px 24px; background: var(--table-header); color: var(--muted);
+            font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border); white-space: nowrap;
+        }
+        td {
+            padding: 14px 24px; border-bottom: 1px solid var(--border-subtle);
+            vertical-align: middle; font-weight: 500; color: var(--text);
+        }
+        tr:hover td { background: var(--table-hover); }
+        tr:last-child td { border: none; }
+
+        /* ── BADGES & STATUS ── */
+        .badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+        .badge-blue { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .badge-green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .badge-orange { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+        .badge-purple { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+        .badge-red { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+        .oee-bar-wrap { width: 120px; }
+        .oee-bar-bg { background: var(--border); border-radius: 6px; height: 8px; margin-top: 6px; overflow: hidden; }
+        .oee-bar { height: 100%; border-radius: 6px; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* ── LOADING & EMPTY ── */
+        .loading { text-align: center; padding: 50px; color: var(--muted); font-size: 0.95rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .spinner { width: 28px; height: 28px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+        .empty .empty-icon { font-size: 3.5rem; margin-bottom: 16px; opacity: 0.5; }
+
+        /* ── MODALS (Glassmorphism) ── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); backdrop-filter: var(--glass-blur);
+            display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal {
+            background: var(--card); border: 1px solid var(--card-border); border-radius: 24px; padding: 32px;
+            width: 100%; max-width: 560px; transform: scale(0.95) translateY(10px); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .modal-overlay.open .modal { transform: scale(1) translateY(0); }
+        .modal h3 { font-size: 1.3rem; font-weight: 800; margin-bottom: 24px; color: var(--text); }
+        .modal-form-row { margin-bottom: 16px; }
+        .modal-form-row label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+        .modal-form-row input, .modal-form-row select, .modal-form-row textarea {
+            width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 12px;
+            font-size: 0.95rem; background: var(--bg); color: var(--text); font-family: var(--font-main);
+            outline: none; transition: all 0.2s; font-weight: 500;
+        }
+        .modal-form-row input:focus, .modal-form-row select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; }
+
+        /* ── DETAIL PANEL ── */
+        .detail-panel {
+            position: fixed; top: 0; right: -500px; width: 500px; height: 100vh;
+            background: var(--card); backdrop-filter: var(--glass-blur); border-left: 1px solid var(--card-border);
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.1); z-index: 200; padding: 32px;
+            overflow-y: auto; transition: right 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .detail-panel.open { right: 0; }
+        .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+        .detail-header h3 { font-size: 1.2rem; font-weight: 800; color: var(--text); }
+        .panel-close { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 1rem; color: var(--text); transition: 0.2s; }
+        .panel-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .oee-meter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }
+        .meter-item { text-align: center; padding: 16px 8px; background: var(--bg); border-radius: 12px; border: 1px solid var(--border); }
+        .meter-val { font-size: 1.4rem; font-weight: 900; color: var(--text); }
+        .meter-lbl { font-size: 0.7rem; color: var(--muted); margin-top: 6px; font-weight: 700; text-transform: uppercase; }
+        .detail-section { margin-top: 24px; }
+        .detail-section h4 { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 12px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed var(--border); font-size: 0.9rem; font-weight: 500; }
+        .detail-row:last-child { border: none; }
+
+        /* TOAST */
+        .toast {
+            position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #0f172a; color: #fff; padding: 14px 28px; border-radius: 50px;
+            font-size: 0.9rem; font-weight: 700; z-index: 9999; opacity: 0; pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.ok { background: #10b981; } .toast.err { background: #ef4444; }
+
+        @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .chart-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) {
+            .sidebar { display: none; } .main { margin-left: 0; padding: 20px; }
+            .detail-panel { width: 100%; right: -100%; border-radius: 20px 20px 0 0; top: 10%; height: 90vh; transition: bottom 0.3s; }
+            .detail-panel.open { right: 0; }
+        }
+
+        /* ── DRAG & DROP PANELLERİ ── */
+        .panel-block { position: relative; margin-bottom: 24px; transition: opacity .2s, transform .15s; }
+        .panel-block.dragging { opacity: .45; transform: scale(.98); }
+        
+        .drag-handle:hover { color: var(--primary); background: rgba(59, 130, 246, 0.1); }
+        .drag-handle:active { cursor: grabbing; }
+
+        #sekme-vardiyalar { padding-left: 20px; }
+
+        /* ── GÖRÜNÜRLÜK KONTROLÜ ── */
+        .d-none { display: none !important; }
+        .inner-pane { display: none; }
+        .inner-pane.active { display: block; }
+
+    </style>
+</head>
+
+<body>
+    <div class="layout">
+
+        <!-- ══════════════════ SIDEBAR ══════════════════ -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <img src="/logo" alt="Cofle Logo" style="height:44px;width:auto;object-fit:contain;margin-bottom:6px;display:block"
+                    onerror="this.style.display='none';document.getElementById('sb-logo-txt').style.display='block'">
+                <div id="sb-logo-txt" style="display:none"><h2>Cofle Manage</h2></div>
+                <p>Yönetici Paneli</p>
+            </div>
+            <nav style="margin-top:8px">
+                <a class="nav-item active" onclick="sekmeDegistir('vardiyalar')"><span class="nav-icon">📊</span>
+                    Dashboard</a>
+                <a class="nav-item" onclick="sekmeDegistir('referanslar')"><span class="nav-icon">📦</span>
+                    Referanslar</a>
+                <a class="nav-item" onclick="sekmeDegistir('andon-ayarlar')"><span class="nav-icon">📺</span>
+                    Andon Ayarları</a>
+                <a class="nav-item" onclick="sekmeDegistir('raporlar')"><span class="nav-icon">📈</span>
+                    Raporlar</a>
+                <a class="nav-item" href="/rapor" target="_blank" style="background:rgba(37, 99, 235, 0.2);color:#93c5fd;border-left:3px solid #60a5fa"><span class="nav-icon">📲</span>
+                    Rapor Paylaş</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/" target="_blank"><span>📱</span> Operatör Formu</a>
+                <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" style="margin-top:16px;">
+                    <span id="themeIcon">🌙</span> Koyu Tema
+                </button>
+            </div>
+        </aside>
+
+        <!-- ══════════════════ MAIN ══════════════════ -->
+        <main class="main" style="position:relative; z-index:1">
+
+            <!-- ── TOPBAR ── -->
+            <div class="topbar">
+                <div>
+                    <h1 id="page-title">Dashboard</h1>
+                    <p style="font-size:.8rem;color:var(--muted);margin-top:2px" id="subtitle-text">Yükleniyor...</p>
+                </div>
+            </div>
+
+            <!-- ── SEKMELER KONTEYNERI ── -->
+            <div id="tab-content-container">
+                <!-- ── DASHBOARD SEKME ── -->
+                <div id="sekme-vardiyalar">
+                    <!-- Dashboard specific actions -->
+                    <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:20px">
+                        <button class="btn btn-outline" style="color: var(--success); border-color: var(--success); font-size:.8rem"
+                            onclick="excelVeriAktar()">📥 Excel'den Veri Aktar</button>
+                        <button class="btn btn-outline" style="font-size:.8rem" onclick="yukle()">🔄 Yenile</button>
+                    </div>
+
+                <!-- FILTER -->
+                <div class="filter-bar">
+                    <div class="f-group">
+                        <label>Başlangıç</label>
+                        <input type="date" id="f-bas">
+                    </div>
+                    <div class="f-group">
+                        <label>Bitiş</label>
+                        <input type="date" id="f-bit">
+                    </div>
+                    <div class="f-group">
+                        <label>Robot</label>
+                        <select id="f-robot">
+                            <option value="">Tümü</option>
+                        </select>
+                    </div>
+                    <div class="f-group">
+                        <label>Vardiya</label>
+                        <select id="f-vardiya">
+                            <option value="">Tümü</option>
+                            <option>Gündüz</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="yukle()">🔍 Filtrele</button>
+                    <button class="btn"
+                        style="background:#16a34a;color:#fff;font-weight:700;padding:13px 18px;border-radius:12px;border:none;cursor:pointer;font-size:.88rem"
+                        onclick="exportModalAc()">📥 Excel'e Kaydet</button>
+                    <button class="btn"
+                        style="background:#0f172a;color:#fff;font-weight:700;padding:13px 18px;border-radius:12px;border:none;cursor:pointer;font-size:.88rem;box-shadow: 0 4px 12px rgba(0,0,0,0.2)"
+                        onclick="tavGunlukRaporAc()">📊 Günlük Üretim Raporu</button>
+                </div>
+
+                <!-- KPI -->
+                <div class="kpi-grid">
+                    <div class="kpi-card oee">
+                        <div class="kpi-label">OEE Ortalaması</div>
+                        <div class="kpi-value" id="kpi-oee">—</div>
+                        <div class="kpi-sub" id="kpi-oee-sub">Hesaplanıyor...</div>
+                        <div class="kpi-icon">⚙️</div>
+                    </div>
+                    <div class="kpi-card avail">
+                        <div class="kpi-label">Kullanılabilirlik</div>
+                        <div class="kpi-value" id="kpi-avail">—</div>
+                        <div class="kpi-sub">Planlı süre kullanımı</div>
+                        <div class="kpi-icon">🟢</div>
+                    </div>
+                    <div class="kpi-card perf">
+                        <div class="kpi-label">Performans</div>
+                        <div class="kpi-value" id="kpi-perf">—</div>
+                        <div class="kpi-sub">Hedef gerçekleşme</div>
+                        <div class="kpi-icon">⚡</div>
+                    </div>
+                    <div class="kpi-card quality">
+                        <div class="kpi-label">Kalite</div>
+                        <div class="kpi-value" id="kpi-qual">—</div>
+                        <div class="kpi-sub">OK / Toplam üretim</div>
+                        <div class="kpi-icon">✅</div>
+                    </div>
+                </div>
+
+                <!-- ── İÇ SEKME BAR ── -->
+                <div class="inner-tab-bar" id="inner-tab-bar">
+                    <button class="inner-tab-btn active" onclick="innerSecme('ozet', this)">📊 Özet</button>
+                    <button class="inner-tab-btn" onclick="innerSecme('uretim', this)">📦 Üretim</button>
+                    <button class="inner-tab-btn" onclick="innerSecme('durus', this)">⏸ Duruşlar</button>
+                    <button class="inner-tab-btn" onclick="innerSecme('vardiya', this)">📋 Vardiyalar</button>
+                    <button class="inner-tab-btn" onclick="innerSecme('fikstur', this)">🔧 Fikstür & Programlar</button>
+                    <button class="inner-tab-btn" onclick="innerSecme('isatama', this)">📌 İş Yönetimi</button>
+                    <button class="tab-pin-btn" id="tab-pin-btn" onclick="tabTercihiKaydet()" title="Bu sekmeyi başlangıç olarak ayarla">📍 Başlangıç yap</button>
+                </div>
+
+                <!-- PANE: ÖZET -->
+                <div class="inner-pane active" id="inner-pane-ozet">
+                <!-- CHARTS -->
+                <div class="panel-block" data-block-id="charts">
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="chart-title">📉 Duruş Sebep Dağılımı</div>
+                            <div class="chart-wrap"><canvas id="chart-durus"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title">🤖 Robot Bazlı Üretim</div>
+                            <div class="chart-wrap"><canvas id="chart-robot"></canvas></div>
+                        </div>
+                    </div>
+                </div><!-- /charts -->
+                </div><!-- /pane ozet -->
+
+                <!-- PANE: ÜRETİM -->
+                <div class="inner-pane" id="inner-pane-uretim">
+
+                <!-- DETAYLI ÜRETİM KAYITLARI -->
+                <div class="panel-block" data-block-id="uretim-detay">
+                    <div class="table-card" style="margin-bottom:0">
+                        <div class="table-header">
+                            <h3>📝 Detaylı Üretim Kayıtları (Düzenlenebilir)</h3>
+                            <span id="uretim-detay-count" style="font-size:.8rem;color:var(--muted)"></span>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tarih</th>
+                                        <th>Robot</th>
+                                        <th>Operatör</th>
+                                        <th>Referans Kodu</th>
+                                        <th style="text-align:right">OK</th>
+                                        <th style="text-align:right">NOK</th>
+                                        <th style="text-align:right">CT (sn)</th>
+                                        <th style="text-align:right">İşlem</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uretim-detay-body">
+                                    <tr>
+                                        <td colspan="8">
+                                            <div class="loading"><span class="spinner"></span>Yükleniyor...</div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div><!-- /uretim-detay -->
+
+            </div><!-- /pane uretim -->
+
+            <!-- PANE: DURUŞLAR -->
+            <div class="inner-pane" id="inner-pane-durus">
+            <!-- DURUŞ KIRILIMI -->
+            <div class="panel-block" data-block-id="durus">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:0">
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h3>⏸️ Duruş Sebebi Kırılımı</h3>
+                            <span id="durus-count" style="font-size:.8rem;color:var(--muted)"></span>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Sebep</th>
+                                        <th>Tip</th>
+                                        <th style="text-align:right">Süre (dk)</th>
+                                        <th style="text-align:right">Adet</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="durus-kirilim-body">
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="loading"><span class="spinner"></span>Yükleniyor...</div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h3>📊 Duruş Tipi Özeti</h3>
+                        </div>
+                        <div id="durus-tipi-ozet" style="padding:16px"></div>
+                    </div>
+                </div>
+            </div><!-- /durus -->
+
+            <!-- ROBOT + REFERANS ÜRETİM KIRILIMI -->
+            <div class="panel-block" data-block-id="robot">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:0">
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h3>🤖 Robot Bazlı Ürün Kırılımı</h3>
+                            <span id="robot-ref-count" style="font-size:.8rem;color:var(--muted)"></span>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Robot</th>
+                                        <th>Referans</th>
+                                        <th style="text-align:right">Toplam</th>
+                                        <th style="text-align:right">OK</th>
+                                        <th style="text-align:right">Kalite %</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="robot-ref-body">
+                                    <tr>
+                                        <td colspan="5">
+                                            <div class="loading"><span class="spinner"></span>Yükleniyor...</div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h3>🤖 Robot Bazlı Duruş Kırılımı</h3>
+                            <span id="robot-durus-count" style="font-size:.8rem;color:var(--muted)"></span>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Robot</th>
+                                        <th>Duruş Sebebi</th>
+                                        <th>Tip</th>
+                                        <th style="text-align:right">Süre (dk)</th>
+                                        <th style="text-align:right">Adet</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="robot-durus-body">
+                                    <tr>
+                                        <td colspan="5">
+                                            <div class="loading"><span class="spinner"></span>Yükleniyor...</div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /robot -->
+            </div><!-- /pane durus -->
+
+            <!-- PANE: VARDİYALAR -->
+            <div class="inner-pane" id="inner-pane-vardiya">
+            <!-- TABLE -->
+            <div class="panel-block" data-block-id="vardiya">
+                <div class="table-card" style="margin-bottom:0">
+                    <div class="table-header">
+                        <h3>📋 Vardiya Kayıtları</h3>
+                        <span id="toplam-kayit" style="font-size:.8rem;color:var(--muted)"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tarih</th>
+                                    <th>Vardiya</th>
+                                    <th>Operatör</th>
+                                    <th>Robot</th>
+                                    <th>OK Adet</th>
+                                    <th>NOK</th>
+                                    <th>Duruş</th>
+                                    <th>OEE</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbl-body">
+                                <tr>
+                                    <td colspan="9">
+                                        <div class="loading"><span class="spinner"></span>Yükleniyor...</div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div><!-- /table-card -->
+            </div><!-- /vardiya -->
+            </div><!-- /pane vardiyalar -->
+
+            <!-- PANE: FİKSTÜR & PROGRAMLAR -->
+            <div class="inner-pane" id="inner-pane-fikstur">
+            <!-- FİKSTÜR ADRESLERİ PANELİ -->
+            <div class="panel-block" data-block-id="fikstur">
+                <div class="table-card" style="margin-bottom:0">
+                    <div class="table-header">
+                        <h3>📦 Fikstür Adresleri</h3>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <span id="fikstur-count" style="font-size:.8rem;color:var(--muted)"></span>
+                            <button onclick="fiksturOdsImport()" id="ods-import-btn"
+                                style="background:#f0fdf4;color:#16a34a;border:1px solid #86efac;border-radius:8px;padding:4px 12px;font-size:.78rem;cursor:pointer;font-weight:700">
+                                📥 ODS'tan İçe Aktar
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Ekleme Formu -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;padding:0 0 12px;align-items:end">
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Referans Kodu</div>
+                            <input type="text" id="fk-ref" placeholder="ör: 10.300.0177" autocomplete="off"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Raf Adresi</div>
+                            <input type="text" id="fk-raf" placeholder="ör: A-1" autocomplete="off"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Notlar</div>
+                            <input type="text" id="fk-notlar" placeholder="Opsiyonel not..."
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                        </div>
+                        <button onclick="fiksturEkle()" class="btn btn-primary" style="padding:6px 16px;font-size:.82rem;white-space:nowrap">
+                            ➕ Ekle
+                        </button>
+                    </div>
+                    <!-- Arama -->
+                    <div style="padding:0 0 10px">
+                        <input type="text" id="fk-ara" placeholder="🔍 Referans kodu veya raf adresi ara..." oninput="fiksturFiltrele(this.value)"
+                            style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;background:var(--card)">
+                    </div>
+                    <div class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Referans Kodu</th>
+                                    <th>Raf Adresi</th>
+                                    <th>Notlar</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="fikstur-table-body">
+                                <tr><td colspan="3"><div class="loading"><span class="spinner"></span>Yükleniyor...</div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /fikstur -->
+
+            <!-- REFERANS-ROBOT UYUMU PANELİ -->
+            <div class="panel-block" data-block-id="ref-uyum">
+                <div class="table-card" style="margin-bottom:0">
+                    <div class="table-header">
+                        <h3>🤖 Referans & Robot Uyumu (Uygulanabilirlik)</h3>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <span id="uyum-count" style="font-size:.8rem;color:var(--muted)"></span>
+                            <button onclick="uyumOdsImport()" id="uyum-import-btn"
+                                style="background:#f0fdf4;color:#16a34a;border:1px solid #86efac;border-radius:8px;padding:4px 12px;font-size:.78rem;cursor:pointer;font-weight:700">
+                                📥 RAF ve PROGRAM ODS İçe Aktar
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Uyum Ekleme Formu -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;padding:0 0 12px;align-items:end">
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Referans Kodu</div>
+                            <input type="text" id="uyum-ref" placeholder="ör: 10.300.0177" autocomplete="off"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Robot No</div>
+                            <select id="uyum-robot" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                                <option value="">Seç...</option>
+                                <option value="ABB-1">ABB-1</option><option value="ABB-2">ABB-2</option>
+                                <option value="ABB-3">ABB-3</option><option value="ABB-4">ABB-4</option>
+                                <option value="ABB-5">ABB-5</option><option value="ABB-6">ABB-6</option>
+                                <option value="ABB-7">ABB-7</option><option value="ABB-8">ABB-8</option>
+                                <option value="ABB-9">ABB-9</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">İstasyon</div>
+                            <select id="uyum-istasyon" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                                <option value="">Seç...</option>
+                                <option value="1">İstasyon 1</option>
+                                <option value="2">İstasyon 2</option>
+                            </select>
+                        </div>
+                        <button onclick="uyumEkle()" class="btn btn-primary" style="padding:6px 16px;font-size:.82rem;white-space:nowrap">
+                            ➕ Ekle
+                        </button>
+                    </div>
+                    <!-- Uyum Arama -->
+                    <div style="padding:0 0 10px">
+                        <input type="text" id="uyum-ara" placeholder="🔍 Referans kodu veya robot ara..." oninput="uyumFiltrele(this.value)"
+                            style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;background:var(--card)">
+                    </div>
+                    <!-- Uyum Tablosu -->
+                    <div class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Referans Kodu</th>
+                                    <th>Robot No</th>
+                                    <th>İstasyon</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="uyum-table-body">
+                                <tr><td colspan="4"><div class="loading"><span class="spinner"></span>Yükleniyor...</div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /ref-uyum -->
+
+
+            </div><!-- /pane fikstur -->
+
+            <!-- PANE: İŞ YÖNETİMİ -->
+            <div class="inner-pane" id="inner-pane-isatama">
+            <!-- REFERANS TAKİP PANELİ -->
+            <div class="panel-block" data-block-id="ref-takip">
+                <div class="table-card" style="margin-bottom:0">
+                    <div class="table-header">
+                        <h3>🚀 Referans Takip (Launch / İş Emri)</h3>
+                        <span id="ref-takip-count" style="font-size:.8rem;color:var(--muted)"></span>
+                    </div>
+                    <!-- Ekleme Formu -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr auto;gap:8px;padding:0 0 12px;align-items:end">
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Referans Kodu</div>
+                            <input type="text" id="rt-ref" placeholder="ör: 10.130.3354GW"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Hedef Adet</div>
+                            <input type="number" id="rt-adet" placeholder="0" min="0"
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Robot</div>
+                            <select id="rt-robot" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                                <option value="">Seç...</option>
+                                <option>ABB1</option><option>ABB2</option><option>ABB3</option>
+                                <option>ABB4</option><option>ABB5</option><option>ABB6</option>
+                                <option>ABB7</option><option>ABB8</option><option>ABB9</option>
+                                <option>MONTAJ</option>
+                                <option>ME</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">İstasyon</div>
+                            <select id="rt-istasyon" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                                <option value="0">Belirtme</option>
+                                <option value="1">İstasyon 1</option>
+                                <option value="2">İstasyon 2</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Açıklama (Opsiyonel)</div>
+                            <input type="text" id="rt-aciklama" placeholder="Not..."
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
+                        </div>
+                        <button onclick="refTakipEkle()" class="btn btn-primary" style="padding:6px 16px;font-size:.82rem;white-space:nowrap">
+                            ➕ Ekle
+                        </button>
+                    </div>
+                    <div class="table-wrap">
+                        <h4 style="margin:10px 0 5px; color:var(--primary); font-size:1.1rem">🔧 Kaynakhane</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Referans</th><th>Hedef</th><th>Robot / İst.</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ref-takip-tbody">
+                                <tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
+                            </tbody>
+                        </table>
+                        
+                        <h4 style="margin:20px 0 5px; color:#f59e0b; font-size:1.1rem">🔩 Montaj</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Referans</th><th>Hedef</th><th>Robot / İst.</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ref-takip-tbody-montaj">
+                                <tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
+                            </tbody>
+                        </table>
+                        
+                        <h4 style="margin:20px 0 5px; color:#10b981; font-size:1.1rem">⚙️ Metal Enjeksiyon</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Referans</th><th>Hedef</th><th>Robot / İst.</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ref-takip-tbody-me">
+                                <tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /ref-takip -->
+
+                </div><!-- /pane isatama -->
+            </div><!-- /#sekme-vardiyalar -->
+
+            <!-- ── REFERANSLAR SEKME ── -->
+            <div id="sekme-referanslar" class="d-none">
+                <!-- Üst Aksiyonlar -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+                    <div style="display:flex;align-items:center;gap:12px;flex:1">
+                        <h2 style="font-size:1.1rem;font-weight:800;margin:0">📦 Referans Listesi</h2>
+                        <input type="text" id="ref-ara-input" onkeyup="refAra()" placeholder="Referans ara..." 
+                               style="padding:8px 16px;border:1px solid var(--border);border-radius:10px;font-size:.85rem;width:260px;background:var(--card)">
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn btn-outline" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a">📥 Excel'den Aktar</button>
+                        <button class="btn btn-outline" onclick="referansExcelGuncelle()" style="border-color:#2563eb;color:#2563eb">📤 Excel'i Güncelle</button>
+                        <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
+                    </div>
+                </div>
+
+                <!-- Eksik Süre Tanımları Paneli [NEW] -->
+                <div id="eksik-referanslar-panel" style="display:none; margin-bottom:20px; background:#fff1f2; border:1px solid #fecdd3; border-radius:16px; padding:20px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                        <span style="font-size:1.2rem">⚠️</span>
+                        <h3 style="font-size:.9rem;font-weight:800;color:#9f1239;margin:0">Süre Tanımı Bekleyen Referanslar (Son 30 Gün)</h3>
+                    </div>
+                    <p style="font-size:.78rem;color:#be123c;margin-bottom:12px">Aşağıdaki referanslar operatörler tarafından girilmiş ancak sistemde çevrim süreleri tanımlanmamıştır. Lütfen süre tanımlayın.</p>
+                    <div id="eksik-ref-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-wrap" style="max-height: 600px; overflow-y: auto;">
+                        <table id="referans-main-table" style="position: relative; border-collapse: separate; border-spacing: 0;">
+                            <thead style="position: sticky; top: 0; z-index: 10; background: var(--bg);">
+                                <tr>
+                                    <th style="background:var(--card)">Referans Kodu</th>
+                                    <th style="background:var(--card)">Açıklama</th>
+                                    <th style="background:var(--card);text-align:right">Hedef Cycle Time (sn)</th>
+                                    <th style="background:var(--card);width:80px;text-align:center">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ref-tbl-body">
+                                <tr>
+                                    <td colspan="4">
+                                        <div class="loading"><span class="spinner"></span></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+    <!-- ── ANDON AYARLARI SEKME ── -->
+    <div id="sekme-andon-ayarlar" class="d-none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h2 style="font-size:1rem;font-weight:700">📺 Andon Ekran Ayarları</h2>
+            <div style="display:flex;gap:8px">
+                <a class="btn btn-outline" href="/andon" target="_blank">🔗 Andon Ekranı Aç</a>
+                <button class="btn btn-primary" onclick="andonAyarlariKaydet()">💾 Kaydet</button>
+            </div>
+        </div>
+
+        <!-- Andon Görünüm Özelleştirme -->
+        <div class="table-card" style="margin-bottom:20px;padding:20px;border-left:4px solid #f59e0b">
+            <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">🎨 Görünüm Özelleştirme</h3>
+            
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:20px">
+                <!-- İstasyon 1 -->
+                <div style="background:var(--bg);padding:15px;border-radius:12px;border:1px solid var(--border)">
+                    <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase">İstasyon 1</div>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Renk:</span>
+                            <input type="color" id="andon-st1-color" value="#fcd34d" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Boyut:</span>
+                            <input type="number" id="andon-st-fs" step="0.05" min="0.5" max="1.5" value="0.85" style="width:65px;padding:4px;border:1px solid var(--border);border-radius:6px">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- İstasyon 2 -->
+                <div style="background:var(--bg);padding:15px;border-radius:12px;border:1px solid var(--border)">
+                    <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase">İstasyon 2</div>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Renk:</span>
+                            <input type="color" id="andon-st2-color" value="#67e8f9" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                        </div>
+                        <!-- Note: ST1 and ST2 use the same header font size normally, but if we want separate, we could. The request said "istasyonların" (plural). I'll use one size for both headers for consistency unless user wants different. -->
+                    </div>
+                </div>
+
+                <!-- Operatör -->
+                <div style="background:var(--bg);padding:15px;border-radius:12px;border:1px solid var(--border)">
+                    <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase">Operatör Adı</div>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Renk:</span>
+                            <input type="color" id="andon-op-color" value="#c4b5fd" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Boyut:</span>
+                            <input type="number" id="andon-op-fs" step="0.05" min="0.5" max="1.5" value="0.75" style="width:65px;padding:4px;border:1px solid var(--border);border-radius:6px">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Referans -->
+                <div style="background:var(--bg);padding:15px;border-radius:12px;border:1px solid var(--border)">
+                    <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase">Referans Kodu</div>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Renk:</span>
+                            <input type="color" id="andon-ref-color" value="#bef264" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Boyut:</span>
+                            <input type="number" id="andon-ref-fs" step="0.01" min="0.3" max="1.5" value="0.57" style="width:65px;padding:4px;border:1px solid var(--border);border-radius:6px">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Duruş Bilgileri -->
+                <div style="background:var(--bg);padding:15px;border-radius:12px;border:1px solid var(--border)">
+                    <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase">Duruş (Downtime)</div>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Renk:</span>
+                            <input type="color" id="andon-dw-color" value="#fcd34d" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <span style="font-size:.8rem">Boyut:</span>
+                            <input type="number" id="andon-dw-fs" step="0.05" min="0.5" max="1.5" value="0.75" style="width:65px;padding:4px;border:1px solid var(--border);border-radius:6px">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Robot Görünürlük -->
+        <div class="table-card" style="margin-bottom:20px;padding:20px">
+            <h3 style="font-size:.9rem;font-weight:700;margin-bottom:4px">🤖 Robot Görünürlük Ayarları</h3>
+            <p style="font-size:.78rem;color:var(--muted);margin-bottom:16px">Andon ekranında hangi robotların görüneceğini seçin. Sırayı değiştirmek için sürükleyin.</p>
+            <div id="andon-robot-liste" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
+        </div>
+
+        <!-- Yenileme Süresi -->
+        <div class="table-card" style="padding:20px">
+            <h3 style="font-size:.9rem;font-weight:700;margin-bottom:4px">⏱ Andon Yenileme Süresi</h3>
+            <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Andon ekranı her kaç saniyede bir güncellensin?</p>
+            <div style="display:flex;align-items:center;gap:12px">
+                <input type="range" id="andon-yenileme-sure" min="10" max="120" step="5" value="30"
+                    style="flex:1" oninput="document.getElementById('andon-yenileme-sure-lbl').textContent=this.value + ' sn'">
+                <span id="andon-yenileme-sure-lbl" style="font-size:.9rem;font-weight:700;color:var(--primary);min-width:50px">30 sn</span>
+            </div>
+            <p style="font-size:.7rem;color:var(--muted);margin-top:8px">Not: Yenileme süresi andon ekranı yeniden açıldığında uygulanır.</p>
+        </div>
+
+
+        <!-- Duyuru Yönetimi -->
+        <div class="table-card" style="margin-top:20px;padding:20px">
+            <h3 style="font-size:.9rem;font-weight:700;margin-bottom:4px">📢 Andon Duyuru Yönetimi</h3>
+            <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Andon ekranının alt kısmında görünecek kayan mesajı güncelleyin.</p>
+            <div style="display:grid;gap:12px">
+                <textarea id="adb-duyuru-metin" placeholder="Duruş mesajı, kutlama veya genel bilgilendirme..."
+                    style="width:100%;height:60px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-family:inherit;font-size:.85rem;resize:none"></textarea>
+                <div style="display:flex;gap:10px">
+                    <input type="text" id="adb-duyuru-yazar" placeholder="Yazar ismi (opsiyonel)"
+                        style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-size:.82rem">
+                    <button class="btn btn-primary" onclick="andonDuyuruGuncelle()">📢 Yayınla</button>
+                    <button class="btn btn-outline" onclick="andonDuyuruTemizle()">🗑 Kaldır</button>
+                </div>
+            </div>
+        </div><!-- andon content end -->
+    </div><!-- #sekme-andon-ayarlar -->
+
+    <!-- ══════════════════ RAPORLAR SEKME ══════════════════ -->
+    <div id="sekme-raporlar" class="d-none">
+        <div class="filters-panel" style="margin-bottom:20px; display:flex; gap:10px; align-items:flex-end; background:var(--card); padding:15px; border-radius:var(--radius); box-shadow:var(--shadow)">
+            <div style="display:flex; flex-wrap:wrap; gap:15px; flex:1">
+                <div>
+                    <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">Başlangıç</label>
+                    <input type="date" id="rapor-tarih-bas" class="form-control" style="width:140px">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">Bitiş</label>
+                    <input type="date" id="rapor-tarih-bit" class="form-control" style="width:140px">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">Rapor Tipi</label>
+                    <select id="rapor-tipi" class="form-control" style="width:180px" onchange="yukleRaporlar()">
+                        <option value="operator">Operatör Performansı</option>
+                        <option value="referans">Referans Üretimi</option>
+                        <option value="teep">TEEP Şelalesi</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">Robot (Opsiyonel)</label>
+                    <select id="rapor-robot" class="form-control" style="width:140px" onchange="yukleRaporlar()">
+                        <option value="">Tümü</option>
+                        <option value="ABB1">ABB1</option>
+                        <option value="ABB2">ABB2</option>
+                        <option value="ABB3">ABB3</option>
+                        <option value="ABB4">ABB4</option>
+                        <option value="ABB5">ABB5</option>
+                        <option value="ABB6">ABB6</option>
+                        <option value="ABB7">ABB7</option>
+                        <option value="ABB8">ABB8</option>
+                        <option value="ABB9">ABB9</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <button class="btn btn-primary" onclick="yukleRaporlar()" style="min-width: 120px;">Oluştur</button>
+            </div>
+        </div>
+        
+        <div class="stats-grid" style="grid-template-columns: 1fr; margin-bottom: 20px;">
+            <div class="stat-card" style="height: 450px; display:flex; flex-direction:column;">
+                <div class="stat-title" id="rapor-chart-title">Rapor Grafiği</div>
+                <div style="flex:1; position:relative; min-height:0">
+                    <canvas id="raporChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="table-card">
+            <div class="table-header">
+                <h3 id="rapor-table-title">Rapor Detayı</h3>
+            </div>
+            <div class="table-wrap">
+                <table id="raporTable">
+                    <thead id="rapor-thead">
+                        <tr><th>Tarih filtrelerini belirleyip "Oluştur"a basın...</th></tr>
+                    </thead>
+                    <tbody id="rapor-tbody">
+                        <tr><td style="text-align:center; padding: 20px;">Veri yok.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div><!-- #sekme-raporlar -->
+
+    </div><!-- #tab-content-container -->
+    </main>
+    </div><!-- .layout -->
+
+    <!-- ══════════════════ DETAIL PANEL ══════════════════ -->
+    <div class="detail-panel" id="detail-panel">
+        <div class="detail-header">
+            <h3>Vardiya Detayı</h3>
+            <button class="panel-close" onclick="panelKapat()">✕</button>
+        </div>
+        <div id="detail-content"></div>
+    </div>
+
+    <!-- ══════════════════ REFERANS MODAL ══════════════════ -->
+    <div class="modal-overlay" id="ref-modal" onclick="refModalKapat(event)">
+        <div class="modal">
+            <h3 id="ref-modal-title">Yeni Referans Ekle</h3>
+            <div class="modal-form-row">
+                <label>Referans Kodu *</label>
+                <input type="text" id="ref-kod" placeholder="REF-001">
+            </div>
+            <div class="modal-form-row">
+                <label>Açıklama</label>
+                <input type="text" id="ref-aciklama" placeholder="Parça adı...">
+            </div>
+            <div class="modal-form-row">
+                <label>Hedef Cycle Time (saniye/parça)</label>
+                <input type="number" id="ref-cycle" placeholder="0" min="0">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="refModalKapat()">İptal</button>
+                <button class="btn btn-primary" onclick="refKaydet()">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════ GÜNLÜK ÜRETİM RAPORU MODAL ══════════════════ -->
+    <div class="report-modal-overlay" id="tav-report-modal">
+        <div class="report-modal-content">
+            <div class="no-print report-controls">
+                <div style="flex:1">
+                    <h3 style="font-size:1rem;margin-bottom:4px">📊 Günlük Üretim Raporu Görseli</h3>
+                    <p style="font-size:.75rem;color:var(--muted)">WhatsApp'ta paylaşmak için aşağıyı ekran görüntüsü (screenshot) alabilirsiniz.</p>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <input type="date" id="tav-rep-tarih" class="form-control" style="width:130px">
+                    <select id="tav-rep-vardiya" class="form-control" style="width:110px">
+                        <option value="1">Vardiya 1</option>
+                        <option value="2">Vardiya 2</option>
+                        <option value="3">Vardiya 3</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="yukleTavGunlukRapor()">🔄 Yenile</button>
+                    <button class="btn btn-outline" onclick="tavGunlukRaporKapat()">✕ Kapat</button>
+                </div>
+            </div>
+
+            <div id="tav-report-area">
+                <!-- Rapor buraya gelecek -->
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════
+        let chartDurus = null;
+        let chartRobot = null;
+        let aktifSekme = 'vardiyalar';
+        let ozetData = null;
+
+        // ─── EXPORT MODAL ───────────────────────────────────────
+        function exportModalAc() {
+            // Modal yoksa oluştur
+            if (!document.getElementById('export-modal')) {
+                const modal = document.createElement('div');
+                modal.id = 'export-modal';
+                modal.style.cssText = `
+                    position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;
+                    display:flex;align-items:center;justify-content:center;
+                `;
+                const bugun = new Date().toISOString().split('T')[0];
+                const birAyOnce = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                modal.innerHTML = `
+                    <div style="background:#fff;border-radius:16px;padding:28px;width:420px;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                            <h3 style="font-size:1rem;font-weight:800">📥 Excel'e Aktar</h3>
+                            <button onclick="exportModalKapat()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:1rem">✕</button>
+                        </div>
+                        <div style="font-size:.82rem;color:#64748b;margin-bottom:16px;background:#f8fafc;padding:12px;border-radius:8px;border-left:3px solid #2563eb">
+                            Veriler <b>Masaüstü/UretimTakipArsiv.xlsx</b> dosyasına kaydedilir.<br>
+                            Dosya her kayıtta güncellenir (üzerine yazar).
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                            <div>
+                                <label style="font-size:.78rem;font-weight:700;color:#64748b;display:block;margin-bottom:4px">Başlangıç Tarihi</label>
+                                <input type="date" id="exp-bas" value="${birAyOnce}" style="width:100%;padding:10px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:.88rem">
+                            </div>
+                            <div>
+                                <label style="font-size:.78rem;font-weight:700;color:#64748b;display:block;margin-bottom:4px">Bitiş Tarihi</label>
+                                <input type="date" id="exp-bit" value="${bugun}" style="width:100%;padding:10px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:.88rem">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <button onclick="exportModalKapat()" style="flex:1;padding:12px;border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-weight:700;cursor:pointer">İptal</button>
+                            <button id="exp-btn" onclick="exportArsiv()" style="flex:2;padding:12px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:.92rem;cursor:pointer">
+                                📥 Excel'e Kaydet
+                            </button>
+                        </div>
+                        <div id="exp-sonuc" style="margin-top:14px;display:none"></div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                modal.addEventListener('click', e => { if (e.target === modal) exportModalKapat(); });
+            } else {
+                document.getElementById('export-modal').style.display = 'flex';
+            }
+            document.getElementById('exp-sonuc').style.display = 'none';
+        }
+
+        function exportModalKapat() {
+            const m = document.getElementById('export-modal');
+            if (m) m.style.display = 'none';
+        }
+
+        async function exportArsiv() {
+            const btn = document.getElementById('exp-btn');
+            const sonucEl = document.getElementById('exp-sonuc');
+            const bas = document.getElementById('exp-bas').value;
+            const bit = document.getElementById('exp-bit').value;
+
+            btn.textContent = '⏳ Kaydediliyor...';
+            btn.disabled = true;
+            sonucEl.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/export_arsiv', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tarih_bas: bas || null, tarih_bit: bit || null })
+                });
+                const d = await res.json();
+                if (d.basarili) {
+                    sonucEl.style.display = 'block';
+                    sonucEl.style.color = '#16a34a';
+                    sonucEl.innerHTML = `
+                        ✅ <b>Kaydedildi!</b> — ${d.zaman}<br>
+                        <span style="font-size:.78rem;color:#64748b">
+                            ${d.vardiya_sayisi} vardiya · ${d.uretim_kayit} üretim · ${d.durus_kayit} duruş kaydı aktarıldı
+                        </span>
+                    `;
+                    toast('Excel dosyası kaydedildi!', 'ok');
+                } else {
+                    sonucEl.style.display = 'block';
+                    sonucEl.style.color = '#dc2626';
+                    sonucEl.textContent = '❌ Hata: ' + (d.hata || 'Bilinmeyen hata');
+                }
+            } catch (e) {
+                sonucEl.style.display = 'block';
+                sonucEl.style.color = '#dc2626';
+                sonucEl.textContent = '❌ Bağlantı hatası: ' + e.message;
+            }
+            btn.textContent = '📥 Excel\'e Kaydet';
+            btn.disabled = false;
+        }
+
+
+
+        // ═════════════════════════════════════════════════════
+        // REFERANS TAKİP PANEL
+        // ═════════════════════════════════════════════════════
+        const RT_DURUMLAR = [
+            { key: 'launch_alinacak', label: 'Launch Alınacak', bg: '#1e293b', color: '#94a3b8' },
+            { key: 'launch_alindi',   label: 'Launch Alındı',   bg: '#172554', color: '#93c5fd' },
+            { key: 'launch_hazir',    label: 'Launch Hazır',    bg: '#14532d', color: '#86efac' },
+            { key: 'uretimde',        label: 'Üretimde',        bg: '#451a03', color: '#fb923c' },
+            { key: 'uretim_tamamlandi', label: 'Tamamlandı',   bg: '#365314', color: '#a3e635' }
+        ];
+
+        async function yukleRefTakipPanel() {
+            try {
+                const res = await fetch('/api/referans_takip');
+                const list = await res.json();
+                
+                const count = document.getElementById('ref-takip-count');
+                count.textContent = list.length + ' kayıt';
+
+                const listKaynak = list.filter(r => r.robot_no !== 'MONTAJ' && r.robot_no !== 'ME');
+                const listMontaj = list.filter(r => r.robot_no === 'MONTAJ');
+                const listME = list.filter(r => r.robot_no === 'ME');
+
+                const renderTable = (data, targetId) => {
+                    const tbody = document.getElementById(targetId);
+                    if (!data.length) {
+                        tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.map(r => {
+                        const aktifD = RT_DURUMLAR.find(d => d.key === r.durum) || RT_DURUMLAR[0];
+                        const durumBtns = RT_DURUMLAR.map(d => `
+                            <button onclick="refDurumGuncelle(${r.id},'${d.key}')"
+                                style="padding:3px 8px;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;
+                                       border:1px solid ${d.key === r.durum ? d.color : 'transparent'};
+                                       background:${d.key === r.durum ? d.bg : 'transparent'};
+                                       color:${d.key === r.durum ? d.color : 'var(--muted)'};
+                                       transition:.2s">
+                                ${d.label}
+                            </button>`).join('');
+                        const robotlar = ['', 'ABB1', 'ABB2', 'ABB3', 'ABB4', 'ABB5', 'ABB6', 'ABB7', 'ABB8', 'ABB9', 'MONTAJ', 'ME'];
+                        const robotSelectHTML = `
+                            <div style="display:flex;align-items:center;gap:4px">
+                                <select onchange="refRobotDogrudanGuncelle(${r.id}, this.value)"
+                                    style="padding:4px;border:1px solid #cbd5e1;border-radius:6px;font-size:.78rem;font-weight:600;background:#f8fafc;cursor:pointer">
+                                    ${robotlar.map(robot => `<option value="${robot}" ${r.robot_no === robot ? 'selected' : ''}>${robot || 'Robot Seç...'}</option>`).join('')}
+                                </select>
+                                ${r.istasyon > 0 ? `<span style="font-size:.65rem;color:var(--muted)">İst.${r.istasyon}</span>` : ''}
+                            </div>
+                        `;
+                        
+                        const refKodEscaped = String(r.referans_kodu || '').replace(/'/g, "\\\\\\'").replace(/"/g, "&quot;");
+                        const roboNoEscaped = String(r.robot_no || '').replace(/'/g, "\\\\\\'");
+                        
+                        return `<tr>
+                            <td style="font-weight:700">${r.referans_kodu}</td>
+                            <td style="text-align:center">${r.hedef_adet > 0 ? r.hedef_adet + ' adet' : '—'}</td>
+                            <td style="font-size:.8rem">${robotSelectHTML}</td>
+                            <td style="font-size:.8rem;color:var(--muted)">${r.aciklama || '—'}</td>
+                            <td><div style="display:flex;gap:3px;flex-wrap:wrap">${durumBtns}</div></td>
+                            <td style="font-size:.72rem;color:var(--muted)">${(r.guncelleme_tarihi||'').slice(0,16)}</td>
+                            <td style="display:flex;gap:4px">
+                                <button onclick="refTakipDuzenleAc(${r.id},'${refKodEscaped}',${r.hedef_adet},'${roboNoEscaped}',${r.istasyon||0})"
+                                    style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
+                                    ✏️
+                                </button>
+                                <button onclick="refTakipSil(${r.id})"
+                                    style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
+                                    🗑️
+                                </button>
+                            </td>
+                        </tr>`;
+                    }).join('');
+                };
+
+                renderTable(listKaynak, 'ref-takip-tbody');
+                renderTable(listMontaj, 'ref-takip-tbody-montaj');
+                renderTable(listME, 'ref-takip-tbody-me');
+
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        async function refTakipEkle() {
+            const btn = event.currentTarget || document.activeElement;
+            const ref = document.getElementById('rt-ref').value.trim();
+            if (!ref) { toast('Referans kodu zorunludur', 'error'); return; }
+            
+            btn.disabled = true;
+            const oldTxt = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span>';
+            
+            try {
+                const res = await fetch('/api/referans_takip', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        referans_kodu: ref,
+                        hedef_adet: parseInt(document.getElementById('rt-adet').value) || 0,
+                        robot_no: document.getElementById('rt-robot').value,
+                        istasyon: parseInt(document.getElementById('rt-istasyon').value) || 0,
+                        aciklama: document.getElementById('rt-aciklama').value.trim(),
+                        olusturan: 'Yönetici'
+                    })
+                });
+                if (!res.ok) throw new Error('Sunucu hatası: ' + res.status);
+                
+                document.getElementById('rt-ref').value = '';
+                document.getElementById('rt-adet').value = '';
+                document.getElementById('rt-robot').value = '';
+                document.getElementById('rt-istasyon').value = '0';
+                document.getElementById('rt-aciklama').value = '';
+                await yukleRefTakipPanel();
+                toast('Referans eklendi', 'ok');
+            } catch(e) { 
+                console.error('refTakipEkle:', e);
+                toast('Hata: ' + e.message, 'error'); 
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = oldTxt;
+            }
+        }
+
+        // Inline düzenle
+        let _rtDuzenleId = null;
+        function refTakipDuzenleAc(id, ref, adet, robot, istasyon) {
+            _rtDuzenleId = id;
+            const yeniRef = prompt('Referans Kodu:', ref);
+            if (yeniRef === null) return;
+            const yeniAdet = prompt('Hedef Adet:', adet);
+            if (yeniAdet === null) return;
+            const yeniRobot = prompt('Robot (boş bırakabilirsiniz):', robot);
+            if (yeniRobot === null) return;
+            const yeniIst = prompt('İstasyon (0=belirtme, 1, 2):', istasyon);
+            if (yeniIst === null) return;
+            refTakipDuzenleKaydet(id, yeniRef.trim(), parseInt(yeniAdet)||0, yeniRobot.trim(), parseInt(yeniIst)||0);
+        }
+
+        async function refTakipDuzenleKaydet(id, ref, adet, robot, istasyon) {
+            if (!ref) { toast('Referans kodu boş olamaz', 'error'); return; }
+            try {
+                const res = await fetch('/api/referans_takip/' + id, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ referans_kodu: ref, hedef_adet: adet, robot_no: robot, istasyon })
+                });
+                if (!res.ok) throw new Error('Guncelleme hatasi');
+                await yukleRefTakipPanel();
+                toast('Kayıt güncellendi', 'ok');
+            } catch(e) { 
+                console.error('refTakipDuzenleKaydet:', e);
+                toast('Hata: ' + e.message, 'error'); 
+            }
+        }
+
+        async function refRobotDogrudanGuncelle(id, robot) {
+            try {
+                await fetch('/api/referans_takip/' + id, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ robot_no: robot })
+                });
+                toast('Robot ataması güncellendi', 'ok');
+                // Optik update (isteğe bağlı) -> zaten panel kendini onchange de refresh de edebilir.
+                // await yukleRefTakipPanel(); 
+            } catch(e) { toast('Hata', 'err'); }
+        }
+
+        async function refDurumGuncelle(id, durum) {
+            try {
+                await fetch('/api/referans_takip/' + id, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ durum })
+                });
+                await yukleRefTakipPanel();
+            } catch(e) {}
+        }
+
+        async function refTakipSil(id) {
+            if (!confirm('Bu kaydı silmek istiyor musunuz?')) return;
+            try {
+                await fetch('/api/referans_takip/' + id, { method: 'DELETE' });
+                await yukleRefTakipPanel();
+                toast('Kayıt silindi', 'ok');
+            } catch(e) {}
+        }
+
+        async function andonDuyuruGuncelle() {
+            const metin = document.getElementById('adb-duyuru-metin').value.trim();
+            const yazar = document.getElementById('adb-duyuru-yazar').value.trim();
+            try {
+                const res = await fetch('/api/andon/mesaj', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ metin, yazar })
+                });
+                if(res.ok) toast('Duyuru yayınlandı', 'ok');
+            } catch(e) { toast('Hata', 'error'); }
+        }
+
+        async function andonDuyuruTemizle() {
+            try {
+                const res = await fetch('/api/andon/mesaj', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ metin: '', yazar: '' })
+                });
+                if(res.ok) {
+                    document.getElementById('adb-duyuru-metin').value = '';
+                    document.getElementById('adb-duyuru-yazar').value = '';
+                    toast('Duyuru kaldırıldı', 'ok');
+                }
+            } catch(e) { toast('Hata', 'error'); }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // INIT
+        // ═══════════════════════════════════════════════════════
+        document.addEventListener('DOMContentLoaded', async () => {
+            const bugun = new Date().toISOString().split('T')[0];
+            document.getElementById('f-bas').value = bugun;
+            document.getElementById('f-bit').value = bugun;
+
+            // Robot seçenekleri
+            try {
+                const res = await fetch('/api/robotlar');
+                const robotlar = await res.json();
+                const sel = document.getElementById('f-robot');
+                robotlar.forEach(r => {
+                    const o = document.createElement('option'); o.value = r; o.textContent = r;
+                    sel.appendChild(o);
+                });
+            } catch (e) { }
+
+            yukle();
+            yukleRefTakipPanel();
+            yukleFikstur();
+            yukleUyum();
+            
+
+            // Kaydedilmiş iç sekme tercihini yükle
+            const kaydedilmisSekme = localStorage.getItem('dashboard_inner_tab') || 'ozet';
+            const ilkBtn = document.querySelector(`#inner-tab-bar .inner-tab-btn[onclick*="'${kaydedilmisSekme}'"]`);
+            if (ilkBtn) innerSecme(kaydedilmisSekme, ilkBtn);
+            tabPinGuncelle(kaydedilmisSekme);
+
+            // Otomatik Yenileme (60 sn)
+            setInterval(() => {
+                yukle();
+                if (aktifInnerTab === 'isatama') yukleRefTakipPanel();
+            }, 60000);
+        });
+
+        // ═══════════════════════════════════════════════════════
+        // İÇ SEKME
+        // ═══════════════════════════════════════════════════════
+        let aktifInnerTab = 'ozet';
+
+        function innerSecme(sekme, btn) {
+            aktifInnerTab = sekme;
+            // Pane geçişi
+            document.querySelectorAll('.inner-pane').forEach(p => p.classList.remove('active'));
+            const pane = document.getElementById('inner-pane-' + sekme);
+            if (pane) pane.classList.add('active');
+            // Buton aktif
+            document.querySelectorAll('#inner-tab-bar .inner-tab-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            tabPinGuncelle(sekme);
+        }
+
+        function tabPinGuncelle(sekme) {
+            const kayitli = localStorage.getItem('dashboard_inner_tab') || 'ozet';
+            const btn = document.getElementById('tab-pin-btn');
+            if (!btn) return;
+            if (kayitli === sekme) {
+                btn.textContent = '📍 Başlangıç';
+                btn.classList.add('pinned');
+            } else {
+                btn.textContent = '📍 Başlangıç yap';
+                btn.classList.remove('pinned');
+            }
+        }
+
+        function tabTercihiKaydet() {
+            localStorage.setItem('dashboard_inner_tab', aktifInnerTab);
+            tabPinGuncelle(aktifInnerTab);
+            toast('Başlangıç sekmesi kaydedildi!', 'ok');
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // SEKME DEĞİŞTİR (Yan sidebar)
+        // ═══════════════════════════════════════════════════════
+        function sekmeDegistir(sekme) {
+            console.log("Sekme değiştiriliyor:", sekme);
+            aktifSekme = sekme;
+            const sekmeler = ['vardiyalar', 'referanslar', 'andon-ayarlar', 'raporlar'];
+            
+            sekmeler.forEach(s => {
+                const el = document.getElementById('sekme-' + s);
+                if (el) {
+                    if (s === sekme) {
+                        el.classList.remove('d-none');
+                        el.style.display = ''; // Fallback
+                    } else {
+                        el.classList.add('d-none');
+                        el.style.display = 'none'; // Fallback
+                    }
+                }
+            });
+
+            // sidebar nav aktif sınıfı
+            document.querySelectorAll('.nav-item').forEach((a, i) => {
+                a.classList.toggle('active', i === sekmeler.indexOf(sekme));
+            });
+            // Başlık güncelle
+            const basliklar = {
+                'vardiyalar': 'Dashboard',
+                'referanslar': 'Referans Listesi',
+                'andon-ayarlar': 'Andon Ekran Ayarları',
+                'raporlar': 'Raporlar ve Analiz'
+            };
+            document.getElementById('page-title').textContent = basliklar[sekme] || sekme;
+            const subtitle = document.getElementById('subtitle-text');
+            if (subtitle) {
+                subtitle.textContent = '';
+                subtitle.style.display = 'none';
+            }
+            
+            if (sekme === 'referanslar') yukleReferanslar();
+            if (sekme === 'andon-ayarlar') yukleAndonRobotlari();
+            if (sekme === 'raporlar') initRaporlar();
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // ANDON AYARLARI
+        // ═══════════════════════════════════════════════════════
+        async function yukleAndonRobotlari() {
+            try {
+                const [robotRes, ayarRes] = await Promise.all([
+                    fetch('/api/andon_robot_ayarlari'),
+                    fetch('/api/ayarlar')
+                ]);
+                andonRobotVerisi = await robotRes.json();
+                const ayarlar = await ayarRes.json();
+                
+                // Ayarları inputlara doldur
+                const idMap = {
+                    'andon_st1_color': 'andon-st1-color',
+                    'andon_st2_color': 'andon-st2-color',
+                    'andon_op_color': 'andon-op-color',
+                    'andon_ref_color': 'andon-ref-color',
+                    'andon_st_fs': 'andon-st-fs',
+                    'andon_op_fs': 'andon-op-fs',
+                    'andon_ref_fs': 'andon-ref-fs',
+                    'andon_dw_color': 'andon-dw-color',
+                    'andon_dw_fs': 'andon-dw-fs',
+                    'andon_font_size': 'andon-ref-fs' // Eski anahtar desteği
+                };
+                
+                for (let key in idMap) {
+                    if (ayarlar[key]) {
+                        const el = document.getElementById(idMap[key]);
+                        if (el) el.value = ayarlar[key];
+                    }
+                }
+                
+                renderAndonRobotListe();
+            } catch(e) {}
+        }
+
+        function renderAndonRobotListe() {
+            const container = document.getElementById('andon-robot-liste');
+            if (!container) return;
+            container.innerHTML = andonRobotVerisi.map((r, i) => `
+                <div style="background:var(--bg,#f8fafc);border:2px solid ${r.goster ? '#2563eb' : '#e2e8f0'};
+                    border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;
+                    transition:border-color .2s;cursor:pointer" onclick="andonRobotToggle(${i})">
+                    <div style="width:20px;height:20px;border-radius:6px;border:2px solid ${r.goster ? '#2563eb' : '#cbd5e1'};
+                        background:${r.goster ? '#2563eb' : 'transparent'};display:flex;align-items:center;justify-content:center;
+                        flex-shrink:0;transition:.2s">
+                        ${r.goster ? '<span style="color:#fff;font-size:.7rem;font-weight:900">✓</span>' : ''}
+                    </div>
+                    <div style="flex:1">
+                        <div style="font-weight:700;font-size:.88rem">${r.robot_no}</div>
+                        <div style="font-size:.72rem;color:var(--muted,#64748b)">${r.goster ? '✅ Andonda görünür' : '⛔ Gizlendi'}</div>
+                    </div>
+                    <div style="font-size:.75rem;color:var(--muted,#64748b)">Sıra: ${r.sira + 1}</div>
+                </div>
+            `).join('');
+        }
+
+        function andonRobotToggle(i) {
+            andonRobotVerisi[i].goster = andonRobotVerisi[i].goster ? 0 : 1;
+            renderAndonRobotListe();
+        }
+
+        async function andonAyarlariKaydet() {
+            try {
+                const settings = {
+                    'andon_st1_color': document.getElementById('andon-st1-color').value,
+                    'andon_st2_color': document.getElementById('andon-st2-color').value,
+                    'andon_op_color': document.getElementById('andon-op-color').value,
+                    'andon_ref_color': document.getElementById('andon-ref-color').value,
+                    'andon_st_fs': document.getElementById('andon-st-fs').value,
+                    'andon_op_fs': document.getElementById('andon-op-fs').value,
+                    'andon_ref_fs': document.getElementById('andon-ref-fs').value,
+                    'andon_dw_color': document.getElementById('andon-dw-color').value,
+                    'andon_dw_fs': document.getElementById('andon-dw-fs').value,
+                    'andon_font_size': document.getElementById('andon-ref-fs').value // Geriye dönük uyumluluk
+                };
+
+                await Promise.all([
+                    fetch('/api/andon_robot_ayarlari', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(andonRobotVerisi)
+                    }),
+                    fetch('/api/ayarlar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(settings)
+                    })
+                ]);
+                toast('Andon ayarları kaydedildi!', 'ok');
+            } catch(e) {
+                toast('Hata: ' + e.message, 'error');
+            }
+        }
+
+
+        // ═══════════════════════════════════════════════════════
+        // DRAG & DROP PANELLER
+        // ═══════════════════════════════════════════════════════
+        function initDragDrop() {
+            const container = document.getElementById('sekme-vardiyalar');
+            const blocks = Array.from(container.querySelectorAll('.panel-block'));
+            if (!blocks.length) return;
+
+            // Kayitli siralamayi uygula
+            const savedOrder = JSON.parse(localStorage.getItem('dashboard_panel_order') || 'null');
+            if (savedOrder && savedOrder.length) {
+                savedOrder.forEach(id => {
+                    const el = container.querySelector(`.panel-block[data-block-id="${id}"]`);
+                    if (el) container.appendChild(el);
+                });
+            }
+
+            let draggingEl = null;
+
+            blocks.forEach(block => {
+                const handle = block.querySelector('.drag-handle');
+                if (handle) {
+                    handle.addEventListener('mousedown', () => block.setAttribute('draggable', 'true'));
+                    handle.addEventListener('mouseup', () => block.setAttribute('draggable', 'false'));
+                    handle.addEventListener('mouseleave', () => block.setAttribute('draggable', 'false'));
+                }
+
+                block.addEventListener('dragstart', (e) => {
+                    draggingEl = block;
+                    setTimeout(() => block.classList.add('dragging'), 0);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', block.dataset.blockId);
+                });
+
+                block.addEventListener('dragend', () => {
+                    block.classList.remove('dragging');
+                    block.setAttribute('draggable', 'false');
+                    draggingEl = null;
+                    container.querySelectorAll('.panel-block').forEach(b => b.classList.remove('drag-over'));
+                });
+            });
+
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault(); // Drop tetiklenmesi icin sart
+                e.dataTransfer.dropEffect = 'move';
+
+                const targetBlock = e.target.closest('.panel-block');
+                if (targetBlock && targetBlock !== draggingEl) {
+                    container.querySelectorAll('.panel-block').forEach(b => b.classList.remove('drag-over'));
+                    targetBlock.classList.add('drag-over');
+                }
+            });
+
+            container.addEventListener('drop', (e) => {
+                e.preventDefault();
+                container.querySelectorAll('.panel-block').forEach(b => b.classList.remove('drag-over'));
+
+                if (!draggingEl) return;
+                const targetBlock = e.target.closest('.panel-block');
+                if (!targetBlock || targetBlock === draggingEl) return;
+
+                // İmlecin konumuna gore uste veya alta yerlestir
+                const rect = targetBlock.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (e.clientY < midY) {
+                    container.insertBefore(draggingEl, targetBlock);
+                } else {
+                    container.insertBefore(draggingEl, targetBlock.nextSibling);
+                }
+
+                // Siralamayi kaydet
+                const newOrder = Array.from(container.querySelectorAll('.panel-block')).map(b => b.dataset.blockId);
+                localStorage.setItem('dashboard_panel_order', JSON.stringify(newOrder));
+            });
+        }
+
+
+
+        // ═══════════════════════════════════════════════════════
+        // ANA YÜKLEME
+        // ═══════════════════════════════════════════════════════
+        async function yukle() {
+            const bas = document.getElementById('f-bas').value;
+            const bit = document.getElementById('f-bit').value;
+            const robot = document.getElementById('f-robot').value;
+            const vtp = document.getElementById('f-vardiya').value;
+
+            document.getElementById('subtitle-text').textContent = `${bas} – ${bit}`;
+            document.getElementById('tbl-body').innerHTML = '<tr><td colspan="9"><div class="loading"><span class="spinner"></span>Yükleniyor...</div></td></tr>';
+
+            try {
+                // Özet verisi
+                let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}`;
+                if (robot) url += `&robot=${robot}`;
+                const res = await fetch(url);
+                ozetData = await res.json();
+
+                // KPI güncelle
+                guncelleKPI(ozetData);
+                // Grafikler
+                guncelleGrafik_durus(ozetData.durus_dagilim || []);
+                guncelleGrafik_robot(ozetData.robot_uretim || []);
+                // Referans tablosu (Kaldırıldı)
+                guncelleUretimDetay(ozetData.uretim_detay_listesi || []);
+                // Duruş kırılımı
+                guncelleDurusKirilim(ozetData.durus_dagilim || [], ozetData.durus_tipi_ozet || []);
+                // Robot bazlı kırılımlar
+                guncelleRobotRefUretim(ozetData.robot_referans_uretim || []);
+                guncelleRobotDurus(ozetData.robot_durus_kirilim || []);
+
+                // Tablo (vardiya filtresi client-side)
+                let varList = ozetData.vardiyalar || [];
+                if (vtp) varList = varList.filter(v => v.vardiya === vtp);
+                guncelleTablo(varList);
+
+            } catch (e) {
+                console.error(e);
+                toast('Veri yüklenemedi: ' + e.message, 'err');
+            }
+
+            // Fikstür ve Robot panellerini yükle
+            yukleFiksturPanel();
+            yukleRobotPrgPanel();
+        }
+
+        // ═════════════════════════════════════════════════════
+        // FİKSTÜR ADRESLERİ PANEL
+        // ═════════════════════════════════════════════════════
+        async function yukleFiksturPanel() {
+            try {
+                const res = await fetch('/api/fikstur');
+                const list = await res.json();
+                const tbody = document.getElementById('fikstur-table-body');
+                const count = document.getElementById('fikstur-count');
+                count.textContent = list.length + ' kayıt';
+                if (!list.length) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">Henüz fikstür raf adresi girilmedi.</td></tr>';
+                    return;
+                }
+                // Raf bazında grupla ve sırala
+                const raflar = {};
+                list.forEach(f => {
+                    const raf = f.raf_adresi || 'Belirtilmedi';
+                    if (!raflar[raf]) raflar[raf] = [];
+                    raflar[raf].push(f);
+                });
+                tbody.innerHTML = '';
+                Object.keys(raflar).sort().forEach(raf => {
+                    const rafRow = document.createElement('tr');
+                    rafRow.innerHTML = `<td colspan="3" style="background:#f1f5f9;font-weight:800;font-size:.78rem;color:var(--primary);padding:6px 12px">🗄️ Raf: ${raf}</td>`;
+                    tbody.appendChild(rafRow);
+                    raflar[raf].forEach(f => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td style="padding-left:24px"><b>${f.referans_kodu}</b></td><td>${f.raf_adresi || '—'}</td><td style="font-size:.8rem;color:var(--muted)">${f.notlar || ''}</td>`;
+                        tbody.appendChild(tr);
+                    });
+                });
+            } catch(e) {}
+        }
+
+        // ═════════════════════════════════════════════════════
+        // ROBOT PROGRAMLARI PANEL (Nested header tablo)
+        // ═════════════════════════════════════════════════════
+        async function yukleRobotPrgPanel() {
+            const ROBOTLAR = ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9'];
+            try {
+                const res = await fetch('/api/robot_programlari');
+                const list = await res.json();
+                const thead = document.getElementById('robot-prg-thead');
+                const tbody = document.getElementById('robot-prg-tbody');
+                const count = document.getElementById('robot-prg-count');
+                
+                // Üst satır: boş köşe + her robot colspan=2
+                let tr1 = '<tr><th rowspan="2" style="vertical-align:middle">—</th>';
+                ROBOTLAR.forEach(r => { tr1 += `<th colspan="2" style="text-align:center">${r}</th>`; });
+                tr1 += '</tr>';
+                // Alt satır: her robot için İst. 1 ve İst. 2
+                let tr2 = '<tr>';
+                ROBOTLAR.forEach(() => { tr2 += '<th style="font-size:.7rem;font-weight:600">İst.1</th><th style="font-size:.7rem;font-weight:600">İst.2</th>'; });
+                tr2 += '</tr>';
+                thead.innerHTML = tr1 + tr2;
+
+                tbody.innerHTML = '';
+                let toplam = 0;
+
+                // Tek satır: her robot için İst.1 ve İst.2 bitişik hücre
+                const tr = document.createElement('tr');
+                const corner = document.createElement('td');
+                corner.style.cssText = 'font-weight:800;font-size:.78rem;background:#f1f5f9';
+                corner.textContent = 'Kayıtlı Kodlar';
+                tr.appendChild(corner);
+
+                ROBOTLAR.forEach(rName => {
+                    [1, 2].forEach(ist => {
+                        const kayitlar = list.filter(x => x.robot_no === rName && x.istasyon === ist);
+                        toplam += kayitlar.length;
+                        const td = document.createElement('td');
+                        td.style.verticalAlign = 'top';
+                        if (kayitlar.length === 0) {
+                            td.innerHTML = '<span style="color:var(--muted);font-size:.75rem">—</span>';
+                        } else {
+                            td.innerHTML = kayitlar.map(k =>
+                                `<div style="background:#eff6ff;border-radius:4px;padding:2px 6px;margin-bottom:2px;font-size:.75rem;font-weight:600">${k.referans_kodu}</div>`
+                            ).join('');
+                        }
+                        tr.appendChild(td);
+                    });
+                });
+                tbody.appendChild(tr);
+                count.textContent = toplam + ' kayıt';
+            } catch(e) {}
+        }
+
+
+        // ═══════════════════════════════════════════════════════
+        // KPI
+        // ═══════════════════════════════════════════════════════
+        function guncelleKPI(data) {
+            const varList = data.vardiyalar || [];
+            if (!varList.length) {
+                ['oee', 'avail', 'perf', 'qual'].forEach(k => document.getElementById('kpi-' + k).textContent = '—');
+                document.getElementById('kpi-oee-sub').textContent = 'Kayıt yok';
+                return;
+            }
+            const ort = (key) => (varList.reduce((s, v) => s + (v[key] || 0), 0) / varList.length).toFixed(1);
+            document.getElementById('kpi-oee').textContent = `%${ort('oee')}`;
+            document.getElementById('kpi-avail').textContent = `%${ort('availability')}`;
+            document.getElementById('kpi-perf').textContent = `%${ort('performance')}`;
+            document.getElementById('kpi-qual').textContent = `%${ort('quality')}`;
+            document.getElementById('kpi-oee-sub').textContent = `${varList.length} vardiya`;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // GRAFİKLER
+        // ═══════════════════════════════════════════════════════
+        function guncelleGrafik_durus(data) {
+            const ctx = document.getElementById('chart-durus').getContext('2d');
+            if (chartDurus) chartDurus.destroy();
+            if (!data.length) { ctx.clearRect(0, 0, 400, 220); return; }
+            chartDurus = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.durus_sebebi),
+                    datasets: [{
+                        data: data.map(d => d.toplam_sure),
+                        backgroundColor: ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#64748b'],
+                        borderWidth: 2, borderColor: '#fff',
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } },
+                        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} dk` } }
+                    }
+                }
+            });
+        }
+
+        function guncelleGrafik_robot(data) {
+            const ctx = document.getElementById('chart-robot').getContext('2d');
+            if (chartRobot) chartRobot.destroy();
+            if (!data.length) { return; }
+            chartRobot = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.robot_no),
+                    datasets: [
+                        { label: 'OK', data: data.map(d => d.toplam_ok || 0), backgroundColor: '#16a34a', borderRadius: 6 },
+                        { label: 'NOK', data: data.map(d => d.toplam_nok || 0), backgroundColor: '#dc2626', borderRadius: 6 },
+                        { label: 'Hedef', data: data.map(d => d.toplam_hedef || 0), backgroundColor: 'rgba(37,99,235,.2)', borderRadius: 6, borderWidth: 2, borderColor: '#2563eb' },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { font: { size: 11 }, boxWidth: 12 } } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } }
+                    }
+                }
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // TABLO
+        // ═══════════════════════════════════════════════════════
+        function guncelleTablo(varList) {
+            document.getElementById('toplam-kayit').textContent = `${varList.length} kayıt`;
+            const tbody = document.getElementById('tbl-body');
+            if (!varList.length) {
+                tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📭</div><p>Bu tarih aralığında kayıt yok</p></div></td></tr>`;
+                return;
+            }
+            tbody.innerHTML = varList.map(v => {
+                const oeeColor = v.oee >= 80 ? '#16a34a' : v.oee >= 60 ? '#d97706' : '#dc2626';
+                const vBadge = v.vardiya === 'Sabah' ? 'badge-blue' : v.vardiya === 'Öğle' ? 'badge-orange' : 'badge-purple';
+                return `<tr style="cursor:pointer" onclick="panelAc(${getVardiyaId(v)})">
+      <td><b>${v.tarih}</b></td>
+      <td><span class="badge ${vBadge}">${v.vardiya}</span></td>
+      <td>
+          ${v.operator}<br>
+          <span style="font-size:0.75rem;color:var(--muted);font-weight:600">${v.baslangic_saati || '?'} - ${v.bitis_saati || '?'}</span>
+      </td>
+      <td><span class="badge badge-blue">${v.robot}</span></td>
+      <td style="color:var(--success);font-weight:700">${v.ok}</td>
+      <td style="color:${v.nok > 0 ? 'var(--danger)' : 'var(--muted)'}">${v.nok}</td>
+      <td>${v.durus_dk} dk</td>
+      <td>
+        <div style="font-weight:800;color:${oeeColor}">${v.oee}%</div>
+        <div class="oee-bar-bg"><div class="oee-bar" style="width:${v.oee}%;background:${oeeColor}"></div></div>
+      </td>
+      <td>
+        <button class="btn btn-warning" style="padding:4px 8px;font-size:0.8rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer;margin-right:2px" title="Düzenle" onclick="vardiyaDuzenle(event, ${getVardiyaId(v)}, '${v.tarih}', '${v.vardiya}', '${v.operator}', '${v.baslangic_saati || ''}', '${v.bitis_saati || ''}')">✏️</button>
+        <button class="btn btn-danger" title="Sil" style="padding:4px 6px" onclick="vardiyaSil(event,${getVardiyaId(v)})">🗑</button>
+      </td>
+    </tr>`;
+            }).join('');
+        }
+
+        // Ozetdaki vardiyaların id'sine şu an erişemiyoruz, bu yüzden api'dan çekeceğiz
+        // vardiya_id alanını ozet'e ekledik
+        function getVardiyaId(v) {
+            return v.vardiya_id || 0;
+        }
+
+        // VARDİYA DÜZENLE MODALI
+        function vardiyaDuzenle(e, vid, tarih, tur, operator, bas, bit) {
+            e.stopPropagation();
+            document.getElementById('gem-title').textContent = 'Vardiya Düzenle';
+            document.getElementById('gem-body').innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div class="form-group">
+                        <label>Tarih</label>
+                        <input type="date" id="gem-v-tarih" value="${tarih}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Vardiya Türü</label>
+                        <select id="gem-v-tur" class="form-control">
+                            <option value="Sabah" ${tur==='Sabah'?'selected':''}>Sabah</option>
+                            <option value="Öğle" ${tur==='Öğle'?'selected':''}>Öğle</option>
+                            <option value="Gece" ${tur==='Gece'?'selected':''}>Gece</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Operatör Adı</label>
+                        <input type="text" id="gem-v-operator" value="${operator}" class="form-control">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div class="form-group" style="flex:1">
+                            <label>Başlangıç Saati (Saat:Dakika)</label>
+                            <input type="time" id="gem-v-bas" value="${bas}" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>Bitiş Saati (Saat:Dakika)</label>
+                            <input type="time" id="gem-v-bit" value="${bit}" class="form-control">
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('gem-kaydet').onclick = async () => {
+                const payload = {
+                    tarih: document.getElementById('gem-v-tarih').value,
+                    vardiya_turu: document.getElementById('gem-v-tur').value,
+                    operator_adi: document.getElementById('gem-v-operator').value,
+                    baslangic_saati: document.getElementById('gem-v-bas').value,
+                    bitis_saati: document.getElementById('gem-v-bit').value,
+                };
+                if (!payload.baslangic_saati || !payload.bitis_saati) {
+                    alert('Lütfen başlangıç ve bitiş saatlerini giriniz!');
+                    return;
+                }
+                const btn = document.getElementById('gem-save-btn');
+                btn.textContent = '⏱ Kaydediliyor...';
+                try {
+                    const res = await fetch('/api/vardiya/' + vid, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        toast('Vardiya bilgileri güncellendi!', 'ok');
+                        gemKapat();
+                        yukle();
+                    } else {
+                        const d = await res.json();
+                        toast(d.hata || 'Kaydedilemedi.', 'err');
+                    }
+                } catch (err) {
+                    toast('Bağlantı hatası.', 'err');
+                } finally {
+                    btn.innerHTML = '💾 Kaydet';
+                    btn.disabled = false;
+                }
+            };
+            document.getElementById('gem-modal').classList.add('open');
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // REFERANS BAZLI ÜRETİM TABLOSU
+        // ═══════════════════════════════════════════════════════
+        function guncelleUretimDetay(data) {
+            const tbody = document.getElementById('uretim-detay-body');
+            const count = document.getElementById('uretim-detay-count');
+            if(!tbody) return;
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-icon">📭</div><p>Kayıt yok</p></div></td></tr>';
+                if(count) count.textContent = '';
+                return;
+            }
+            if(count) count.textContent = data.length + ' kayıt';
+            tbody.innerHTML = data.map(u => {
+                const ctStr = u.cycle_time_sn > 0 ? `<span style="color:var(--muted)">${Math.round(u.cycle_time_sn)} sn</span>` : `<span style="color:#f59e0b;font-size:.75rem">—</span>`;
+                return `<tr>
+                    <td>${u.tarih}</td>
+                    <td><span class="badge badge-blue">${u.robot_no}</span></td>
+                    <td style="font-size:.8rem">${u.operator_adi}</td>
+                    <td><b>${u.referans_kodu}</b></td>
+                    <td style="text-align:right;color:var(--success);font-weight:700">${u.ok_adet}</td>
+                    <td style="text-align:right;color:var(--danger);font-weight:700">${u.nok_adet}</td>
+                    <td style="text-align:right">${ctStr}</td>
+                    <td style="text-align:right;">
+                        <button onclick="duzenleUretim(${u.uretim_id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet || 0}, ${u.cycle_time_sn || 0})" class="btn" style="padding:4px 8px;font-size:0.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️ Düzenle</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function guncelleRefUretim(data) {
+            // Referans bazlı üretim tablosu kaldırıldı. Uyumluluk için boş fonksiyon bırakıldı.
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // DURUŞ KIRILIM TABLOSU
+        // ═══════════════════════════════════════════════════════
+        function guncelleDurusKirilim(dagilim, tipiOzet) {
+            // Sebep kırılımı
+            const tbody = document.getElementById('durus-kirilim-body');
+            const count = document.getElementById('durus-count');
+            if (!dagilim.length) {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><div class="empty-icon">✅</div><p>Duruş yok</p></div></td></tr>';
+                count.textContent = '';
+            } else {
+                count.textContent = dagilim.length + ' çeşit duruş';
+                tbody.innerHTML = dagilim.map(d => {
+                    const planli = d.durus_tipi === 'planli';
+                    const badge = planli
+                        ? '<span class="badge badge-green" style="font-size:.65rem">Planlı</span>'
+                        : '<span class="badge badge-red" style="font-size:.65rem">Plansız</span>';
+                    return `<tr>
+                        <td><b>${d.durus_sebebi}</b></td>
+                        <td>${badge}</td>
+                        <td style="text-align:right;font-weight:700">${d.toplam_sure} dk</td>
+                        <td style="text-align:right;color:var(--muted)">${d.adet}x</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            // Tip özeti (sağ kart)
+            const ozetEl = document.getElementById('durus-tipi-ozet');
+            if (!tipiOzet.length) {
+                ozetEl.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px">Duruş yok</div>';
+                return;
+            }
+            let toplam = tipiOzet.reduce((s, t) => s + t.toplam_sure, 0);
+            ozetEl.innerHTML = tipiOzet.map(t => {
+                const pct = toplam > 0 ? ((t.toplam_sure / toplam) * 100).toFixed(1) : 0;
+                const isPlanlı = t.durus_tipi === 'planli';
+                const renk = isPlanlı ? '#16a34a' : '#dc2626';
+                const ikon = isPlanlı ? '✅' : '⚠️';
+                return `<div style="margin-bottom:16px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                        <span style="font-size:.82rem;font-weight:700">${ikon} ${isPlanlı ? 'Planlı Duruşlar' : 'Plansız Duruşlar'}</span>
+                        <span style="font-size:.82rem;font-weight:800;color:${renk}">${t.toplam_sure} dk</span>
+                    </div>
+                    <div style="background:#f1f5f9;border-radius:6px;height:8px;overflow:hidden">
+                        <div style="background:${renk};height:100%;width:${pct}%;border-radius:6px;transition:width .4s"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:4px">
+                        <span style="font-size:.7rem;color:var(--muted)">${t.adet} kayıt</span>
+                        <span style="font-size:.7rem;color:var(--muted)">%${pct}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // ROBOT BAZLI REFERANS ÜRETİM KIRILIMi
+        // ═══════════════════════════════════════════════════════
+        function guncelleRobotRefUretim(data) {
+            const tbody = document.getElementById('robot-ref-body');
+            const count = document.getElementById('robot-ref-count');
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><div class="empty-icon">📭</div><p>Kayıt yok</p></div></td></tr>';
+                count.textContent = ''; return;
+            }
+            count.textContent = data.length + ' satır';
+            let prevRobot = null;
+            tbody.innerHTML = data.map(r => {
+                const isNew = r.robot_no !== prevRobot;
+                prevRobot = r.robot_no;
+                const toplam = r.toplam_uretim || 0;
+                const ok = r.toplam_ok || 0;
+                const kalite = toplam > 0 ? ((ok / toplam) * 100).toFixed(1) : '—';
+                const kaliteColor = toplam > 0
+                    ? (ok / toplam >= 0.95 ? '#16a34a' : ok / toplam >= 0.80 ? '#d97706' : '#dc2626')
+                    : '#64748b';
+                return `<tr style="${isNew ? 'border-top:2px solid #e2e8f0' : ''}">
+                    <td style="font-weight:${isNew ? '800' : '400'};color:${isNew ? 'var(--primary)' : 'transparent'}">
+                        ${isNew ? '🤖 ' + r.robot_no : '↳'}
+                    </td>
+                    <td><b>${r.referans_kodu}</b></td>
+                    <td style="text-align:right;font-weight:700">${toplam}</td>
+                    <td style="text-align:right;color:var(--success);font-weight:700">${ok}</td>
+                    <td style="text-align:right;color:${kaliteColor};font-weight:700">${kalite}%</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // ROBOT BAZLI DURUŞ KIRILIMi
+        // ═══════════════════════════════════════════════════════
+        function guncelleRobotDurus(data) {
+            const tbody = document.getElementById('robot-durus-body');
+            const count = document.getElementById('robot-durus-count');
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><div class="empty-icon">✅</div><p>Duruş yok</p></div></td></tr>';
+                count.textContent = ''; return;
+            }
+            count.textContent = data.length + ' satır';
+            let prevRobot = null;
+            tbody.innerHTML = data.map(d => {
+                const isNew = d.robot_no !== prevRobot;
+                prevRobot = d.robot_no;
+                const planli = d.durus_tipi === 'planli';
+                const badge = planli
+                    ? '<span class="badge badge-green" style="font-size:.62rem">Planlı</span>'
+                    : '<span class="badge badge-red" style="font-size:.62rem">Plansız</span>';
+                return `<tr style="${isNew ? 'border-top:2px solid #e2e8f0' : ''}">
+                    <td style="font-weight:${isNew ? '800' : '400'};color:${isNew ? 'var(--primary)' : 'transparent'}">
+                        ${isNew ? '🤖 ' + d.robot_no : '↳'}
+                    </td>
+                    <td>${d.durus_sebebi} <span style="font-size:0.75rem;color:var(--muted);margin-left:4px">(${d.operator_adi || '-'})</span></td>
+                    <td>${badge}</td>
+                    <td style="text-align:right;font-weight:700">${d.toplam_sure} dk</td>
+                    <td style="text-align:right;">
+                        <button onclick="duzenleDurus(${d.durus_id}, '${d.durus_sebebi}', ${d.toplam_sure})" class="btn" style="padding:4px 8px;font-size:0.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️ Düzenle</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // DETAIL PANEL
+        // ═══════════════════════════════════════════════════════
+        async function panelAc(vid) {
+            if (!vid) return;
+            document.getElementById('detail-panel').classList.add('open');
+            document.getElementById('detail-content').innerHTML = '<div class="loading"><span class="spinner"></span>Yükleniyor</div>';
+            try {
+                const [detayRes, oeeRes] = await Promise.all([
+                    fetch(`/api/vardiya/${vid}`),
+                    fetch(`/api/oee/${vid}`)
+                ]);
+                const detay = await detayRes.json();
+                const oee = await oeeRes.json();
+                const v = detay.vardiya;
+
+                const oeeColor = oee.oee >= 80 ? '#16a34a' : oee.oee >= 60 ? '#d97706' : '#dc2626';
+
+                let html = `
+      <div class="oee-meter">
+        <div class="meter-item"><div class="meter-val" style="color:${oeeColor}">${oee.oee}%</div><div class="meter-lbl">OEE</div></div>
+        <div class="meter-item"><div class="meter-val" style="color:#16a34a">${oee.availability}%</div><div class="meter-lbl">Lık</div></div>
+        <div class="meter-item"><div class="meter-val" style="color:#d97706">${oee.performance}%</div><div class="meter-lbl">Perf.</div></div>
+        <div class="meter-item"><div class="meter-val" style="color:#0891b2">${oee.quality}%</div><div class="meter-lbl">Kalite</div></div>
+      </div>
+      <div class="detail-section">
+        <h4>Vardiya Bilgileri</h4>
+        <div class="detail-row"><span>Operatör</span><b>${v.operator_adi}</b></div>
+        <div class="detail-row"><span>Robot</span><span class="badge badge-blue">${v.robot_no}</span></div>
+        <div class="detail-row"><span>Tarih</span><b>${v.tarih}</b></div>
+        <div class="detail-row"><span>Vardiya</span><b>${v.vardiya_turu}</b></div>
+        <div class="detail-row">
+            <span>Saat</span>
+            <b style="display:flex;align-items:center;gap:6px">
+                ${v.baslangic_saati} – ${v.bitis_saati}
+                <button onclick="duzenleVardiya(${v.id}, '${v.baslangic_saati}', '${v.bitis_saati}', ${v.toplam_sure_dk})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️</button>
+            </b>
+        </div>
+        <div class="detail-row"><span>Planlı Süre</span><b>${v.toplam_sure_dk} dk</b></div>
+        <div class="detail-row"><span>Toplam Duruş</span><b style="color:var(--danger)">${oee.toplam_durus_dk} dk</b></div>
+      </div>`;
+
+                if (detay.uretim.length) {
+                    html += `<div class="detail-section"><h4>Üretim Kayıtları</h4>`;
+                    detay.uretim.forEach(u => {
+                        html += `<div class="detail-row"><span>📦 ${u.referans_kodu}</span><span style="display:flex;align-items:center;gap:6px">
+                            <span><b style="color:var(--success)">${u.ok_adet}</b> OK / <span style="color:var(--danger)">${u.nok_adet}</span> NOK (Hdf: ${u.hedef_adet})</span>
+                            <button onclick="duzenleUretim(${u.id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️</button>
+                        </span></div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                if (detay.duruslar.length) {
+                    html += `<div class="detail-section"><h4>Duruş Kayıtları</h4>`;
+                    detay.duruslar.forEach(d => {
+                        html += `<div class="detail-row"><span>⏸️ ${d.durus_sebebi}${d.baslangic_saati ? ' (' + d.baslangic_saati + ')' : ''}</span><b style="display:flex;align-items:center;gap:6px">
+                            ${d.sure_dk} dk
+                            <button onclick="duzenleDurus(${d.id}, '${d.durus_sebebi}', ${d.sure_dk})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️</button>
+                        </b></div>`;
+                        if (d.aciklama) html += `<div style="font-size:.76rem;color:var(--muted);padding:2px 0 6px 22px">${d.aciklama}</div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                if (v.notlar) {
+                    html += `<div class="detail-section"><h4>Notlar</h4><p style="font-size:.85rem;color:var(--muted)">${v.notlar}</p></div>`;
+                }
+
+                document.getElementById('detail-content').innerHTML = html;
+            } catch (e) {
+                document.getElementById('detail-content').innerHTML = '<p style="color:var(--danger)">Yüklenemedi</p>';
+            }
+        }
+
+        function panelKapat() { document.getElementById('detail-panel').classList.remove('open'); }
+
+        // --- GENERIC EDIT MODAL ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.insertAdjacentHTML('beforeend', `
+            <div id="gem-modal" class="modal-overlay">
+                <div class="modal" style="max-width:350px;border-radius:16px;padding:24px;margin:auto;">
+                    <h3 id="gem-title" style="margin:0 0 16px 0;color:var(--primary);font-weight:800;font-size:1.1rem">Düzenle</h3>
+                    <div id="gem-body" style="display:flex;flex-direction:column;gap:12px;"></div>
+                    <div style="display:flex;gap:8px;margin-top:20px">
+                        <button onclick="gemKapat()" class="btn" style="background:#e2e8f0;color:#475569;flex:1;padding:10px;border-radius:8px;font-weight:700;border:none;cursor:pointer">İptal</button>
+                        <button id="gem-kaydet" class="btn" style="flex:1;background:var(--primary);color:#fff;padding:10px;border-radius:8px;font-weight:700;border:none;cursor:pointer">💾 Kaydet</button>
+                    </div>
+                </div>
+            </div>
+            `);
+        });
+
+        function gemKapat() {
+            const el = document.getElementById('gem-modal');
+            if(el) el.classList.remove('open');
+            // detail panel açılınca kapatılmış olabilen promptlar için
+        }
+
+        function gemAc(title, alanlar, onKaydet) {
+            document.getElementById('gem-title').textContent = title;
+            const body = document.getElementById('gem-body');
+            body.innerHTML = alanlar.map((a, i) => `
+                <div>
+                    <label style="font-size:0.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">${a.label}</label>
+                    <input type="${a.type||'text'}" id="gem-i-${i}" value="${a.value!=null?a.value:''}" style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;outline:none" ${a.disabled?'disabled':''}>
+                </div>
+            `).join('');
+            document.getElementById('gem-kaydet').onclick = async () => {
+                const vals = alanlar.map((a, i) => document.getElementById(`gem-i-${i}`).value);
+                const btn = document.getElementById('gem-kaydet');
+                btn.innerHTML = '<span class="spinner"></span>';
+                btn.disabled = true;
+                await onKaydet(vals);
+                btn.innerHTML = '💾 Kaydet';
+                btn.disabled = false;
+            };
+            document.getElementById('gem-modal').classList.add('open');
+        }
+
+        async function duzenleVardiya(vid, bas, bit, toplamSure) {
+            gemAc('Vardiya Saatleri', [
+                {label:'Başlangıç Saati (HH:MM)', value:bas},
+                {label:'Bitiş Saati (HH:MM)', value:bit},
+                {label:'Planlı Toplam Süre (Dk)', value:toplamSure, type:'number'}
+            ], async ([vBas, vBit, vSure]) => {
+                try {
+                    let bodyData = { baslangic_saati: vBas, bitis_saati: vBit };
+                    if (vSure.trim() !== '') bodyData.toplam_sure_dk = parseInt(vSure);
+                    const res = await fetch('/api/vardiya/' + vid, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(bodyData)
+                    });
+                    if(!res.ok) throw new Error();
+                    toast('Vardiya güncellendi!', 'ok');
+                    gemKapat();
+                    panelAc(vid); yukle();
+                } catch(e) { toast('Hata oluştu', 'err'); }
+            });
+        }
+
+        // Referans listesi cache for autocomplete in edit modal
+        let _refListCache = [];
+        async function _getRefList() {
+            if(_refListCache.length) return _refListCache;
+            try {
+                const r = await fetch('/api/referanslar');
+                _refListCache = await r.json();
+            } catch(e) { _refListCache = []; }
+            return _refListCache;
+        }
+
+        async function duzenleUretim(uid, ref, ok, nok, hdf, ct) {
+            const refList = await _getRefList();
+
+            // Ref kodu için özel autocomplete inputlu alan
+            const refAcHtml = `
+                <div style="position:relative">
+                    <input type="text" id="gem-ref-ac" value="${ref}" autocomplete="off"
+                        style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;outline:none"
+                        placeholder="Referans kodu...">
+                    <div id="gem-ref-ddl" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:2px solid var(--primary);border-radius:8px;z-index:9999;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.15)"></div>
+                </div>
+                <div id="gem-ct-lbl" style="font-size:.75rem;color:var(--muted);margin-top:4px">⏱ CT: ${ct > 0 ? Math.round(ct) + ' sn (referans tanımlı)' : '— (tanımsız)'}</div>`;
+
+            document.getElementById('gem-title').textContent = 'Üretim Düzenle';
+            const body = document.getElementById('gem-body');
+            body.innerHTML = `
+                <div><label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Referans Kodu</label>
+                    ${refAcHtml}
+                </div>
+                <div><label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">OK Adet</label>
+                    <input type="number" id="gem-i-ok" value="${ok}" style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:.9rem;outline:none">
+                </div>
+                <div><label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">NOK Adet</label>
+                    <input type="number" id="gem-i-nok" value="${nok}" style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:.9rem;outline:none">
+                </div>`;
+
+            // Autocomplete logic
+            const acInput = document.getElementById('gem-ref-ac');
+            const ddl = document.getElementById('gem-ref-ddl');
+            let selectedCt = ct;
+            acInput.addEventListener('input', () => {
+                const q = acInput.value.replace(/\s+/g,'').toUpperCase();
+                if(!q) { ddl.style.display='none'; return; }
+                const matches = refList.filter(r => r.referans_kodu.replace(/\s+/g,'').toUpperCase().includes(q)).slice(0, 12);
+                if(!matches.length) { ddl.style.display='none'; return; }
+                ddl.innerHTML = matches.map(r => `<div class="gem-ddl-item" data-ref="${r.referans_kodu}" data-ct="${r.hedef_cycle_time_sn||0}" style="padding:8px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid #f1f5f9">
+                    <b>${r.referans_kodu}</b>${r.hedef_cycle_time_sn > 0 ? ' <span style="color:var(--muted);font-size:.75rem">'+Math.round(r.hedef_cycle_time_sn)+' sn</span>' : ''}
+                </div>`).join('');
+                ddl.style.display='block';
+                ddl.querySelectorAll('.gem-ddl-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        acInput.value = item.dataset.ref;
+                        selectedCt = parseFloat(item.dataset.ct) || 0;
+                        document.getElementById('gem-ct-lbl').textContent = `⏱ CT: ${selectedCt > 0 ? Math.round(selectedCt) + ' sn (referans tanımlı)' : '— (tanımsız)'}`;
+                        ddl.style.display='none';
+                    });
+                });
+            });
+            document.addEventListener('click', (e) => { if(!ddl.contains(e.target) && e.target!==acInput) ddl.style.display='none'; }, {once:true});
+
+            document.getElementById('gem-kaydet').onclick = async () => {
+                const vRef = acInput.value.trim();
+                const vOk = parseInt(document.getElementById('gem-i-ok').value);
+                const vNok = parseInt(document.getElementById('gem-i-nok').value);
+                const btn = document.getElementById('gem-kaydet');
+                btn.innerHTML='<span class="spinner"></span>'; btn.disabled=true;
+                try {
+                    const res = await fetch('/api/uretim/' + uid, {
+                        method: 'PUT',
+                        headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ referans_kodu: vRef, ok_adet: vOk, nok_adet: vNok, hedef_adet: hdf, cycle_time_sn: selectedCt })
+                    });
+                    if(!res.ok) throw new Error();
+                    toast('Üretim güncellendi!', 'ok');
+                    _refListCache = []; // cache temizle
+                    gemKapat();
+                    yukle();
+                } catch(e) { toast('Hata oluştu', 'err'); }
+                btn.innerHTML='💾 Kaydet'; btn.disabled=false;
+            };
+            document.getElementById('gem-modal').classList.add('open');
+        }
+
+        async function duzenleDurus(did, sebep, sure) {
+            gemAc('Duruş Düzenle', [
+                {label:'Duruş Sebebi', value:sebep},
+                {label:'Duruş Süresi (Dk)', value:sure, type:'number'}
+            ], async ([vSebep, vSure]) => {
+                try {
+                    const res = await fetch('/api/durus/' + did, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ durus_sebebi: vSebep, sure_dk: parseInt(vSure) })
+                    });
+                    if(!res.ok) throw new Error();
+                    toast('Duruş güncellendi!', 'ok');
+                    gemKapat();
+                    yukle();
+                } catch(e) { toast('Hata oluştu', 'err'); }
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // VARDİYA SİL
+        // ═══════════════════════════════════════════════════════
+        async function vardiyaSil(e, vid) {
+            e.stopPropagation();
+            if (!confirm('Bu vardiya kaydını silmek istiyor musunuz?')) return;
+            try {
+                await fetch(`/api/vardiya/${vid}`, { method: 'DELETE' });
+                toast('Vardiya silindi', 'ok');
+                yukle();
+            } catch (err) {
+                toast('Silinemedi', 'err');
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // REFERANSLAR
+        // ═══════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════
+        // REFERANSLAR
+        // ═══════════════════════════════════════════════════════
+        let tumReferanslar = [];
+
+        async function yukleReferanslar() {
+            const tbody = document.getElementById('ref-tbl-body');
+            if(!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><span class="spinner"></span></div></td></tr>';
+            try {
+                const res = await fetch('/api/referanslar?q=');
+                tumReferanslar = await res.json();
+                renderReferanslar(tumReferanslar);
+                yukleEksikReferanslar();
+            } catch (e) {
+                toast('Referanslar yüklenemedi', 'err');
+            }
+        }
+
+        function renderReferanslar(data) {
+            const tbody = document.getElementById('ref-tbl-body');
+            if (!tbody) return;
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Referans bulunamadı</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(r => `
+                <tr style="cursor:pointer" onclick="refDuzenle('${r.referans_kodu}', '${(r.aciklama || '').replace(/'/g, "\\'")}', ${r.hedef_cycle_time_sn || 0})">
+                    <td><b>${r.referans_kodu}</b></td>
+                    <td style="font-size:.82rem">${r.aciklama || '—'}</td>
+                    <td style="text-align:right;font-weight:700">${r.hedef_cycle_time_sn || '0'} sn</td>
+                    <td style="display:flex;gap:4px;justify-content:center" onclick="event.stopPropagation()">
+                        <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" 
+                                onclick="refDuzenle('${r.referans_kodu}', '${(r.aciklama || '').replace(/'/g, "\\'")}', ${r.hedef_cycle_time_sn || 0})">✏️</button>
+                        <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5" 
+                                onclick="referansSil('${r.referans_kodu}')">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function refAra() {
+            const q = document.getElementById('ref-ara-input').value.toLowerCase().replace(/\s+/g, '');
+            const filtered = tumReferanslar.filter(r => 
+                r.referans_kodu.toLowerCase().replace(/\s+/g, '').includes(q) || 
+                (r.aciklama && r.aciklama.toLowerCase().replace(/\s+/g, '').includes(q))
+            );
+            renderReferanslar(filtered);
+        }
+
+        async function yukleEksikReferanslar() {
+            try {
+                const res = await fetch('/api/referanslar/eksik');
+                if (!res.ok) throw new Error('API hatası');
+                const list = await res.json();
+                const panel = document.getElementById('eksik-referanslar-panel');
+                const listEl = document.getElementById('eksik-ref-list');
+                
+                if (list && list.length > 0) {
+                    panel.style.display = 'block';
+                    listEl.innerHTML = list.map(ref => `
+                        <div style="display:inline-flex; border:1px solid #fca5a5; border-radius:10px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,.05)">
+                            <button onclick="refDuzenle('${ref}', '', 0)" title="Süre Tanımla"
+                                    style="background:#fff; border:none; padding:6px 10px; font-size:.78rem; font-weight:700; color:#e11d48; cursor:pointer; transition:.2s">
+                                ${ref} +
+                            </button>
+                            <button onclick="referansSil('${ref}')" title="Bu referansı sil"
+                                    style="background:#fee2e2; border:none; border-left:1px solid #fca5a5; padding:6px 8px; font-size:.78rem; font-weight:700; color:#9f1239; cursor:pointer; transition:.2s">
+                                ✖
+                            </button>
+                        </div>
+                    `).join('');
+                } else {
+                    panel.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Eksik referanslar yüklenemedi:', e);
+                const p = document.getElementById('eksik-referanslar-panel');
+                if(p) p.style.display = 'none';
+            }
+        }
+
+        function refModalAc() { 
+            document.getElementById('ref-modal-title').textContent = 'Yeni Referans Ekle';
+            document.getElementById('ref-kod').disabled = false;
+            document.getElementById('ref-modal').classList.add('open'); 
+        }
+
+        function refDuzenle(kod, desc, ct) {
+            document.getElementById('ref-modal-title').textContent = 'Referans Düzenle';
+            document.getElementById('ref-kod').value = kod;
+            document.getElementById('ref-kod').disabled = true;
+            document.getElementById('ref-aciklama').value = desc;
+            document.getElementById('ref-cycle').value = ct;
+            document.getElementById('ref-modal').classList.add('open');
+        }
+
+        function refModalKapat(e) {
+            if (!e || e.target === document.getElementById('ref-modal')) {
+                document.getElementById('ref-modal').classList.remove('open');
+                ['ref-kod', 'ref-aciklama', 'ref-cycle'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if(el) el.value = '';
+                });
+            }
+        }
+
+        async function refKaydet() {
+            const kod = document.getElementById('ref-kod').value.trim();
+            if (!kod) { toast('Referans kodu zorunlu', 'err'); return; }
+            try {
+                const res = await fetch('/api/referanslar', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        referans_kodu: kod, 
+                        aciklama: document.getElementById('ref-aciklama').value, 
+                        hedef_cycle_time_sn: document.getElementById('ref-cycle').value || 0 
+                    })
+                });
+                if (res.ok) {
+                    toast('Referans kaydedildi', 'ok');
+                    refModalKapat();
+                    yukleReferanslar();
+                } else {
+                    const d = await res.json();
+                    toast(d.hata || 'Kaydedilemedi', 'err');
+                }
+            } catch (e) { toast('Bağlantı hatası', 'err'); }
+        }
+
+        async function referansSil(kod) {
+            if (!confirm(`'${kod}' referansını listeden silmek istiyor musunuz?`)) return;
+            try {
+                const res = await fetch(`/api/referanslar/${kod}`, { method: 'DELETE' });
+                if (res.ok) {
+                    toast('Referans silindi', 'ok');
+                    yukleReferanslar();
+                    yukleEksikReferanslar(); // Eksik listesini de güncelle
+                } else {
+                    toast('Silinemedi', 'err');
+                }
+            } catch (e) { toast('Bağlantı hatası', 'err'); }
+        }
+
+        async function referansExcelGuncelle() {
+            if (!confirm('Veritabanındaki tüm referans ve süreleri Masaüstü/Kaynakhane.xlsx dosyasına yazmak istiyor musunuz?')) return;
+            toast('Excel güncelleniyor...', 'info');
+            try {
+                const res = await fetch('/api/referanslar/export_excel', { method: 'POST' });
+                const d = await res.json();
+                if (d.basarili) {
+                    toast('✅ Excel başarıyla güncellendi!', 'ok');
+                } else {
+                    toast('❌ Hata: ' + d.hata, 'err');
+                }
+            } catch (e) { toast('Bağlantı hatası', 'err'); }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // FİKSTÜR ADRESLERİ
+        // ═══════════════════════════════════════════════════════
+        let tumFiksturler = [];
+        async function yukleFikstur() {
+            const tbody = document.getElementById('fikstur-table-body');
+            const count = document.getElementById('fikstur-count');
+            try {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><span class="spinner"></span></div></td></tr>';
+                const res = await fetch('/api/fikstur');
+                tumFiksturler = await res.json();
+                renderFikstur(tumFiksturler);
+            } catch(e) {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><p style="color:red">Yüklenemedi</p></div></td></tr>';
+            }
+        }
+
+        function renderFikstur(liste) {
+            const tbody = document.getElementById('fikstur-table-body');
+            document.getElementById('fikstur-count').textContent = liste.length + ' kayıt';
+            if (!liste.length) {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><p>Kayıt yok</p></div></td></tr>';
+                return;
+            }
+            tbody.innerHTML = liste.map(r => `
+                <tr>
+                    <td><b>${r.referans_kodu}</b></td>
+                    <td>${r.raf_adresi}</td>
+                    <td>${r.notlar || '—'}</td>
+                    <td style="text-align:right">
+                        <button onclick="fiksturSil(${r.id})" class="btn" style="background:#fee2e2;color:#dc2626;padding:4px 8px;font-size:.7rem">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function fiksturFiltrele(q) {
+            if (!q) return renderFikstur(tumFiksturler);
+            const lower = q.toLowerCase();
+            const filtred = tumFiksturler.filter(f => (f.referans_kodu||'').toLowerCase().includes(lower) || (f.raf_adresi||'').toLowerCase().includes(lower));
+            renderFikstur(filtred);
+        }
+
+        async function fiksturEkle() {
+            const ref = document.getElementById('fk-ref').value.trim();
+            const raf = document.getElementById('fk-raf').value.trim();
+            const notlar = document.getElementById('fk-notlar').value.trim();
+            if (!ref) { toast('Referans kodu zorunlu', 'err'); return; }
+            try {
+                const res = await fetch('/api/fikstur', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ referans_kodu: ref, raf_adresi: raf, notlar })
+                });
+                if(!res.ok) throw new Error('');
+                toast('Fikstür adresi eklendi, ODS güncellendi!', 'ok');
+                document.getElementById('fk-ref').value = '';
+                document.getElementById('fk-raf').value = '';
+                document.getElementById('fk-notlar').value = '';
+                await yukleFikstur();
+            } catch(e) { toast('Kaydedilemedi', 'err'); }
+        }
+
+        async function fiksturSil(id) {
+            if (!confirm('Bu fikstür adresini silmek istiyor musunuz?')) return;
+            try {
+                await fetch('/api/fikstur/' + id, {method: 'DELETE'});
+                toast('Silindi, ODS güncellendi!', 'ok');
+                await yukleFikstur();
+            } catch(e) { toast('Silinemedi', 'err'); }
+        }
+
+        async function fiksturOdsImport() {
+            const btn = document.getElementById('ods-import-btn');
+            if(!confirm('Masaüstündeki KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods okunup buraya eklenecek. Önceden var olan referanslar atlanacak. Onaylıyor musunuz?')) return;
+            btn.textContent = '⏳ İçe Aktarılıyor...';
+            try {
+                const res = await fetch('/api/fikstur/ods_import', {method: 'POST'});
+                const data = await res.json();
+                if(res.ok) {
+                    toast(`✅ İçe aktarıldı: ${data.eklenen} yeni, ${data.atlanan} es geçildi.`, 'ok');
+                    await yukleFikstur();
+                } else {
+                    toast('❌ Hata: ' + data.error, 'err');
+                }
+            } catch(e) { toast('Hata', 'err'); }
+            btn.innerHTML = "📥 ODS'tan İçe Aktar";
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // REFERANS ROBOT UYUMU
+        // ═══════════════════════════════════════════════════════
+        let tumUyumlar = [];
+        async function yukleUyum() {
+            const tbody = document.getElementById('uyum-table-body');
+            const count = document.getElementById('uyum-count');
+            try {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><span class="spinner"></span></div></td></tr>';
+                const res = await fetch('/api/referans_uyum');
+                tumUyumlar = await res.json();
+                renderUyum(tumUyumlar);
+            } catch(e) {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><p style="color:red">Yüklenemedi</p></div></td></tr>';
+            }
+        }
+
+        function renderUyum(liste) {
+            const tbody = document.getElementById('uyum-table-body');
+            document.getElementById('uyum-count').textContent = liste.length + ' kayıt';
+            if (!liste.length) {
+                tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><p>Kayıt yok</p></div></td></tr>';
+                return;
+            }
+            tbody.innerHTML = liste.map(r => `
+                <tr>
+                    <td><b>${r.referans_kodu}</b></td>
+                    <td>${r.robot_no}</td>
+                    <td>İstasyon ${r.istasyon}</td>
+                    <td style="text-align:right">
+                        <button onclick="uyumSil(${r.id})" class="btn" style="background:#fee2e2;color:#dc2626;padding:4px 8px;font-size:.7rem">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function uyumFiltrele(q) {
+            if (!q) return renderUyum(tumUyumlar);
+            const lower = q.toLowerCase();
+            const filtred = tumUyumlar.filter(f => (f.referans_kodu||'').toLowerCase().includes(lower) || (f.robot_no||'').toLowerCase().includes(lower));
+            renderUyum(filtred);
+        }
+
+        async function uyumEkle() {
+            const ref = document.getElementById('uyum-ref').value.trim();
+            const robot = document.getElementById('uyum-robot').value.trim();
+            const ist = document.getElementById('uyum-istasyon').value.trim();
+            if (!ref || !robot || !ist) { toast('Tüm alanları doldurun', 'err'); return; }
+            try {
+                const res = await fetch('/api/referans_uyum', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ referans_kodu: ref, robot_no: robot, istasyon: ist })
+                });
+                if(!res.ok) throw new Error('');
+                toast('Uyum kaydedildi!', 'ok');
+                document.getElementById('uyum-ref').value = '';
+                document.getElementById('uyum-robot').value = '';
+                document.getElementById('uyum-istasyon').value = '';
+                await yukleUyum();
+            } catch(e) { toast('Kaydedilemedi', 'err'); }
+        }
+
+        async function uyumSil(id) {
+            if (!confirm('Bu silmek istiyor musunuz?')) return;
+            try {
+                await fetch('/api/referans_uyum/' + id, {method: 'DELETE'});
+                toast('Silindi!', 'ok');
+                await yukleUyum();
+            } catch(e) { toast('Silinemedi', 'err'); }
+        }
+
+        async function uyumOdsImport() {
+            const btn = document.getElementById('uyum-import-btn');
+            if(!confirm('Masaüstündeki RAF ve PROGRAM..ods dosyası okunup eklenecek. Mükerrer olanlar atlanacak. İşlem biraz sürebilir, onaylıyor musunuz?')) return;
+            btn.textContent = '⏳ İçe Aktarılıyor...';
+            try {
+                const res = await fetch('/api/referans_uyum/ods_import', {method: 'POST'});
+                const data = await res.json();
+                if(res.ok) {
+                    toast(`✅ Aktarıldı: ${data.eklenen} yeni, ${data.atlanan} es geçildi.`, 'ok');
+                    await yukleUyum();
+                } else {
+                    toast('❌ Hata: ' + data.error, 'err');
+                }
+            } catch(e) { toast('Dosya bulunamadı veya hata oluştu', 'err'); }
+            btn.innerHTML = "📥 RAF ve PROGRAM ODS İçe Aktar";
+        }
+
+
+        // ═══════════════════════════════════════════════════════
+        // EXCEL VERİ AKTARMA
+        // ═══════════════════════════════════════════════════════
+        async function excelVeriAktar() {
+            if (!confirm('Masaüstündeki Kaynakhane.xlsx dosyasından referans ve operatör bilgileri aktarılacak. Onaylıyor musunuz?')) return;
+
+            toast('Veriler aktarılıyor, lütfen bekleyin...', 'info');
+            try {
+                const res = await fetch('/api/import_excel', { method: 'POST' });
+                const data = await res.json();
+
+                if (res.ok && data.basarili) {
+                    toast(`✅ Başarılı! Ekl.: ${data.referanslar_eklenen} ref, Günc.: ${data.referanslar_guncellenen} ref, Ekl. Op.: ${data.operatorler_eklenen}`, 'ok');
+                    if (aktifSekme === 'referanslar') {
+                        yukleReferanslar();
+                    }
+                } else {
+                    throw new Error(data.hata || 'Bilinmeyen hata');
+                }
+            } catch (err) {
+                toast(`❌ Aktarım hatası: ${err.message}`, 'err');
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // TOAST
+        // ═══════════════════════════════════════════════════════
+        let tTimer;
+        function toast(msg, type = '') {
+            const el = document.getElementById('toast');
+            el.textContent = msg; el.className = 'toast show ' + type;
+            if (tTimer) clearTimeout(tTimer);
+            tTimer = setTimeout(() => el.classList.remove('show'), 3000);
+        }
+        // ═══════════════════════════════════════════════════════
+        // RAPORLAR SEKME MANTIĞI
+        // ═══════════════════════════════════════════════════════
+        let raporChartInst = null;
+        
+        function initRaporlar() {
+            const bas = document.getElementById('rapor-tarih-bas');
+            const bit = document.getElementById('rapor-tarih-bit');
+            if(!bas.value) {
+                const today = new Date().toISOString().split('T')[0];
+                bas.value = today;
+                bit.value = today;
+            }
+            yukleRaporlar();
+        }
+
+        async function yukleRaporlar() {
+            const bas = document.getElementById('rapor-tarih-bas').value;
+            const bit = document.getElementById('rapor-tarih-bit').value;
+            const tipi = document.getElementById('rapor-tipi').value;
+            const robot = document.getElementById('rapor-robot').value;
+            
+            const tbody = document.getElementById('rapor-tbody');
+            const thead = document.getElementById('rapor-thead');
+            
+            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:20px;">Yükleniyor...</td></tr>';
+            
+            try {
+                let url = `/api/rapor?rapor_tipi=${tipi}&tarih_bas=${bas}&tarih_bit=${bit}`;
+                if (robot) url += `&robot=${robot}`;
+                
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if(!res.ok) throw new Error(data.hata || 'Hata');
+                
+                cizRaporSistemi(data);
+                
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:red; padding:20px;">Hata: ${e.message}</td></tr>`;
+                if(raporChartInst) { raporChartInst.destroy(); raporChartInst = null; }
+            }
+        }
+        
+        function cizRaporSistemi(data) {
+            const chartDiv = document.getElementById('raporChart');
+            if (raporChartInst) { raporChartInst.destroy(); raporChartInst = null; }
+            
+            const thead = document.getElementById('rapor-thead');
+            const tbody = document.getElementById('rapor-tbody');
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            
+            if (data.rapor_tipi === 'operator') {
+                document.getElementById('rapor-chart-title').textContent = "Operatör OEE ve Üretim Performansı";
+                
+                // TABLO BASLIK
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width:140px; text-align:left;">Operatör</th>
+                        <th style="width:70px; text-align:center;">Vardiya</th>
+                        <th style="text-align:center;">Çalışma(dk)</th>
+                        <th style="text-align:center;">Toplam Ü.</th>
+                        <th style="text-align:center;">OK</th>
+                        <th style="text-align:center;">NOK</th>
+                        <th style="text-align:center;">Planlı(dk)</th>
+                        <th style="text-align:center;">Plansız(dk)</th>
+                        <th style="text-align:center;">OEE %</th>
+                        <th style="text-align:center;">Avail. %</th>
+                        <th style="text-align:center;">Perf. %</th>
+                        <th style="text-align:center;">Qual. %</th>
+                    </tr>
+                `;
+                if(!data.veriler || data.veriler.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:20px;">Belirtilen aralıkta veri yok.</td></tr>';
+                    return;
+                }
+                
+                let html = '';
+                let labels = [];
+                let oee_data = [];
+                let prod_data = [];
+                
+                data.veriler.forEach(r => {
+                    labels.push(r.operator || 'Bilinmiyor');
+                    oee_data.push(r.ort_oee);
+                    prod_data.push(r.toplam_uretim);
+                    
+                    html += `<tr>
+                        <td style="text-align:left;"><strong>${r.operator || '—'}</strong></td>
+                        <td style="text-align:center;">${r.vardiya_sayisi}</td>
+                        <td style="text-align:center;">${Math.round(r.toplam_calisma_dk)}</td>
+                        <td style="text-align:center;"><strong>${r.toplam_uretim}</strong></td>
+                        <td style="color:var(--success); text-align:center;">${r.toplam_ok}</td>
+                        <td style="color:var(--danger); text-align:center;">${r.toplam_nok}</td>
+                        <td class="text-secondary" style="text-align:center;">${r.planli_durus_dk}</td>
+                        <td class="text-danger" style="text-align:center;">${r.plansiz_durus_dk}</td>
+                        <td style="text-align:center;"><strong style="color:var(--primary)">%${r.ort_oee}</strong></td>
+                        <td style="text-align:center;" class="text-secondary">%${r.ort_availability}</td>
+                        <td style="text-align:center;" class="text-secondary">%${r.ort_performance}</td>
+                        <td style="text-align:center;" class="text-secondary">%${r.ort_quality}</td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+                
+                raporChartInst = new Chart(chartDiv, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                type: 'bar',
+                                label: 'Ort. OEE %',
+                                data: oee_data,
+                                backgroundColor: 'rgba(56, 189, 248, 0.7)',
+                                borderColor: 'rgba(56, 189, 248, 1)',
+                                borderWidth: 1,
+                                yAxisID: 'y'
+                            },
+                            {
+                                type: 'line',
+                                label: 'Toplam Üretim (OK+NOK)',
+                                data: prod_data,
+                                borderColor: 'rgba(249, 115, 22, 1)',
+                                backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                                borderWidth: 2,
+                                fill: true,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, max: 100, position: 'left', title: {display:true, text:'OEE %'} },
+                            y1: { beginAtZero: true, position: 'right', grid: {drawOnChartArea: false}, title: {display:true, text:'Üretim Adedi'} }
+                        }
+                    }
+                });
+                
+            } else if (data.rapor_tipi === 'referans') {
+                document.getElementById('rapor-chart-title').textContent = "Referans Bazlı Üretim ve Kalite";
+                
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width:160px; text-align:left;">Referans</th>
+                        <th style="text-align:center;">Toplam Ü.</th>
+                        <th style="text-align:center;">OK</th>
+                        <th style="text-align:center;">NOK</th>
+                        <th style="text-align:center;">Kalite %</th>
+                        <th style="text-align:center;">Vardiyalar</th>
+                        <th style="text-align:center;">Ort. CT(sn)</th>
+                        <th style="text-align:center;">Hedef CT(sn)</th>
+                        <th style="text-align:left;">Robotlar</th>
+                    </tr>
+                `;
+                if(!data.veriler || data.veriler.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">Belirtilen aralıkta veri yok.</td></tr>';
+                    return;
+                }
+                
+                let html = '';
+                let labels = [];
+                let uretim_c = [];
+                let kalite_c = [];
+                
+                data.veriler.forEach(r => {
+                    if(labels.length < 20) { labels.push(r.referans_kodu); uretim_c.push(r.toplam_uretim); kalite_c.push(r.kalite_pct); }
+                    
+                    html += `<tr>
+                        <td style="text-align:left;"><strong>${r.referans_kodu}</strong></td>
+                        <td style="text-align:center;"><strong>${r.toplam_uretim}</strong></td>
+                        <td style="color:var(--success); text-align:center;">${r.toplam_ok}</td>
+                        <td style="color:var(--danger); text-align:center;">${r.toplam_nok}</td>
+                        <td style="text-align:center;">%${r.kalite_pct}</td>
+                        <td style="text-align:center;">${r.vardiya_sayisi}</td>
+                        <td style="text-align:center;">${r.ort_ct}</td>
+                        <td class="text-secondary" style="text-align:center;">${r.hedef_ct}</td>
+                        <td style="text-align:left;">
+                            <span style="display:inline-block; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:0.75rem">${r.robotlar}</span>
+                        </td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+                
+                raporChartInst = new Chart(chartDiv, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Toplam Üretim',
+                                data: uretim_c,
+                                backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                                borderRadius: 4,
+                                yAxisID: 'y'
+                            },
+                            {
+                                type: 'line',
+                                label: 'Kalite %',
+                                data: kalite_c,
+                                borderColor: 'rgba(59, 130, 246, 1)',
+                                backgroundColor: 'rgba(59, 130, 246, 0)',
+                                borderWidth: 2,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        indexAxis: 'x',
+                        scales: { 
+                            y: { beginAtZero: true, position: 'left', title: {display:true, text:'Üretim Adedi'} },
+                            y1: { beginAtZero: true, max: 100, position: 'right', grid: {drawOnChartArea: false}, title: {display:true, text:'Kalite %'} }
+                        }
+                    }
+                });
+                
+            } else if (data.rapor_tipi === 'teep') {
+                document.getElementById('rapor-chart-title').textContent = "TEEP (Toplam Etkin Ekipman Performansı) Şelalesi - " + (document.getElementById('rapor-robot').value || 'Tüm Fabrika');
+                
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width:230px; text-align:left;">Kademe</th>
+                        <th style="text-align:center;">Süre (dk)</th>
+                        <th style="text-align:center;">Toplam Oranı</th>
+                        <th style="text-align:left;">Açıklama</th>
+                    </tr>
+                `;
+                
+                const s = data.selale;
+                if(!s || s.takvim_dk === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">Belirtilen aralıkta veri yok.</td></tr>';
+                    return;
+                }
+                
+                const t = s.takvim_dk;
+                tbody.innerHTML = `
+                    <tr><td style="text-align:left;"><strong>1. Takvim Süresi</strong></td><td style="text-align:center;font-size:1.05rem;"><strong>${Math.round(s.takvim_dk)}</strong></td><td style="text-align:center;">-%100</td><td style="color:#666">7/24 teorik kapasite süresi</td></tr>
+                    <tr><td style="text-align:left;" class="text-secondary">&nbsp;&nbsp;&nbsp;↳ Üretilmeyen Süre (-)</td><td style="text-align:center;color:#ef4444">-${Math.round(s.uretilmeyen_dk)}</td><td style="text-align:center;">%${(s.uretilmeyen_dk/t*100).toFixed(1)}</td><td style="color:#666">Hafta sonu, tatil, boştaki zamanlar</td></tr>
+                    
+                    <tr><td style="text-align:left;"><strong>2. Planlı Zaman (Loading)</strong></td><td style="text-align:center;font-size:1.05rem;"><strong>${Math.round(s.toplam_vardiya_dk)}</strong></td><td style="text-align:center;"><strong>%${data.yuzde.loading}</strong></td><td style="color:#666">Gerçekleşen toplam vardiya süresi</td></tr>
+                    <tr><td style="text-align:left;" class="text-secondary">&nbsp;&nbsp;&nbsp;↳ Planlı Duruşlar (-)</td><td style="text-align:center;color:#ef4444">-${Math.round(s.planli_durus_dk)}</td><td style="text-align:center;">%${(s.planli_durus_dk/t*100).toFixed(1)}</td><td style="color:#666">Yemek, çay molası, toplantı</td></tr>
+                    
+                    <tr><td style="text-align:left;"><strong>3. Net Plan Süresi</strong></td><td style="text-align:center;font-size:1.05rem;"><strong>${Math.round(s.net_plan_dk)}</strong></td><td style="text-align:center;">%${(s.net_plan_dk/t*100).toFixed(1)}</td><td style="color:#666">Duruşsuz üretim hedef süresi (OEE bazlıdır)</td></tr>
+                    <tr><td style="text-align:left;" class="text-secondary">&nbsp;&nbsp;&nbsp;↳ Plansız Duruşlar (-)</td><td style="text-align:center;color:#ef4444">-${Math.round(s.plansiz_durus_dk)}</td><td style="text-align:center;">%${(s.plansiz_durus_dk/t*100).toFixed(1)}</td><td style="color:#666">Arıza, kurulum, bekleme (Availability kaybı)</td></tr>
+                    
+                    <tr><td style="text-align:left;"><strong>4. Fiili Çalışma Süresi</strong></td><td style="text-align:center;font-size:1.05rem;"><strong>${Math.round(s.fiili_calisma_dk)}</strong></td><td style="text-align:center;">%${(s.fiili_calisma_dk/t*100).toFixed(1)}</td><td style="color:#666">Robotun üretim yaptığı süre</td></tr>
+                    <tr><td style="text-align:left;" class="text-secondary">&nbsp;&nbsp;&nbsp;↳ Performans Kayıpları (-)</td><td style="text-align:center;color:#ef4444">-${Math.round(s.performans_kaybi_dk)}</td><td style="text-align:center;">%${(s.performans_kaybi_dk/t*100).toFixed(1)}</td><td style="color:#666">Düşük hız tabanlı süre kaybı (Performance kaybı)</td></tr>
+                    
+                    <tr><td style="text-align:left;"><strong>5. İdeal Üretim Süresi</strong></td><td style="text-align:center;font-size:1.05rem;"><strong>${Math.round(s.fiili_calisma_dk - s.performans_kaybi_dk)}</strong></td><td style="text-align:center;">%${((s.fiili_calisma_dk - s.performans_kaybi_dk)/t*100).toFixed(1)}</td><td style="color:#666">Tüm parçalar hedef sürede üretilseydi...</td></tr>
+                    <tr><td style="text-align:left;" class="text-secondary">&nbsp;&nbsp;&nbsp;↳ Kalite Kayıpları (-)</td><td style="text-align:center;color:#ef4444">-${Math.round(s.kalite_kaybi_dk)}</td><td style="text-align:center;">%${(s.kalite_kaybi_dk/t*100).toFixed(1)}</td><td style="color:#666">Hurda, rework süresi (Quality kaybı)</td></tr>
+                    
+                    <tr style="background:#f0fdf4">
+                        <td style="color:var(--success); text-align:left; font-size:1.05rem;"><strong>6. Net Değerli Üretim</strong></td>
+                        <td style="color:var(--success); text-align:center; font-size:1.2rem;"><strong>${Math.round(s.net_uretim_dk)}</strong></td>
+                        <td style="color:var(--success); text-align:center; font-size:1.2rem;"><strong>%${data.yuzde.teep}</strong></td>
+                        <td style="color:var(--success); text-align:left;">Sıfır hata, sıfır duruş karşılığı. <strong style="color:var(--primary)">OEE: %${data.yuzde.oee}</strong></td>
+                    </tr>
+                `;
+                
+                const d = [
+                    [0, s.takvim_dk],
+                    [s.takvim_dk - s.uretilmeyen_dk, s.takvim_dk],
+                    [0, s.toplam_vardiya_dk],
+                    [s.toplam_vardiya_dk - s.planli_durus_dk, s.toplam_vardiya_dk],
+                    [0, s.net_plan_dk],
+                    [s.net_plan_dk - s.plansiz_durus_dk, s.net_plan_dk],
+                    [0, s.fiili_calisma_dk],
+                    [s.fiili_calisma_dk - s.performans_kaybi_dk, s.fiili_calisma_dk],
+                    [0, s.fiili_calisma_dk - s.performans_kaybi_dk],
+                    [s.fiili_calisma_dk - s.performans_kaybi_dk - s.kalite_kaybi_dk, s.fiili_calisma_dk - s.performans_kaybi_dk],
+                    [0, s.net_uretim_dk],
+                ];
+                const bgColors = ['#94a3b8','#ef4444', '#3b82f6','#ef4444', '#6366f1','#ef4444', '#8b5cf6','#ef4444', '#d946ef','#ef4444', '#22c55e'];
+                
+                raporChartInst = new Chart(chartDiv, {
+                    type: 'bar',
+                    data: {
+                        labels: [
+                            'Takvim Sür.', 'Planlanmayan (-)', 
+                            'Vardiya Sür.', 'Planlı Duruş (-)', 
+                            'Net Plan Sür.', 'Plansız Duruş (-)', 
+                            'Fiili Çalışma', 'Perf. Kaybı (-)', 
+                            'İdeal Üretim', 'Kalite Kaybı (-)', 
+                            'Net Değerli'
+                        ],
+                        datasets: [{
+                            data: d,
+                            backgroundColor: bgColors,
+                            borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)',
+                            borderRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(ctx) {
+                                        let v = ctx.raw;
+                                        return (v[1]-v[0]).toFixed(0) + ' dk (' + (((v[1]-v[0])/s.takvim_dk)*100).toFixed(1) + '%)';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { title: {display:true, text:'Dakika'} }
+                        }
+                    }
+                });
+            }
+        }
+
+        // ── GÜNLÜK ÜRETİM RAPORU (Excel Style) MANTIĞI ──
+        function tavGunlukRaporAc() {
+            document.getElementById('tav-report-modal').style.display = 'flex';
+            const bugun = new Date().toISOString().split('T')[0];
+            document.getElementById('tav-rep-tarih').value = bugun;
+            document.getElementById('tav-rep-vardiya').value = "1";
+            yukleTavGunlukRapor();
+        }
+
+        function tavGunlukRaporKapat() {
+            document.getElementById('tav-report-modal').style.display = 'none';
+        }
+
+        function yukleTavGunlukRapor() {
+            const tarih = document.getElementById('tav-rep-tarih').value;
+            const vardiya = document.getElementById('tav-rep-vardiya').value;
+            const container = document.getElementById('tav-report-area');
+            
+            container.innerHTML = '<div style="text-align:center;padding:50px;"><span class="spinner"></span> Rapor Hazırlanıyor...</div>';
+            
+            fetch(`/api/rapor/gunluk_detay?tarih=${tarih}&vardiya=${vardiya}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.hata) {
+                        container.innerHTML = `<div class="alert alert-danger">${res.hata}</div>`;
+                        return;
+                    }
+                    renderTavRaporTable(res);
+                })
+                .catch(err => {
+                    container.innerHTML = `<div class="alert alert-danger">Veri yüklenemedi: ${err}</div>`;
+                });
+        }
+
+        function renderTavRaporTable(res) {
+            const container = document.getElementById('tav-report-area');
+            const data = res.data;
+            const tarih = new Date(res.tarih).toLocaleDateString('tr-TR');
+            
+            let html = `
+                <table class="report-table">
+                    <thead>
+                        <tr class="re-header-row">
+                            <th colspan="6">GÜNLÜK ÜRETİM KAYITLARI (Vardiya: ${res.vardiya} - Tarih: ${tarih})</th>
+                        </tr>
+                        <tr class="re-sub-header">
+                            <th class="re-col-robot">Robot #</th>
+                            <th class="re-col-op">OPERATÖR</th>
+                            <th class="re-col-part">PARÇA KODU</th>
+                            <th class="re-col-adet">ADET</th>
+                            <th class="re-col-tamir">TAMİR</th>
+                            <th class="re-col-hurda">HURDA</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            let g_adet = 0, g_tamir = 0, g_hurda = 0;
+            const robotlar = ["1", "2", "3", "4", "5", "6", "7", "8", "M"];
+
+            robotlar.forEach(rKey => {
+                const items = data[rKey] || [];
+                
+                if (items.length === 0) {
+                    html += `
+                        <tr>
+                            <td class="re-robot-cell">${rKey}</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td class="re-col-adet">0</td>
+                            <td class="re-col-tamir">0</td>
+                            <td class="re-col-hurda">0</td>
+                        </tr>
+                    `;
+                } else {
+                    items.forEach((item, idx) => {
+                        g_adet += (item.adet || 0);
+                        g_tamir += (item.tamir || 0);
+                        g_hurda += (item.hurda || 0);
+
+                        html += `<tr>`;
+                        if (idx === 0) {
+                            html += `<td class="re-robot-cell" rowspan="${items.length}">${rKey}</td>`;
+                        }
+                        html += `
+                            <td style="text-align:left">${item.operator}</td>
+                            <td style="text-align:left; font-size:10px; font-weight:700; white-space:nowrap; overflow:hidden;">${item.parca_kodu}</td>
+                            <td class="re-col-adet">${item.adet || 0}</td>
+                            <td class="re-col-tamir">${item.tamir || 0}</td>
+                            <td class="re-col-hurda">${item.hurda || 0}</td>
+                        </tr>`;
+                    });
+                }
+            });
+
+            html += `
+                    </tbody>
+                    <tfoot>
+                        <tr style="background:#d9d9d9; font-weight:900; font-size:14px;">
+                            <td colspan="3" style="text-align:right; padding-right:15px">GENEL TOPLAM</td>
+                            <td style="background:#92d050">${g_adet}</td>
+                            <td style="background:#ed7d31">${g_tamir}</td>
+                            <td style="background:#ff0000; color:#fff">${g_hurda}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            `;
+            
+            container.innerHTML = html;
+        }
+    </script>
+
+<!-- Tema Değiştirici Scripti -->
+<script>
+    function toggleTheme() {
+        const bd = document.body;
+        const btn = document.getElementById('themeIcon');
+        const text = document.getElementById('themeToggleBtn');
+        if (bd.getAttribute('data-theme') === 'dark') {
+            bd.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            btn.textContent = '🌙';
+            text.innerHTML = '<span id="themeIcon">🌙</span> Koyu Tema';
+        } else {
+            bd.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            btn.textContent = '☀️';
+            text.innerHTML = '<span id="themeIcon">☀️</span> Açık Tema';
+        }
+        
+        // Grafikleri yeni renklere gore guncellemek icin
+        if(typeof yukle === 'function') {
+            setTimeout(yukle, 100);
+        }
+    }
+    
+    // Baslangicta calistir
+    (function initTheme() {
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.setAttribute('data-theme', 'dark');
+            const toggle = document.getElementById('themeToggleBtn');
+            if (toggle) toggle.innerHTML = '<span id="themeIcon">☀️</span> Açık Tema';
+        }
+    })();
+</script>
+
+</body>
+
+</html>

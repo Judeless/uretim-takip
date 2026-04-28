@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+venv/
+env/
+.venv/
+
+# Veritabanı (canlı üretim verisi - git'te tutulmaz)
+*.db
+*.db.backup*
+*.sqlite
+*.sqlite3
+
+# Sırlar / token (Cloudflare tunnel token içeren dosyalar)
+Tunel_Onar.bat
+.env
+*.env
+
+# Log ve debug çıktıları
+*.log
+node_err*.txt
+app_db_trace.txt
+
+# Excel / geçici dosyalar
+*.xlsx~
+~$*.xlsx
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
