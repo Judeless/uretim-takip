@@ -1228,15 +1228,16 @@
         <div class="report-modal-content">
             <div class="no-print report-controls">
                 <div style="flex:1">
-                    <h3 style="font-size:1rem;margin-bottom:4px">📊 Günlük Üretim Raporu Görseli</h3>
-                    <p style="font-size:.75rem;color:var(--muted)">WhatsApp'ta paylaşmak için aşağıyı ekran görüntüsü (screenshot) alabilirsiniz.</p>
+                    <h3 style="font-size:1rem;margin-bottom:4px">
+                        📊 <span id="tav-rep-baslik">Günlük Üretim Raporu</span>
+                        <span id="tav-rep-bolum-pill" style="margin-left:8px;padding:3px 10px;border-radius:999px;font-size:.7rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;vertical-align:middle"></span>
+                    </h3>
+                    <p style="font-size:.75rem;color:var(--muted)">Tarih ve vardiya seçince rapor otomatik yüklenir. Geçmiş günler için de tarih seçimi yapılabilir.</p>
                 </div>
-                <div style="display:flex;gap:8px">
-                    <input type="date" id="tav-rep-tarih" class="form-control" style="width:130px">
-                    <select id="tav-rep-vardiya" class="form-control" style="width:110px">
-                        <option value="1">Vardiya 1</option>
-                        <option value="2">Vardiya 2</option>
-                        <option value="3">Vardiya 3</option>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <input type="date" id="tav-rep-tarih" class="form-control" style="width:140px" onchange="yukleTavRepVardiyalari()">
+                    <select id="tav-rep-vardiya" class="form-control" style="width:160px" onchange="yukleTavGunlukRapor()">
+                        <option value="">— Vardiya —</option>
                     </select>
                     <button class="btn btn-primary" onclick="yukleTavGunlukRapor()">🔄 Yenile</button>
                     <button class="btn btn-outline" onclick="tavGunlukRaporKapat()">✕ Kapat</button>
@@ -3391,26 +3392,72 @@
         }
 
         // ── GÜNLÜK ÜRETİM RAPORU (Excel Style) MANTIĞI ──
+        // HTML'de hardcoded "Vardiya 1/2/3" eski bir tahmindi — DB'deki vardiya_turu
+        // ('Gunduz', 'Diger', vs.) ile eslesmedigi icin rapor hep bos donuyordu.
+        // Vardiyalari secilen tarihe + bolume gore backend'den dinamik cekiyoruz.
         function tavGunlukRaporAc() {
             document.getElementById('tav-report-modal').style.display = 'flex';
             const bugun = new Date().toISOString().split('T')[0];
             document.getElementById('tav-rep-tarih').value = bugun;
-            document.getElementById('tav-rep-vardiya').value = "1";
-            yukleTavGunlukRapor();
+            // Bolum rozeti
+            const pill = document.getElementById('tav-rep-bolum-pill');
+            const bilgi = BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak;
+            const renk = aktifBolum === 'montaj' ? ['rgba(16,185,129,.15)', '#34d399']
+                       : aktifBolum === 'metal'  ? ['rgba(245,158,11,.15)', '#fbbf24']
+                                                 : ['rgba(59,130,246,.15)',  '#60a5fa'];
+            if (pill) {
+                pill.textContent = bilgi.ad;
+                pill.style.background = renk[0];
+                pill.style.color = renk[1];
+                pill.style.border = '1px solid ' + renk[1];
+            }
+            document.getElementById('tav-report-area').innerHTML = '';
+            yukleTavRepVardiyalari();
         }
 
         function tavGunlukRaporKapat() {
             document.getElementById('tav-report-modal').style.display = 'none';
         }
 
+        // Tarih + bolum'e gore vardiya turlerini doldurur, varsa ilkini secip raporu yukler
+        async function yukleTavRepVardiyalari() {
+            const tarih = document.getElementById('tav-rep-tarih').value;
+            const sel = document.getElementById('tav-rep-vardiya');
+            const cont = document.getElementById('tav-report-area');
+            sel.innerHTML = '<option value="">— Yükleniyor... —</option>';
+            if (!tarih) { sel.innerHTML = '<option value="">— Tarih seçin —</option>'; return; }
+
+            try {
+                const url = `/api/rapor/vardiya_listesi?tarih=${encodeURIComponent(tarih)}&bolum=${encodeURIComponent(aktifBolum)}`;
+                const res = await fetch(url, { cache: 'no-store' });
+                const list = await res.json();
+                if (!Array.isArray(list) || list.length === 0) {
+                    sel.innerHTML = '<option value="">Bu tarihte kayıt yok</option>';
+                    cont.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">${(BOLUM_BILGI[aktifBolum] || {}).ad || 'Bölüm'} için ${tarih} tarihinde üretim verisi bulunamadı.</div>`;
+                    return;
+                }
+                sel.innerHTML = list.map(v => `<option value="${v}">${v}</option>`).join('');
+                yukleTavGunlukRapor();
+            } catch (e) {
+                sel.innerHTML = '<option value="">— Hata —</option>';
+                cont.innerHTML = `<div class="alert alert-danger">Vardiyalar yüklenemedi: ${e.message}</div>`;
+            }
+        }
+
         function yukleTavGunlukRapor() {
             const tarih = document.getElementById('tav-rep-tarih').value;
             const vardiya = document.getElementById('tav-rep-vardiya').value;
             const container = document.getElementById('tav-report-area');
-            
+
+            if (!tarih || !vardiya) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Tarih ve vardiya seçin.</div>';
+                return;
+            }
+
             container.innerHTML = '<div style="text-align:center;padding:50px;"><span class="spinner"></span> Rapor Hazırlanıyor...</div>';
-            
-            fetch(`/api/rapor/gunluk_detay?tarih=${tarih}&vardiya=${vardiya}`)
+
+            const url = `/api/rapor/gunluk_detay?tarih=${encodeURIComponent(tarih)}&vardiya=${encodeURIComponent(vardiya)}&bolum=${encodeURIComponent(aktifBolum)}`;
+            fetch(url, { cache: 'no-store' })
                 .then(r => r.json())
                 .then(res => {
                     if (res.hata) {
@@ -3426,17 +3473,26 @@
 
         function renderTavRaporTable(res) {
             const container = document.getElementById('tav-report-area');
-            const data = res.data;
-            const tarih = new Date(res.tarih).toLocaleDateString('tr-TR');
-            
+            const data = res.data || {};
+            const siralama = (Array.isArray(res.siralama) && res.siralama.length) ? res.siralama : Object.keys(data);
+            const bilgi = BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak;
+            const tarihTR = new Date(res.tarih).toLocaleDateString('tr-TR');
+
+            // Hicbir kayit yoksa
+            const hicVar = siralama.some(k => (data[k] || []).some(i => i.parca_kodu || i.adet > 0 || i.tamir > 0 || i.hurda > 0));
+            if (!hicVar) {
+                container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">${bilgi.ad} — ${tarihTR} / ${res.vardiya} için kayıt yok.</div>`;
+                return;
+            }
+
             let html = `
                 <table class="report-table">
                     <thead>
                         <tr class="re-header-row">
-                            <th colspan="6">GÜNLÜK ÜRETİM KAYITLARI (Vardiya: ${res.vardiya} - Tarih: ${tarih})</th>
+                            <th colspan="6">${bilgi.ad.toUpperCase()} — GÜNLÜK ÜRETİM (Vardiya: ${res.vardiya} · Tarih: ${tarihTR})</th>
                         </tr>
                         <tr class="re-sub-header">
-                            <th class="re-col-robot">Robot #</th>
+                            <th class="re-col-robot">${bilgi.tekil_etiket.toUpperCase()}</th>
                             <th class="re-col-op">OPERATÖR</th>
                             <th class="re-col-part">PARÇA KODU</th>
                             <th class="re-col-adet">ADET</th>
@@ -3448,11 +3504,11 @@
             `;
 
             let g_adet = 0, g_tamir = 0, g_hurda = 0;
-            const robotlar = ["1", "2", "3", "4", "5", "6", "7", "8", "M"];
 
-            robotlar.forEach(rKey => {
-                const items = data[rKey] || [];
-                
+            siralama.forEach(rKey => {
+                const rawItems = data[rKey] || [];
+                const items = rawItems.filter(i => i.parca_kodu || i.adet > 0 || i.tamir > 0 || i.hurda > 0);
+
                 if (items.length === 0) {
                     html += `
                         <tr>
@@ -3466,7 +3522,7 @@
                     `;
                 } else {
                     items.forEach((item, idx) => {
-                        g_adet += (item.adet || 0);
+                        g_adet  += (item.adet  || 0);
                         g_tamir += (item.tamir || 0);
                         g_hurda += (item.hurda || 0);
 
@@ -3497,7 +3553,7 @@
                     </tfoot>
                 </table>
             `;
-            
+
             container.innerHTML = html;
         }
     </script>
