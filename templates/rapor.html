@@ -101,11 +101,20 @@
     @keyframes spin { to { transform:rotate(360deg); } }
 
     /* ── RAPOR KAPSAYICI (paylaşılan resmin ana çerçevesi) ── */
+    /* Dış kapsayıcı sadece görsel çerçeve sağlar (radius/border).
+       Yatay kaydırma iç sarmalda — böylece html2canvas tablonun tamamını yakalar. */
     #rapor-wrap {
       background: #fff; color:#000;
-      border-radius: 12px; overflow: hidden;
+      border-radius: 12px;
       border: 1px solid var(--line);
+      overflow: hidden; /* radius için */
     }
+    .rapor-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* Tablo hiçbir zaman 540px'in altına sıkışmasın — yoksa parça kodu sütunu eziliyor */
+    table.rapor { min-width: 540px; }
 
     /* Üst başlık bandı */
     .r-head {
@@ -377,6 +386,7 @@ function renderTablo(veri, tarih, vardiya){
         <div>${tarihL}</div>
       </div>
     </div>
+    <div class="rapor-scroll">
     <table class="rapor">
       <colgroup>
         <col style="width:60px">
@@ -437,18 +447,42 @@ function renderTablo(veri, tarih, vardiya){
       </tr>
     </tfoot>
     </table>
+    </div>
   </div>`;
 
   document.getElementById('rapor-icerik').innerHTML = html;
 }
 
 // ── Canvas yakala ──
+// Mobilde tablo viewport'u aşıp .rapor-scroll içinde yatay kaydığı için, capture sırasında
+// kapsayıcıyı tablonun tam genişliğine geçici olarak büyütüyoruz — yoksa görsel kesik olur.
 async function yakalaCanvas(){
-  const el = document.getElementById('rapor-wrap');
-  if (!el) return null;
-  return await html2canvas(el, {
-    scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false
-  });
+  const wrap = document.getElementById('rapor-wrap');
+  if (!wrap) return null;
+  const scroll = wrap.querySelector('.rapor-scroll');
+  const tablo  = wrap.querySelector('table.rapor');
+  const tamGenislik = Math.max(
+    tablo ? tablo.scrollWidth : 0,
+    scroll ? scroll.scrollWidth : 0,
+    wrap.scrollWidth, 540
+  );
+  const oldWrapW    = wrap.style.width;
+  const oldScrollOv = scroll ? scroll.style.overflow : null;
+  if (scroll) scroll.style.overflow = 'visible';
+  wrap.style.width = tamGenislik + 'px';
+  try {
+    return await html2canvas(wrap, {
+      scale: 2.5,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: tamGenislik,
+      windowWidth: Math.max(window.innerWidth, tamGenislik + 40)
+    });
+  } finally {
+    wrap.style.width = oldWrapW;
+    if (scroll && oldScrollOv !== null) scroll.style.overflow = oldScrollOv;
+  }
 }
 
 // ── WhatsApp paylaş ──
