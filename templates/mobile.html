@@ -853,9 +853,45 @@
         <span>＋</span> Yeni Vardiya Başlat
       </button>
 
-      <a href="/rapor" class="btn-rapor">
+      <button type="button" class="btn-rapor" onclick="raporBolumSec()">
         📊 Günlük Üretim Raporu & Paylaş
-      </a>
+      </button>
+
+      <!-- Rapor için bölüm seçim modali -->
+      <div id="rapor-bolum-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="font-size:1rem;font-weight:800;color:var(--text)">📊 Hangi bölüm için rapor?</div>
+            <button onclick="raporBolumKapat()" style="background:transparent;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:4px 10px">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr;gap:10px">
+            <button class="bolum-btn kaynak" type="button" onclick="raporAc('kaynak')">
+              <div class="bolum-icon">🔧</div>
+              <div class="bolum-info">
+                <div class="bolum-title">Kaynakhane</div>
+                <div class="bolum-desc">Robot kaynak hatları</div>
+              </div>
+              <span class="bolum-badge kaynak">KAYNAK</span>
+            </button>
+            <button class="bolum-btn montaj" type="button" onclick="raporAc('montaj')">
+              <div class="bolum-icon">🔩</div>
+              <div class="bolum-info">
+                <div class="bolum-title">Montaj</div>
+                <div class="bolum-desc">Montaj hatları</div>
+              </div>
+              <span class="bolum-badge montaj">MONTAJ</span>
+            </button>
+            <button class="bolum-btn metal" type="button" onclick="raporAc('metal')">
+              <div class="bolum-icon">🏭</div>
+              <div class="bolum-info">
+                <div class="bolum-title">Metal Enjeksiyon</div>
+                <div class="bolum-desc">Pres ve şerit testere</div>
+              </div>
+              <span class="bolum-badge metal">M.ENJ.</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-title">📋 Bugünkü Vardiyalar</div>
@@ -1337,6 +1373,20 @@
     function bolumDegistirGeri() {
       try { localStorage.removeItem('mobile_aktif_bolum'); } catch (e) {}
       gitEkran('B0');
+    }
+
+    // Rapor icin bolum secim modali
+    function raporBolumSec() {
+      var modal = document.getElementById('rapor-bolum-modal');
+      if (modal) modal.style.display = 'flex';
+    }
+    function raporBolumKapat() {
+      var modal = document.getElementById('rapor-bolum-modal');
+      if (modal) modal.style.display = 'none';
+    }
+    function raporAc(bolum) {
+      raporBolumKapat();
+      window.location.href = '/rapor?bolum=' + encodeURIComponent(bolum);
     }
 
     // "Yeni Vardiya Baslat" — kullanici daha once bolum sectiyse direkt B'ye, secmediyse B0'a (bolum secimi)

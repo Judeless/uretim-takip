@@ -7,127 +7,223 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
           crossorigin="anonymous"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-    body {
-      font-family:'Segoe UI', Arial, sans-serif;
-      background:#1e293b;
-      min-height:100vh;
-      padding:14px 10px 110px;
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-2: #334155;
+      --line: #475569;
+      --muted: #94a3b8;
+      --text: #f1f5f9;
+      --accent: #3b82f6;
+
+      /* Bolum vurgu renkleri */
+      --kaynak: #3b82f6;
+      --montaj: #10b981;
+      --metal:  #f59e0b;
+
+      /* Tablo veri renkleri (paylasilirken net kalir) */
+      --c-adet:  #92d050;
+      --c-tamir: #ed7d31;
+      --c-hurda: #ff0000;
     }
 
-    /* ── TOOLBAR ── */
+    body {
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 14px 12px 110px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── ÜST BAR (geri linki + başlık) ── */
+    .topbar {
+      display:flex; align-items:center; gap:10px;
+      margin-bottom: 12px;
+    }
+    .topbar a.geri {
+      color: var(--muted); text-decoration:none;
+      padding: 8px 12px; border-radius: 10px;
+      background: var(--panel); border: 1px solid var(--line);
+      font-size: .82rem; font-weight: 700;
+    }
+    .topbar h1 {
+      font-size: 1rem; font-weight: 800; flex: 1;
+    }
+    .bolum-pill {
+      padding: 6px 12px; border-radius: 999px;
+      font-size: .72rem; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .bolum-pill.kaynak { background: rgba(59,130,246,.15); color: #93c5fd; border:1px solid rgba(59,130,246,.4); }
+    .bolum-pill.montaj { background: rgba(16,185,129,.15); color: #6ee7b7; border:1px solid rgba(16,185,129,.4); }
+    .bolum-pill.metal  { background: rgba(245,158,11,.15); color: #fcd34d; border:1px solid rgba(245,158,11,.4); }
+
+    /* ── FİLTRE BARI ── */
     .toolbar {
-      display:flex; align-items:center; gap:8px;
-      margin-bottom:12px; flex-wrap:wrap;
+      display:grid; grid-template-columns: 1fr 1fr auto; gap:8px;
+      margin-bottom: 14px;
     }
     .toolbar input[type=date],
     .toolbar select {
-      padding:10px 11px;
-      border-radius:10px; border:1.5px solid #334155;
-      background:#0f172a; color:#f1f5f9;
-      font-size:.87rem; flex:1; min-width:110px;
+      padding:11px 12px;
+      border-radius:12px; border:1px solid var(--line);
+      background: var(--panel); color: var(--text);
+      font-size:.88rem; font-family: inherit;
+      width: 100%;
     }
-    .toolbar select option { background:#0f172a; }
+    .toolbar select option { background: var(--panel); }
     .btn-yukle {
-      padding:10px 20px;
-      background:#2563eb; color:#fff; border:none;
-      border-radius:10px; font-size:.87rem; font-weight:700;
+      padding: 11px 18px;
+      background: var(--accent); color:#fff; border:none;
+      border-radius:12px; font-size:.86rem; font-weight:700;
       cursor:pointer; white-space:nowrap;
+      box-shadow: 0 4px 12px rgba(59,130,246,.3);
     }
-    .btn-yukle:active { transform:scale(.97); }
+    .btn-yukle:active { transform:scale(.96); }
 
     /* ── DURUM ── */
     .durum {
-      text-align:center; color:#94a3b8;
-      font-size:.88rem; padding:40px 10px;
+      text-align:center; color: var(--muted);
+      font-size:.9rem; padding: 50px 16px;
+      background: var(--panel); border: 1px dashed var(--line);
+      border-radius: 14px;
     }
     .spinner {
-      width:28px; height:28px;
-      border:3px solid #334155; border-top-color:#2563eb;
-      border-radius:50%;
-      animation:spin .7s linear infinite;
-      display:inline-block; margin-bottom:10px;
+      width: 30px; height: 30px;
+      border: 3px solid var(--panel-2); border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block; margin-bottom: 12px;
     }
     @keyframes spin { to { transform:rotate(360deg); } }
 
-    /* ── RAPOR KAPSAYICI ── */
+    /* ── RAPOR KAPSAYICI (paylaşılan resmin ana çerçevesi) ── */
     #rapor-wrap {
-      background:#fff; border-radius:6px;
-      overflow-x:auto;
+      background: #fff; color:#000;
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid var(--line);
     }
 
-    /* ── TABLO ── */
+    /* Üst başlık bandı */
+    .r-head {
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      color: #fff;
+      padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px;
+    }
+    .r-head .r-title {
+      font-size: 15px; font-weight: 900; letter-spacing: .02em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .r-head .r-title .ico { font-size: 18px; }
+    .r-head .r-meta {
+      font-size: 11.5px; font-weight: 700;
+      text-align: right; line-height: 1.5;
+      color: #f9d71c;
+    }
+
+    /* Tablo */
     table.rapor {
-      border-collapse:collapse;
-      min-width:460px; width:100%;
-      font-family:Arial,sans-serif;
-      table-layout:fixed;
+      border-collapse: collapse;
+      width: 100%; font-family: Arial, sans-serif;
+      table-layout: fixed;
     }
     table.rapor th,
     table.rapor td {
-      border:1.5px solid #000;
-      padding:3px 5px;
-      font-size:11px;
-      vertical-align:middle;
-      text-align:center;
+      border: 1px solid #1f2937;
+      padding: 5px 6px;
+      font-size: 11px;
+      vertical-align: middle;
+      text-align: center;
+      color: #000;
     }
-
-    /* Ana başlık */
-    .r-baslik td {
-      background:#1f3864; color:#f9d71c;
-      font-size:12.5px; font-weight:900;
+    table.rapor thead.r-col-hdr td {
+      background: #1e293b; color: #f9d71c;
+      font-weight: 800; font-size: 10.5px;
+      letter-spacing: .03em; padding: 7px 6px;
     }
-    /* Sütun başlığı (her robot grubunda) */
-    .r-col-hdr td {
-      background:#1f3864; color:#f9d71c;
-      font-weight:700; font-size:10px;
-    }
-    /* Robot numarası büyük hücre */
     .r-robot {
-      background:#bfbfbf;
-      font-size:28px; font-weight:900;
-      color:#000; vertical-align:middle;
+      background: #e2e8f0;
+      font-size: 22px; font-weight: 900;
+      color: #0f172a; vertical-align: middle;
+      letter-spacing: .02em;
     }
-    /* Veri sütunları */
-    .c-adet  { background:#92d050 !important; font-weight:700; width:58px; }
-    .c-tamir { background:#ed7d31 !important; font-weight:700; width:58px; }
-    .c-hurda { background:#ff0000 !important; color:#fff; font-weight:700; width:58px; }
-    .c-op    { text-align:left; padding-left:6px; font-size:10.5px; }
-    .c-parca { text-align:left; padding-left:6px; font-weight:700; font-size:9.5px; }
-    /* Robot ayıracı kalın çizgi */
-    tbody.robot-group { border-bottom: 3.5px solid #000; }
+    .c-adet  { background: var(--c-adet)  !important; font-weight: 800; }
+    .c-tamir { background: var(--c-tamir) !important; font-weight: 800; color:#fff !important; }
+    .c-hurda { background: var(--c-hurda) !important; color:#fff !important; font-weight: 800; }
+    .c-op    { text-align: left; padding-left: 8px; font-size: 10.5px; color:#0f172a; }
+    .c-parca { text-align: left; padding-left: 8px; font-weight: 700; font-size: 10px; color:#0f172a; }
 
-    /* ── SHARE BAR ── */
+    /* Bos satir — gri stripe */
+    tr.r-empty td:not(.r-robot) {
+      background: #f8fafc; color: #94a3b8; font-style: italic;
+    }
+    tr.r-empty .c-adet, tr.r-empty .c-tamir, tr.r-empty .c-hurda { background:#f1f5f9 !important; color:#cbd5e1 !important; }
+
+    /* Robot ayıracı */
+    tbody.robot-group { border-bottom: 2px solid #0f172a; }
+    tbody.robot-group:last-child { border-bottom: none; }
+
+    /* Toplam satırı */
+    tfoot.r-toplam td {
+      background: #0f172a; color: #f9d71c;
+      font-size: 12.5px; font-weight: 900;
+      padding: 10px 6px; letter-spacing: .04em;
+    }
+    tfoot.r-toplam .t-adet  { background: var(--c-adet)  !important; color:#0f172a !important; }
+    tfoot.r-toplam .t-tamir { background: var(--c-tamir) !important; color:#fff !important; }
+    tfoot.r-toplam .t-hurda { background: var(--c-hurda) !important; color:#fff !important; }
+
+    /* ── PAYLAŞIM BARI ── */
     .share-bar {
-      position:fixed; bottom:0; left:0; right:0;
-      background:#0f172a; border-top:1px solid #334155;
-      padding:10px 12px 20px;
-      display:flex; gap:9px; z-index:500;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--panel); border-top: 1px solid var(--line);
+      padding: 10px 12px 18px;
+      display: flex; gap: 9px; z-index: 500;
     }
     .btn-share {
-      flex:1; padding:13px 8px;
-      border:none; border-radius:11px;
-      font-size:.88rem; font-weight:700;
-      cursor:pointer; display:flex;
-      align-items:center; justify-content:center;
-      gap:6px;
+      flex: 1; padding: 13px 8px;
+      border: none; border-radius: 12px;
+      font-size: .9rem; font-weight: 800;
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      gap: 7px; font-family: inherit;
     }
-    .btn-share:disabled { opacity:.45; cursor:not-allowed; }
-    .btn-share:active:not(:disabled) { transform:scale(.96); }
-    .btn-wp  { background:#25D366; color:#fff; }
-    .btn-sav { background:#334155; color:#f1f5f9; }
+    .btn-share:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-share:active:not(:disabled) { transform: scale(.96); }
+    .btn-wp  { background: #25D366; color: #fff; }
+    .btn-sav { background: var(--panel-2); color: var(--text); }
 
     .hata-kutu {
-      background:#fee2e2; border:1.5px solid #ef4444;
-      border-radius:10px; padding:14px; margin-top:8px;
-      color:#991b1b; font-size:.84rem;
+      background: #7f1d1d; border: 1px solid #ef4444;
+      border-radius: 12px; padding: 14px; margin-top: 8px;
+      color: #fee2e2; font-size: .86rem;
+    }
+
+    /* Mobil incelmesi */
+    @media (max-width: 480px) {
+      .topbar h1 { font-size: .92rem; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .btn-yukle { grid-column: span 2; }
+      .r-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+      .r-head .r-meta { text-align: left; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Araç çubuğu -->
+  <!-- Üst bar -->
+  <div class="topbar">
+    <a class="geri" href="/">‹ Ana Menü</a>
+    <h1 id="rapor-baslik">Günlük Üretim Raporu</h1>
+    <span id="bolum-pill" class="bolum-pill kaynak">KAYNAK</span>
+  </div>
+
+  <!-- Filtre bar -->
   <div class="toolbar">
     <input type="date" id="rep-tarih" onchange="yukleVardiyalar()">
     <select id="rep-vardiya">
@@ -137,13 +233,13 @@
   </div>
 
   <div id="rapor-icerik">
-    <div class="durum">Tarih seçerek vardiyaları yükleyin.</div>
+    <div class="durum">Tarih ve vardiya seçerek raporu yükleyin.</div>
   </div>
 
   <!-- Paylaşım çubuğu -->
   <div class="share-bar">
     <button class="btn-share btn-wp"  id="btn-wp"  onclick="wpPaylas()"    disabled>
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
       </svg>
       WhatsApp'a Gönder
@@ -154,20 +250,43 @@
   </div>
 
 <script>
+// ── URL'den bolum oku (default: kaynak)
+const aktifBolum = (function () {
+  const params = new URLSearchParams(window.location.search);
+  const b = (params.get('bolum') || 'kaynak').toLowerCase();
+  return (b === 'montaj' || b === 'metal') ? b : 'kaynak';
+})();
+
+const BOLUM_BILGI = {
+  kaynak: { ad: 'Kaynakhane',       tekil: 'Robot',  ikon: '🔧', kolon3: 'PARÇA KODU' },
+  montaj: { ad: 'Montaj',           tekil: 'Hat',    ikon: '🔩', kolon3: 'PARÇA KODU' },
+  metal:  { ad: 'Metal Enjeksiyon', tekil: 'Makine', ikon: '🏭', kolon3: 'PARÇA KODU' }
+};
+
+// Sayfayı bölüme göre etiketle
+(function () {
+  const bilgi = BOLUM_BILGI[aktifBolum];
+  document.title = `${bilgi.ad} — Günlük Üretim Raporu`;
+  document.getElementById('rapor-baslik').textContent = `${bilgi.ad} — Günlük Rapor`;
+  const pill = document.getElementById('bolum-pill');
+  pill.textContent = bilgi.ad.toUpperCase();
+  pill.className = 'bolum-pill ' + aktifBolum;
+})();
+
 // ── Helpers ──
 function pad(n){ return String(n).padStart(2,'0'); }
 function bugunStr(){
-  const d=new Date();
+  const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 function formatTarih(s){
-  const p=s.split('-');
+  const p = s.split('-');
   return p.length===3 ? `${p[2]}.${p[1]}.${p[0]}` : s;
 }
-function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ── Init ──
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('rep-tarih').value = bugunStr();
   yukleVardiyalar();
 });
@@ -179,186 +298,214 @@ async function yukleVardiyalar(){
   sel.innerHTML = '<option value="">— Yükleniyor... —</option>';
   btnAktif(false);
 
-  if(!tarih){ sel.innerHTML='<option value="">— Tarih seçin —</option>'; return; }
+  if (!tarih) { sel.innerHTML='<option value="">— Tarih seçin —</option>'; return; }
 
-  try{
-    const res  = await fetch(`/api/rapor/vardiya_listesi?tarih=${tarih}`, {cache:'no-store'});
+  try {
+    const url = `/api/rapor/vardiya_listesi?tarih=${encodeURIComponent(tarih)}&bolum=${encodeURIComponent(aktifBolum)}`;
+    const res = await fetch(url, { cache:'no-store' });
     const list = await res.json();
-    if(!Array.isArray(list) || list.length===0){
-      sel.innerHTML='<option value="">Bu tarihte kayıt yok</option>';
+    if (!Array.isArray(list) || list.length === 0) {
+      sel.innerHTML = '<option value="">Bu tarihte kayıt yok</option>';
       document.getElementById('rapor-icerik').innerHTML =
-        '<div class="durum">Bu tarihte üretim verisi bulunamadı.</div>';
+        `<div class="durum">${BOLUM_BILGI[aktifBolum].ad} bölümünde bu tarihte üretim verisi bulunamadı.</div>`;
       return;
     }
-    sel.innerHTML = list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    // Otomatik ilk vardiyayı yükle
+    sel.innerHTML = list.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
     yukleRapor();
-  }catch(e){
-    sel.innerHTML='<option value="">— Hata —</option>';
+  } catch (e) {
+    sel.innerHTML = '<option value="">— Hata —</option>';
   }
 }
 
-// ── Rapor yükleme ──
+// ── Rapor yükle ──
 async function yukleRapor(){
-  const tarih   = document.getElementById('rep-tarih').value;
+  const tarih = document.getElementById('rep-tarih').value;
   const vardiya = document.getElementById('rep-vardiya').value;
-  const ic      = document.getElementById('rapor-icerik');
+  const ic = document.getElementById('rapor-icerik');
   btnAktif(false);
 
-  if(!tarih||!vardiya){
-    ic.innerHTML='<div class="durum">Tarih ve vardiyayı seçin, ardından Yükle\'ye basın.</div>';
+  if (!tarih || !vardiya) {
+    ic.innerHTML = '<div class="durum">Tarih ve vardiyayı seçin, ardından Yükle\'ye basın.</div>';
     return;
   }
 
-  ic.innerHTML='<div class="durum"><div class="spinner"></div><br>Veriler yükleniyor...</div>';
+  ic.innerHTML = '<div class="durum"><div class="spinner"></div><br>Veriler yükleniyor...</div>';
 
-  try{
-    const url = `/api/rapor/gunluk_detay?tarih=${tarih}&vardiya=${encodeURIComponent(vardiya)}`;
-    const res  = await fetch(url, {cache:'no-store'});
+  try {
+    const url = `/api/rapor/gunluk_detay?tarih=${encodeURIComponent(tarih)}&vardiya=${encodeURIComponent(vardiya)}&bolum=${encodeURIComponent(aktifBolum)}`;
+    const res  = await fetch(url, { cache:'no-store' });
     const text = await res.text();
     let veri;
-    try{ veri=JSON.parse(text); }
-    catch(e){
-      ic.innerHTML=`<div class="hata-kutu">❌ Sunucu geçersiz yanıt döndürdü.<br><small style="font-size:9px">${text.substring(0,300)}</small></div>`;
+    try { veri = JSON.parse(text); }
+    catch (e) {
+      ic.innerHTML = `<div class="hata-kutu">❌ Sunucu geçersiz yanıt döndürdü.<br><small>${esc(text.substring(0,300))}</small></div>`;
       return;
     }
-    if(veri.hata){
-      ic.innerHTML=`<div class="hata-kutu">❌ ${esc(veri.hata)}</div>`;
+    if (veri.hata) {
+      ic.innerHTML = `<div class="hata-kutu">❌ ${esc(veri.hata)}</div>`;
       return;
     }
-    renderTablo(veri,tarih,vardiya);
+    renderTablo(veri, tarih, vardiya);
     btnAktif(true);
-  }catch(e){
-    ic.innerHTML=`<div class="hata-kutu">❌ Bağlantı hatası: ${esc(e.message)}</div>`;
+  } catch (e) {
+    ic.innerHTML = `<div class="hata-kutu">❌ Bağlantı hatası: ${esc(e.message)}</div>`;
   }
 }
 
 // ── Tablo render ──
 function renderTablo(veri, tarih, vardiya){
-  const data   = veri.data || {};
-  const robots = ['1','2','3','4','5','6','7','8','9','M'];
+  const data = veri.data || {};
+  const siralama = (Array.isArray(veri.siralama) && veri.siralama.length) ? veri.siralama : Object.keys(data);
+  const bilgi = BOLUM_BILGI[aktifBolum];
   const tarihL = formatTarih(tarih);
 
-  let html=`<div id="rapor-wrap"><table class="rapor">
-    <colgroup>
-      <col style="width:46px">
-      <col style="width:90px">
-      <col>
-      <col style="width:58px">
-      <col style="width:58px">
-      <col style="width:58px">
-    </colgroup>
-    <thead>
-      <tr class="r-baslik">
-        <td colspan="3" style="text-align:center">GÜNLÜK ÜRETİM RAPORU</td>
-        <td colspan="3" style="font-size:9.5px">Vardiya:${esc(vardiya)}&nbsp;|&nbsp;${tarihL}</td>
-      </tr>
-      <tr class="r-col-hdr">
-        <td>ROBOT</td><td>OPERATÖR</td><td>PARÇA KODU</td>
-        <td>ADET</td><td>TAMİR</td><td>HURDA</td>
-      </tr>
-    </thead>`;
+  // Hicbir kayit yoksa "kayit yok" goster (montaj/metal'de bos olabilir)
+  const hicVarMi = siralama.some(k => (data[k] || []).some(i => i.parca_kodu || i.adet > 0 || i.tamir > 0 || i.hurda > 0));
+  if (!hicVarMi) {
+    document.getElementById('rapor-icerik').innerHTML =
+      `<div class="durum">${bilgi.ad} bölümünde ${tarihL} tarihinde "${esc(vardiya)}" vardiyası için kayıt yok.</div>`;
+    return;
+  }
 
-  robots.forEach(function(rKey){
+  let toplamAdet = 0, toplamTamir = 0, toplamHurda = 0;
+
+  let html = `<div id="rapor-wrap">
+    <div class="r-head">
+      <div class="r-title"><span class="ico">${bilgi.ikon}</span><span>${esc(bilgi.ad.toUpperCase())} — GÜNLÜK ÜRETİM RAPORU</span></div>
+      <div class="r-meta">
+        <div>Vardiya: <b>${esc(vardiya)}</b></div>
+        <div>${tarihL}</div>
+      </div>
+    </div>
+    <table class="rapor">
+      <colgroup>
+        <col style="width:60px">
+        <col style="width:110px">
+        <col>
+        <col style="width:60px">
+        <col style="width:60px">
+        <col style="width:60px">
+      </colgroup>
+      <thead class="r-col-hdr">
+        <tr>
+          <td>${esc(bilgi.tekil.toUpperCase())}</td>
+          <td>OPERATÖR</td>
+          <td>${esc(bilgi.kolon3)}</td>
+          <td>ADET</td>
+          <td>TAMİR</td>
+          <td>HURDA</td>
+        </tr>
+      </thead>`;
+
+  siralama.forEach(function (rKey) {
     const rawItems = data[rKey] || [];
-    // Boş referanslı ve 0 adetli satırları filtrele
-    const items = rawItems.filter(function(i){ return i.parca_kodu || i.adet>0; });
+    const items = rawItems.filter(i => i.parca_kodu || i.adet > 0 || i.tamir > 0 || i.hurda > 0);
 
     html += `<tbody class="robot-group">`;
-
-    if(items.length===0){
-      html += `<tr>
-        <td class="r-robot">${rKey}</td>
+    if (items.length === 0) {
+      html += `<tr class="r-empty">
+        <td class="r-robot">${esc(rKey)}</td>
         <td class="c-op">—</td><td class="c-parca">—</td>
         <td class="c-adet"></td><td class="c-tamir"></td><td class="c-hurda"></td>
       </tr>`;
     } else {
-      items.forEach(function(item, idx){
-        const a=item.adet||0, t=item.tamir||0, h=item.hurda||0;
-        
+      items.forEach(function (item, idx) {
+        const a = item.adet || 0, t = item.tamir || 0, h = item.hurda || 0;
+        toplamAdet  += a; toplamTamir += t; toplamHurda += h;
+
         html += `<tr>`;
-        if(idx===0){
-          html+=`<td class="r-robot" rowspan="${items.length}">${rKey}</td>`;
+        if (idx === 0) {
+          html += `<td class="r-robot" rowspan="${items.length}">${esc(rKey)}</td>`;
         }
-        html+=`<td class="c-op">${esc(item.operator)}</td>
-               <td class="c-parca">${esc(item.parca_kodu)}</td>
-               <td class="c-adet">${a||''}</td>
-               <td class="c-tamir">${t||''}</td>
-               <td class="c-hurda">${h||''}</td>
-        </tr>`;
+        html += `<td class="c-op">${esc(item.operator)}</td>
+                 <td class="c-parca">${esc(item.parca_kodu)}</td>
+                 <td class="c-adet">${a||''}</td>
+                 <td class="c-tamir">${t||''}</td>
+                 <td class="c-hurda">${h||''}</td>
+              </tr>`;
       });
     }
-    
     html += `</tbody>`;
   });
 
-  html+='</table></div>';
-  document.getElementById('rapor-icerik').innerHTML=html;
+  html += `<tfoot class="r-toplam">
+      <tr>
+        <td colspan="3" style="text-align:right;padding-right:10px">TOPLAM</td>
+        <td class="t-adet">${toplamAdet}</td>
+        <td class="t-tamir">${toplamTamir}</td>
+        <td class="t-hurda">${toplamHurda}</td>
+      </tr>
+    </tfoot>
+    </table>
+  </div>`;
+
+  document.getElementById('rapor-icerik').innerHTML = html;
 }
 
 // ── Canvas yakala ──
 async function yakalaCanvas(){
-  const el=document.querySelector('#rapor-wrap table');
-  if(!el) return null;
+  const el = document.getElementById('rapor-wrap');
+  if (!el) return null;
   return await html2canvas(el, {
-    scale:2.5, useCORS:true, backgroundColor:'#ffffff', logging:false
+    scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false
   });
 }
 
 // ── WhatsApp paylaş ──
 async function wpPaylas(){
-  const btn=document.getElementById('btn-wp');
-  btn.disabled=true;
-  btn.textContent='⏳ Hazırlanıyor...';
-  try{
-    const canvas=await yakalaCanvas();
-    if(!canvas) throw new Error('Tablo oluşturulamadı');
-    const blob=await new Promise(function(res){ canvas.toBlob(res,'image/png'); });
-    const file=new File([blob],'uretim_raporu.png',{type:'image/png'});
+  const btn = document.getElementById('btn-wp');
+  const orijinal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Hazırlanıyor...';
+  try {
+    const canvas = await yakalaCanvas();
+    if (!canvas) throw new Error('Tablo oluşturulamadı');
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    const file = new File([blob], 'uretim_raporu.png', { type:'image/png' });
 
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    if (navigator.share && navigator.canShare && navigator.canShare({ files:[file] })) {
       await navigator.share({
-        files:[file],
-        title:'Günlük Üretim Raporu',
-        text:'Günlük Üretim Raporu'
+        files: [file],
+        title: `${BOLUM_BILGI[aktifBolum].ad} — Günlük Üretim Raporu`,
+        text:  `${BOLUM_BILGI[aktifBolum].ad} — Günlük Üretim Raporu`
       });
     } else {
-      // Fallback: indir + WhatsApp Web
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');
-      a.href=url; a.download='uretim_raporu.png'; a.click();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'uretim_raporu.png'; a.click();
       URL.revokeObjectURL(url);
-      setTimeout(function(){ window.open('https://web.whatsapp.com','_blank'); }, 800);
+      setTimeout(() => window.open('https://web.whatsapp.com', '_blank'), 800);
       alert('Resim indirildi.\nWhatsApp\'ta gruba gönderebilirsiniz.');
     }
-  }catch(e){
-    if(e.name!=='AbortError') alert('Paylaşım hatası: '+e.message);
-  }finally{
-    btn.disabled=false;
-    btn.innerHTML='<svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> WhatsApp\'a Gönder';
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('Paylaşım hatası: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orijinal;
   }
 }
 
 // ── Görseli kaydet ──
 async function gorselKaydet(){
-  const btn=document.getElementById('btn-sav');
-  btn.disabled=true; btn.textContent='⏳ Kaydediliyor...';
-  try{
-    const canvas=await yakalaCanvas();
-    if(!canvas) throw new Error('Tablo oluşturulamadı');
-    const a=document.createElement('a');
-    a.href=canvas.toDataURL('image/png');
-    a.download='uretim_raporu.png'; a.click();
-  }catch(e){
-    alert('Hata: '+e.message);
-  }finally{
-    btn.disabled=false; btn.textContent='💾 Kaydet';
+  const btn = document.getElementById('btn-sav');
+  const orijinal = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '⏳ Kaydediliyor...';
+  try {
+    const canvas = await yakalaCanvas();
+    if (!canvas) throw new Error('Tablo oluşturulamadı');
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'uretim_raporu.png'; a.click();
+  } catch (e) {
+    alert('Hata: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = orijinal;
   }
 }
 
 function btnAktif(aktif){
-  document.getElementById('btn-wp').disabled=!aktif;
-  document.getElementById('btn-sav').disabled=!aktif;
+  document.getElementById('btn-wp').disabled  = !aktif;
+  document.getElementById('btn-sav').disabled = !aktif;
 }
 </script>
 </body>

@@ -1939,9 +1939,17 @@ def andon_mesaj_guncelle():
 
 @app.route('/api/rapor/gunluk_detay', methods=['GET'])
 def gunluk_rapor_detay():
-    """Belirli bir tarih ve vardiya için robot bazlı üretim detaylarını getirir."""
+    """Belirli bir tarih, vardiya ve bolum icin uretim detaylarini getirir.
+    Sira (key) bolume gore degisir:
+      - kaynak: 1..9, M
+      - montaj: o gun calisan distinct hat'lar (HAT 1, HAT 2 ...)
+      - metal:  300T, 400T, 500T, Şerit Testere
+    """
     tarih = request.args.get('tarih')
     vardiya_turu = request.args.get('vardiya')
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    if bolum not in ('kaynak', 'montaj', 'metal'):
+        bolum = 'kaynak'
 
     if not tarih or not vardiya_turu:
         return jsonify({'hata': 'tarih ve vardiya parametreleri zorunludur'}), 400
@@ -1949,7 +1957,6 @@ def gunluk_rapor_detay():
     try:
         conn = get_db()
 
-        # Vardiyalar: tüm varyasyonları eşleştir (Gunduz, Gündüz, Sabah, Aksam vs.)
         rows = conn.execute("""
             SELECT
                 v.robot_no,
@@ -1963,34 +1970,47 @@ def gunluk_rapor_detay():
             WHERE v.tarih = ?
               AND UPPER(REPLACE(REPLACE(v.vardiya_turu,'ü','u'),'Ü','U')) =
                   UPPER(REPLACE(REPLACE(?,'ü','u'),'Ü','U'))
+              AND COALESCE(v.bolum, 'kaynak') = ?
             GROUP BY v.robot_no, v.operator_adi, u.referans_kodu
             ORDER BY v.robot_no, v.operator_adi
-        """, (tarih, vardiya_turu)).fetchall()
+        """, (tarih, vardiya_turu, bolum)).fetchall()
         conn.close()
 
-        # ABB1→'1', ABB2→'2', ..., ABB9→'9', M→'M'
-        robot_listesi = ['1','2','3','4','5','6','7','8','9','M']
-        rapor_data    = {r: [] for r in robot_listesi}
+        # Bolume gore robot/hat/makine sirasi
+        if bolum == 'kaynak':
+            robot_listesi = ['1','2','3','4','5','6','7','8','9','M']
+        elif bolum == 'metal':
+            robot_listesi = ['300T', '400T', '500T', 'Şerit Testere']
+        else:  # montaj
+            # O gun calisan distinct hat'lari sirayla
+            seen = []
+            for r in rows:
+                rn = (r['robot_no'] or '').strip()
+                if rn and rn not in seen:
+                    seen.append(rn)
+            robot_listesi = seen
 
-        def normalize_robot(r_no):
+        rapor_data = {r: [] for r in robot_listesi}
+
+        def normalize_robot_kaynak(r_no):
             r = str(r_no or '').strip().upper()
-            # ABB1 → 1, ABB-1 → 1, ROBOT1 → 1
             for prefix in ('ABB-', 'ABB', 'ROBOT-', 'ROBOT'):
                 if r.startswith(prefix):
                     tail = r[len(prefix):].strip()
                     if tail in robot_listesi:
                         return tail
-            # Manuel kaynak harfleri
             if r == 'M':
                 return 'M'
             return r
 
         for row in rows:
-            target_r = normalize_robot(row['robot_no'])
+            if bolum == 'kaynak':
+                target_r = normalize_robot_kaynak(row['robot_no'])
+            else:
+                target_r = (row['robot_no'] or '').strip()
             if not target_r:
                 continue
 
-            # Sadece parça kodu olan ya da adet > 0 olan kayıtları dahil et
             if not row['referans_kodu'] and (row['ok_toplam'] or 0) == 0:
                 continue
 
@@ -2009,6 +2029,8 @@ def gunluk_rapor_detay():
         return jsonify({
             'tarih':   tarih,
             'vardiya': vardiya_turu,
+            'bolum':   bolum,
+            'siralama': robot_listesi,
             'data':    rapor_data,
         })
     except Exception as e:
@@ -2019,16 +2041,23 @@ def gunluk_rapor_detay():
 
 @app.route('/api/rapor/vardiya_listesi', methods=['GET'])
 def rapor_vardiya_listesi():
-    """Belirtilen tarihteki mevcut vardiya türlerini döndürür."""
+    """Belirtilen tarihteki ve bolumdeki mevcut vardiya turlerini dondurur."""
     tarih = request.args.get('tarih')
+    bolum = request.args.get('bolum')
     if not tarih:
         return jsonify({'hata': 'tarih zorunludur'}), 400
     try:
         conn = get_db()
-        rows = conn.execute(
-            "SELECT DISTINCT vardiya_turu FROM vardiyalar WHERE tarih = ? ORDER BY vardiya_turu",
-            (tarih,)
-        ).fetchall()
+        if bolum:
+            rows = conn.execute(
+                "SELECT DISTINCT vardiya_turu FROM vardiyalar WHERE tarih = ? AND COALESCE(bolum, 'kaynak') = ? ORDER BY vardiya_turu",
+                (tarih, bolum)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT DISTINCT vardiya_turu FROM vardiyalar WHERE tarih = ? ORDER BY vardiya_turu",
+                (tarih,)
+            ).fetchall()
         conn.close()
         return jsonify([r['vardiya_turu'] for r in rows])
     except Exception as e:
