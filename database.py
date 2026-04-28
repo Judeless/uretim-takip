@@ -114,6 +114,13 @@ def init_db():
     except Exception:
         pass  # Kolon zaten var
 
+    # Migration: 'metal_enjeksiyon' -> 'metal' (bölüm değerlerini standartlaştır)
+    for tbl in ('vardiyalar', 'referans_listesi', 'operatorler'):
+        try:
+            c.execute(f"UPDATE {tbl} SET bolum='metal' WHERE bolum='metal_enjeksiyon'")
+        except Exception:
+            pass
+
     # tamir_adet kolonu yoksa ekle (mevcut DB icin migration)
     try:
         c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN tamir_adet INTEGER DEFAULT 0")

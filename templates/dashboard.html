@@ -181,9 +181,32 @@
         }
 
         /* ── TOPBAR ── */
-        .topbar { margin-bottom: 24px; }
+        .topbar {
+            margin-bottom: 24px;
+            display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+        }
         .topbar h1 { font-size: 1.8rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
         .topbar p { font-size: 0.85rem; color: var(--muted); font-weight: 500; margin-top: 4px; }
+
+        /* ── BÖLÜM TOGGLE (Robot Kaynak / Montaj / Metal Enjeksiyon) ── */
+        .bolum-toggle {
+            display: inline-flex; gap: 4px;
+            background: var(--card); backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--card-border); border-radius: 14px;
+            padding: 6px; box-shadow: var(--shadow);
+        }
+        .bolum-btn {
+            padding: 10px 18px; border-radius: 10px; border: none; background: transparent;
+            color: var(--muted); font-size: 0.82rem; font-weight: 700; cursor: pointer;
+            transition: all 0.2s ease; font-family: var(--font-main);
+            display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+        }
+        .bolum-btn:hover { color: var(--text); background: rgba(0,0,0,0.03); }
+        .bolum-btn.active {
+            background: var(--primary); color: #fff;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .bolum-btn.active:hover { background: var(--primary-hover); }
 
         /* ── FORMLAR & FİLTRELER (Glassmorphism) ── */
         .filter-bar {
@@ -444,6 +467,17 @@
                     <h1 id="page-title">Dashboard</h1>
                     <p style="font-size:.8rem;color:var(--muted);margin-top:2px" id="subtitle-text">Yükleniyor...</p>
                 </div>
+                <div class="bolum-toggle" id="bolum-toggle" role="tablist" aria-label="Bölüm seçimi">
+                    <button class="bolum-btn active" data-bolum="kaynak" onclick="bolumDegistir('kaynak')" title="Robot Kaynak (Kaynakhane)">
+                        <span>🔧</span><span>Robot Kaynak</span>
+                    </button>
+                    <button class="bolum-btn" data-bolum="montaj" onclick="bolumDegistir('montaj')" title="Montaj">
+                        <span>🔩</span><span>Montaj</span>
+                    </button>
+                    <button class="bolum-btn" data-bolum="metal" onclick="bolumDegistir('metal')" title="Metal Enjeksiyon">
+                        <span>🏭</span><span>Metal Enjeksiyon</span>
+                    </button>
+                </div>
             </div>
 
             <!-- ── SEKMELER KONTEYNERI ── -->
@@ -468,7 +502,7 @@
                         <input type="date" id="f-bit">
                     </div>
                     <div class="f-group">
-                        <label>Robot</label>
+                        <label id="f-robot-label">Robot</label>
                         <select id="f-robot">
                             <option value="">Tümü</option>
                         </select>
@@ -523,8 +557,8 @@
                     <button class="inner-tab-btn" onclick="innerSecme('uretim', this)">📦 Üretim</button>
                     <button class="inner-tab-btn" onclick="innerSecme('durus', this)">⏸ Duruşlar</button>
                     <button class="inner-tab-btn" onclick="innerSecme('vardiya', this)">📋 Vardiyalar</button>
-                    <button class="inner-tab-btn" onclick="innerSecme('fikstur', this)">🔧 Fikstür & Programlar</button>
-                    <button class="inner-tab-btn" onclick="innerSecme('isatama', this)">📌 İş Yönetimi</button>
+                    <button class="inner-tab-btn" id="inner-tab-fikstur" data-bolum-only="kaynak" onclick="innerSecme('fikstur', this)">🔧 Fikstür & Programlar</button>
+                    <button class="inner-tab-btn" id="inner-tab-isatama" data-bolum-only="kaynak" onclick="innerSecme('isatama', this)">📌 İş Yönetimi</button>
                     <button class="tab-pin-btn" id="tab-pin-btn" onclick="tabTercihiKaydet()" title="Bu sekmeyi başlangıç olarak ayarla">📍 Başlangıç yap</button>
                 </div>
 
@@ -1255,6 +1289,73 @@
         let chartRobot = null;
         let aktifSekme = 'vardiyalar';
         let ozetData = null;
+        // Aktif bolum: 'kaynak' | 'montaj' | 'metal'. localStorage'dan okunur, default 'kaynak'.
+        let aktifBolum = (function () {
+            const v = localStorage.getItem('dashboard_aktif_bolum');
+            return (v === 'montaj' || v === 'metal') ? v : 'kaynak';
+        })();
+
+        const BOLUM_BILGI = {
+            kaynak: { ad: 'Robot Kaynak', tekil_etiket: 'Robot' },
+            montaj: { ad: 'Montaj',        tekil_etiket: 'Hat' },
+            metal:  { ad: 'Metal Enjeksiyon', tekil_etiket: 'Makine' }
+        };
+
+        // Bolume gore robot/hat/makine dropdown'unu ve etiketi yenile
+        async function yukleRobotListesi() {
+            const sel = document.getElementById('f-robot');
+            const lbl = document.getElementById('f-robot-label');
+            if (lbl) lbl.textContent = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+            if (!sel) return;
+            const onceki = sel.value;
+            sel.innerHTML = '<option value="">Tümü</option>';
+            try {
+                const res = await fetch('/api/robotlar?bolum=' + encodeURIComponent(aktifBolum));
+                const robotlar = await res.json();
+                robotlar.forEach(r => {
+                    const o = document.createElement('option');
+                    o.value = r; o.textContent = r;
+                    sel.appendChild(o);
+                });
+                if (onceki && Array.from(sel.options).some(op => op.value === onceki)) {
+                    sel.value = onceki;
+                }
+            } catch (e) { console.warn('Robot listesi yüklenemedi:', e); }
+        }
+
+        // Sekmeleri ve butonlari bolume gore goster/gizle
+        function bolumGorunurlugu() {
+            document.querySelectorAll('[data-bolum-only]').forEach(el => {
+                const izinli = el.getAttribute('data-bolum-only');
+                el.style.display = (izinli === aktifBolum) ? '' : 'none';
+            });
+            const aktifBtn = document.querySelector('#inner-tab-bar .inner-tab-btn.active');
+            if (aktifBtn && aktifBtn.style.display === 'none') {
+                const ozetBtn = document.querySelector('#inner-tab-bar .inner-tab-btn[onclick*="\'ozet\'"]');
+                if (ozetBtn && typeof innerSecme === 'function') innerSecme('ozet', ozetBtn);
+            }
+            document.querySelectorAll('.bolum-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.bolum === aktifBolum);
+            });
+            const sub = document.getElementById('subtitle-text');
+            if (sub) {
+                const bilgi = BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak;
+                sub.textContent = bilgi.ad;
+            }
+        }
+
+        async function bolumDegistir(yeni) {
+            if (yeni !== 'kaynak' && yeni !== 'montaj' && yeni !== 'metal') return;
+            if (yeni === aktifBolum) return;
+            aktifBolum = yeni;
+            localStorage.setItem('dashboard_aktif_bolum', yeni);
+            const sel = document.getElementById('f-robot');
+            if (sel) sel.value = '';
+            bolumGorunurlugu();
+            await yukleRobotListesi();
+            if (typeof yukle === 'function') yukle();
+            try { if (typeof yukleReferanslar === 'function') yukleReferanslar(); } catch (e) {}
+        }
 
         // ─── EXPORT MODAL ───────────────────────────────────────
         function exportModalAc() {
@@ -1578,16 +1679,10 @@
             document.getElementById('f-bas').value = bugun;
             document.getElementById('f-bit').value = bugun;
 
-            // Robot seçenekleri
-            try {
-                const res = await fetch('/api/robotlar');
-                const robotlar = await res.json();
-                const sel = document.getElementById('f-robot');
-                robotlar.forEach(r => {
-                    const o = document.createElement('option'); o.value = r; o.textContent = r;
-                    sel.appendChild(o);
-                });
-            } catch (e) { }
+            // Bolum durumunu UI'ye yansit (aktifBolum localStorage'dan zaten okundu)
+            bolumGorunurlugu();
+            // Robot/hat/makine listesini bolume gore yukle
+            await yukleRobotListesi();
 
             yukle();
             yukleRefTakipPanel();
@@ -1877,7 +1972,7 @@
 
             try {
                 // Özet verisi
-                let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}`;
+                let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}&bolum=${encodeURIComponent(aktifBolum)}`;
                 if (robot) url += `&robot=${robot}`;
                 const res = await fetch(url);
                 ozetData = await res.json();
@@ -2610,7 +2705,7 @@
             if(!tbody) return;
             tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><span class="spinner"></span></div></td></tr>';
             try {
-                const res = await fetch('/api/referanslar?q=');
+                const res = await fetch('/api/referanslar?q=&bolum=' + encodeURIComponent(aktifBolum));
                 tumReferanslar = await res.json();
                 renderReferanslar(tumReferanslar);
                 yukleEksikReferanslar();

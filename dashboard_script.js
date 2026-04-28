@@ -6,6 +6,88 @@
         let chartRobot = null;
         let aktifSekme = 'vardiyalar';
         let ozetData = null;
+        // Aktif bolum: 'kaynak' | 'montaj' | 'metal'. localStorage'dan okunur, default 'kaynak'.
+        let aktifBolum = (function () {
+            const v = localStorage.getItem('dashboard_aktif_bolum');
+            return (v === 'montaj' || v === 'metal') ? v : 'kaynak';
+        })();
+
+        // Bolum bilgileri: etiketler ve sabit makine listeleri
+        const BOLUM_BILGI = {
+            kaynak: { ad: 'Robot Kaynak', tekil_etiket: 'Robot' },
+            montaj: { ad: 'Montaj',        tekil_etiket: 'Hat' },
+            metal:  { ad: 'Metal Enjeksiyon', tekil_etiket: 'Makine' }
+        };
+
+        // URL'lere bolum parametresi eklemek icin helper. Url '?' icermiyorsa otomatik ekler.
+        function bolumQS(prefix) {
+            const sep = (prefix === undefined || prefix === '?') ? '?' : '&';
+            return sep + 'bolum=' + encodeURIComponent(aktifBolum);
+        }
+
+        // Bolume gore robot dropdown'unu ve etiketi yenile
+        async function yukleRobotListesi() {
+            const sel = document.getElementById('f-robot');
+            const lbl = document.getElementById('f-robot-label');
+            if (lbl) lbl.textContent = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+            if (!sel) return;
+            // Mevcut secimi koru
+            const onceki = sel.value;
+            sel.innerHTML = '<option value="">Tümü</option>';
+            try {
+                const res = await fetch('/api/robotlar?bolum=' + encodeURIComponent(aktifBolum));
+                const robotlar = await res.json();
+                robotlar.forEach(r => {
+                    const o = document.createElement('option');
+                    o.value = r; o.textContent = r;
+                    sel.appendChild(o);
+                });
+                // Eski secim hala listede varsa geri yukle
+                if (onceki && Array.from(sel.options).some(op => op.value === onceki)) {
+                    sel.value = onceki;
+                }
+            } catch (e) { console.warn('Robot listesi yüklenemedi:', e); }
+        }
+
+        // Sekmeleri ve butonlari bolume gore goster/gizle
+        function bolumGorunurlugu() {
+            // data-bolum-only="kaynak" olan inner-tab butonlarini gizle/goster
+            document.querySelectorAll('[data-bolum-only]').forEach(el => {
+                const izinli = el.getAttribute('data-bolum-only');
+                el.style.display = (izinli === aktifBolum) ? '' : 'none';
+            });
+            // Aktif inner sekme gizlendiyse 'ozet'e dus
+            const aktifBtn = document.querySelector('#inner-tab-bar .inner-tab-btn.active');
+            if (aktifBtn && aktifBtn.style.display === 'none') {
+                const ozetBtn = document.querySelector('#inner-tab-bar .inner-tab-btn[onclick*="\'ozet\'"]');
+                if (ozetBtn) innerSecme('ozet', ozetBtn);
+            }
+            // Topbar buton aktif sinifi
+            document.querySelectorAll('.bolum-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.bolum === aktifBolum);
+            });
+            // Subtitle bolum adini yansitsin
+            const sub = document.getElementById('subtitle-text');
+            if (sub) {
+                const bilgi = BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak;
+                sub.textContent = bilgi.ad;
+            }
+        }
+
+        // Bolum degistir: state guncelle, kalici yap, UI'yi tazele
+        async function bolumDegistir(yeni) {
+            if (yeni !== 'kaynak' && yeni !== 'montaj' && yeni !== 'metal') return;
+            if (yeni === aktifBolum) return;
+            aktifBolum = yeni;
+            localStorage.setItem('dashboard_aktif_bolum', yeni);
+            // Robot filtresini sifirla (eski bolumun degerleri yeni bolumde anlamsiz)
+            const sel = document.getElementById('f-robot');
+            if (sel) sel.value = '';
+            bolumGorunurlugu();
+            await yukleRobotListesi();
+            yukle();
+            try { yukleReferanslar(); } catch (e) {}
+        }
 
         // ─── EXPORT MODAL ───────────────────────────────────────
         function exportModalAc() {
@@ -242,16 +324,10 @@
             document.getElementById('f-bas').value = bugun;
             document.getElementById('f-bit').value = bugun;
 
-            // Robot seçenekleri
-            try {
-                const res = await fetch('/api/robotlar');
-                const robotlar = await res.json();
-                const sel = document.getElementById('f-robot');
-                robotlar.forEach(r => {
-                    const o = document.createElement('option'); o.value = r; o.textContent = r;
-                    sel.appendChild(o);
-                });
-            } catch (e) { }
+            // Bolum durumunu UI'ye yansit (aktifBolum localStorage'dan zaten okundu)
+            bolumGorunurlugu();
+            // Bolume gore robot listesi
+            await yukleRobotListesi();
 
             yukle();
             yukleRefTakipPanel();
@@ -482,7 +558,7 @@
 
             try {
                 // Özet verisi
-                let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}`;
+                let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}&bolum=${encodeURIComponent(aktifBolum)}`;
                 if (robot) url += `&robot=${robot}`;
                 const res = await fetch(url);
                 ozetData = await res.json();
@@ -945,7 +1021,7 @@
             const tbody = document.getElementById('ref-tbl-body');
             tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><span class="spinner"></span></div></td></tr>';
             try {
-                const res = await fetch('/api/referanslar?q=');
+                const res = await fetch('/api/referanslar?q=&bolum=' + encodeURIComponent(aktifBolum));
                 tumReferanslar = await res.json();
                 renderReferanslar(tumReferanslar);
                 yukleEksikReferanslar();

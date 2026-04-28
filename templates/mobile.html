@@ -849,7 +849,7 @@
         <div class="home-hero-sub">Üretim Takip Sistemi</div>
       </div>
 
-      <button class="btn-new-shift" onclick="gitEkran('B0')">
+      <button class="btn-new-shift" onclick="yeniVardiyaBaslat()">
         <span>＋</span> Yeni Vardiya Başlat
       </button>
 
@@ -886,7 +886,7 @@
             </div>
             <span class="bolum-badge montaj">MONTAJ</span>
           </div>
-          <div class="bolum-btn metal" onclick="bolumSec('metal_enjeksiyon')">
+          <div class="bolum-btn metal" onclick="bolumSec('metal')">
             <div class="bolum-icon">⚙️</div>
             <div class="bolum-info">
               <div class="bolum-title">Metal Enjeksiyon</div>
@@ -935,7 +935,7 @@
 
         <div id="b-robot-wrap">
           <label>Robot No</label>
-          <select id="b-robot">
+          <select id="b-robot" onchange="montajHatSecimDegisti()">
             <option value="">Seçin...</option>
             <option value="M">M (Manuel Kaynak)</option>
           </select>
@@ -1245,15 +1245,22 @@
     });
 
     // ── BOLUM SECIMI ──
+    // Bolum kodlari: 'kaynak' | 'montaj' | 'metal'
     function bolumSec(bolum) {
+      // Geriye dönük: eski 'metal_enjeksiyon' degerini standartlastır
+      if (bolum === 'metal_enjeksiyon') bolum = 'metal';
       secilenBolum = bolum;
       document.getElementById('b-bolum').value = bolum;
+      // Cihazda hatirla
+      try { localStorage.setItem('mobile_aktif_bolum', bolum); } catch (e) {}
 
-      // Bolum badge goster
+      // Bolum badge goster + "Bolum Degistir" butonu
       var badgeWrap = document.getElementById('b-bolum-badge-wrap');
-      var badgeLabel = {kaynak: 'Kaynakhane', montaj: 'Montaj', metal_enjeksiyon: 'Metal Enjeksiyon'};
-      var badgeClass = {kaynak: 'kaynak', montaj: 'montaj', metal_enjeksiyon: 'metal'};
-      badgeWrap.innerHTML = '<span class="bolum-badge ' + badgeClass[bolum] + '" style="font-size:.72rem;padding:5px 14px;">' + badgeLabel[bolum] + '</span>';
+      var badgeLabel = {kaynak: 'Kaynakhane', montaj: 'Montaj', metal: 'Metal Enjeksiyon'};
+      var badgeClass = {kaynak: 'kaynak', montaj: 'montaj', metal: 'metal'};
+      badgeWrap.innerHTML =
+        '<span class="bolum-badge ' + badgeClass[bolum] + '" style="font-size:.72rem;padding:5px 14px;">' + badgeLabel[bolum] + '</span>'
+        + ' <button type="button" onclick="bolumDegistirGeri()" style="margin-left:8px;background:transparent;border:1px dashed var(--border);color:var(--muted);padding:3px 10px;border-radius:8px;font-size:.7rem;font-weight:700;cursor:pointer">Bölüm Değiştir</button>';
 
       // Operatorleri yeniden yukle (bolum filtreli)
       var sel = document.getElementById('b-operator');
@@ -1282,20 +1289,65 @@
             rsel.appendChild(opt);
           });
         }).catch(function () { });
-      } else if (bolum === 'metal_enjeksiyon') {
+      } else if (bolum === 'metal') {
         robotWrap.style.display = 'block';
-        if (robotLabel) robotLabel.textContent = 'Makine / Bölüm';
-        rsel.innerHTML = '<option value="">Seçin...</option>' + 
-                         '<option value="Metal Pres - 300 Ton">Metal Pres - 300 Ton</option>' + 
-                         '<option value="Metal Pres - 400 Ton">Metal Pres - 400 Ton</option>' + 
-                         '<option value="Metal Pres 550 Ton">Metal Pres 550 Ton</option>' + 
+        if (robotLabel) robotLabel.textContent = 'Makine';
+        rsel.innerHTML = '<option value="">Seçin...</option>' +
+                         '<option value="300T">300T</option>' +
+                         '<option value="400T">400T</option>' +
+                         '<option value="500T">500T</option>' +
                          '<option value="Şerit Testere">Şerit Testere</option>';
       } else {
-        robotWrap.style.display = 'none';
-        rsel.innerHTML = '<option value="MONTAJ">Montaj</option>';
+        // Montaj: mevcut HAT'leri dinamik getir, en altta "+ Yeni hat ekle" secenegi
+        robotWrap.style.display = 'block';
+        if (robotLabel) robotLabel.textContent = 'Hat';
+        rsel.innerHTML = '<option value="">Seçin...</option>';
+        fetch('/api/robotlar?bolum=montaj').then(function (r) { return r.json(); }).then(function (hatlar) {
+          hatlar.forEach(function (h) {
+            var opt = document.createElement('option');
+            opt.value = h; opt.textContent = h;
+            rsel.appendChild(opt);
+          });
+          var yeni = document.createElement('option');
+          yeni.value = '__yeni__'; yeni.textContent = '+ Yeni hat ekle';
+          rsel.appendChild(yeni);
+        }).catch(function () { });
       }
 
       gitEkran('B');
+    }
+
+    // "Yeni hat ekle" secildiginde HAT adi sorulur ve listeye eklenir (montaj icin)
+    function montajHatSecimDegisti() {
+      var rsel = document.getElementById('b-robot');
+      if (!rsel || rsel.value !== '__yeni__') return;
+      var girilen = prompt('Yeni hat adı / numarası (ör: HAT 5):', 'HAT ');
+      if (!girilen || !girilen.trim()) { rsel.value = ''; return; }
+      var ad = girilen.trim();
+      var mevcut = Array.from(rsel.options).find(function (o) { return o.value === ad; });
+      if (mevcut) { rsel.value = ad; return; }
+      var opt = document.createElement('option');
+      opt.value = ad; opt.textContent = ad;
+      var yeniOpt = Array.from(rsel.options).find(function (o) { return o.value === '__yeni__'; });
+      if (yeniOpt) rsel.insertBefore(opt, yeniOpt); else rsel.appendChild(opt);
+      rsel.value = ad;
+    }
+
+    // Bolum secim ekranina geri don (B ekranindaki "Bolum Degistir" butonu)
+    function bolumDegistirGeri() {
+      try { localStorage.removeItem('mobile_aktif_bolum'); } catch (e) {}
+      gitEkran('B0');
+    }
+
+    // "Yeni Vardiya Baslat" — kullanici daha once bolum sectiyse direkt B'ye, secmediyse B0'a (bolum secimi)
+    function yeniVardiyaBaslat() {
+      var hatirlanan = null;
+      try { hatirlanan = localStorage.getItem('mobile_aktif_bolum'); } catch (e) {}
+      if (hatirlanan === 'kaynak' || hatirlanan === 'montaj' || hatirlanan === 'metal') {
+        bolumSec(hatirlanan);
+      } else {
+        gitEkran('B0');
+      }
     }
 
     // ── EKRAN YÖNETİMİ ──
@@ -1424,7 +1476,7 @@
           return;
         }
 
-        var groups = { kaynak: [], montaj: [], metal_enjeksiyon: [] };
+        var groups = { kaynak: [], montaj: [], metal: [] };
         list.forEach(function(v) {
           var b = v.bolum || 'kaynak';
           if (!groups[b]) groups[b] = [];
@@ -1435,10 +1487,10 @@
         var bLabels = {
           kaynak: { title: '🔧 Kaynakhane', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
           montaj: { title: '🔩 Montaj', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-          metal_enjeksiyon: { title: '⚙️ Metal Enjeksiyon', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }
+          metal: { title: '⚙️ Metal Enjeksiyon', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' }
         };
 
-        ['kaynak', 'montaj', 'metal_enjeksiyon'].forEach(function(bKey) {
+        ['kaynak', 'montaj', 'metal'].forEach(function(bKey) {
           var arr = groups[bKey];
           if (arr && arr.length > 0) {
             var gInfo = bLabels[bKey];
@@ -1515,7 +1567,7 @@
         robot = document.getElementById('b-robot').value;
       } else if (bolum === 'montaj') {
         robot = 'MONTAJ';
-      } else if (bolum === 'metal_enjeksiyon') {
+      } else if (bolum === 'metal') {
         robot = 'ME';
       }
       var vt = document.getElementById('b-vardiya-turu').value;
@@ -1523,7 +1575,10 @@
       var bit = document.getElementById('b-bit').value;
 
       if (!op) { toast('Operat\u00f6r se\u00e7iniz', 'error'); return; }
-      if (bolum === 'kaynak' && !robot) { toast('Robot se\u00e7iniz', 'error'); return; }
+      if (!robot || robot === '__yeni__') {
+        var alanAdi = bolum === 'montaj' ? 'Hat' : (bolum === 'metal' ? 'Makine' : 'Robot');
+        toast(alanAdi + ' se\u00e7iniz', 'error'); return;
+      }
       if (!tarih) { toast('Tarih giriniz', 'error'); return; }
 
       fetch('/api/vardiya', {

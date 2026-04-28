@@ -231,6 +231,7 @@ def vardiya_listesi():
     tarih = request.args.get('tarih')
     robot = request.args.get('robot')
     vardiya_turu = request.args.get('vardiya_turu')
+    bolum = request.args.get('bolum')
     limit = int(request.args.get('limit', 100))
 
     query = 'SELECT * FROM vardiyalar WHERE 1=1'
@@ -245,6 +246,9 @@ def vardiya_listesi():
     if vardiya_turu:
         query += ' AND vardiya_turu = ?'
         params.append(vardiya_turu)
+    if bolum:
+        query += " AND COALESCE(bolum, 'kaynak') = ?"
+        params.append(bolum)
 
     query += ' ORDER BY tarih DESC, created_at DESC LIMIT ?'
     params.append(limit)
@@ -332,14 +336,21 @@ def vardiya_sil(vid):
 
 @app.route('/api/vardiya/bugun', methods=['GET'])
 def vardiya_bugun():
-    """Bugune ait tum vardiylari getirir (operatorn secim ekrani icin)."""
+    """Bugune ait tum vardiylari getirir (operatorn secim ekrani icin). ?bolum= ile filtrelenebilir."""
     from datetime import date as _date
     bugun = _date.today().isoformat()
+    bolum = request.args.get('bolum')
     conn = get_db()
-    rows = conn.execute(
-        'SELECT * FROM vardiyalar WHERE tarih = ? ORDER BY baslangic_saati DESC',
-        (bugun,)
-    ).fetchall()
+    if bolum:
+        rows = conn.execute(
+            "SELECT * FROM vardiyalar WHERE tarih = ? AND COALESCE(bolum, 'kaynak') = ? ORDER BY baslangic_saati DESC",
+            (bugun, bolum)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            'SELECT * FROM vardiyalar WHERE tarih = ? ORDER BY baslangic_saati DESC',
+            (bugun,)
+        ).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -659,10 +670,11 @@ def oee_vardiya(vid):
 
 @app.route('/api/oee', methods=['GET'])
 def oee_ozet():
-    """Tarih aralığı ve robot için OEE özeti."""
+    """Tarih aralığı, robot ve bölüm için OEE özeti."""
     tarih_bas = request.args.get('tarih_bas')
     tarih_bit = request.args.get('tarih_bit')
     robot = request.args.get('robot')
+    bolum = request.args.get('bolum')
 
     # Varsayılan: bugün
     if not tarih_bas and not tarih_bit:
@@ -670,7 +682,7 @@ def oee_ozet():
         tarih_bas = bugun
         tarih_bit = bugun
 
-    sonuc = hesapla_oee_ozet(tarih_bas, tarih_bit, robot)
+    sonuc = hesapla_oee_ozet(tarih_bas, tarih_bit, robot, bolum)
     return jsonify(sonuc)
 
 
@@ -816,12 +828,24 @@ def referans_sil(kod):
 
 @app.route('/api/robotlar', methods=['GET'])
 def robot_listesi():
-    """Bölüm bazlı robot/istasyon listesi."""
+    """Bölüm bazlı robot/hat/makine listesi.
+    - kaynak: ABB1..ABB9 (sabit)
+    - montaj: vardiyalardan distinct robot_no (HAT 1, HAT 2 ...) — operatörler girdikçe dinamik büyür
+    - metal: 300T, 400T, 500T, Şerit Testere (sabit)
+    """
     bolum = request.args.get('bolum', 'kaynak')
-    if bolum == 'montaj':
-        robotlar = ['MONTAJ']
-    elif bolum == 'metal_enjeksiyon':
-        robotlar = ['ME']
+    if bolum == 'metal':
+        robotlar = ['300T', '400T', '500T', 'Şerit Testere']
+    elif bolum == 'montaj':
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum, 'kaynak') = 'montaj' AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no"
+        ).fetchall()
+        conn.close()
+        robotlar = [r['robot_no'] for r in rows]
+        # Hiç kayıt yoksa varsayılan olarak HAT 1'i göster — operatör formundan ilk girişte yenileri otomatik eklenir
+        if not robotlar:
+            robotlar = ['HAT 1']
     else:
         robotlar = [f'ABB{i}' for i in range(1, 10)]
     return jsonify(robotlar)
@@ -877,16 +901,20 @@ def ozet():
     tarih_bas = request.args.get('tarih_bas', bugun)
     tarih_bit = request.args.get('tarih_bit', bugun)
     robot = request.args.get('robot')
+    bolum = request.args.get('bolum')
 
     param_vardiya = [tarih_bas, tarih_bit]
     sart_vardiya = 'tarih BETWEEN ? AND ?'
     if robot:
         sart_vardiya += ' AND robot_no = ?'
         param_vardiya.append(robot)
+    if bolum:
+        sart_vardiya += " AND COALESCE(v.bolum, 'kaynak') = ?"
+        param_vardiya.append(bolum)
 
     # Vardiya sayıları
     vardiya_sayisi = c.execute(
-        f'SELECT COUNT(*) as cnt FROM vardiyalar WHERE {sart_vardiya}',
+        f'SELECT COUNT(*) as cnt FROM vardiyalar v WHERE {sart_vardiya}',
         param_vardiya
     ).fetchone()['cnt']
 
@@ -990,7 +1018,7 @@ def ozet():
 
     # Son 50 vardiya kayıtları (OEE trendi için)
     son_vardiyalar = c.execute(
-        f'SELECT id FROM vardiyalar WHERE {sart_vardiya} ORDER BY tarih DESC, id DESC LIMIT 50',
+        f'SELECT v.id FROM vardiyalar v WHERE {sart_vardiya} ORDER BY v.tarih DESC, v.id DESC LIMIT 50',
         param_vardiya
     ).fetchall()
 
@@ -1050,6 +1078,7 @@ def rapor_api():
     tarih_bit = request.args.get('tarih_bit', date.today().isoformat())
     robot = request.args.get('robot', '')
     operator_filtre = request.args.get('operator', '')
+    bolum = request.args.get('bolum', '')
 
     conn = get_db()
     c = conn.cursor()
@@ -1063,6 +1092,9 @@ def rapor_api():
     if operator_filtre:
         sart += ' AND v.operator_adi = ?'
         params.append(operator_filtre)
+    if bolum:
+        sart += " AND COALESCE(v.bolum, 'kaynak') = ?"
+        params.append(bolum)
 
     if rapor_tipi == 'operator':
         # Operator bazli rapor

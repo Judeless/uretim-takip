@@ -123,8 +123,8 @@ def hesapla_oee(vardiya_id):
     }
 
 
-def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None):
-    """Tarih araligi ve/veya robot icin OEE ozeti hesapla."""
+def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None, bolum=None):
+    """Tarih araligi, robot ve bolum icin OEE ozeti hesapla."""
     conn = get_db()
     c = conn.cursor()
 
@@ -140,6 +140,9 @@ def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None):
     if robot_no:
         query += ' AND robot_no = ?'
         params.append(robot_no)
+    if bolum:
+        query += " AND COALESCE(bolum, 'kaynak') = ?"
+        params.append(bolum)
 
     query += ' ORDER BY tarih DESC, id DESC'
     vardiya_ids = [row['id'] for row in c.execute(query, params).fetchall()]
