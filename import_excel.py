@@ -20,7 +20,7 @@ EXCEL_DOSYALARI = {
         'ref_sayfa_anahtar': ['montaj', 'süre', 'sure'],
         'op_sayfa_anahtar': ['operat'],
     },
-    'metal_enjeksiyon': {
+    'metal': {
         'yol': r'C:\Users\selcu\OneDrive\Masaüstü\Metal Enjeksiyon.xlsx',
         'ref_sayfa_anahtar': ['bask', 'süre', 'sure', 'enjeksiyon'],
         'op_sayfa_anahtar': ['operat'],

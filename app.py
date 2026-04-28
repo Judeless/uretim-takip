@@ -1648,13 +1648,23 @@ DURUM_SIRASI = ['launch_alinacak', 'launch_alindi', 'launch_hazir', 'uretimde', 
 
 @app.route('/api/referans_takip', methods=['GET'])
 def referans_takip_listesi():
+    bolum = request.args.get('bolum')
     conn = get_db()
-    rows = conn.execute('''
-        SELECT rt.*, rl.hedef_cycle_time_sn 
-        FROM referans_takip rt
-        LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-        ORDER BY rt.olusturma_tarihi DESC
-    ''').fetchall()
+    if bolum:
+        rows = conn.execute('''
+            SELECT rt.*, rl.hedef_cycle_time_sn
+            FROM referans_takip rt
+            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
+            WHERE COALESCE(rt.bolum, 'kaynak') = ?
+            ORDER BY rt.olusturma_tarihi DESC
+        ''', (bolum,)).fetchall()
+    else:
+        rows = conn.execute('''
+            SELECT rt.*, rl.hedef_cycle_time_sn
+            FROM referans_takip rt
+            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
+            ORDER BY rt.olusturma_tarihi DESC
+        ''').fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -1665,15 +1675,19 @@ def referans_takip_ekle():
         ref = data.get('referans_kodu', '').strip()
         if not ref:
             return jsonify({'error': 'referans_kodu zorunludur'}), 400
-        
+
+        bolum = (data.get('bolum') or 'kaynak').strip()
+        if bolum not in ('kaynak', 'montaj', 'metal'):
+            bolum = 'kaynak'
+
         conn = get_db()
         c = conn.cursor()
         c.execute('''
-            INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ref, int(data.get('hedef_adet', 0)), data.get('aciklama', ''),
               data.get('durum', 'launch_alinacak'), data.get('olusturan', ''),
-              data.get('robot_no', ''), int(data.get('istasyon', 0))))
+              data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum))
         conn.commit()
         return jsonify({'basarili': True}), 201
     except Exception as e:

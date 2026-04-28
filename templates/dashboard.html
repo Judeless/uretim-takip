@@ -558,7 +558,7 @@
                     <button class="inner-tab-btn" onclick="innerSecme('durus', this)">⏸ Duruşlar</button>
                     <button class="inner-tab-btn" onclick="innerSecme('vardiya', this)">📋 Vardiyalar</button>
                     <button class="inner-tab-btn" id="inner-tab-fikstur" data-bolum-only="kaynak" onclick="innerSecme('fikstur', this)">🔧 Fikstür & Programlar</button>
-                    <button class="inner-tab-btn" id="inner-tab-isatama" data-bolum-only="kaynak" onclick="innerSecme('isatama', this)">📌 İş Yönetimi</button>
+                    <button class="inner-tab-btn" id="inner-tab-isatama" data-bolum-only="kaynak,montaj" onclick="innerSecme('isatama', this)">📌 İş Yönetimi</button>
                     <button class="tab-pin-btn" id="tab-pin-btn" onclick="tabTercihiKaydet()" title="Bu sekmeyi başlangıç olarak ayarla">📍 Başlangıç yap</button>
                 </div>
 
@@ -904,17 +904,12 @@
                                 style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                         </div>
                         <div>
-                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Robot</div>
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px" id="rt-robot-label">Robot</div>
                             <select id="rt-robot" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                                 <option value="">Seç...</option>
-                                <option>ABB1</option><option>ABB2</option><option>ABB3</option>
-                                <option>ABB4</option><option>ABB5</option><option>ABB6</option>
-                                <option>ABB7</option><option>ABB8</option><option>ABB9</option>
-                                <option>MONTAJ</option>
-                                <option>ME</option>
                             </select>
                         </div>
-                        <div>
+                        <div id="rt-istasyon-wrap" data-bolum-only="kaynak">
                             <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">İstasyon</div>
                             <select id="rt-istasyon" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                                 <option value="0">Belirtme</option>
@@ -932,38 +927,14 @@
                         </button>
                     </div>
                     <div class="table-wrap">
-                        <h4 style="margin:10px 0 5px; color:var(--primary); font-size:1.1rem">🔧 Kaynakhane</h4>
+                        <h4 id="ref-takip-baslik" style="margin:10px 0 5px; color:var(--primary); font-size:1.1rem">🔧 Kaynakhane</h4>
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Referans</th><th>Hedef</th><th>Robot / İst.</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
+                                    <th>Referans</th><th>Hedef</th><th id="ref-takip-th-robot">Robot / İst.</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
                                 </tr>
                             </thead>
                             <tbody id="ref-takip-tbody">
-                                <tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
-                            </tbody>
-                        </table>
-                        
-                        <h4 style="margin:20px 0 5px; color:#f59e0b; font-size:1.1rem">🔩 Montaj</h4>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Referans</th><th>Hedef</th><th>Robot / İst.</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="ref-takip-tbody-montaj">
-                                <tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
-                            </tbody>
-                        </table>
-                        
-                        <h4 style="margin:20px 0 5px; color:#10b981; font-size:1.1rem">⚙️ Metal Enjeksiyon</h4>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Referans</th><th>Hedef</th><th>Robot / İst.</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="ref-takip-tbody-me">
                                 <tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
                             </tbody>
                         </table>
@@ -1324,10 +1295,11 @@
         }
 
         // Sekmeleri ve butonlari bolume gore goster/gizle
+        // data-bolum-only="kaynak" veya virgulle "kaynak,montaj" gibi coklu deger destekler
         function bolumGorunurlugu() {
             document.querySelectorAll('[data-bolum-only]').forEach(el => {
-                const izinli = el.getAttribute('data-bolum-only');
-                el.style.display = (izinli === aktifBolum) ? '' : 'none';
+                const izinli = (el.getAttribute('data-bolum-only') || '').split(',').map(s => s.trim()).filter(Boolean);
+                el.style.display = izinli.includes(aktifBolum) ? '' : 'none';
             });
             const aktifBtn = document.querySelector('#inner-tab-bar .inner-tab-btn.active');
             if (aktifBtn && aktifBtn.style.display === 'none') {
@@ -1355,6 +1327,7 @@
             await yukleRobotListesi();
             if (typeof yukle === 'function') yukle();
             try { if (typeof yukleReferanslar === 'function') yukleReferanslar(); } catch (e) {}
+            try { if (typeof yukleRefTakipPanel === 'function') yukleRefTakipPanel(); } catch (e) {}
         }
 
         // ─── EXPORT MODAL ───────────────────────────────────────
@@ -1465,74 +1438,102 @@
             { key: 'uretim_tamamlandi', label: 'Tamamlandı',   bg: '#365314', color: '#a3e635' }
         ];
 
+        // Iş Yönetimi panelindeki secilebilecek robot/hat/makine listesini bolume gore getir
+        let rtRobotListesi = [];
+        async function rtRobotListesiniYukle() {
+            try {
+                const res = await fetch('/api/robotlar?bolum=' + encodeURIComponent(aktifBolum));
+                rtRobotListesi = await res.json();
+            } catch (e) { rtRobotListesi = []; }
+            // Form'daki rt-robot select'ini de doldur
+            const sel = document.getElementById('rt-robot');
+            if (sel) {
+                const onceki = sel.value;
+                sel.innerHTML = '<option value="">Seç...</option>';
+                rtRobotListesi.forEach(r => {
+                    const o = document.createElement('option');
+                    o.value = r; o.textContent = r;
+                    sel.appendChild(o);
+                });
+                if (onceki && rtRobotListesi.includes(onceki)) sel.value = onceki;
+            }
+            // Form'daki "Robot" etiketi bolume gore: Robot/Hat/Makine
+            const lbl = document.getElementById('rt-robot-label');
+            if (lbl) lbl.textContent = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+            // Tablo üst başlığı bölüme göre
+            const baslik = document.getElementById('ref-takip-baslik');
+            if (baslik) {
+                const ikon = aktifBolum === 'montaj' ? '🔩' : (aktifBolum === 'metal' ? '🏭' : '🔧');
+                baslik.innerHTML = ikon + ' ' + ((BOLUM_BILGI[aktifBolum] || {}).ad || 'Robot Kaynak');
+            }
+            const thRobot = document.getElementById('ref-takip-th-robot');
+            if (thRobot) {
+                const tek = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+                thRobot.textContent = aktifBolum === 'kaynak' ? (tek + ' / İst.') : tek;
+            }
+        }
+
         async function yukleRefTakipPanel() {
             try {
-                const res = await fetch('/api/referans_takip');
+                await rtRobotListesiniYukle();
+                const res = await fetch('/api/referans_takip?bolum=' + encodeURIComponent(aktifBolum));
                 const list = await res.json();
-                
+
                 const count = document.getElementById('ref-takip-count');
-                count.textContent = list.length + ' kayıt';
+                if (count) count.textContent = list.length + ' kayıt';
 
-                const listKaynak = list.filter(r => r.robot_no !== 'MONTAJ' && r.robot_no !== 'ME');
-                const listMontaj = list.filter(r => r.robot_no === 'MONTAJ');
-                const listME = list.filter(r => r.robot_no === 'ME');
+                const tbody = document.getElementById('ref-takip-tbody');
+                if (!tbody) return;
+                if (!list.length) {
+                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = list.map(r => {
+                    const durumBtns = RT_DURUMLAR.map(d => `
+                        <button onclick="refDurumGuncelle(${r.id},'${d.key}')"
+                            style="padding:3px 8px;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;
+                                   border:1px solid ${d.key === r.durum ? d.color : 'transparent'};
+                                   background:${d.key === r.durum ? d.bg : 'transparent'};
+                                   color:${d.key === r.durum ? d.color : 'var(--muted)'};
+                                   transition:.2s">
+                            ${d.label}
+                        </button>`).join('');
+                    // Bolume gore secenekler — eski kayit listede yoksa onu da ekle (kaybolmasin)
+                    const opts = [''].concat(rtRobotListesi);
+                    if (r.robot_no && !opts.includes(r.robot_no)) opts.push(r.robot_no);
+                    const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+                    const robotSelectHTML = `
+                        <div style="display:flex;align-items:center;gap:4px">
+                            <select onchange="refRobotDogrudanGuncelle(${r.id}, this.value)"
+                                style="padding:4px;border:1px solid #cbd5e1;border-radius:6px;font-size:.78rem;font-weight:600;background:#f8fafc;cursor:pointer">
+                                ${opts.map(robot => `<option value="${robot}" ${r.robot_no === robot ? 'selected' : ''}>${robot || (tekil + ' Seç...')}</option>`).join('')}
+                            </select>
+                            ${(aktifBolum === 'kaynak' && r.istasyon > 0) ? `<span style="font-size:.65rem;color:var(--muted)">İst.${r.istasyon}</span>` : ''}
+                        </div>
+                    `;
 
-                const renderTable = (data, targetId) => {
-                    const tbody = document.getElementById(targetId);
-                    if (!data.length) {
-                        tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>';
-                        return;
-                    }
-                    tbody.innerHTML = data.map(r => {
-                        const aktifD = RT_DURUMLAR.find(d => d.key === r.durum) || RT_DURUMLAR[0];
-                        const durumBtns = RT_DURUMLAR.map(d => `
-                            <button onclick="refDurumGuncelle(${r.id},'${d.key}')"
-                                style="padding:3px 8px;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;
-                                       border:1px solid ${d.key === r.durum ? d.color : 'transparent'};
-                                       background:${d.key === r.durum ? d.bg : 'transparent'};
-                                       color:${d.key === r.durum ? d.color : 'var(--muted)'};
-                                       transition:.2s">
-                                ${d.label}
-                            </button>`).join('');
-                        const robotlar = ['', 'ABB1', 'ABB2', 'ABB3', 'ABB4', 'ABB5', 'ABB6', 'ABB7', 'ABB8', 'ABB9', 'MONTAJ', 'ME'];
-                        const robotSelectHTML = `
-                            <div style="display:flex;align-items:center;gap:4px">
-                                <select onchange="refRobotDogrudanGuncelle(${r.id}, this.value)"
-                                    style="padding:4px;border:1px solid #cbd5e1;border-radius:6px;font-size:.78rem;font-weight:600;background:#f8fafc;cursor:pointer">
-                                    ${robotlar.map(robot => `<option value="${robot}" ${r.robot_no === robot ? 'selected' : ''}>${robot || 'Robot Seç...'}</option>`).join('')}
-                                </select>
-                                ${r.istasyon > 0 ? `<span style="font-size:.65rem;color:var(--muted)">İst.${r.istasyon}</span>` : ''}
-                            </div>
-                        `;
-                        
-                        const refKodEscaped = String(r.referans_kodu || '').replace(/'/g, "\\\\\\'").replace(/"/g, "&quot;");
-                        const roboNoEscaped = String(r.robot_no || '').replace(/'/g, "\\\\\\'");
-                        
-                        return `<tr>
-                            <td style="font-weight:700">${r.referans_kodu}</td>
-                            <td style="text-align:center">${r.hedef_adet > 0 ? r.hedef_adet + ' adet' : '—'}</td>
-                            <td style="font-size:.8rem">${robotSelectHTML}</td>
-                            <td style="font-size:.8rem;color:var(--muted)">${r.aciklama || '—'}</td>
-                            <td><div style="display:flex;gap:3px;flex-wrap:wrap">${durumBtns}</div></td>
-                            <td style="font-size:.72rem;color:var(--muted)">${(r.guncelleme_tarihi||'').slice(0,16)}</td>
-                            <td style="display:flex;gap:4px">
-                                <button onclick="refTakipDuzenleAc(${r.id},'${refKodEscaped}',${r.hedef_adet},'${roboNoEscaped}',${r.istasyon||0})"
-                                    style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
-                                    ✏️
-                                </button>
-                                <button onclick="refTakipSil(${r.id})"
-                                    style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
-                                    🗑️
-                                </button>
-                            </td>
-                        </tr>`;
-                    }).join('');
-                };
+                    const refKodEscaped = String(r.referans_kodu || '').replace(/'/g, "\\\\\\'").replace(/"/g, "&quot;");
+                    const roboNoEscaped = String(r.robot_no || '').replace(/'/g, "\\\\\\'");
 
-                renderTable(listKaynak, 'ref-takip-tbody');
-                renderTable(listMontaj, 'ref-takip-tbody-montaj');
-                renderTable(listME, 'ref-takip-tbody-me');
-
+                    return `<tr>
+                        <td style="font-weight:700">${r.referans_kodu}</td>
+                        <td style="text-align:center">${r.hedef_adet > 0 ? r.hedef_adet + ' adet' : '—'}</td>
+                        <td style="font-size:.8rem">${robotSelectHTML}</td>
+                        <td style="font-size:.8rem;color:var(--muted)">${r.aciklama || '—'}</td>
+                        <td><div style="display:flex;gap:3px;flex-wrap:wrap">${durumBtns}</div></td>
+                        <td style="font-size:.72rem;color:var(--muted)">${(r.guncelleme_tarihi||'').slice(0,16)}</td>
+                        <td style="display:flex;gap:4px">
+                            <button onclick="refTakipDuzenleAc(${r.id},'${refKodEscaped}',${r.hedef_adet},'${roboNoEscaped}',${r.istasyon||0})"
+                                style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
+                                ✏️
+                            </button>
+                            <button onclick="refTakipSil(${r.id})"
+                                style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
             } catch(e) {
                 console.error(e);
             }
@@ -1555,9 +1556,10 @@
                         referans_kodu: ref,
                         hedef_adet: parseInt(document.getElementById('rt-adet').value) || 0,
                         robot_no: document.getElementById('rt-robot').value,
-                        istasyon: parseInt(document.getElementById('rt-istasyon').value) || 0,
+                        istasyon: parseInt((document.getElementById('rt-istasyon') || {}).value || 0) || 0,
                         aciklama: document.getElementById('rt-aciklama').value.trim(),
-                        olusturan: 'Yönetici'
+                        olusturan: 'Yönetici',
+                        bolum: aktifBolum
                     })
                 });
                 if (!res.ok) throw new Error('Sunucu hatası: ' + res.status);
@@ -1565,7 +1567,8 @@
                 document.getElementById('rt-ref').value = '';
                 document.getElementById('rt-adet').value = '';
                 document.getElementById('rt-robot').value = '';
-                document.getElementById('rt-istasyon').value = '0';
+                const istEl = document.getElementById('rt-istasyon');
+                if (istEl) istEl.value = '0';
                 document.getElementById('rt-aciklama').value = '';
                 await yukleRefTakipPanel();
                 toast('Referans eklendi', 'ok');
@@ -1582,15 +1585,21 @@
         let _rtDuzenleId = null;
         function refTakipDuzenleAc(id, ref, adet, robot, istasyon) {
             _rtDuzenleId = id;
+            const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
             const yeniRef = prompt('Referans Kodu:', ref);
             if (yeniRef === null) return;
             const yeniAdet = prompt('Hedef Adet:', adet);
             if (yeniAdet === null) return;
-            const yeniRobot = prompt('Robot (boş bırakabilirsiniz):', robot);
+            const yeniRobot = prompt(tekil + ' (boş bırakabilirsiniz):', robot);
             if (yeniRobot === null) return;
-            const yeniIst = prompt('İstasyon (0=belirtme, 1, 2):', istasyon);
-            if (yeniIst === null) return;
-            refTakipDuzenleKaydet(id, yeniRef.trim(), parseInt(yeniAdet)||0, yeniRobot.trim(), parseInt(yeniIst)||0);
+            // İstasyon yalnızca kaynak bölümünde sorulur
+            let yeniIst = istasyon || 0;
+            if (aktifBolum === 'kaynak') {
+                const cevap = prompt('İstasyon (0=belirtme, 1, 2):', istasyon);
+                if (cevap === null) return;
+                yeniIst = parseInt(cevap) || 0;
+            }
+            refTakipDuzenleKaydet(id, yeniRef.trim(), parseInt(yeniAdet)||0, yeniRobot.trim(), yeniIst);
         }
 
         async function refTakipDuzenleKaydet(id, ref, adet, robot, istasyon) {

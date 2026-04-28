@@ -121,6 +121,20 @@ def init_db():
         except Exception:
             pass
 
+    # bolum kolonu - referans_takip tablosu (Iş Yönetimi her bölüm için ayrı çalışsın)
+    try:
+        c.execute("ALTER TABLE referans_takip ADD COLUMN bolum TEXT DEFAULT 'kaynak'")
+    except Exception:
+        pass  # Kolon zaten var
+
+    # Legacy data: robot_no='MONTAJ' kayıtları montaj, robot_no='ME' kayıtları metal,
+    # diğerleri (ABB*) kaynak. Sadece bolum alanı boşsa/NULL ise yansıt.
+    try:
+        c.execute("UPDATE referans_takip SET bolum='montaj' WHERE robot_no='MONTAJ' AND (bolum IS NULL OR bolum='' OR bolum='kaynak')")
+        c.execute("UPDATE referans_takip SET bolum='metal' WHERE robot_no='ME' AND (bolum IS NULL OR bolum='' OR bolum='kaynak')")
+    except Exception:
+        pass
+
     # tamir_adet kolonu yoksa ekle (mevcut DB icin migration)
     try:
         c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN tamir_adet INTEGER DEFAULT 0")
