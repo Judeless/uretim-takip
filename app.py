@@ -724,21 +724,24 @@ def referans_listesi():
 
 @app.route('/api/referanslar', methods=['POST'])
 def referans_ekle():
-    """Yeni referans tanımla veya güncelle."""
+    """Yeni referans tanımla veya güncelle (bolum opsiyonel — varsayılan 'kaynak')."""
     data = request.get_json()
     ref = data.get('referans_kodu', '').strip()
     if not ref:
         return jsonify({'hata': 'referans_kodu zorunludur'}), 400
-    
+
     ct = float(data.get('hedef_cycle_time_sn', 0))
     desc = data.get('aciklama', '')
-    
+    bolum = (data.get('bolum') or 'kaynak').strip()
+    if bolum not in ('kaynak', 'montaj', 'metal'):
+        bolum = 'kaynak'
+
     conn = get_db()
     try:
         # INSERT OR REPLACE — Mevcutsa günceller (Süre tanımı için önemli)
         conn.execute(
-            'INSERT OR REPLACE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn) VALUES (?, ?, ?)',
-            (ref, desc, ct)
+            'INSERT OR REPLACE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, bolum) VALUES (?, ?, ?, ?)',
+            (ref, desc, ct, bolum)
         )
         
         # Geriye dönük güncelleme: Aynı referansa sahip geçmiş üretim kayıtlarının süresini de güncelle.
@@ -755,18 +758,25 @@ def referans_ekle():
 
 @app.route('/api/referanslar/eksik', methods=['GET'])
 def referans_eksik_listesi():
-    """Süresi tanımlanmamış (0 veya NULL) olan tüm referansları getirir."""
+    """Süresi tanımlanmamış (0 veya NULL) referansları getirir. ?bolum= ile filtrelenebilir."""
+    bolum = request.args.get('bolum')
     conn = get_db()
     c = conn.cursor()
-    # 1. Referans listesinde olup süresi 0 olanlar
-    # 2. Üretim kayıtlarında olup referans listesinde olmayanlar (IGNORE edilmemişse)
-    rows = c.execute('''
-        SELECT referans_kodu
-        FROM referans_listesi
-        WHERE (hedef_cycle_time_sn IS NULL OR hedef_cycle_time_sn = 0)
-        ORDER BY referans_kodu
-    ''').fetchall()
-    
+    if bolum:
+        rows = c.execute('''
+            SELECT referans_kodu
+            FROM referans_listesi
+            WHERE (hedef_cycle_time_sn IS NULL OR hedef_cycle_time_sn = 0)
+              AND COALESCE(bolum, 'kaynak') = ?
+            ORDER BY referans_kodu
+        ''', (bolum,)).fetchall()
+    else:
+        rows = c.execute('''
+            SELECT referans_kodu
+            FROM referans_listesi
+            WHERE (hedef_cycle_time_sn IS NULL OR hedef_cycle_time_sn = 0)
+            ORDER BY referans_kodu
+        ''').fetchall()
     conn.close()
     return jsonify([r['referans_kodu'] for r in rows])
 
@@ -878,9 +888,15 @@ def operator_listesi():
 
 @app.route('/api/import_excel', methods=['POST'])
 def excel_import():
-    """Kaynakhane, Montaj ve Metal Enjeksiyon Excel dosyalarından verileri çeker."""
+    """Excel dosyalarından verileri çeker.
+    ?bolum=kaynak|montaj|metal → sadece o bölümün dosyası;
+    parametre yoksa: hepsi.
+    """
+    bolum = request.args.get('bolum')
+    if bolum and bolum not in ('kaynak', 'montaj', 'metal'):
+        return jsonify({'hata': f"Geçersiz bölüm: {bolum}", 'basarili': False}), 400
     try:
-        sonuc = import_data()
+        sonuc = import_data(bolum=bolum)
         return jsonify(sonuc), 200
     except Exception as e:
         return jsonify({'hata': str(e), 'basarili': False}), 500

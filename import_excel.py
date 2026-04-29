@@ -147,8 +147,15 @@ def _dosya_import(conn, bolum, dosya_bilgi):
     }
 
 
-def import_data():
-    """Tüm Excel dosyalarından verileri import eder."""
+def import_data(bolum=None):
+    """Excel dosyalarından verileri import eder.
+
+    bolum=None  → tüm bölümler (kaynak + montaj + metal)
+    bolum='kaynak' / 'montaj' / 'metal' → sadece ilgili dosya
+    """
+    if bolum and bolum not in EXCEL_DOSYALARI:
+        return {'basarili': False, 'hata': f"Geçersiz bölüm: {bolum}"}
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
@@ -176,12 +183,17 @@ def import_data():
     sonuclar = {}
     toplam = {'referanslar_eklenen': 0, 'referanslar_guncellenen': 0, 'operatorler_eklenen': 0}
 
-    for bolum, dosya_bilgi in EXCEL_DOSYALARI.items():
+    if bolum:
+        islenen = [(bolum, EXCEL_DOSYALARI[bolum])]
+    else:
+        islenen = list(EXCEL_DOSYALARI.items())
+
+    for b, dosya_bilgi in islenen:
         print(f"\n{'='*50}")
-        print(f"  {bolum.upper()} import başlıyor...")
+        print(f"  {b.upper()} import başlıyor...")
         print(f"{'='*50}")
-        sonuc = _dosya_import(conn, bolum, dosya_bilgi)
-        sonuclar[bolum] = sonuc
+        sonuc = _dosya_import(conn, b, dosya_bilgi)
+        sonuclar[b] = sonuc
         toplam['referanslar_eklenen'] += sonuc['referanslar_eklenen']
         toplam['referanslar_guncellenen'] += sonuc['referanslar_guncellenen']
         toplam['operatorler_eklenen'] += sonuc['operatorler_eklenen']

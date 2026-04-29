@@ -949,13 +949,14 @@
             <div id="sekme-referanslar" class="d-none">
                 <!-- Üst Aksiyonlar -->
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
-                    <div style="display:flex;align-items:center;gap:12px;flex:1">
+                    <div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">
                         <h2 style="font-size:1.1rem;font-weight:800;margin:0">📦 Referans Listesi</h2>
-                        <input type="text" id="ref-ara-input" onkeyup="refAra()" placeholder="Referans ara..." 
+                        <span id="ref-bolum-pill" style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase">Robot Kaynak</span>
+                        <input type="text" id="ref-ara-input" onkeyup="refAra()" placeholder="Referans ara..."
                                style="padding:8px 16px;border:1px solid var(--border);border-radius:10px;font-size:.85rem;width:260px;background:var(--card)">
                     </div>
-                    <div style="display:flex;gap:8px">
-                        <button class="btn btn-outline" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a">📥 Excel'den Aktar</button>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a">📥 Excel'den Aktar</button>
                         <button class="btn btn-outline" onclick="referansExcelGuncelle()" style="border-color:#2563eb;color:#2563eb">📤 Excel'i Güncelle</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
@@ -2713,6 +2714,8 @@
         async function yukleReferanslar() {
             const tbody = document.getElementById('ref-tbl-body');
             if(!tbody) return;
+            // Bolum rozetini ve butonu güncelle
+            refBolumBaglamiGuncelle();
             tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><span class="spinner"></span></div></td></tr>';
             try {
                 const res = await fetch('/api/referanslar?q=&bolum=' + encodeURIComponent(aktifBolum));
@@ -2724,11 +2727,43 @@
             }
         }
 
+        // Referanslar sekmesi başlık rozetini, Excel buton metnini ve arama ipucunu aktif bölüme göre yeniler
+        function refBolumBaglamiGuncelle() {
+            const bilgi = BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak;
+            const pill = document.getElementById('ref-bolum-pill');
+            if (pill) {
+                pill.textContent = bilgi.ad;
+                const renk = aktifBolum === 'montaj' ? ['rgba(16,185,129,0.12)', '#34d399', 'rgba(16,185,129,0.4)']
+                          : aktifBolum === 'metal'  ? ['rgba(245,158,11,0.12)', '#fbbf24', 'rgba(245,158,11,0.4)']
+                                                   : ['rgba(59,130,246,0.12)',  '#60a5fa', 'rgba(59,130,246,0.4)'];
+                pill.style.background = renk[0];
+                pill.style.color = renk[1];
+                pill.style.border = '1px solid ' + renk[2];
+            }
+            const btn = document.getElementById('ref-excel-aktar-btn');
+            if (btn) {
+                const dosya = aktifBolum === 'montaj' ? 'Montaj.xlsx'
+                            : aktifBolum === 'metal'  ? 'Metal Enjeksiyon.xlsx'
+                                                     : 'Kaynakhane.xlsx';
+                btn.textContent = '📥 ' + dosya + ' içe aktar';
+            }
+        }
+
         function renderReferanslar(data) {
             const tbody = document.getElementById('ref-tbl-body');
             if (!tbody) return;
             if (!data.length) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Referans bulunamadı</td></tr>';
+                const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
+                const dosya = aktifBolum === 'montaj' ? 'Montaj.xlsx'
+                            : aktifBolum === 'metal'  ? 'Metal Enjeksiyon.xlsx'
+                                                     : 'Kaynakhane.xlsx';
+                tbody.innerHTML = `
+                    <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:36px 20px">
+                        <div style="font-size:2rem;margin-bottom:10px">📦</div>
+                        <div style="font-weight:700;color:var(--text);margin-bottom:4px">${bilgi} bölümü için referans yok</div>
+                        <div style="font-size:.82rem;margin-bottom:12px">Masaüstündeki <b>${dosya}</b> dosyasından otomatik aktarabilir veya tek tek ekleyebilirsiniz.</div>
+                        <button class="btn btn-outline" style="border-color:#16a34a;color:#16a34a" onclick="excelVeriAktar()">📥 ${dosya} içe aktar</button>
+                    </td></tr>`;
                 return;
             }
             tbody.innerHTML = data.map(r => `
@@ -2757,7 +2792,7 @@
 
         async function yukleEksikReferanslar() {
             try {
-                const res = await fetch('/api/referanslar/eksik');
+                const res = await fetch('/api/referanslar/eksik?bolum=' + encodeURIComponent(aktifBolum));
                 if (!res.ok) throw new Error('API hatası');
                 const list = await res.json();
                 const panel = document.getElementById('eksik-referanslar-panel');
@@ -2818,10 +2853,11 @@
             try {
                 const res = await fetch('/api/referanslar', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        referans_kodu: kod, 
-                        aciklama: document.getElementById('ref-aciklama').value, 
-                        hedef_cycle_time_sn: document.getElementById('ref-cycle').value || 0 
+                    body: JSON.stringify({
+                        referans_kodu: kod,
+                        aciklama: document.getElementById('ref-aciklama').value,
+                        hedef_cycle_time_sn: document.getElementById('ref-cycle').value || 0,
+                        bolum: aktifBolum
                     })
                 });
                 if (res.ok) {
@@ -3046,15 +3082,19 @@
         // EXCEL VERİ AKTARMA
         // ═══════════════════════════════════════════════════════
         async function excelVeriAktar() {
-            if (!confirm('Masaüstündeki Kaynakhane.xlsx dosyasından referans ve operatör bilgileri aktarılacak. Onaylıyor musunuz?')) return;
+            const dosya = aktifBolum === 'montaj' ? 'Montaj.xlsx'
+                        : aktifBolum === 'metal'  ? 'Metal Enjeksiyon.xlsx'
+                                                 : 'Kaynakhane.xlsx';
+            const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
+            if (!confirm(`${bilgi} bölümü için Masaüstündeki "${dosya}" dosyasından referans ve operatör bilgileri aktarılacak.\n\nDevam edilsin mi?`)) return;
 
             toast('Veriler aktarılıyor, lütfen bekleyin...', 'info');
             try {
-                const res = await fetch('/api/import_excel', { method: 'POST' });
+                const res = await fetch('/api/import_excel?bolum=' + encodeURIComponent(aktifBolum), { method: 'POST' });
                 const data = await res.json();
 
                 if (res.ok && data.basarili) {
-                    toast(`✅ Başarılı! Ekl.: ${data.referanslar_eklenen} ref, Günc.: ${data.referanslar_guncellenen} ref, Ekl. Op.: ${data.operatorler_eklenen}`, 'ok');
+                    toast(`✅ ${bilgi}: ${data.referanslar_eklenen} ref ekle, ${data.referanslar_guncellenen} güncelle, ${data.operatorler_eklenen} operatör`, 'ok');
                     if (aktifSekme === 'referanslar') {
                         yukleReferanslar();
                     }
