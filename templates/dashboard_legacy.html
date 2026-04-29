@@ -8,67 +8,54 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
 
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
         :root {
-            /* DEFAULT — Komuta Merkezi (mor/cyan mesh + glassmorphism) */
-            --bg: #060414;
-            --bg-1: #0a0820;
-            --bg-2: #110e2e;
-            --sidebar-bg: rgba(15, 12, 40, 0.55);
-            --sidebar-border: rgba(255,255,255,0.08);
-            --card: rgba(255,255,255,0.04);
-            --card-border: rgba(255,255,255,0.08);
-            --text: #eef2ff;
-            --muted: #94a3c4;
-            --dim: #5b6896;
-            --border: rgba(255,255,255,0.10);
-            --border-subtle: rgba(255,255,255,0.05);
-            /* Vurgu paleti (andon v5) */
-            --primary: #a78bfa;          /* mor (eskiden mavi) */
-            --primary-hover: #8b5cf6;
-            --success: #34d399;
-            --danger:  #f87171;
-            --warning: #fbbf24;
-            --info:    #22d3ee;
-            --c-cyan:    #22d3ee;
-            --c-violet:  #a78bfa;
-            --c-pink:    #f472b6;
-            --c-emerald: #34d399;
-            --c-amber:   #fbbf24;
-            --c-red:     #f87171;
-            --c-orange:  #fb923c;
-            --table-hover:  rgba(255,255,255,0.04);
-            --table-header: rgba(15, 12, 40, 0.65);
-            --shadow: 0 12px 32px 0 rgba(0,0,0,0.4);
-            --radius: 16px;
-            --font-main: 'Inter', system-ui, sans-serif;
-            --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
-            --glass-blur: blur(14px);
-            --grad-1: linear-gradient(135deg, #22d3ee 0%, #a78bfa 50%, #f472b6 100%);
-            --grad-violet: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
-            --grad-emerald: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
-        }
-
-        /* Light tema isteğe bağlı (Açık Tema butonu ile geri dönülebilir) */
-        [data-theme="light"] {
+            /* LIGHT TEMA (Varsayılan) */
             --bg: #f8fafc;
-            --sidebar-bg: rgba(255,255,255,0.7);
-            --sidebar-border: rgba(255,255,255,0.5);
-            --card: rgba(255,255,255,0.85);
-            --card-border: rgba(255,255,255,0.5);
+            --sidebar-bg: rgba(255, 255, 255, 0.7);
+            --sidebar-border: rgba(255, 255, 255, 0.5);
+            --card: rgba(255, 255, 255, 0.85);
+            --card-border: rgba(255, 255, 255, 0.5);
             --text: #0f172a;
             --muted: #64748b;
             --border: #e2e8f0;
             --border-subtle: #f1f5f9;
             --primary: #3b82f6;
             --primary-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #06b6d4;
             --table-hover: #f1f5f9;
-            --table-header: rgba(248,250,252,0.8);
+            --table-header: rgba(248, 250, 252, 0.8);
             --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+            --radius: 16px;
+            --font-main: 'Inter', system-ui, sans-serif;
+            --glass-blur: blur(12px);
         }
-        /* "data-theme=dark" eski adı için takma ad — yeni default ile birebir aynı */
-        [data-theme="dark"] { /* alias — default zaten dark */ }
+
+        [data-theme="dark"] {
+            /* DARK TEMA */
+            --bg: #0f172a;
+            --sidebar-bg: rgba(30, 41, 59, 0.4);
+            --sidebar-border: rgba(255, 255, 255, 0.05);
+            --card: rgba(30, 41, 59, 0.6);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --primary: #60a5fa;
+            --primary-hover: #3b82f6;
+            --success: #34d399;
+            --danger: #f87171;
+            --warning: #fbbf24;
+            --info: #22d3ee;
+            --table-hover: rgba(255,255,255,0.03);
+            --table-header: rgba(15, 23, 42, 0.6);
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
 
         *, *::before, *::after {
             box-sizing: border-box; margin: 0; padding: 0;
@@ -80,33 +67,7 @@
             color: var(--text);
             min-height: 100vh;
             transition: background 0.3s ease, color 0.3s ease;
-            -webkit-font-smoothing: antialiased;
-            position: relative;
         }
-        /* Animated mesh gradient zemin (default temada) */
-        body::before, body::after {
-            content: ""; position: fixed; pointer-events: none; z-index: 0;
-            filter: blur(120px); opacity: 0.45;
-            animation: ds-drift 30s ease-in-out infinite;
-        }
-        body::before {
-            width: 720px; height: 720px;
-            background: radial-gradient(circle, var(--c-violet) 0%, transparent 70%);
-            top: -200px; left: -150px;
-        }
-        body::after {
-            width: 820px; height: 820px;
-            background: radial-gradient(circle, var(--c-cyan) 0%, transparent 70%);
-            bottom: -260px; right: -180px;
-            animation-delay: -15s;
-        }
-        @keyframes ds-drift {
-            0%,100% { transform: translate(0,0) scale(1); }
-            50%     { transform: translate(80px,40px) scale(1.15); }
-        }
-        /* Light tema mesh blob'larını gizle */
-        [data-theme="light"]::before, [data-theme="light"]::after { display: none; }
-        body > .layout { position: relative; z-index: 2; }
 
         /* ── YARDIMCI SINIFLAR & SCROLLBAR ── */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -3639,29 +3600,34 @@
 
 <!-- Tema Değiştirici Scripti -->
 <script>
-    // Default tema artık "neon" (mor/cyan mesh). Toggle bu iki state arasında geçiş yapar:
-    //   attribute yok        → neon (default)
-    //   data-theme="light"   → açık tema
     function toggleTheme() {
         const bd = document.body;
+        const btn = document.getElementById('themeIcon');
         const text = document.getElementById('themeToggleBtn');
-        if (bd.getAttribute('data-theme') === 'light') {
+        if (bd.getAttribute('data-theme') === 'dark') {
             bd.removeAttribute('data-theme');
-            localStorage.setItem('theme', 'neon');
-            if (text) text.innerHTML = '<span id="themeIcon">☀️</span> Açık Tema';
-        } else {
-            bd.setAttribute('data-theme', 'light');
             localStorage.setItem('theme', 'light');
-            if (text) text.innerHTML = '<span id="themeIcon">🌙</span> Koyu Tema';
+            btn.textContent = '🌙';
+            text.innerHTML = '<span id="themeIcon">🌙</span> Koyu Tema';
+        } else {
+            bd.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            btn.textContent = '☀️';
+            text.innerHTML = '<span id="themeIcon">☀️</span> Açık Tema';
         }
-        if (typeof yukle === 'function') setTimeout(yukle, 100);
+        
+        // Grafikleri yeni renklere gore guncellemek icin
+        if(typeof yukle === 'function') {
+            setTimeout(yukle, 100);
+        }
     }
-
+    
+    // Baslangicta calistir
     (function initTheme() {
-        if (localStorage.getItem('theme') === 'light') {
-            document.body.setAttribute('data-theme', 'light');
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.setAttribute('data-theme', 'dark');
             const toggle = document.getElementById('themeToggleBtn');
-            if (toggle) toggle.innerHTML = '<span id="themeIcon">🌙</span> Koyu Tema';
+            if (toggle) toggle.innerHTML = '<span id="themeIcon">☀️</span> Açık Tema';
         }
     })();
 </script>

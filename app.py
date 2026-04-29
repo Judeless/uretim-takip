@@ -172,8 +172,14 @@ def operator_legacy_sayfasi():
 
 @app.route('/dashboard')
 def dashboard_sayfasi():
-    """Yönetici dashboard sayfası."""
+    """Yönetici dashboard sayfası (yeni neon temada)."""
     return render_template('dashboard.html')
+
+
+@app.route('/dashboard_legacy')
+def dashboard_legacy_sayfasi():
+    """Eski dashboard tasarımı (geri dönüş için saklanıyor)."""
+    return render_template('dashboard_legacy.html')
 
 
 @app.route('/logo')
@@ -191,8 +197,12 @@ def logo_serve():
 
 @app.route('/andon')
 def andon_sayfasi():
-    """Andon TV pano sayfasi (v5 — yeni tasarım canlıya alındı)."""
-    return render_template('andon_v5.html')
+    """Andon TV pano sayfasi — Robot Kaynak (v5)."""
+    return render_template('andon_v5.html',
+                           bolum='kaynak',
+                           bolum_ad='Robot Kaynak',
+                           bolum_ikon='🔧',
+                           panel_baslik='Robot Durum Paneli')
 
 
 @app.route('/andon_legacy')
@@ -226,13 +236,33 @@ def andon_v5_preview():
 
 @app.route('/andon_montaj')
 def andon_montaj_sayfasi():
-    """Montaj hattı Andon ekranı."""
-    return render_template('andon_montaj.html')
+    """Montaj Andon ekranı (v5 tasarım)."""
+    return render_template('andon_v5.html',
+                           bolum='montaj',
+                           bolum_ad='Montaj',
+                           bolum_ikon='🔩',
+                           panel_baslik='Hat Durum Paneli')
 
 
 @app.route('/andon_metal')
 def andon_metal_sayfasi():
-    """Metal Enjeksiyon hattı Andon ekranı."""
+    """Metal Enjeksiyon Andon ekranı (v5 tasarım)."""
+    return render_template('andon_v5.html',
+                           bolum='metal',
+                           bolum_ad='Metal Enjeksiyon',
+                           bolum_ikon='🏭',
+                           panel_baslik='Makine Durum Paneli')
+
+
+@app.route('/andon_montaj_legacy')
+def andon_montaj_legacy_sayfasi():
+    """Eski Montaj andon tasarımı (geri dönüş için saklanıyor)."""
+    return render_template('andon_montaj.html')
+
+
+@app.route('/andon_metal_legacy')
+def andon_metal_legacy_sayfasi():
+    """Eski Metal Enjeksiyon andon tasarımı (geri dönüş için saklanıyor)."""
     return render_template('andon_metal.html')
 
 

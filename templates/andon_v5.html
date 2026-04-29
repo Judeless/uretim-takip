@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=1920">
-  <title>Cofle Manage · Andon v5</title>
+  <title>Cofle Manage · {{ bolum_ad|default('Robot Kaynak') }} · Andon</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -132,6 +132,16 @@
       box-shadow: 0 0 10px var(--c-emerald);
       animation: blink 2s ease-in-out infinite;
     }
+    /* Bolum rozeti — bolume göre renkli */
+    .pill.bolum-pill[data-bolum="kaynak"] {
+      background: rgba(167,139,250,0.12); color: #ddd6fe; border-color: rgba(167,139,250,0.40);
+    }
+    .pill.bolum-pill[data-bolum="montaj"] {
+      background: rgba(52,211,153,0.12); color: #a7f3d0; border-color: rgba(52,211,153,0.40);
+    }
+    .pill.bolum-pill[data-bolum="metal"] {
+      background: rgba(251,191,36,0.12); color: #fde68a; border-color: rgba(251,191,36,0.40);
+    }
     @keyframes blink { 0%,100% { opacity:1 } 50% { opacity: .35 } }
 
     .header-btn {
@@ -241,11 +251,12 @@
       font-family: var(--font-mono);
     }
 
-    /* Orta: istasyon bölümleri */
+    /* Orta: istasyon bölümleri (kaynak: iki sütun, montaj/metal: tek sütun "Üretim") */
     .rc-stations {
-      display: grid; grid-template-columns: 1fr 1fr;
-      min-width: 0; overflow: hidden;
+      display: grid; min-width: 0; overflow: hidden;
     }
+    .rc-stations.two-col { grid-template-columns: 1fr 1fr; }
+    .rc-stations.one-col { grid-template-columns: 1fr; }
     .station-pane {
       display: flex; flex-direction: column;
       overflow: hidden; padding: 6px 8px;
@@ -508,7 +519,7 @@
         <img class="brand-logo" src="/logo" alt="Cofle Logo" onerror="this.style.display='none'">
         <div class="brand-text">
           <div class="brand-name">COFLE MANAGE</div>
-          <div class="brand-sub">Robot Kaynak · Andon</div>
+          <div class="brand-sub">{{ bolum_ad|default('Robot Kaynak') }} · Andon</div>
         </div>
       </div>
       <div class="clock">
@@ -516,6 +527,7 @@
         <div class="clock-date" id="dat">—</div>
       </div>
       <div class="status-row">
+        <span class="pill bolum-pill" data-bolum="{{ bolum|default('kaynak') }}">{{ bolum_ikon|default('🔧') }} {{ bolum_ad|default('Robot Kaynak') }}</span>
         <span class="pill"><span class="dot"></span><span id="refresh-label">Canlı</span></span>
         <button class="header-btn" onclick="toggleFullscreen()">Tam Ekran</button>
         <button class="header-btn accent" onclick="openAnnouncementModal()">Duyuru</button>
@@ -524,7 +536,7 @@
 
     <!-- Robot grid -->
     <section class="robots-section">
-      <div class="section-label">Robot Durum Paneli</div>
+      <div class="section-label">{{ panel_baslik|default('Robot Durum Paneli') }}</div>
       <div class="robot-grid" id="robot-grid"></div>
     </section>
 
@@ -563,7 +575,8 @@
 <script>
   'use strict';
 
-  const API_URL      = '/api/andon?bolum=kaynak';
+  const BOLUM        = '{{ bolum|default("kaynak") }}';
+  const API_URL      = '/api/andon?bolum=' + encodeURIComponent(BOLUM);
   const SETTINGS_URL = '/api/andon_robot_ayarlari';
   const ANNOUNCE_URL = '/api/andon/mesaj';
   const REFRESH_SEC  = 30;
@@ -611,9 +624,6 @@
     const atamalar = r.atamalar || [];
     const durusDetay = r.durus_detay || [];
 
-    // İstasyon 2 yoksa diger'i st1'in altına eklemeyiz; mevcut canlıdaki gibi diger'i st2 altında gösteriyoruz
-    const st2_combined = [...ist2, ...diger];
-
     const refRow = (i) => {
       const cls = i.tamamlandi ? 'ref-row done' : 'ref-row';
       const lc  = i.launch ? `<span class="ref-launch">${i.launch}</span>` : '';
@@ -621,13 +631,35 @@
       return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${lc}</div>`;
     };
 
-    const st1Html = ist1.length
-      ? ist1.map(refRow).join('')
-      : '<div class="ref-empty">—</div>';
-
-    const st2Html = st2_combined.length
-      ? st2_combined.map(refRow).join('')
-      : '<div class="ref-empty">—</div>';
+    // Kaynak: 2 sütun (İstasyon 1 | İstasyon 2 + diğer)
+    // Montaj/Metal: tek geniş "Üretim" panel'i (ist1+ist2+diger birleşik)
+    let stationsHtml;
+    if (BOLUM === 'kaynak') {
+      const st2_combined = [...ist2, ...diger];
+      const st1Html = ist1.length ? ist1.map(refRow).join('') : '<div class="ref-empty">—</div>';
+      const st2Html = st2_combined.length ? st2_combined.map(refRow).join('') : '<div class="ref-empty">—</div>';
+      stationsHtml = `
+        <div class="rc-stations two-col">
+          <div class="station-pane">
+            <div class="station-header st1">İstasyon 1</div>
+            <div class="ref-list">${st1Html}</div>
+          </div>
+          <div class="station-pane">
+            <div class="station-header st2">İstasyon 2</div>
+            <div class="ref-list">${st2Html}</div>
+          </div>
+        </div>`;
+    } else {
+      const tum = [...ist1, ...ist2, ...diger];
+      const tumHtml = tum.length ? tum.map(refRow).join('') : '<div class="ref-empty">Üretim kaydı yok</div>';
+      stationsHtml = `
+        <div class="rc-stations one-col">
+          <div class="station-pane">
+            <div class="station-header st1">Üretim</div>
+            <div class="ref-list">${tumHtml}</div>
+          </div>
+        </div>`;
+    }
 
     // Sağ panel: bekleyen atamalar + duruşlar (kısa liste)
     let sideHtml = '';
@@ -667,16 +699,7 @@
           <div class="rc-status-dot"></div>
           ${operHtml}
         </div>
-        <div class="rc-stations">
-          <div class="station-pane">
-            <div class="station-header st1">İstasyon 1</div>
-            <div class="ref-list">${st1Html}</div>
-          </div>
-          <div class="station-pane">
-            <div class="station-header st2">İstasyon 2</div>
-            <div class="ref-list">${st2Html}</div>
-          </div>
-        </div>
+        ${stationsHtml}
         <div class="rc-side">${sideHtml}</div>
       </div>`;
   }
@@ -715,14 +738,23 @@
     el.textContent = text || 'Cofle Manage Üretim Takip Sistemi aktif.';
   }
 
-  // ── Robot ayarları ──
+  // ── Robot/Hat/Makine listesi (bolume göre kaynak: andon ayarları, diğerleri: dinamik) ──
   async function fetchRobotSettings() {
     try {
-      const res = await fetch(SETTINGS_URL, { cache:'no-store' });
-      const arr = await res.json();
-      _robots = (Array.isArray(arr) ? arr : []).filter(a => a.goster).sort((a,b) => a.sira - b.sira).map(a => a.robot_no);
+      if (BOLUM === 'kaynak') {
+        const res = await fetch(SETTINGS_URL, { cache:'no-store' });
+        const arr = await res.json();
+        _robots = (Array.isArray(arr) ? arr : []).filter(a => a.goster).sort((a,b) => a.sira - b.sira).map(a => a.robot_no);
+      } else {
+        // montaj veya metal: /api/robotlar?bolum= → distinct hat/makine listesi
+        const res = await fetch('/api/robotlar?bolum=' + encodeURIComponent(BOLUM), { cache:'no-store' });
+        const arr = await res.json();
+        _robots = Array.isArray(arr) ? arr : [];
+      }
     } catch (e) {
-      _robots = ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8'];
+      _robots = (BOLUM === 'kaynak')
+        ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
+        : (BOLUM === 'metal' ? ['300T','400T','500T','Şerit Testere'] : ['HAT 1']);
     }
     return _robots;
   }
@@ -736,7 +768,10 @@
       const rMap = {};
       (d.robotlar || []).forEach(r => { rMap[r.robot_no] = r; });
 
-      const target = _robots.length ? _robots : ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8'];
+      const fallback = (BOLUM === 'kaynak') ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
+                     : (BOLUM === 'metal')  ? ['300T','400T','500T','Şerit Testere']
+                                            : ['HAT 1'];
+      const target = _robots.length ? _robots : fallback;
       const grid = document.getElementById('robot-grid');
       grid.innerHTML = target.map(rn => {
         const r = rMap[rn] || { robot_no: rn, operator:'', vardiya:'', baslangic:'', bitis:'',
