@@ -158,6 +158,12 @@ def operator_sayfasi():
     return render_template('mobile.html')
 
 
+@app.route('/mobile_v2')
+def operator_v2_preview():
+    """Operatör v2 — komuta merkezi tema önizlemesi."""
+    return render_template('mobile_v2.html')
+
+
 @app.route('/dashboard')
 def dashboard_sayfasi():
     """Yönetici dashboard sayfası."""
