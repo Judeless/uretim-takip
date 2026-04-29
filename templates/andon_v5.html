@@ -100,20 +100,20 @@
       filter: drop-shadow(0 0 10px rgba(167,139,250,0.35));
     }
     .brand-text { display: flex; flex-direction: column; gap: 2px; }
-    .brand-name { font-size: 0.95rem; font-weight: 800; letter-spacing: 0.06em; }
-    .brand-sub  { font-size: 0.58rem; color: var(--muted); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; }
+    .brand-name { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.06em; }
+    .brand-sub  { font-size: 0.62rem; color: var(--muted); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; }
 
     .clock { text-align: center; }
     .clock-time {
       font-family: var(--font-mono);
-      font-size: 2.2rem; font-weight: 700; line-height: 1;
+      font-size: 2.4rem; font-weight: 700; line-height: 1;
       letter-spacing: 0.08em;
       background: linear-gradient(180deg, #fff, #94a3c4);
       -webkit-background-clip: text; background-clip: text;
       color: transparent;
     }
     .clock-date {
-      font-size: 0.62rem; color: var(--muted);
+      font-size: 0.65rem; color: var(--muted);
       text-transform: uppercase; letter-spacing: 0.22em; margin-top: 3px;
       font-weight: 600;
     }
@@ -153,7 +153,7 @@
     /* ── ROBOT BÖLÜMÜ ── */
     .robots-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     .section-label {
-      font-size: 0.56rem; font-weight: 800;
+      font-size: 0.58rem; font-weight: 800;
       text-transform: uppercase; letter-spacing: 0.2em;
       color: var(--muted); margin-bottom: 5px; flex-shrink: 0;
     }
@@ -227,7 +227,7 @@
     .rcard.alert    .rc-status-dot { background: var(--c-red);     box-shadow: 0 0 10px var(--c-red);     animation: blink 1.0s ease-in-out infinite; }
 
     .rc-op {
-      font-size: 0.74rem; font-weight: 700;
+      font-size: 0.75rem; font-weight: 700;
       color: var(--c-violet);
       text-transform: uppercase;
       text-align: center;
@@ -236,7 +236,7 @@
       letter-spacing: 0.04em;
     }
     .rc-shift {
-      font-size: 0.58rem; color: var(--muted); font-weight: 500;
+      font-size: 0.56rem; color: var(--muted); font-weight: 500;
       text-align: center;
       font-family: var(--font-mono);
     }
@@ -254,12 +254,12 @@
     .station-pane + .station-pane { border-left: 1px solid var(--line); }
 
     .station-header {
-      font-size: 0.66rem;
+      font-size: 0.85rem;
       font-weight: 900;
-      text-transform: uppercase; letter-spacing: 0.12em;
-      margin-bottom: 5px; flex-shrink: 0;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 6px; flex-shrink: 0;
       padding-bottom: 3px;
-      border-bottom: 1px solid transparent;
+      border-bottom: 2px solid transparent;
     }
     .station-header.st1 { color: var(--c-amber); border-color: rgba(251,191,36,0.25); }
     .station-header.st2 { color: var(--c-cyan);  border-color: rgba(34,211,238,0.25); }
@@ -318,8 +318,8 @@
     }
 
     .side-section-label {
-      font-size: 0.56rem; font-weight: 800;
-      text-transform: uppercase; letter-spacing: 0.16em;
+      font-size: 0.72rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.08em;
       color: var(--c-orange);
       padding: 0 2px;
     }
@@ -329,15 +329,15 @@
       background: rgba(251,146,60,0.08);
       border: 1px solid rgba(251,146,60,0.25);
       border-radius: 6px;
-      padding: 3px 8px;
-      font-size: 0.7rem; font-weight: 700;
+      padding: 4px 8px;
+      font-size: 0.78rem; font-weight: 700;
       color: #fed7aa;
       font-family: var(--font-mono);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .next-job-item .ist {
       color: var(--c-amber); margin-right: 4px;
-      font-size: 0.6rem;
+      font-size: 0.66rem;
     }
 
     .durus-row {
@@ -346,7 +346,7 @@
       border-radius: 6px;
       background: rgba(248,113,113,0.06);
       border: 1px solid rgba(248,113,113,0.18);
-      font-size: 0.66rem;
+      font-size: 0.74rem;
       overflow: hidden;
     }
     .durus-row.planli {
@@ -361,7 +361,7 @@
     }
     .durus-row.planli .durus-sebep { color: #ddd6fe; }
     .durus-tip {
-      font-size: 0.56rem;
+      font-size: 0.62rem;
       flex-shrink: 0;
       letter-spacing: 0.06em;
     }
@@ -389,23 +389,23 @@
       overflow: hidden;
     }
     .reftrack-title {
-      font-size: 0.58rem; font-weight: 800;
-      text-transform: uppercase; letter-spacing: 0.2em;
+      font-size: 0.62rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.18em;
       color: var(--muted); margin-bottom: 6px;
     }
     .reftrack-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .rt-pill {
-      border-radius: 10px; padding: 5px 12px;
-      min-width: 130px;
+      border-radius: 10px; padding: 6px 12px;
+      min-width: 132px;
       transition: transform .2s ease;
       font-family: var(--font-mono);
     }
-    .rt-pill-ref { font-size: 0.74rem; font-weight: 800; }
-    .rt-pill-sub { font-size: 0.56rem; opacity: 0.75; margin-top: 1px; }
+    .rt-pill-ref { font-size: 0.78rem; font-weight: 800; }
+    .rt-pill-sub { font-size: 0.62rem; opacity: 0.78; margin-top: 2px; }
     .rt-pill-badge {
-      font-size: 0.52rem; font-weight: 700;
-      border-radius: 5px; padding: 2px 7px;
+      font-size: 0.58rem; font-weight: 700;
+      border-radius: 5px; padding: 2px 8px;
       display: inline-block; margin-top: 3px;
       background: rgba(0,0,0,0.25);
       letter-spacing: 0.06em;
@@ -428,14 +428,14 @@
       overflow: hidden; min-height: 28px;
     }
     .ticker-tag {
-      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.2em;
+      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.18em;
       text-transform: uppercase; padding: 3px 10px; border-radius: 6px;
       background: var(--grad-1); color: #0b0820; flex-shrink: 0;
     }
     .ticker-marquee { flex: 1; overflow: hidden; position: relative; }
     .ticker-text {
       display: inline-block; white-space: nowrap;
-      font-size: 0.74rem; font-weight: 600; color: var(--text);
+      font-size: 0.85rem; font-weight: 600; color: var(--text);
       animation: ticker-scroll 36s linear infinite;
     }
     .ticker-text.paused { animation: none; }
