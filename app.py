@@ -179,7 +179,13 @@ def logo_serve():
 
 @app.route('/andon')
 def andon_sayfasi():
-    """Andon TV pano sayfasi."""
+    """Andon TV pano sayfasi (v5 — yeni tasarım canlıya alındı)."""
+    return render_template('andon_v5.html')
+
+
+@app.route('/andon_legacy')
+def andon_legacy_sayfasi():
+    """Eski andon tasarımı (geri dönüş için saklanıyor)."""
     return render_template('andon.html')
 
 @app.route('/andon_v2')

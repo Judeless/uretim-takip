@@ -272,13 +272,13 @@
     .ref-list::-webkit-scrollbar { display: none; }
 
     .ref-row {
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 8px;
-      border-radius: 7px;
-      margin-bottom: 3px;
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 10px;
+      border-radius: 8px;
+      margin-bottom: 4px;
       background: rgba(255,255,255,0.025);
       border: 1px solid var(--line);
-      min-height: 26px;
+      min-height: 32px;
     }
     .ref-row.done {
       background: rgba(52,211,153,0.06);
@@ -288,24 +288,26 @@
     .ref-row.done .ref-code { text-decoration: line-through; }
 
     .ref-code {
-      font-size: 0.72rem;
+      font-size: 0.96rem;
       font-weight: 800;
       color: #bef264;
       font-family: var(--font-mono);
       white-space: nowrap;
       flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis;
+      letter-spacing: 0.01em;
+      filter: drop-shadow(0 0 2px rgba(190,242,100,0.18));
     }
-    .ref-done-icon { color: var(--c-emerald); font-size: 0.68rem; flex-shrink: 0; }
+    .ref-done-icon { color: var(--c-emerald); font-size: 0.85rem; flex-shrink: 0; }
     .ref-launch {
-      font-size: 0.58rem; font-weight: 700;
+      font-size: 0.7rem; font-weight: 700;
       color: var(--c-amber);
       font-family: var(--font-mono);
-      flex-shrink: 0; opacity: 0.85;
+      flex-shrink: 0; opacity: 0.9;
     }
     .ref-empty {
-      font-size: 0.62rem; color: var(--dim);
-      padding: 4px; text-align: center; font-style: italic;
+      font-size: 0.78rem; color: var(--dim);
+      padding: 6px; text-align: center; font-style: italic;
     }
 
     /* Sağ panel: atamalar + duruş */
@@ -328,16 +330,16 @@
     .next-job-item {
       background: rgba(251,146,60,0.08);
       border: 1px solid rgba(251,146,60,0.25);
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 0.78rem; font-weight: 700;
+      border-radius: 7px;
+      padding: 5px 9px;
+      font-size: 0.92rem; font-weight: 700;
       color: #fed7aa;
       font-family: var(--font-mono);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .next-job-item .ist {
       color: var(--c-amber); margin-right: 4px;
-      font-size: 0.66rem;
+      font-size: 0.74rem;
     }
 
     .durus-row {
@@ -396,17 +398,17 @@
     .reftrack-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .rt-pill {
-      border-radius: 10px; padding: 6px 12px;
-      min-width: 132px;
+      border-radius: 10px; padding: 7px 14px;
+      min-width: 150px;
       transition: transform .2s ease;
       font-family: var(--font-mono);
     }
-    .rt-pill-ref { font-size: 0.78rem; font-weight: 800; }
-    .rt-pill-sub { font-size: 0.62rem; opacity: 0.78; margin-top: 2px; }
+    .rt-pill-ref { font-size: 0.95rem; font-weight: 800; letter-spacing: 0.01em; }
+    .rt-pill-sub { font-size: 0.7rem; opacity: 0.82; margin-top: 3px; }
     .rt-pill-badge {
-      font-size: 0.58rem; font-weight: 700;
+      font-size: 0.62rem; font-weight: 700;
       border-radius: 5px; padding: 2px 8px;
-      display: inline-block; margin-top: 3px;
+      display: inline-block; margin-top: 4px;
       background: rgba(0,0,0,0.25);
       letter-spacing: 0.06em;
     }
