@@ -862,11 +862,11 @@
       </button>
 
       <!-- Rapor için bölüm seçim modali -->
-      <div id="rapor-bolum-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+      <div id="rapor-bolum-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center;padding:20px">
+        <div style="background:linear-gradient(160deg, var(--bg-2), var(--bg-1));border:1px solid var(--line-strong);border-radius:18px;padding:22px 20px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(0,0,0,0.55), 0 0 60px rgba(167,139,250,0.14)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
             <div style="font-size:1rem;font-weight:800;color:var(--text)">📊 Hangi bölüm için rapor?</div>
-            <button onclick="raporBolumKapat()" style="background:transparent;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:4px 10px">✕</button>
+            <button onclick="raporBolumKapat()" style="background:rgba(255,255,255,0.04);border:1px solid var(--line);color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px 12px;border-radius:10px;line-height:1">✕</button>
           </div>
           <div style="display:grid;grid-template-columns:1fr;gap:10px">
             <button class="bolum-btn kaynak" type="button" onclick="raporAc('kaynak')">
