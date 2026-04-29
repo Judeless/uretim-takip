@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=1920">
-  <title>Cofle Manage · Komuta Merkezi</title>
+  <title>Cofle Manage · Andon v5</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -11,10 +11,10 @@
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
     :root {
-      --bg-0: #060414;          /* en koyu */
-      --bg-1: #0a0820;          /* kart üstü */
-      --bg-2: #110e2e;          /* kart */
-      --bg-3: #1a1545;          /* elevated */
+      --bg-0: #060414;
+      --bg-1: #0a0820;
+      --bg-2: #110e2e;
+      --bg-3: #1a1545;
       --line: rgba(255,255,255,0.06);
       --line-strong: rgba(255,255,255,0.10);
 
@@ -28,6 +28,7 @@
       --c-emerald: #34d399;
       --c-amber:   #fbbf24;
       --c-red:     #f87171;
+      --c-orange:  #fb923c;
       --c-blue:    #60a5fa;
 
       --grad-1: linear-gradient(135deg, #22d3ee 0%, #a78bfa 50%, #f472b6 100%);
@@ -46,7 +47,6 @@
       font-family: var(--font-sans);
       overflow: hidden;
       -webkit-font-smoothing: antialiased;
-      letter-spacing: 0.005em;
     }
 
     /* Animated mesh gradient zemin */
@@ -70,12 +70,10 @@
       0%,100% { transform: translate(0,0) scale(1); }
       50%     { transform: translate(80px,40px) scale(1.15); }
     }
-    /* İnce noise tekstür */
     .noise {
       position: fixed; inset: 0; pointer-events: none; z-index: 1;
       opacity: .03; mix-blend-mode: overlay;
-      background-image:
-        radial-gradient(rgba(255,255,255,1) 1px, transparent 1px);
+      background-image: radial-gradient(rgba(255,255,255,1) 1px, transparent 1px);
       background-size: 3px 3px;
     }
 
@@ -83,389 +81,418 @@
     .root {
       position: relative; z-index: 2;
       display: grid;
-      grid-template-rows: 72px 1fr 36px;
+      grid-template-rows: 64px 1fr auto auto;
       height: 100vh;
-      gap: 14px;
-      padding: 16px 22px 12px;
+      gap: 10px;
+      padding: 12px 18px 10px;
     }
 
     /* ── HEADER ── */
     .topbar {
       display: grid; grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      padding: 0 8px;
+      padding: 0 6px 6px;
       border-bottom: 1px solid var(--line);
     }
-    .brand {
-      display: flex; align-items: center; gap: 14px;
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      height: 42px; width: auto; object-fit: contain;
+      filter: drop-shadow(0 0 10px rgba(167,139,250,0.35));
     }
-    .brand-mark {
-      width: 46px; height: 46px; border-radius: 14px;
-      background: var(--grad-1);
-      display: grid; place-items: center;
-      font-weight: 900; font-size: 1.2rem;
-      box-shadow: 0 0 30px rgba(167,139,250,0.45), inset 0 0 0 1px rgba(255,255,255,0.2);
-      color: #0b0820;
-    }
-    .brand-name { font-size: 1.05rem; font-weight: 800; letter-spacing: 0.04em; }
-    .brand-sub  { font-size: 0.65rem; color: var(--muted); font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
+    .brand-text { display: flex; flex-direction: column; gap: 2px; }
+    .brand-name { font-size: 0.95rem; font-weight: 800; letter-spacing: 0.06em; }
+    .brand-sub  { font-size: 0.58rem; color: var(--muted); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; }
 
-    .clock {
-      text-align: center;
-    }
+    .clock { text-align: center; }
     .clock-time {
       font-family: var(--font-mono);
-      font-size: 2.6rem; font-weight: 700; line-height: 1;
-      letter-spacing: 0.06em;
+      font-size: 2.2rem; font-weight: 700; line-height: 1;
+      letter-spacing: 0.08em;
       background: linear-gradient(180deg, #fff, #94a3c4);
       -webkit-background-clip: text; background-clip: text;
       color: transparent;
-      text-shadow: 0 0 30px rgba(255,255,255,0.05);
     }
     .clock-date {
-      font-size: 0.72rem; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.22em; margin-top: 4px;
+      font-size: 0.62rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.22em; margin-top: 3px;
       font-weight: 600;
     }
 
-    .status-row {
-      display: flex; gap: 10px; align-items: center; justify-content: flex-end;
-    }
+    .status-row { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
     .pill {
-      display: inline-flex; align-items: center; gap: 7px;
-      padding: 6px 14px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 999px;
       background: rgba(255,255,255,0.04); border: 1px solid var(--line);
-      font-size: 0.68rem; font-weight: 700; color: var(--text);
-      letter-spacing: 0.08em; text-transform: uppercase;
+      font-size: 0.62rem; font-weight: 700; color: var(--text);
+      letter-spacing: 0.1em; text-transform: uppercase;
     }
     .pill .dot {
-      width: 8px; height: 8px; border-radius: 50%;
+      width: 7px; height: 7px; border-radius: 50%;
       background: var(--c-emerald);
-      box-shadow: 0 0 12px var(--c-emerald);
+      box-shadow: 0 0 10px var(--c-emerald);
       animation: blink 2s ease-in-out infinite;
     }
     @keyframes blink { 0%,100% { opacity:1 } 50% { opacity: .35 } }
-    .pill.bolum {
-      background: rgba(167,139,250,0.10);
-      border-color: rgba(167,139,250,0.4);
-      color: var(--c-violet);
-    }
 
-    /* ── ANA İÇERİK GRID ── */
-    .stage {
-      display: grid;
-      grid-template-columns: minmax(0,1fr) 360px;
-      gap: 16px;
-      min-height: 0;
+    .header-btn {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      border-radius: 10px;
+      padding: 5px 12px;
+      font-size: 0.62rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all .2s ease;
     }
+    .header-btn:hover { border-color: var(--c-cyan); color: var(--c-cyan); }
+    .header-btn.accent { border-color: rgba(167,139,250,0.4); color: var(--c-violet); }
+    .header-btn.accent:hover { background: rgba(167,139,250,0.1); }
 
-    /* ── ROBOT GRID ── */
+    /* ── ROBOT BÖLÜMÜ ── */
+    .robots-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .section-label {
+      font-size: 0.56rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.2em;
+      color: var(--muted); margin-bottom: 5px; flex-shrink: 0;
+    }
     .robot-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      grid-auto-rows: minmax(0,1fr);
-      gap: 14px;
-      min-height: 0;
+      grid-template-columns: 1fr 1fr;
+      grid-auto-rows: 1fr;
+      gap: 8px;
+      flex: 1; min-height: 0;
     }
 
+    /* ── ROBOT KART (yatay) ── */
     .rcard {
       position: relative;
       background: linear-gradient(160deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px 16px 12px;
+      border-radius: 16px;
+      display: grid;
+      grid-template-columns: 130px 1fr 220px;
       overflow: hidden;
-      display: flex; flex-direction: column;
-      transition: transform .25s ease, border-color .25s ease;
+      min-height: 0;
+      transition: border-color .3s ease;
     }
     .rcard::before {
-      content: ""; position: absolute; inset: 0;
-      border-radius: inherit;
-      background: var(--accent, var(--grad-2));
-      opacity: 0.04; pointer-events: none;
+      content: ''; position: absolute;
+      top: 8%; bottom: 8%; left: 0; width: 3px;
+      border-radius: 0 4px 4px 0;
+      transition: all .4s ease;
     }
-    .rcard.active   { --accent: var(--grad-2); }
-    .rcard.standby  { --accent: linear-gradient(135deg, #475569, #334155); }
-    .rcard.warning  { --accent: var(--grad-3); }
-    .rcard.alert    { --accent: var(--grad-4); }
-    .rcard.alert    { border-color: rgba(248,113,113,0.4); }
-    .rcard.warning  { border-color: rgba(251,191,36,0.3); }
-    .rcard.active   { border-color: rgba(52,211,153,0.25); }
+    .rcard.active   { border-color: rgba(52,211,153,0.30); }
+    .rcard.active::before  { background: var(--c-emerald); box-shadow: 0 0 18px rgba(52,211,153,0.5); top: 4%; bottom: 4%; }
+    .rcard.warning  { border-color: rgba(251,191,36,0.28); }
+    .rcard.warning::before { background: var(--c-amber);   box-shadow: 0 0 18px rgba(251,191,36,0.45); top: 4%; bottom: 4%; }
+    .rcard.alert    { border-color: rgba(248,113,113,0.36); }
+    .rcard.alert::before   { background: var(--c-red);     box-shadow: 0 0 18px rgba(248,113,113,0.5); top: 4%; bottom: 4%; }
+    .rcard.idle     { opacity: 0.55; }
 
-    .rc-head {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 10px; margin-bottom: 10px;
+    /* Sol kimlik paneli */
+    .rc-id {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 4px;
+      padding: 8px 10px;
+      border-right: 1px solid var(--line);
+      min-width: 0;
     }
     .rc-no {
       font-family: var(--font-mono);
-      font-weight: 800; font-size: 2.2rem; line-height: 1;
-      background: var(--accent, var(--grad-2));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-      letter-spacing: 0.02em;
-    }
-    .rc-status {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.16em;
-      text-transform: uppercase;
-      padding: 4px 10px; border-radius: 999px;
-      background: rgba(255,255,255,0.04); border: 1px solid var(--line);
-      color: var(--text);
-    }
-    .rc-status .pulse {
-      width: 8px; height: 8px; border-radius: 50%;
-    }
-    .rcard.active   .rc-status .pulse { background: var(--c-emerald); box-shadow: 0 0 10px var(--c-emerald); animation: blink 1.6s ease-in-out infinite; }
-    .rcard.warning  .rc-status .pulse { background: var(--c-amber);   box-shadow: 0 0 10px var(--c-amber);   animation: blink 1.4s ease-in-out infinite; }
-    .rcard.alert    .rc-status .pulse { background: var(--c-red);     box-shadow: 0 0 10px var(--c-red);     animation: blink 1.0s ease-in-out infinite; }
-    .rcard.standby  .rc-status .pulse { background: #64748b; }
-    .rcard.standby  .rc-status        { color: #64748b; }
-
-    .rc-meta {
-      display: grid; grid-template-columns: 1fr auto;
-      gap: 4px 10px; font-size: 0.78rem; align-items: baseline;
-      margin-bottom: 8px;
-    }
-    .rc-op { font-weight: 700; color: var(--text); }
-    .rc-shift { font-family: var(--font-mono); font-size: 0.74rem; color: var(--muted); }
-    .rc-vardiya { font-size: 0.62rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
-
-    .rc-body {
-      flex: 1; display: flex; flex-direction: column; gap: 6px;
-      min-height: 0; overflow: hidden;
-    }
-    .ist-block {
-      background: rgba(0,0,0,0.18);
-      border: 1px solid var(--line);
+      font-weight: 800; font-size: 1.5rem; line-height: 1;
+      padding: 4px 14px;
       border-radius: 10px;
-      padding: 6px 9px;
-    }
-    .ist-label {
-      font-size: 0.56rem; font-weight: 800; letter-spacing: 0.18em;
-      text-transform: uppercase; color: var(--c-cyan); margin-bottom: 4px;
-    }
-    .ist-refs {
-      display: flex; flex-wrap: wrap; gap: 5px;
-    }
-    .ref-tag {
-      font-family: var(--font-mono); font-size: 0.74rem; font-weight: 700;
-      padding: 2px 8px; border-radius: 6px;
-      background: rgba(34,211,238,0.10); border: 1px solid rgba(34,211,238,0.25);
-      color: #a7f3ff;
-    }
-    .ref-tag.done {
-      background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.30);
-      color: var(--c-emerald);
-      text-decoration: line-through; opacity: .8;
-    }
-    .ref-tag .lc { font-size: 0.62rem; opacity: 0.7; margin-left: 4px; }
-
-    .atama-row {
-      display: flex; gap: 6px; flex-wrap: wrap;
-      padding: 5px 8px; border-radius: 8px;
-      background: rgba(167,139,250,0.08);
+      background: rgba(167,139,250,0.10);
       border: 1px solid rgba(167,139,250,0.25);
-    }
-    .atama-label {
-      font-size: 0.56rem; font-weight: 800; letter-spacing: 0.18em;
-      text-transform: uppercase; color: var(--c-violet);
-    }
-    .atama-tag {
-      font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700;
       color: #ddd6fe;
+      letter-spacing: 0.04em;
+      box-shadow: 0 0 14px rgba(167,139,250,0.12);
     }
+    .rcard.active   .rc-no { background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.30); color: #d1fae5; }
+    .rcard.warning  .rc-no { background: rgba(251,191,36,0.10); border-color: rgba(251,191,36,0.30); color: #fef3c7; }
+    .rcard.alert    .rc-no { background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.32); color: #fecaca; }
 
-    /* Standby (boş) state */
-    .rcard.standby .rc-body {
-      align-items: center; justify-content: center;
-      color: var(--dim); font-weight: 700; font-size: 0.85rem;
-      letter-spacing: 0.2em; text-transform: uppercase;
+    .rc-status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--dim);
+      margin-top: 4px;
     }
+    .rcard.active   .rc-status-dot { background: var(--c-emerald); box-shadow: 0 0 10px var(--c-emerald); animation: blink 1.6s ease-in-out infinite; }
+    .rcard.warning  .rc-status-dot { background: var(--c-amber);   box-shadow: 0 0 10px var(--c-amber);   animation: blink 1.4s ease-in-out infinite; }
+    .rcard.alert    .rc-status-dot { background: var(--c-red);     box-shadow: 0 0 10px var(--c-red);     animation: blink 1.0s ease-in-out infinite; }
 
-    /* Duruş bilgi rozeti */
-    .rc-foot {
-      margin-top: 8px; padding-top: 8px;
-      border-top: 1px dashed var(--line);
-      display: flex; gap: 10px; align-items: center; justify-content: space-between;
-      font-size: 0.66rem; color: var(--muted);
-    }
-    .rc-foot .durus {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-family: var(--font-mono); font-weight: 700;
-    }
-    .rcard.alert .rc-foot .durus { color: var(--c-red); }
-    .rcard.warning .rc-foot .durus { color: var(--c-amber); }
-
-    /* ── KPI KULESİ (sağ) ── */
-    .kpi-tower {
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      gap: 12px;
-      min-height: 0;
-    }
-    .kpi-card {
-      background: linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
-      backdrop-filter: blur(14px);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 16px 18px;
-    }
-    .kpi-card h4 {
-      font-size: 0.62rem; color: var(--muted); font-weight: 800;
-      letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 8px;
-    }
-
-    /* OEE büyük donut */
-    .oee-card {
-      display: flex; flex-direction: column; align-items: center;
-      padding: 18px 16px 14px;
-    }
-    .oee-card h4 { align-self: flex-start; }
-    .oee-ring-wrap { position: relative; width: 224px; height: 224px; margin: 6px 0; }
-    .oee-ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-    .oee-track { stroke: rgba(255,255,255,0.06); }
-    .oee-bar   {
-      stroke: url(#oeeGrad);
-      stroke-linecap: round;
-      filter: drop-shadow(0 0 8px rgba(167,139,250,0.45));
-      transition: stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1);
-    }
-    .oee-center {
-      position: absolute; inset: 0; display: grid; place-items: center;
-      flex-direction: column; text-align: center;
-    }
-    .oee-num {
-      font-family: var(--font-mono);
-      font-size: 3.2rem; font-weight: 800; line-height: 1;
-      background: var(--grad-1);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .oee-label {
-      font-size: 0.62rem; color: var(--muted); margin-top: 4px;
-      letter-spacing: 0.22em; text-transform: uppercase; font-weight: 700;
-    }
-
-    /* OEE altı 3 mini metrik */
-    .oee-mini {
-      display: grid; grid-template-columns: repeat(3,1fr); gap: 6px;
-      width: 100%; margin-top: 6px;
-    }
-    .mini {
+    .rc-op {
+      font-size: 0.74rem; font-weight: 700;
+      color: var(--c-violet);
+      text-transform: uppercase;
       text-align: center;
-      padding: 6px 4px;
-      border-radius: 8px;
-      background: rgba(0,0,0,0.18);
-      border: 1px solid var(--line);
+      max-width: 100%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      letter-spacing: 0.04em;
     }
-    .mini-v {
+    .rc-shift {
+      font-size: 0.58rem; color: var(--muted); font-weight: 500;
+      text-align: center;
       font-family: var(--font-mono);
-      font-size: 1.05rem; font-weight: 800; line-height: 1;
-    }
-    .mini-l {
-      font-size: 0.5rem; color: var(--muted); margin-top: 3px;
-      letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
-    }
-    .mini.k { color: var(--c-emerald); }
-    .mini.p { color: var(--c-amber); }
-    .mini.q { color: var(--c-cyan); }
-
-    /* Üretim çubuğu */
-    .prod-card {
-      padding: 14px 16px 16px;
-    }
-    .prod-row {
-      display: flex; justify-content: space-between; align-items: baseline; margin: 4px 0 8px;
-    }
-    .prod-actual {
-      font-family: var(--font-mono); font-size: 2.4rem; font-weight: 800; line-height: 1;
-      background: var(--grad-2);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .prod-target {
-      font-family: var(--font-mono); font-size: 0.95rem; font-weight: 700; color: var(--muted);
-    }
-    .prod-bar {
-      height: 12px; border-radius: 6px;
-      background: rgba(255,255,255,0.06);
-      overflow: hidden; position: relative;
-    }
-    .prod-bar-fill {
-      height: 100%; border-radius: 6px;
-      background: var(--grad-2);
-      box-shadow: 0 0 16px rgba(52,211,153,0.4);
-      transition: width 1.2s cubic-bezier(.2,.8,.2,1);
-    }
-    .prod-foot {
-      display: flex; justify-content: space-between;
-      font-size: 0.62rem; color: var(--muted); font-weight: 600;
-      margin-top: 6px;
-    }
-    .prod-pct {
-      font-family: var(--font-mono); font-weight: 800; color: var(--c-emerald);
     }
 
-    /* Plansız duruş kart */
-    .alarm-card {
-      padding: 12px 16px;
+    /* Orta: istasyon bölümleri */
+    .rc-stations {
+      display: grid; grid-template-columns: 1fr 1fr;
+      min-width: 0; overflow: hidden;
+    }
+    .station-pane {
+      display: flex; flex-direction: column;
+      overflow: hidden; padding: 6px 8px;
+      min-width: 0;
+    }
+    .station-pane + .station-pane { border-left: 1px solid var(--line); }
+
+    .station-header {
+      font-size: 0.66rem;
+      font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      margin-bottom: 5px; flex-shrink: 0;
+      padding-bottom: 3px;
+      border-bottom: 1px solid transparent;
+    }
+    .station-header.st1 { color: var(--c-amber); border-color: rgba(251,191,36,0.25); }
+    .station-header.st2 { color: var(--c-cyan);  border-color: rgba(34,211,238,0.25); }
+
+    .ref-list {
+      flex: 1; min-height: 0;
+      overflow-y: auto; overflow-x: hidden;
+      scrollbar-width: none;
+    }
+    .ref-list::-webkit-scrollbar { display: none; }
+
+    .ref-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 8px;
+      border-radius: 7px;
+      margin-bottom: 3px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--line);
+      min-height: 26px;
+    }
+    .ref-row.done {
+      background: rgba(52,211,153,0.06);
+      border-color: rgba(52,211,153,0.15);
+      opacity: 0.65;
+    }
+    .ref-row.done .ref-code { text-decoration: line-through; }
+
+    .ref-code {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #bef264;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .ref-done-icon { color: var(--c-emerald); font-size: 0.68rem; flex-shrink: 0; }
+    .ref-launch {
+      font-size: 0.58rem; font-weight: 700;
+      color: var(--c-amber);
+      font-family: var(--font-mono);
+      flex-shrink: 0; opacity: 0.85;
+    }
+    .ref-empty {
+      font-size: 0.62rem; color: var(--dim);
+      padding: 4px; text-align: center; font-style: italic;
+    }
+
+    /* Sağ panel: atamalar + duruş */
+    .rc-side {
+      display: flex; flex-direction: column;
+      gap: 4px; padding: 6px 8px;
+      border-left: 1px solid var(--line);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .side-section-label {
+      font-size: 0.56rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.16em;
+      color: var(--c-orange);
+      padding: 0 2px;
+    }
+    .side-section-label.durus { color: var(--c-red); }
+
+    .next-job-item {
+      background: rgba(251,146,60,0.08);
+      border: 1px solid rgba(251,146,60,0.25);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.7rem; font-weight: 700;
+      color: #fed7aa;
+      font-family: var(--font-mono);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .next-job-item .ist {
+      color: var(--c-amber); margin-right: 4px;
+      font-size: 0.6rem;
+    }
+
+    .durus-row {
+      display: flex; align-items: center; gap: 5px;
+      padding: 3px 7px;
+      border-radius: 6px;
       background: rgba(248,113,113,0.06);
-      border-color: rgba(248,113,113,0.20);
+      border: 1px solid rgba(248,113,113,0.18);
+      font-size: 0.66rem;
+      overflow: hidden;
     }
-    .alarm-card.ok {
-      background: rgba(52,211,153,0.05);
-      border-color: rgba(52,211,153,0.18);
+    .durus-row.planli {
+      background: rgba(167,139,250,0.05);
+      border-color: rgba(167,139,250,0.18);
     }
-    .alarm-card h4 { color: var(--c-red); }
-    .alarm-card.ok h4 { color: var(--c-emerald); }
-    .alarm-list {
-      display: flex; flex-direction: column; gap: 4px;
-      max-height: 100px; overflow: hidden;
+    .durus-sebep {
+      flex: 1; min-width: 0;
+      color: #fecaca;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-weight: 600;
     }
-    .alarm-item {
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 0.74rem;
+    .durus-row.planli .durus-sebep { color: #ddd6fe; }
+    .durus-tip {
+      font-size: 0.56rem;
+      flex-shrink: 0;
+      letter-spacing: 0.06em;
     }
-    .alarm-sebep { color: var(--text); font-weight: 600; }
-    .alarm-sure  { color: var(--c-red); font-family: var(--font-mono); font-weight: 800; }
-    .alarm-empty {
-      text-align: center; padding: 6px 0;
-      color: var(--c-emerald); font-weight: 700; font-size: 0.84rem;
+    .durus-tip.plansiz { color: #fca5a5; }
+    .durus-tip.planli  { color: #c4b5fd; }
+    .durus-dur {
+      color: var(--c-red); font-weight: 800; flex-shrink: 0;
+      font-family: var(--font-mono);
+    }
+    .durus-row.planli .durus-dur { color: var(--c-violet); }
+
+    .side-empty {
+      flex: 1; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 0.6rem; color: var(--dim); font-style: italic;
+    }
+
+    /* ── REFERANS TAKİP ── */
+    .reftrack {
+      background: linear-gradient(160deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 8px 14px;
+      max-height: 130px;
+      overflow: hidden;
+    }
+    .reftrack-title {
+      font-size: 0.58rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.2em;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .reftrack-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .rt-pill {
+      border-radius: 10px; padding: 5px 12px;
+      min-width: 130px;
+      transition: transform .2s ease;
+      font-family: var(--font-mono);
+    }
+    .rt-pill-ref { font-size: 0.74rem; font-weight: 800; }
+    .rt-pill-sub { font-size: 0.56rem; opacity: 0.75; margin-top: 1px; }
+    .rt-pill-badge {
+      font-size: 0.52rem; font-weight: 700;
+      border-radius: 5px; padding: 2px 7px;
+      display: inline-block; margin-top: 3px;
+      background: rgba(0,0,0,0.25);
       letter-spacing: 0.06em;
     }
 
-    /* ── ALT BAR (ticker / duyuru) ── */
+    /* Durum renk paleti — neon koyu zeminli */
+    .rt-launch_alinacak  { background: rgba(100,116,139,0.10); border: 1px solid rgba(100,116,139,0.30); color: #cbd5e1; }
+    .rt-launch_alindi    { background: rgba(96,165,250,0.10); border: 1px solid rgba(96,165,250,0.35); color: #93c5fd; }
+    .rt-launch_hazir     { background: rgba(52,211,153,0.10); border: 1px solid rgba(52,211,153,0.35); color: #6ee7b7; }
+    .rt-uretimde         { background: rgba(251,146,60,0.10); border: 1px solid rgba(251,146,60,0.35); color: #fdba74; }
+    .rt-uretim_tamamlandi{ background: rgba(132,204,22,0.10); border: 1px solid rgba(132,204,22,0.35); color: #bef264; }
+
+    /* ── TICKER (alt) ── */
     .ticker {
-      display: flex; align-items: center; gap: 14px;
-      padding: 0 16px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 14px;
       background: linear-gradient(90deg, rgba(167,139,250,0.06), rgba(34,211,238,0.06));
       border: 1px solid var(--line);
-      border-radius: 12px;
-      overflow: hidden;
-      position: relative;
+      border-radius: 10px;
+      overflow: hidden; min-height: 28px;
     }
     .ticker-tag {
-      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.22em;
-      text-transform: uppercase; padding: 4px 10px; border-radius: 6px;
+      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.2em;
+      text-transform: uppercase; padding: 3px 10px; border-radius: 6px;
       background: var(--grad-1); color: #0b0820; flex-shrink: 0;
     }
+    .ticker-marquee { flex: 1; overflow: hidden; position: relative; }
     .ticker-text {
-      flex: 1; font-size: 0.9rem; font-weight: 600; color: var(--text);
-      white-space: nowrap;
-      animation: ticker 30s linear infinite;
-      will-change: transform;
+      display: inline-block; white-space: nowrap;
+      font-size: 0.74rem; font-weight: 600; color: var(--text);
+      animation: ticker-scroll 36s linear infinite;
     }
-    @keyframes ticker {
-      0%   { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
+    .ticker-text.paused { animation: none; }
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
     }
-    .ticker.alert {
-      border-color: rgba(248,113,113,0.4);
-      background: linear-gradient(90deg, rgba(248,113,113,0.10), rgba(251,191,36,0.06));
+    .ticker-ts {
+      font-size: 0.58rem; color: var(--muted);
+      font-family: var(--font-mono); flex-shrink: 0;
     }
-    .ticker.alert .ticker-tag {
-      background: var(--grad-4); color: #1a0a0a;
+
+    /* ── DUYURU MODAL ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+      z-index: 200; align-items: center; justify-content: center;
     }
-    .ticker.alert .ticker-text { color: #fecaca; }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: linear-gradient(160deg, var(--bg-2), var(--bg-1));
+      border: 1px solid var(--line-strong);
+      border-radius: 18px;
+      padding: 22px 24px;
+      width: 440px; max-width: 90vw;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 60px rgba(167,139,250,0.12);
+    }
+    .modal-box h3 { font-size: 1rem; font-weight: 800; margin-bottom: 14px; }
+    .modal-box textarea, .modal-box input[type="text"] {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.84rem;
+      padding: 10px 12px;
+      font-family: var(--font-sans);
+    }
+    .modal-box textarea { height: 80px; resize: none; }
+    .modal-box input[type="text"] { margin-top: 10px; }
+    .modal-box textarea:focus, .modal-box input[type="text"]:focus {
+      outline: none; border-color: var(--c-violet);
+      box-shadow: 0 0 0 3px rgba(167,139,250,0.15);
+    }
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .modal-actions button {
+      flex: 1; padding: 10px; border-radius: 10px;
+      font-weight: 800; font-size: 0.78rem;
+      cursor: pointer; border: none;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      font-family: var(--font-sans);
+      transition: transform .15s ease;
+    }
+    .modal-actions button:active { transform: scale(.97); }
+    .modal-btn-primary { background: var(--grad-1); color: #0b0820; }
+    .modal-btn-danger  { background: rgba(248,113,113,0.12); color: var(--c-red); border: 1px solid rgba(248,113,113,0.3) !important; }
+    .modal-btn-ghost   { background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--line) !important; }
   </style>
 </head>
 <body>
@@ -476,10 +503,10 @@
     <!-- Üst bar -->
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">CM</div>
-        <div>
+        <img class="brand-logo" src="/logo" alt="Cofle Logo" onerror="this.style.display='none'">
+        <div class="brand-text">
           <div class="brand-name">COFLE MANAGE</div>
-          <div class="brand-sub">Komuta Merkezi · Robot Kaynak</div>
+          <div class="brand-sub">Robot Kaynak · Andon</div>
         </div>
       </div>
       <div class="clock">
@@ -487,169 +514,71 @@
         <div class="clock-date" id="dat">—</div>
       </div>
       <div class="status-row">
-        <span class="pill bolum">🔧 Robot Kaynak</span>
-        <span class="pill"><span class="dot"></span> CANLI</span>
+        <span class="pill"><span class="dot"></span><span id="refresh-label">Canlı</span></span>
+        <button class="header-btn" onclick="toggleFullscreen()">Tam Ekran</button>
+        <button class="header-btn accent" onclick="openAnnouncementModal()">Duyuru</button>
       </div>
     </header>
 
-    <!-- Ana içerik: robotlar + KPI kulesi -->
-    <main class="stage">
-      <section class="robot-grid" id="robot-grid"><!-- JS dolduracak --></section>
+    <!-- Robot grid -->
+    <section class="robots-section">
+      <div class="section-label">Robot Durum Paneli</div>
+      <div class="robot-grid" id="robot-grid"></div>
+    </section>
 
-      <aside class="kpi-tower">
-        <!-- OEE -->
-        <div class="kpi-card oee-card">
-          <h4>Genel OEE</h4>
-          <div class="oee-ring-wrap">
-            <svg viewBox="0 0 200 200">
-              <defs>
-                <linearGradient id="oeeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%"  stop-color="#22d3ee"/>
-                  <stop offset="50%" stop-color="#a78bfa"/>
-                  <stop offset="100%" stop-color="#f472b6"/>
-                </linearGradient>
-              </defs>
-              <circle class="oee-track" cx="100" cy="100" r="86" fill="none" stroke-width="14"/>
-              <circle class="oee-bar"   id="oeeBar" cx="100" cy="100" r="86" fill="none" stroke-width="14"
-                      stroke-dasharray="540" stroke-dashoffset="540"/>
-            </svg>
-            <div class="oee-center">
-              <div>
-                <div class="oee-num" id="oeeNum">0</div>
-                <div class="oee-label">PERFORMANS</div>
-              </div>
-            </div>
-          </div>
-          <div class="oee-mini">
-            <div class="mini k"><div class="mini-v" id="kullanilabilirlik">0</div><div class="mini-l">Kullanım</div></div>
-            <div class="mini p"><div class="mini-v" id="performans">0</div><div class="mini-l">Performans</div></div>
-            <div class="mini q"><div class="mini-v" id="kalite">0</div><div class="mini-l">Kalite</div></div>
-          </div>
-        </div>
+    <!-- Referans takip -->
+    <section class="reftrack">
+      <div class="reftrack-title">Referans Takip — Launch / İş Emri</div>
+      <div class="reftrack-row" id="reftrack-row">
+        <div style="color:var(--muted);font-size:.7rem">Yükleniyor...</div>
+      </div>
+    </section>
 
-        <!-- Üretim -->
-        <div class="kpi-card prod-card">
-          <h4>Bugünkü Üretim</h4>
-          <div class="prod-row">
-            <div class="prod-actual" id="prodActual">0</div>
-            <div class="prod-target">/ <span id="prodTarget">0</span> hedef</div>
-          </div>
-          <div class="prod-bar"><div class="prod-bar-fill" id="prodBar" style="width:0%"></div></div>
-          <div class="prod-foot">
-            <span><span style="color:var(--c-red)">●</span> Hurda: <b id="prodNok" style="color:var(--c-red)">0</b></span>
-            <span class="prod-pct" id="prodPct">0%</span>
-          </div>
-        </div>
-
-        <!-- Plansız Duruşlar -->
-        <div class="kpi-card alarm-card ok" id="alarmCard">
-          <h4 id="alarmHead">Aktif Uyarı</h4>
-          <div class="alarm-list" id="alarmList">
-            <div class="alarm-empty">✓ Plansız duruş yok</div>
-          </div>
-        </div>
-      </aside>
-    </main>
-
-    <!-- Alt ticker -->
-    <footer class="ticker" id="ticker">
-      <span class="ticker-tag">DUYURU</span>
-      <div class="ticker-text" id="tickerText">Sistem hazır.</div>
+    <!-- Ticker -->
+    <footer class="ticker">
+      <span class="ticker-tag">Duyuru</span>
+      <div class="ticker-marquee">
+        <div class="ticker-text paused" id="ticker-text">Cofle Manage Üretim Takip Sistemi aktif.</div>
+      </div>
+      <span class="ticker-ts" id="ticker-ts">--:--:--</span>
     </footer>
   </div>
 
+  <!-- Duyuru modal -->
+  <div class="modal-overlay" id="announce-modal">
+    <div class="modal-box">
+      <h3>Andon Duyuru Mesajı</h3>
+      <textarea id="announce-text" placeholder="Duyuru mesajını buraya yazın..."></textarea>
+      <input type="text" id="announce-author" placeholder="Yazan (isteğe bağlı)">
+      <div class="modal-actions">
+        <button class="modal-btn-ghost" onclick="closeAnnouncementModal()">İptal</button>
+        <button class="modal-btn-danger" onclick="clearAnnouncement()">Temizle</button>
+        <button class="modal-btn-primary" onclick="saveAnnouncement()">Yayınla</button>
+      </div>
+    </div>
+  </div>
+
 <script>
-  // Sabit ayarlı bölüm: kaynak. (Diğer bölümler için ayrı andon zaten var.)
-  const BOLUM = 'kaynak';
-  let ANIMATED_OEE = 0;
+  'use strict';
+
+  const API_URL      = '/api/andon?bolum=kaynak';
+  const SETTINGS_URL = '/api/andon_robot_ayarlari';
+  const ANNOUNCE_URL = '/api/andon/mesaj';
+  const REFRESH_SEC  = 30;
+
+  let _robots = [];
+  let _countdown = REFRESH_SEC;
 
   // ── Saat ──
   function tick() {
     const d = new Date();
-    const pad = n => String(n).padStart(2,'0');
-    document.getElementById('clk').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    const tarihStr = d.toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-    document.getElementById('dat').textContent = tarihStr;
+    const pad = n => String(n).padStart(2, '0');
+    const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    document.getElementById('clk').textContent = t;
+    document.getElementById('dat').textContent = d.toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    document.getElementById('ticker-ts').textContent = t;
   }
   setInterval(tick, 1000); tick();
-
-  // ── Robot durum sınıfı ──
-  function robotStatusClass(r) {
-    if (!r.operator || r.operator === '') return 'standby';
-    const plansiz = (r.durus_detay || []).filter(d => d.tip === 'plansiz');
-    const plansizSure = plansiz.reduce((a,d) => a + (d.sure_dk||0), 0);
-    if (plansizSure >= 30) return 'alert';
-    if (plansizSure > 0)   return 'warning';
-    return 'active';
-  }
-  function robotStatusLabel(s) {
-    return { active: 'Çalışıyor', warning: 'Uyarı', alert: 'Duruş', standby: 'Standby' }[s] || s;
-  }
-
-  // ── Render robot kartı ──
-  function renderRobotCard(r) {
-    const status = robotStatusClass(r);
-    const tum_ist1 = r.istasyon_1 || [];
-    const tum_ist2 = r.istasyon_2 || [];
-    const diger = r.diger || [];
-    const atamalar = r.atamalar || [];
-
-    const refTag = (i, key) => {
-      const cls = i.tamamlandi ? 'ref-tag done' : 'ref-tag';
-      const lc  = (key && i.launch) ? `<span class="lc">·${i.launch}</span>` : '';
-      return `<span class="${cls}">${escapeHtml(i.ref)}${lc}</span>`;
-    };
-
-    const block = (label, items) => {
-      if (!items.length) return '';
-      return `<div class="ist-block">
-        <div class="ist-label">${label}</div>
-        <div class="ist-refs">${items.map(i => refTag(i, true)).join('')}</div>
-      </div>`;
-    };
-
-    let bodyHtml = '';
-    if (status === 'standby' && atamalar.length === 0) {
-      bodyHtml = `<div>Standby</div>`;
-    } else {
-      bodyHtml += block('İstasyon 1', tum_ist1);
-      bodyHtml += block('İstasyon 2', tum_ist2);
-      if (diger.length) bodyHtml += block('Üretim', diger);
-      if (atamalar.length) {
-        bodyHtml += `<div class="atama-row">
-          <span class="atama-label">Bekleyen</span>
-          ${atamalar.slice(0,4).map(a => `<span class="atama-tag">${escapeHtml(a.referans_kodu)}${a.istasyon ? ` (İ${a.istasyon})` : ''}</span>`).join('')}
-        </div>`;
-      }
-    }
-
-    const operHtml = r.operator
-      ? `<div class="rc-meta">
-           <span class="rc-op">${escapeHtml(r.operator)}</span>
-           <span class="rc-shift">${escapeHtml(r.baslangic||'')}–${escapeHtml(r.bitis||'')}</span>
-           <span class="rc-vardiya">${escapeHtml(r.vardiya||'')}</span>
-         </div>`
-      : `<div class="rc-meta"><span class="rc-op" style="color:var(--dim)">— Operatör atanmadı —</span></div>`;
-
-    const durusHtml = (r.durus_dk && r.durus_dk > 0)
-      ? `<span class="durus">⏸ ${r.durus_dk} dk · ${r.durus_adet || 0} duruş</span>`
-      : `<span class="durus" style="color:var(--c-emerald)">✓ Duruşsuz</span>`;
-
-    return `
-      <div class="rcard ${status}">
-        <div class="rc-head">
-          <div class="rc-no">${escapeHtml(r.robot_no)}</div>
-          <div class="rc-status"><span class="pulse"></span><span>${robotStatusLabel(status)}</span></div>
-        </div>
-        ${operHtml}
-        <div class="rc-body">${bodyHtml}</div>
-        <div class="rc-foot">
-          ${durusHtml}
-          <span style="font-family:var(--font-mono);color:var(--muted)">${[...tum_ist1,...tum_ist2,...diger].length} ref.</span>
-        </div>
-      </div>
-    `;
-  }
 
   // ── Yardımcılar ──
   function escapeHtml(s) {
@@ -657,126 +586,233 @@
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     })[c]);
   }
-  function lerp(a,b,t){ return a + (b-a)*t; }
-  function easeOut(t){ return 1 - Math.pow(1-t, 3); }
+  function setRefreshLabel(text) {
+    document.getElementById('refresh-label').textContent = text;
+  }
 
-  function animateNumber(elId, target, decimals=0, duration=900) {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    const start = parseFloat(el.dataset.cur || '0');
-    const t0 = performance.now();
-    function step(now) {
-      const t = Math.min(1, (now - t0) / duration);
-      const v = lerp(start, target, easeOut(t));
-      el.textContent = v.toFixed(decimals);
-      if (t < 1) requestAnimationFrame(step);
-      else el.dataset.cur = String(target);
+  // ── Robot durum sınıfı ──
+  function robotStatusClass(r) {
+    if (!r.operator || r.operator === '') return 'idle';
+    const plansiz = (r.durus_detay || []).filter(d => d.tip === 'plansiz');
+    const plansizSure = plansiz.reduce((a,d) => a + (d.sure_dk||0), 0);
+    if (plansizSure >= 30) return 'alert';
+    if (plansizSure > 0)   return 'warning';
+    return 'active';
+  }
+
+  // ── Robot kartı ──
+  function renderRobotCard(r) {
+    const status = robotStatusClass(r);
+    const ist1 = r.istasyon_1 || [];
+    const ist2 = r.istasyon_2 || [];
+    const diger = r.diger || [];
+    const atamalar = r.atamalar || [];
+    const durusDetay = r.durus_detay || [];
+
+    // İstasyon 2 yoksa diger'i st1'in altına eklemeyiz; mevcut canlıdaki gibi diger'i st2 altında gösteriyoruz
+    const st2_combined = [...ist2, ...diger];
+
+    const refRow = (i) => {
+      const cls = i.tamamlandi ? 'ref-row done' : 'ref-row';
+      const lc  = i.launch ? `<span class="ref-launch">${i.launch}</span>` : '';
+      const ic  = i.tamamlandi ? '<span class="ref-done-icon">✓</span>' : '';
+      return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${lc}</div>`;
+    };
+
+    const st1Html = ist1.length
+      ? ist1.map(refRow).join('')
+      : '<div class="ref-empty">—</div>';
+
+    const st2Html = st2_combined.length
+      ? st2_combined.map(refRow).join('')
+      : '<div class="ref-empty">—</div>';
+
+    // Sağ panel: bekleyen atamalar + duruşlar (kısa liste)
+    let sideHtml = '';
+    if (atamalar.length) {
+      sideHtml += `<div class="side-section-label">Sıradaki İş</div>`;
+      sideHtml += atamalar.slice(0, 2).map(a => {
+        const ist = a.istasyon ? `<span class="ist">İ${a.istasyon}</span>` : '';
+        return `<div class="next-job-item">${ist}${escapeHtml(a.referans_kodu)}</div>`;
+      }).join('');
     }
-    requestAnimationFrame(step);
+    if (durusDetay.length) {
+      sideHtml += `<div class="side-section-label durus">Duruş${durusDetay.length > 1 ? ' · '+durusDetay.length : ''}</div>`;
+      sideHtml += durusDetay.slice(0, atamalar.length ? 2 : 4).map(d => {
+        const tipCls = d.tip === 'planli' ? 'planli' : 'plansiz';
+        const tipLab = d.tip === 'planli' ? 'P' : 'PS';
+        return `<div class="durus-row ${d.tip === 'planli' ? 'planli' : ''}">
+          <span class="durus-sebep">${escapeHtml(d.sebep)}</span>
+          <span class="durus-tip ${tipCls}">${tipLab}</span>
+          <span class="durus-dur">${d.sure_dk}dk</span>
+        </div>`;
+      }).join('');
+    }
+    if (!sideHtml) {
+      sideHtml = '<div class="side-empty">Aktif iş ve duruş yok</div>';
+    }
+
+    const operHtml = r.operator
+      ? `<div class="rc-op">${escapeHtml(r.operator)}</div>
+         <div class="rc-shift">${escapeHtml(r.baslangic||'')}–${escapeHtml(r.bitis||'')}</div>`
+      : `<div class="rc-op" style="color:var(--dim)">—</div>
+         <div class="rc-shift">Standby</div>`;
+
+    return `
+      <div class="rcard ${status}">
+        <div class="rc-id">
+          <div class="rc-no">${escapeHtml(r.robot_no)}</div>
+          <div class="rc-status-dot"></div>
+          ${operHtml}
+        </div>
+        <div class="rc-stations">
+          <div class="station-pane">
+            <div class="station-header st1">İstasyon 1</div>
+            <div class="ref-list">${st1Html}</div>
+          </div>
+          <div class="station-pane">
+            <div class="station-header st2">İstasyon 2</div>
+            <div class="ref-list">${st2Html}</div>
+          </div>
+        </div>
+        <div class="rc-side">${sideHtml}</div>
+      </div>`;
   }
 
-  // ── OEE donut güncelle ──
-  function setOEERing(pct) {
-    const C = 2 * Math.PI * 86; // ~540
-    const off = C * (1 - Math.max(0, Math.min(100, pct)) / 100);
-    const bar = document.getElementById('oeeBar');
-    bar.setAttribute('stroke-dasharray', C.toFixed(2));
-    bar.setAttribute('stroke-dashoffset', off.toFixed(2));
-    animateNumber('oeeNum', pct, 1, 1100);
-  }
-
-  // ── Plansız duruş kartı ──
-  function renderAlarms(plansiz) {
-    const card = document.getElementById('alarmCard');
-    const head = document.getElementById('alarmHead');
-    const list = document.getElementById('alarmList');
-    if (!plansiz || plansiz.length === 0) {
-      card.classList.add('ok');
-      head.textContent = 'Aktif Uyarı';
-      list.innerHTML = '<div class="alarm-empty">✓ Plansız duruş yok</div>';
+  // ── Referans takip pillleri ──
+  const RT_LABELS = {
+    launch_alinacak:    'Launch Alınacak',
+    launch_alindi:      'Launch Alındı',
+    launch_hazir:       'Launch Hazır',
+    uretimde:           'Üretimde',
+    uretim_tamamlandi:  'Tamamlandı'
+  };
+  function renderRefTrack(list) {
+    const c = document.getElementById('reftrack-row');
+    if (!Array.isArray(list) || !list.length) {
+      c.innerHTML = '<div style="color:var(--muted);font-size:.7rem;font-style:italic">Aktif referans takibi yok.</div>';
       return;
     }
-    card.classList.remove('ok');
-    head.textContent = `Aktif Uyarı · ${plansiz.length}`;
-    list.innerHTML = plansiz.slice(0,4).map(p => `
-      <div class="alarm-item">
-        <span class="alarm-sebep">${escapeHtml(p.sebep)}</span>
-        <span class="alarm-sure">${p.sure_dk} dk</span>
-      </div>`).join('');
+    // Sadece ilk 12 göster (taşmasın)
+    const arr = list.slice(0, 12);
+    c.innerHTML = arr.map(r => {
+      const cls = 'rt-pill rt-' + (r.durum || 'launch_alinacak');
+      const sub = (r.robot_no ? r.robot_no : '') + (r.istasyon ? ' / İ' + r.istasyon : '');
+      return `<div class="${cls}">
+        <div class="rt-pill-ref">${escapeHtml(r.referans_kodu)}</div>
+        <div class="rt-pill-sub">${escapeHtml(sub) || '—'}</div>
+        <div class="rt-pill-badge">${escapeHtml(RT_LABELS[r.durum] || r.durum || '')}</div>
+      </div>`;
+    }).join('');
   }
 
-  // ── Ticker (alt) ──
-  function setTicker(text, alert=false) {
-    const t = document.getElementById('ticker');
-    const txt = document.getElementById('tickerText');
-    t.classList.toggle('alert', !!alert);
-    // Sürekli akış için metni iki kere yaz
-    txt.innerHTML = `${escapeHtml(text)}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;${escapeHtml(text)}`;
+  // ── Ticker ──
+  function setTicker(text) {
+    const el = document.getElementById('ticker-text');
+    el.classList.remove('paused');
+    el.textContent = text || 'Cofle Manage Üretim Takip Sistemi aktif.';
+  }
+
+  // ── Robot ayarları ──
+  async function fetchRobotSettings() {
+    try {
+      const res = await fetch(SETTINGS_URL, { cache:'no-store' });
+      const arr = await res.json();
+      _robots = (Array.isArray(arr) ? arr : []).filter(a => a.goster).sort((a,b) => a.sira - b.sira).map(a => a.robot_no);
+    } catch (e) {
+      _robots = ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8'];
+    }
+    return _robots;
   }
 
   // ── Ana fetch ──
   async function loadAndon() {
     try {
-      const res = await fetch('/api/andon?bolum=' + encodeURIComponent(BOLUM), { cache:'no-store' });
+      const res = await fetch(API_URL, { cache:'no-store' });
       const d = await res.json();
 
-      // Mevcut robot ayarlarına göre sırala (görünür olanlar)
-      const rs = await fetch('/api/andon_robot_ayarlari', { cache:'no-store' });
-      const ayar = await rs.json();
-      const visibleRobots = (Array.isArray(ayar) ? ayar : []).filter(a => a.goster).sort((a,b) => a.sira - b.sira).map(a => a.robot_no);
-
-      // Robot map
       const rMap = {};
       (d.robotlar || []).forEach(r => { rMap[r.robot_no] = r; });
 
-      // Görünmesi gereken robotları (ayarlardan), yoksa default ABB1..9
-      const targetList = visibleRobots.length ? visibleRobots : ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9'];
-      // Render
+      const target = _robots.length ? _robots : ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8'];
       const grid = document.getElementById('robot-grid');
-      grid.innerHTML = targetList.map(rn => {
+      grid.innerHTML = target.map(rn => {
         const r = rMap[rn] || { robot_no: rn, operator:'', vardiya:'', baslangic:'', bitis:'',
           istasyon_1:[], istasyon_2:[], diger:[], atamalar:[], durus_dk:0, durus_adet:0, durus_detay:[] };
         return renderRobotCard(r);
       }).join('');
 
-      // KPI
-      setOEERing(d.oee_pct || 0);
-      animateNumber('kullanilabilirlik', d.kullanilabilirlik_pct || 0, 0, 800);
-      animateNumber('performans',        d.performans_pct        || 0, 0, 800);
-      animateNumber('kalite',            d.kalite_pct            || 0, 0, 800);
-
-      const ok = d.toplam_ok || 0;
-      const hedef = d.toplam_hedef || 0;
-      const nok = d.toplam_nok || 0;
-      const pct = hedef > 0 ? Math.min(100, (ok/hedef)*100) : 0;
-      animateNumber('prodActual', ok, 0, 900);
-      document.getElementById('prodTarget').textContent = hedef;
-      document.getElementById('prodNok').textContent = nok;
-      document.getElementById('prodPct').textContent = pct.toFixed(0) + '%';
-      document.getElementById('prodBar').style.width = pct + '%';
-
-      // Plansız duruşlar
-      renderAlarms(d.plansiz_duruslar || []);
+      renderRefTrack(d.referans_takip || []);
 
       // Duyuru / ticker
       const duyuru = (d.duyuru && d.duyuru.metin) ? d.duyuru.metin : '';
       const plansizSayisi = (d.plansiz_duruslar || []).length;
       if (duyuru) {
-        setTicker(duyuru, false);
+        setTicker(duyuru);
       } else if (plansizSayisi > 0) {
-        setTicker(`${plansizSayisi} plansız duruş aktif · Toplam: ${d.plansiz_durus_dk || 0} dk`, true);
+        setTicker(`${plansizSayisi} plansız duruş aktif · Toplam ${d.plansiz_durus_dk || 0} dk`);
       } else {
-        setTicker(`Vardiya sayısı: ${d.vardiya_sayisi || 0} · Bugün ${ok} OK / ${nok} NOK üretildi`, false);
+        setTicker(`Vardiya sayısı: ${d.vardiya_sayisi || 0} · Bugün ${d.toplam_ok || 0} OK / ${d.toplam_nok || 0} NOK üretildi`);
       }
 
+      _countdown = REFRESH_SEC;
+      setRefreshLabel('Canlı · ' + REFRESH_SEC + 's');
     } catch (e) {
       console.error('Andon fetch error:', e);
-      setTicker('Bağlantı hatası: ' + e.message, true);
+      setRefreshLabel('Bağlantı hatası');
     }
   }
 
-  loadAndon();
-  setInterval(loadAndon, 15000); // 15 saniyede bir yenile
+  // ── Sayaç ──
+  function startCountdown() {
+    setInterval(() => {
+      _countdown--;
+      if (_countdown <= 0) loadAndon();
+      else setRefreshLabel('Canlı · ' + _countdown + 's');
+    }, 1000);
+  }
+
+  // ── Tam ekran ──
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  }
+
+  // ── Duyuru modal ──
+  function openAnnouncementModal()  { document.getElementById('announce-modal').classList.add('open'); }
+  function closeAnnouncementModal() { document.getElementById('announce-modal').classList.remove('open'); }
+  async function saveAnnouncement() {
+    const metin = document.getElementById('announce-text').value.trim();
+    const yazar = document.getElementById('announce-author').value.trim();
+    if (!metin) { alert('Mesaj boş olamaz'); return; }
+    try {
+      await fetch(ANNOUNCE_URL, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ metin, yazar })
+      });
+      document.getElementById('announce-text').value = '';
+      document.getElementById('announce-author').value = '';
+      closeAnnouncementModal();
+      await loadAndon();
+    } catch (e) { alert('Kaydedilemedi: ' + e.message); }
+  }
+  async function clearAnnouncement() {
+    try {
+      await fetch(ANNOUNCE_URL, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ metin: '', yazar: '' })
+      });
+      closeAnnouncementModal();
+      await loadAndon();
+    } catch (e) { alert('Hata: ' + e.message); }
+  }
+
+  // ── Başlat ──
+  (async () => {
+    await fetchRobotSettings();
+    await loadAndon();
+    startCountdown();
+  })();
 </script>
 </body>
 </html>
