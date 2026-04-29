@@ -154,14 +154,20 @@ def teardown_db(exception):
 
 @app.route('/')
 def operator_sayfasi():
-    """Operatör mobil giriş sayfası."""
-    return render_template('mobile.html')
+    """Operatör mobil giriş sayfası (v2 — yeni tasarım canlıya alındı)."""
+    return render_template('mobile_v2.html')
 
 
 @app.route('/mobile_v2')
 def operator_v2_preview():
-    """Operatör v2 — komuta merkezi tema önizlemesi."""
+    """Operatör v2 önizlemesi (canlı ile aynı şablon — direkt link için saklanıyor)."""
     return render_template('mobile_v2.html')
+
+
+@app.route('/mobile_legacy')
+def operator_legacy_sayfasi():
+    """Eski operatör tasarımı (geri dönüş için saklanıyor)."""
+    return render_template('mobile.html')
 
 
 @app.route('/dashboard')
