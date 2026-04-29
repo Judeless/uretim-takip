@@ -532,6 +532,29 @@
       cursor: pointer;
       letter-spacing: 0.04em;
     }
+    /* Vardiya kart sağ aksiyon kolonu (yanlış açılan vardiyayı silmek için) */
+    .vk-actions {
+      flex-shrink: 0;
+      display: flex; align-items: center;
+      margin-left: 8px;
+    }
+    .btn-vardiya-sil {
+      padding: 7px 11px;
+      background: rgba(248,113,113,0.10);
+      border: 1px solid rgba(248,113,113,0.35);
+      border-radius: 9px;
+      color: #fecaca;
+      font-size: 0.72rem; font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: transform .15s ease, background .2s ease;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }
+    .btn-vardiya-sil:active { transform: scale(0.94); }
+    .btn-vardiya-sil:hover {
+      background: rgba(248,113,113,0.18);
+    }
 
     /* ╔══ BÖLÜM AYRAÇLARI VE BAŞLIKLAR ══╗ */
     .section-hd {
@@ -1557,14 +1580,17 @@
               if (v.durum === 'kapali') {
                 geriAlBtn = '<button onclick="event.stopPropagation();vardiyaGeriAc(' + v.id + ')" class="btn-geri-ac">🔓 Vardiyay\u0131 Geri A\u00e7</button>';
               }
+              var silBtn = '<button onclick="event.stopPropagation();vardiyaSil(' + v.id + ')" class="btn-vardiya-sil" title="Yanlış açılan vardiyayı sil">🗑 Sil</button>';
               var kartHtml = '<div class="vardiya-kart" onclick="vardiyaSec(' + v.id + ')">' +
-                '<div class="ki-head"><div>' +
+                '<div class="ki-head"><div style="flex:1;min-width:0">' +
                 '<div class="vk-title">' + v.robot_no + ' \u2014 ' + v.operator_adi + '</div>' +
                 '<div class="vk-detail">' + v.baslangic_saati + ' \u2192 ' + (v.bitis_saati || '?') + ' \u00b7 ' + v.vardiya_turu + '</div>' +
                 '<span class="vk-badge ' + (v.durum === 'acik' || v.durum === 'aktif' ? 'badge-acik' : 'badge-kapali') + '">' +
                 (v.durum === 'acik' || v.durum === 'aktif' ? '● Aktif' : 'Kapal\u0131') + '</span>' +
                 geriAlBtn +
-                '</div></div></div>';
+                '</div>' +
+                '<div class="vk-actions">' + silBtn + '</div>' +
+                '</div></div>';
               html += kartHtml;
             });
           }
@@ -1584,6 +1610,24 @@
         const json = await res.json();
         if (json.hata) { toast(json.hata, 'error'); return; }
         toast('Vardiya yeniden açıldı', 'success');
+        yukleVardiyalar();
+      } catch(e) { toast('Bağlantı hatası', 'error'); }
+    }
+
+    // Yanlış açılan vardiyayı sil — vardiya kaydı, üretim ve duruşları cascade siler
+    async function vardiyaSil(id) {
+      if (!confirm('Bu vardiya kaydını TAMAMEN silmek istediğinize emin misiniz?\n\nVardiyaya ait tüm üretim ve duruş kayıtları da silinecektir. Bu işlem geri alınamaz.')) return;
+      try {
+        const res = await fetch('/api/vardiya/' + id, { method: 'DELETE' });
+        const json = await res.json();
+        if (json.hata) { toast(json.hata, 'error'); return; }
+        toast('Vardiya silindi', 'success');
+        // Eğer silinen vardiya aktifse state'i temizle ve ana ekrana dön
+        if (aktifVardiyaId === id) {
+          aktifVardiyaId = null;
+          aktifVardiyaData = null;
+          if (aktifEkran === 'C') gitEkran('A');
+        }
         yukleVardiyalar();
       } catch(e) { toast('Bağlantı hatası', 'error'); }
     }
