@@ -1780,28 +1780,63 @@ def referans_takip_listesi():
     conn.close()
     return jsonify([dict(r) for r in rows])
 
-def _oncelik_yer_ac(c, bolum, yeni_oncelik, exclude_id=None):
-    """Montaj'da bir kayıt belirli bir önceliğe yerleştirilirken, mevcut
-    bu önceliğe sahip ve daha aşağıdaki kayıtların önceliğini +1 kaydırır.
-    exclude_id verilirse o kaydı kaydırmadan dışarıda bırakır (PATCH için).
+def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
+    """Montaj kaydının öncelik geçişinde diğer satırları doğru yönde kaydırır.
+
+    eski_oncelik: kaydın önceki değeri (None = öncesinde öncelik yoktu / yeni kayıt)
+    yeni_oncelik: kaydın yeni değeri (None = öncelik kaldırılıyor)
+    exclude_id:   bu id'li satıra dokunma (PATCH için kendisini hariç tut)
     """
-    if bolum != 'montaj' or yeni_oncelik is None:
+    if bolum != 'montaj':
         return
-    if exclude_id is not None:
-        c.execute('''
+    # Değişiklik yok
+    if eski_oncelik == yeni_oncelik:
+        return
+
+    where_excl = ' AND id != ?' if exclude_id is not None else ''
+    excl_args = (exclude_id,) if exclude_id is not None else ()
+
+    # 1) Yeni öncelik atanıyor (önceden yoktu): >= yeni olanları +1 kaydır
+    if eski_oncelik is None and yeni_oncelik is not None:
+        c.execute(f'''
             UPDATE referans_takip
             SET oncelik = oncelik + 1
             WHERE COALESCE(bolum, 'kaynak') = 'montaj'
               AND oncelik IS NOT NULL AND oncelik >= ?
-              AND id != ?
-        ''', (yeni_oncelik, exclude_id))
-    else:
-        c.execute('''
+              {where_excl}
+        ''', (yeni_oncelik,) + excl_args)
+
+    # 2) Öncelik kaldırılıyor: > eski olanları -1 yukarı çek (boşluğu kapat)
+    elif eski_oncelik is not None and yeni_oncelik is None:
+        c.execute(f'''
+            UPDATE referans_takip
+            SET oncelik = oncelik - 1
+            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+              AND oncelik IS NOT NULL AND oncelik > ?
+              {where_excl}
+        ''', (eski_oncelik,) + excl_args)
+
+    # 3) Yukarı taşıma (önem artıyor: eski > yeni, ör. 4 -> 2)
+    #    yeni <= p < eski aralığındakileri +1 (kayıt yere geliyor)
+    elif yeni_oncelik < eski_oncelik:
+        c.execute(f'''
             UPDATE referans_takip
             SET oncelik = oncelik + 1
             WHERE COALESCE(bolum, 'kaynak') = 'montaj'
-              AND oncelik IS NOT NULL AND oncelik >= ?
-        ''', (yeni_oncelik,))
+              AND oncelik IS NOT NULL AND oncelik >= ? AND oncelik < ?
+              {where_excl}
+        ''', (yeni_oncelik, eski_oncelik) + excl_args)
+
+    # 4) Aşağı taşıma (önem azalıyor: eski < yeni, ör. 1 -> 3)
+    #    eski < p <= yeni aralığındakileri -1 (boşluk doldur)
+    else:  # yeni_oncelik > eski_oncelik
+        c.execute(f'''
+            UPDATE referans_takip
+            SET oncelik = oncelik - 1
+            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+              AND oncelik IS NOT NULL AND oncelik > ? AND oncelik <= ?
+              {where_excl}
+        ''', (eski_oncelik, yeni_oncelik) + excl_args)
 
 
 @app.route('/api/referans_takip', methods=['POST'])
@@ -1828,8 +1863,8 @@ def referans_takip_ekle():
 
         conn = get_db()
         c = conn.cursor()
-        # Montaj + öncelik verilmişse: mevcut >=N olanları kaydır
-        _oncelik_yer_ac(c, bolum, oncelik)
+        # Yeni kayıt: eski_oncelik=None, yeni_oncelik girildiyse mevcut >=N olanları +1
+        _oncelik_kaydir(c, bolum, None, oncelik)
         c.execute('''
             INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1853,6 +1888,7 @@ def referans_takip_guncelle(id):
         mevcut = c.execute("SELECT bolum, oncelik FROM referans_takip WHERE id=?", (id,)).fetchone()
         if mevcut:
             bolum_kayit = (mevcut['bolum'] or 'kaynak')
+            eski_onc = mevcut['oncelik']  # None olabilir
             yeni_raw = data.get('oncelik')
             yeni_onc = None
             if yeni_raw not in (None, '', 0, '0'):
@@ -1861,7 +1897,7 @@ def referans_takip_guncelle(id):
                     if yeni_onc < 1: yeni_onc = None
                 except (TypeError, ValueError):
                     yeni_onc = None
-            _oncelik_yer_ac(c, bolum_kayit, yeni_onc, exclude_id=id)
+            _oncelik_kaydir(c, bolum_kayit, eski_onc, yeni_onc, exclude_id=id)
             data['oncelik'] = yeni_onc  # normalize edildi
 
     fields, vals = [], []
