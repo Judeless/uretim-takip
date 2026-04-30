@@ -1752,43 +1752,61 @@ DURUM_SIRASI = ['launch_alinacak', 'launch_alindi', 'launch_hazir', 'uretimde', 
 def referans_takip_listesi():
     bolum = request.args.get('bolum')
     conn = get_db()
-    # Montaj için öncelik sırasına göre listele (NULL olanlar en sonda),
-    # diğer bölümlerde oluşturma tarihine göre.
-    if bolum == 'montaj':
-        rows = conn.execute('''
-            SELECT rt.*, rl.hedef_cycle_time_sn
-            FROM referans_takip rt
-            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-            WHERE COALESCE(rt.bolum, 'kaynak') = 'montaj'
-            ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC
-        ''').fetchall()
-    elif bolum:
+    # Tüm bölümlerde öncelik ASC, NULL olanlar en sonda → oluşturma tarihine göre
+    if bolum:
         rows = conn.execute('''
             SELECT rt.*, rl.hedef_cycle_time_sn
             FROM referans_takip rt
             LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
             WHERE COALESCE(rt.bolum, 'kaynak') = ?
-            ORDER BY rt.olusturma_tarihi DESC
+            ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC
         ''', (bolum,)).fetchall()
     else:
         rows = conn.execute('''
             SELECT rt.*, rl.hedef_cycle_time_sn
             FROM referans_takip rt
             LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-            ORDER BY rt.olusturma_tarihi DESC
+            ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC
         ''').fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
+def _oncelik_clamp(c, bolum, yeni_oncelik, eski_oncelik=None, exclude_id=None):
+    """Yeni öncelik değerini, o bölümdeki mevcut öncelikli kayıt sayısına göre clamp eder.
+
+    INSERT (eski_oncelik=None): max = mevcut_sayi + 1 (yeni eklenecek)
+    UPDATE (eski var, yeni var): max = mevcut_sayi (toplam değişmiyor)
+    UPDATE (eski None, yeni var): max = mevcut_sayi + 1 (öncelik atıyor, +1 olur)
+
+    None döndürürse clamp gerekmedi (zaten geçerli) veya yeni_oncelik None.
+    """
+    if yeni_oncelik is None:
+        return None
+    where_excl = ' AND id != ?' if exclude_id is not None else ''
+    excl_args = (exclude_id,) if exclude_id is not None else ()
+    row = c.execute(f'''
+        SELECT COUNT(*) as cnt FROM referans_takip
+        WHERE COALESCE(bolum, 'kaynak') = ? AND oncelik IS NOT NULL
+        {where_excl}
+    ''', (bolum,) + excl_args).fetchone()
+    mevcut_sayi = row['cnt'] if row else 0
+    # Bu kayıt da öncelikli olacak: max = mevcut_sayi + 1 (kendisi de dahil)
+    max_izinli = mevcut_sayi + 1
+    if yeni_oncelik > max_izinli:
+        return max_izinli
+    if yeni_oncelik < 1:
+        return 1
+    return yeni_oncelik
+
+
 def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
-    """Montaj kaydının öncelik geçişinde diğer satırları doğru yönde kaydırır.
+    """Bir bölüm kaydının öncelik geçişinde diğer satırları doğru yönde kaydırır.
+    Tüm bölümler için çalışır (kaynak/montaj/metal).
 
     eski_oncelik: kaydın önceki değeri (None = öncesinde öncelik yoktu / yeni kayıt)
     yeni_oncelik: kaydın yeni değeri (None = öncelik kaldırılıyor)
     exclude_id:   bu id'li satıra dokunma (PATCH için kendisini hariç tut)
     """
-    if bolum != 'montaj':
-        return
     # Değişiklik yok
     if eski_oncelik == yeni_oncelik:
         return
@@ -1801,42 +1819,40 @@ def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
         c.execute(f'''
             UPDATE referans_takip
             SET oncelik = oncelik + 1
-            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+            WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik >= ?
               {where_excl}
-        ''', (yeni_oncelik,) + excl_args)
+        ''', (bolum, yeni_oncelik) + excl_args)
 
     # 2) Öncelik kaldırılıyor: > eski olanları -1 yukarı çek (boşluğu kapat)
     elif eski_oncelik is not None and yeni_oncelik is None:
         c.execute(f'''
             UPDATE referans_takip
             SET oncelik = oncelik - 1
-            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+            WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik > ?
               {where_excl}
-        ''', (eski_oncelik,) + excl_args)
+        ''', (bolum, eski_oncelik) + excl_args)
 
     # 3) Yukarı taşıma (önem artıyor: eski > yeni, ör. 4 -> 2)
-    #    yeni <= p < eski aralığındakileri +1 (kayıt yere geliyor)
     elif yeni_oncelik < eski_oncelik:
         c.execute(f'''
             UPDATE referans_takip
             SET oncelik = oncelik + 1
-            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+            WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik >= ? AND oncelik < ?
               {where_excl}
-        ''', (yeni_oncelik, eski_oncelik) + excl_args)
+        ''', (bolum, yeni_oncelik, eski_oncelik) + excl_args)
 
     # 4) Aşağı taşıma (önem azalıyor: eski < yeni, ör. 1 -> 3)
-    #    eski < p <= yeni aralığındakileri -1 (boşluk doldur)
     else:  # yeni_oncelik > eski_oncelik
         c.execute(f'''
             UPDATE referans_takip
             SET oncelik = oncelik - 1
-            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+            WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik > ? AND oncelik <= ?
               {where_excl}
-        ''', (eski_oncelik, yeni_oncelik) + excl_args)
+        ''', (bolum, eski_oncelik, yeni_oncelik) + excl_args)
 
 
 @app.route('/api/referans_takip', methods=['POST'])
@@ -1863,6 +1879,9 @@ def referans_takip_ekle():
 
         conn = get_db()
         c = conn.cursor()
+        # Öncelik clamp: kullanıcı çok yüksek bir sayı girdiyse mevcut listedeki
+        # ref sayısına göre maksimum izinliye düşür (örn. 3 ref var, 5 girilmişse → 4)
+        oncelik = _oncelik_clamp(c, bolum, oncelik)
         # Yeni kayıt: eski_oncelik=None, yeni_oncelik girildiyse mevcut >=N olanları +1
         _oncelik_kaydir(c, bolum, None, oncelik)
         c.execute('''
@@ -1883,7 +1902,7 @@ def referans_takip_guncelle(id):
     conn = get_db()
     c = conn.cursor()
 
-    # Öncelik değişiyorsa shift mantığı çalıştır (montaj için)
+    # Öncelik değişiyorsa shift mantığı çalıştır (tüm bölümler için)
     if 'oncelik' in data:
         mevcut = c.execute("SELECT bolum, oncelik FROM referans_takip WHERE id=?", (id,)).fetchone()
         if mevcut:
@@ -1897,6 +1916,8 @@ def referans_takip_guncelle(id):
                     if yeni_onc < 1: yeni_onc = None
                 except (TypeError, ValueError):
                     yeni_onc = None
+            # Clamp: girilen sayı listedeki ref sayısını aşıyorsa düşür
+            yeni_onc = _oncelik_clamp(c, bolum_kayit, yeni_onc, eski_oncelik=eski_onc, exclude_id=id)
             _oncelik_kaydir(c, bolum_kayit, eski_onc, yeni_onc, exclude_id=id)
             data['oncelik'] = yeni_onc  # normalize edildi
 
