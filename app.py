@@ -195,6 +195,38 @@ def logo_serve():
             return send_file(yol, mimetype='image/png')
     return '', 404
 
+
+# ───── Favicon / iOS / Android home-screen ikonları ─────
+# Telefonda "Ana ekrana ekle" denildiğinde Cofle logosu görünür.
+@app.route('/favicon.ico')
+@app.route('/favicon.png')
+@app.route('/apple-touch-icon.png')
+@app.route('/apple-touch-icon-precomposed.png')
+def favicon_serve():
+    """Tüm tarayıcı/iOS/Android ikon istekleri /logo'ya yönlendirilir."""
+    return logo_serve()
+
+
+@app.route('/manifest.json')
+def web_manifest():
+    """Android PWA manifesti — ana ekrana eklendiğinde Cofle logosu + neon tema."""
+    return jsonify({
+        "name": "Cofle Manage",
+        "short_name": "Cofle",
+        "description": "Cofle Manage Üretim Takip Sistemi",
+        "start_url": "/",
+        "display": "standalone",
+        "orientation": "any",
+        "background_color": "#060414",
+        "theme_color": "#1c1f3a",
+        "lang": "tr",
+        "icons": [
+            {"src": "/logo", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/logo", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/logo", "sizes": "180x180", "type": "image/png", "purpose": "maskable"}
+        ]
+    })
+
 @app.route('/andon')
 def andon_sayfasi():
     """Andon TV pano sayfasi — Robot Kaynak (v5)."""
