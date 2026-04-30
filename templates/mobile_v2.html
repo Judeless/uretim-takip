@@ -631,6 +631,42 @@
     .ki-btn-edit { color: var(--c-cyan); border-color: rgba(34,211,238,0.3); background: rgba(34,211,238,0.08); }
     .ki-btn-del  { color: var(--c-red);  border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); }
 
+    /* Yazılı buton (Devam / Tamam) — ki-btn'in 34x34 sabitini kullanmaz */
+    .ki-btn-tamam {
+      min-width: 70px;
+      padding: 7px 12px;
+      border-radius: 9px;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 4px; white-space: nowrap;
+      transition: transform .15s ease, border-color .2s ease, background .2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ki-btn-tamam:active { transform: scale(0.95); }
+    .ki-btn-tamam.is-tamam {
+      background: rgba(52,211,153,0.14);
+      color: #6ee7b7;
+      border: 1px solid rgba(52,211,153,0.40);
+      box-shadow: 0 0 12px rgba(52,211,153,0.18);
+    }
+    .ki-btn-tamam.is-devam {
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .ki-btn-tamam.is-devam:hover {
+      border-color: var(--c-violet);
+      color: var(--text);
+    }
+    /* Dar ekranlarda butonlar wrap edebilsin */
+    @media (max-width: 380px) {
+      .ki-actions { flex-wrap: wrap; justify-content: flex-end; }
+      .ki-btn-tamam { min-width: 64px; padding: 6px 10px; font-size: 0.7rem; }
+    }
+
     /* ╔══ DURUŞ KATEGORİLERİ ══╗ */
     .durus-cats {
       display: flex; flex-wrap: wrap; gap: 6px;
@@ -1770,15 +1806,13 @@
             var isDkTxt = ctSn > 0 ? ' · ≈' + (adet * ctSn / 60).toFixed(1) + ' dk' : '';
             var nokTxt = u.nok_adet > 0 ? ' · NOK: ' + u.nok_adet : '';
             var tamam = u.tamamlandi ? 1 : 0;
-            var tamamBtnStyle = tamam
-              ? 'background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.3);'
-              : 'background:var(--surface2);color:var(--muted);border:1px solid var(--border);';
+            var tamamCls = tamam ? 'ki-btn-tamam is-tamam' : 'ki-btn-tamam is-devam';
             var tamamBtnTxt = tamam ? '✓ Tamam' : 'Devam';
             div.innerHTML = '<div class="ki-head"><div>' +
               '<div class="ki-kod" style="' + (tamam ? 'opacity:.5;text-decoration:line-through;' : '') + '">' + u.referans_kodu + '</div>' +
               '<div class="ki-detail">OK: ' + u.ok_adet + nokTxt + ctTxt + isDkTxt + '</div>' +
               '</div><div class="ki-actions">' +
-              '<button class="ki-btn" style="' + tamamBtnStyle + 'border-radius:8px;padding:5px 8px;font-size:.7rem;font-weight:700;cursor:pointer;" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>' +
+              '<button class="' + tamamCls + '" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>' +
               '<button class="ki-btn ki-btn-edit" data-id="' + u.id + '" data-type="u-edit">✏️</button>' +
               '<button class="ki-btn ki-btn-del" data-id="' + u.id + '" data-type="u-del">🗑</button>' +
               '</div></div>';
