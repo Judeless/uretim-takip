@@ -1035,7 +1035,47 @@
         .hamburger-btn, .sidebar-backdrop { display: none; }
 
         /* ╔══════════════════════════════════════════════════════════════╗
-           ║  ANDON KISA YOL KUTUSU                                      ║
+           ║  ANDON PILL GRUBU (topbar'da bölüm toggle yanında)          ║
+           ╚══════════════════════════════════════════════════════════════╝ */
+        .andon-pill-group {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 5px 8px;
+            background: var(--card);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+        }
+        .andon-pill-label {
+            font-size: 0.66rem; font-weight: 700;
+            color: var(--muted);
+            letter-spacing: 0.06em;
+            padding: 0 6px 0 4px;
+            white-space: nowrap;
+        }
+        .andon-pill {
+            width: 32px; height: 32px;
+            border-radius: 9px;
+            border: 1px solid var(--border-subtle);
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: grid; place-items: center;
+            transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .andon-pill:hover { transform: translateY(-1px); }
+        .andon-pill.ap-kaynak:hover { border-color: rgba(167,139,250,0.5); box-shadow: 0 0 14px rgba(167,139,250,0.30); background: rgba(167,139,250,0.10); }
+        .andon-pill.ap-montaj:hover { border-color: rgba(52,211,153,0.5);  box-shadow: 0 0 14px rgba(52,211,153,0.30);  background: rgba(52,211,153,0.10);  }
+        .andon-pill.ap-metal:hover  { border-color: rgba(251,191,36,0.5);  box-shadow: 0 0 14px rgba(251,191,36,0.30);  background: rgba(251,191,36,0.10);  }
+        @media (max-width: 768px) {
+            .andon-pill-label { display: none; }
+            .andon-pill { width: 30px; height: 30px; font-size: 0.85rem; }
+        }
+
+        /* ╔══════════════════════════════════════════════════════════════╗
+           ║  ANDON KISA YOL KUTUSU (eski — kullanılmıyor ama korunuyor) ║
            ╚══════════════════════════════════════════════════════════════╝ */
         .andon-shortcuts {
             background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
@@ -1239,6 +1279,12 @@
                         <span>🏭</span><span>Metal Enjeksiyon</span>
                     </button>
                 </div>
+                <div class="andon-pill-group" aria-label="Andon ekranları">
+                    <span class="andon-pill-label">📺 Andon</span>
+                    <button type="button" class="andon-pill ap-kaynak" onclick="window.open('/andon','_blank')" title="Robot Kaynak Andon">🔧</button>
+                    <button type="button" class="andon-pill ap-montaj" onclick="window.open('/andon_montaj','_blank')" title="Montaj Andon">🔩</button>
+                    <button type="button" class="andon-pill ap-metal"  onclick="window.open('/andon_metal','_blank')"  title="Metal Enjeksiyon Andon">🏭</button>
+                </div>
             </div>
 
             <!-- ── SEKMELER KONTEYNERI ── -->
@@ -1282,34 +1328,6 @@
                     <button class="btn"
                         style="background:#0f172a;color:#fff;font-weight:700;padding:13px 18px;border-radius:12px;border:none;cursor:pointer;font-size:.88rem;box-shadow: 0 4px 12px rgba(0,0,0,0.2)"
                         onclick="tavGunlukRaporAc()">📊 Günlük Üretim Raporu</button>
-                </div>
-
-                <!-- ANDON ERİŞİM KUTUSU -->
-                <div class="andon-shortcuts">
-                    <div class="andon-shortcuts-title">📺 Andon Ekranları</div>
-                    <div class="andon-shortcuts-grid">
-                        <button type="button" class="andon-shortcut as-kaynak" onclick="window.open('/andon','_blank')">
-                            <span class="as-icon">🔧</span>
-                            <span class="as-text">
-                                <span class="as-ad">Robot Kaynak</span>
-                                <span class="as-sub">/andon</span>
-                            </span>
-                        </button>
-                        <button type="button" class="andon-shortcut as-montaj" onclick="window.open('/andon_montaj','_blank')">
-                            <span class="as-icon">🔩</span>
-                            <span class="as-text">
-                                <span class="as-ad">Montaj</span>
-                                <span class="as-sub">/andon_montaj</span>
-                            </span>
-                        </button>
-                        <button type="button" class="andon-shortcut as-metal" onclick="window.open('/andon_metal','_blank')">
-                            <span class="as-icon">🏭</span>
-                            <span class="as-text">
-                                <span class="as-ad">Metal Enjeksiyon</span>
-                                <span class="as-sub">/andon_metal</span>
-                            </span>
-                        </button>
-                    </div>
                 </div>
 
                 <!-- KPI -->
