@@ -1935,12 +1935,73 @@ def andon_veri():
         if rn not in robot_durus_map: robot_durus_map[rn] = {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []}
         robot_durus_map[rn]['detay'].append({'sebep': d['durus_sebebi'], 'sure_dk': d['sure_dk'], 'tip': d['durus_tipi']})
 
-    robotlar = {}
+    # Vardiya bazlı duruş haritası (her vardiya için ayrı duruş istatistiği)
+    # — montaj/metal'de aynı hat/makinede birden fazla vardiya açıkken duruşları
+    # operatörler arasında karıştırmamak için.
+    vardiya_durus_rows = c.execute(f'''
+        SELECT v.id as vid, COALESCE(SUM(d.sure_dk), 0) as toplam_durus_dk, COUNT(d.id) as durus_adet
+        FROM vardiyalar v
+        LEFT JOIN duruslar d ON d.vardiya_id = v.id
+        WHERE v.id IN {vardiya_ids_placeholder}
+        GROUP BY v.id
+    ''').fetchall()
+    vardiya_durus_detay = c.execute(f'''
+        SELECT d.vardiya_id as vid, d.durus_sebebi, d.durus_tipi, d.sure_dk
+        FROM duruslar d
+        WHERE d.vardiya_id IN {vardiya_ids_placeholder}
+        ORDER BY d.vardiya_id, d.sure_dk DESC
+    ''').fetchall()
+    vardiya_durus_map = {}
+    for r in vardiya_durus_rows:
+        vardiya_durus_map[r['vid']] = {'toplam_durus_dk': r['toplam_durus_dk'], 'durus_adet': r['durus_adet'], 'detay': []}
+    for d in vardiya_durus_detay:
+        vid = d['vid']
+        if vid not in vardiya_durus_map:
+            vardiya_durus_map[vid] = {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []}
+        vardiya_durus_map[vid]['detay'].append({'sebep': d['durus_sebebi'], 'sure_dk': d['sure_dk'], 'tip': d['durus_tipi']})
+
+    # ── aktif_vardiyalar: her açık vardiya = ayrı kart ──
+    # Bu, andon ekranında aynı hat/makineye birden fazla operatör açtığında
+    # her operatörün kendi kartını ve kendi üretim/duruş kayıtlarını görmesini sağlar.
+    aktif_vardiyalar = []
     for v in vardiyalar:
-        # SADECE açık vardiyaları ANDON ekranında göster (Kapalılar aktif görünmesin)
         if v['durum'] != 'acik':
             continue
-            
+        durus_info = vardiya_durus_map.get(v['id'], {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []})
+        item = {
+            'vardiya_id': v['id'],
+            'robot_no': v['robot_no'],
+            'operator': v['operator_adi'],
+            'vardiya': v['vardiya_turu'],
+            'baslangic': v['baslangic_saati'],
+            'bitis': v['bitis_saati'],
+            'istasyon_1': [], 'istasyon_2': [], 'diger': [], 'atamalar': [],
+            'durus_dk': durus_info['toplam_durus_dk'],
+            'durus_adet': durus_info['durus_adet'],
+            'durus_detay': durus_info['detay'],
+        }
+        for u in uretim_rows:
+            if u['vardiya_id'] == v['id']:
+                row = {'ref': u['referans_kodu'], 'launch': u['launch_adet'] or 0, 'tamamlandi': 1 if u['tamamlandi'] else 0}
+                ist = u['istasyon'] or 0
+                if ist == 1:   item['istasyon_1'].append(row)
+                elif ist == 2: item['istasyon_2'].append(row)
+                else:          item['diger'].append(row)
+        aktif_vardiyalar.append(item)
+
+    # Atamaları her uygun shift kartına ekle (aynı robot_no'lu kartlara)
+    for a in atama_rows:
+        rn = a['robot_no']
+        atama_item = {'id': a['id'], 'istasyon': a['istasyon'], 'referans_kodu': a['referans_kodu'], 'aciklama': a['aciklama'], 'atayan': a['atayan']}
+        for it in aktif_vardiyalar:
+            if it['robot_no'] == rn:
+                it['atamalar'].append(atama_item)
+
+    # Eski 'robotlar' alanı (legacy andon.html için backward compat — robot bazında ilk vardiya)
+    robotlar = {}
+    for v in vardiyalar:
+        if v['durum'] != 'acik':
+            continue
         r = v['robot_no']
         durus_info = robot_durus_map.get(r, {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []})
         if r not in robotlar:
@@ -1999,6 +2060,7 @@ def andon_veri():
         'plansiz_durus_dk': plansiz_durus_dk,
         'vardiya_sayisi': len(vardiyalar),
         'robotlar': list(robotlar.values()),
+        'aktif_vardiyalar': aktif_vardiyalar,
         'plansiz_duruslar': plansiz_duruslar,
         'referans_takip': referans_takip_list,
         'duyuru': _andon_mesaj

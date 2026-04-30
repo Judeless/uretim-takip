@@ -398,8 +398,13 @@
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 8px 14px;
-      max-height: 130px;
-      overflow: hidden;
+      max-height: 220px;          /* iki satır pill rahatça sığsın */
+      overflow-y: auto;            /* taşarsa dikey scrollbar */
+      overflow-x: hidden;
+    }
+    .reftrack::-webkit-scrollbar { width: 6px; }
+    .reftrack::-webkit-scrollbar-thumb {
+      background: rgba(167,139,250,0.30); border-radius: 3px;
     }
     .reftrack-title {
       font-size: 0.62rem; font-weight: 800;
@@ -718,8 +723,8 @@
       c.innerHTML = '<div style="color:var(--muted);font-size:.7rem;font-style:italic">Aktif referans takibi yok.</div>';
       return;
     }
-    // Sadece ilk 12 göster (taşmasın)
-    const arr = list.slice(0, 12);
+    // İlk 24 pill — fazlası dikey scrollbar ile gezilebilir (max-height 220px)
+    const arr = list.slice(0, 24);
     c.innerHTML = arr.map(r => {
       const cls = 'rt-pill rt-' + (r.durum || 'launch_alinacak');
       const sub = (r.robot_no ? r.robot_no : '') + (r.istasyon ? ' / İ' + r.istasyon : '');
@@ -765,19 +770,44 @@
       const res = await fetch(API_URL, { cache:'no-store' });
       const d = await res.json();
 
-      const rMap = {};
-      (d.robotlar || []).forEach(r => { rMap[r.robot_no] = r; });
+      // Açık vardiyalar listesi — her vardiya = bir kart (aynı hat'a birden çok operatör açtıysa hepsi ayrı kart)
+      const aktif = d.aktif_vardiyalar || [];
+      const shiftsByRobot = {};
+      aktif.forEach(s => {
+        if (!shiftsByRobot[s.robot_no]) shiftsByRobot[s.robot_no] = [];
+        shiftsByRobot[s.robot_no].push(s);
+      });
 
       const fallback = (BOLUM === 'kaynak') ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
                      : (BOLUM === 'metal')  ? ['300T','400T','500T','Şerit Testere']
                                             : ['HAT 1'];
       const target = _robots.length ? _robots : fallback;
       const grid = document.getElementById('robot-grid');
-      grid.innerHTML = target.map(rn => {
-        const r = rMap[rn] || { robot_no: rn, operator:'', vardiya:'', baslangic:'', bitis:'',
-          istasyon_1:[], istasyon_2:[], diger:[], atamalar:[], durus_dk:0, durus_adet:0, durus_detay:[] };
-        return renderRobotCard(r);
-      }).join('');
+      const cards = [];
+
+      // Görünür sıradaki her robot için: vardiya varsa hepsini ayrı kart, yoksa standby kartı
+      target.forEach(rn => {
+        const shifts = shiftsByRobot[rn] || [];
+        if (shifts.length === 0) {
+          cards.push(renderRobotCard({
+            robot_no: rn, operator:'', vardiya:'', baslangic:'', bitis:'',
+            istasyon_1:[], istasyon_2:[], diger:[], atamalar:[],
+            durus_dk:0, durus_adet:0, durus_detay:[]
+          }));
+        } else {
+          shifts.forEach(s => cards.push(renderRobotCard(s)));
+        }
+      });
+
+      // Listede olmayan ama vardiyası açık olan ek robot/hat'ları da göster
+      // (ör: yeni eklenen "HAT 5" henüz andon_robot_ayarlari'nda yoksa)
+      Object.keys(shiftsByRobot).forEach(rn => {
+        if (!target.includes(rn)) {
+          shiftsByRobot[rn].forEach(s => cards.push(renderRobotCard(s)));
+        }
+      });
+
+      grid.innerHTML = cards.join('');
 
       renderRefTrack(d.referans_takip || []);
 
