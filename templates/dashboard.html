@@ -1023,10 +1023,164 @@
         ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.25); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,0.45); }
 
+        /* Hamburger ve backdrop default'ta gizli — sadece mobile'da görünür */
+        .hamburger-btn, .sidebar-backdrop { display: none; }
+
+        /* ╔══════════════════════════════════════════════════════════════╗
+           ║  ANDON KISA YOL KUTUSU                                      ║
+           ╚══════════════════════════════════════════════════════════════╝ */
+        .andon-shortcuts {
+            background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            backdrop-filter: var(--glass-blur);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.28);
+            padding: 16px 18px;
+            margin-bottom: 22px;
+        }
+        [data-theme="light"] .andon-shortcuts {
+            background: var(--card);
+            box-shadow: 0 6px 18px rgba(31, 38, 135, 0.05);
+        }
+        .andon-shortcuts-title {
+            font-size: 0.66rem; font-weight: 800;
+            letter-spacing: 0.2em; text-transform: uppercase;
+            color: var(--muted); margin-bottom: 10px;
+        }
+        .andon-shortcuts-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+        }
+        .andon-shortcut {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            cursor: pointer;
+            color: var(--text);
+            font-family: var(--font-main);
+            text-align: left;
+            transition: transform .15s ease, border-color .2s ease, box-shadow .25s ease;
+        }
+        .andon-shortcut:hover { transform: translateY(-2px); }
+        .andon-shortcut .as-icon {
+            font-size: 1.6rem;
+            width: 44px; height: 44px;
+            display: grid; place-items: center;
+            background: rgba(0,0,0,0.18);
+            border-radius: 12px;
+            border: 1px solid var(--border-subtle);
+            flex-shrink: 0;
+        }
+        .andon-shortcut .as-text {
+            display: flex; flex-direction: column; gap: 2px; min-width: 0;
+        }
+        .andon-shortcut .as-ad {
+            font-size: 0.95rem; font-weight: 800;
+            letter-spacing: -0.005em;
+        }
+        .andon-shortcut .as-sub {
+            font-size: 0.7rem; color: var(--muted); font-weight: 500;
+            font-family: var(--font-mono);
+        }
+        .andon-shortcut.as-kaynak { border-left: 3px solid var(--c-violet); }
+        .andon-shortcut.as-kaynak:hover { border-color: var(--c-violet); box-shadow: 0 0 24px rgba(167,139,250,0.20); }
+        .andon-shortcut.as-montaj { border-left: 3px solid var(--c-emerald); }
+        .andon-shortcut.as-montaj:hover { border-color: rgba(52,211,153,0.5); box-shadow: 0 0 24px rgba(52,211,153,0.20); }
+        .andon-shortcut.as-metal  { border-left: 3px solid var(--c-amber); }
+        .andon-shortcut.as-metal:hover  { border-color: rgba(251,191,36,0.5); box-shadow: 0 0 24px rgba(251,191,36,0.20); }
+
+        /* ╔══════════════════════════════════════════════════════════════╗
+           ║  RESPONSİVE — TABLET / TELEFON                              ║
+           ╚══════════════════════════════════════════════════════════════╝ */
+
+        /* Tablet (<= 1024px) */
+        @media (max-width: 1024px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .andon-shortcuts-grid { grid-template-columns: repeat(3, 1fr); }
+            .chart-grid { grid-template-columns: 1fr; }
+            .main { padding: 24px 28px 60px; }
+        }
+
+        /* Telefon (<= 768px) */
+        @media (max-width: 768px) {
+            /* Sidebar gizle, hamburger ile aç */
+            .sidebar {
+                position: fixed; top: 0; left: -280px; bottom: 0;
+                width: 260px; z-index: 1000;
+                transition: left 0.3s cubic-bezier(.2,.8,.2,1);
+            }
+            .sidebar.open { left: 0; }
+            .main { margin-left: 0; padding: 16px 14px 60px; }
+
+            /* Hamburger butonu — sayfanın sol üstünde fixed */
+            .hamburger-btn {
+                position: fixed; top: 12px; left: 12px; z-index: 1100;
+                width: 44px; height: 44px; border-radius: 12px;
+                background: var(--card); border: 1px solid var(--card-border);
+                color: var(--text); font-size: 1.2rem;
+                display: grid; place-items: center;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+                cursor: pointer;
+            }
+            .hamburger-btn:hover { background: rgba(167,139,250,0.10); }
+            .sidebar-backdrop {
+                display: none;
+                position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+                backdrop-filter: blur(4px); z-index: 999;
+            }
+            .sidebar.open ~ .sidebar-backdrop,
+            .sidebar-backdrop.open { display: block; }
+
+            /* Topbar — sıkışmasın */
+            .topbar { padding-left: 56px; gap: 12px; }
+            .topbar h1 { font-size: 1.2rem; }
+            .bolum-toggle { width: 100%; }
+            .bolum-btn { flex: 1; padding: 8px 12px; font-size: 0.7rem; gap: 4px; }
+            .bolum-btn span:nth-child(2) { display: none; } /* Mobilde sadece ikon */
+
+            /* Andon shortcut grid */
+            .andon-shortcuts-grid { grid-template-columns: 1fr; }
+            .andon-shortcut .as-sub { display: none; }
+
+            /* KPI grid: 4 → 2 */
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .kpi-card { padding: 16px 14px; }
+            .kpi-value { font-size: 1.8rem; }
+
+            /* Filter bar */
+            .filter-bar { padding: 14px 16px; gap: 10px; }
+            .filter-bar input, .filter-bar select { min-width: 0; width: 100%; }
+            .filter-bar .f-group { flex: 1 1 calc(50% - 5px); min-width: 130px; }
+
+            /* Inner tab bar — buton yatayda scroll edebilsin */
+            .inner-tab-bar { overflow-x: auto; flex-wrap: nowrap; padding: 6px; }
+            .inner-tab-btn { flex-shrink: 0; padding: 8px 14px; font-size: 0.78rem; }
+            .tab-pin-btn { display: none; }
+
+            /* Tablolar yatay scroll */
+            .table-card .table-wrap, .table-wrap { overflow-x: auto; }
+            .table-card table { min-width: 600px; }
+
+            /* Modal'lar */
+            .report-modal-content { padding: 18px 16px; max-height: 95vh; }
+        }
+
+        /* Çok küçük telefon (<= 420px) */
+        @media (max-width: 420px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .topbar h1 { font-size: 1rem; }
+            .bolum-btn { padding: 8px 10px; }
+        }
+
     </style>
 </head>
 
 <body>
+    <!-- Hamburger butonu (yalnızca mobilde görünür — CSS @media kontrol ediyor) -->
+    <button type="button" class="hamburger-btn" id="hamburgerBtn" onclick="sidebarToggle()" aria-label="Menüyü aç/kapat">☰</button>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="sidebarToggle(false)"></div>
+
     <div class="layout">
 
         <!-- ══════════════════ SIDEBAR ══════════════════ -->
@@ -1120,6 +1274,34 @@
                     <button class="btn"
                         style="background:#0f172a;color:#fff;font-weight:700;padding:13px 18px;border-radius:12px;border:none;cursor:pointer;font-size:.88rem;box-shadow: 0 4px 12px rgba(0,0,0,0.2)"
                         onclick="tavGunlukRaporAc()">📊 Günlük Üretim Raporu</button>
+                </div>
+
+                <!-- ANDON ERİŞİM KUTUSU -->
+                <div class="andon-shortcuts">
+                    <div class="andon-shortcuts-title">📺 Andon Ekranları</div>
+                    <div class="andon-shortcuts-grid">
+                        <button type="button" class="andon-shortcut as-kaynak" onclick="window.open('/andon','_blank')">
+                            <span class="as-icon">🔧</span>
+                            <span class="as-text">
+                                <span class="as-ad">Robot Kaynak</span>
+                                <span class="as-sub">/andon</span>
+                            </span>
+                        </button>
+                        <button type="button" class="andon-shortcut as-montaj" onclick="window.open('/andon_montaj','_blank')">
+                            <span class="as-icon">🔩</span>
+                            <span class="as-text">
+                                <span class="as-ad">Montaj</span>
+                                <span class="as-sub">/andon_montaj</span>
+                            </span>
+                        </button>
+                        <button type="button" class="andon-shortcut as-metal" onclick="window.open('/andon_metal','_blank')">
+                            <span class="as-icon">🏭</span>
+                            <span class="as-text">
+                                <span class="as-ad">Metal Enjeksiyon</span>
+                                <span class="as-sub">/andon_metal</span>
+                            </span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- KPI -->
@@ -1938,6 +2120,23 @@
                                                 : '/andon';
             window.open(yol, '_blank');
         }
+
+        // Mobil hamburger menü toggle
+        function sidebarToggle(force) {
+            const sb = document.querySelector('.sidebar');
+            const bd = document.getElementById('sidebarBackdrop');
+            if (!sb) return;
+            const willOpen = (typeof force === 'boolean') ? force : !sb.classList.contains('open');
+            sb.classList.toggle('open', willOpen);
+            if (bd) bd.classList.toggle('open', willOpen);
+        }
+        // Sidebar nav'a tıklayınca mobilde otomatik kapansın
+        document.addEventListener('click', function (e) {
+            const navLink = e.target.closest('.nav-item');
+            if (navLink && window.innerWidth <= 768) {
+                setTimeout(() => sidebarToggle(false), 100);
+            }
+        });
 
         // ─── EXPORT MODAL ───────────────────────────────────────
         function exportModalAc() {
