@@ -74,6 +74,10 @@ def _dosya_import(conn, bolum, dosya_bilgi):
     # Referansları içe aktar
     ref_sayisi = 0
     ref_guncellenen = 0
+    # Excel'de var olan kodların normalize edilmiş seti — sonra "Excel'de OLMAYAN" referansları
+    # bu bölümden silmek için kullanılır (mirror sync).
+    excel_kodlari_norm = set()
+
     for i, row in enumerate(ref_sayfa.iter_rows(values_only=True)):
         if i == 0:
             continue  # Başlık satırını atla
@@ -87,12 +91,14 @@ def _dosya_import(conn, bolum, dosya_bilgi):
         except ValueError:
             cycle = 0.0
 
+        excel_kodlari_norm.add(kod.upper().replace(' ', ''))
+
         # Var olanı güncelle, yoksa ekle (Case-insensitive & Space-insensitive)
         mevcut = c.execute(
-            "SELECT id, referans_kodu FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', ''))", 
+            "SELECT id, referans_kodu FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', ''))",
             (kod,)
         ).fetchone()
-        
+
         if mevcut:
             # Eşleşme bulundu, süreyi, kodu ve bölümü güncelle
             c.execute('UPDATE referans_listesi SET hedef_cycle_time_sn = ?, referans_kodu = ?, bolum = ? WHERE id = ?', (cycle, kod, bolum, mevcut[0]))
@@ -106,6 +112,25 @@ def _dosya_import(conn, bolum, dosya_bilgi):
             ref_sayisi += 1
 
     print(f"  Referanslar: {ref_sayisi} eklendi, {ref_guncellenen} güncellendi")
+
+    # ── MIRROR SYNC: Excel'de olmayan referansları bu bölümden temizle ──
+    # Kullanıcı Excel'den bir referans sildiyse "süre tanımı bekleyen" panelinde
+    # görünmeye devam etmesin. Sadece bu bolum'a ait kayıtları siler.
+    ref_silinen = 0
+    if excel_kodlari_norm:
+        bolum_refs = c.execute(
+            "SELECT id, referans_kodu FROM referans_listesi WHERE COALESCE(bolum, 'kaynak') = ?",
+            (bolum,)
+        ).fetchall()
+        for ref_row in bolum_refs:
+            ref_norm = str(ref_row[1] or '').upper().replace(' ', '')
+            if ref_norm and ref_norm not in excel_kodlari_norm:
+                c.execute('DELETE FROM referans_listesi WHERE id = ?', (ref_row[0],))
+                ref_silinen += 1
+        if ref_silinen:
+            print(f"  Referanslar: {ref_silinen} adet (Excel'de olmayan) silindi")
+    else:
+        print("  UYARI: Excel'den hiçbir referans okunamadı, silme atlandı (yanlışlıkla hepsini silmemek için)")
 
     # Operatörleri içe aktar
     op_sayisi = 0
@@ -143,6 +168,7 @@ def _dosya_import(conn, bolum, dosya_bilgi):
     return {
         'referanslar_eklenen': ref_sayisi,
         'referanslar_guncellenen': ref_guncellenen,
+        'referanslar_silinen': ref_silinen,
         'operatorler_eklenen': op_sayisi
     }
 
@@ -181,7 +207,7 @@ def import_data(bolum=None):
         pass
 
     sonuclar = {}
-    toplam = {'referanslar_eklenen': 0, 'referanslar_guncellenen': 0, 'operatorler_eklenen': 0}
+    toplam = {'referanslar_eklenen': 0, 'referanslar_guncellenen': 0, 'referanslar_silinen': 0, 'operatorler_eklenen': 0}
 
     if bolum:
         islenen = [(bolum, EXCEL_DOSYALARI[bolum])]
@@ -194,9 +220,10 @@ def import_data(bolum=None):
         print(f"{'='*50}")
         sonuc = _dosya_import(conn, b, dosya_bilgi)
         sonuclar[b] = sonuc
-        toplam['referanslar_eklenen'] += sonuc['referanslar_eklenen']
-        toplam['referanslar_guncellenen'] += sonuc['referanslar_guncellenen']
-        toplam['operatorler_eklenen'] += sonuc['operatorler_eklenen']
+        toplam['referanslar_eklenen'] += sonuc.get('referanslar_eklenen', 0)
+        toplam['referanslar_guncellenen'] += sonuc.get('referanslar_guncellenen', 0)
+        toplam['referanslar_silinen'] += sonuc.get('referanslar_silinen', 0)
+        toplam['operatorler_eklenen'] += sonuc.get('operatorler_eklenen', 0)
 
     conn.commit()
     conn.close()
@@ -205,6 +232,7 @@ def import_data(bolum=None):
         'basarili': True,
         'referanslar_eklenen': toplam['referanslar_eklenen'],
         'referanslar_guncellenen': toplam['referanslar_guncellenen'],
+        'referanslar_silinen': toplam['referanslar_silinen'],
         'operatorler_eklenen': toplam['operatorler_eklenen'],
         'detay': sonuclar
     }

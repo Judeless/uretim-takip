@@ -3701,7 +3701,11 @@
                 const data = await res.json();
 
                 if (res.ok && data.basarili) {
-                    toast(`✅ ${bilgi}: ${data.referanslar_eklenen} ref ekle, ${data.referanslar_guncellenen} güncelle, ${data.operatorler_eklenen} operatör`, 'ok');
+                    const silinen = data.referanslar_silinen || 0;
+                    let mesaj = `✅ ${bilgi}: ${data.referanslar_eklenen} ekle, ${data.referanslar_guncellenen} güncelle`;
+                    if (silinen > 0) mesaj += `, ${silinen} sil`;
+                    mesaj += `, ${data.operatorler_eklenen} operatör`;
+                    toast(mesaj, 'ok');
                     if (aktifSekme === 'referanslar') {
                         yukleReferanslar();
                     }
