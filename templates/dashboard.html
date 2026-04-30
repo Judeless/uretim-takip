@@ -486,12 +486,12 @@
         #inner-pane-isatama select {
             width: 100%;
             padding: 11px 13px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.07) !important;
+            border: 1px solid rgba(255,255,255,0.18) !important;
             border-radius: 11px;
             font-size: 0.86rem;
             font-weight: 500;
-            color: var(--text);
+            color: var(--text) !important;
             font-family: var(--font-main);
             transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
         }
@@ -499,9 +499,49 @@
         #inner-pane-isatama input:focus,
         #inner-pane-isatama select:focus {
             outline: none;
-            border-color: var(--c-violet);
-            background: rgba(167,139,250,0.06);
+            border-color: var(--c-violet) !important;
+            background: rgba(167,139,250,0.08) !important;
             box-shadow: 0 0 0 3px rgba(167,139,250,0.18);
+        }
+        /* Tablo satırı içindeki inline dropdown ve input'lar
+           — tema-duyarlı sınıf (eski hardcoded #f8fafc/#cbd5e1 yerine) */
+        .rt-row-select,
+        .rt-row-input {
+            padding: 5px 10px !important;
+            border: 1px solid rgba(255,255,255,0.18) !important;
+            border-radius: 8px !important;
+            font-size: 0.78rem;
+            font-weight: 600;
+            background: rgba(255,255,255,0.06) !important;
+            color: var(--text) !important;
+            font-family: var(--font-main);
+        }
+        .rt-row-select { cursor: pointer; }
+        .rt-row-input {
+            width: 60px;
+            text-align: center;
+        }
+        .rt-row-select:focus, .rt-row-input:focus {
+            outline: none;
+            border-color: var(--c-cyan) !important;
+            box-shadow: 0 0 0 3px rgba(34,211,238,0.20);
+        }
+        [data-theme="light"] .rt-row-select,
+        [data-theme="light"] .rt-row-input {
+            background: rgba(255,255,255,0.85) !important;
+            border-color: rgba(167,139,250,0.30) !important;
+            color: #1e1b3a !important;
+        }
+        /* Select option'ları her durumda okunabilir */
+        #inner-pane-isatama select option,
+        .rt-row-select option {
+            background: #110e2e;
+            color: #eef2ff;
+        }
+        [data-theme="light"] #inner-pane-isatama select option,
+        [data-theme="light"] .rt-row-select option {
+            background: #fff;
+            color: #1e1b3a;
         }
         /* Form bloğunu tek bir cam karta sar */
         #inner-pane-isatama > .panel-block .table-card {
@@ -1898,8 +1938,11 @@
                             <input type="number" id="rt-adet" placeholder="0" min="0"
                                 style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                         </div>
-                        <div id="rt-robot-wrap" data-bolum-only="kaynak,metal">
-                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px" id="rt-robot-label">Robot</div>
+                        <!-- Robot/Makine seçimi form'da yalnızca metal'de görünür.
+                             Robot Kaynak'ta robot/istasyon seçimi tablodan (satır içi dropdown)
+                             yapılır — form sade. Montaj'da zaten yok. -->
+                        <div id="rt-robot-wrap" data-bolum-only="metal">
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px" id="rt-robot-label">Makine</div>
                             <select id="rt-robot" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                                 <option value="">Seç...</option>
                             </select>
@@ -2541,8 +2584,7 @@
                         const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
                         robotSelectHTML = `
                             <div style="display:flex;align-items:center;gap:4px">
-                                <select onchange="refRobotDogrudanGuncelle(${r.id}, this.value)"
-                                    style="padding:4px;border:1px solid #cbd5e1;border-radius:6px;font-size:.78rem;font-weight:600;background:#f8fafc;cursor:pointer">
+                                <select class="rt-row-select" onchange="refRobotDogrudanGuncelle(${r.id}, this.value)">
                                     ${opts.map(robot => `<option value="${robot}" ${r.robot_no === robot ? 'selected' : ''}>${robot || (tekil + ' Seç...')}</option>`).join('')}
                                 </select>
                                 ${(aktifBolum === 'kaynak' && r.istasyon > 0) ? `<span style="font-size:.65rem;color:var(--muted)">İst.${r.istasyon}</span>` : ''}
@@ -2555,8 +2597,8 @@
                     const oncelikInputHTML = `
                         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
                             <input type="number" min="1" value="${oncelikDeger}" placeholder="—"
-                                onchange="refOncelikGuncelle(${r.id}, this.value)"
-                                style="width:54px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:.82rem;font-weight:700;background:rgba(255,255,255,0.04);color:var(--text);text-align:center">
+                                class="rt-row-input"
+                                onchange="refOncelikGuncelle(${r.id}, this.value)">
                             ${oncelikDeger ? `<span style="font-size:.65rem;color:var(--c-violet);font-weight:700">${oncelikDeger}.</span>` : ''}
                         </div>`;
 
