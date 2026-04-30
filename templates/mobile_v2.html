@@ -1997,7 +1997,15 @@
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (d.hata) { toast(d.hata, 'error'); return; }
-          toast(did ? 'Duruş güncellendi' : 'Duruş kaydedildi', 'success');
+          var mesaj;
+          if (did) {
+            mesaj = 'Duruş güncellendi';
+          } else if (d.birlestirilen && d.birlestirilen > 0) {
+            mesaj = 'Aynı duruş bulundu — süre eklendi';
+          } else {
+            mesaj = 'Duruş kaydedildi';
+          }
+          toast(mesaj, 'success');
           gitEkran('C');
           setTimeout(refreshOEE, 300);
         }).catch(function () { toast('Bağlantı hatası', 'error'); });

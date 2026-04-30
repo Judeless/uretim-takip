@@ -672,7 +672,9 @@ def uretim_tamamlandi_guncelle(uid):
 
 @app.route('/api/durus', methods=['POST'])
 def durus_ekle():
-    """Duruş kaydı ekle."""
+    """Duruş kaydı ekle. Aynı vardiya + aynı durus_sebebi için zaten kayıt
+    varsa: yenisini eklemek yerine süreyi mevcut kayda ekler (toplama yapar).
+    Açıklama varsa eski açıklamaya ' | ' ile ayırarak sona eklenir."""
     data = request.get_json()
 
     if not data.get('vardiya_id') or not data.get('durus_sebebi'):
@@ -684,24 +686,46 @@ def durus_ekle():
     conn = get_db()
     c = conn.cursor()
     eklenen = 0
+    birlestirilen = 0
     for satir in satirlar:
-        durus_tipi = satir.get('durus_tipi', data.get('durus_tipi', 'plansiz'))
-        c.execute('''
-            INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            data['vardiya_id'],
-            satir.get('durus_sebebi', data.get('durus_sebebi', '')),
-            satir.get('aciklama', ''),
-            int(satir.get('sure_dk', 0)),
-            satir.get('baslangic_saati', ''),
-            durus_tipi
-        ))
-        eklenen += 1
+        vid    = data['vardiya_id']
+        sebep  = (satir.get('durus_sebebi') or data.get('durus_sebebi') or '').strip()
+        if not sebep:
+            continue
+        sure   = int(satir.get('sure_dk', 0) or 0)
+        saat   = satir.get('baslangic_saati', '') or ''
+        acikl  = (satir.get('aciklama') or '').strip()
+        tipi   = satir.get('durus_tipi', data.get('durus_tipi', 'plansiz'))
+
+        # Aynı vardiya + aynı sebep var mı?
+        mevcut = c.execute(
+            "SELECT id, sure_dk, aciklama FROM duruslar WHERE vardiya_id=? AND durus_sebebi=? LIMIT 1",
+            (vid, sebep)
+        ).fetchone()
+
+        if mevcut:
+            yeni_sure = (mevcut['sure_dk'] or 0) + sure
+            # Açıklamaları birleştir (boş olanı atla)
+            eski_acikl = (mevcut['aciklama'] or '').strip()
+            if eski_acikl and acikl:
+                yeni_acikl = eski_acikl + ' | ' + acikl
+            else:
+                yeni_acikl = eski_acikl or acikl
+            c.execute(
+                "UPDATE duruslar SET sure_dk=?, aciklama=?, durus_tipi=? WHERE id=?",
+                (yeni_sure, yeni_acikl, tipi, mevcut['id'])
+            )
+            birlestirilen += 1
+        else:
+            c.execute('''
+                INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (vid, sebep, acikl, sure, saat, tipi))
+            eklenen += 1
 
     conn.commit()
     conn.close()
-    return jsonify({'basarili': True, 'eklenen': eklenen}), 201
+    return jsonify({'basarili': True, 'eklenen': eklenen, 'birlestirilen': birlestirilen}), 201
 
 
 @app.route('/api/durus/<int:did>', methods=['DELETE'])
