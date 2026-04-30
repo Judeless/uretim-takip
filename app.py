@@ -1752,7 +1752,17 @@ DURUM_SIRASI = ['launch_alinacak', 'launch_alindi', 'launch_hazir', 'uretimde', 
 def referans_takip_listesi():
     bolum = request.args.get('bolum')
     conn = get_db()
-    if bolum:
+    # Montaj için öncelik sırasına göre listele (NULL olanlar en sonda),
+    # diğer bölümlerde oluşturma tarihine göre.
+    if bolum == 'montaj':
+        rows = conn.execute('''
+            SELECT rt.*, rl.hedef_cycle_time_sn
+            FROM referans_takip rt
+            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
+            WHERE COALESCE(rt.bolum, 'kaynak') = 'montaj'
+            ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC
+        ''').fetchall()
+    elif bolum:
         rows = conn.execute('''
             SELECT rt.*, rl.hedef_cycle_time_sn
             FROM referans_takip rt
@@ -1770,6 +1780,30 @@ def referans_takip_listesi():
     conn.close()
     return jsonify([dict(r) for r in rows])
 
+def _oncelik_yer_ac(c, bolum, yeni_oncelik, exclude_id=None):
+    """Montaj'da bir kayıt belirli bir önceliğe yerleştirilirken, mevcut
+    bu önceliğe sahip ve daha aşağıdaki kayıtların önceliğini +1 kaydırır.
+    exclude_id verilirse o kaydı kaydırmadan dışarıda bırakır (PATCH için).
+    """
+    if bolum != 'montaj' or yeni_oncelik is None:
+        return
+    if exclude_id is not None:
+        c.execute('''
+            UPDATE referans_takip
+            SET oncelik = oncelik + 1
+            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+              AND oncelik IS NOT NULL AND oncelik >= ?
+              AND id != ?
+        ''', (yeni_oncelik, exclude_id))
+    else:
+        c.execute('''
+            UPDATE referans_takip
+            SET oncelik = oncelik + 1
+            WHERE COALESCE(bolum, 'kaynak') = 'montaj'
+              AND oncelik IS NOT NULL AND oncelik >= ?
+        ''', (yeni_oncelik,))
+
+
 @app.route('/api/referans_takip', methods=['POST'])
 def referans_takip_ekle():
     try:
@@ -1782,14 +1816,26 @@ def referans_takip_ekle():
         if bolum not in ('kaynak', 'montaj', 'metal'):
             bolum = 'kaynak'
 
+        # Öncelik (yalnızca montaj için anlamlı). Boş/None: belirtilmemiş.
+        oncelik_raw = data.get('oncelik')
+        oncelik = None
+        if oncelik_raw not in (None, '', 0, '0'):
+            try:
+                oncelik = int(oncelik_raw)
+                if oncelik < 1: oncelik = None
+            except (TypeError, ValueError):
+                oncelik = None
+
         conn = get_db()
         c = conn.cursor()
+        # Montaj + öncelik verilmişse: mevcut >=N olanları kaydır
+        _oncelik_yer_ac(c, bolum, oncelik)
         c.execute('''
-            INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ref, int(data.get('hedef_adet', 0)), data.get('aciklama', ''),
               data.get('durum', 'launch_alinacak'), data.get('olusturan', ''),
-              data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum))
+              data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik))
         conn.commit()
         return jsonify({'basarili': True}), 201
     except Exception as e:
@@ -1800,6 +1846,24 @@ def referans_takip_ekle():
 def referans_takip_guncelle(id):
     data = request.get_json() or {}
     conn = get_db()
+    c = conn.cursor()
+
+    # Öncelik değişiyorsa shift mantığı çalıştır (montaj için)
+    if 'oncelik' in data:
+        mevcut = c.execute("SELECT bolum, oncelik FROM referans_takip WHERE id=?", (id,)).fetchone()
+        if mevcut:
+            bolum_kayit = (mevcut['bolum'] or 'kaynak')
+            yeni_raw = data.get('oncelik')
+            yeni_onc = None
+            if yeni_raw not in (None, '', 0, '0'):
+                try:
+                    yeni_onc = int(yeni_raw)
+                    if yeni_onc < 1: yeni_onc = None
+                except (TypeError, ValueError):
+                    yeni_onc = None
+            _oncelik_yer_ac(c, bolum_kayit, yeni_onc, exclude_id=id)
+            data['oncelik'] = yeni_onc  # normalize edildi
+
     fields, vals = [], []
     if 'durum' in data:
         fields.append('durum=?'); vals.append(data['durum'])
@@ -1813,12 +1877,14 @@ def referans_takip_guncelle(id):
         fields.append('robot_no=?'); vals.append(data['robot_no'])
     if 'istasyon' in data:
         fields.append('istasyon=?'); vals.append(int(data['istasyon']))
+    if 'oncelik' in data:
+        fields.append('oncelik=?'); vals.append(data['oncelik'])  # None olabilir
     if not fields:
         conn.close()
         return jsonify({'error': 'Güncellenecek alan yok'}), 400
     fields.append("guncelleme_tarihi=datetime('now','localtime')")
     vals.append(id)
-    conn.execute(f"UPDATE referans_takip SET {','.join(fields)} WHERE id=?", vals)
+    c.execute(f"UPDATE referans_takip SET {','.join(fields)} WHERE id=?", vals)
     conn.commit()
     conn.close()
     return jsonify({'basarili': True})
@@ -2022,12 +2088,15 @@ def andon_veri():
         aktif_vardiyalar.append(item)
 
     # Atamaları her uygun shift kartına ekle (aynı robot_no'lu kartlara)
-    for a in atama_rows:
-        rn = a['robot_no']
-        atama_item = {'id': a['id'], 'istasyon': a['istasyon'], 'referans_kodu': a['referans_kodu'], 'aciklama': a['aciklama'], 'atayan': a['atayan']}
-        for it in aktif_vardiyalar:
-            if it['robot_no'] == rn:
-                it['atamalar'].append(atama_item)
+    # Montaj'da "atama" kavramı kullanılmıyor — operatöre sıradaki iş olarak
+    # bireysel atama yansımaz (öncelik listesi yalnızca yönetici görünümünde anlamlı).
+    if bolum != 'montaj':
+        for a in atama_rows:
+            rn = a['robot_no']
+            atama_item = {'id': a['id'], 'istasyon': a['istasyon'], 'referans_kodu': a['referans_kodu'], 'aciklama': a['aciklama'], 'atayan': a['atayan']}
+            for it in aktif_vardiyalar:
+                if it['robot_no'] == rn:
+                    it['atamalar'].append(atama_item)
 
     # Eski 'robotlar' alanı (legacy andon.html için backward compat — robot bazında ilk vardiya)
     robotlar = {}

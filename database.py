@@ -135,6 +135,13 @@ def init_db():
     except Exception:
         pass
 
+    # oncelik kolonu — Montaj iş emirlerinde sıralama için (1, 2, 3 ...)
+    # NULL = öncelik belirtilmemiş. Sadece montaj için anlamlı, diğer bölümler ignore eder.
+    try:
+        c.execute("ALTER TABLE referans_takip ADD COLUMN oncelik INTEGER")
+    except Exception:
+        pass
+
     # tamir_adet kolonu yoksa ekle (mevcut DB icin migration)
     try:
         c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN tamir_adet INTEGER DEFAULT 0")
@@ -301,6 +308,59 @@ def init_db():
             'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, goster, sira) VALUES (?, ?, ?)',
             (rno, goster, i)
         )
+
+    # ─────────────────────────────────────────────────────────────
+    # SAYAÇ OLAYLARI (ESP32 / PLC / sahadan gelen üretim pulse'ları)
+    # Her pulse bir satır — vardiya_id ile ilişkilendirilir.
+    # idempotency_key cihazın kendisinden gelir (device_id + sayac_no);
+    # ağ titremesinde tekrar gelse bile UNIQUE constraint çift sayım önler.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS sayac_olaylari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT DEFAULT (datetime('now', 'localtime')),
+            bolum TEXT NOT NULL DEFAULT 'kaynak',
+            robot_no TEXT NOT NULL,
+            istasyon INTEGER NOT NULL DEFAULT 0,
+            cihaz_id TEXT DEFAULT '',
+            kaynak_tip TEXT DEFAULT 'robot_io',
+            idempotency_key TEXT NOT NULL,
+            vardiya_id INTEGER,
+            FOREIGN KEY (vardiya_id) REFERENCES vardiyalar(id) ON DELETE SET NULL
+        )
+    ''')
+    # Idempotency: aynı key iki kere gelirse INSERT'ler reddedilir
+    try:
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_sayac_idempotency ON sayac_olaylari(idempotency_key)')
+    except Exception:
+        pass
+    # Hızlı sorgular için ek indexler (canlı counter — vardiya bazlı)
+    try:
+        c.execute('CREATE INDEX IF NOT EXISTS idx_sayac_vardiya ON sayac_olaylari(vardiya_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_sayac_robot ON sayac_olaylari(bolum, robot_no, istasyon, ts)')
+    except Exception:
+        pass
+
+    # ─────────────────────────────────────────────────────────────
+    # CİHAZ KAYITLARI (ESP32 heartbeat — son görülme + sağlık)
+    # Andon'da "ABB1 sinyal yok 12 dk" uyarısı için kullanılır.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS cihaz_kayitlari (
+            cihaz_id TEXT PRIMARY KEY,
+            bolum TEXT DEFAULT '',
+            robot_no TEXT DEFAULT '',
+            firmware_ver TEXT DEFAULT '',
+            ip_adresi TEXT DEFAULT '',
+            mac_adresi TEXT DEFAULT '',
+            son_heartbeat TEXT DEFAULT (datetime('now', 'localtime')),
+            son_sinyal TEXT,
+            toplam_sinyal INTEGER DEFAULT 0,
+            buffer_kuyruk INTEGER DEFAULT 0,
+            uptime_sn INTEGER DEFAULT 0,
+            notlar TEXT DEFAULT ''
+        )
+    ''')
 
     conn.commit()
     conn.close()

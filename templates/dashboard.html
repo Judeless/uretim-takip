@@ -1710,11 +1710,16 @@
                             <input type="number" id="rt-adet" placeholder="0" min="0"
                                 style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                         </div>
-                        <div>
+                        <div id="rt-robot-wrap" data-bolum-only="kaynak,metal">
                             <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px" id="rt-robot-label">Robot</div>
                             <select id="rt-robot" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                                 <option value="">Seç...</option>
                             </select>
+                        </div>
+                        <div id="rt-oncelik-wrap" data-bolum-only="montaj">
+                            <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">Öncelik</div>
+                            <input type="number" id="rt-oncelik" min="1" placeholder="boş ya da 1, 2, 3..."
+                                style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                         </div>
                         <div id="rt-istasyon-wrap" data-bolum-only="kaynak">
                             <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">İstasyon</div>
@@ -2302,8 +2307,13 @@
             }
             const thRobot = document.getElementById('ref-takip-th-robot');
             if (thRobot) {
-                const tek = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
-                thRobot.textContent = aktifBolum === 'kaynak' ? (tek + ' / İst.') : tek;
+                if (aktifBolum === 'montaj') {
+                    thRobot.textContent = 'Öncelik';
+                } else if (aktifBolum === 'kaynak') {
+                    thRobot.textContent = 'Robot / İst.';
+                } else {
+                    thRobot.textContent = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+                }
             }
         }
 
@@ -2332,19 +2342,32 @@
                                    transition:.2s">
                             ${d.label}
                         </button>`).join('');
-                    // Bolume gore secenekler — eski kayit listede yoksa onu da ekle (kaybolmasin)
-                    const opts = [''].concat(rtRobotListesi);
-                    if (r.robot_no && !opts.includes(r.robot_no)) opts.push(r.robot_no);
-                    const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
-                    const robotSelectHTML = `
-                        <div style="display:flex;align-items:center;gap:4px">
-                            <select onchange="refRobotDogrudanGuncelle(${r.id}, this.value)"
-                                style="padding:4px;border:1px solid #cbd5e1;border-radius:6px;font-size:.78rem;font-weight:600;background:#f8fafc;cursor:pointer">
-                                ${opts.map(robot => `<option value="${robot}" ${r.robot_no === robot ? 'selected' : ''}>${robot || (tekil + ' Seç...')}</option>`).join('')}
-                            </select>
-                            ${(aktifBolum === 'kaynak' && r.istasyon > 0) ? `<span style="font-size:.65rem;color:var(--muted)">İst.${r.istasyon}</span>` : ''}
-                        </div>
-                    `;
+                    // Robot/Hat/Makine sütunu — montaj'da öncelik input'u, diğerlerinde dropdown
+                    let robotSelectHTML;
+                    if (aktifBolum === 'montaj') {
+                        const oncelikDeger = (r.oncelik !== null && r.oncelik !== undefined) ? r.oncelik : '';
+                        robotSelectHTML = `
+                            <div style="display:flex;align-items:center;gap:6px">
+                                <input type="number" min="1" value="${oncelikDeger}" placeholder="—"
+                                    onchange="refOncelikGuncelle(${r.id}, this.value)"
+                                    style="width:64px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.82rem;font-weight:700;background:rgba(255,255,255,0.04);color:var(--text);text-align:center">
+                                ${oncelikDeger ? `<span style="font-size:.7rem;color:var(--c-violet);font-weight:700">${oncelikDeger}. öncelik</span>` : '<span style="font-size:.65rem;color:var(--muted)">—</span>'}
+                            </div>
+                        `;
+                    } else {
+                        const opts = [''].concat(rtRobotListesi);
+                        if (r.robot_no && !opts.includes(r.robot_no)) opts.push(r.robot_no);
+                        const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+                        robotSelectHTML = `
+                            <div style="display:flex;align-items:center;gap:4px">
+                                <select onchange="refRobotDogrudanGuncelle(${r.id}, this.value)"
+                                    style="padding:4px;border:1px solid #cbd5e1;border-radius:6px;font-size:.78rem;font-weight:600;background:#f8fafc;cursor:pointer">
+                                    ${opts.map(robot => `<option value="${robot}" ${r.robot_no === robot ? 'selected' : ''}>${robot || (tekil + ' Seç...')}</option>`).join('')}
+                                </select>
+                                ${(aktifBolum === 'kaynak' && r.istasyon > 0) ? `<span style="font-size:.65rem;color:var(--muted)">İst.${r.istasyon}</span>` : ''}
+                            </div>
+                        `;
+                    }
 
                     const refKodEscaped = String(r.referans_kodu || '').replace(/'/g, "\\\\\\'").replace(/"/g, "&quot;");
                     const roboNoEscaped = String(r.robot_no || '').replace(/'/g, "\\\\\\'");
@@ -2383,24 +2406,31 @@
             btn.innerHTML = '<span class="spinner"></span>';
             
             try {
+                // Montaj'da öncelik (number input), diğerlerinde robot_no (select)
+                const oncelikEl = document.getElementById('rt-oncelik');
+                const oncelikRaw = (oncelikEl && oncelikEl.value !== '') ? parseInt(oncelikEl.value) : null;
+                const oncelikGonder = (aktifBolum === 'montaj' && oncelikRaw && oncelikRaw > 0) ? oncelikRaw : null;
+
                 const res = await fetch('/api/referans_takip', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         referans_kodu: ref,
                         hedef_adet: parseInt(document.getElementById('rt-adet').value) || 0,
-                        robot_no: document.getElementById('rt-robot').value,
+                        robot_no: aktifBolum === 'montaj' ? '' : document.getElementById('rt-robot').value,
                         istasyon: parseInt((document.getElementById('rt-istasyon') || {}).value || 0) || 0,
+                        oncelik: oncelikGonder,
                         aciklama: document.getElementById('rt-aciklama').value.trim(),
                         olusturan: 'Yönetici',
                         bolum: aktifBolum
                     })
                 });
                 if (!res.ok) throw new Error('Sunucu hatası: ' + res.status);
-                
+
                 document.getElementById('rt-ref').value = '';
                 document.getElementById('rt-adet').value = '';
-                document.getElementById('rt-robot').value = '';
+                if (document.getElementById('rt-robot')) document.getElementById('rt-robot').value = '';
+                if (oncelikEl) oncelikEl.value = '';
                 const istEl = document.getElementById('rt-istasyon');
                 if (istEl) istEl.value = '0';
                 document.getElementById('rt-aciklama').value = '';
@@ -2462,8 +2492,23 @@
                 });
                 toast('Robot ataması güncellendi', 'ok');
                 // Optik update (isteğe bağlı) -> zaten panel kendini onchange de refresh de edebilir.
-                // await yukleRefTakipPanel(); 
+                // await yukleRefTakipPanel();
             } catch(e) { toast('Hata', 'err'); }
+        }
+
+        // Montaj — öncelik değişince auto-shift için backend güncellenir + tablo yenilenir
+        async function refOncelikGuncelle(id, val) {
+            const v = (val === '' || val === null || val === undefined) ? null : parseInt(val);
+            try {
+                const res = await fetch('/api/referans_takip/' + id, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ oncelik: (v && v > 0) ? v : null })
+                });
+                if (!res.ok) throw new Error('Sunucu hatası');
+                toast('Öncelik güncellendi', 'ok');
+                await yukleRefTakipPanel(); // shift olabileceği için tüm liste yenile
+            } catch(e) { toast('Öncelik güncellenemedi', 'err'); }
         }
 
         async function refDurumGuncelle(id, durum) {

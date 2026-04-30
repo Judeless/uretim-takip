@@ -1404,20 +1404,11 @@
                          '<option value="500T">500T</option>' +
                          '<option value="Şerit Testere">Şerit Testere</option>';
       } else {
-        // Montaj: mevcut HAT'leri dinamik getir, en altta "+ Yeni hat ekle" secenegi
-        robotWrap.style.display = 'block';
-        if (robotLabel) robotLabel.textContent = 'Hat';
-        rsel.innerHTML = '<option value="">Seçin...</option>';
-        fetch('/api/robotlar?bolum=montaj').then(function (r) { return r.json(); }).then(function (hatlar) {
-          hatlar.forEach(function (h) {
-            var opt = document.createElement('option');
-            opt.value = h; opt.textContent = h;
-            rsel.appendChild(opt);
-          });
-          var yeni = document.createElement('option');
-          yeni.value = '__yeni__'; yeni.textContent = '+ Yeni hat ekle';
-          rsel.appendChild(yeni);
-        }).catch(function () { });
+        // Montaj: hat seçimi yok — operatör doğrudan vardiyaya başlar.
+        // Backend robot_no NOT NULL olduğu için sabit 'MONTAJ' değeri set ediyoruz.
+        robotWrap.style.display = 'none';
+        rsel.innerHTML = '<option value="MONTAJ" selected>MONTAJ</option>';
+        rsel.value = 'MONTAJ';
       }
 
       gitEkran('B');
@@ -1707,17 +1698,18 @@
       if (bolum === 'kaynak') {
         robot = document.getElementById('b-robot').value;
       } else if (bolum === 'montaj') {
-        robot = 'MONTAJ';
+        robot = 'MONTAJ'; // Montaj'da hat se\u00e7imi yok \u2014 sabit 'MONTAJ' kullan\u0131l\u0131r
       } else if (bolum === 'metal') {
-        robot = 'ME';
+        robot = document.getElementById('b-robot').value; // Makine se\u00e7imi (300T/400T/500T/\u015eerit Testere)
       }
       var vt = document.getElementById('b-vardiya-turu').value;
       var bas = document.getElementById('b-bas').value;
       var bit = document.getElementById('b-bit').value;
 
       if (!op) { toast('Operat\u00f6r se\u00e7iniz', 'error'); return; }
-      if (!robot || robot === '__yeni__') {
-        var alanAdi = bolum === 'montaj' ? 'Hat' : (bolum === 'metal' ? 'Makine' : 'Robot');
+      // Montaj'da makine/hat se\u00e7imi zorunlu de\u011fil; kaynak ve metal'de zorunlu
+      if (bolum !== 'montaj' && (!robot || robot === '__yeni__')) {
+        var alanAdi = bolum === 'metal' ? 'Makine' : 'Robot';
         toast(alanAdi + ' se\u00e7iniz', 'error'); return;
       }
       if (!tarih) { toast('Tarih giriniz', 'error'); return; }
@@ -1749,10 +1741,16 @@
     // ── SIRADAKI İŞLER ──
     async function yukleAtamalar() {
       if (!aktifVardiyaData || !aktifVardiyaData.robot_no) return;
+      // Montaj'da bireysel atama yok — operatöre sıradaki iş yansımaz
+      var aktifBolumKayit = (aktifVardiyaData && aktifVardiyaData.bolum) || secilenBolum || 'kaynak';
+      var wrap = document.getElementById('c-next-jobs');
+      if (aktifBolumKayit === 'montaj') {
+        if (wrap) wrap.style.display = 'none';
+        return;
+      }
       try {
         const res = await fetch('/api/robot/' + aktifVardiyaData.robot_no + '/atamalar');
         const list = await res.json();
-        const wrap = document.getElementById('c-next-jobs');
         const container = document.getElementById('nj-list');
         if (!list.length) { wrap.style.display = 'none'; return; }
         wrap.style.display = 'block';
