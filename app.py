@@ -1891,14 +1891,24 @@ def andon_veri():
         for d in durus_rows if d['durus_tipi'] == 'plansiz'
     ]
 
-    # ── İş atamaları (aktif) ──
-    atama_rows = c.execute('''
-        SELECT id, istasyon, referans_kodu, aciklama, olusturan as atayan, robot_no 
-        FROM referans_takip 
-        WHERE robot_no != '' AND robot_no IS NOT NULL 
-          AND durum != 'uretim_tamamlandi'
-        ORDER BY guncelleme_tarihi DESC
-    ''').fetchall()
+    # ── İş atamaları (aktif) — bölüme göre filtrelenir ──
+    if bolum:
+        atama_rows = c.execute('''
+            SELECT id, istasyon, referans_kodu, aciklama, olusturan as atayan, robot_no
+            FROM referans_takip
+            WHERE robot_no != '' AND robot_no IS NOT NULL
+              AND durum != 'uretim_tamamlandi'
+              AND COALESCE(bolum, 'kaynak') = ?
+            ORDER BY guncelleme_tarihi DESC
+        ''', (bolum,)).fetchall()
+    else:
+        atama_rows = c.execute('''
+            SELECT id, istasyon, referans_kodu, aciklama, olusturan as atayan, robot_no
+            FROM referans_takip
+            WHERE robot_no != '' AND robot_no IS NOT NULL
+              AND durum != 'uretim_tamamlandi'
+            ORDER BY guncelleme_tarihi DESC
+        ''').fetchall()
 
     # Robot bazlı duruşları çek (bölüm filtresine uygun)
     robot_durus_rows = c.execute(f'''
@@ -1955,13 +1965,22 @@ def andon_veri():
             robotlar[rn] = {'robot_no':rn, 'operator':'', 'vardiya':'', 'baslangic':'', 'bitis':'', 'istasyon_1':[], 'istasyon_2':[], 'diger':[], 'atamalar':[]}
         robotlar[rn]['atamalar'].append({'id': a['id'], 'istasyon': a['istasyon'], 'referans_kodu': a['referans_kodu'], 'aciklama': a['aciklama'], 'atayan': a['atayan']})
 
-    # Referans takip listesi
-    rt_rows = c.execute('''
-        SELECT rt.*, rl.hedef_cycle_time_sn 
-        FROM referans_takip rt
-        LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-        ORDER BY rt.olusturma_tarihi DESC
-    ''').fetchall()
+    # Referans takip listesi — bölüme göre filtrelenir
+    if bolum:
+        rt_rows = c.execute('''
+            SELECT rt.*, rl.hedef_cycle_time_sn
+            FROM referans_takip rt
+            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
+            WHERE COALESCE(rt.bolum, 'kaynak') = ?
+            ORDER BY rt.olusturma_tarihi DESC
+        ''', (bolum,)).fetchall()
+    else:
+        rt_rows = c.execute('''
+            SELECT rt.*, rl.hedef_cycle_time_sn
+            FROM referans_takip rt
+            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
+            ORDER BY rt.olusturma_tarihi DESC
+        ''').fetchall()
     referans_takip_list = [dict(row) for row in rt_rows]
 
     # Tum ayarlari yukle

@@ -1599,7 +1599,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
             <h2 style="font-size:1rem;font-weight:700">📺 Andon Ekran Ayarları</h2>
             <div style="display:flex;gap:8px">
-                <a class="btn btn-outline" href="/andon" target="_blank">🔗 Andon Ekranı Aç</a>
+                <button class="btn btn-outline" type="button" onclick="andonEkraniAc()">🔗 Andon Ekranı Aç</button>
                 <button class="btn btn-primary" onclick="andonAyarlariKaydet()">💾 Kaydet</button>
             </div>
         </div>
@@ -1929,6 +1929,14 @@
             if (typeof yukle === 'function') yukle();
             try { if (typeof yukleReferanslar === 'function') yukleReferanslar(); } catch (e) {}
             try { if (typeof yukleRefTakipPanel === 'function') yukleRefTakipPanel(); } catch (e) {}
+        }
+
+        // Aktif bölüme göre uygun andon ekranını yeni sekmede aç
+        function andonEkraniAc() {
+            const yol = aktifBolum === 'montaj' ? '/andon_montaj'
+                      : aktifBolum === 'metal'  ? '/andon_metal'
+                                                : '/andon';
+            window.open(yol, '_blank');
         }
 
         // ─── EXPORT MODAL ───────────────────────────────────────
