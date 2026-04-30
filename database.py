@@ -96,6 +96,12 @@ def init_db():
     except Exception:
         pass  # Kolon zaten var
 
+    # aciklama kolonu — operatör üretim kaydında not bırakabilir
+    try:
+        c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN aciklama TEXT DEFAULT ''")
+    except Exception:
+        pass  # Kolon zaten var
+
     # bolum kolonu - vardiyalar tablosu (montaj/metal enjeksiyon desteği)
     try:
         c.execute("ALTER TABLE vardiyalar ADD COLUMN bolum TEXT DEFAULT 'kaynak'")

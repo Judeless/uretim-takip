@@ -557,8 +557,8 @@ def uretim_ekle():
                 ct_in = float(ref_row['hedef_cycle_time_sn'] or 0)
 
         c.execute('''
-            INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['vardiya_id'],
             ref,
@@ -568,7 +568,8 @@ def uretim_ekle():
             int(satir.get('hedef_adet', 0)),
             ct_in,
             int(satir.get('istasyon', data.get('istasyon', 0))),
-            int(satir.get('launch_adet', data.get('launch_adet', 0)))
+            int(satir.get('launch_adet', data.get('launch_adet', 0))),
+            (satir.get('aciklama') or data.get('aciklama') or '').strip()
         ))
         # Referansı listeye otomatik ekle
         c.execute('INSERT OR IGNORE INTO referans_listesi (referans_kodu) VALUES (?)', (ref,))
@@ -612,7 +613,7 @@ def uretim_guncelle(uid):
 
     c.execute('''
         UPDATE uretim_kayitlari
-        SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?
+        SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?
         WHERE id=?
     ''', (
         ref,
@@ -623,6 +624,7 @@ def uretim_guncelle(uid):
         ct,
         int(data.get('istasyon', 0)),
         int(data.get('launch_adet', 0)),
+        (data.get('aciklama') or '').strip(),
         uid
     ))
     conn.commit()

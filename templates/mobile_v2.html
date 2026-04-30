@@ -1133,6 +1133,9 @@
           </div>
         </div>
         <input type="hidden" id="d-istasyon" value="0">
+
+        <label style="margin-top:14px">Açıklama <span style="font-weight:400;text-transform:none;color:var(--muted)">(Opsiyonel)</span></label>
+        <textarea id="d-aciklama" placeholder="Örn: Malzeme uyumsuzluğu, ölçü problemi, vs."></textarea>
       </div>
     </div>
 
@@ -1488,6 +1491,8 @@
       if (launchEl) launchEl.value = '';
       var tamir = document.getElementById('d-tamir');
       if (tamir) tamir.value = '';
+      var aciklama = document.getElementById('d-aciklama');
+      if (aciklama) aciklama.value = '';
       
       var istWrap = document.getElementById('d-istasyon-wrap');
       if (istWrap) {
@@ -1806,9 +1811,13 @@
             var tamam = u.tamamlandi ? 1 : 0;
             var tamamCls = tamam ? 'ki-btn-tamam is-tamam' : 'ki-btn-tamam is-devam';
             var tamamBtnTxt = tamam ? '✓ Tamam' : 'Devam';
+            // HTML escape (XSS koruması) — basit
+            var ackEsc = (u.aciklama || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            var aciklamaSatiri = ackEsc ? ('<div class="ki-detail" style="font-style:italic;color:var(--c-amber);margin-top:3px">📝 ' + ackEsc + '</div>') : '';
             div.innerHTML = '<div class="ki-head"><div>' +
               '<div class="ki-kod" style="' + (tamam ? 'opacity:.5;text-decoration:line-through;' : '') + '">' + u.referans_kodu + '</div>' +
               '<div class="ki-detail">OK: ' + u.ok_adet + nokTxt + ctTxt + isDkTxt + '</div>' +
+              aciklamaSatiri +
               '</div><div class="ki-actions">' +
               '<button class="' + tamamCls + '" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>' +
               '<button class="ki-btn ki-btn-edit" data-id="' + u.id + '" data-type="u-edit">✏️</button>' +
@@ -1888,7 +1897,7 @@
       var type = btn.dataset.type;
       if (type === 'u-edit') {
         var u = cacheUretim.find(function (x) { return x.id === id; });
-        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0);
+        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0, u.aciklama || '', u.istasyon || 0, u.launch_adet || 0);
       } else if (type === 'u-tamam') {
         var mevcutTamam = parseInt(btn.dataset.tamam || '0');
         fetch('/api/uretim_kayit/' + id + '/tamamlandi', {
@@ -1910,7 +1919,7 @@
     });
 
     // ── EKRAN D: ÜRETİM ──
-    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir) {
+    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir, aciklama, istasyon, launch) {
       document.getElementById('d-uid').value = id;
       document.getElementById('d-ref').value = ref;
       document.getElementById('d-ref').dataset.cycle = ct;
@@ -1922,6 +1931,14 @@
       var lbl = document.getElementById('d-cycle-lbl');
       if (ct > 0) { lbl.textContent = '⏱ ' + Math.round(ct) + ' sn/parça'; lbl.style.display = 'inline-flex'; }
       else { lbl.style.display = 'none'; }
+      var acEl = document.getElementById('d-aciklama');
+      if (acEl) acEl.value = aciklama || '';
+      var launchEl = document.getElementById('d-launch');
+      if (launchEl) launchEl.value = launch || 0;
+      // İstasyon — kaynak'ta görünür ve önceki değer seçili
+      var istWrap = document.getElementById('d-istasyon-wrap');
+      if (istWrap) istWrap.style.display = (secilenBolum === 'kaynak') ? 'block' : 'none';
+      istasyonSec(parseInt(istasyon || 0) || 0);
       document.getElementById('d-baslik').textContent = '✏️ Üretim Kaydını Düzenle';
       gitEkran('D');
     }
@@ -1932,6 +1949,7 @@
       var uid = document.getElementById('d-uid').value;
       var istEl = document.getElementById('d-istasyon');
       var launchEl = document.getElementById('d-launch');
+      var acEl = document.getElementById('d-aciklama');
       var payload = {
         referans_kodu: ref,
         ok_adet: parseInt(document.getElementById('d-ok').value || 0),
@@ -1940,7 +1958,8 @@
         hedef_adet: parseInt(document.getElementById('d-hedef').value || 0),
         cycle_time_sn: parseFloat(document.getElementById('d-ref').dataset.cycle || 0),
         istasyon: istEl ? parseInt(istEl.value || 0) : 0,
-        launch_adet: launchEl ? parseInt(launchEl.value || 0) : 0
+        launch_adet: launchEl ? parseInt(launchEl.value || 0) : 0,
+        aciklama: acEl ? (acEl.value || '').trim() : ''
       };
       var method, url;
       if (uid) { method = 'PUT'; url = '/api/uretim/' + uid; }
