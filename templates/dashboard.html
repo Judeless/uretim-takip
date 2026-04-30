@@ -20,10 +20,11 @@
 
         :root {
             /* DEFAULT — Komuta Merkezi (mor-lacivert orta koyu) */
-            --bg: #1c1f3a;            /* arka plan açıldı (eski #060414) */
-            --bg-1: #232548;
-            --bg-2: #2a2c54;
-            --sidebar-bg: rgba(40, 42, 80, 0.55);
+            /* Andon/operatör palet ile uyumlu — biraz daha açık ton (slightly lighter than #060414) */
+            --bg: #0c0a22;
+            --bg-1: #130f2e;
+            --bg-2: #1c1746;
+            --sidebar-bg: rgba(20, 16, 50, 0.55);
             --sidebar-border: rgba(255,255,255,0.10);
             --card: rgba(255,255,255,0.06);
             --card-border: rgba(255,255,255,0.10);
@@ -91,10 +92,10 @@
             -webkit-font-smoothing: antialiased;
             position: relative;
         }
-        /* Animated mesh gradient zemin (default temada — hafif sönük) */
+        /* Animated mesh gradient zemin (andon/operatör ile aynı dilde) */
         body::before, body::after {
             content: ""; position: fixed; pointer-events: none; z-index: 0;
-            filter: blur(140px); opacity: 0.22;
+            filter: blur(130px); opacity: 0.35;
             animation: ds-drift 30s ease-in-out infinite;
         }
         body::before {
@@ -1033,6 +1034,141 @@
 
         /* Hamburger ve backdrop default'ta gizli — sadece mobile'da görünür */
         .hamburger-btn, .sidebar-backdrop { display: none; }
+
+        /* ╔══════════════════════════════════════════════════════════════╗
+           ║  LIGHT TEMA — okunaklılık düzeltmeleri                      ║
+           ╚══════════════════════════════════════════════════════════════╝ */
+        [data-theme="light"] {
+            color: var(--text);
+        }
+        /* Topbar arka planı (default'ta transparent, light'ta da bölüm toggle ve andon pill grubu yeterince
+           kontrastlı olsun diye solid renkler veriyoruz) */
+        [data-theme="light"] .bolum-toggle {
+            background: #fff;
+            border-color: #e2e8f0;
+            box-shadow: 0 6px 18px rgba(31,38,135,0.06);
+        }
+        [data-theme="light"] .bolum-btn {
+            color: #475569;
+            background: transparent;
+        }
+        [data-theme="light"] .bolum-btn:hover {
+            color: #0f172a;
+            background: #f1f5f9;
+        }
+        /* aktif bolum-btn light'ta da gradient mor — okunaklı */
+        [data-theme="light"] .bolum-btn.active {
+            color: #fff;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+        }
+        [data-theme="light"] .andon-pill-group {
+            background: #fff;
+            border-color: #e2e8f0;
+            box-shadow: 0 6px 18px rgba(31,38,135,0.06);
+        }
+        [data-theme="light"] .andon-pill-label { color: #475569; }
+        [data-theme="light"] .andon-pill {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #0f172a;
+        }
+        [data-theme="light"] .andon-pill:hover { background: #f1f5f9; }
+
+        /* Inner tab bar — light'ta inactive tab okunaklı */
+        [data-theme="light"] .inner-tab-bar {
+            background: #fff;
+            border-color: #e2e8f0;
+            box-shadow: 0 6px 18px rgba(31,38,135,0.06);
+        }
+        [data-theme="light"] .inner-tab-btn {
+            color: #475569;
+        }
+        [data-theme="light"] .inner-tab-btn:hover {
+            color: #0f172a;
+            background: #f1f5f9;
+        }
+        [data-theme="light"] .inner-tab-btn.active {
+            color: #fff;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+        }
+
+        /* Sidebar nav — light kontrastı */
+        [data-theme="light"] .sidebar {
+            background: rgba(255,255,255,0.85);
+            border-right-color: #e2e8f0;
+        }
+        [data-theme="light"] .nav-item {
+            color: #475569;
+        }
+        [data-theme="light"] .nav-item:hover {
+            color: #0f172a;
+            background: #f1f5f9;
+        }
+        [data-theme="light"] .nav-item.active {
+            color: #6366f1;
+            background: rgba(99,102,241,0.08);
+        }
+
+        /* KPI — light okunaklı */
+        [data-theme="light"] .kpi-label { color: #64748b; }
+        [data-theme="light"] .kpi-value { color: #0f172a; }
+        [data-theme="light"] .kpi-sub { color: #64748b; }
+
+        /* Tablolar — light yumuşak gri başlık + beyaz hücre */
+        [data-theme="light"] #inner-pane-isatama .table-wrap thead th {
+            background: #f8fafc !important;
+            color: #475569;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        [data-theme="light"] #inner-pane-isatama input[type="text"],
+        [data-theme="light"] #inner-pane-isatama input[type="number"],
+        [data-theme="light"] #inner-pane-isatama select {
+            background: #fff;
+            border-color: #cbd5e1;
+            color: #0f172a;
+        }
+
+        /* Form alanları (genel) — light */
+        [data-theme="light"] input[type="text"],
+        [data-theme="light"] input[type="number"],
+        [data-theme="light"] input[type="date"],
+        [data-theme="light"] input[type="time"],
+        [data-theme="light"] input[type="password"],
+        [data-theme="light"] select,
+        [data-theme="light"] textarea {
+            color: #0f172a;
+        }
+
+        /* Andon-shortcuts kart (kullanılmasa bile) — light */
+        [data-theme="light"] .andon-shortcut {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+            color: #0f172a;
+        }
+        [data-theme="light"] .andon-shortcut .as-sub { color: #64748b; }
+
+        /* Hamburger butonu — light */
+        [data-theme="light"] .hamburger-btn {
+            background: #fff;
+            border-color: #e2e8f0;
+            color: #0f172a;
+            box-shadow: 0 6px 18px rgba(31,38,135,0.10);
+        }
+
+        /* Topbar başlık + subtitle */
+        [data-theme="light"] .topbar h1 { color: #0f172a; }
+        [data-theme="light"] #subtitle-text { color: #64748b; }
+
+        /* Toggle/tema butonu */
+        [data-theme="light"] .theme-toggle {
+            color: #475569;
+            border-color: #e2e8f0;
+        }
+        [data-theme="light"] .theme-toggle:hover {
+            color: #6366f1;
+            border-color: #6366f1;
+            background: #f1f5f9;
+        }
 
         /* ╔══════════════════════════════════════════════════════════════╗
            ║  ANDON PILL GRUBU (topbar'da bölüm toggle yanında)          ║
