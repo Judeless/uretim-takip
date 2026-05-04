@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cofle Pilot · Canlı Sayaç</title>
+  <link rel="icon" type="image/png" href="/logo">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --bg: #060414;
+      --bg-1: #0a0820;
+      --bg-2: #110e2e;
+      --line: rgba(255,255,255,0.08);
+      --line-strong: rgba(255,255,255,0.14);
+      --text: #eef2ff;
+      --muted: #94a3c4;
+      --c-cyan: #22d3ee;
+      --c-violet: #a78bfa;
+      --c-emerald: #34d399;
+      --c-amber: #fbbf24;
+      --c-red: #f87171;
+      --grad-1: linear-gradient(135deg, #22d3ee 0%, #a78bfa 50%, #f472b6 100%);
+      --grad-emerald: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
+      --font-sans: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh; padding: 18px 20px 30px;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before, body::after {
+      content:""; position:fixed; pointer-events:none; z-index:0;
+      filter: blur(120px); opacity: 0.35;
+      animation: drift 28s ease-in-out infinite;
+    }
+    body::before {
+      width:600px; height:600px; top:-150px; left:-100px;
+      background: radial-gradient(circle, var(--c-violet) 0%, transparent 70%);
+    }
+    body::after {
+      width:700px; height:700px; bottom:-200px; right:-150px;
+      background: radial-gradient(circle, var(--c-cyan) 0%, transparent 70%);
+      animation-delay: -14s;
+    }
+    @keyframes drift {
+      0%,100% { transform: translate(0,0) scale(1); }
+      50%     { transform: translate(60px,30px) scale(1.15); }
+    }
+
+    .root { position: relative; z-index: 2; max-width: 1400px; margin: 0 auto; }
+
+    /* Header */
+    .hdr {
+      display: flex; align-items: center; gap: 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 18px;
+    }
+    .hdr img { height: 40px; }
+    .hdr-text { flex: 1; }
+    .hdr h1 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em; }
+    .hdr p { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+    .hdr .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 999px;
+      background: rgba(167,139,250,0.10); border: 1px solid rgba(167,139,250,0.4);
+      font-size: 0.7rem; font-weight: 700; color: var(--c-violet);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .hdr .badge .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--c-emerald); box-shadow: 0 0 10px var(--c-emerald);
+      animation: blink 1.6s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:.35 } }
+
+    /* Toplam mega kart */
+    .mega {
+      background: linear-gradient(160deg, rgba(167,139,250,0.16), rgba(34,211,238,0.10));
+      border: 1px solid rgba(167,139,250,0.30);
+      border-radius: 22px;
+      padding: 28px 32px;
+      margin-bottom: 18px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.3), 0 0 60px rgba(167,139,250,0.18);
+    }
+    .mega-label {
+      font-size: 0.7rem; color: var(--muted); font-weight: 700;
+      letter-spacing: 0.22em; text-transform: uppercase;
+    }
+    .mega-num {
+      font-family: var(--font-mono);
+      font-size: 5rem; font-weight: 800; line-height: 1;
+      background: var(--grad-1);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      letter-spacing: 0.02em; margin-top: 6px;
+    }
+    .mega-sub {
+      font-size: 0.85rem; color: var(--muted); margin-top: 8px;
+    }
+    .mega-sub b { color: var(--c-emerald); font-family: var(--font-mono); }
+
+    /* Robot/istasyon grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px; margin-bottom: 22px;
+    }
+    .card {
+      background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px 20px;
+      backdrop-filter: blur(14px);
+      transition: transform .2s ease, box-shadow .25s ease, border-color .2s ease;
+    }
+    .card:hover { transform: translateY(-2px); border-color: rgba(52,211,153,0.4); box-shadow: 0 10px 30px rgba(52,211,153,0.15); }
+    .card-h {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .card-robot {
+      font-family: var(--font-mono);
+      font-size: 1.4rem; font-weight: 800;
+      background: var(--grad-emerald);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .card-ist {
+      font-size: 0.7rem; color: var(--c-amber); font-weight: 700;
+      padding: 2px 8px; background: rgba(251,191,36,0.10); border-radius: 6px;
+      letter-spacing: 0.06em;
+    }
+    .card-num {
+      font-family: var(--font-mono);
+      font-size: 2.6rem; font-weight: 800; line-height: 1;
+      color: var(--c-emerald);
+      margin: 6px 0 2px;
+    }
+    .card-foot {
+      display: flex; justify-content: space-between;
+      font-size: 0.72rem; color: var(--muted);
+      margin-top: 8px;
+    }
+    .card-foot b {
+      font-family: var(--font-mono);
+      color: var(--c-cyan); font-weight: 700;
+    }
+    .empty {
+      grid-column: 1/-1;
+      padding: 50px 20px; text-align: center;
+      color: var(--muted); font-size: 0.95rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px dashed var(--line); border-radius: 16px;
+    }
+    .empty-ico { font-size: 2.4rem; margin-bottom: 12px; opacity: 0.7; }
+
+    /* Cihaz tablosu */
+    .section-h {
+      font-size: 0.78rem; font-weight: 800; color: var(--muted);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      margin: 18px 4px 10px;
+    }
+    .dev-table {
+      width: 100%; border-collapse: separate; border-spacing: 0 6px;
+      font-size: 0.82rem;
+    }
+    .dev-table th {
+      text-align: left; padding: 10px 14px;
+      background: rgba(255,255,255,0.04);
+      color: var(--muted); font-size: 0.66rem; font-weight: 800;
+      letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .dev-table td {
+      padding: 10px 14px;
+      background: linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    }
+    .dev-table td:first-child { border-left: 1px solid var(--line); border-radius: 10px 0 0 10px; }
+    .dev-table td:last-child { border-right: 1px solid var(--line); border-radius: 0 10px 10px 0; }
+    .dev-table td.mono { font-family: var(--font-mono); }
+
+    .pill { display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .pill-on { background: rgba(52,211,153,0.12); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.4); }
+    .pill-off { background: rgba(248,113,113,0.10); color: #fecaca; border: 1px solid rgba(248,113,113,0.4); }
+
+    /* Last events log (debug) */
+    .log {
+      max-height: 200px; overflow-y: auto;
+      background: rgba(0,0,0,0.20);
+      border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px 14px;
+      font-family: var(--font-mono); font-size: 0.74rem;
+      color: var(--muted); line-height: 1.6;
+    }
+    .log .row {
+      display: flex; gap: 10px;
+      padding: 2px 0; border-bottom: 1px solid var(--line);
+    }
+    .log .row:last-child { border-bottom: none; }
+    .log .ts { color: var(--c-cyan); flex-shrink: 0; }
+    .log .ev { color: var(--c-emerald); flex-shrink: 0; min-width: 70px; }
+  </style>
+</head>
+<body>
+  <div class="root">
+    <header class="hdr">
+      <img src="/logo" alt="Cofle">
+      <div class="hdr-text">
+        <h1>Cofle Pilot · Canlı Sayaç</h1>
+        <p>ESP32 sensör verileri — bugün <span id="bugun"></span></p>
+      </div>
+      <span class="badge"><span class="dot"></span> CANLI · 5sn</span>
+    </header>
+
+    <div class="mega">
+      <div class="mega-label">Bugünkü Toplam Sayım</div>
+      <div class="mega-num" id="toplam">0</div>
+      <div class="mega-sub">Son 60 dakikadaki üretim: <b id="son60">0</b> parça</div>
+    </div>
+
+    <div class="section-h">Robot · İstasyon Kırılımı</div>
+    <div class="grid" id="grid">
+      <div class="empty">
+        <div class="empty-ico">📡</div>
+        ESP32 cihazından henüz veri gelmedi. Sahaya kurulduktan sonra burası canlı dolacak.
+      </div>
+    </div>
+
+    <div class="section-h">Bağlı Cihazlar</div>
+    <table class="dev-table">
+      <thead>
+        <tr>
+          <th>Cihaz ID</th><th>Bölüm</th><th>Robot</th><th>IP</th><th>Sinyal</th><th>Buffer</th><th>Heartbeat</th><th>Toplam</th><th>Durum</th>
+        </tr>
+      </thead>
+      <tbody id="dev-tbody">
+        <tr><td colspan="9" style="text-align:center;color:var(--muted);font-style:italic">Henüz cihaz kayıtlı değil.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-h">Son Sinyaller (Debug)</div>
+    <div class="log" id="log">Henüz sinyal yok.</div>
+  </div>
+
+<script>
+  const BOLUM = 'kaynak'; // pilot tek bölüm
+
+  function fmtTarih() {
+    return new Date().toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  }
+  document.getElementById('bugun').textContent = fmtTarih();
+
+  function fmtTs(s) {
+    if (!s) return '—';
+    return s.length > 16 ? s.substring(11, 19) : s;
+  }
+
+  async function yukleCanli() {
+    try {
+      const res = await fetch('/api/sinyal/canli?bolum=' + encodeURIComponent(BOLUM), { cache:'no-store' });
+      const d = await res.json();
+      document.getElementById('toplam').textContent = d.toplam || 0;
+      const son60 = (d.kirilim || []).reduce((a,k) => a + (k.son60_dk || 0), 0);
+      document.getElementById('son60').textContent = son60;
+
+      const grid = document.getElementById('grid');
+      if (!d.kirilim || d.kirilim.length === 0) {
+        grid.innerHTML = `
+          <div class="empty">
+            <div class="empty-ico">📡</div>
+            ESP32 cihazından henüz bugün için veri gelmedi.
+          </div>`;
+      } else {
+        grid.innerHTML = d.kirilim.map(k => `
+          <div class="card">
+            <div class="card-h">
+              <div class="card-robot">${k.robot_no}</div>
+              ${k.istasyon > 0 ? `<div class="card-ist">İST. ${k.istasyon}</div>` : ''}
+            </div>
+            <div class="card-num">${k.adet}</div>
+            <div class="card-foot">
+              <span>Son 60 dk: <b>${k.son60_dk}</b></span>
+              <span>Son: <b>${fmtTs(k.son_pulse)}</b></span>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch (e) { console.warn('canli fetch:', e); }
+  }
+
+  async function yukleCihazlar() {
+    try {
+      const res = await fetch('/api/sinyal/cihazlar', { cache:'no-store' });
+      const list = await res.json();
+      const tbody = document.getElementById('dev-tbody');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);font-style:italic">Henüz cihaz kayıtlı değil.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(c => {
+        const dur = c.durum === 'online'
+          ? '<span class="pill pill-on">● ONLINE</span>'
+          : '<span class="pill pill-off">○ OFFLINE</span>';
+        const rssi = c.wifi_rssi ? `${c.wifi_rssi} dBm` : '—';
+        return `<tr>
+          <td class="mono"><b>${c.cihaz_id}</b></td>
+          <td>${c.bolum || '—'}</td>
+          <td class="mono">${c.robot_no || '—'}</td>
+          <td class="mono">${c.ip_adresi || '—'}</td>
+          <td>${rssi}</td>
+          <td class="mono">${c.buffer_kuyruk || 0}</td>
+          <td>${fmtTs(c.son_heartbeat)}</td>
+          <td class="mono">${c.toplam_sinyal || 0}</td>
+          <td>${dur}</td>
+        </tr>`;
+      }).join('');
+    } catch (e) { console.warn('cihazlar fetch:', e); }
+  }
+
+  async function yukleLog() {
+    try {
+      const res = await fetch('/api/sinyal/son?limit=30', { cache:'no-store' });
+      const list = await res.json();
+      const log = document.getElementById('log');
+      if (!list.length) { log.textContent = 'Henüz sinyal yok.'; return; }
+      log.innerHTML = list.map(s => `
+        <div class="row">
+          <span class="ts">${fmtTs(s.ts)}</span>
+          <span class="ev">${s.cihaz_id}</span>
+          <span>${s.robot_no}${s.istasyon > 0 ? ' / İst.'+s.istasyon : ''} · ${s.kaynak_tip}</span>
+        </div>
+      `).join('');
+    } catch (e) {}
+  }
+
+  function tikTak() {
+    yukleCanli();
+    yukleCihazlar();
+    yukleLog();
+  }
+  tikTak();
+  setInterval(tikTak, 5000);  // 5 sn'de bir
+</script>
+</body>
+</html>
