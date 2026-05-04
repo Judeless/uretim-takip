@@ -2592,18 +2592,16 @@
                         `;
                     }
 
-                    // Öncelik sütunu (tüm bölümlerde)
+                    // Öncelik sütunu (tüm bölümlerde) — sadece input, çift gösterim yok
                     const oncelikDeger = (r.oncelik !== null && r.oncelik !== undefined) ? r.oncelik : '';
                     const oncelikInputHTML = `
-                        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-                            <input type="number" min="1" value="${oncelikDeger}" placeholder="—"
-                                class="rt-row-input"
-                                onchange="refOncelikGuncelle(${r.id}, this.value)">
-                            ${oncelikDeger ? `<span style="font-size:.65rem;color:var(--c-violet);font-weight:700">${oncelikDeger}.</span>` : ''}
-                        </div>`;
+                        <input type="number" min="1" value="${oncelikDeger}" placeholder="—"
+                            class="rt-row-input"
+                            onchange="refOncelikGuncelle(${r.id}, this.value)">`;
 
                     const refKodEscaped = String(r.referans_kodu || '').replace(/'/g, "\\\\\\'").replace(/"/g, "&quot;");
                     const roboNoEscaped = String(r.robot_no || '').replace(/'/g, "\\\\\\'");
+                    const aciklamaEscaped = String(r.aciklama || '').replace(/'/g, "\\\\\\'").replace(/"/g, "&quot;");
 
                     return `<tr>
                         <td style="font-weight:700">${r.referans_kodu}</td>
@@ -2614,7 +2612,7 @@
                         <td><div style="display:flex;gap:3px;flex-wrap:wrap">${durumBtns}</div></td>
                         <td style="font-size:.72rem;color:var(--muted)">${(r.guncelleme_tarihi||'').slice(0,16)}</td>
                         <td style="display:flex;gap:4px">
-                            <button onclick="refTakipDuzenleAc(${r.id},'${refKodEscaped}',${r.hedef_adet},'${roboNoEscaped}',${r.istasyon||0})"
+                            <button onclick="refTakipDuzenleAc(${r.id},'${refKodEscaped}',${r.hedef_adet},'${roboNoEscaped}',${r.istasyon||0},'${aciklamaEscaped}')"
                                 style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
                                 ✏️
                             </button>
@@ -2681,7 +2679,7 @@
 
         // Inline düzenle
         let _rtDuzenleId = null;
-        function refTakipDuzenleAc(id, ref, adet, robot, istasyon) {
+        function refTakipDuzenleAc(id, ref, adet, robot, istasyon, aciklama) {
             _rtDuzenleId = id;
             const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
             const yeniRef = prompt('Referans Kodu:', ref);
@@ -2697,16 +2695,18 @@
                 if (cevap === null) return;
                 yeniIst = parseInt(cevap) || 0;
             }
-            refTakipDuzenleKaydet(id, yeniRef.trim(), parseInt(yeniAdet)||0, yeniRobot.trim(), yeniIst);
+            const yeniAciklama = prompt('Açıklama (boş bırakabilirsiniz):', aciklama || '');
+            if (yeniAciklama === null) return;
+            refTakipDuzenleKaydet(id, yeniRef.trim(), parseInt(yeniAdet)||0, yeniRobot.trim(), yeniIst, yeniAciklama.trim());
         }
 
-        async function refTakipDuzenleKaydet(id, ref, adet, robot, istasyon) {
+        async function refTakipDuzenleKaydet(id, ref, adet, robot, istasyon, aciklama) {
             if (!ref) { toast('Referans kodu boş olamaz', 'error'); return; }
             try {
                 const res = await fetch('/api/referans_takip/' + id, {
                     method: 'PATCH',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ referans_kodu: ref, hedef_adet: adet, robot_no: robot, istasyon })
+                    body: JSON.stringify({ referans_kodu: ref, hedef_adet: adet, robot_no: robot, istasyon, aciklama })
                 });
                 if (!res.ok) throw new Error('Guncelleme hatasi');
                 await yukleRefTakipPanel();
