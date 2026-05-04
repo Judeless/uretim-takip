@@ -532,52 +532,59 @@ def vardiya_guncelle(vid):
 @app.route('/api/uretim', methods=['POST'])
 def uretim_ekle():
     """Üretim kaydı ekle."""
-    data = request.get_json()
+    data = request.get_json() or {}
 
     if not data.get('vardiya_id') or not data.get('referans_kodu'):
         return jsonify({'hata': 'vardiya_id ve referans_kodu zorunludur'}), 400
 
-    conn = get_db()
-    c = conn.cursor()
+    conn = None
+    try:
+        conn = get_db()
+        c = conn.cursor()
 
-    # Birden fazla kayıt gelebilir
-    satirlar = data.get('satirlar', [data])
+        # Birden fazla kayıt gelebilir
+        satirlar = data.get('satirlar', [data])
 
-    eklenen = 0
-    for satir in satirlar:
-        ref = satir.get('referans_kodu', data.get('referans_kodu', '')).strip()
-        ct_in = float(satir.get('cycle_time_sn', 0))
-        # cycle_time gönderilmediyse ya da 0 ise referanslardan otomatik çek
-        if ct_in <= 0 and ref:
-            ref_row = c.execute(
-                "SELECT hedef_cycle_time_sn FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
-                (ref,)
-            ).fetchone()
-            if ref_row:
-                ct_in = float(ref_row['hedef_cycle_time_sn'] or 0)
+        eklenen = 0
+        for satir in satirlar:
+            ref = (satir.get('referans_kodu') or data.get('referans_kodu') or '').strip()
+            ct_in = float(satir.get('cycle_time_sn', 0) or 0)
+            # cycle_time gönderilmediyse ya da 0 ise referanslardan otomatik çek
+            if ct_in <= 0 and ref:
+                ref_row = c.execute(
+                    "SELECT hedef_cycle_time_sn FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+                    (ref,)
+                ).fetchone()
+                if ref_row:
+                    ct_in = float(ref_row['hedef_cycle_time_sn'] or 0)
 
-        c.execute('''
-            INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            data['vardiya_id'],
-            ref,
-            int(satir.get('ok_adet', 0)),
-            int(satir.get('nok_adet', 0)),
-            int(satir.get('tamir_adet', 0)),
-            int(satir.get('hedef_adet', 0)),
-            ct_in,
-            int(satir.get('istasyon', data.get('istasyon', 0))),
-            int(satir.get('launch_adet', data.get('launch_adet', 0))),
-            (satir.get('aciklama') or data.get('aciklama') or '').strip()
-        ))
-        # Referansı listeye otomatik ekle
-        c.execute('INSERT OR IGNORE INTO referans_listesi (referans_kodu) VALUES (?)', (ref,))
-        eklenen += 1
+            c.execute('''
+                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                data['vardiya_id'],
+                ref,
+                int(satir.get('ok_adet', 0) or 0),
+                int(satir.get('nok_adet', 0) or 0),
+                int(satir.get('tamir_adet', 0) or 0),
+                int(satir.get('hedef_adet', 0) or 0),
+                ct_in,
+                int(satir.get('istasyon', data.get('istasyon', 0)) or 0),
+                int(satir.get('launch_adet', data.get('launch_adet', 0)) or 0),
+                (satir.get('aciklama') or data.get('aciklama') or '').strip()
+            ))
+            # Referansı listeye otomatik ekle
+            c.execute('INSERT OR IGNORE INTO referans_listesi (referans_kodu) VALUES (?)', (ref,))
+            eklenen += 1
 
-    conn.commit()
-    conn.close()
-    return jsonify({'basarili': True, 'eklenen': eklenen}), 201
+        conn.commit()
+        return jsonify({'basarili': True, 'eklenen': eklenen}), 201
+    except Exception as e:
+        print(f"HATA (uretim_ekle): {traceback.format_exc()}")
+        return jsonify({'hata': f'Üretim eklenemedi: {str(e)}'}), 500
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route('/api/uretim/<int:uid>', methods=['DELETE'])
@@ -592,44 +599,50 @@ def uretim_sil(uid):
 @app.route('/api/uretim/<int:uid>', methods=['PUT'])
 def uretim_guncelle(uid):
     """Uretim kaydini guncelle."""
-    data = request.get_json()
-    conn = get_db()
-    c = conn.cursor()
-    mevcut = c.execute('SELECT id FROM uretim_kayitlari WHERE id = ?', (uid,)).fetchone()
-    if not mevcut:
-        conn.close()
-        return jsonify({'hata': 'Kayit bulunamadi'}), 404
+    data = request.get_json() or {}
+    conn = None
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        mevcut = c.execute('SELECT id FROM uretim_kayitlari WHERE id = ?', (uid,)).fetchone()
+        if not mevcut:
+            return jsonify({'hata': 'Kayit bulunamadi'}), 404
 
-    ref = (data.get('referans_kodu') or '').strip()
-    ct = float(data.get('cycle_time_sn', 0))
-    # Gelen CT 0 veya gönderilmediyse referanslardan çek
-    if ct <= 0 and ref:
-        ref_row = c.execute(
-            "SELECT hedef_cycle_time_sn FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
-            (ref,)
-        ).fetchone()
-        if ref_row:
-            ct = float(ref_row['hedef_cycle_time_sn'] or 0)
+        ref = (data.get('referans_kodu') or '').strip()
+        ct = float(data.get('cycle_time_sn', 0) or 0)
+        # Gelen CT 0 veya gönderilmediyse referanslardan çek
+        if ct <= 0 and ref:
+            ref_row = c.execute(
+                "SELECT hedef_cycle_time_sn FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+                (ref,)
+            ).fetchone()
+            if ref_row:
+                ct = float(ref_row['hedef_cycle_time_sn'] or 0)
 
-    c.execute('''
-        UPDATE uretim_kayitlari
-        SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?
-        WHERE id=?
-    ''', (
-        ref,
-        int(data.get('ok_adet', 0)),
-        int(data.get('nok_adet', 0)),
-        int(data.get('tamir_adet', 0)),
-        int(data.get('hedef_adet', 0)),
-        ct,
-        int(data.get('istasyon', 0)),
-        int(data.get('launch_adet', 0)),
-        (data.get('aciklama') or '').strip(),
-        uid
-    ))
-    conn.commit()
-    conn.close()
-    return jsonify({'basarili': True})
+        c.execute('''
+            UPDATE uretim_kayitlari
+            SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?
+            WHERE id=?
+        ''', (
+            ref,
+            int(data.get('ok_adet', 0) or 0),
+            int(data.get('nok_adet', 0) or 0),
+            int(data.get('tamir_adet', 0) or 0),
+            int(data.get('hedef_adet', 0) or 0),
+            ct,
+            int(data.get('istasyon', 0) or 0),
+            int(data.get('launch_adet', 0) or 0),
+            (data.get('aciklama') or '').strip(),
+            uid
+        ))
+        conn.commit()
+        return jsonify({'basarili': True})
+    except Exception as e:
+        print(f"HATA (uretim_guncelle): {traceback.format_exc()}")
+        return jsonify({'hata': f'Üretim güncellenemedi: {str(e)}'}), 500
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route('/api/uretim/ct_guncelle', methods=['POST'])
@@ -677,7 +690,7 @@ def durus_ekle():
     """Duruş kaydı ekle. Aynı vardiya + aynı durus_sebebi için zaten kayıt
     varsa: yenisini eklemek yerine süreyi mevcut kayda ekler (toplama yapar).
     Açıklama varsa eski açıklamaya ' | ' ile ayırarak sona eklenir."""
-    data = request.get_json()
+    data = request.get_json() or {}
 
     if not data.get('vardiya_id') or not data.get('durus_sebebi'):
         return jsonify({'hata': 'vardiya_id ve durus_sebebi zorunludur'}), 400
@@ -685,49 +698,56 @@ def durus_ekle():
     # Birden fazla duruş gelebilir
     satirlar = data.get('satirlar', [data])
 
-    conn = get_db()
-    c = conn.cursor()
-    eklenen = 0
-    birlestirilen = 0
-    for satir in satirlar:
-        vid    = data['vardiya_id']
-        sebep  = (satir.get('durus_sebebi') or data.get('durus_sebebi') or '').strip()
-        if not sebep:
-            continue
-        sure   = int(satir.get('sure_dk', 0) or 0)
-        saat   = satir.get('baslangic_saati', '') or ''
-        acikl  = (satir.get('aciklama') or '').strip()
-        tipi   = satir.get('durus_tipi', data.get('durus_tipi', 'plansiz'))
+    conn = None
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        eklenen = 0
+        birlestirilen = 0
+        for satir in satirlar:
+            vid    = data['vardiya_id']
+            sebep  = (satir.get('durus_sebebi') or data.get('durus_sebebi') or '').strip()
+            if not sebep:
+                continue
+            sure   = int(satir.get('sure_dk', 0) or 0)
+            saat   = satir.get('baslangic_saati', '') or ''
+            acikl  = (satir.get('aciklama') or '').strip()
+            tipi   = satir.get('durus_tipi', data.get('durus_tipi', 'plansiz'))
 
-        # Aynı vardiya + aynı sebep var mı?
-        mevcut = c.execute(
-            "SELECT id, sure_dk, aciklama FROM duruslar WHERE vardiya_id=? AND durus_sebebi=? LIMIT 1",
-            (vid, sebep)
-        ).fetchone()
+            # Aynı vardiya + aynı sebep var mı?
+            mevcut = c.execute(
+                "SELECT id, sure_dk, aciklama FROM duruslar WHERE vardiya_id=? AND durus_sebebi=? LIMIT 1",
+                (vid, sebep)
+            ).fetchone()
 
-        if mevcut:
-            yeni_sure = (mevcut['sure_dk'] or 0) + sure
-            # Açıklamaları birleştir (boş olanı atla)
-            eski_acikl = (mevcut['aciklama'] or '').strip()
-            if eski_acikl and acikl:
-                yeni_acikl = eski_acikl + ' | ' + acikl
+            if mevcut:
+                yeni_sure = (mevcut['sure_dk'] or 0) + sure
+                # Açıklamaları birleştir (boş olanı atla)
+                eski_acikl = (mevcut['aciklama'] or '').strip()
+                if eski_acikl and acikl:
+                    yeni_acikl = eski_acikl + ' | ' + acikl
+                else:
+                    yeni_acikl = eski_acikl or acikl
+                c.execute(
+                    "UPDATE duruslar SET sure_dk=?, aciklama=?, durus_tipi=? WHERE id=?",
+                    (yeni_sure, yeni_acikl, tipi, mevcut['id'])
+                )
+                birlestirilen += 1
             else:
-                yeni_acikl = eski_acikl or acikl
-            c.execute(
-                "UPDATE duruslar SET sure_dk=?, aciklama=?, durus_tipi=? WHERE id=?",
-                (yeni_sure, yeni_acikl, tipi, mevcut['id'])
-            )
-            birlestirilen += 1
-        else:
-            c.execute('''
-                INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (vid, sebep, acikl, sure, saat, tipi))
-            eklenen += 1
+                c.execute('''
+                    INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (vid, sebep, acikl, sure, saat, tipi))
+                eklenen += 1
 
-    conn.commit()
-    conn.close()
-    return jsonify({'basarili': True, 'eklenen': eklenen, 'birlestirilen': birlestirilen}), 201
+        conn.commit()
+        return jsonify({'basarili': True, 'eklenen': eklenen, 'birlestirilen': birlestirilen}), 201
+    except Exception as e:
+        print(f"HATA (durus_ekle): {traceback.format_exc()}")
+        return jsonify({'hata': f'Duruş eklenemedi: {str(e)}'}), 500
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route('/api/durus/<int:did>', methods=['DELETE'])
@@ -2403,6 +2423,11 @@ def rapor_vardiya_listesi():
 
 # BAŞLATMA
 # ─────────────────────────────────────────────────────────────
+
+# Modul yüklenirken DB migration'larını çalıştır (debug auto-reload sonrası da
+# eksik kolonların eklendiğinden emin olmak için).
+init_db()
+
 
 if __name__ == '__main__':
     # Flask debug modundayken (reloader) çift çalışmayı önlemek için kontrol

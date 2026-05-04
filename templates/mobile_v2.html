@@ -1729,18 +1729,20 @@
           durum: 'aktif',
           bolum: bolum
         })
-      }).then(function (r) { return r.json(); }).then(function (data) {
-        if (data.hata) { toast(data.hata, 'error'); return; }
-        aktifVardiyaId = data.vardiya_id;
-        aktifVardiyaData = {
-          robot_no: robot, operator_adi: op, tarih: tarih, vardiya_turu: vt,
-          baslangic_saati: bas, bitis_saati: bit, durum: 'aktif', toplam_sure_dk: data.sure_dk,
-          bolum: bolum
-        };
-        toast('Vardiya ba\u015flat\u0131ld\u0131!', 'success');
-        yukleVardiyalar();
-        gitEkran('C');
-      }).catch(function () { toast('Ba\u011flant\u0131 hatas\u0131', 'error'); });
+      }).then(function (r) { return r.json().then(function(j){ return {ok:r.ok, body:j}; }); })
+        .then(function (res) {
+          var data = res.body;
+          if (!res.ok || data.hata) { toast(data.hata || ('Sunucu hatas\u0131: ' + (res.status||'')), 'error'); return; }
+          aktifVardiyaId = data.vardiya_id;
+          aktifVardiyaData = {
+            robot_no: robot, operator_adi: op, tarih: tarih, vardiya_turu: vt,
+            baslangic_saati: bas, bitis_saati: bit, durum: 'aktif', toplam_sure_dk: data.sure_dk,
+            bolum: bolum
+          };
+          toast('Vardiya ba\u015flat\u0131ld\u0131!', 'success');
+          yukleVardiyalar();
+          gitEkran('C');
+        }).catch(function (e) { toast('Ba\u011flant\u0131 hatas\u0131: ' + (e && e.message || ''), 'error'); });
     }
 
     // ── SIRADAKI İŞLER ──
@@ -1965,13 +1967,14 @@
       if (uid) { method = 'PUT'; url = '/api/uretim/' + uid; }
       else { method = 'POST'; url = '/api/uretim'; payload.vardiya_id = aktifVardiyaId; }
       fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d.hata) { toast(d.hata, 'error'); return; }
+        .then(function (r) { return r.json().then(function(j){ return {ok:r.ok, body:j}; }); })
+        .then(function (res) {
+          var d = res.body;
+          if (!res.ok || d.hata) { toast(d.hata || ('Sunucu hatası: ' + (res.status||'')), 'error'); return; }
           toast(uid ? 'Kayıt güncellendi' : 'Üretim kaydedildi', 'success');
           gitEkran('C');
           setTimeout(refreshOEE, 300);
-        }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }).catch(function (e) { toast('Bağlantı hatası: ' + (e && e.message || ''), 'error'); });
     }
 
     function uretimSil(id) {
@@ -2013,9 +2016,10 @@
       if (did) { method = 'PUT'; url = '/api/durus/' + did; }
       else { method = 'POST'; url = '/api/durus'; payload.vardiya_id = aktifVardiyaId; }
       fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d.hata) { toast(d.hata, 'error'); return; }
+        .then(function (r) { return r.json().then(function(j){ return {ok:r.ok, body:j}; }); })
+        .then(function (res) {
+          var d = res.body;
+          if (!res.ok || d.hata) { toast(d.hata || ('Sunucu hatası: ' + (res.status||'')), 'error'); return; }
           var mesaj;
           if (did) {
             mesaj = 'Duruş güncellendi';
@@ -2027,7 +2031,7 @@
           toast(mesaj, 'success');
           gitEkran('C');
           setTimeout(refreshOEE, 300);
-        }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }).catch(function (e) { toast('Bağlantı hatası: ' + (e && e.message || ''), 'error'); });
     }
 
     function durusSil(id) {
