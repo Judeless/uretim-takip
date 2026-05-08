@@ -3851,10 +3851,7 @@
             }
             const btn = document.getElementById('ref-excel-aktar-btn');
             if (btn) {
-                const dosya = aktifBolum === 'montaj' ? 'Montaj.xlsx'
-                            : aktifBolum === 'metal'  ? 'Metal Enjeksiyon.xlsx'
-                                                     : 'Kaynakhane.xlsx';
-                btn.textContent = '📥 ' + dosya + ' içe aktar';
+                btn.textContent = '📥 Excel\'den Aktar';
             }
         }
 
@@ -3863,15 +3860,15 @@
             if (!tbody) return;
             if (!data.length) {
                 const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
-                const dosya = aktifBolum === 'montaj' ? 'Montaj.xlsx'
-                            : aktifBolum === 'metal'  ? 'Metal Enjeksiyon.xlsx'
-                                                     : 'Kaynakhane.xlsx';
+                const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans'
+                               : (aktifBolum === 'metal')  ? 'Metal Referans'
+                                                           : 'Kaynak Referans';
                 tbody.innerHTML = `
                     <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:36px 20px">
                         <div style="font-size:2rem;margin-bottom:10px">📦</div>
                         <div style="font-weight:700;color:var(--text);margin-bottom:4px">${bilgi} bölümü için referans yok</div>
-                        <div style="font-size:.82rem;margin-bottom:12px">Masaüstündeki <b>${dosya}</b> dosyasından otomatik aktarabilir veya tek tek ekleyebilirsiniz.</div>
-                        <button class="btn btn-outline" style="border-color:#16a34a;color:#16a34a" onclick="excelVeriAktar()">📥 ${dosya} içe aktar</button>
+                        <div style="font-size:.82rem;margin-bottom:12px">Proje içindeki <b>data/uretim_verileri.xlsx</b> → <b>${sayfaAdi}</b> sayfasından otomatik aktarabilir veya tek tek ekleyebilirsiniz.</div>
+                        <button class="btn btn-outline" style="border-color:#16a34a;color:#16a34a" onclick="excelVeriAktar()">📥 Excel'den Aktar</button>
                     </td></tr>`;
                 return;
             }
@@ -3995,10 +3992,18 @@
         }
 
         async function referansExcelGuncelle() {
-            if (!confirm('Veritabanındaki tüm referans ve süreleri Masaüstü/Kaynakhane.xlsx dosyasına yazmak istiyor musunuz?')) return;
+            const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
+            const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans'
+                           : (aktifBolum === 'metal')  ? 'Metal Referans'
+                                                       : 'Kaynak Referans';
+            if (!confirm(`${bilgi} bölümünün referanslarını data/uretim_verileri.xlsx → "${sayfaAdi}" sayfasına yazmak istiyor musunuz?`)) return;
             toast('Excel güncelleniyor...', 'info');
             try {
-                const res = await fetch('/api/referanslar/export_excel', { method: 'POST' });
+                const res = await fetch('/api/referanslar/export_excel', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ bolum: aktifBolum })
+                });
                 const d = await res.json();
                 if (d.basarili) {
                     toast('✅ Excel başarıyla güncellendi!', 'ok');
@@ -4191,11 +4196,11 @@
         // EXCEL VERİ AKTARMA
         // ═══════════════════════════════════════════════════════
         async function excelVeriAktar() {
-            const dosya = aktifBolum === 'montaj' ? 'Montaj.xlsx'
-                        : aktifBolum === 'metal'  ? 'Metal Enjeksiyon.xlsx'
-                                                 : 'Kaynakhane.xlsx';
+            const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans / Montaj Operator'
+                           : (aktifBolum === 'metal')  ? 'Metal Referans / Metal Operator'
+                                                       : 'Kaynak Referans / Kaynak Operator';
             const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
-            if (!confirm(`${bilgi} bölümü için Masaüstündeki "${dosya}" dosyasından referans ve operatör bilgileri aktarılacak.\n\nDevam edilsin mi?`)) return;
+            if (!confirm(`${bilgi} bölümü için data/uretim_verileri.xlsx → "${sayfaAdi}" sayfalarından referans ve operatör bilgileri aktarılacak.\n\nDevam edilsin mi?`)) return;
 
             toast('Veriler aktarılıyor, lütfen bekleyin...', 'info');
             try {

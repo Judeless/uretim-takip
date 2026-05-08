@@ -903,27 +903,41 @@ def referans_eksik_listesi():
 
 @app.route('/api/referanslar/export_excel', methods=['POST'])
 def referans_excel_export():
-    """Veritabanındaki referans listesini Kaynakhane.xlsx dosyasına doğrudan yazar."""
-    excel_path = r'C:\Users\selcu\OneDrive\Masaüstü\Kaynakhane.xlsx'
+    """Veritabanındaki referans listesini data/uretim_verileri.xlsx'in
+    aktif bölüm sayfasına yazar.
+
+    Body: { bolum: 'kaynak' | 'montaj' | 'metal' } — yoksa kaynak.
+    """
+    BOLUM_SAYFA = {
+        'kaynak': 'Kaynak Referans',
+        'montaj': 'Montaj Referans',
+        'metal':  'Metal Referans',
+    }
+    body = request.get_json(silent=True) or {}
+    bolum = body.get('bolum', 'kaynak')
+    if bolum not in BOLUM_SAYFA:
+        return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
+    sayfa_adi = BOLUM_SAYFA[bolum]
+
+    excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'uretim_verileri.xlsx')
     if not os.path.exists(excel_path):
-        return jsonify({'hata': 'Kaynakhane.xlsx dosyası bulunamadı.'}), 404
-        
+        return jsonify({'hata': 'data/uretim_verileri.xlsx bulunamadı.'}), 404
+
     try:
         import openpyxl
-        from openpyxl.styles import Font, PatternFill
-        
+
         conn = get_db()
-        rows = conn.execute('SELECT referans_kodu, hedef_cycle_time_sn FROM referans_listesi ORDER BY referans_kodu').fetchall()
+        rows = conn.execute(
+            "SELECT referans_kodu, hedef_cycle_time_sn FROM referans_listesi "
+            "WHERE COALESCE(bolum, 'kaynak') = ? ORDER BY referans_kodu",
+            (bolum,)
+        ).fetchall()
         conn.close()
-        
+
         wb = openpyxl.load_workbook(excel_path)
-        # Uygun sayfayı bul (Import logic'teki gibi)
-        sayfa = None
-        for adi in wb.sheetnames:
-            if 'kaynak' in adi.lower() or 'süre' in adi.lower() or 'sure' in adi.lower():
-                sayfa = wb[adi]
-                break
-        if not sayfa: sayfa = wb.active
+        if sayfa_adi not in wb.sheetnames:
+            return jsonify({'hata': f"'{sayfa_adi}' sayfası bulunamadı"}), 404
+        sayfa = wb[sayfa_adi]
         
         # Temizleyip baştan yazalım mı? 
         # Kullanıcının "doğrudan güncellesin" demesi mevcut verileri koruyup sadece bu tabloyu güncellemek olabilir.
