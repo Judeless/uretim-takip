@@ -242,8 +242,23 @@ void setup() {
   pulseSayisi = prefs.getULong("pulse", 0);
   Serial.printf("[NVS] Kayitli toplam pulse: %lu\n", pulseSayisi);
 
-  // Watchdog
+  // Watchdog (ESP32 core 3.x ve 2.x ile uyumlu)
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  // Core 3.x: yeni API — config struct
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms     = (uint32_t)(WDT_TIMEOUT_S * 1000),
+    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
+    .trigger_panic  = true,
+  };
+  esp_err_t wdt_err = esp_task_wdt_init(&wdt_config);
+  if (wdt_err == ESP_ERR_INVALID_STATE) {
+    // TWDT zaten init edilmiş (Arduino loop'u için) — sadece reconfigure et
+    esp_task_wdt_reconfigure(&wdt_config);
+  }
+#else
+  // Core 2.x: eski API — timeout (saniye) + panic flag
   esp_task_wdt_init(WDT_TIMEOUT_S, true);
+#endif
   esp_task_wdt_add(NULL);
 
   wifiBaglan();
