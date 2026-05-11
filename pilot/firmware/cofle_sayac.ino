@@ -32,6 +32,7 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
+#include <ArduinoOTA.h>
 
 // ════════════════════════════════════════════════════════════
 //   YAPILANDIRMA — Sahaya göre düzenle
@@ -54,6 +55,9 @@ const char* SUNUCU_HOST = "http://192.168.1.50:5001";
 
 // Backend'le paylaşılan sır (pilot_app.py'da API_TOKEN ile aynı)
 const char* API_TOKEN = "cofle-pilot-2026";
+
+// OTA güncelleme parolası (Arduino IDE upload sırasında sorulur)
+const char* OTA_PASS = "cofle-ota-2026";
 
 // Pin atamaları
 const int PIN_IST1_SAYAC      = 25;   // Röle 1 NO — İstasyon 1
@@ -313,6 +317,25 @@ void setup() {
   wifiBaglan();
   delay(500);
 
+  // OTA — WiFi üzerinden firmware güncelleme
+  ArduinoOTA.setHostname(CIHAZ_ID);
+  ArduinoOTA.setPassword(OTA_PASS);
+  ArduinoOTA.onStart([]() {
+    Serial.println("\n[OTA] Guncelleme basliyor — pin okumalari duruyor");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA] Tamam, yeniden baslatiliyor");
+  });
+  ArduinoOTA.onProgress([](unsigned int p, unsigned int t) {
+    Serial.printf("[OTA] %u%%\r", (p / (t / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t e) {
+    Serial.printf("[OTA] HATA %u\n", e);
+  });
+  ArduinoOTA.begin();
+  Serial.printf("[OTA] Aktif — IDE Network Port: %s @ %s\n",
+                CIHAZ_ID, WiFi.localIP().toString().c_str());
+
   // İlk heartbeat
   heartbeatGonder();
   lastHeartbeat = millis();
@@ -324,6 +347,7 @@ void setup() {
 
 void loop() {
   esp_task_wdt_reset();
+  ArduinoOTA.handle();  // OTA güncellemesi bekliyorsa işle
   unsigned long now = millis();
 
   // ── 1. WiFi kontrolu ──
