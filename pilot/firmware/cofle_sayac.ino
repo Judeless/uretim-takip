@@ -63,8 +63,8 @@ const int PIN_LED             =  2;   // Built-in LED
 
 // Diğer ayarlar
 const int  DEBOUNCE_MS         = 100;     // Mekanik röle sıçraması
-const int  PARAZIT_SAMPLE_N    = 5;       // LOW gördükten sonra kaç kez teyit
-const int  PARAZIT_SAMPLE_GAP  = 3;       // Teyit okumaları arası ms
+const int  PARAZIT_SAMPLE_N    = 30;      // LOW gördükten sonra kaç kez teyit (daha agresif)
+const int  PARAZIT_SAMPLE_GAP  = 5;       // Teyit okumaları arası ms (toplam 150ms doğrulama)
 const unsigned long MIN_PULSE_GAP_MS = 3000;  // İki pulse arası minimum (3sn — robot cycle bundan hızlı olamaz)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
