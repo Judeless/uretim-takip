@@ -62,13 +62,16 @@ const int PIN_ROBOT_CALISIYOR = 27;   // Röle 3 NO — Robot durumu
 const int PIN_LED             =  2;   // Built-in LED
 
 // Diğer ayarlar
-const int  DEBOUNCE_MS    = 50;
+const int  DEBOUNCE_MS         = 100;     // Mekanik röle sıçraması
+const int  PARAZIT_SAMPLE_N    = 5;       // LOW gördükten sonra kaç kez teyit
+const int  PARAZIT_SAMPLE_GAP  = 3;       // Teyit okumaları arası ms
+const unsigned long MIN_PULSE_GAP_MS = 500;  // İki pulse arası minimum (parazit filtresi)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.0.0";
+const char* FIRMWARE_VER  = "2.1.0";
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
@@ -98,6 +101,10 @@ int lastRobotState = HIGH;
 unsigned long lastDebounceIst1 = 0;
 unsigned long lastDebounceIst2 = 0;
 unsigned long lastDebounceRobot = 0;
+
+// Parazit filtresi — son geçerli pulse zamanı (her istasyon için ayrı)
+unsigned long lastValidPulseIst1 = 0;
+unsigned long lastValidPulseIst2 = 0;
 
 unsigned long lastHeartbeat   = 0;
 unsigned long lastRetry       = 0;
@@ -136,6 +143,15 @@ void wifiBaglan() {
 
 bool wifiHazir() {
   return WiFi.status() == WL_CONNECTED;
+}
+
+// Pin gerçekten LOW mu? Parazit elemek için N kez peş peşe oku, hepsi LOW olmalı
+bool pinGercektenLOW(int pin) {
+  for (int i = 0; i < PARAZIT_SAMPLE_N; i++) {
+    if (digitalRead(pin) != LOW) return false;
+    delay(PARAZIT_SAMPLE_GAP);
+  }
+  return true;
 }
 
 // Bekleyen pulse'lardan en eskiyi gönder
@@ -319,11 +335,25 @@ void loop() {
     }
   }
 
-  // ── 2. İstasyon 1 sayaç (debounce + falling edge) ──
+  // ── 2. İstasyon 1 sayaç (debounce + multi-sample + min interval) ──
   int curIst1 = digitalRead(PIN_IST1_SAYAC);
   if (curIst1 != lastIst1State && (now - lastDebounceIst1) > DEBOUNCE_MS) {
     lastDebounceIst1 = now;
-    if (curIst1 == LOW) istasyonSinyali(1);
+    if (curIst1 == LOW) {
+      // FILTRE 1: Multi-sample teyit
+      if (pinGercektenLOW(PIN_IST1_SAYAC)) {
+        // FILTRE 2: Son pulse'tan en az MIN_PULSE_GAP_MS geçti mi?
+        if ((now - lastValidPulseIst1) >= MIN_PULSE_GAP_MS) {
+          istasyonSinyali(1);
+          lastValidPulseIst1 = now;
+        } else {
+          Serial.printf("[FILTRE] Ist.1 erken (gap=%lums < %lums) - SAYILMADI\n",
+                        now - lastValidPulseIst1, MIN_PULSE_GAP_MS);
+        }
+      } else {
+        Serial.println("[FILTRE] Ist.1 parazit (multi-sample basarisiz) - SAYILMADI");
+      }
+    }
     lastIst1State = curIst1;
   }
 
@@ -331,7 +361,19 @@ void loop() {
   int curIst2 = digitalRead(PIN_IST2_SAYAC);
   if (curIst2 != lastIst2State && (now - lastDebounceIst2) > DEBOUNCE_MS) {
     lastDebounceIst2 = now;
-    if (curIst2 == LOW) istasyonSinyali(2);
+    if (curIst2 == LOW) {
+      if (pinGercektenLOW(PIN_IST2_SAYAC)) {
+        if ((now - lastValidPulseIst2) >= MIN_PULSE_GAP_MS) {
+          istasyonSinyali(2);
+          lastValidPulseIst2 = now;
+        } else {
+          Serial.printf("[FILTRE] Ist.2 erken (gap=%lums < %lums) - SAYILMADI\n",
+                        now - lastValidPulseIst2, MIN_PULSE_GAP_MS);
+        }
+      } else {
+        Serial.println("[FILTRE] Ist.2 parazit (multi-sample basarisiz) - SAYILMADI");
+      }
+    }
     lastIst2State = curIst2;
   }
 
