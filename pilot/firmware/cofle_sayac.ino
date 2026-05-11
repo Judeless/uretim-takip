@@ -1,37 +1,30 @@
 /* ============================================================
- *  COFLE PILOT SAYAÇ — ESP32-WROOM-32U firmware (v1.0)
+ *  COFLE PILOT SAYAC — ESP32-WROOM-32U firmware (v2.0)
  * ============================================================
  *
- *  HEDEF:  Robot DO çıkışından alınan röle kuru kontağını
- *          sayar, her parça çıkışında Cofle backend'ine
- *          HTTP POST ile pulse atar.
+ *  HEDEF:  Robot'un 3 dijital çıkışını izler:
+ *            - İstasyon 1 sayaç (her parça = 1 pulse)
+ *            - İstasyon 2 sayaç (her parça = 1 pulse)
+ *            - Robot çalışıyor durumu (HIGH=çalışıyor)
+ *          Her pulse Cofle pilot backend'ine POST edilir.
  *
  *  ÖZELLİKLER:
- *   - WiFi auto-reconnect (kopunca otomatik bağlanır)
- *   - Offline buffer (200 adet pulse, RAM'de — ağ koparsa kaybetmez)
- *   - Watchdog timer (30sn'de kilitlenirse kendini reset eder)
- *   - Idempotency-key (cihaz_id + sayı) — çift sayım önler
- *   - Heartbeat (30sn'de bir backend'e "yaşıyorum" sinyali)
- *   - LED gösterge (hareket / hata / iyi durumu)
- *   - Kontak debounce (mekanik röle sıçramasını önler)
- *   - NVS'de toplam pulse sayısı saklanır (yeniden başlatınca kaybolmaz)
+ *   - 3 ayrı GPIO girişi, debounce'lu
+ *   - WiFi auto-reconnect
+ *   - Offline buffer (her pulse istasyon bilgisiyle saklanır)
+ *   - Watchdog (30sn'de kilitlenirse kendini reset)
+ *   - Idempotency-key — çift sayım önler
+ *   - Heartbeat (30sn'de bir cihaz + robot durumu)
+ *   - LED gösterge
+ *   - NVS'de istasyon başına ayrı pulse sayacı (yeniden başlatınca korunur)
  *
- *  KURULUM (Arduino IDE):
- *   1. File > Preferences > Additional Boards URL:
- *        https://espressif.github.io/arduino-esp32/package_esp32_index.json
- *   2. Tools > Board > Boards Manager > "esp32" arat > yükle
- *   3. Tools > Board > "ESP32 Dev Module" seç
- *   4. Tools > Upload Speed > 921600
- *   5. Tools > Flash Size > 4MB
- *   6. Tools > Partition Scheme > "Default 4MB with spiffs"
- *   7. Tools > Port > [ESP32'nin bağlı olduğu COM portu]
- *   8. Aşağıdaki YAPILANDIRMA kısmını doldur, Upload (►)
+ *  PIN ATAMALARI (sahaya göre, üst sıra):
+ *   - GPIO25  → Röle 1 NO  (İstasyon 1 sayaç)
+ *   - GPIO26  → Röle 2 NO  (İstasyon 2 sayaç)
+ *   - GPIO27  → Röle 3 NO  (Robot çalışıyor durumu)
+ *   - GND     → her 3 rölenin COM uçları paralel
  *
- *  GEREKLİ KÜTÜPHANELER (otomatik gelir genelde):
- *   - WiFi.h, HTTPClient.h, Preferences.h, esp_task_wdt.h
- *   - ArduinoJson (Sketch > Include Library > Manage Libraries > "ArduinoJson" v6.x)
- *
- *  BAĞLANTI ŞEMASI: PILOT_KURULUM.md dosyasına bakın.
+ *  BAĞLANTI ŞEMASI: PILOT_KURULUM.md
  * ============================================================ */
 
 #include <WiFi.h>
@@ -45,50 +38,69 @@
 // ════════════════════════════════════════════════════════════
 
 // Bu cihazın benzersiz adı (her ESP32'de farklı olmalı)
-const char* CIHAZ_ID  = "ABB1-IST1";
+const char* CIHAZ_ID  = "ABB1-IO";
 
-// Bu cihazın izlediği bölüm/robot/istasyon
+// Bu cihazın izlediği bölüm/robot
 const char* BOLUM     = "kaynak";    // "kaynak" | "montaj" | "metal"
-const char* ROBOT_NO  = "ABB1";       // andon_robot_ayarlari'nda eşleşen ad
-const int   ISTASYON  = 1;            // 1 veya 2 (kaynak için), diğerlerinde 0
+const char* ROBOT_NO  = "ABB1";      // andon_robot_ayarlari'nda eşleşen ad
+// (İstasyon: her sinyal kendi pin'ine göre 1 veya 2 olarak otomatik etiketlenir)
 
-// WiFi bilgileri (etiket yazıcılarının kullandığı ağ)
+// WiFi bilgileri
 const char* WIFI_SSID = "FABRIKA_WIFI";
 const char* WIFI_PASS = "wifi_parolasi_buraya";
 
-// Cofle Pilot backend'in URL'si (PC'nin LAN IP'si + port 5001)
+// Cofle Pilot backend'in URL'si
 const char* SUNUCU_HOST = "http://192.168.1.50:5001";
 
 // Backend'le paylaşılan sır (pilot_app.py'da API_TOKEN ile aynı)
 const char* API_TOKEN = "cofle-pilot-2026";
 
-// Pin atamaları (PILOT_KURULUM.md'deki şemaya göre)
-const int  SAYAC_PIN  = 25;   // Röle kuru kontağı buraya bağlı (NO)
-const int  LED_PIN    =  2;   // Built-in LED (durum göstergesi)
+// Pin atamaları
+const int PIN_IST1_SAYAC      = 25;   // Röle 1 NO — İstasyon 1
+const int PIN_IST2_SAYAC      = 26;   // Röle 2 NO — İstasyon 2
+const int PIN_ROBOT_CALISIYOR = 27;   // Röle 3 NO — Robot durumu
+const int PIN_LED             =  2;   // Built-in LED
 
 // Diğer ayarlar
-const int  DEBOUNCE_MS    = 50;     // Mekanik röle sıçraması filtresi
-const int  HEARTBEAT_MS   = 30000;  // 30sn'de bir cihaz heartbeat'i
-const int  RETRY_MS       = 3000;   // Buffer'daki bekleyen pulse'ları bu aralıkla deneme
-const int  WIFI_TIMEOUT_S = 30;     // WiFi bağlantı timeout
-const int  WDT_TIMEOUT_S  = 30;     // Watchdog reset süresi
-const int  BUFFER_MAX     = 200;    // RAM'de tutulan max bekleyen pulse
-const char* FIRMWARE_VER  = "1.0.0";
+const int  DEBOUNCE_MS    = 50;
+const int  HEARTBEAT_MS   = 30000;
+const int  RETRY_MS       = 3000;
+const int  WIFI_TIMEOUT_S = 30;
+const int  WDT_TIMEOUT_S  = 30;
+const int  BUFFER_MAX     = 200;
+const char* FIRMWARE_VER  = "2.0.0";
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
 // ════════════════════════════════════════════════════════════
 
 Preferences prefs;
-unsigned long pulseSayisi = 0;       // Toplam pulse (NVS'de kalıcı)
-int  buffer_kuyruk[BUFFER_MAX];      // Bekleyen sequence numaraları
-int  buf_bas = 0, buf_son = 0, buf_dolu = 0;
 
-unsigned long lastPulseRead   = 0;
+// İstasyon başına ayrı sayaç (NVS'de kalıcı)
+uint32_t pulseIst1 = 0;
+uint32_t pulseIst2 = 0;
+
+// Robot durumu (anlık)
+bool robotCalisiyor = false;
+
+// Buffer — her giriş seq + istasyon tutuyor
+struct PulseKaydi {
+  uint32_t seq;
+  uint8_t  istasyon;   // 1 veya 2
+};
+PulseKaydi buffer[BUFFER_MAX];
+int buf_bas = 0, buf_son = 0, buf_dolu = 0;
+
+// Pin durumları (debounce için)
+int lastIst1State = HIGH;
+int lastIst2State = HIGH;
+int lastRobotState = HIGH;
+unsigned long lastDebounceIst1 = 0;
+unsigned long lastDebounceIst2 = 0;
+unsigned long lastDebounceRobot = 0;
+
 unsigned long lastHeartbeat   = 0;
 unsigned long lastRetry       = 0;
-int  lastPinState  = HIGH;
-unsigned long lastDebounceMs  = 0;
 unsigned long bootMs          = 0;
 
 // ════════════════════════════════════════════════════════════
@@ -97,8 +109,8 @@ unsigned long bootMs          = 0;
 
 void ledYakBlink(int adet, int sure_ms = 80) {
   for (int i = 0; i < adet; i++) {
-    digitalWrite(LED_PIN, HIGH); delay(sure_ms);
-    digitalWrite(LED_PIN, LOW);  delay(sure_ms);
+    digitalWrite(PIN_LED, HIGH); delay(sure_ms);
+    digitalWrite(PIN_LED, LOW);  delay(sure_ms);
   }
 }
 
@@ -109,13 +121,13 @@ void wifiBaglan() {
   unsigned long basla = millis();
   while (WiFi.status() != WL_CONNECTED && (millis() - basla) < (WIFI_TIMEOUT_S * 1000)) {
     delay(500); Serial.print('.');
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // hızlı blink
+    digitalWrite(PIN_LED, !digitalRead(PIN_LED));
     esp_task_wdt_reset();
   }
   if (WiFi.status() == WL_CONNECTED) {
     Serial.printf("\n[WiFi] OK · IP=%s · RSSI=%d dBm\n",
                   WiFi.localIP().toString().c_str(), WiFi.RSSI());
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(PIN_LED, LOW);
     ledYakBlink(2, 100);
   } else {
     Serial.println("\n[WiFi] BAGLANTI BASARISIZ — sonra tekrar denenecek");
@@ -126,10 +138,10 @@ bool wifiHazir() {
   return WiFi.status() == WL_CONNECTED;
 }
 
-// Bekleyen pulse'lardan en eskiyi gönder (varsa). Başarılıysa kuyruktan çıkar.
+// Bekleyen pulse'lardan en eskiyi gönder
 bool bufferdanBirGonder() {
   if (buf_dolu == 0) return false;
-  int seq = buffer_kuyruk[buf_bas];
+  PulseKaydi p = buffer[buf_bas];
 
   HTTPClient http;
   String url = String(SUNUCU_HOST) + "/api/sinyal";
@@ -139,12 +151,13 @@ bool bufferdanBirGonder() {
   http.addHeader("Authorization", String("Bearer ") + API_TOKEN);
 
   StaticJsonDocument<256> doc;
-  doc["cihaz_id"] = CIHAZ_ID;
-  doc["bolum"]    = BOLUM;
-  doc["robot_no"] = ROBOT_NO;
-  doc["istasyon"] = ISTASYON;
+  doc["cihaz_id"]   = CIHAZ_ID;
+  doc["bolum"]      = BOLUM;
+  doc["robot_no"]   = ROBOT_NO;
+  doc["istasyon"]   = p.istasyon;
   doc["kaynak_tip"] = "robot_io";
-  String idem = String(CIHAZ_ID) + "_" + String(seq);
+  // idempotency_key: cihaz_i<istasyon>_<seq> — istasyon başına ayrı seri
+  String idem = String(CIHAZ_ID) + "_i" + String(p.istasyon) + "_" + String(p.seq);
   doc["idempotency_key"] = idem;
 
   String payload;
@@ -154,39 +167,48 @@ bool bufferdanBirGonder() {
   http.end();
 
   if (rc == 200 || rc == 201) {
-    Serial.printf("[POST] OK seq=%d (HTTP %d)\n", seq, rc);
-    // Başarılı → kuyruktan çıkar
+    Serial.printf("[POST] OK Ist.%d seq=%lu (HTTP %d)\n", p.istasyon, p.seq, rc);
     buf_bas = (buf_bas + 1) % BUFFER_MAX;
     buf_dolu--;
     return true;
   } else {
-    Serial.printf("[POST] HATA seq=%d (HTTP %d) — kuyrukta kal\n", seq, rc);
+    Serial.printf("[POST] HATA Ist.%d seq=%lu (HTTP %d) — kuyrukta kal\n",
+                  p.istasyon, p.seq, rc);
     return false;
   }
 }
 
-void sinyaliKaydet() {
-  pulseSayisi++;
-  prefs.putULong("pulse", pulseSayisi);  // NVS'de kalıcı
+// Sinyali kaydet (istasyon bazlı sayaç + buffer + NVS)
+void istasyonSinyali(uint8_t istasyon) {
+  uint32_t seq;
+  if (istasyon == 1) {
+    pulseIst1++;
+    seq = pulseIst1;
+    prefs.putULong("pulse_i1", pulseIst1);
+  } else if (istasyon == 2) {
+    pulseIst2++;
+    seq = pulseIst2;
+    prefs.putULong("pulse_i2", pulseIst2);
+  } else {
+    return;
+  }
 
-  // Buffer'a ekle (sequence = pulseSayisi)
+  // Buffer'a ekle (dolu ise en eskiyi at)
   if (buf_dolu >= BUFFER_MAX) {
-    // Buffer dolu → en eskiyi at, yenisini koy (eski uçtu)
-    Serial.println("[BUFFER] DOLU! En eski pulse at, yenisini ekle");
+    Serial.println("[BUFFER] DOLU! En eski pulse atildi");
     buf_bas = (buf_bas + 1) % BUFFER_MAX;
     buf_dolu--;
   }
-  buffer_kuyruk[buf_son] = (int)pulseSayisi;
+  buffer[buf_son].seq      = seq;
+  buffer[buf_son].istasyon = istasyon;
   buf_son = (buf_son + 1) % BUFFER_MAX;
   buf_dolu++;
 
-  Serial.printf("[PULSE] #%lu (kuyruk=%d) — gonderiliyor...\n", pulseSayisi, buf_dolu);
+  Serial.printf("[PULSE] Ist.%d #%lu (kuyruk=%d) — gonderiliyor...\n",
+                istasyon, seq, buf_dolu);
   ledYakBlink(2, 50);
 
-  // Eğer WiFi varsa hemen göndermeyi dene
-  if (wifiHazir()) {
-    bufferdanBirGonder();
-  }
+  if (wifiHazir()) bufferdanBirGonder();
 }
 
 void heartbeatGonder() {
@@ -197,22 +219,27 @@ void heartbeatGonder() {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", String("Bearer ") + API_TOKEN);
 
-  StaticJsonDocument<384> doc;
-  doc["cihaz_id"]      = CIHAZ_ID;
-  doc["bolum"]         = BOLUM;
-  doc["robot_no"]      = ROBOT_NO;
-  doc["firmware_ver"]  = FIRMWARE_VER;
-  doc["ip_adresi"]     = WiFi.localIP().toString();
-  doc["mac_adresi"]    = WiFi.macAddress();
-  doc["wifi_rssi"]     = WiFi.RSSI();
-  doc["buffer_kuyruk"] = buf_dolu;
-  doc["uptime_sn"]     = (millis() - bootMs) / 1000;
-  doc["free_heap"]     = (int)ESP.getFreeHeap();
+  StaticJsonDocument<512> doc;
+  doc["cihaz_id"]        = CIHAZ_ID;
+  doc["bolum"]           = BOLUM;
+  doc["robot_no"]        = ROBOT_NO;
+  doc["firmware_ver"]    = FIRMWARE_VER;
+  doc["ip_adresi"]       = WiFi.localIP().toString();
+  doc["mac_adresi"]      = WiFi.macAddress();
+  doc["wifi_rssi"]       = WiFi.RSSI();
+  doc["buffer_kuyruk"]   = buf_dolu;
+  doc["uptime_sn"]       = (millis() - bootMs) / 1000;
+  doc["free_heap"]       = (int)ESP.getFreeHeap();
+  doc["pulse_ist1"]      = pulseIst1;
+  doc["pulse_ist2"]      = pulseIst2;
+  doc["robot_calisiyor"] = robotCalisiyor;
 
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
   http.end();
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d\n", rc, WiFi.RSSI(), buf_dolu);
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · ist1=%lu · ist2=%lu · robot=%s\n",
+                rc, WiFi.RSSI(), buf_dolu, pulseIst1, pulseIst2,
+                robotCalisiyor ? "ON" : "OFF");
 }
 
 // ════════════════════════════════════════════════════════════
@@ -227,24 +254,32 @@ void setup() {
   Serial.println("\n╔════════════════════════════════════════════╗");
   Serial.printf( "║  COFLE PILOT SAYAC — %-21s ║\n", CIHAZ_ID);
   Serial.println("╚════════════════════════════════════════════╝");
-  Serial.printf("FW: %s · Bolum: %s · Robot: %s · Ist: %d\n",
-                FIRMWARE_VER, BOLUM, ROBOT_NO, ISTASYON);
+  Serial.printf("FW: %s · Bolum: %s · Robot: %s · 2 istasyon + durum\n",
+                FIRMWARE_VER, BOLUM, ROBOT_NO);
+  Serial.printf("Pinler: Ist1=GPIO%d · Ist2=GPIO%d · Robot=GPIO%d\n",
+                PIN_IST1_SAYAC, PIN_IST2_SAYAC, PIN_ROBOT_CALISIYOR);
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
-  // GPIO
-  pinMode(SAYAC_PIN, INPUT_PULLUP);  // Röle kontağı GND'ye kapanır → LOW = pulse
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  lastPinState = digitalRead(SAYAC_PIN);
+  // GPIO — 3 giriş input-pullup
+  pinMode(PIN_IST1_SAYAC,      INPUT_PULLUP);
+  pinMode(PIN_IST2_SAYAC,      INPUT_PULLUP);
+  pinMode(PIN_ROBOT_CALISIYOR, INPUT_PULLUP);
+  pinMode(PIN_LED,             OUTPUT);
+  digitalWrite(PIN_LED, LOW);
 
-  // NVS — kalıcı pulse sayısı
+  lastIst1State  = digitalRead(PIN_IST1_SAYAC);
+  lastIst2State  = digitalRead(PIN_IST2_SAYAC);
+  lastRobotState = digitalRead(PIN_ROBOT_CALISIYOR);
+  robotCalisiyor = (lastRobotState == LOW);  // röle kapalı = robot çalışıyor
+
+  // NVS — istasyon başına kalıcı sayaç
   prefs.begin("cofle", false);
-  pulseSayisi = prefs.getULong("pulse", 0);
-  Serial.printf("[NVS] Kayitli toplam pulse: %lu\n", pulseSayisi);
+  pulseIst1 = prefs.getULong("pulse_i1", 0);
+  pulseIst2 = prefs.getULong("pulse_i2", 0);
+  Serial.printf("[NVS] Kayitli sayaclar: Ist1=%lu · Ist2=%lu\n", pulseIst1, pulseIst2);
 
   // Watchdog (ESP32 core 3.x ve 2.x ile uyumlu)
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-  // Core 3.x: yeni API — config struct
   esp_task_wdt_config_t wdt_config = {
     .timeout_ms     = (uint32_t)(WDT_TIMEOUT_S * 1000),
     .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
@@ -252,11 +287,9 @@ void setup() {
   };
   esp_err_t wdt_err = esp_task_wdt_init(&wdt_config);
   if (wdt_err == ESP_ERR_INVALID_STATE) {
-    // TWDT zaten init edilmiş (Arduino loop'u için) — sadece reconfigure et
     esp_task_wdt_reconfigure(&wdt_config);
   }
 #else
-  // Core 2.x: eski API — timeout (saniye) + panic flag
   esp_task_wdt_init(WDT_TIMEOUT_S, true);
 #endif
   esp_task_wdt_add(NULL);
@@ -269,7 +302,7 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] Sayac aktif — robot DO sinyali bekleniyor...\n");
+  Serial.println("[READY] 3 girisli sayac aktif — robot DO sinyalleri bekleniyor...\n");
   ledYakBlink(3, 60);
 }
 
@@ -277,36 +310,51 @@ void loop() {
   esp_task_wdt_reset();
   unsigned long now = millis();
 
-  // ── 1. WiFi kontrolu — koptuysa yeniden bagla ──
+  // ── 1. WiFi kontrolu ──
   if (!wifiHazir()) {
-    digitalWrite(LED_PIN, (now / 200) % 2);  // hızlı blink = WiFi yok
-    if ((now - lastHeartbeat) > 15000) {     // 15sn'de bir tekrar dene
+    digitalWrite(PIN_LED, (now / 200) % 2);
+    if ((now - lastHeartbeat) > 15000) {
       wifiBaglan();
       lastHeartbeat = now;
     }
   }
 
-  // ── 2. Sayac pin oku (debounce ile) ──
-  int cur = digitalRead(SAYAC_PIN);
-  if (cur != lastPinState && (now - lastDebounceMs) > DEBOUNCE_MS) {
-    lastDebounceMs = now;
-    if (cur == LOW) {  // Röle kapandı → parça çıktı
-      sinyaliKaydet();
-    }
-    lastPinState = cur;
+  // ── 2. İstasyon 1 sayaç (debounce + falling edge) ──
+  int curIst1 = digitalRead(PIN_IST1_SAYAC);
+  if (curIst1 != lastIst1State && (now - lastDebounceIst1) > DEBOUNCE_MS) {
+    lastDebounceIst1 = now;
+    if (curIst1 == LOW) istasyonSinyali(1);
+    lastIst1State = curIst1;
   }
 
-  // ── 3. Buffer'da bekleyen pulse'ları gönder ──
+  // ── 3. İstasyon 2 sayaç ──
+  int curIst2 = digitalRead(PIN_IST2_SAYAC);
+  if (curIst2 != lastIst2State && (now - lastDebounceIst2) > DEBOUNCE_MS) {
+    lastDebounceIst2 = now;
+    if (curIst2 == LOW) istasyonSinyali(2);
+    lastIst2State = curIst2;
+  }
+
+  // ── 4. Robot çalışıyor durumu (state-based, edge log) ──
+  int curRobot = digitalRead(PIN_ROBOT_CALISIYOR);
+  if (curRobot != lastRobotState && (now - lastDebounceRobot) > DEBOUNCE_MS) {
+    lastDebounceRobot = now;
+    robotCalisiyor = (curRobot == LOW);  // röle kapalı = çalışıyor
+    Serial.printf("[ROBOT] Durum: %s\n", robotCalisiyor ? "ÇALIŞIYOR" : "DURDU");
+    lastRobotState = curRobot;
+  }
+
+  // ── 5. Buffer'da bekleyen pulse'ları gönder ──
   if (wifiHazir() && buf_dolu > 0 && (now - lastRetry) > RETRY_MS) {
     bufferdanBirGonder();
     lastRetry = now;
   }
 
-  // ── 4. Heartbeat ──
+  // ── 6. Heartbeat ──
   if (wifiHazir() && (now - lastHeartbeat) > HEARTBEAT_MS) {
     heartbeatGonder();
     lastHeartbeat = now;
   }
 
-  delay(5);  // CPU rahat etsin
+  delay(5);
 }
