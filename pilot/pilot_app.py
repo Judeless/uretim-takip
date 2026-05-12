@@ -74,9 +74,20 @@ def init_db():
             buffer_kuyruk INTEGER DEFAULT 0,
             uptime_sn INTEGER DEFAULT 0,
             free_heap INTEGER DEFAULT 0,
-            notlar TEXT DEFAULT ''
+            notlar TEXT DEFAULT '',
+            robot_calisiyor INTEGER DEFAULT 0,
+            robot_durum_zamani TEXT
         )
     ''')
+    # Migration: mevcut DB'lerde yoksa ekle
+    for col, ddl in [
+        ('robot_calisiyor',     'INTEGER DEFAULT 0'),
+        ('robot_durum_zamani',  'TEXT'),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE cihaz_kayitlari ADD COLUMN {col} {ddl}")
+        except Exception:
+            pass  # zaten var
     conn.commit()
     conn.close()
 
@@ -149,12 +160,23 @@ def heartbeat():
     if not cihaz_id:
         return jsonify({'hata': 'cihaz_id zorunludur'}), 400
 
+    yeni_robot_calisiyor = 1 if d.get('robot_calisiyor') else 0
+
     conn = get_db()
     try:
+        # Önceki robot durumunu öğren — değiştiyse durum_zamani'nı güncelleyeceğiz
+        mevcut = conn.execute(
+            "SELECT robot_calisiyor FROM cihaz_kayitlari WHERE cihaz_id = ?",
+            (cihaz_id,)
+        ).fetchone()
+        eski_durum = (mevcut['robot_calisiyor'] if mevcut else None)
+        durum_degisti = (eski_durum is None) or (eski_durum != yeni_robot_calisiyor)
+
         conn.execute('''
             INSERT INTO cihaz_kayitlari (cihaz_id, bolum, robot_no, firmware_ver, ip_adresi, mac_adresi,
-                                          wifi_rssi, buffer_kuyruk, uptime_sn, free_heap, son_heartbeat)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+                                          wifi_rssi, buffer_kuyruk, uptime_sn, free_heap,
+                                          robot_calisiyor, robot_durum_zamani, son_heartbeat)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))
             ON CONFLICT(cihaz_id) DO UPDATE SET
                 bolum = excluded.bolum,
                 robot_no = excluded.robot_no,
@@ -165,6 +187,11 @@ def heartbeat():
                 buffer_kuyruk = excluded.buffer_kuyruk,
                 uptime_sn = excluded.uptime_sn,
                 free_heap = excluded.free_heap,
+                robot_calisiyor = excluded.robot_calisiyor,
+                robot_durum_zamani = CASE
+                    WHEN ? = 1 THEN datetime('now','localtime')
+                    ELSE robot_durum_zamani
+                END,
                 son_heartbeat = excluded.son_heartbeat
         ''', (
             cihaz_id,
@@ -177,6 +204,8 @@ def heartbeat():
             int(d.get('buffer_kuyruk') or 0),
             int(d.get('uptime_sn') or 0),
             int(d.get('free_heap') or 0),
+            yeni_robot_calisiyor,
+            1 if durum_degisti else 0,
         ))
         conn.commit()
     finally:

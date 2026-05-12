@@ -67,8 +67,8 @@ const int PIN_LED             =  2;   // Built-in LED
 
 // Diğer ayarlar
 const int  DEBOUNCE_MS         = 100;     // Mekanik röle sıçraması
-const int  PARAZIT_SAMPLE_N    = 30;      // LOW gördükten sonra kaç kez teyit (daha agresif)
-const int  PARAZIT_SAMPLE_GAP  = 5;       // Teyit okumaları arası ms (toplam 150ms doğrulama)
+const int  PARAZIT_SAMPLE_N    = 15;      // LOW gördükten sonra kaç kez teyit
+const int  PARAZIT_SAMPLE_GAP  = 5;       // Teyit okumaları arası ms (toplam 75ms — 200ms pulse'un 1/3'ü)
 const unsigned long MIN_PULSE_GAP_MS = 3000;  // İki pulse arası minimum (3sn — robot cycle bundan hızlı olamaz)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
@@ -109,6 +109,13 @@ unsigned long lastDebounceRobot = 0;
 // Parazit filtresi — son geçerli pulse zamanı (her istasyon için ayrı)
 unsigned long lastValidPulseIst1 = 0;
 unsigned long lastValidPulseIst2 = 0;
+
+// Robot durumu periyodik stabilite kontrolü
+unsigned long lastRobotCheck = 0;
+const unsigned long ROBOT_CHECK_INTERVAL_MS = 500;  // Her 500ms'de bir
+const int           ROBOT_SAMPLE_N          = 10;   // 10 örnek
+const int           ROBOT_SAMPLE_THRESHOLD  = 7;    // 7+ örnek aynıysa kabul (yaklaşık %70)
+unsigned long lastRobotStateChangeMs = 0;
 
 unsigned long lastHeartbeat   = 0;
 unsigned long lastRetry       = 0;
@@ -401,13 +408,26 @@ void loop() {
     lastIst2State = curIst2;
   }
 
-  // ── 4. Robot çalışıyor durumu (state-based, edge log) ──
-  int curRobot = digitalRead(PIN_ROBOT_CALISIYOR);
-  if (curRobot != lastRobotState && (now - lastDebounceRobot) > DEBOUNCE_MS) {
-    lastDebounceRobot = now;
-    robotCalisiyor = (curRobot == LOW);  // röle kapalı = çalışıyor
-    Serial.printf("[ROBOT] Durum: %s\n", robotCalisiyor ? "ÇALIŞIYOR" : "DURDU");
-    lastRobotState = curRobot;
+  // ── 4. Robot çalışıyor durumu (periyodik stabilite + çoğunluk oylaması) ──
+  // Edge-triggered yerine her 500ms'de 10 örnek alınır, çoğunluk hangi yöndeyse
+  // gerçek durum kabul edilir. EMI ile gelen anlık değişimler süzülür.
+  if (now - lastRobotCheck >= ROBOT_CHECK_INTERVAL_MS) {
+    lastRobotCheck = now;
+    int lowSayim = 0;
+    for (int i = 0; i < ROBOT_SAMPLE_N; i++) {
+      if (digitalRead(PIN_ROBOT_CALISIYOR) == LOW) lowSayim++;
+      delay(2);
+    }
+    bool yeniDurum = (lowSayim >= ROBOT_SAMPLE_THRESHOLD);  // LOW çoğunluksa ÇALIŞIYOR
+    if (yeniDurum != robotCalisiyor) {
+      robotCalisiyor = yeniDurum;
+      lastRobotStateChangeMs = now;
+      Serial.printf("[ROBOT] Durum: %s (low/total=%d/%d)\n",
+                    robotCalisiyor ? "ÇALIŞIYOR" : "DURDU",
+                    lowSayim, ROBOT_SAMPLE_N);
+      // State değişiminde anında heartbeat gönder ki UI hemen güncellensin
+      if (wifiHazir()) heartbeatGonder();
+    }
   }
 
   // ── 5. Buffer'da bekleyen pulse'ları gönder ──

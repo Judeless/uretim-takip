@@ -188,6 +188,47 @@
       font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
     .pill-on { background: rgba(52,211,153,0.12); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.4); }
     .pill-off { background: rgba(248,113,113,0.10); color: #fecaca; border: 1px solid rgba(248,113,113,0.4); }
+    .pill-idle { background: rgba(156,163,175,0.10); color: #d1d5db; border: 1px solid rgba(156,163,175,0.35); }
+
+    /* Robot durumu kartları */
+    .robot-row {
+      display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 6px;
+    }
+    .robot-card2 {
+      flex: 1 1 240px; min-width: 220px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      border: 1px solid var(--line); border-radius: 14px;
+      padding: 14px 18px;
+      display: flex; align-items: center; gap: 14px;
+      transition: border-color 0.3s;
+    }
+    .robot-card2.on { border-color: rgba(52,211,153,0.5); }
+    .robot-card2-led {
+      width: 16px; height: 16px; border-radius: 50%;
+      flex-shrink: 0; background: #6b7280;
+    }
+    .robot-card2.on .robot-card2-led {
+      background: var(--c-emerald);
+      box-shadow: 0 0 16px var(--c-emerald), 0 0 4px var(--c-emerald);
+      animation: rcpulse 1.2s ease-in-out infinite;
+    }
+    .robot-card2-info { flex: 1; }
+    .robot-card2-name {
+      font-size: 0.7rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700;
+    }
+    .robot-card2-state {
+      font-size: 1.15rem; font-weight: 800; margin-top: 2px; color: #9ca3af;
+    }
+    .robot-card2.on .robot-card2-state { color: var(--c-emerald); }
+    .robot-card2-time {
+      font-size: 0.7rem; color: var(--muted); margin-top: 2px;
+      font-family: var(--font-mono);
+    }
+    @keyframes rcpulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
 
     /* Last events log (debug) */
     .log {
@@ -224,6 +265,11 @@
       <div class="mega-sub">Son 60 dakikadaki üretim: <b id="son60">0</b> parça</div>
     </div>
 
+    <div class="section-h">Robot Durumu</div>
+    <div class="robot-row" id="robot-row">
+      <div class="empty" style="margin:0;padding:14px">📡 Cihaz henüz heartbeat göndermedi.</div>
+    </div>
+
     <div class="section-h">Robot · İstasyon Kırılımı</div>
     <div class="grid" id="grid">
       <div class="empty">
@@ -236,11 +282,11 @@
     <table class="dev-table">
       <thead>
         <tr>
-          <th>Cihaz ID</th><th>Bölüm</th><th>Robot</th><th>IP</th><th>Sinyal</th><th>Buffer</th><th>Heartbeat</th><th>Toplam</th><th>Durum</th>
+          <th>Cihaz ID</th><th>Bölüm</th><th>Robot</th><th>Robot Durumu</th><th>IP</th><th>Sinyal</th><th>Buffer</th><th>Heartbeat</th><th>Toplam</th><th>Durum</th>
         </tr>
       </thead>
       <tbody id="dev-tbody">
-        <tr><td colspan="9" style="text-align:center;color:var(--muted);font-style:italic">Henüz cihaz kayıtlı değil.</td></tr>
+        <tr><td colspan="10" style="text-align:center;color:var(--muted);font-style:italic">Henüz cihaz kayıtlı değil.</td></tr>
       </tbody>
     </table>
 
@@ -294,24 +340,70 @@
     } catch (e) { console.warn('canli fetch:', e); }
   }
 
+  function gecenZaman(ts) {
+    if (!ts) return '—';
+    const t = new Date(ts.replace(' ', 'T'));
+    if (isNaN(t.getTime())) return '—';
+    const diffSn = (Date.now() - t.getTime()) / 1000;
+    if (diffSn < 0) return 'şimdi';
+    if (diffSn < 60) return `${Math.floor(diffSn)}sn önce`;
+    if (diffSn < 3600) return `${Math.floor(diffSn/60)}dk önce`;
+    if (diffSn < 86400) return `${Math.floor(diffSn/3600)}sa önce`;
+    return `${Math.floor(diffSn/86400)}g önce`;
+  }
+
+  function renderRobotDurumlari(list) {
+    const row = document.getElementById('robot-row');
+    const onlinelar = list.filter(c => c.durum === 'online');
+    if (!onlinelar.length) {
+      row.innerHTML = '<div class="empty" style="margin:0;padding:14px">📡 Online cihaz yok.</div>';
+      return;
+    }
+    row.innerHTML = onlinelar.map(c => {
+      const on = c.robot_calisiyor == 1;
+      const since = c.robot_durum_zamani ? gecenZaman(c.robot_durum_zamani) : '—';
+      const stateText = on ? 'ÇALIŞIYOR' : 'DURDU';
+      return `
+        <div class="robot-card2 ${on ? 'on' : ''}">
+          <div class="robot-card2-led"></div>
+          <div class="robot-card2-info">
+            <div class="robot-card2-name">${c.robot_no || c.cihaz_id}</div>
+            <div class="robot-card2-state">${stateText}</div>
+            <div class="robot-card2-time">${since}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
   async function yukleCihazlar() {
     try {
       const res = await fetch('/api/sinyal/cihazlar', { cache:'no-store' });
       const list = await res.json();
+
+      // Üst banner: Robot durumu kartları
+      renderRobotDurumlari(list);
+
       const tbody = document.getElementById('dev-tbody');
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);font-style:italic">Henüz cihaz kayıtlı değil.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);font-style:italic">Henüz cihaz kayıtlı değil.</td></tr>';
         return;
       }
       tbody.innerHTML = list.map(c => {
         const dur = c.durum === 'online'
           ? '<span class="pill pill-on">● ONLINE</span>'
           : '<span class="pill pill-off">○ OFFLINE</span>';
+        const robotDurum = (c.durum !== 'online')
+          ? '<span class="pill pill-idle">— OFFLINE</span>'
+          : (c.robot_calisiyor == 1
+              ? '<span class="pill pill-on">● ÇALIŞIYOR</span>'
+              : '<span class="pill pill-idle">○ DURDU</span>');
         const rssi = c.wifi_rssi ? `${c.wifi_rssi} dBm` : '—';
         return `<tr>
           <td class="mono"><b>${c.cihaz_id}</b></td>
           <td>${c.bolum || '—'}</td>
           <td class="mono">${c.robot_no || '—'}</td>
+          <td>${robotDurum}</td>
           <td class="mono">${c.ip_adresi || '—'}</td>
           <td>${rssi}</td>
           <td class="mono">${c.buffer_kuyruk || 0}</td>
