@@ -807,7 +807,11 @@
     const arr = list.slice(0, 24);
     c.innerHTML = arr.map(r => {
       const cls = 'rt-pill rt-' + (r.durum || 'launch_alinacak');
-      const sub = (r.robot_no ? r.robot_no : '') + (r.istasyon ? ' / İ' + r.istasyon : '');
+      const parcalar = [];
+      if (r.robot_no) parcalar.push(r.robot_no);
+      if (r.istasyon) parcalar.push('İ' + r.istasyon);
+      if (r.hedef_adet && r.hedef_adet > 0) parcalar.push(r.hedef_adet + ' adet');
+      const sub = parcalar.join(' · ');
       return `<div class="${cls}">
         <div class="rt-pill-ref">${escapeHtml(r.referans_kodu)}</div>
         <div class="rt-pill-sub">${escapeHtml(sub) || '—'}</div>
