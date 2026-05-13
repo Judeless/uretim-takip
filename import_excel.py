@@ -32,6 +32,10 @@ BOLUM_DURUS_SAYFA = {
     'metal':  'Metal Enjeksiyon Duruş Listesi',
 }
 
+# Ek sayfalar (kaynak bölümüne özel — diğer bölümler için gerekmez)
+ROBOT_PROGRAM_SAYFA = 'Robot Program Listesi'
+FIKSTUR_RAF_SAYFA   = 'Fikstür Raf Listesi'
+
 
 def durus_sebepleri_yukle(bolum):
     """data/uretim_verileri.xlsx içinden bölüme ait duruş sebeplerini okur.
@@ -260,6 +264,206 @@ def import_data(bolum=None):
     }
 
 
+def _program_listesi_import(conn, wb):
+    """Robot Program Listesi sayfası → robot_programlari tablosu.
+    Sayfa formatı (matrix):
+       Satır 0: ROBOT | RAFNO | ABB-1 | ABB-1 | ABB-2 | ABB-2 | ... (her robot 2 kez)
+       Satır 1: İSTASYON | <boş> | İST-1 | İST-2 | İST-1 | İST-2 | ...
+       Satır 2+: <referans_kodu> | <raf_no> | √ | <boş> | √ | √ | ...
+    Bu matrix'i düzleştirip her √ işareti için bir satır INSERT eder.
+    """
+    if wb is None or ROBOT_PROGRAM_SAYFA not in wb.sheetnames:
+        return {'eklenen': 0, 'silinen': 0, 'hata': 'sayfa yok'}
+
+    ws = wb[ROBOT_PROGRAM_SAYFA]
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 3:
+        return {'eklenen': 0, 'silinen': 0, 'hata': 'yetersiz satır'}
+
+    # Satır 0: robot adları (MERGED — birden çok kolonu kapsar)
+    # Satır 1: istasyon. Kolon 0=referans, 1=raf
+    robot_satiri = rows[0]
+    istasyon_satiri = rows[1]
+    # Merged cell mantığı: None olan kolonda son görülen robot devam eder
+    robot_son = ''
+    kolon_eslesme = []  # [(col_idx, robot_no, istasyon), ...]
+    for j in range(2, max(len(robot_satiri), len(istasyon_satiri))):
+        # Robot adı — yeni değer varsa al, yoksa son görüleni kullan (merged)
+        r_raw = robot_satiri[j] if j < len(robot_satiri) and robot_satiri[j] is not None else None
+        if r_raw is not None:
+            robot_son = str(r_raw).strip()
+        if not robot_son:
+            continue
+        # İstasyon
+        i_raw = istasyon_satiri[j] if j < len(istasyon_satiri) and istasyon_satiri[j] is not None else None
+        if i_raw is None:
+            continue
+        i_str = str(i_raw).strip()
+        robot_no = robot_son.replace('-', '').replace(' ', '')  # ABB-1 → ABB1
+        # İstasyon: "İST-1" → 1
+        ist = 0
+        if '1' in i_str: ist = 1
+        elif '2' in i_str: ist = 2
+        elif '3' in i_str: ist = 3
+        if ist > 0:
+            kolon_eslesme.append((j, robot_no, ist))
+
+    c = conn.cursor()
+    # Mevcut programları temizle (Excel master)
+    c.execute('DELETE FROM robot_programlari')
+
+    eklenen = 0
+    for r in rows[2:]:
+        if not r or r[0] is None: continue
+        ref = str(r[0]).strip()
+        if not ref or len(ref) < 2: continue
+        for col_idx, robot_no, ist in kolon_eslesme:
+            if col_idx >= len(r): continue
+            val = str(r[col_idx] or '').strip()
+            if val and val != '':  # √ veya başka bir işaret varsa
+                c.execute(
+                    'INSERT INTO robot_programlari (robot_no, istasyon, referans_kodu, guncelleyen) VALUES (?, ?, ?, ?)',
+                    (robot_no, ist, ref, 'Excel İçe Aktar')
+                )
+                eklenen += 1
+
+    print(f"  Robot Program: {eklenen} satır eklendi")
+    return {'eklenen': eklenen}
+
+
+def _fikstur_raf_import(conn, wb):
+    """Fikstür Raf Listesi sayfası → fikstur_raf tablosu.
+    Sayfa formatı: 3 raf yan yana (A, B, C). Her raf 2 kolon: kod | raf_no.
+    Aralarda boş kolon olabilir.
+    """
+    if wb is None or FIKSTUR_RAF_SAYFA not in wb.sheetnames:
+        return {'eklenen': 0, 'hata': 'sayfa yok'}
+
+    ws = wb[FIKSTUR_RAF_SAYFA]
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2:
+        return {'eklenen': 0, 'hata': 'yetersiz satır'}
+
+    c = conn.cursor()
+    c.execute('DELETE FROM fikstur_raf')
+
+    eklenen = 0
+    # Her satırdaki tüm (kod, raf_no) çiftlerini topla
+    for r in rows[1:]:  # Başlık satırını atla
+        if not r: continue
+        # Her 3 kolonda bir grup: (kod_col, raf_col, boş)
+        i = 0
+        while i < len(r):
+            kod = str(r[i] or '').strip() if i < len(r) else ''
+            raf = str(r[i+1] or '').strip() if i+1 < len(r) else ''
+            if kod and raf:
+                c.execute(
+                    'INSERT INTO fikstur_raf (referans_kodu, raf_no) VALUES (?, ?)',
+                    (kod, raf)
+                )
+                eklenen += 1
+            i += 3  # Sonraki grup
+
+    print(f"  Fikstür Raf: {eklenen} satır eklendi")
+    return {'eklenen': eklenen}
+
+
+def import_tum(yedek_al=False):
+    """Excel'deki TÜM sayfaları okuyup DB'yi günceller:
+       - Tüm bölüm referansları (cycle time)
+       - Tüm bölüm operatörleri
+       - Robot programları (kaynak için matrix)
+       - Fikstür raf listesi
+    Duruş sebepleri her API isteğinde okunduğu için import gerekmez.
+    """
+    if not os.path.exists(EXCEL_YOL):
+        return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
+
+    # Önce normal referans+operator (mevcut)
+    sonuc = import_data()
+
+    # Sonra ek sayfalar
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
+
+        # Robot Program
+        try:
+            prog_sonuc = _program_listesi_import(conn, wb)
+            sonuc['program_eklenen'] = prog_sonuc.get('eklenen', 0)
+        except Exception as e:
+            print(f"  Robot Program HATA: {e}")
+            sonuc['program_eklenen'] = 0
+
+        # Fikstür Raf
+        try:
+            fik_sonuc = _fikstur_raf_import(conn, wb)
+            sonuc['fikstur_eklenen'] = fik_sonuc.get('eklenen', 0)
+        except Exception as e:
+            print(f"  Fikstür HATA: {e}")
+            sonuc['fikstur_eklenen'] = 0
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    return sonuc
+
+
+def export_referans_cycle_times(bolum=None):
+    """DB'deki cycle_time'ları Excel'in <Bolum> Referans sayfa(lar)ına yazar.
+    Diğer veriler (operatör, duruş, program, fikstür) korunur.
+    """
+    if not os.path.exists(EXCEL_YOL):
+        return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    bolum_listesi = [bolum] if bolum else list(BOLUM_SAYFA.keys())
+    toplam_yazilan = 0
+    wb = openpyxl.load_workbook(EXCEL_YOL)
+
+    for b in bolum_listesi:
+        sayfa_adi = BOLUM_SAYFA[b]['ref']
+        if sayfa_adi not in wb.sheetnames:
+            continue
+        ws = wb[sayfa_adi]
+        # Mevcut Excel satırlarını oku, kod → satır map'i
+        kod_satir = {}
+        for i, row in enumerate(ws.iter_rows(values_only=True), start=1):
+            if i == 1: continue  # Başlık
+            if not row or row[0] is None: continue
+            kod = str(row[0]).strip()
+            kod_satir[kod.upper().replace(' ', '')] = i
+
+        # DB'deki bu bölüme ait referansları çek
+        db_rows = conn.execute(
+            "SELECT referans_kodu, hedef_cycle_time_sn FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? ORDER BY referans_kodu",
+            (b,)
+        ).fetchall()
+
+        yazilan = 0
+        for r in db_rows:
+            kod = (r['referans_kodu'] or '').strip()
+            norm = kod.upper().replace(' ', '')
+            if norm in kod_satir:
+                # Mevcut satırın 2. kolonunu güncelle
+                ws.cell(row=kod_satir[norm], column=2, value=r['hedef_cycle_time_sn'] or 0)
+                yazilan += 1
+            else:
+                # Yeni satır — sonuna ekle
+                yeni_r = ws.max_row + 1
+                ws.cell(row=yeni_r, column=1, value=kod)
+                ws.cell(row=yeni_r, column=2, value=r['hedef_cycle_time_sn'] or 0)
+                yazilan += 1
+        toplam_yazilan += yazilan
+        print(f"  {b}: {yazilan} satır Excel'e yazıldı")
+
+    conn.close()
+    wb.save(EXCEL_YOL)
+    return {'basarili': True, 'yazilan': toplam_yazilan, 'dosya': EXCEL_YOL}
+
+
 if __name__ == '__main__':
-    res = import_data()
+    res = import_tum()
     print("\n✅ Import tamamlandı:", res)

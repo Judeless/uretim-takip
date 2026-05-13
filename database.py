@@ -315,6 +315,20 @@ def init_db():
             (rno, goster, i)
         )
 
+    # Fikstür Raf Tablosu (KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods'tan gelir)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS fikstur_raf (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referans_kodu TEXT NOT NULL,
+            raf_no TEXT NOT NULL,
+            guncelleme_tarihi TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    try:
+        c.execute('CREATE INDEX IF NOT EXISTS idx_fikstur_ref ON fikstur_raf(referans_kodu)')
+    except Exception:
+        pass
+
     # Migration (2026-05-13): Vardiya 'robotla_calisiyor' bayrağı
     # Metal enjeksiyonda makine + robot tam otomasyon modunda çalışabilir;
     # operatör vardiya sırasında bu modu açıp kapayabilir.

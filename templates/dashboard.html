@@ -1990,6 +1990,30 @@
 
             <!-- ── REFERANSLAR SEKME ── -->
             <div id="sekme-referanslar" class="d-none">
+
+                <!-- ✨ TOPLU VERİ YÖNETİMİ (tek excel, tüm bölümler) -->
+                <div style="margin-bottom:24px;padding:18px 22px;background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(167,139,250,0.08));border:1px solid rgba(167,139,250,0.30);border-radius:16px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+                        <div style="flex:1;min-width:300px">
+                            <div style="font-size:1rem;font-weight:800;color:var(--text);margin-bottom:4px">🗂️ Toplu Veri Yönetimi</div>
+                            <div style="font-size:.78rem;color:var(--muted);line-height:1.4">
+                                <code>data/uretim_verileri.xlsx</code> üzerinden <b>tüm bölümlerin</b> referansları, operatörleri, robot programları ve fikstür raf listesi tek tıklama ile aktarılır.
+                                Duruş sebepleri otomatik okunur — import gerekmez.
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-primary" onclick="topluExcelIceAktar()"
+                                style="background:linear-gradient(135deg,#7c3aed,#2563eb);border:none;color:white;padding:10px 18px;font-weight:700">
+                                📥 Excel'den İçe Aktar
+                            </button>
+                            <button class="btn btn-outline" onclick="topluExcelDisaYaz()"
+                                style="border-color:#7c3aed;color:#7c3aed;padding:10px 18px;font-weight:700">
+                                📤 Excel'e Yaz
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Üst Aksiyonlar -->
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
                     <div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">
@@ -1999,8 +2023,8 @@
                                style="padding:8px 16px;border:1px solid var(--border);border-radius:10px;font-size:.85rem;width:260px;background:var(--card)">
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a">📥 Excel'den Aktar</button>
-                        <button class="btn btn-outline" onclick="referansExcelGuncelle()" style="border-color:#2563eb;color:#2563eb">📤 Excel'i Güncelle</button>
+                        <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a">📥 Excel'den Aktar (Tek Bölüm)</button>
+                        <button class="btn btn-outline" onclick="referansExcelGuncelle()" style="border-color:#2563eb;color:#2563eb">📤 Excel'i Güncelle (Tek Bölüm)</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
                 </div>
@@ -4195,6 +4219,61 @@
         // ═══════════════════════════════════════════════════════
         // EXCEL VERİ AKTARMA
         // ═══════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════
+        // TOPLU VERİ YÖNETİMİ — tek excel, tüm bölümler
+        // ═══════════════════════════════════════════════════════
+        async function topluExcelIceAktar() {
+            if (!confirm(
+                'data/uretim_verileri.xlsx içindeki TÜM sayfalar veritabanına aktarılacak:\n\n' +
+                '• Kaynak/Montaj/Metal referansları + cycle time\n' +
+                '• Kaynak/Montaj/Metal operatörleri\n' +
+                '• Robot Program Listesi (kaynak için)\n' +
+                '• Fikstür Raf Listesi (kaynak için)\n\n' +
+                'Mevcut DB verileri Excel ile değiştirilecek. Devam edilsin mi?'
+            )) return;
+            toast('Excel okunuyor, lütfen bekleyin...', 'info');
+            try {
+                const res = await fetch('/api/veri/import_tum', { method: 'POST' });
+                const d = await res.json();
+                if (d.basarili) {
+                    const ozet = [
+                        `${d.referanslar_eklenen || 0} eklenen + ${d.referanslar_guncellenen || 0} güncellenen referans`,
+                        `${d.operatorler_eklenen || 0} operatör`,
+                        `${d.program_eklenen || 0} robot program kaydı`,
+                        `${d.fikstur_eklenen || 0} fikstür raf kaydı`,
+                    ].join(' · ');
+                    toast('✅ İçe aktarma tamam: ' + ozet, 'ok');
+                    // Dashboard'u yenile
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    toast('❌ Hata: ' + (d.hata || 'bilinmeyen'), 'err');
+                }
+            } catch (e) {
+                toast('Bağlantı hatası: ' + e.message, 'err');
+            }
+        }
+
+        async function topluExcelDisaYaz() {
+            if (!confirm(
+                'Veritabanındaki TÜM bölüm cycle time bilgileri Excel\'e geri yazılacak:\n\n' +
+                '• data/uretim_verileri.xlsx içindeki referans sayfaları güncellenir\n' +
+                '• Operatör, duruş, program ve fikstür sayfaları KORUNUR (dokunulmaz)\n\n' +
+                'Devam edilsin mi?'
+            )) return;
+            toast('Excel yazılıyor...', 'info');
+            try {
+                const res = await fetch('/api/veri/export_tum', { method: 'POST' });
+                const d = await res.json();
+                if (d.basarili) {
+                    toast(`✅ Excel güncellendi: ${d.yazilan || 0} satır yazıldı`, 'ok');
+                } else {
+                    toast('❌ Hata: ' + (d.hata || 'bilinmeyen'), 'err');
+                }
+            } catch (e) {
+                toast('Bağlantı hatası: ' + e.message, 'err');
+            }
+        }
+
         async function excelVeriAktar() {
             const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans / Montaj Operator'
                            : (aktifBolum === 'metal')  ? 'Metal Referans / Metal Operator'

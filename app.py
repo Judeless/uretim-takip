@@ -7,7 +7,7 @@ import traceback # For debugging
 
 from database import get_db as db_connect, init_db
 from oee import hesapla_oee, hesapla_oee_ozet
-from import_excel import import_data, durus_sebepleri_yukle
+from import_excel import import_data, durus_sebepleri_yukle, import_tum, export_referans_cycle_times
 from export_excel import export_arsiv
 
 # ODS dosyası yolu
@@ -1051,6 +1051,31 @@ def excel_import():
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}", 'basarili': False}), 400
     try:
         sonuc = import_data(bolum=bolum)
+        return jsonify(sonuc), 200
+    except Exception as e:
+        return jsonify({'hata': str(e), 'basarili': False}), 500
+
+
+@app.route('/api/veri/import_tum', methods=['POST'])
+def veri_import_tum():
+    """Tüm Excel sayfalarını okuyup DB'yi günceller (tek tıkla import).
+    Kapsam: referans + operatör (3 bölüm), robot program, fikstür raf.
+    Duruş sebepleri her API isteğinde Excel'den okunur, import gerekmez.
+    """
+    try:
+        sonuc = import_tum()
+        return jsonify(sonuc), 200
+    except Exception as e:
+        return jsonify({'hata': str(e), 'basarili': False}), 500
+
+
+@app.route('/api/veri/export_tum', methods=['POST'])
+def veri_export_tum():
+    """DB'deki cycle time'ları Excel'e geri yazar (tüm bölümler).
+    Operatör, duruş, program, fikstür verileri Excel'de bozulmadan korunur.
+    """
+    try:
+        sonuc = export_referans_cycle_times()
         return jsonify(sonuc), 200
     except Exception as e:
         return jsonify({'hata': str(e), 'basarili': False}), 500
