@@ -363,34 +363,63 @@
     body[data-bolum="metal"] .ref-launch      { font-size: 0.90rem; }
     body[data-bolum="metal"] .ref-empty       { font-size: 1.0rem; padding: 12px; }
 
-    /* Robotla çalışıyor (tam otomasyon) rozeti — sağ üst köşede */
+    /* Robotla çalışıyor (tam otomasyon) rozeti — sol üst köşede */
     .rc-auto-badge {
       position: absolute;
-      top: 8px; right: 8px;
-      padding: 4px 10px;
+      top: 6px; left: 6px;
+      padding: 5px 11px;
       border-radius: 10px;
-      background: linear-gradient(135deg, rgba(34,211,238,0.18), rgba(167,139,250,0.18));
-      border: 1px solid rgba(34,211,238,0.5);
-      color: #67e8f9;
-      font-size: 0.72rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
+      background: linear-gradient(135deg, rgba(34,211,238,0.25), rgba(167,139,250,0.25));
+      border: 1px solid rgba(34,211,238,0.7);
+      color: #a5f3fc;
+      font-size: 0.74rem;
+      font-weight: 900;
+      letter-spacing: 0.10em;
       text-transform: uppercase;
-      box-shadow: 0 0 12px rgba(34,211,238,0.25);
+      box-shadow: 0 0 14px rgba(34,211,238,0.45);
       z-index: 5;
       pointer-events: none;
-      animation: autopulse 2.2s ease-in-out infinite;
+      animation: badgepulse 1.3s ease-in-out infinite;
     }
+    @keyframes badgepulse {
+      0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 14px rgba(34,211,238,0.45);
+      }
+      50% {
+        opacity: 0.7;
+        box-shadow: 0 0 22px rgba(34,211,238,0.85), 0 0 6px rgba(167,139,250,0.6);
+      }
+    }
+
+    /* Tam otomasyon modunda kart çerçevesi — belirgin pulse efekti */
     .rcard.auto-mode {
-      border-color: rgba(34,211,238,0.4) !important;
+      animation: rcardpulse 1.5s ease-in-out infinite;
     }
+    @keyframes rcardpulse {
+      0%, 100% {
+        border-color: rgba(34,211,238,0.45);
+        box-shadow: 0 0 0px rgba(34,211,238,0);
+      }
+      50% {
+        border-color: rgba(34,211,238,1.0);
+        box-shadow:
+          0 0 28px rgba(34,211,238,0.55),
+          0 0 8px rgba(167,139,250,0.4),
+          inset 0 0 14px rgba(34,211,238,0.15);
+      }
+    }
+    /* Sol kenar ışık şeridi (auto modunda daha yoğun ve pulse'lu) */
     .rcard.auto-mode::before {
-      background: var(--c-cyan) !important;
-      box-shadow: 0 0 18px rgba(34,211,238,0.45) !important;
+      background: linear-gradient(180deg, var(--c-cyan), #a78bfa, var(--c-cyan)) !important;
+      width: 5px !important;
+      top: 0% !important; bottom: 0% !important;
+      box-shadow: 0 0 26px rgba(34,211,238,0.8), 0 0 8px rgba(167,139,250,0.5) !important;
+      animation: edgepulse 1.5s ease-in-out infinite;
     }
-    @keyframes autopulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.65; }
+    @keyframes edgepulse {
+      0%, 100% { opacity: 0.85; }
+      50% { opacity: 1; filter: brightness(1.3); }
     }
 
     /* Sağ panel: atamalar + duruş */
