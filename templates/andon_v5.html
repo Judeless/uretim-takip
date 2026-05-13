@@ -330,14 +330,31 @@
     }
 
     /* Metal enjeksiyon: 4 makine olduğu için her kartta daha çok yer var,
-       referans/operatör isimlerini ve diğer metinleri büyüt */
-    body[data-bolum="metal"] .rc-op           { font-size: 1.05rem; }
-    body[data-bolum="metal"] .rc-shift        { font-size: 0.72rem; }
+       referans/operatör isimlerini ve diğer metinleri büyüt;
+       sol kimlik paneli daha geniş (operatör adı sığsın);
+       referans kodu kutucuğun ortasına alınıp büyütülür (tek referans çalışıyor) */
+    body[data-bolum="metal"] .rcard           { grid-template-columns: 190px 1fr 220px; }
+    body[data-bolum="metal"] .rc-op {
+      font-size: 1.05rem;
+      white-space: normal;            /* Uzun isim alt satıra düşebilsin */
+      overflow: visible;
+      line-height: 1.18;
+      text-overflow: clip;
+    }
+    body[data-bolum="metal"] .rc-shift        { font-size: 0.74rem; }
     body[data-bolum="metal"] .station-header  { font-size: 1.0rem; margin-bottom: 8px; }
-    body[data-bolum="metal"] .ref-code        { font-size: 1.30rem; }
+    body[data-bolum="metal"] .ref-row {
+      min-height: 56px;
+      padding: 10px 14px;
+      justify-content: center;        /* İçeriği yatayda ortala */
+    }
+    body[data-bolum="metal"] .ref-code {
+      font-size: 1.85rem;             /* Belirgin büyük */
+      flex: 0 1 auto;                 /* Tüm genişliği kaplamasın, ortalanabilsin */
+      text-align: center;
+    }
     body[data-bolum="metal"] .ref-launch      { font-size: 0.95rem; }
-    body[data-bolum="metal"] .ref-row         { min-height: 38px; padding: 7px 12px; }
-    body[data-bolum="metal"] .ref-empty       { font-size: 0.95rem; padding: 10px; }
+    body[data-bolum="metal"] .ref-empty       { font-size: 1.05rem; padding: 14px; }
 
     /* Sağ panel: atamalar + duruş */
     .rc-side {
