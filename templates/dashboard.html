@@ -1551,9 +1551,6 @@
                     </div>
                     <button class="btn btn-primary" onclick="yukle()">🔍 Filtrele</button>
                     <button class="btn"
-                        style="background:#16a34a;color:#fff;font-weight:700;padding:13px 18px;border-radius:12px;border:none;cursor:pointer;font-size:.88rem"
-                        onclick="exportModalAc()">📥 Excel'e Kaydet</button>
-                    <button class="btn"
                         style="background:#0f172a;color:#fff;font-weight:700;padding:13px 18px;border-radius:12px;border:none;cursor:pointer;font-size:.88rem;box-shadow: 0 4px 12px rgba(0,0,0,0.2)"
                         onclick="tavGunlukRaporAc()">📊 Günlük Üretim Raporu</button>
                 </div>
@@ -1997,8 +1994,7 @@
                         <div style="flex:1;min-width:300px">
                             <div style="font-size:1rem;font-weight:800;color:var(--text);margin-bottom:4px">🗂️ Toplu Veri Yönetimi</div>
                             <div style="font-size:.78rem;color:var(--muted);line-height:1.4">
-                                <code>data/uretim_verileri.xlsx</code> üzerinden <b>tüm bölümlerin</b> referans/operatör/duruş listesi/robot program ve fikstür raf bilgileri tek tıkla aktarılır.<br>
-                                <span style="color:#10b981;font-weight:600">⏰ Vardiya verileri her gün 18:00'da otomatik <code>data/arsiv/</code> klasörüne yedeklenir.</span>
+                                <code>data/uretim_verileri.xlsx</code> üzerinden <b>tüm bölümlerin</b> referans/operatör/duruş listesi/robot program ve fikstür raf bilgileri tek tıkla aktarılır.
                             </div>
                         </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -2020,7 +2016,6 @@
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
                         <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a">📥 Excel'den Aktar (Tek Bölüm)</button>
-                        <button class="btn btn-outline" onclick="referansExcelGuncelle()" style="border-color:#2563eb;color:#2563eb">📤 Excel'i Güncelle (Tek Bölüm)</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
                 </div>

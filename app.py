@@ -864,7 +864,10 @@ def referans_listesi():
 
 @app.route('/api/referanslar', methods=['POST'])
 def referans_ekle():
-    """Yeni referans tanımla veya güncelle (bolum opsiyonel — varsayılan 'kaynak')."""
+    """Yeni referans tanımla veya güncelle (bolum opsiyonel — varsayılan 'kaynak').
+    Cycle time tanımlandığında Excel'in ilgili bölüm sayfası otomatik
+    güncellenir (data/uretim_verileri.xlsx).
+    """
     data = request.get_json()
     ref = data.get('referans_kodu', '').strip()
     if not ref:
@@ -883,16 +886,24 @@ def referans_ekle():
             'INSERT OR REPLACE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, bolum) VALUES (?, ?, ?, ?)',
             (ref, desc, ct, bolum)
         )
-        
+
         # Geriye dönük güncelleme: Aynı referansa sahip geçmiş üretim kayıtlarının süresini de güncelle.
         if ct > 0:
             conn.execute("UPDATE uretim_kayitlari SET cycle_time_sn = ? WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', ''))", (ct, ref))
-            
+
         conn.commit()
     except Exception as e:
         conn.close()
         return jsonify({'hata': str(e)}), 400
     conn.close()
+
+    # Excel'i otomatik güncelle (sadece bu bölümün cycle time'larını yazar,
+    # diğer sayfalar dokunulmaz). Hata olsa bile referans kaydı başarılı sayılır.
+    try:
+        export_referans_cycle_times(bolum=bolum)
+    except Exception as e:
+        print(f'[referans_ekle] Excel auto-sync hatası ({bolum}): {e}')
+
     return jsonify({'basarili': True}), 201
 
 
