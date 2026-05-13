@@ -466,6 +466,26 @@ def vardiya_kapat(vid):
     return jsonify({'basarili': True, 'sure_dk': fark_dk})
 
 
+@app.route('/api/vardiya/<int:vid>/robotla_calisiyor', methods=['PATCH'])
+def vardiya_robotla_calisiyor(vid):
+    """Vardiya 'robotla çalışıyor / tam otomasyon' bayrağını aç/kapat.
+    Metal enjeksiyonda makine+robot otomatik çalışırken kullanılır.
+    Body: { robotla_calisiyor: 0|1 }
+    """
+    data = request.get_json() or {}
+    yeni = 1 if data.get('robotla_calisiyor') else 0
+    conn = get_db()
+    c = conn.cursor()
+    v = c.execute('SELECT id FROM vardiyalar WHERE id=?', (vid,)).fetchone()
+    if not v:
+        conn.close()
+        return jsonify({'hata': 'Vardiya bulunamadı'}), 404
+    c.execute('UPDATE vardiyalar SET robotla_calisiyor=? WHERE id=?', (yeni, vid))
+    conn.commit()
+    conn.close()
+    return jsonify({'basarili': True, 'robotla_calisiyor': yeni})
+
+
 @app.route('/api/vardiya/<int:vid>/ac', methods=['PATCH'])
 def vardiya_ac(vid):
     """Kapanmış vardiyayı yeniden aç."""
@@ -2201,6 +2221,11 @@ def andon_veri():
         if v['durum'] != 'acik':
             continue
         durus_info = vardiya_durus_map.get(v['id'], {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []})
+        # robotla_calisiyor — sütun yoksa eski DB; güvenli erişim
+        try:
+            rc = 1 if v['robotla_calisiyor'] else 0
+        except (KeyError, IndexError):
+            rc = 0
         item = {
             'vardiya_id': v['id'],
             'robot_no': v['robot_no'],
@@ -2212,6 +2237,7 @@ def andon_veri():
             'durus_dk': durus_info['toplam_durus_dk'],
             'durus_adet': durus_info['durus_adet'],
             'durus_detay': durus_info['detay'],
+            'robotla_calisiyor': rc,
         }
         for u in uretim_rows:
             if u['vardiya_id'] == v['id']:

@@ -1063,6 +1063,17 @@
         <div class="vb-oee-label">Anlık OEE</div>
       </div>
 
+      <!-- Robotla Çalışıyor toggle (sadece metal'de görünür) -->
+      <div id="c-auto-toggle" style="display:none;margin:12px 0;padding:14px 18px;background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.28);border-radius:14px">
+        <label style="display:flex;align-items:center;gap:14px;cursor:pointer;font-weight:700;font-size:.9rem;margin:0">
+          <input type="checkbox" id="c-auto-cb" onchange="toggleRobotlaCalisma()" style="display:none">
+          <span id="c-auto-slider" style="width:48px;height:26px;background:#475569;border-radius:13px;position:relative;transition:.3s;flex-shrink:0">
+            <span id="c-auto-knob" style="position:absolute;width:20px;height:20px;background:white;border-radius:50%;top:3px;left:3px;transition:.3s"></span>
+          </span>
+          <span>🤖 <span id="c-auto-text">Robotla Çalışıyor (Tam Otomasyon)</span></span>
+        </label>
+      </div>
+
       <!-- Sıradaki İşler -->
       <div id="c-next-jobs" class="next-jobs-wrap" style="display:none">
         <div class="nj-title">⏭️ Sıradaki İşler (Size Atanan)</div>
@@ -1829,6 +1840,22 @@
         document.getElementById('c-detay').textContent =
           d.vardiya.baslangic_saati + ' → ' + d.vardiya.bitis_saati + ' · ' + d.vardiya.vardiya_turu + ' · ' + d.vardiya.tarih;
 
+        // Robotla Çalışıyor toggle — sadece metal bölümünde göster
+        var autoWrap = document.getElementById('c-auto-toggle');
+        if (d.vardiya.bolum === 'metal') {
+          autoWrap.style.display = 'block';
+          var isOn = (d.vardiya.robotla_calisiyor == 1);
+          document.getElementById('c-auto-cb').checked = isOn;
+          var slider = document.getElementById('c-auto-slider');
+          var knob = document.getElementById('c-auto-knob');
+          slider.style.background = isOn ? '#34d399' : '#475569';
+          knob.style.left = isOn ? '25px' : '3px';
+          document.getElementById('c-auto-text').textContent =
+            isOn ? 'Robotla Çalışıyor: AKTİF (Tam Otomasyon)' : 'Robotla Çalışıyor (Tam Otomasyon)';
+        } else {
+          autoWrap.style.display = 'none';
+        }
+
         cacheUretim = d.uretim || [];
         var ulEl = document.getElementById('c-uretim-list');
         ulEl.innerHTML = '';
@@ -1907,6 +1934,42 @@
         .then(function (r) { return r.json(); })
         .then(function (oeeData) { oeeEl.textContent = (oeeData.oee != null) ? '%' + oeeData.oee : '—'; })
         .catch(function () {});
+    }
+
+    // Metal enjeksiyon: 'Robotla Çalışıyor' (tam otomasyon) toggle
+    function toggleRobotlaCalisma() {
+      if (!aktifVardiyaId) return;
+      var cb = document.getElementById('c-auto-cb');
+      var yeni = cb.checked ? 1 : 0;
+      // Önce UI'ı anında güncelle (optik responsiveness)
+      var slider = document.getElementById('c-auto-slider');
+      var knob = document.getElementById('c-auto-knob');
+      slider.style.background = cb.checked ? '#34d399' : '#475569';
+      knob.style.left = cb.checked ? '25px' : '3px';
+      document.getElementById('c-auto-text').textContent =
+        cb.checked ? 'Robotla Çalışıyor: AKTİF (Tam Otomasyon)' : 'Robotla Çalışıyor (Tam Otomasyon)';
+
+      fetch('/api/vardiya/' + aktifVardiyaId + '/robotla_calisiyor', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ robotla_calisiyor: yeni })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.basarili) {
+            if (aktifVardiyaData) aktifVardiyaData.robotla_calisiyor = yeni;
+            toast(yeni ? '🤖 Robot otomasyon: AKTİF' : 'Robot otomasyon kapatıldı', 'success');
+          } else {
+            cb.checked = !cb.checked;
+            toggleRobotlaCalisma();  // UI geri çevir
+            toast('Hata: ' + (d.hata || ''), 'error');
+          }
+        })
+        .catch(function () {
+          cb.checked = !cb.checked;
+          toggleRobotlaCalisma();
+          toast('Bağlantı hatası', 'error');
+        });
     }
 
     function vardiyaKapat() {

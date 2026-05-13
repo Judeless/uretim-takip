@@ -351,17 +351,47 @@
       margin-bottom: auto;
     }
     body[data-bolum="metal"] .ref-row {
-      min-height: 56px;
-      padding: 10px 14px;
+      min-height: 50px;
+      padding: 8px 12px;
       justify-content: center;        /* İçeriği yatayda ortala */
     }
     body[data-bolum="metal"] .ref-code {
-      font-size: 1.85rem;             /* Belirgin büyük */
+      font-size: 1.50rem;             /* Belirgin ama duruşlarla çakışmayacak boyut */
       flex: 0 1 auto;                 /* Tüm genişliği kaplamasın, ortalanabilsin */
       text-align: center;
     }
-    body[data-bolum="metal"] .ref-launch      { font-size: 0.95rem; }
-    body[data-bolum="metal"] .ref-empty       { font-size: 1.05rem; padding: 14px; }
+    body[data-bolum="metal"] .ref-launch      { font-size: 0.90rem; }
+    body[data-bolum="metal"] .ref-empty       { font-size: 1.0rem; padding: 12px; }
+
+    /* Robotla çalışıyor (tam otomasyon) rozeti — sağ üst köşede */
+    .rc-auto-badge {
+      position: absolute;
+      top: 8px; right: 8px;
+      padding: 4px 10px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(34,211,238,0.18), rgba(167,139,250,0.18));
+      border: 1px solid rgba(34,211,238,0.5);
+      color: #67e8f9;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 0 12px rgba(34,211,238,0.25);
+      z-index: 5;
+      pointer-events: none;
+      animation: autopulse 2.2s ease-in-out infinite;
+    }
+    .rcard.auto-mode {
+      border-color: rgba(34,211,238,0.4) !important;
+    }
+    .rcard.auto-mode::before {
+      background: var(--c-cyan) !important;
+      box-shadow: 0 0 18px rgba(34,211,238,0.45) !important;
+    }
+    @keyframes autopulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
 
     /* Sağ panel: atamalar + duruş */
     .rc-side {
@@ -811,8 +841,14 @@
       : `<div class="rc-op" style="color:var(--dim)">—</div>
          <div class="rc-shift">Standby</div>`;
 
+    // Robotla çalışıyor (tam otomasyon) rozeti — metal'de aktifse kart üst-sağda
+    const autoBadge = (r.robotla_calisiyor == 1)
+      ? `<div class="rc-auto-badge" title="Robot + Makine tam otomasyon modunda">🤖 AUTO</div>`
+      : '';
+
     return `
-      <div class="rcard ${status}">
+      <div class="rcard ${status}${r.robotla_calisiyor == 1 ? ' auto-mode' : ''}">
+        ${autoBadge}
         <div class="rc-id">
           <div class="rc-no">${escapeHtml(r.robot_no)}</div>
           <div class="rc-status-dot"></div>

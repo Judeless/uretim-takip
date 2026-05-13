@@ -315,6 +315,14 @@ def init_db():
             (rno, goster, i)
         )
 
+    # Migration (2026-05-13): Vardiya 'robotla_calisiyor' bayrağı
+    # Metal enjeksiyonda makine + robot tam otomasyon modunda çalışabilir;
+    # operatör vardiya sırasında bu modu açıp kapayabilir.
+    try:
+        c.execute("ALTER TABLE vardiyalar ADD COLUMN robotla_calisiyor INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
     # Migration (2026-05-13): Metal enjeksiyondaki "500T" makinesinin gerçek adı "550T"
     # Tüm robot_no=='500T' kayıtları güncellenir. Tek seferlik, idempotent (ikinci çalıştırmada hiçbir şey yapmaz).
     try:
