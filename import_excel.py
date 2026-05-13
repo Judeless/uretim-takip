@@ -25,6 +25,51 @@ BOLUM_SAYFA = {
     'metal':  {'ref': 'Metal Referans',  'op': 'Metal Operator'},
 }
 
+# Bölüm bazlı duruş sebepleri sayfaları
+BOLUM_DURUS_SAYFA = {
+    'kaynak': 'Robotik Kaynak Duruş Listesi',
+    'montaj': 'Montaj Duruş Listesi',
+    'metal':  'Metal Enjeksiyon Duruş Listesi',
+}
+
+
+def durus_sebepleri_yukle(bolum):
+    """data/uretim_verileri.xlsx içinden bölüme ait duruş sebeplerini okur.
+
+    Sayfa formatı: No | Duruş Listesi | Planlı/Plansız
+    Döner: [{'sebep': str, 'tip': 'planli'|'plansiz'}, ...]
+
+    Excel veya sayfa yoksa boş liste döner (frontend fallback'e güveneceğinden değil,
+    hatayı görsün diye).
+    """
+    if bolum not in BOLUM_DURUS_SAYFA:
+        return []
+    if not os.path.exists(EXCEL_YOL):
+        return []
+
+    sayfa_adi = BOLUM_DURUS_SAYFA[bolum]
+    try:
+        wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
+        if sayfa_adi not in wb.sheetnames:
+            return []
+        ws = wb[sayfa_adi]
+        sonuc = []
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if i == 0:
+                continue  # Başlık
+            if not row or row[1] is None:
+                continue
+            sebep = str(row[1]).strip()
+            if not sebep:
+                continue
+            tip_raw = str(row[2] or 'plansiz').strip().lower()
+            tip = 'planli' if 'plan' in tip_raw and 'siz' not in tip_raw else 'plansiz'
+            sonuc.append({'sebep': sebep, 'tip': tip})
+        return sonuc
+    except Exception as e:
+        print(f"[durus_sebepleri] Hata: {e}")
+        return []
+
 
 def _bolum_import(conn, wb, bolum):
     """Tek bölümün referans + operatör verisini import eder."""

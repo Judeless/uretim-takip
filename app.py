@@ -7,7 +7,7 @@ import traceback # For debugging
 
 from database import get_db as db_connect, init_db
 from oee import hesapla_oee, hesapla_oee_ozet
-from import_excel import import_data
+from import_excel import import_data, durus_sebepleri_yukle
 from export_excel import export_arsiv
 
 # ODS dosyası yolu
@@ -1034,6 +1034,24 @@ def excel_import():
         return jsonify(sonuc), 200
     except Exception as e:
         return jsonify({'hata': str(e), 'basarili': False}), 500
+
+
+@app.route('/api/durus_sebepleri', methods=['GET'])
+def durus_sebepleri_api():
+    """Bölüme göre duruş sebeplerini Excel'den okuyup döner.
+
+    ?bolum=kaynak → [{'sebep': 'Robot Prog. Çalışması', 'tip': 'planli'}, ...]
+
+    Excel sayfaları: data/uretim_verileri.xlsx
+      - Robotik Kaynak Duruş Listesi
+      - Montaj Duruş Listesi
+      - Metal Enjeksiyon Duruş Listesi
+    """
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    if bolum not in ('kaynak', 'montaj', 'metal'):
+        return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
+    sebepler = durus_sebepleri_yukle(bolum)
+    return jsonify({'bolum': bolum, 'sebepler': sebepler}), 200
 
 
 @app.route('/api/export_arsiv', methods=['POST'])

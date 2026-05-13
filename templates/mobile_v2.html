@@ -1270,19 +1270,13 @@
     var tTimer = null;
     var secilenBolum = 'kaynak';
 
-    var DURUS_GRUPLARI = {
-      planli: [
-        'Robot Prog. Calismasi','Fikstur Degisimi','Bakim Calismasi',
-        'Yemek Molasi','Cay Molasi','Temizlik','Operator Izin / Rapor Durumu',
-        'Namaz','Cuma Namazi','Kaynak Ayari Kontrol Etme','Kaynak Gazi Degisimi',
-        'Kaynak Teli Degisimi','Malzeme Teslim','Toplanti','Resmi Tatil','Egitim',
-        'Veri Girişi','Malzeme Hazırlığı'
-      ],
-      plansiz: [
-        'Robot Ariza Durumu','Mekanik Ariza Durumu','Elektrik Ariza Durumu',
-        'Malzeme Bekleme','Ihtiyac Molasi','Eksik Parca Durumu',
-        'Eksik Operator Durumu','Kaynak Ayari Duzeltme'
-      ]
+    // Duruş grupları Excel'den (data/uretim_verileri.xlsx) bölüme göre çekilir
+    var DURUS_GRUPLARI = { planli: [], plansiz: [] };
+
+    // Fallback (Excel okunamazsa) — minimal default kaynak listesi
+    var DURUS_GRUPLARI_DEFAULT = {
+      planli: ['Yemek Molasi','Cay Molasi','Bakim Calismasi'],
+      plansiz: ['Mekanik Ariza Durumu','Elektrik Ariza Durumu','Malzeme Bekleme']
     };
 
     var secilenDurusTipi = 'plansiz';
@@ -1320,10 +1314,44 @@
         catsEl.appendChild(d);
       }
 
-      ekleGrupEtiketi('✅ Planlı Duruşlar', '#4ade80');
-      DURUS_GRUPLARI.planli.forEach(function (k) { ekleKategori(k, 'planli'); });
-      ekleGrupEtiketi('⚠️ Plansız Duruşlar', '#f87171');
-      DURUS_GRUPLARI.plansiz.forEach(function (k) { ekleKategori(k, 'plansiz'); });
+      // Bölüm bazlı duruş kategorilerini Excel'den çek ve render et
+      window.durusKategorileriniYukle = function (bolum) {
+        bolum = bolum || secilenBolum || 'kaynak';
+        catsEl.innerHTML = '';  // Önceki kategorileri temizle
+        fetch('/api/durus_sebepleri?bolum=' + encodeURIComponent(bolum))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var liste = (data && data.sebepler) || [];
+            if (!liste.length) {
+              // Excel okunamadıysa fallback default
+              DURUS_GRUPLARI_DEFAULT.planli.forEach(function (k) {
+                liste.push({sebep: k, tip: 'planli'});
+              });
+              DURUS_GRUPLARI_DEFAULT.plansiz.forEach(function (k) {
+                liste.push({sebep: k, tip: 'plansiz'});
+              });
+            }
+            var planli = liste.filter(function (x) { return x.tip === 'planli'; });
+            var plansiz = liste.filter(function (x) { return x.tip === 'plansiz'; });
+            DURUS_GRUPLARI.planli = planli.map(function (x) { return x.sebep; });
+            DURUS_GRUPLARI.plansiz = plansiz.map(function (x) { return x.sebep; });
+
+            if (planli.length) {
+              ekleGrupEtiketi('✅ Planlı Duruşlar', '#4ade80');
+              planli.forEach(function (x) { ekleKategori(x.sebep, 'planli'); });
+            }
+            if (plansiz.length) {
+              ekleGrupEtiketi('⚠️ Plansız Duruşlar', '#f87171');
+              plansiz.forEach(function (x) { ekleKategori(x.sebep, 'plansiz'); });
+            }
+          })
+          .catch(function (e) {
+            console.warn('Duruş listesi çekilemedi:', e);
+          });
+      };
+
+      // İlk yükleme — sayfa açılışındaki bölümle
+      durusKategorileriniYukle(secilenBolum);
 
       fetch('/api/operatorler').then(function (r) { return r.json(); }).then(function (ops) {
         var sel = document.getElementById('b-operator');
@@ -1362,6 +1390,11 @@
       document.getElementById('b-bolum').value = bolum;
       // Cihazda hatirla
       try { localStorage.setItem('mobile_aktif_bolum', bolum); } catch (e) {}
+
+      // Bölüm bazlı duruş listesini yenile (Excel'den çek)
+      if (typeof durusKategorileriniYukle === 'function') {
+        durusKategorileriniYukle(bolum);
+      }
 
       // Bolum badge goster + "Bolum Degistir" butonu
       var badgeWrap = document.getElementById('b-bolum-badge-wrap');
