@@ -329,6 +329,35 @@ def init_db():
     except Exception:
         pass
 
+    # Migration (2026-05-13): Süresi tanımsız referansların doğru bölüme atanması.
+    # Eski kod operatör yeni bir referans girdiğinde bolum bilgisi olmadan INSERT
+    # ediyordu → default 'kaynak'a düşüyordu. Şimdi vardiyanın bölümüne göre tag-le.
+    # Sadece: (hedef_cycle_time = 0/NULL VE üretim kaydı olan VE bolum='kaynak') olanları
+    # yeniden değerlendir; manuel tanımlanmış (cycle_time>0) referanslara dokunma.
+    try:
+        c.execute('''
+            UPDATE referans_listesi
+            SET bolum = (
+                SELECT COALESCE(v.bolum, 'kaynak')
+                FROM uretim_kayitlari u
+                JOIN vardiyalar v ON v.id = u.vardiya_id
+                WHERE UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(referans_listesi.referans_kodu,' ',''))
+                GROUP BY v.bolum
+                ORDER BY COUNT(*) DESC
+                LIMIT 1
+            )
+            WHERE (hedef_cycle_time_sn IS NULL OR hedef_cycle_time_sn = 0)
+              AND COALESCE(bolum, 'kaynak') = 'kaynak'
+              AND EXISTS (
+                  SELECT 1 FROM uretim_kayitlari u
+                  JOIN vardiyalar v ON v.id = u.vardiya_id
+                  WHERE UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(referans_listesi.referans_kodu,' ',''))
+                    AND COALESCE(v.bolum, 'kaynak') != 'kaynak'
+              )
+        ''')
+    except Exception as e:
+        print(f'[migration] tanımsız referans bölüm düzeltmesi atlandı: {e}')
+
     # Migration (2026-05-13): Vardiya 'robotla_calisiyor' bayrağı
     # Metal enjeksiyonda makine + robot tam otomasyon modunda çalışabilir;
     # operatör vardiya sırasında bu modu açıp kapayabilir.

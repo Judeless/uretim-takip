@@ -562,6 +562,13 @@ def uretim_ekle():
         conn = get_db()
         c = conn.cursor()
 
+        # Vardiyanın bölümünü öğren — yeni eklenen referansların doğru bölüme yazılması için
+        v_row = c.execute(
+            "SELECT COALESCE(bolum, 'kaynak') as bolum FROM vardiyalar WHERE id = ?",
+            (data['vardiya_id'],)
+        ).fetchone()
+        vardiya_bolum = v_row['bolum'] if v_row else 'kaynak'
+
         # Birden fazla kayıt gelebilir
         satirlar = data.get('satirlar', [data])
 
@@ -593,8 +600,12 @@ def uretim_ekle():
                 int(satir.get('launch_adet', data.get('launch_adet', 0)) or 0),
                 (satir.get('aciklama') or data.get('aciklama') or '').strip()
             ))
-            # Referansı listeye otomatik ekle
-            c.execute('INSERT OR IGNORE INTO referans_listesi (referans_kodu) VALUES (?)', (ref,))
+            # Referansı listeye otomatik ekle — VARDIYANIN bölümüyle etiketle
+            # (montaj operatörü tanımsız bir kod girince montaj'a düşsün, kaynak'a değil)
+            c.execute(
+                'INSERT OR IGNORE INTO referans_listesi (referans_kodu, bolum) VALUES (?, ?)',
+                (ref, vardiya_bolum)
+            )
             eklenen += 1
 
         conn.commit()
