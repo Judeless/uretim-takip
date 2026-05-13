@@ -374,7 +374,7 @@ def import_tum(yedek_al=False):
        - Tüm bölüm operatörleri
        - Robot programları (kaynak için matrix)
        - Fikstür raf listesi
-    Duruş sebepleri her API isteğinde okunduğu için import gerekmez.
+       - Duruş sebepleri (validasyon — read on-demand)
     """
     if not os.path.exists(EXCEL_YOL):
         return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
@@ -406,6 +406,13 @@ def import_tum(yedek_al=False):
         conn.commit()
     finally:
         conn.close()
+
+    # Duruş sebepleri validasyonu — her bölüm için sayıyı raporla
+    # (gerçek DB import yok, read-on-demand; ama kullanıcı sayıyı görsün)
+    durus_ozet = {}
+    for b in BOLUM_DURUS_SAYFA.keys():
+        durus_ozet[b] = len(durus_sebepleri_yukle(b))
+    sonuc['durus_sebepleri'] = durus_ozet
 
     return sonuc
 

@@ -1069,14 +1069,13 @@ def veri_import_tum():
         return jsonify({'hata': str(e), 'basarili': False}), 500
 
 
-@app.route('/api/veri/export_tum', methods=['POST'])
-def veri_export_tum():
-    """DB'deki cycle time'ları Excel'e geri yazar (tüm bölümler).
-    Operatör, duruş, program, fikstür verileri Excel'de bozulmadan korunur.
-    """
+@app.route('/api/veri/arsivle_simdi', methods=['POST'])
+def veri_arsivle_simdi():
+    """Manuel tetik — 18:00'lık otomatik arşivin elle çalıştırılması."""
     try:
-        sonuc = export_referans_cycle_times()
-        return jsonify(sonuc), 200
+        from scheduler import gunluk_arsiv_calistir
+        gunluk_arsiv_calistir()
+        return jsonify({'basarili': True}), 200
     except Exception as e:
         return jsonify({'hata': str(e), 'basarili': False}), 500
 
@@ -2516,7 +2515,16 @@ if __name__ == '__main__':
     # Flask debug modundayken (reloader) çift çalışmayı önlemek için kontrol
     if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
         init_db()
-    
+
+    # Scheduler — sadece bir kez başlat (reloader child process'inde başlat,
+    # debug modda da main process'te çift olmasın)
+    if not os.environ.get('FLASK_DEBUG') or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        try:
+            from scheduler import start_scheduler
+            start_scheduler()
+        except Exception as _e:
+            print(f'[SCHED] başlatılamadı: {_e}')
+
     print("\n" + "="*55)
     print("  COFLE MANAGE - URETIM TAKIP SISTEMI CALISIYOR")
     print("="*55)
@@ -2525,5 +2533,6 @@ if __name__ == '__main__':
     print("  Andon Ekrani   : https://coflemanage.online/andon")
     print("="*55)
     print("  Sistem artik bu adresten yayinlanmaktadir.")
+    print("  Otomatik arsiv : Her gun 18:00 (data/arsiv/)")
     print("="*55 + "\n")
     app.run(host='0.0.0.0', port=5000, debug=True)

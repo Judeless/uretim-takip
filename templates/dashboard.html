@@ -1997,18 +1997,14 @@
                         <div style="flex:1;min-width:300px">
                             <div style="font-size:1rem;font-weight:800;color:var(--text);margin-bottom:4px">🗂️ Toplu Veri Yönetimi</div>
                             <div style="font-size:.78rem;color:var(--muted);line-height:1.4">
-                                <code>data/uretim_verileri.xlsx</code> üzerinden <b>tüm bölümlerin</b> referansları, operatörleri, robot programları ve fikstür raf listesi tek tıklama ile aktarılır.
-                                Duruş sebepleri otomatik okunur — import gerekmez.
+                                <code>data/uretim_verileri.xlsx</code> üzerinden <b>tüm bölümlerin</b> referans/operatör/duruş listesi/robot program ve fikstür raf bilgileri tek tıkla aktarılır.<br>
+                                <span style="color:#10b981;font-weight:600">⏰ Vardiya verileri her gün 18:00'da otomatik <code>data/arsiv/</code> klasörüne yedeklenir.</span>
                             </div>
                         </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap">
                             <button class="btn btn-primary" onclick="topluExcelIceAktar()"
                                 style="background:linear-gradient(135deg,#7c3aed,#2563eb);border:none;color:white;padding:10px 18px;font-weight:700">
                                 📥 Excel'den İçe Aktar
-                            </button>
-                            <button class="btn btn-outline" onclick="topluExcelDisaYaz()"
-                                style="border-color:#7c3aed;color:#7c3aed;padding:10px 18px;font-weight:700">
-                                📤 Excel'e Yaz
                             </button>
                         </div>
                     </div>
@@ -4236,36 +4232,18 @@
                 const res = await fetch('/api/veri/import_tum', { method: 'POST' });
                 const d = await res.json();
                 if (d.basarili) {
+                    const ds = d.durus_sebepleri || {};
+                    const durusToplam = (ds.kaynak||0) + (ds.montaj||0) + (ds.metal||0);
                     const ozet = [
-                        `${d.referanslar_eklenen || 0} eklenen + ${d.referanslar_guncellenen || 0} güncellenen referans`,
-                        `${d.operatorler_eklenen || 0} operatör`,
-                        `${d.program_eklenen || 0} robot program kaydı`,
-                        `${d.fikstur_eklenen || 0} fikstür raf kaydı`,
+                        `${(d.referanslar_eklenen||0) + (d.referanslar_guncellenen||0)} referans`,
+                        `${d.operatorler_eklenen||0} operatör`,
+                        `${d.program_eklenen||0} program`,
+                        `${d.fikstur_eklenen||0} fikstür`,
+                        `${durusToplam} duruş sebebi`,
                     ].join(' · ');
                     toast('✅ İçe aktarma tamam: ' + ozet, 'ok');
                     // Dashboard'u yenile
                     setTimeout(() => location.reload(), 1500);
-                } else {
-                    toast('❌ Hata: ' + (d.hata || 'bilinmeyen'), 'err');
-                }
-            } catch (e) {
-                toast('Bağlantı hatası: ' + e.message, 'err');
-            }
-        }
-
-        async function topluExcelDisaYaz() {
-            if (!confirm(
-                'Veritabanındaki TÜM bölüm cycle time bilgileri Excel\'e geri yazılacak:\n\n' +
-                '• data/uretim_verileri.xlsx içindeki referans sayfaları güncellenir\n' +
-                '• Operatör, duruş, program ve fikstür sayfaları KORUNUR (dokunulmaz)\n\n' +
-                'Devam edilsin mi?'
-            )) return;
-            toast('Excel yazılıyor...', 'info');
-            try {
-                const res = await fetch('/api/veri/export_tum', { method: 'POST' });
-                const d = await res.json();
-                if (d.basarili) {
-                    toast(`✅ Excel güncellendi: ${d.yazilan || 0} satır yazıldı`, 'ok');
                 } else {
                     toast('❌ Hata: ' + (d.hata || 'bilinmeyen'), 'err');
                 }
