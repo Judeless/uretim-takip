@@ -329,6 +329,16 @@
       padding: 6px; text-align: center; font-style: italic;
     }
 
+    /* Metal enjeksiyon: 4 makine olduğu için her kartta daha çok yer var,
+       referans/operatör isimlerini ve diğer metinleri büyüt */
+    body[data-bolum="metal"] .rc-op           { font-size: 1.05rem; }
+    body[data-bolum="metal"] .rc-shift        { font-size: 0.72rem; }
+    body[data-bolum="metal"] .station-header  { font-size: 1.0rem; margin-bottom: 8px; }
+    body[data-bolum="metal"] .ref-code        { font-size: 1.30rem; }
+    body[data-bolum="metal"] .ref-launch      { font-size: 0.95rem; }
+    body[data-bolum="metal"] .ref-row         { min-height: 38px; padding: 7px 12px; }
+    body[data-bolum="metal"] .ref-empty       { font-size: 0.95rem; padding: 10px; }
+
     /* Sağ panel: atamalar + duruş */
     .rc-side {
       display: flex; flex-direction: column;
@@ -593,7 +603,7 @@
     }
   </style>
 </head>
-<body>
+<body data-bolum="{{ bolum|default('kaynak') }}">
   <div class="noise"></div>
 
   <div class="root">
@@ -843,7 +853,7 @@
     } catch (e) {
       _robots = (BOLUM === 'kaynak')
         ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
-        : (BOLUM === 'metal' ? ['300T','400T','500T','Şerit Testere'] : ['HAT 1']);
+        : (BOLUM === 'metal' ? ['300T','400T','550T','Şerit Testere'] : ['HAT 1']);
     }
     return _robots;
   }
@@ -863,7 +873,7 @@
       });
 
       const fallback = (BOLUM === 'kaynak') ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
-                     : (BOLUM === 'metal')  ? ['300T','400T','500T','Şerit Testere']
+                     : (BOLUM === 'metal')  ? ['300T','400T','550T','Şerit Testere']
                                             : ['HAT 1'];
       const target = _robots.length ? _robots : fallback;
       const grid = document.getElementById('robot-grid');

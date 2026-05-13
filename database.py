@@ -315,6 +315,18 @@ def init_db():
             (rno, goster, i)
         )
 
+    # Migration (2026-05-13): Metal enjeksiyondaki "500T" makinesinin gerçek adı "550T"
+    # Tüm robot_no=='500T' kayıtları güncellenir. Tek seferlik, idempotent (ikinci çalıştırmada hiçbir şey yapmaz).
+    try:
+        for tablo in ('vardiyalar', 'referans_takip', 'andon_robot_ayarlari',
+                      'sayac_olaylari', 'cihaz_kayitlari', 'robot_programlari'):
+            try:
+                c.execute(f"UPDATE {tablo} SET robot_no='550T' WHERE robot_no='500T'")
+            except Exception:
+                pass  # Tablo yoksa veya kolonsuzsa sessizce geç
+    except Exception:
+        pass
+
     # ─────────────────────────────────────────────────────────────
     # SAYAÇ OLAYLARI (ESP32 / PLC / sahadan gelen üretim pulse'ları)
     # Her pulse bir satır — vardiya_id ile ilişkilendirilir.

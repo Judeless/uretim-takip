@@ -987,11 +987,11 @@ def robot_listesi():
     """Bölüm bazlı robot/hat/makine listesi.
     - kaynak: ABB1..ABB9 (sabit)
     - montaj: vardiyalardan distinct robot_no (HAT 1, HAT 2 ...) — operatörler girdikçe dinamik büyür
-    - metal: 300T, 400T, 500T, Şerit Testere (sabit)
+    - metal: 300T, 400T, 550T, Şerit Testere (sabit)
     """
     bolum = request.args.get('bolum', 'kaynak')
     if bolum == 'metal':
-        robotlar = ['300T', '400T', '500T', 'Şerit Testere']
+        robotlar = ['300T', '400T', '550T', 'Şerit Testere']
     elif bolum == 'montaj':
         conn = get_db()
         rows = conn.execute(
@@ -2312,7 +2312,7 @@ def gunluk_rapor_detay():
     Sira (key) bolume gore degisir:
       - kaynak: 1..9, M
       - montaj: o gun calisan distinct hat'lar (HAT 1, HAT 2 ...)
-      - metal:  300T, 400T, 500T, Şerit Testere
+      - metal:  300T, 400T, 550T, Şerit Testere
     """
     tarih = request.args.get('tarih')
     vardiya_turu = request.args.get('vardiya')
@@ -2349,7 +2349,7 @@ def gunluk_rapor_detay():
         if bolum == 'kaynak':
             robot_listesi = ['1','2','3','4','5','6','7','8','9','M']
         elif bolum == 'metal':
-            robot_listesi = ['300T', '400T', '500T', 'Şerit Testere']
+            robot_listesi = ['300T', '400T', '550T', 'Şerit Testere']
         else:  # montaj
             # O gun calisan distinct hat'lari sirayla
             seen = []

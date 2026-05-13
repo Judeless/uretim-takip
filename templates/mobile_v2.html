@@ -1404,7 +1404,7 @@
         rsel.innerHTML = '<option value="">Seçin...</option>' +
                          '<option value="300T">300T</option>' +
                          '<option value="400T">400T</option>' +
-                         '<option value="500T">500T</option>' +
+                         '<option value="550T">550T</option>' +
                          '<option value="Şerit Testere">Şerit Testere</option>';
       } else {
         // Montaj: hat seçimi yok — operatör doğrudan vardiyaya başlar.
@@ -1705,7 +1705,7 @@
       } else if (bolum === 'montaj') {
         robot = 'MONTAJ'; // Montaj'da hat se\u00e7imi yok \u2014 sabit 'MONTAJ' kullan\u0131l\u0131r
       } else if (bolum === 'metal') {
-        robot = document.getElementById('b-robot').value; // Makine se\u00e7imi (300T/400T/500T/\u015eerit Testere)
+        robot = document.getElementById('b-robot').value; // Makine se\u00e7imi (300T/400T/550T/\u015eerit Testere)
       }
       var vt = document.getElementById('b-vardiya-turu').value;
       var bas = document.getElementById('b-bas').value;
