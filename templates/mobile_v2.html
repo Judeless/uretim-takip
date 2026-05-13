@@ -1329,7 +1329,9 @@
       window.durusKategorileriniYukle = function (bolum) {
         bolum = bolum || secilenBolum || 'kaynak';
         catsEl.innerHTML = '';  // Önceki kategorileri temizle
-        fetch('/api/durus_sebepleri?bolum=' + encodeURIComponent(bolum))
+        // Cache-bust: Excel'de yapılan değişikliklerin anında yansıması için
+        var _ts = Date.now();
+        fetch('/api/durus_sebepleri?bolum=' + encodeURIComponent(bolum) + '&t=' + _ts, { cache: 'no-store' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             var liste = (data && data.sebepler) || [];
@@ -1563,6 +1565,10 @@
       document.getElementById('e-aciklama').value = '';
       document.getElementById('e-baslik').textContent = '⏸️ Yeni Duruş Kaydı';
       document.querySelectorAll('#e-cats .durus-cat').forEach(function (x) { x.classList.remove('selected'); });
+      // Excel'de yapılan duruş güncellemelerini her seferinde yakala (cache'siz)
+      if (typeof durusKategorileriniYukle === 'function') {
+        durusKategorileriniYukle(secilenBolum);
+      }
       gitEkran('E');
     }
 

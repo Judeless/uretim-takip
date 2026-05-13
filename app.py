@@ -1101,12 +1101,17 @@ def durus_sebepleri_api():
       - Robotik Kaynak Duruş Listesi
       - Montaj Duruş Listesi
       - Metal Enjeksiyon Duruş Listesi
+
+    Cache-Control: no-store → Excel'de yapılan değişiklikler anında yansır.
     """
     bolum = (request.args.get('bolum') or 'kaynak').strip()
     if bolum not in ('kaynak', 'montaj', 'metal'):
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
     sebepler = durus_sebepleri_yukle(bolum)
-    return jsonify({'bolum': bolum, 'sebepler': sebepler}), 200
+    resp = jsonify({'bolum': bolum, 'sebepler': sebepler})
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp, 200
 
 
 @app.route('/api/export_arsiv', methods=['POST'])
