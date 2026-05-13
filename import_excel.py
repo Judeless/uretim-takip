@@ -62,8 +62,15 @@ def durus_sebepleri_yukle(bolum):
             sebep = str(row[1]).strip()
             if not sebep:
                 continue
-            tip_raw = str(row[2] or 'plansiz').strip().lower()
-            tip = 'planli' if 'plan' in tip_raw and 'siz' not in tip_raw else 'plansiz'
+            # Türkçe ı/i karakter farkı: 'Plansız' lower → 'plansız' (dotless ı),
+            # ama 'siz' substring'i (regular i) bulunmaz. Bu yüzden açık string match.
+            tip_raw = str(row[2] or '').strip().lower()
+            if 'plansız' in tip_raw or 'plansiz' in tip_raw:
+                tip = 'plansiz'
+            elif 'planlı' in tip_raw or 'planli' in tip_raw:
+                tip = 'planli'
+            else:
+                tip = 'plansiz'  # boş/bilinmeyen → güvenli yan: plansız
             sonuc.append({'sebep': sebep, 'tip': tip})
         return sonuc
     except Exception as e:
