@@ -343,11 +343,12 @@
     }
     body[data-bolum="metal"] .rc-shift        { font-size: 0.74rem; }
     body[data-bolum="metal"] .station-header  { font-size: 1.0rem; margin-bottom: 8px; }
-    body[data-bolum="metal"] .station-pane {
-      justify-content: center;        /* Referans kutucuğunu dikey olarak ortala */
-    }
     body[data-bolum="metal"] .ref-list {
-      flex: 0 0 auto;                 /* İçerik kadar yer kaplasın, üst-altta boşluk kalsın */
+      /* "Üretim" başlığı üstte kalsın, referans kutucuğu dikey ortada olsun.
+         Flex column içinde margin auto ile boş alanı absorbe ediyoruz. */
+      flex: 0 0 auto;
+      margin-top: auto;
+      margin-bottom: auto;
     }
     body[data-bolum="metal"] .ref-row {
       min-height: 56px;
