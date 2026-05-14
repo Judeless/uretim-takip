@@ -318,6 +318,28 @@
       filter: drop-shadow(0 0 2px rgba(190,242,100,0.18));
     }
     .ref-done-icon { color: var(--c-emerald); font-size: 0.85rem; flex-shrink: 0; }
+
+    /* Süre uyarı işaretleri — vardiya amiri bu referansı güncellemeli */
+    .ref-uyari { font-size: 0.95rem; flex-shrink: 0; cursor: help; }
+    .ref-uyari-kirmizi {
+      filter: drop-shadow(0 0 4px rgba(248,113,113,0.6));
+      animation: uyaripulse 1.8s ease-in-out infinite;
+    }
+    .ref-uyari-sari {
+      filter: drop-shadow(0 0 4px rgba(251,191,36,0.5));
+    }
+    .ref-row-suresiz {
+      background: rgba(248,113,113,0.08) !important;
+      border-color: rgba(248,113,113,0.35) !important;
+    }
+    .ref-row-teyitsiz {
+      background: rgba(251,191,36,0.06) !important;
+      border-color: rgba(251,191,36,0.30) !important;
+    }
+    @keyframes uyaripulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
     .ref-launch {
       font-size: 0.7rem; font-weight: 700;
       color: var(--c-amber);
@@ -831,10 +853,20 @@
     const durusDetay = r.durus_detay || [];
 
     const refRow = (i) => {
-      const cls = i.tamamlandi ? 'ref-row done' : 'ref-row';
+      let cls = i.tamamlandi ? 'ref-row done' : 'ref-row';
+      // Sadece kaynak'ta teyit/süresiz uyarı bayrakları
+      const uyariSuresiz = (BOLUM === 'kaynak' && i.suresiz == 1);
+      const uyariTeyitsiz = (BOLUM === 'kaynak' && i.teyit == 0 && i.suresiz != 1);
+      if (uyariSuresiz)  cls += ' ref-row-suresiz';
+      else if (uyariTeyitsiz) cls += ' ref-row-teyitsiz';
+
       const lc  = i.launch ? `<span class="ref-launch">${i.launch}</span>` : '';
       const ic  = i.tamamlandi ? '<span class="ref-done-icon">✓</span>' : '';
-      return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${lc}</div>`;
+      // Uyarı ikonu — vardiya amiri görsün
+      let uyari = '';
+      if (uyariSuresiz)       uyari = `<span class="ref-uyari ref-uyari-kirmizi" title="Süre tanımlı değil — dashboard'dan süre tanımla!">⚠️</span>`;
+      else if (uyariTeyitsiz) uyari = `<span class="ref-uyari ref-uyari-sari" title="Süre tanımlı ama sahada teyit edilmemiş — ölç ve dashboard'da teyit ver">⏳</span>`;
+      return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${uyari}${lc}</div>`;
     };
 
     // Kaynak: 2 sütun (İstasyon 1 | İstasyon 2 + diğer) + pair cycle bandı

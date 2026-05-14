@@ -860,7 +860,7 @@ def referans_listesi():
     q = request.args.get('q', '')
     bolum = request.args.get('bolum', '')
     conn = get_db()
-    base = "SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn FROM referans_listesi"
+    base = "SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, sure_teyit, sure_teyit_tarihi FROM referans_listesi"
     if bolum:
         rows = conn.execute(
             base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '') AND bolum = ? ORDER BY referans_kodu",
@@ -1091,6 +1091,61 @@ def veri_import_tum():
         return jsonify(sonuc), 200
     except Exception as e:
         return jsonify({'hata': str(e), 'basarili': False}), 500
+
+
+@app.route('/api/referans/teyit', methods=['PATCH'])
+def referans_teyit_guncelle():
+    """Bir referansın süre teyidi bayrağını aç/kapat.
+    Body: {referans_kodu, sure_teyit: 0|1}
+    """
+    data = request.get_json() or {}
+    kod = (data.get('referans_kodu') or '').strip()
+    teyit = 1 if data.get('sure_teyit') else 0
+    if not kod:
+        return jsonify({'hata': 'referans_kodu zorunlu'}), 400
+    conn = get_db()
+    try:
+        if teyit == 1:
+            conn.execute(
+                "UPDATE referans_listesi SET sure_teyit=1, sure_teyit_tarihi=datetime('now','localtime') "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+                (kod,)
+            )
+        else:
+            conn.execute(
+                "UPDATE referans_listesi SET sure_teyit=0, sure_teyit_tarihi=NULL "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+                (kod,)
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({'basarili': True, 'referans_kodu': kod, 'sure_teyit': teyit}), 200
+
+
+@app.route('/api/referans/teyit_ozet', methods=['GET'])
+def referans_teyit_ozet():
+    """Bölüm bazında teyit özeti: toplam / teyitli / teyitsiz / süresiz sayıları."""
+    bolum = request.args.get('bolum', 'kaynak')
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT
+          COUNT(*) as toplam,
+          SUM(CASE WHEN COALESCE(sure_teyit,0)=1 THEN 1 ELSE 0 END) as teyitli,
+          SUM(CASE WHEN COALESCE(sure_teyit,0)=0 AND COALESCE(hedef_cycle_time_sn,0)>0 THEN 1 ELSE 0 END) as teyitsiz,
+          SUM(CASE WHEN COALESCE(hedef_cycle_time_sn,0)=0 THEN 1 ELSE 0 END) as suresiz
+        FROM referans_listesi
+        WHERE COALESCE(bolum,'kaynak')=?
+    ''', (bolum,)).fetchone()
+    conn.close()
+    d = dict(rows) if rows else {}
+    return jsonify({
+        'bolum': bolum,
+        'toplam': d.get('toplam', 0) or 0,
+        'teyitli': d.get('teyitli', 0) or 0,
+        'teyitsiz': d.get('teyitsiz', 0) or 0,
+        'suresiz': d.get('suresiz', 0) or 0,
+    }), 200
 
 
 @app.route('/api/pair_cycle', methods=['GET'])
@@ -2378,12 +2433,41 @@ def andon_veri():
         }
         for u in uretim_rows:
             if u['vardiya_id'] == v['id']:
-                row = {'ref': u['referans_kodu'], 'launch': u['launch_adet'] or 0, 'tamamlandi': 1 if u['tamamlandi'] else 0}
+                row = {
+                    'ref': u['referans_kodu'],
+                    'launch': u['launch_adet'] or 0,
+                    'tamamlandi': 1 if u['tamamlandi'] else 0,
+                    'teyit': 0,        # aşağıda ref_durum_map'ten doldurulacak
+                    'suresiz': 0,
+                }
                 ist = u['istasyon'] or 0
                 if ist == 1:   item['istasyon_1'].append(row)
                 elif ist == 2: item['istasyon_2'].append(row)
                 else:          item['diger'].append(row)
         aktif_vardiyalar.append(item)
+
+    # Referans durumu (teyit / süresiz) — andonda işaretlemek için
+    # Tek SQL ile tüm bölüm için map oluştur, sonra her satıra ekle
+    ref_durum_map = {}
+    if bolum == 'kaynak':
+        for r in c.execute(
+            "SELECT referans_kodu, COALESCE(sure_teyit,0) as teyit, COALESCE(hedef_cycle_time_sn,0) as ct "
+            "FROM referans_listesi WHERE COALESCE(bolum,'kaynak')='kaynak'"
+        ).fetchall():
+            norm = str(r['referans_kodu'] or '').upper().replace(' ', '')
+            ref_durum_map[norm] = {
+                'teyit': int(r['teyit'] or 0),
+                'suresiz': 1 if (r['ct'] or 0) <= 0 else 0,
+            }
+        # Her aktif_vardiya'nın her ref satırına teyit/süresiz bayraklarını yaz
+        for it in aktif_vardiyalar:
+            for koleksiyon in ('istasyon_1', 'istasyon_2', 'diger'):
+                for row in it[koleksiyon]:
+                    norm = str(row.get('ref') or '').upper().replace(' ', '')
+                    durum = ref_durum_map.get(norm)
+                    if durum:
+                        row['teyit'] = durum['teyit']
+                        row['suresiz'] = durum['suresiz']
 
     # Atamaları her uygun shift kartına ekle (aynı robot_no'lu kartlara)
     # Montaj'da "atama" kavramı kullanılmıyor — operatöre sıradaki iş olarak

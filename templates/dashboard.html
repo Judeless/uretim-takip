@@ -1006,6 +1006,18 @@
             background: var(--card);
             border-color: var(--border);
         }
+        .ref-filtre-btn {
+            padding: 5px 12px; border-radius: 8px;
+            border: 1px solid var(--border); background: transparent;
+            font-size: 0.72rem; font-weight: 700; color: var(--muted);
+            cursor: pointer; transition: 0.2s;
+        }
+        .ref-filtre-btn:hover { background: rgba(99,102,241,0.06); color: var(--text); }
+        .ref-filtre-btn.active {
+            background: var(--primary); color: white; border-color: var(--primary);
+            box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+        }
+
         #referans-main-table thead th {
             background: var(--card) !important;
             font-size: 0.66rem;
@@ -2014,6 +2026,40 @@
                     </div>
                 </div>
 
+                <!-- Süre Teyit Özeti (sadece kaynak için) -->
+                <div id="teyit-ozet-banner" style="display:none;margin-bottom:18px;padding:14px 18px;background:linear-gradient(135deg,rgba(16,185,129,0.06),rgba(99,102,241,0.06));border:1px solid rgba(99,102,241,0.25);border-radius:14px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+                        <div>
+                            <div style="font-size:.95rem;font-weight:800;color:var(--text);margin-bottom:2px">📋 Süre Teyit Durumu</div>
+                            <div style="font-size:.74rem;color:var(--muted)">Sahada ölçüp doğruladığın referansları işaretle. Andon'da teyitsizler operatöre uyarı olarak görünür.</div>
+                        </div>
+                        <div style="display:flex;gap:14px;font-size:.85rem;font-weight:700">
+                            <div title="Toplam referans">
+                                <span style="color:var(--muted);font-size:.68rem;display:block">Toplam</span>
+                                <span id="teyit-toplam" style="font-size:1.3rem;color:var(--text)">—</span>
+                            </div>
+                            <div title="Süresi teyitli">
+                                <span style="color:var(--muted);font-size:.68rem;display:block">✅ Teyitli</span>
+                                <span id="teyit-teyitli" style="font-size:1.3rem;color:#16a34a">—</span>
+                            </div>
+                            <div title="Süresi var ama teyit edilmemiş">
+                                <span style="color:var(--muted);font-size:.68rem;display:block">⏳ Teyitsiz</span>
+                                <span id="teyit-teyitsiz" style="font-size:1.3rem;color:#f59e0b">—</span>
+                            </div>
+                            <div title="Süresi tanımlı değil">
+                                <span style="color:var(--muted);font-size:.68rem;display:block">⚠️ Süresiz</span>
+                                <span id="teyit-suresiz" style="font-size:1.3rem;color:#dc2626">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+                        <button class="ref-filtre-btn active" data-filtre="all" onclick="refTeyitFiltreUygula('all', this)">Tümü</button>
+                        <button class="ref-filtre-btn" data-filtre="teyitsiz" onclick="refTeyitFiltreUygula('teyitsiz', this)">⏳ Teyitsiz</button>
+                        <button class="ref-filtre-btn" data-filtre="suresiz" onclick="refTeyitFiltreUygula('suresiz', this)">⚠️ Süresiz</button>
+                        <button class="ref-filtre-btn" data-filtre="teyitli" onclick="refTeyitFiltreUygula('teyitli', this)">✅ Teyitli</button>
+                    </div>
+                </div>
+
                 <!-- Üst Aksiyonlar -->
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
                     <div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">
@@ -2048,6 +2094,7 @@
                                     <th class="kaynak-only" style="background:var(--card);text-align:right;display:none">Kaynak (sn)</th>
                                     <th class="kaynak-only" style="background:var(--card);text-align:right;display:none">Söktak (sn)</th>
                                     <th style="background:var(--card);text-align:right">Toplam Cycle (sn)</th>
+                                    <th class="kaynak-only" style="background:var(--card);text-align:center;display:none;width:130px">Süre Teyit</th>
                                     <th style="background:var(--card);width:100px;text-align:center">İşlem</th>
                                 </tr>
                             </thead>
@@ -2296,6 +2343,13 @@
                 <div id="ref-cycle-info" style="font-size:.72rem;color:var(--muted);margin-top:4px;display:none">
                     💡 Toplam = Kaynak + Söktak (otomatik hesaplanır)
                 </div>
+            </div>
+            <div class="modal-form-row" id="ref-teyit-row" style="display:none">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:10px">
+                    <input type="checkbox" id="ref-teyit-cb" style="width:18px;height:18px;cursor:pointer">
+                    <span style="font-weight:700;font-size:.85rem">✅ Bu süreyi sahada ölçtüm, teyit ediyorum</span>
+                </label>
+                <div style="font-size:.7rem;color:var(--muted);margin-top:4px">Teyit verince andon'da bu referans için uyarı işareti kalkar.</div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="refModalKapat()">İptal</button>
@@ -3924,6 +3978,7 @@
                 tumReferanslar = await res.json();
                 renderReferanslar(tumReferanslar);
                 yukleEksikReferanslar();
+                yukleTeyitOzet();
             } catch (e) {
                 toast('Referanslar yüklenemedi', 'err');
             }
@@ -3948,18 +4003,44 @@
             }
         }
 
+        // Aktif teyit filtresi (all / teyitsiz / suresiz / teyitli)
+        let aktifTeyitFiltre = 'all';
+
+        function refTeyitFiltreUygula(tip, btn) {
+            aktifTeyitFiltre = tip;
+            // Buton aktif görsel
+            document.querySelectorAll('.ref-filtre-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            // Mevcut listeyi yeniden render et
+            refAra();
+        }
+
+        function refFiltresinden(r) {
+            if (aktifTeyitFiltre === 'all') return true;
+            const teyit = (r.sure_teyit == 1);
+            const ct = +(r.hedef_cycle_time_sn) || 0;
+            if (aktifTeyitFiltre === 'teyitli') return teyit;
+            if (aktifTeyitFiltre === 'teyitsiz') return !teyit && ct > 0;
+            if (aktifTeyitFiltre === 'suresiz') return ct === 0;
+            return true;
+        }
+
         function renderReferanslar(data) {
             const tbody = document.getElementById('ref-tbl-body');
             if (!tbody) return;
 
-            // Kaynak bölümünde 2 ek sütun (kaynak/söktak), diğerlerinde gizli
+            // Kaynak bölümünde 2 ek sütun (kaynak/söktak) + teyit kolonu
             const isKaynak = (aktifBolum === 'kaynak');
             document.querySelectorAll('#ref-tbl-head .kaynak-only').forEach(el => {
                 el.style.display = isKaynak ? '' : 'none';
             });
-            const colspan = isKaynak ? 6 : 4;
+            document.getElementById('teyit-ozet-banner').style.display = isKaynak ? '' : 'none';
+            const colspan = isKaynak ? 7 : 4;
 
-            if (!data.length) {
+            // Filtre uygula (sadece kaynakta anlamlı)
+            const liste = isKaynak ? data.filter(refFiltresinden) : data;
+
+            if (!liste.length) {
                 const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
                 const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans'
                                : (aktifBolum === 'metal')  ? 'Metal Referans'
@@ -3967,28 +4048,41 @@
                 tbody.innerHTML = `
                     <tr><td colspan="${colspan}" style="text-align:center;color:var(--muted);padding:36px 20px">
                         <div style="font-size:2rem;margin-bottom:10px">📦</div>
-                        <div style="font-weight:700;color:var(--text);margin-bottom:4px">${bilgi} bölümü için referans yok</div>
-                        <div style="font-size:.82rem;margin-bottom:12px">Proje içindeki <b>data/uretim_verileri.xlsx</b> → <b>${sayfaAdi}</b> sayfasından otomatik aktarabilir veya tek tek ekleyebilirsiniz.</div>
+                        <div style="font-weight:700;color:var(--text);margin-bottom:4px">${bilgi} bölümü — filtreye uyan kayıt yok</div>
+                        <div style="font-size:.82rem;margin-bottom:12px">"Tümü" filtresine geçebilir veya <b>data/uretim_verileri.xlsx</b> üzerinden veri aktarabilirsiniz.</div>
                         <button class="btn btn-outline" style="border-color:#16a34a;color:#16a34a" onclick="excelVeriAktar()">📥 Excel'den Aktar</button>
                     </td></tr>`;
                 return;
             }
-            tbody.innerHTML = data.map(r => {
+            tbody.innerHTML = liste.map(r => {
                 const k = r.kaynak_suresi_sn || 0;
                 const s = r.soktak_suresi_sn || 0;
                 const ct = r.hedef_cycle_time_sn || 0;
+                const teyit = (r.sure_teyit == 1);
+                const teyitTarihi = r.sure_teyit_tarihi ? r.sure_teyit_tarihi.slice(0, 10) : '';
                 const aciklamaEscaped = (r.aciklama || '').replace(/'/g, "\\'");
-                const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}`;
+                const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}, ${teyit ? 1 : 0}`;
                 const sureCells = isKaynak
                     ? `<td style="text-align:right;font-weight:700;color:#f59e0b">${k || '—'}</td>
                        <td style="text-align:right;font-weight:700;color:#a78bfa">${s || '—'}</td>`
                     : '';
+                const teyitCell = isKaynak ? (`
+                    <td style="text-align:center" onclick="event.stopPropagation()">
+                        ${ct === 0
+                            ? '<span style="color:#dc2626;font-weight:700;font-size:.72rem">⚠️ Süresiz</span>'
+                            : teyit
+                                ? `<span title="${teyitTarihi}" style="color:#16a34a;font-weight:700;font-size:.72rem">✅ Teyitli</span>
+                                   <button onclick="refTeyitTogle('${r.referans_kodu}', 0)" style="margin-left:4px;background:transparent;border:none;cursor:pointer;color:var(--muted);font-size:.72rem" title="Teyidi geri al">↺</button>`
+                                : `<button onclick="refTeyitTogle('${r.referans_kodu}', 1)" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:6px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-weight:700">⏳ Teyit ver</button>`
+                        }
+                    </td>`) : '';
                 return `
                     <tr style="cursor:pointer" onclick="refDuzenle(${duzenleArgs})">
                         <td><b>${r.referans_kodu}</b></td>
                         <td style="font-size:.82rem">${r.aciklama || '—'}</td>
                         ${sureCells}
                         <td style="text-align:right;font-weight:700">${ct || '0'} sn</td>
+                        ${teyitCell}
                         <td style="display:flex;gap:4px;justify-content:center" onclick="event.stopPropagation()">
                             <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe"
                                     onclick="refDuzenle(${duzenleArgs})">✏️</button>
@@ -3998,6 +4092,37 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        async function refTeyitTogle(kod, yeni) {
+            try {
+                const res = await fetch('/api/referans/teyit', {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ referans_kodu: kod, sure_teyit: yeni })
+                });
+                if (res.ok) {
+                    toast(yeni ? '✅ Teyit verildi' : 'Teyit geri alındı', 'ok');
+                    yukleReferanslar();
+                    yukleTeyitOzet();
+                } else {
+                    toast('Güncellenemedi', 'err');
+                }
+            } catch (e) {
+                toast('Bağlantı hatası', 'err');
+            }
+        }
+
+        async function yukleTeyitOzet() {
+            if (aktifBolum !== 'kaynak') return;
+            try {
+                const res = await fetch('/api/referans/teyit_ozet?bolum=kaynak');
+                const d = await res.json();
+                document.getElementById('teyit-toplam').textContent = d.toplam || 0;
+                document.getElementById('teyit-teyitli').textContent = d.teyitli || 0;
+                document.getElementById('teyit-teyitsiz').textContent = d.teyitsiz || 0;
+                document.getElementById('teyit-suresiz').textContent = d.suresiz || 0;
+            } catch (e) { /* sessiz */ }
         }
 
         function refAra() {
@@ -4047,6 +4172,7 @@
             document.getElementById('ref-modal-kaynak-row').style.display = isKaynak ? '' : 'none';
             document.getElementById('ref-modal-soktak-row').style.display = isKaynak ? '' : 'none';
             document.getElementById('ref-cycle-info').style.display = isKaynak ? '' : 'none';
+            document.getElementById('ref-teyit-row').style.display = isKaynak ? '' : 'none';
             document.getElementById('ref-cycle').readOnly = isKaynak;  // Kaynak modunda hesaplı, elle değişmez
             document.getElementById('ref-cycle-label').textContent =
                 isKaynak ? 'Toplam Cycle (Kaynak + Söktak — otomatik)' : 'Hedef Cycle Time (saniye/parça)';
@@ -4065,7 +4191,7 @@
             document.getElementById('ref-modal').classList.add('open');
         }
 
-        function refDuzenle(kod, desc, ct, kaynak, soktak) {
+        function refDuzenle(kod, desc, ct, kaynak, soktak, teyit) {
             refModalKaynakModuKur();
             document.getElementById('ref-modal-title').textContent = 'Referans Düzenle';
             document.getElementById('ref-kod').value = kod;
@@ -4074,6 +4200,8 @@
             document.getElementById('ref-kaynak-sn').value = kaynak || 0;
             document.getElementById('ref-soktak-sn').value = soktak || 0;
             document.getElementById('ref-cycle').value = ct || 0;
+            const teyitCb = document.getElementById('ref-teyit-cb');
+            if (teyitCb) teyitCb.checked = (teyit == 1);
             document.getElementById('ref-modal').classList.add('open');
         }
 
@@ -4120,6 +4248,15 @@
                             soktak_suresi_sn: s
                         })
                     });
+                    // Süre değişikliğiyle birlikte teyit verilsin (manuel ölçüm yapıldı varsayımı)
+                    const teyitCheckbox = document.getElementById('ref-teyit-cb');
+                    if (teyitCheckbox && teyitCheckbox.checked) {
+                        await fetch('/api/referans/teyit', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ referans_kodu: kod, sure_teyit: 1 })
+                        });
+                    }
                 }
                 toast('Referans kaydedildi', 'ok');
                 refModalKapat();

@@ -329,6 +329,18 @@ def init_db():
     except Exception:
         pass
 
+    # Migration (2026-05-14): Süre teyit takibi (kaynak için).
+    # Kullanıcı sahada her referansın gerçek kaynak/söktak süresini ölçüp
+    # 'teyit ettim' diye işaretler. Teyitsiz referanslar andonda işaretli görünür.
+    try:
+        c.execute("ALTER TABLE referans_listesi ADD COLUMN sure_teyit INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE referans_listesi ADD COLUMN sure_teyit_tarihi TEXT")
+    except Exception:
+        pass
+
     # Migration (2026-05-14): Robot kaynakta cycle_time'ı kaynak+söktak olarak ayır.
     # İki istasyon paralel çalıştığı için pair cycle = max(K1,S2)+max(K2,S1)
     # formülü kullanılabilsin diye.
