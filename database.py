@@ -329,6 +329,34 @@ def init_db():
     except Exception:
         pass
 
+    # Migration (2026-05-14): Robot kaynakta cycle_time'ı kaynak+söktak olarak ayır.
+    # İki istasyon paralel çalıştığı için pair cycle = max(K1,S2)+max(K2,S1)
+    # formülü kullanılabilsin diye.
+    # İlk geçişte mevcut cycle_time × 0.4 = kaynak, × 0.6 = söktak (sonradan
+    # kullanıcı her referansı tek tek günceller).
+    try:
+        c.execute("ALTER TABLE referans_listesi ADD COLUMN kaynak_suresi_sn REAL DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE referans_listesi ADD COLUMN soktak_suresi_sn REAL DEFAULT 0")
+    except Exception:
+        pass
+    # Sadece KAYNAK bölümü için ve henüz değer girilmemiş referanslar için doldur
+    # (mevcut çalışan değerlere dokunma — idempotent)
+    try:
+        c.execute('''
+            UPDATE referans_listesi
+            SET kaynak_suresi_sn = ROUND(hedef_cycle_time_sn * 0.4, 1),
+                soktak_suresi_sn = ROUND(hedef_cycle_time_sn * 0.6, 1)
+            WHERE COALESCE(bolum, 'kaynak') = 'kaynak'
+              AND hedef_cycle_time_sn > 0
+              AND (kaynak_suresi_sn IS NULL OR kaynak_suresi_sn = 0)
+              AND (soktak_suresi_sn IS NULL OR soktak_suresi_sn = 0)
+        ''')
+    except Exception as e:
+        print(f'[migration] kaynak/söktak split atlandı: {e}')
+
     # Migration (2026-05-13): Süresi tanımsız referansların doğru bölüme atanması.
     # Eski kod operatör yeni bir referans girdiğinde bolum bilgisi olmadan INSERT
     # ediyordu → default 'kaynak'a düşüyordu. Şimdi vardiyanın bölümüne göre tag-le.

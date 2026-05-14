@@ -103,6 +103,10 @@ def _bolum_import(conn, wb, bolum):
     ref_guncellenen = 0
     excel_kodlari_norm = set()
 
+    # Kaynak bölümü için Excel artık 4 kolon: Kod | Kaynak Süresi | Söktak Süresi | Toplam Cycle
+    # Montaj/Metal için eski 2 kolon: Kod | Cycle Time (tek değer)
+    kaynak_modu = (bolum == 'kaynak')
+
     for i, row in enumerate(ref_sayfa.iter_rows(values_only=True)):
         if i == 0:
             continue  # Başlık
@@ -111,10 +115,28 @@ def _bolum_import(conn, wb, bolum):
         kod = str(row[0]).strip()
         if not kod or len(kod) < 2:
             continue
-        try:
-            cycle = float(row[1]) if (len(row) > 1 and row[1] is not None) else 0.0
-        except ValueError:
-            cycle = 0.0
+
+        # Süreleri parse et
+        kaynak_sn = 0.0
+        soktak_sn = 0.0
+        cycle = 0.0
+        if kaynak_modu:
+            # B = Kaynak Süresi, C = Söktak Süresi, D = Toplam (formül)
+            try:
+                kaynak_sn = float(row[1]) if (len(row) > 1 and row[1] is not None) else 0.0
+            except (ValueError, TypeError):
+                kaynak_sn = 0.0
+            try:
+                soktak_sn = float(row[2]) if (len(row) > 2 and row[2] is not None) else 0.0
+            except (ValueError, TypeError):
+                soktak_sn = 0.0
+            cycle = round(kaynak_sn + soktak_sn, 2)
+        else:
+            # Montaj/Metal — tek değer
+            try:
+                cycle = float(row[1]) if (len(row) > 1 and row[1] is not None) else 0.0
+            except (ValueError, TypeError):
+                cycle = 0.0
 
         excel_kodlari_norm.add(kod.upper().replace(' ', ''))
 
@@ -126,8 +148,8 @@ def _bolum_import(conn, wb, bolum):
 
         if mevcut:
             c.execute(
-                'UPDATE referans_listesi SET hedef_cycle_time_sn = ?, referans_kodu = ?, bolum = ? WHERE id = ?',
-                (cycle, kod, bolum, mevcut[0])
+                'UPDATE referans_listesi SET hedef_cycle_time_sn = ?, kaynak_suresi_sn = ?, soktak_suresi_sn = ?, referans_kodu = ?, bolum = ? WHERE id = ?',
+                (cycle, kaynak_sn, soktak_sn, kod, bolum, mevcut[0])
             )
             if cycle > 0:
                 c.execute(
@@ -138,8 +160,8 @@ def _bolum_import(conn, wb, bolum):
             ref_guncellenen += 1
         else:
             c.execute(
-                'INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, bolum) VALUES (?, ?, ?)',
-                (kod, cycle, bolum)
+                'INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, bolum) VALUES (?, ?, ?, ?, ?)',
+                (kod, cycle, kaynak_sn, soktak_sn, bolum)
             )
             if cycle > 0:
                 c.execute(

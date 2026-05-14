@@ -1091,6 +1091,82 @@ def veri_import_tum():
         return jsonify({'hata': str(e), 'basarili': False}), 500
 
 
+@app.route('/api/pair_cycle', methods=['GET'])
+def api_pair_cycle():
+    """Robot kaynak — iki istasyona atanan referansların gerçek paralel çevrim
+    süresini hesaplar.
+
+    Query: ?ist1=10.130.X&ist2=10.130.Y (her ikisi de opsiyonel)
+
+    Mantık: max(K1, S2) + max(K2, S1)
+      K1=İst1 kaynak süresi, S1=İst1 söktak süresi (referans bazlı)
+    """
+    from oee import pair_cycle_hesapla
+    ist1 = (request.args.get('ist1') or '').strip()
+    ist2 = (request.args.get('ist2') or '').strip()
+    sonuc = pair_cycle_hesapla(ist1 or None, ist2 or None)
+    return jsonify(sonuc), 200
+
+
+@app.route('/api/referans/sureler', methods=['PATCH'])
+def referans_sureler_guncelle():
+    """Bir referansın kaynak ve söktak sürelerini günceller.
+    Body: {referans_kodu, kaynak_suresi_sn, soktak_suresi_sn}
+    Excel'in 'Kaynak Referans' sayfasını da otomatik günceller.
+    """
+    data = request.get_json() or {}
+    kod = (data.get('referans_kodu') or '').strip()
+    if not kod:
+        return jsonify({'hata': 'referans_kodu zorunlu'}), 400
+    try:
+        kaynak = float(data.get('kaynak_suresi_sn', 0) or 0)
+        soktak = float(data.get('soktak_suresi_sn', 0) or 0)
+    except (ValueError, TypeError):
+        return jsonify({'hata': 'kaynak/soktak sayısal olmalı'}), 400
+    toplam = round(kaynak + soktak, 2)
+
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE referans_listesi SET kaynak_suresi_sn=?, soktak_suresi_sn=?, hedef_cycle_time_sn=? "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+            (kaynak, soktak, toplam, kod)
+        )
+        # Geriye dönük: bu kodla mevcut üretim kayıtlarındaki cycle_time'ı güncelle
+        c.execute(
+            "UPDATE uretim_kayitlari SET cycle_time_sn=? "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+            (toplam, kod)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Excel'e yaz (Kaynak Referans sayfası — kolon B=kaynak, C=söktak)
+    try:
+        from import_excel import EXCEL_YOL, BOLUM_SAYFA
+        import openpyxl, os
+        if os.path.exists(EXCEL_YOL):
+            wb = openpyxl.load_workbook(EXCEL_YOL)
+            sayfa_adi = BOLUM_SAYFA['kaynak']['ref']
+            if sayfa_adi in wb.sheetnames:
+                ws = wb[sayfa_adi]
+                norm_target = kod.upper().replace(' ', '')
+                for r in range(2, ws.max_row + 1):
+                    cell = ws.cell(row=r, column=1).value
+                    if cell and str(cell).upper().replace(' ', '') == norm_target:
+                        ws.cell(row=r, column=2, value=kaynak)
+                        ws.cell(row=r, column=3, value=soktak)
+                        ws.cell(row=r, column=4, value=f'=B{r}+C{r}')
+                        break
+                wb.save(EXCEL_YOL)
+    except Exception as e:
+        print(f'[referans/sureler] Excel sync hatası: {e}')
+
+    return jsonify({'basarili': True, 'kaynak': kaynak, 'soktak': soktak, 'toplam': toplam}), 200
+
+
 @app.route('/api/veri/arsivle_simdi', methods=['POST'])
 def veri_arsivle_simdi():
     """Manuel tetik — 18:00'lık otomatik arşivin elle çalıştırılması."""

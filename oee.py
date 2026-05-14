@@ -9,6 +9,117 @@ PLANLI_DURUS_KATEGORILER = {
 }
 
 
+def pair_cycle_hesapla(ist1_kod, ist2_kod):
+    """Robot kaynak hattında iki istasyona atanan referansların gerçek paralel
+    çevrim süresini hesaplar.
+
+    Mantık:
+      - Robot bir istasyonda kaynak yaparken operatör diğer istasyonda söktak yapar.
+      - Her yarı cycle = max(robot_yapacağı_süre, operatörün_yapacağı_süre)
+      - Toplam = max(K1, S2) + max(K2, S1)
+
+    Tek istasyon kullanılıyorsa (diğer kod None/boş): tek-istasyon cycle = K + S
+
+    Args:
+      ist1_kod, ist2_kod: Referans kodları (str). None veya '' ise o istasyon boş.
+
+    Returns:
+      dict: {
+        'pair_cycle_sn': toplam çevrim (sn),
+        'ist1_kaynak_sn', 'ist1_soktak_sn',
+        'ist2_kaynak_sn', 'ist2_soktak_sn',
+        'ist1_bekleme_sn': operatör boş kaldığı süre (istasyon 1),
+        'ist2_bekleme_sn': operatör boş kaldığı süre (istasyon 2),
+        'verim_pct': bekleme/toplam oranı tersi (100%=hiç bekleme yok),
+      }
+    """
+    def _ref(kod):
+        if not kod:
+            return None
+        conn = get_db()
+        r = conn.execute(
+            "SELECT kaynak_suresi_sn, soktak_suresi_sn, hedef_cycle_time_sn "
+            "FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+            (str(kod),)
+        ).fetchone()
+        conn.close()
+        if not r:
+            return None
+        k = float(r['kaynak_suresi_sn'] or 0)
+        s = float(r['soktak_suresi_sn'] or 0)
+        if k == 0 and s == 0 and r['hedef_cycle_time_sn']:
+            # Eski referans — split yok, varsayılan %40/%60
+            cyc = float(r['hedef_cycle_time_sn'])
+            k = round(cyc * 0.4, 1)
+            s = round(cyc * 0.6, 1)
+        return {'kaynak': k, 'soktak': s, 'toplam': round(k + s, 2)}
+
+    r1 = _ref(ist1_kod)
+    r2 = _ref(ist2_kod)
+
+    if r1 and not r2:
+        return {
+            'pair_cycle_sn': r1['toplam'],
+            'ist1_kaynak_sn': r1['kaynak'], 'ist1_soktak_sn': r1['soktak'],
+            'ist2_kaynak_sn': 0, 'ist2_soktak_sn': 0,
+            'ist1_bekleme_sn': 0, 'ist2_bekleme_sn': 0,
+            'verim_pct': 100.0,
+            'mod': 'tek_istasyon_1',
+        }
+    if r2 and not r1:
+        return {
+            'pair_cycle_sn': r2['toplam'],
+            'ist1_kaynak_sn': 0, 'ist1_soktak_sn': 0,
+            'ist2_kaynak_sn': r2['kaynak'], 'ist2_soktak_sn': r2['soktak'],
+            'ist1_bekleme_sn': 0, 'ist2_bekleme_sn': 0,
+            'verim_pct': 100.0,
+            'mod': 'tek_istasyon_2',
+        }
+    if not r1 and not r2:
+        return {
+            'pair_cycle_sn': 0,
+            'ist1_kaynak_sn': 0, 'ist1_soktak_sn': 0,
+            'ist2_kaynak_sn': 0, 'ist2_soktak_sn': 0,
+            'ist1_bekleme_sn': 0, 'ist2_bekleme_sn': 0,
+            'verim_pct': 0,
+            'mod': 'bos',
+        }
+
+    # İki istasyon paralel
+    K1, S1 = r1['kaynak'], r1['soktak']
+    K2, S2 = r2['kaynak'], r2['soktak']
+
+    # Yarı cycle 1: Robot İst.1'de kaynak (K1), Op İst.2'de söktak (S2)
+    yari1 = max(K1, S2)
+    # Yarı cycle 2: Robot İst.2'de kaynak (K2), Op İst.1'de söktak (S1)
+    yari2 = max(K2, S1)
+    pair = yari1 + yari2
+
+    # Bekleme süreleri (verim göstergesi)
+    # Yarı 1'de robot İst.1'de kaynak yapıyor, op İst.2'de söktak. Hangisi
+    # daha kısaysa o boş kalır.
+    op_bos_yari1 = max(0, K1 - S2)   # Robot daha uzun → op boş bekledi (İst.2'de)
+    rob_bos_yari1 = max(0, S2 - K1)  # Op daha uzun → robot boş bekledi
+    op_bos_yari2 = max(0, K2 - S1)   # İst.1'de op boş
+    rob_bos_yari2 = max(0, S1 - K2)
+
+    toplam_bekleme = op_bos_yari1 + rob_bos_yari1 + op_bos_yari2 + rob_bos_yari2
+    # Verim = (gerçek iş süresi) / (toplam toplam) ; toplam toplam = pair × 2 (hem robot hem op)
+    toplam_kapasite = pair * 2
+    verim = max(0, min(100, round((toplam_kapasite - toplam_bekleme) / toplam_kapasite * 100, 1))) \
+            if toplam_kapasite > 0 else 0
+
+    return {
+        'pair_cycle_sn': round(pair, 2),
+        'ist1_kaynak_sn': K1, 'ist1_soktak_sn': S1,
+        'ist2_kaynak_sn': K2, 'ist2_soktak_sn': S2,
+        'ist1_bekleme_sn': round(rob_bos_yari2 + op_bos_yari2, 1),  # İst.1'de op'un + robotun beklemesi
+        'ist2_bekleme_sn': round(rob_bos_yari1 + op_bos_yari1, 1),
+        'verim_pct': verim,
+        'mod': 'paralel',
+    }
+
+
 def durus_tipi_belirle(sebep):
     """Durus sebebine gore planli/plansiz tipini belirle."""
     return 'planli' if sebep in PLANLI_DURUS_KATEGORILER else 'plansiz'
