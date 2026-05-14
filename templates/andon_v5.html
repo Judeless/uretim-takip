@@ -351,31 +351,24 @@
       padding: 6px; text-align: center; font-style: italic;
     }
 
-    /* Pair cycle bandı — iki istasyonun altında, paralel çevrim süresi */
+    /* Pair cycle bandı — sade, çerçevesiz, çevrim+verim yan yana */
     .rc-stations.two-col { position: relative; }
     .rc-pair-band {
       grid-column: 1 / -1;
-      display: flex; align-items: center; gap: 8px;
-      padding: 4px 10px; margin-top: 4px;
-      background: linear-gradient(90deg, rgba(167,139,250,0.10), rgba(34,211,238,0.10));
-      border: 1px solid rgba(167,139,250,0.25);
-      border-radius: 8px;
-      font-size: 0.7rem;
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      padding: 4px 6px; margin-top: 2px;
+      font-size: 0.72rem;
       flex-shrink: 0;
     }
-    .rc-pair-icon { font-size: 0.85rem; }
-    .rc-pair-label {
-      font-weight: 700; color: var(--muted);
-      letter-spacing: 0.05em; text-transform: uppercase; font-size: 0.62rem;
-    }
+    .rc-pair-icon { font-size: 0.8rem; opacity: 0.7; }
+    .rc-pair-label { display: none; }   /* "ÇEVRİM" yazısı gizli, ikon yeterli */
     .rc-pair-value {
-      font-weight: 800; font-size: 0.88rem;
+      font-weight: 800; font-size: 0.92rem;
       color: var(--c-violet);
       font-family: var(--font-mono);
     }
     .rc-pair-verim {
-      margin-left: auto;
-      font-weight: 800; font-size: 0.72rem;
+      font-weight: 800; font-size: 0.82rem;
       font-family: var(--font-mono);
     }
 
