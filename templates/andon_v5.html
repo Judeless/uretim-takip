@@ -329,6 +329,34 @@
       padding: 6px; text-align: center; font-style: italic;
     }
 
+    /* Pair cycle bandı — iki istasyonun altında, paralel çevrim süresi */
+    .rc-stations.two-col { position: relative; }
+    .rc-pair-band {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 10px; margin-top: 4px;
+      background: linear-gradient(90deg, rgba(167,139,250,0.10), rgba(34,211,238,0.10));
+      border: 1px solid rgba(167,139,250,0.25);
+      border-radius: 8px;
+      font-size: 0.7rem;
+      flex-shrink: 0;
+    }
+    .rc-pair-icon { font-size: 0.85rem; }
+    .rc-pair-label {
+      font-weight: 700; color: var(--muted);
+      letter-spacing: 0.05em; text-transform: uppercase; font-size: 0.62rem;
+    }
+    .rc-pair-value {
+      font-weight: 800; font-size: 0.88rem;
+      color: var(--c-violet);
+      font-family: var(--font-mono);
+    }
+    .rc-pair-verim {
+      margin-left: auto;
+      font-weight: 800; font-size: 0.72rem;
+      font-family: var(--font-mono);
+    }
+
     /* Metal enjeksiyon: 4 makine olduğu için her kartta daha çok yer var,
        referans/operatör isimlerini ve diğer metinleri büyüt;
        sol kimlik paneli daha geniş (operatör adı sığsın);
@@ -809,13 +837,30 @@
       return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${lc}</div>`;
     };
 
-    // Kaynak: 2 sütun (İstasyon 1 | İstasyon 2 + diğer)
+    // Kaynak: 2 sütun (İstasyon 1 | İstasyon 2 + diğer) + pair cycle bandı
     // Montaj/Metal: tek geniş "Üretim" panel'i (ist1+ist2+diger birleşik)
     let stationsHtml;
     if (BOLUM === 'kaynak') {
       const st2_combined = [...ist2, ...diger];
       const st1Html = ist1.length ? ist1.map(refRow).join('') : '<div class="ref-empty">—</div>';
       const st2Html = st2_combined.length ? st2_combined.map(refRow).join('') : '<div class="ref-empty">—</div>';
+
+      // Pair cycle bandı — robotun iki istasyonundaki referansların paralel çevrim süresi
+      let pairBant = '';
+      if (r.pair_cycle && r.pair_cycle.pair_cycle_sn > 0) {
+        const pc = r.pair_cycle;
+        const verim = pc.verim_pct || 0;
+        const verimColor = verim >= 90 ? '#34d399' : (verim >= 70 ? '#fbbf24' : '#f87171');
+        const modIcon = pc.mod === 'paralel' ? '🔀' : '➡️';
+        pairBant = `
+          <div class="rc-pair-band" title="İki istasyon paralel çalışma: max(K1,S2)+max(K2,S1)">
+            <span class="rc-pair-icon">${modIcon}</span>
+            <span class="rc-pair-label">Çevrim</span>
+            <span class="rc-pair-value">${pc.pair_cycle_sn} sn</span>
+            <span class="rc-pair-verim" style="color:${verimColor}">⚡ %${verim}</span>
+          </div>`;
+      }
+
       stationsHtml = `
         <div class="rc-stations two-col">
           <div class="station-pane">
@@ -826,6 +871,7 @@
             <div class="station-header st2">İstasyon 2</div>
             <div class="ref-list">${st2Html}</div>
           </div>
+          ${pairBant}
         </div>`;
     } else {
       const tum = [...ist1, ...ist2, ...diger];

@@ -1970,12 +1970,20 @@
                         <h4 id="ref-takip-baslik" style="margin:10px 0 5px; color:var(--primary); font-size:1.1rem">🔧 Kaynakhane</h4>
                         <table>
                             <thead>
-                                <tr>
-                                    <th>Referans</th><th>Hedef</th><th id="ref-takip-th-robot">Robot / İst.</th><th style="width:90px">Öncelik</th><th>Açıklama</th><th style="min-width:420px">Durum</th><th>Güncelleme</th><th></th>
+                                <tr id="ref-takip-head">
+                                    <th>Referans</th>
+                                    <th>Hedef</th>
+                                    <th id="ref-takip-th-robot">Robot / İst.</th>
+                                    <th style="width:90px">Öncelik</th>
+                                    <th class="kaynak-pair-only" style="display:none;min-width:140px">Çevrim (Pair)</th>
+                                    <th>Açıklama</th>
+                                    <th style="min-width:420px">Durum</th>
+                                    <th>Güncelleme</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody id="ref-takip-tbody">
-                                <tr><td colspan="7"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
+                                <tr><td colspan="9"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -2034,11 +2042,13 @@
                     <div class="table-wrap" style="max-height: 600px; overflow-y: auto;">
                         <table id="referans-main-table" style="position: relative; border-collapse: separate; border-spacing: 0;">
                             <thead style="position: sticky; top: 0; z-index: 10; background: var(--bg);">
-                                <tr>
+                                <tr id="ref-tbl-head">
                                     <th style="background:var(--card)">Referans Kodu</th>
                                     <th style="background:var(--card)">Açıklama</th>
-                                    <th style="background:var(--card);text-align:right">Hedef Cycle Time (sn)</th>
-                                    <th style="background:var(--card);width:80px;text-align:center">İşlem</th>
+                                    <th class="kaynak-only" style="background:var(--card);text-align:right;display:none">Kaynak (sn)</th>
+                                    <th class="kaynak-only" style="background:var(--card);text-align:right;display:none">Söktak (sn)</th>
+                                    <th style="background:var(--card);text-align:right">Toplam Cycle (sn)</th>
+                                    <th style="background:var(--card);width:100px;text-align:center">İşlem</th>
                                 </tr>
                             </thead>
                             <tbody id="ref-tbl-body">
@@ -2271,9 +2281,21 @@
                 <label>Açıklama</label>
                 <input type="text" id="ref-aciklama" placeholder="Parça adı...">
             </div>
+            <!-- Kaynak için 2 ayrı input — diğer bölümlerde tek cycle input -->
+            <div class="modal-form-row" id="ref-modal-kaynak-row" style="display:none">
+                <label>Kaynak Süresi (saniye)</label>
+                <input type="number" id="ref-kaynak-sn" placeholder="0" min="0" step="0.1" oninput="refSureToplamGuncelle()">
+            </div>
+            <div class="modal-form-row" id="ref-modal-soktak-row" style="display:none">
+                <label>Söktak Süresi (saniye)</label>
+                <input type="number" id="ref-soktak-sn" placeholder="0" min="0" step="0.1" oninput="refSureToplamGuncelle()">
+            </div>
             <div class="modal-form-row">
-                <label>Hedef Cycle Time (saniye/parça)</label>
-                <input type="number" id="ref-cycle" placeholder="0" min="0">
+                <label id="ref-cycle-label">Hedef Cycle Time (saniye/parça)</label>
+                <input type="number" id="ref-cycle" placeholder="0" min="0" step="0.1">
+                <div id="ref-cycle-info" style="font-size:.72rem;color:var(--muted);margin-top:4px;display:none">
+                    💡 Toplam = Kaynak + Söktak (otomatik hesaplanır)
+                </div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="refModalKapat()">İptal</button>
@@ -2561,6 +2583,22 @@
             }
         }
 
+        // Pair cycle hesabı: max(K1, S2) + max(K2, S1)
+        // ref1 = {kaynak, soktak}, ref2 = {kaynak, soktak}
+        function _pairCycle(r1, r2) {
+            const k1 = +(r1?.kaynak_suresi_sn) || 0;
+            const s1 = +(r1?.soktak_suresi_sn) || 0;
+            const k2 = +(r2?.kaynak_suresi_sn) || 0;
+            const s2 = +(r2?.soktak_suresi_sn) || 0;
+            if (r1 && !r2) return { cycle: k1 + s1, verim: 100, mod: 'tek' };
+            if (r2 && !r1) return { cycle: k2 + s2, verim: 100, mod: 'tek' };
+            const c = Math.max(k1, s2) + Math.max(k2, s1);
+            const kapasite = c * 2;
+            const bekleme = Math.abs(k1 - s2) + Math.abs(k2 - s1);
+            const verim = kapasite > 0 ? Math.round((kapasite - bekleme) / kapasite * 1000) / 10 : 0;
+            return { cycle: Math.round(c * 10) / 10, verim, mod: 'paralel' };
+        }
+
         async function yukleRefTakipPanel() {
             try {
                 await rtRobotListesiniYukle();
@@ -2570,10 +2608,28 @@
                 const count = document.getElementById('ref-takip-count');
                 if (count) count.textContent = list.length + ' kayıt';
 
+                // Kaynak bölümünde pair cycle sütununu aç
+                const showPair = (aktifBolum === 'kaynak');
+                document.querySelectorAll('#ref-takip-head .kaynak-pair-only').forEach(el => {
+                    el.style.display = showPair ? '' : 'none';
+                });
+
+                // Robot bazında pair eşleştirme (kaynak için)
+                const pairMap = {};  // robot_no -> { ist1: ref_obj, ist2: ref_obj }
+                if (showPair) {
+                    list.forEach(r => {
+                        if (!r.robot_no || !r.istasyon) return;
+                        if (r.durum === 'launch_alinacak' || r.durum === 'uretim_tamamlandi') return;  // sadece aktif işler
+                        if (!pairMap[r.robot_no]) pairMap[r.robot_no] = {};
+                        pairMap[r.robot_no]['ist' + r.istasyon] = r;
+                    });
+                }
+
                 const tbody = document.getElementById('ref-takip-tbody');
                 if (!tbody) return;
                 if (!list.length) {
-                    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>';
+                    const cs = showPair ? 9 : 8;
+                    tbody.innerHTML = `<tr><td colspan="${cs}"><div class="empty"><div class="empty-icon">🚀</div><p>Kayıt yok</p></div></td></tr>`;
                     return;
                 }
                 tbody.innerHTML = list.map(r => {
@@ -2616,11 +2672,33 @@
                     const roboNoEscaped = String(r.robot_no || '').replace(/'/g, "\\\\\\'");
                     const aciklamaEscaped = String(r.aciklama || '').replace(/'/g, "\\\\\\'").replace(/"/g, "&quot;");
 
+                    // Pair cycle hücresi (sadece kaynak)
+                    let pairHTML = '';
+                    if (showPair) {
+                        if (r.robot_no && r.istasyon && pairMap[r.robot_no]) {
+                            const ist1 = pairMap[r.robot_no].ist1;
+                            const ist2 = pairMap[r.robot_no].ist2;
+                            const pc = _pairCycle(ist1, ist2);
+                            const verimColor = pc.verim >= 90 ? '#16a34a' : (pc.verim >= 70 ? '#f59e0b' : '#dc2626');
+                            const modIcon = pc.mod === 'paralel' ? '🔀' : '➡️';
+                            pairHTML = `
+                                <td>
+                                    <div style="display:flex;flex-direction:column;gap:2px">
+                                        <span style="font-weight:800;font-size:.92rem">${modIcon} ${pc.cycle} sn</span>
+                                        <span style="font-size:.66rem;color:${verimColor};font-weight:700">⚡ %${pc.verim} verim</span>
+                                    </div>
+                                </td>`;
+                        } else {
+                            pairHTML = `<td style="font-size:.7rem;color:var(--muted);font-style:italic">—</td>`;
+                        }
+                    }
+
                     return `<tr>
                         <td style="font-weight:700">${r.referans_kodu}</td>
                         <td style="text-align:center">${r.hedef_adet > 0 ? r.hedef_adet + ' adet' : '—'}</td>
                         <td style="font-size:.8rem">${robotSelectHTML}</td>
                         <td style="font-size:.8rem">${oncelikInputHTML}</td>
+                        ${pairHTML}
                         <td style="font-size:.8rem;color:var(--muted)">${r.aciklama || '—'}</td>
                         <td><div style="display:flex;gap:3px;flex-wrap:wrap">${durumBtns}</div></td>
                         <td style="font-size:.72rem;color:var(--muted)">${(r.guncelleme_tarihi||'').slice(0,16)}</td>
@@ -3873,13 +3951,21 @@
         function renderReferanslar(data) {
             const tbody = document.getElementById('ref-tbl-body');
             if (!tbody) return;
+
+            // Kaynak bölümünde 2 ek sütun (kaynak/söktak), diğerlerinde gizli
+            const isKaynak = (aktifBolum === 'kaynak');
+            document.querySelectorAll('#ref-tbl-head .kaynak-only').forEach(el => {
+                el.style.display = isKaynak ? '' : 'none';
+            });
+            const colspan = isKaynak ? 6 : 4;
+
             if (!data.length) {
                 const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
                 const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans'
                                : (aktifBolum === 'metal')  ? 'Metal Referans'
                                                            : 'Kaynak Referans';
                 tbody.innerHTML = `
-                    <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:36px 20px">
+                    <tr><td colspan="${colspan}" style="text-align:center;color:var(--muted);padding:36px 20px">
                         <div style="font-size:2rem;margin-bottom:10px">📦</div>
                         <div style="font-weight:700;color:var(--text);margin-bottom:4px">${bilgi} bölümü için referans yok</div>
                         <div style="font-size:.82rem;margin-bottom:12px">Proje içindeki <b>data/uretim_verileri.xlsx</b> → <b>${sayfaAdi}</b> sayfasından otomatik aktarabilir veya tek tek ekleyebilirsiniz.</div>
@@ -3887,19 +3973,31 @@
                     </td></tr>`;
                 return;
             }
-            tbody.innerHTML = data.map(r => `
-                <tr style="cursor:pointer" onclick="refDuzenle('${r.referans_kodu}', '${(r.aciklama || '').replace(/'/g, "\\'")}', ${r.hedef_cycle_time_sn || 0})">
-                    <td><b>${r.referans_kodu}</b></td>
-                    <td style="font-size:.82rem">${r.aciklama || '—'}</td>
-                    <td style="text-align:right;font-weight:700">${r.hedef_cycle_time_sn || '0'} sn</td>
-                    <td style="display:flex;gap:4px;justify-content:center" onclick="event.stopPropagation()">
-                        <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" 
-                                onclick="refDuzenle('${r.referans_kodu}', '${(r.aciklama || '').replace(/'/g, "\\'")}', ${r.hedef_cycle_time_sn || 0})">✏️</button>
-                        <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5" 
-                                onclick="referansSil('${r.referans_kodu}')">🗑️</button>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = data.map(r => {
+                const k = r.kaynak_suresi_sn || 0;
+                const s = r.soktak_suresi_sn || 0;
+                const ct = r.hedef_cycle_time_sn || 0;
+                const aciklamaEscaped = (r.aciklama || '').replace(/'/g, "\\'");
+                const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}`;
+                const sureCells = isKaynak
+                    ? `<td style="text-align:right;font-weight:700;color:#f59e0b">${k || '—'}</td>
+                       <td style="text-align:right;font-weight:700;color:#a78bfa">${s || '—'}</td>`
+                    : '';
+                return `
+                    <tr style="cursor:pointer" onclick="refDuzenle(${duzenleArgs})">
+                        <td><b>${r.referans_kodu}</b></td>
+                        <td style="font-size:.82rem">${r.aciklama || '—'}</td>
+                        ${sureCells}
+                        <td style="text-align:right;font-weight:700">${ct || '0'} sn</td>
+                        <td style="display:flex;gap:4px;justify-content:center" onclick="event.stopPropagation()">
+                            <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe"
+                                    onclick="refDuzenle(${duzenleArgs})">✏️</button>
+                            <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5"
+                                    onclick="referansSil('${r.referans_kodu}')">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         function refAra() {
@@ -3943,25 +4041,46 @@
             }
         }
 
-        function refModalAc() { 
-            document.getElementById('ref-modal-title').textContent = 'Yeni Referans Ekle';
-            document.getElementById('ref-kod').disabled = false;
-            document.getElementById('ref-modal').classList.add('open'); 
+        // Kaynak modunda kaynak+söktak inputu var, toplam otomatik
+        function refModalKaynakModuKur() {
+            const isKaynak = (aktifBolum === 'kaynak');
+            document.getElementById('ref-modal-kaynak-row').style.display = isKaynak ? '' : 'none';
+            document.getElementById('ref-modal-soktak-row').style.display = isKaynak ? '' : 'none';
+            document.getElementById('ref-cycle-info').style.display = isKaynak ? '' : 'none';
+            document.getElementById('ref-cycle').readOnly = isKaynak;  // Kaynak modunda hesaplı, elle değişmez
+            document.getElementById('ref-cycle-label').textContent =
+                isKaynak ? 'Toplam Cycle (Kaynak + Söktak — otomatik)' : 'Hedef Cycle Time (saniye/parça)';
         }
 
-        function refDuzenle(kod, desc, ct) {
+        function refSureToplamGuncelle() {
+            const k = parseFloat(document.getElementById('ref-kaynak-sn').value) || 0;
+            const s = parseFloat(document.getElementById('ref-soktak-sn').value) || 0;
+            document.getElementById('ref-cycle').value = Math.round((k + s) * 10) / 10;
+        }
+
+        function refModalAc() {
+            refModalKaynakModuKur();
+            document.getElementById('ref-modal-title').textContent = 'Yeni Referans Ekle';
+            document.getElementById('ref-kod').disabled = false;
+            document.getElementById('ref-modal').classList.add('open');
+        }
+
+        function refDuzenle(kod, desc, ct, kaynak, soktak) {
+            refModalKaynakModuKur();
             document.getElementById('ref-modal-title').textContent = 'Referans Düzenle';
             document.getElementById('ref-kod').value = kod;
             document.getElementById('ref-kod').disabled = true;
-            document.getElementById('ref-aciklama').value = desc;
-            document.getElementById('ref-cycle').value = ct;
+            document.getElementById('ref-aciklama').value = desc || '';
+            document.getElementById('ref-kaynak-sn').value = kaynak || 0;
+            document.getElementById('ref-soktak-sn').value = soktak || 0;
+            document.getElementById('ref-cycle').value = ct || 0;
             document.getElementById('ref-modal').classList.add('open');
         }
 
         function refModalKapat(e) {
             if (!e || e.target === document.getElementById('ref-modal')) {
                 document.getElementById('ref-modal').classList.remove('open');
-                ['ref-kod', 'ref-aciklama', 'ref-cycle'].forEach(id => {
+                ['ref-kod', 'ref-aciklama', 'ref-cycle', 'ref-kaynak-sn', 'ref-soktak-sn'].forEach(id => {
                     const el = document.getElementById(id);
                     if(el) el.value = '';
                 });
@@ -3972,23 +4091,39 @@
             const kod = document.getElementById('ref-kod').value.trim();
             if (!kod) { toast('Referans kodu zorunlu', 'err'); return; }
             try {
+                // Önce ana referans kaydını gönder (referans_kodu, açıklama, bölüm)
+                const cyc = parseFloat(document.getElementById('ref-cycle').value) || 0;
                 const res = await fetch('/api/referanslar', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         referans_kodu: kod,
                         aciklama: document.getElementById('ref-aciklama').value,
-                        hedef_cycle_time_sn: document.getElementById('ref-cycle').value || 0,
+                        hedef_cycle_time_sn: cyc,
                         bolum: aktifBolum
                     })
                 });
-                if (res.ok) {
-                    toast('Referans kaydedildi', 'ok');
-                    refModalKapat();
-                    yukleReferanslar();
-                } else {
+                if (!res.ok) {
                     const d = await res.json();
                     toast(d.hata || 'Kaydedilemedi', 'err');
+                    return;
                 }
+                // Kaynak modunda kaynak+söktak ayrı PATCH ile yaz (Excel'e sync olur)
+                if (aktifBolum === 'kaynak') {
+                    const k = parseFloat(document.getElementById('ref-kaynak-sn').value) || 0;
+                    const s = parseFloat(document.getElementById('ref-soktak-sn').value) || 0;
+                    await fetch('/api/referans/sureler', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            referans_kodu: kod,
+                            kaynak_suresi_sn: k,
+                            soktak_suresi_sn: s
+                        })
+                    });
+                }
+                toast('Referans kaydedildi', 'ok');
+                refModalKapat();
+                yukleReferanslar();
             } catch (e) { toast('Bağlantı hatası', 'err'); }
         }
 

@@ -855,18 +855,20 @@ def oee_ozet():
 
 @app.route('/api/referanslar', methods=['GET'])
 def referans_listesi():
-    """Referans autocomplete listesi. ?bolum= ile filtrelenebilir."""
+    """Referans autocomplete listesi. ?bolum= ile filtrelenebilir.
+    Kaynak için kaynak_suresi_sn ve soktak_suresi_sn alanlarını da döner."""
     q = request.args.get('q', '')
     bolum = request.args.get('bolum', '')
     conn = get_db()
+    base = "SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn FROM referans_listesi"
     if bolum:
         rows = conn.execute(
-            "SELECT referans_kodu, aciklama, hedef_cycle_time_sn FROM referans_listesi WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '') AND bolum = ? ORDER BY referans_kodu",
+            base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '') AND bolum = ? ORDER BY referans_kodu",
             (f'%{q}%', bolum)
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT referans_kodu, aciklama, hedef_cycle_time_sn FROM referans_listesi WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '') ORDER BY referans_kodu",
+            base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '') ORDER BY referans_kodu",
             (f'%{q}%',)
         ).fetchall()
     conn.close()
@@ -1978,9 +1980,13 @@ def referans_takip_listesi():
     bolum = request.args.get('bolum')
     conn = get_db()
     # Tüm bölümlerde öncelik ASC, NULL olanlar en sonda → oluşturma tarihine göre
+    # Kaynak/Söktak süreleri de JOIN ile eklendi (pair_cycle hesabı için)
     if bolum:
         rows = conn.execute('''
-            SELECT rt.*, rl.hedef_cycle_time_sn
+            SELECT rt.*,
+                   rl.hedef_cycle_time_sn,
+                   rl.kaynak_suresi_sn,
+                   rl.soktak_suresi_sn
             FROM referans_takip rt
             LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
             WHERE COALESCE(rt.bolum, 'kaynak') = ?
@@ -1988,7 +1994,10 @@ def referans_takip_listesi():
         ''', (bolum,)).fetchall()
     else:
         rows = conn.execute('''
-            SELECT rt.*, rl.hedef_cycle_time_sn
+            SELECT rt.*,
+                   rl.hedef_cycle_time_sn,
+                   rl.kaynak_suresi_sn,
+                   rl.soktak_suresi_sn
             FROM referans_takip rt
             LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
             ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC
@@ -2365,6 +2374,7 @@ def andon_veri():
             'durus_adet': durus_info['durus_adet'],
             'durus_detay': durus_info['detay'],
             'robotla_calisiyor': rc,
+            'pair_cycle': None,  # kaynak için iki istasyondaki aktif referansların gerçek çevrimi
         }
         for u in uretim_rows:
             if u['vardiya_id'] == v['id']:
@@ -2385,6 +2395,20 @@ def andon_veri():
             for it in aktif_vardiyalar:
                 if it['robot_no'] == rn:
                     it['atamalar'].append(atama_item)
+
+    # Pair cycle hesabı (sadece kaynak bölümü için).
+    # Her vardiyada İst.1 ve İst.2'deki en son üretim referansını al, çevrim hesapla.
+    if bolum == 'kaynak':
+        from oee import pair_cycle_hesapla
+        for it in aktif_vardiyalar:
+            ist1_kod = it['istasyon_1'][-1]['ref'] if it['istasyon_1'] else None
+            ist2_kod = it['istasyon_2'][-1]['ref'] if it['istasyon_2'] else None
+            if ist1_kod or ist2_kod:
+                try:
+                    it['pair_cycle'] = pair_cycle_hesapla(ist1_kod, ist2_kod)
+                except Exception as e:
+                    print(f'[andon pair_cycle] hata: {e}')
+                    it['pair_cycle'] = None
 
     # Eski 'robotlar' alanı (legacy andon.html için backward compat — robot bazında ilk vardiya)
     robotlar = {}
