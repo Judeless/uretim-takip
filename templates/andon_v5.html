@@ -1014,15 +1014,22 @@
       const grid = document.getElementById('robot-grid');
       const cards = [];
 
+      // Kaynak bölümünde sadece üretim yapan (vardiyası açık) robotları göster
+      // — boş/standby kartlar gizlenir, ekranda yer kalır, yazılar tam görünür
+      const sadeceAktifGoster = (BOLUM === 'kaynak');
+
       // Görünür sıradaki her robot için: vardiya varsa hepsini ayrı kart, yoksa standby kartı
       target.forEach(rn => {
         const shifts = shiftsByRobot[rn] || [];
         if (shifts.length === 0) {
-          cards.push(renderRobotCard({
-            robot_no: rn, operator:'', vardiya:'', baslangic:'', bitis:'',
-            istasyon_1:[], istasyon_2:[], diger:[], atamalar:[],
-            durus_dk:0, durus_adet:0, durus_detay:[]
-          }));
+          if (!sadeceAktifGoster) {
+            cards.push(renderRobotCard({
+              robot_no: rn, operator:'', vardiya:'', baslangic:'', bitis:'',
+              istasyon_1:[], istasyon_2:[], diger:[], atamalar:[],
+              durus_dk:0, durus_adet:0, durus_detay:[]
+            }));
+          }
+          // kaynak'ta boş robotları atla
         } else {
           shifts.forEach(s => cards.push(renderRobotCard(s)));
         }
@@ -1035,6 +1042,17 @@
           shiftsByRobot[rn].forEach(s => cards.push(renderRobotCard(s)));
         }
       });
+
+      // Hiç aktif vardiya yoksa (kaynak için) friendly mesaj
+      if (cards.length === 0 && sadeceAktifGoster) {
+        cards.push(`
+          <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--muted);text-align:center">
+            <div style="font-size:3rem;margin-bottom:14px;opacity:0.4">⏸</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:6px">Aktif Üretim Yok</div>
+            <div style="font-size:0.82rem">Operatörler vardiya açtığında robotlar burada görünecek.</div>
+          </div>
+        `);
+      }
 
       grid.innerHTML = cards.join('');
 
