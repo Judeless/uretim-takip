@@ -184,7 +184,12 @@ bool bufferdanBirGonder() {
   doc["istasyon"]   = p.istasyon;
   doc["kaynak_tip"] = "robot_io";
   // idempotency_key: cihaz_i<istasyon>_<seq> — istasyon başına ayrı seri
-  String idem = String(CIHAZ_ID) + "_i" + String(p.istasyon) + "_" + String(p.seq);
+  // Idempotency key: cihaz_id + MAC son 6 hane + istasyon + seq
+  // MAC dahil edilince eski/yeni cihaz değişiminde key çakışması olmuyor.
+  String mac6 = WiFi.macAddress();
+  mac6.replace(":", "");
+  if (mac6.length() > 6) mac6 = mac6.substring(mac6.length() - 6);
+  String idem = String(CIHAZ_ID) + "_" + mac6 + "_i" + String(p.istasyon) + "_" + String(p.seq);
   doc["idempotency_key"] = idem;
 
   String payload;
