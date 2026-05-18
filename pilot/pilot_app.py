@@ -256,6 +256,91 @@ def canli_sayac():
     return jsonify({'bolum': bolum, 'tarih': bugun, 'toplam': toplam, 'kirilim': sonuc})
 
 
+@app.route('/api/saha_cihazlari', methods=['GET'])
+def saha_cihazlari():
+    """Tüm beklenen saha cihazlarının durumu + bugün ist1/ist2 sayımları.
+
+    Aynı mantıkla app.py'da da var (dashboard için). Burada pilot UI
+    (port 5001) doğrudan çağırabilsin diye duplike edildi.
+    """
+    BEKLENEN = {
+        'kaynak': [{'cihaz_id': f'ABB{i}-IO', 'robot_no': f'ABB{i}'} for i in range(1, 10)],
+        'montaj': [{'cihaz_id': f'MONTAJ-M{i}', 'robot_no': f'M{i}'} for i in range(1, 13)],
+        'metal':  [
+            {'cihaz_id': '300T-IO', 'robot_no': '300T'},
+            {'cihaz_id': '400T-IO', 'robot_no': '400T'},
+            {'cihaz_id': '550T-IO', 'robot_no': '550T'},
+        ],
+    }
+
+    conn = get_db()
+    mevcut = {}
+    ist_sayimlari = {}
+
+    rows = conn.execute('''
+        SELECT *,
+               CAST((julianday('now','localtime') - julianday(son_heartbeat)) * 1440 AS INTEGER) as son_heartbeat_dk
+        FROM cihaz_kayitlari
+    ''').fetchall()
+    for r in rows:
+        d = dict(r)
+        d['durum'] = 'offline' if (d.get('son_heartbeat_dk') or 0) > 2 else 'online'
+        mevcut[d['cihaz_id']] = d
+
+    for r in conn.execute('''
+        SELECT cihaz_id, istasyon, COUNT(*) as adet
+        FROM sayac_olaylari
+        WHERE date(ts) = date('now','localtime')
+        GROUP BY cihaz_id, istasyon
+    ''').fetchall():
+        cid = r['cihaz_id']
+        if cid not in ist_sayimlari: ist_sayimlari[cid] = {}
+        ist_sayimlari[cid][r['istasyon']] = r['adet']
+
+    conn.close()
+
+    sonuc = {}
+    for bolum, cihazlar in BEKLENEN.items():
+        liste = []
+        for beklenen_cihaz in cihazlar:
+            cid = beklenen_cihaz['cihaz_id']
+            kayit = mevcut.get(cid)
+            if kayit:
+                ist_map = ist_sayimlari.get(cid, {})
+                liste.append({
+                    'cihaz_id':         cid,
+                    'robot_no':         beklenen_cihaz['robot_no'],
+                    'bolum':            bolum,
+                    'durum':            kayit.get('durum', 'offline'),
+                    'ip_adresi':        kayit.get('ip_adresi', ''),
+                    'wifi_rssi':        kayit.get('wifi_rssi', 0),
+                    'son_heartbeat':    kayit.get('son_heartbeat', ''),
+                    'son_heartbeat_dk': kayit.get('son_heartbeat_dk', 0),
+                    'firmware_ver':     kayit.get('firmware_ver', ''),
+                    'toplam_sinyal':    kayit.get('toplam_sinyal', 0),
+                    'buffer_kuyruk':    kayit.get('buffer_kuyruk', 0),
+                    'bugun_ist1':       ist_map.get(1, 0),
+                    'bugun_ist2':       ist_map.get(2, 0),
+                    'bugun_toplam':     sum(ist_map.values()),
+                    'robot_calisiyor':  1 if kayit.get('robot_calisiyor') else 0,
+                    'kayitli':          True,
+                })
+            else:
+                liste.append({
+                    'cihaz_id':      cid,
+                    'robot_no':      beklenen_cihaz['robot_no'],
+                    'bolum':         bolum,
+                    'durum':         'beklemede',
+                    'bugun_ist1':    0,
+                    'bugun_ist2':    0,
+                    'bugun_toplam':  0,
+                    'robot_calisiyor': 0,
+                    'kayitli':       False,
+                })
+        sonuc[bolum] = liste
+    return jsonify(sonuc), 200
+
+
 @app.route('/api/sinyal/cihazlar', methods=['GET'])
 def cihaz_listesi():
     """Tüm ESP32 cihazlarının sağlık durumu."""

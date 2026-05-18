@@ -225,6 +225,116 @@
       font-size: 0.7rem; color: var(--muted); margin-top: 2px;
       font-family: var(--font-mono);
     }
+    /* ═══════════ MAKİNE KARTLARI (Andon stil) ═══════════ */
+    .mk-bolum-section { margin-bottom: 24px; }
+    .mk-bolum-baslik {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.85rem; font-weight: 800; color: var(--muted);
+      letter-spacing: 0.14em; text-transform: uppercase;
+      margin: 8px 4px 12px;
+    }
+    .mk-bolum-baslik .mk-pill {
+      padding: 3px 10px; border-radius: 6px;
+      font-size: 0.66rem; letter-spacing: 0.04em;
+    }
+    .mk-bolum-baslik .mk-pill.kaynak  { background: rgba(167,139,250,0.15); color: #c4b5fd; }
+    .mk-bolum-baslik .mk-pill.montaj  { background: rgba(34,211,238,0.15);  color: #67e8f9; }
+    .mk-bolum-baslik .mk-pill.metal   { background: rgba(251,146,60,0.15);  color: #fdba74; }
+    .mk-bolum-baslik .mk-toplam {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      color: var(--c-emerald); font-weight: 800;
+      font-size: 0.95rem; letter-spacing: normal; text-transform: none;
+    }
+
+    .mk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .mk-card {
+      position: relative;
+      background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+      transition: all .4s ease;
+      overflow: hidden;
+    }
+    .mk-card.offline   { opacity: 0.55; border-color: rgba(248,113,113,0.35); }
+    .mk-card.beklemede { opacity: 0.4; border-style: dashed; }
+
+    .mk-card.kaynak.calisiyor {
+      border-color: rgba(52,211,153,0.55);
+      background: linear-gradient(160deg, rgba(52,211,153,0.16), rgba(52,211,153,0.04));
+      animation: mkcalisiyor 1.8s ease-in-out infinite;
+    }
+    @keyframes mkcalisiyor {
+      0%, 100% { box-shadow: 0 0 0 rgba(52,211,153,0); }
+      50%      { box-shadow: 0 0 26px rgba(52,211,153,0.35), inset 0 0 12px rgba(52,211,153,0.10); }
+    }
+
+    .mk-card-h {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .mk-name {
+      font-family: var(--font-mono);
+      font-weight: 800; font-size: 1.2rem;
+      color: #ddd6fe;
+    }
+    .mk-card.calisiyor .mk-name { color: #d1fae5; }
+
+    .mk-state-pill {
+      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em;
+      padding: 2px 8px; border-radius: 999px;
+      text-transform: uppercase;
+    }
+    .mk-state-pill.online    { background: rgba(52,211,153,0.16); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.45); }
+    .mk-state-pill.calisiyor { background: rgba(52,211,153,0.25); color: #d1fae5; border: 1px solid rgba(52,211,153,0.7); }
+    .mk-state-pill.offline   { background: rgba(248,113,113,0.10); color: #fecaca; border: 1px solid rgba(248,113,113,0.40); }
+    .mk-state-pill.beklemede { background: rgba(156,163,175,0.08); color: #d1d5db; border: 1px solid rgba(156,163,175,0.30); }
+
+    .mk-ist-row { display: flex; gap: 10px; }
+    .mk-ist-box {
+      flex: 1;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 8px; text-align: center;
+    }
+    .mk-ist-label {
+      font-size: 0.62rem; color: var(--muted);
+      letter-spacing: 0.10em; text-transform: uppercase; font-weight: 700;
+    }
+    .mk-ist-num {
+      font-family: var(--font-mono);
+      font-size: 1.7rem; font-weight: 800;
+      color: var(--c-emerald);
+      line-height: 1.1; margin-top: 2px;
+    }
+
+    .mk-tek-num {
+      font-family: var(--font-mono);
+      font-size: 2.4rem; font-weight: 800; line-height: 1;
+      color: var(--c-emerald);
+      text-align: center; margin: 4px 0 6px;
+    }
+    .mk-tek-label {
+      text-align: center;
+      font-size: 0.66rem; color: var(--muted);
+      letter-spacing: 0.10em; text-transform: uppercase; font-weight: 700;
+    }
+
+    .mk-foot {
+      display: flex; justify-content: space-between;
+      font-size: 0.66rem; color: var(--muted);
+      margin-top: 10px; padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .mk-foot b { color: var(--c-cyan); font-family: var(--font-mono); }
+
     @keyframes rcpulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.55; }
@@ -265,17 +375,32 @@
       <div class="mega-sub">Son 60 dakikadaki üretim: <b id="son60">0</b> parça</div>
     </div>
 
-    <div class="section-h">Robot Durumu</div>
-    <div class="robot-row" id="robot-row">
-      <div class="empty" style="margin:0;padding:14px">📡 Cihaz henüz heartbeat göndermedi.</div>
+    <!-- ════ MAKİNE KARTLARI — Andon stilinde ════ -->
+    <div class="mk-bolum-section">
+      <div class="mk-bolum-baslik">
+        <span class="mk-pill kaynak">KAYNAK</span>
+        Robot Kaynak Hatları
+        <span id="mk-toplam-kaynak" class="mk-toplam">— parça</span>
+      </div>
+      <div class="mk-grid" id="mk-grid-kaynak"></div>
     </div>
 
-    <div class="section-h">Robot · İstasyon Kırılımı</div>
-    <div class="grid" id="grid">
-      <div class="empty">
-        <div class="empty-ico">📡</div>
-        ESP32 cihazından henüz veri gelmedi. Sahaya kurulduktan sonra burası canlı dolacak.
+    <div class="mk-bolum-section">
+      <div class="mk-bolum-baslik">
+        <span class="mk-pill montaj">MONTAJ</span>
+        Montaj Hatları
+        <span id="mk-toplam-montaj" class="mk-toplam">— parça</span>
       </div>
+      <div class="mk-grid" id="mk-grid-montaj"></div>
+    </div>
+
+    <div class="mk-bolum-section">
+      <div class="mk-bolum-baslik">
+        <span class="mk-pill metal">METAL</span>
+        Metal Enjeksiyon
+        <span id="mk-toplam-metal" class="mk-toplam">— parça</span>
+      </div>
+      <div class="mk-grid" id="mk-grid-metal"></div>
     </div>
 
     <div class="section-h">Bağlı Cihazlar</div>
@@ -308,36 +433,112 @@
   }
 
   async function yukleCanli() {
+    // Mevcut canli endpoint sadece kaynak için (son 60 dk istatistiği)
     try {
       const res = await fetch('/api/sinyal/canli?bolum=' + encodeURIComponent(BOLUM), { cache:'no-store' });
       const d = await res.json();
-      document.getElementById('toplam').textContent = d.toplam || 0;
+      // Mega toplam = bugün tüm bölümlerin toplamı (sahaSayilari içinde hesaplanacak)
       const son60 = (d.kirilim || []).reduce((a,k) => a + (k.son60_dk || 0), 0);
       document.getElementById('son60').textContent = son60;
-
-      const grid = document.getElementById('grid');
-      if (!d.kirilim || d.kirilim.length === 0) {
-        grid.innerHTML = `
-          <div class="empty">
-            <div class="empty-ico">📡</div>
-            ESP32 cihazından henüz bugün için veri gelmedi.
-          </div>`;
-      } else {
-        grid.innerHTML = d.kirilim.map(k => `
-          <div class="card">
-            <div class="card-h">
-              <div class="card-robot">${k.robot_no}</div>
-              ${k.istasyon > 0 ? `<div class="card-ist">İST. ${k.istasyon}</div>` : ''}
-            </div>
-            <div class="card-num">${k.adet}</div>
-            <div class="card-foot">
-              <span>Son 60 dk: <b>${k.son60_dk}</b></span>
-              <span>Son: <b>${fmtTs(k.son_pulse)}</b></span>
-            </div>
-          </div>
-        `).join('');
-      }
     } catch (e) { console.warn('canli fetch:', e); }
+  }
+
+  // Yeni: tüm bölümler için kart rendering (andon stilinde)
+  async function yukleSahaCihazlari() {
+    try {
+      const res = await fetch('/api/saha_cihazlari', { cache: 'no-store' });
+      const d = await res.json();
+
+      let toplamSayim = 0;
+      ['kaynak', 'montaj', 'metal'].forEach(bolum => {
+        const liste = d[bolum] || [];
+        let bolumToplam = 0;
+        liste.forEach(c => bolumToplam += (c.bugun_toplam || 0));
+        toplamSayim += bolumToplam;
+
+        const tEl = document.getElementById('mk-toplam-' + bolum);
+        if (tEl) tEl.textContent = bolumToplam + ' parça';
+
+        const grid = document.getElementById('mk-grid-' + bolum);
+        if (grid) {
+          grid.innerHTML = liste.map(c => renderMakineKart(c, bolum)).join('');
+        }
+      });
+
+      // Mega toplam
+      document.getElementById('toplam').textContent = toplamSayim;
+    } catch (e) { console.warn('saha_cihazlari fetch:', e); }
+  }
+
+  function renderMakineKart(c, bolum) {
+    const durum = c.durum || 'beklemede';
+    const calisiyor = (bolum === 'kaynak' && c.robot_calisiyor == 1 && durum === 'online');
+
+    // Durum rozeti
+    let stateClass = durum;
+    let stateText  = durum.toUpperCase();
+    if (calisiyor) { stateClass = 'calisiyor'; stateText = '● ÇALIŞIYOR'; }
+    else if (durum === 'online')    stateText = '● ONLINE';
+    else if (durum === 'offline')   stateText = '○ OFFLINE';
+    else                            stateText = '— BEKLEMEDE';
+
+    // RSSI
+    const rssi = c.wifi_rssi || 0;
+    let rssiTxt = '—';
+    if (rssi < 0) {
+      const renk = rssi >= -65 ? '#34d399' : (rssi >= -75 ? '#fbbf24' : '#f87171');
+      rssiTxt = `<b style="color:${renk}">${rssi}dBm</b>`;
+    }
+
+    // İçerik — kaynak ise 2 istasyon kutusu, diğerlerinde tek büyük sayı
+    let icerikHtml = '';
+    if (bolum === 'kaynak') {
+      icerikHtml = `
+        <div class="mk-ist-row">
+          <div class="mk-ist-box">
+            <div class="mk-ist-label">İst.1</div>
+            <div class="mk-ist-num">${c.bugun_ist1 || 0}</div>
+          </div>
+          <div class="mk-ist-box">
+            <div class="mk-ist-label">İst.2</div>
+            <div class="mk-ist-num">${c.bugun_ist2 || 0}</div>
+          </div>
+        </div>`;
+    } else {
+      icerikHtml = `
+        <div class="mk-tek-num">${c.bugun_toplam || 0}</div>
+        <div class="mk-tek-label">parça (bugün)</div>`;
+    }
+
+    // Foot — IP / RSSI / Heartbeat
+    let footHtml = '';
+    if (c.kayitli) {
+      let hbTxt = '—';
+      if (c.son_heartbeat_dk !== undefined) {
+        const dk = c.son_heartbeat_dk;
+        if (dk < 1) hbTxt = 'şimdi';
+        else if (dk < 60) hbTxt = dk + ' dk';
+        else if (dk < 1440) hbTxt = Math.floor(dk/60) + ' sa';
+        else hbTxt = Math.floor(dk/1440) + ' g';
+      }
+      footHtml = `
+        <div class="mk-foot">
+          <span>Sinyal: ${rssiTxt}</span>
+          <span>HB: <b>${hbTxt}</b></span>
+        </div>`;
+    } else {
+      footHtml = `<div class="mk-foot"><span style="font-style:italic">Henüz kurulmamış</span></div>`;
+    }
+
+    return `
+      <div class="mk-card ${bolum} ${durum}${calisiyor ? ' calisiyor' : ''}">
+        <div class="mk-card-h">
+          <div class="mk-name">${c.robot_no}</div>
+          <span class="mk-state-pill ${stateClass}">${stateText}</span>
+        </div>
+        ${icerikHtml}
+        ${footHtml}
+      </div>`;
   }
 
   function gecenZaman(ts) {
@@ -433,6 +634,7 @@
 
   function tikTak() {
     yukleCanli();
+    yukleSahaCihazlari();   // 3 bölüm kartları (andon stilinde)
     yukleCihazlar();
     yukleLog();
   }

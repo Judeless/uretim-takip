@@ -1192,20 +1192,22 @@ def saha_cihazlari():
                 # Pilot DB'den gelen güncel veri
                 ist_map = ist_sayimlari.get(cid, {})
                 liste.append({
-                    'cihaz_id':       cid,
-                    'robot_no':       beklenen_cihaz['robot_no'],
-                    'bolum':          bolum,
-                    'durum':          kayit.get('durum', 'offline'),
-                    'ip_adresi':      kayit.get('ip_adresi', ''),
-                    'wifi_rssi':      kayit.get('wifi_rssi', 0),
-                    'son_heartbeat':  kayit.get('son_heartbeat', ''),
+                    'cihaz_id':         cid,
+                    'robot_no':         beklenen_cihaz['robot_no'],
+                    'bolum':            bolum,
+                    'durum':            kayit.get('durum', 'offline'),
+                    'ip_adresi':        kayit.get('ip_adresi', ''),
+                    'wifi_rssi':        kayit.get('wifi_rssi', 0),
+                    'son_heartbeat':    kayit.get('son_heartbeat', ''),
                     'son_heartbeat_dk': kayit.get('son_heartbeat_dk', 0),
-                    'firmware_ver':   kayit.get('firmware_ver', ''),
-                    'toplam_sinyal':  kayit.get('toplam_sinyal', 0),
-                    'buffer_kuyruk':  kayit.get('buffer_kuyruk', 0),
-                    'bugun_ist1':     ist_map.get(1, 0),
-                    'bugun_ist2':     ist_map.get(2, 0),
-                    'kayitli':        True,
+                    'firmware_ver':     kayit.get('firmware_ver', ''),
+                    'toplam_sinyal':    kayit.get('toplam_sinyal', 0),
+                    'buffer_kuyruk':    kayit.get('buffer_kuyruk', 0),
+                    'bugun_ist1':       ist_map.get(1, 0),
+                    'bugun_ist2':       ist_map.get(2, 0),
+                    'bugun_toplam':     sum(ist_map.values()),
+                    'robot_calisiyor':  1 if kayit.get('robot_calisiyor') else 0,
+                    'kayitli':          True,
                 })
             else:
                 # Hiç bağlanmamış
