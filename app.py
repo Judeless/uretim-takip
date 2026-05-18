@@ -1148,8 +1148,9 @@ def saha_cihazlari():
         ],
     }
 
-    # Pilot DB'den mevcut cihaz_kayitlari oku
+    # Pilot DB'den mevcut cihaz_kayitlari + bugünün ist1/ist2 sayıları
     mevcut = {}
+    ist_sayimlari = {}   # {cihaz_id: {1: adet, 2: adet}}
     if os.path.exists(pilot_db):
         import sqlite3
         c = sqlite3.connect(pilot_db)
@@ -1164,6 +1165,18 @@ def saha_cihazlari():
                 d = dict(r)
                 d['durum'] = 'offline' if (d.get('son_heartbeat_dk') or 0) > 2 else 'online'
                 mevcut[d['cihaz_id']] = d
+
+            # Bugünün her cihaz + istasyon başına pulse adetleri (kaynak için ist1/ist2 ayrı göstermek için)
+            for r in c.execute('''
+                SELECT cihaz_id, istasyon, COUNT(*) as adet
+                FROM sayac_olaylari
+                WHERE date(ts) = date('now','localtime')
+                GROUP BY cihaz_id, istasyon
+            ''').fetchall():
+                cid = r['cihaz_id']
+                if cid not in ist_sayimlari:
+                    ist_sayimlari[cid] = {}
+                ist_sayimlari[cid][r['istasyon']] = r['adet']
         except Exception as e:
             print(f'[saha_cihazlari] DB hata: {e}')
         finally:
@@ -1177,6 +1190,7 @@ def saha_cihazlari():
             kayit = mevcut.get(cid)
             if kayit:
                 # Pilot DB'den gelen güncel veri
+                ist_map = ist_sayimlari.get(cid, {})
                 liste.append({
                     'cihaz_id':       cid,
                     'robot_no':       beklenen_cihaz['robot_no'],
@@ -1189,6 +1203,8 @@ def saha_cihazlari():
                     'firmware_ver':   kayit.get('firmware_ver', ''),
                     'toplam_sinyal':  kayit.get('toplam_sinyal', 0),
                     'buffer_kuyruk':  kayit.get('buffer_kuyruk', 0),
+                    'bugun_ist1':     ist_map.get(1, 0),
+                    'bugun_ist2':     ist_map.get(2, 0),
                     'kayitli':        True,
                 })
             else:
