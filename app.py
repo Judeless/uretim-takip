@@ -1123,6 +1123,88 @@ def referans_teyit_guncelle():
     return jsonify({'basarili': True, 'referans_kodu': kod, 'sure_teyit': teyit}), 200
 
 
+@app.route('/api/saha_cihazlari', methods=['GET'])
+def saha_cihazlari():
+    """Beklenen tüm saha cihazlarının durumu (kaynak/montaj/metal).
+
+    Beklenen cihaz listesi sabit:
+      - 9 robot:    ABB1-IO ... ABB9-IO       (bolum: kaynak)
+      - 12 montaj:  MONTAJ-M1 ... MONTAJ-M12  (bolum: montaj)
+      - 3 metal:    300T-IO, 400T-IO, 550T-IO (bolum: metal)
+
+    Her cihaz için pilot.db'deki cihaz_kayitlari ile eşleştirilir.
+    Eşleşme yoksa 'beklemede' (hiç bağlanmamış).
+    """
+    import os
+    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+
+    BEKLENEN = {
+        'kaynak': [{'cihaz_id': f'ABB{i}-IO', 'robot_no': f'ABB{i}'} for i in range(1, 10)],
+        'montaj': [{'cihaz_id': f'MONTAJ-M{i}', 'robot_no': f'M{i}'} for i in range(1, 13)],
+        'metal':  [
+            {'cihaz_id': '300T-IO', 'robot_no': '300T'},
+            {'cihaz_id': '400T-IO', 'robot_no': '400T'},
+            {'cihaz_id': '550T-IO', 'robot_no': '550T'},
+        ],
+    }
+
+    # Pilot DB'den mevcut cihaz_kayitlari oku
+    mevcut = {}
+    if os.path.exists(pilot_db):
+        import sqlite3
+        c = sqlite3.connect(pilot_db)
+        c.row_factory = sqlite3.Row
+        try:
+            rows = c.execute('''
+                SELECT *,
+                       CAST((julianday('now','localtime') - julianday(son_heartbeat)) * 1440 AS INTEGER) as son_heartbeat_dk
+                FROM cihaz_kayitlari
+            ''').fetchall()
+            for r in rows:
+                d = dict(r)
+                d['durum'] = 'offline' if (d.get('son_heartbeat_dk') or 0) > 2 else 'online'
+                mevcut[d['cihaz_id']] = d
+        except Exception as e:
+            print(f'[saha_cihazlari] DB hata: {e}')
+        finally:
+            c.close()
+
+    sonuc = {}
+    for bolum, cihazlar in BEKLENEN.items():
+        liste = []
+        for beklenen_cihaz in cihazlar:
+            cid = beklenen_cihaz['cihaz_id']
+            kayit = mevcut.get(cid)
+            if kayit:
+                # Pilot DB'den gelen güncel veri
+                liste.append({
+                    'cihaz_id':       cid,
+                    'robot_no':       beklenen_cihaz['robot_no'],
+                    'bolum':          bolum,
+                    'durum':          kayit.get('durum', 'offline'),
+                    'ip_adresi':      kayit.get('ip_adresi', ''),
+                    'wifi_rssi':      kayit.get('wifi_rssi', 0),
+                    'son_heartbeat':  kayit.get('son_heartbeat', ''),
+                    'son_heartbeat_dk': kayit.get('son_heartbeat_dk', 0),
+                    'firmware_ver':   kayit.get('firmware_ver', ''),
+                    'toplam_sinyal':  kayit.get('toplam_sinyal', 0),
+                    'buffer_kuyruk':  kayit.get('buffer_kuyruk', 0),
+                    'kayitli':        True,
+                })
+            else:
+                # Hiç bağlanmamış
+                liste.append({
+                    'cihaz_id':      cid,
+                    'robot_no':      beklenen_cihaz['robot_no'],
+                    'bolum':         bolum,
+                    'durum':         'beklemede',
+                    'kayitli':       False,
+                })
+        sonuc[bolum] = liste
+
+    return jsonify(sonuc), 200
+
+
 @app.route('/api/referans/teyit_ozet', methods=['GET'])
 def referans_teyit_ozet():
     """Bölüm bazında teyit özeti: toplam / teyitli / teyitsiz / süresiz sayıları."""

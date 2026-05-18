@@ -1006,6 +1006,12 @@
             background: var(--card);
             border-color: var(--border);
         }
+        /* Saha cihazları online pulse animasyonu */
+        @keyframes cihazPulse {
+            0%, 100% { box-shadow: 0 0 0 rgba(16,185,129,0); }
+            50%      { box-shadow: 0 0 16px rgba(16,185,129,0.35); }
+        }
+
         .ref-filtre-btn {
             padding: 5px 12px; border-radius: 8px;
             border: 1px solid var(--border); background: transparent;
@@ -1486,6 +1492,8 @@
                     Referanslar</a>
                 <a class="nav-item" onclick="sekmeDegistir('andon-ayarlar')"><span class="nav-icon">📺</span>
                     Andon Ayarları</a>
+                <a class="nav-item" onclick="sekmeDegistir('saha-cihazlari')"><span class="nav-icon">📡</span>
+                    Saha Cihazları</a>
                 <a class="nav-item" onclick="sekmeDegistir('raporlar')"><span class="nav-icon">📈</span>
                     Raporlar</a>
                 <a class="nav-item" href="/rapor" target="_blank" style="background:rgba(37, 99, 235, 0.2);color:#93c5fd;border-left:3px solid #60a5fa"><span class="nav-icon">📲</span>
@@ -2235,6 +2243,54 @@
             </div>
         </div><!-- andon content end -->
     </div><!-- #sekme-andon-ayarlar -->
+
+    <!-- ══════════════════ SAHA CİHAZLARI SEKME ══════════════════ -->
+    <div id="sekme-saha-cihazlari" class="d-none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+            <div>
+                <h2 style="font-size:1.1rem;font-weight:800;margin:0">📡 ESP32 Saha Cihazları</h2>
+                <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Her makine için ESP32 modülünün bağlantı durumu — 5 saniyede bir yenilenir.</p>
+            </div>
+            <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+                <div style="font-size:.85rem;font-weight:700">
+                    <span style="color:var(--muted);font-size:.66rem;display:block">Online</span>
+                    <span id="saha-online" style="font-size:1.4rem;color:#16a34a">—</span>
+                </div>
+                <div style="font-size:.85rem;font-weight:700">
+                    <span style="color:var(--muted);font-size:.66rem;display:block">Offline</span>
+                    <span id="saha-offline" style="font-size:1.4rem;color:#dc2626">—</span>
+                </div>
+                <div style="font-size:.85rem;font-weight:700">
+                    <span style="color:var(--muted);font-size:.66rem;display:block">Bekleyen</span>
+                    <span id="saha-beklemede" style="font-size:1.4rem;color:#9ca3af">—</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:24px">
+            <h3 style="font-size:.92rem;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+                <span style="background:rgba(167,139,250,0.15);color:#a78bfa;padding:2px 10px;border-radius:6px;font-size:.7rem;letter-spacing:.05em">KAYNAK</span>
+                Robot Kaynak Hatları (9 robot)
+            </h3>
+            <div id="saha-kaynak-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
+
+        <div style="margin-bottom:24px">
+            <h3 style="font-size:.92rem;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+                <span style="background:rgba(34,211,238,0.15);color:#22d3ee;padding:2px 10px;border-radius:6px;font-size:.7rem;letter-spacing:.05em">MONTAJ</span>
+                Montaj Hatları (12 hat)
+            </h3>
+            <div id="saha-montaj-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
+
+        <div style="margin-bottom:24px">
+            <h3 style="font-size:.92rem;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+                <span style="background:rgba(251,146,60,0.15);color:#fb923c;padding:2px 10px;border-radius:6px;font-size:.7rem;letter-spacing:.05em">METAL</span>
+                Metal Enjeksiyon (3 makine)
+            </h3>
+            <div id="saha-metal-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
+    </div>
 
     <!-- ══════════════════ RAPORLAR SEKME ══════════════════ -->
     <div id="sekme-raporlar" class="d-none">
@@ -3012,8 +3068,8 @@
         function sekmeDegistir(sekme) {
             console.log("Sekme değiştiriliyor:", sekme);
             aktifSekme = sekme;
-            const sekmeler = ['vardiyalar', 'referanslar', 'andon-ayarlar', 'raporlar'];
-            
+            const sekmeler = ['vardiyalar', 'referanslar', 'andon-ayarlar', 'saha-cihazlari', 'raporlar'];
+
             sekmeler.forEach(s => {
                 const el = document.getElementById('sekme-' + s);
                 if (el) {
@@ -3036,9 +3092,21 @@
                 'vardiyalar': 'Dashboard',
                 'referanslar': 'Referans Listesi',
                 'andon-ayarlar': 'Andon Ekran Ayarları',
+                'saha-cihazlari': 'Saha Cihazları',
                 'raporlar': 'Raporlar ve Analiz'
             };
             document.getElementById('page-title').textContent = basliklar[sekme] || sekme;
+
+            // Saha cihazları sekmesi açılınca verileri yükle + polling başlat
+            if (sekme === 'saha-cihazlari') {
+                yukleSahaCihazlari();
+                if (!window._sahaCihazTimer) {
+                    window._sahaCihazTimer = setInterval(yukleSahaCihazlari, 5000);
+                }
+            } else if (window._sahaCihazTimer) {
+                clearInterval(window._sahaCihazTimer);
+                window._sahaCihazTimer = null;
+            }
             const subtitle = document.getElementById('subtitle-text');
             if (subtitle) {
                 subtitle.textContent = '';
@@ -4485,6 +4553,92 @@
         // ═══════════════════════════════════════════════════════
         // TOPLU VERİ YÖNETİMİ — tek excel, tüm bölümler
         // ═══════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════
+        // SAHA CİHAZLARI — ESP32 bağlantı durumu paneli
+        // ═══════════════════════════════════════════════════════
+        async function yukleSahaCihazlari() {
+            try {
+                const res = await fetch('/api/saha_cihazlari', { cache: 'no-store' });
+                const d = await res.json();
+
+                let toplamOnline = 0, toplamOffline = 0, toplamBekleme = 0;
+                ['kaynak', 'montaj', 'metal'].forEach(bolum => {
+                    const liste = d[bolum] || [];
+                    liste.forEach(c => {
+                        if (c.durum === 'online') toplamOnline++;
+                        else if (c.durum === 'offline') toplamOffline++;
+                        else toplamBekleme++;
+                    });
+                    const grid = document.getElementById('saha-' + bolum + '-grid');
+                    if (grid) grid.innerHTML = liste.map(renderSahaKart).join('');
+                });
+
+                document.getElementById('saha-online').textContent     = toplamOnline;
+                document.getElementById('saha-offline').textContent    = toplamOffline;
+                document.getElementById('saha-beklemede').textContent  = toplamBekleme;
+            } catch (e) { console.warn('saha_cihazlari fetch:', e); }
+        }
+
+        function renderSahaKart(c) {
+            // Durum bazlı renkler + ikonlar
+            const renkler = {
+                'online':    { bg: 'rgba(16,185,129,0.10)',  bd: 'rgba(16,185,129,0.40)',  ic: '#16a34a', text: 'ONLINE',    pulse: true },
+                'offline':   { bg: 'rgba(248,113,113,0.10)', bd: 'rgba(248,113,113,0.40)', ic: '#dc2626', text: 'OFFLINE',   pulse: false },
+                'beklemede': { bg: 'rgba(156,163,175,0.08)', bd: 'rgba(156,163,175,0.30)', ic: '#9ca3af', text: 'BEKLEMEDE', pulse: false },
+            };
+            const r = renkler[c.durum] || renkler.beklemede;
+
+            // RSSI rengi
+            const rssi = c.wifi_rssi || 0;
+            let rssiRenk = '#9ca3af';
+            if (rssi < 0) {
+                if (rssi >= -65) rssiRenk = '#16a34a';
+                else if (rssi >= -75) rssiRenk = '#f59e0b';
+                else rssiRenk = '#dc2626';
+            }
+
+            // Heartbeat ne zaman?
+            let heartbeatTxt = '—';
+            if (c.son_heartbeat_dk !== undefined && c.son_heartbeat_dk !== null) {
+                const dk = c.son_heartbeat_dk;
+                if (dk < 1) heartbeatTxt = 'şimdi';
+                else if (dk < 60) heartbeatTxt = dk + ' dk önce';
+                else if (dk < 1440) heartbeatTxt = Math.floor(dk/60) + ' sa önce';
+                else heartbeatTxt = Math.floor(dk/1440) + ' g önce';
+            }
+
+            const detayHtml = c.kayitli ? `
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.72rem;margin-top:8px;color:var(--muted)">
+                    <span>IP:</span>      <span style="font-family:monospace;color:var(--text)">${c.ip_adresi || '—'}</span>
+                    <span>Sinyal:</span>  <span style="color:${rssiRenk};font-weight:700">${rssi ? rssi + ' dBm' : '—'}</span>
+                    <span>Heartbeat:</span><span style="color:var(--text)">${heartbeatTxt}</span>
+                    <span>Toplam:</span>  <span style="color:var(--text)">${c.toplam_sinyal || 0} pulse</span>
+                    ${c.buffer_kuyruk > 0 ? `<span style="color:#f59e0b">Buffer:</span><span style="color:#f59e0b;font-weight:700">${c.buffer_kuyruk} bekliyor</span>` : ''}
+                </div>
+            ` : `
+                <div style="font-size:.72rem;color:var(--muted);margin-top:8px;font-style:italic">
+                    Henüz kurulmamış — bekleniyor
+                </div>
+            `;
+
+            const pulseCss = r.pulse ? 'animation: cihazPulse 1.8s ease-in-out infinite' : '';
+
+            return `
+                <div style="background:${r.bg};border:1px solid ${r.bd};border-radius:14px;padding:14px 16px;${pulseCss}">
+                    <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
+                        <div>
+                            <div style="font-size:1.05rem;font-weight:800;color:var(--text)">${c.robot_no}</div>
+                            <div style="font-size:.66rem;color:var(--muted);font-family:monospace;margin-top:2px">${c.cihaz_id}</div>
+                        </div>
+                        <span style="background:${r.bd};color:${r.ic};padding:3px 10px;border-radius:999px;font-size:.62rem;font-weight:800;letter-spacing:.06em;flex-shrink:0">
+                            ${r.text}
+                        </span>
+                    </div>
+                    ${detayHtml}
+                </div>
+            `;
+        }
+
         async function topluExcelIceAktar() {
             if (!confirm(
                 'data/uretim_verileri.xlsx içindeki TÜM sayfalar veritabanına aktarılacak:\n\n' +
