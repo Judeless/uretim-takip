@@ -158,10 +158,15 @@ def teardown_db(exception):
 def operator_required(f):
     """Header'da X-Operator + X-Operator-Pin varsa PIN doğrular.
     Yoksa (dashboard/yönetici) izin verir ama g.operator_adi None olur.
+
+    X-Operator header'i frontend'de encodeURIComponent ile encode edilir
+    (HTTP header'lar ISO-8859-1 olmali, Turkce karakterler bozulur).
     """
+    from urllib.parse import unquote
     @wraps(f)
     def wrapper(*args, **kwargs):
-        op = (request.headers.get('X-Operator', '') or '').strip()
+        op_raw = (request.headers.get('X-Operator', '') or '').strip()
+        op = unquote(op_raw) if op_raw else ''
         pin = (request.headers.get('X-Operator-Pin', '') or '').strip()
         g.operator_adi = None
         if op and pin:

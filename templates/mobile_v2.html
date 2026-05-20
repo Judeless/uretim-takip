@@ -1330,8 +1330,15 @@
         var op = sessionStorage.getItem('aktif_operator');
         var pin = sessionStorage.getItem('operator_pin');
         if (op && pin) {
-          h.set('X-Operator', op);
-          h.set('X-Operator-Pin', pin);
+          // HTTP header'lari sadece ISO-8859-1 kabul eder. Operator adi
+          // Turkce karakter icerebilir (S, C, G, vs.) — encodeURIComponent
+          // ile guvenli hale getir, backend unquote eder.
+          try {
+            h.set('X-Operator', encodeURIComponent(op));
+            h.set('X-Operator-Pin', pin);  // PIN 4 hane rakam, encode gerekmez
+          } catch (e) {
+            console.warn('Header set hatasi:', e);
+          }
         }
         init.headers = h;
         return origFetch(input, init);
