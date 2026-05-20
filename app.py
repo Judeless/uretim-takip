@@ -1223,6 +1223,200 @@ def saha_cihazlari():
     return jsonify(sonuc), 200
 
 
+@app.route('/api/pilot/sinyal_analiz', methods=['GET'])
+def pilot_sinyal_analiz():
+    """Pilot sayaç pulse'larının zaman analizi.
+
+    Query parametreleri:
+      - bolum:    'kaynak' | 'montaj' | 'metal' (zorunlu)
+      - robot_no: 'ABB2', 'M3', '400T' vb. (zorunlu)
+      - istasyon: '1' | '2' | '' (boş = tüm istasyonlar)
+      - tarih:    'YYYY-MM-DD' (default bugün)
+
+    Dönen:
+      - olaylar:        her pulse {ts, istasyon, gap_sn}
+      - ozet:           toplam_pulse, ort_gap_sn, en_uzun_gap, en_kisa_gap
+      - saatlik:        [{hour, pulse_sayisi, ort_gap_sn}]
+      - duruslar:       [{basla, biti, sebep, tip, sure_dk}]
+      - referans_donemler: o gün üretilen referansların created_at timeline'ı
+      - aktif_referanslar: şu an referans_takip'te uretimde olanlar
+    """
+    import os, sqlite3
+    from datetime import datetime, timedelta
+
+    bolum    = request.args.get('bolum', 'kaynak')
+    robot_no = request.args.get('robot_no', '').strip()
+    istasyon = request.args.get('istasyon', '').strip()
+    tarih    = request.args.get('tarih', datetime.now().strftime('%Y-%m-%d'))
+
+    if not robot_no:
+        return jsonify({'hata': 'robot_no parametresi zorunlu'}), 400
+
+    # ─── Pilot DB'den pulse'lar ───────────────────────────────────
+    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+    olaylar = []
+    if os.path.exists(pilot_db):
+        pc = sqlite3.connect(pilot_db)
+        pc.row_factory = sqlite3.Row
+        try:
+            q = '''SELECT ts, istasyon FROM sayac_olaylari
+                   WHERE bolum=? AND robot_no=? AND date(ts)=?'''
+            params = [bolum, robot_no, tarih]
+            if istasyon:
+                q += ' AND istasyon=?'
+                params.append(int(istasyon))
+            q += ' ORDER BY ts'
+            rows = pc.execute(q, params).fetchall()
+
+            # Her istasyon için ayrı gap takibi (ist1 ile ist2 birbirine karışmasın)
+            son_ts_per_ist = {}
+            for r in rows:
+                try:
+                    ts_dt = datetime.fromisoformat(r['ts'])
+                except Exception:
+                    continue
+                ist = r['istasyon'] or 0
+                prev = son_ts_per_ist.get(ist)
+                gap_sn = round((ts_dt - prev).total_seconds(), 1) if prev else None
+                olaylar.append({
+                    'ts':       r['ts'],
+                    'istasyon': ist,
+                    'gap_sn':   gap_sn,
+                })
+                son_ts_per_ist[ist] = ts_dt
+        except Exception as e:
+            print(f'[sinyal_analiz] Pilot DB hata: {e}')
+        finally:
+            pc.close()
+
+    # ─── Özet metrikleri ──────────────────────────────────────────
+    gaps = [o['gap_sn'] for o in olaylar if o['gap_sn'] is not None]
+    ozet = {
+        'toplam_pulse':    len(olaylar),
+        'ortalama_gap_sn': round(sum(gaps) / len(gaps), 1) if gaps else 0,
+        'en_uzun_gap_sn':  round(max(gaps), 1) if gaps else 0,
+        'en_kisa_gap_sn':  round(min(gaps), 1) if gaps else 0,
+    }
+
+    # ─── Saatlik dağılım ─────────────────────────────────────────
+    saatlik_map = {}  # {hour: [gap1, gap2, ...]}
+    saatlik_sayim = {}  # {hour: pulse_count}
+    for o in olaylar:
+        try:
+            h = datetime.fromisoformat(o['ts']).hour
+        except Exception:
+            continue
+        saatlik_sayim[h] = saatlik_sayim.get(h, 0) + 1
+        if o['gap_sn'] is not None:
+            saatlik_map.setdefault(h, []).append(o['gap_sn'])
+    saatlik = []
+    for h in range(24):
+        gaps_h = saatlik_map.get(h, [])
+        if h in saatlik_sayim:
+            saatlik.append({
+                'hour':         h,
+                'pulse_sayisi': saatlik_sayim[h],
+                'ort_gap_sn':   round(sum(gaps_h) / len(gaps_h), 1) if gaps_h else 0,
+            })
+
+    # ─── Duruşlar (ana DB) ──────────────────────────────────────
+    conn = get_db()
+    durus_rows = conn.execute('''
+        SELECT d.baslangic_saati, d.sure_dk, d.durus_sebebi, d.durus_tipi, d.aciklama
+        FROM duruslar d
+        JOIN vardiyalar v ON d.vardiya_id = v.id
+        WHERE v.robot_no=? AND v.tarih=?
+        ORDER BY d.baslangic_saati
+    ''', (robot_no, tarih)).fetchall()
+    duruslar = []
+    for r in durus_rows:
+        bs = (r['baslangic_saati'] or '').strip()
+        sure_dk = r['sure_dk'] or 0
+        if not bs or sure_dk <= 0:
+            continue
+        # baslangic_saati "HH:MM" formatında — tarih ile birleştir
+        try:
+            if 'T' in bs or len(bs) > 8:
+                basla_iso = bs
+            else:
+                basla_iso = f'{tarih}T{bs}:00' if len(bs) == 5 else f'{tarih}T{bs}'
+            basla_dt = datetime.fromisoformat(basla_iso)
+            biti_dt = basla_dt + timedelta(minutes=sure_dk)
+            duruslar.append({
+                'basla':    basla_dt.isoformat(),
+                'biti':     biti_dt.isoformat(),
+                'sure_dk':  sure_dk,
+                'sebep':    r['durus_sebebi'] or '',
+                'tip':      r['durus_tipi'] or 'plansiz',
+                'aciklama': r['aciklama'] or '',
+            })
+        except Exception:
+            pass
+
+    # ─── Referans dönemler (üretim kayıtları timeline'ı) ────────
+    uretim_rows = conn.execute('''
+        SELECT u.referans_kodu, u.ok_adet, u.nok_adet, u.cycle_time_sn, u.created_at,
+               r.hedef_cycle_time_sn
+        FROM uretim_kayitlari u
+        JOIN vardiyalar v ON u.vardiya_id = v.id
+        LEFT JOIN referans_listesi r ON r.referans_kodu = u.referans_kodu
+                                     AND COALESCE(r.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
+        WHERE v.robot_no=? AND v.tarih=?
+        ORDER BY u.created_at
+    ''', (robot_no, tarih)).fetchall() if _kolon_var(conn, 'vardiyalar', 'bolum') else conn.execute('''
+        SELECT u.referans_kodu, u.ok_adet, u.nok_adet, u.cycle_time_sn, u.created_at,
+               r.hedef_cycle_time_sn
+        FROM uretim_kayitlari u
+        JOIN vardiyalar v ON u.vardiya_id = v.id
+        LEFT JOIN referans_listesi r ON r.referans_kodu = u.referans_kodu
+        WHERE v.robot_no=? AND v.tarih=?
+        ORDER BY u.created_at
+    ''', (robot_no, tarih)).fetchall()
+    referans_donemler = []
+    for r in uretim_rows:
+        referans_donemler.append({
+            'ts':              r['created_at'],
+            'referans_kodu':   r['referans_kodu'],
+            'ok_adet':         r['ok_adet'] or 0,
+            'nok_adet':        r['nok_adet'] or 0,
+            'cycle_time_sn':   r['cycle_time_sn'] or 0,
+            'hedef_cycle_sn':  r['hedef_cycle_time_sn'] or 0,
+        })
+
+    # ─── Aktif referanslar (şu an üretimde olanlar) ─────────────
+    aktif_ref_rows = conn.execute('''
+        SELECT referans_kodu, istasyon, hedef_adet
+        FROM referans_takip
+        WHERE durum='uretimde' AND robot_no=?
+    ''', (robot_no,)).fetchall()
+    aktif_referanslar = [dict(r) for r in aktif_ref_rows]
+
+    conn.close()
+
+    return jsonify({
+        'cihaz_id':           f'{robot_no}-IO' if bolum != 'montaj' else f'MONTAJ-{robot_no}',
+        'robot_no':           robot_no,
+        'bolum':              bolum,
+        'istasyon':           int(istasyon) if istasyon else None,
+        'tarih':              tarih,
+        'ozet':               ozet,
+        'olaylar':            olaylar,
+        'saatlik':            saatlik,
+        'duruslar':           duruslar,
+        'referans_donemler':  referans_donemler,
+        'aktif_referanslar':  aktif_referanslar,
+    }), 200
+
+
+def _kolon_var(conn, tablo, kolon):
+    """Migration güvenliği — kolon var mı kontrol."""
+    try:
+        cols = [r[1] for r in conn.execute(f"PRAGMA table_info({tablo})").fetchall()]
+        return kolon in cols
+    except Exception:
+        return False
+
+
 @app.route('/api/referans/teyit_ozet', methods=['GET'])
 def referans_teyit_ozet():
     """Bölüm bazında teyit özeti: toplam / teyitli / teyitsiz / süresiz sayıları."""

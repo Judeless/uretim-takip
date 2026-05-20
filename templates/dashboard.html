@@ -14,6 +14,7 @@
     <meta name="apple-mobile-web-app-title" content="Cofle">
     <meta name="theme-color" content="#1c1f3a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <style>
 
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
@@ -1494,6 +1495,8 @@
                     Andon Ayarları</a>
                 <a class="nav-item" onclick="sekmeDegistir('saha-cihazlari')"><span class="nav-icon">📡</span>
                     Saha Cihazları</a>
+                <a class="nav-item" onclick="sekmeDegistir('sinyal-analiz')"><span class="nav-icon">📊</span>
+                    Sinyal Analizi</a>
                 <a class="nav-item" onclick="sekmeDegistir('raporlar')"><span class="nav-icon">📈</span>
                     Raporlar</a>
                 <a class="nav-item" href="/rapor" target="_blank" style="background:rgba(37, 99, 235, 0.2);color:#93c5fd;border-left:3px solid #60a5fa"><span class="nav-icon">📲</span>
@@ -2292,6 +2295,92 @@
         </div>
     </div>
 
+    <!-- ══════════════════ SİNYAL ANALİZİ SEKME ══════════════════ -->
+    <div id="sekme-sinyal-analiz" class="d-none">
+        <div style="margin-bottom:18px">
+            <h2 style="font-size:1.1rem;font-weight:800;margin:0">📊 Sinyal Analizi</h2>
+            <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                Saha cihazlarından gelen her pulse'ın bir öncekiyle arasındaki süreyi (gap) zaman ekseninde gösterir.
+                Duruşlar grafiğe renkli bant olarak yansır; o gün üretilen referanslar alt tabloda listelenir.
+            </p>
+        </div>
+
+        <!-- Filtre paneli -->
+        <div style="background:var(--card);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow);display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px">
+            <div>
+                <label style="display:block;font-size:.7rem;margin-bottom:4px;color:var(--muted);font-weight:700">Bölüm</label>
+                <select id="sa-bolum" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;min-width:120px">
+                    <option value="kaynak">Kaynak</option>
+                    <option value="montaj">Montaj</option>
+                    <option value="metal">Metal</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:.7rem;margin-bottom:4px;color:var(--muted);font-weight:700">Cihaz</label>
+                <select id="sa-robot" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;min-width:140px"></select>
+            </div>
+            <div>
+                <label style="display:block;font-size:.7rem;margin-bottom:4px;color:var(--muted);font-weight:700">İstasyon</label>
+                <select id="sa-istasyon" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;min-width:100px">
+                    <option value="">Tümü</option>
+                    <option value="1">İstasyon 1</option>
+                    <option value="2">İstasyon 2</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:.7rem;margin-bottom:4px;color:var(--muted);font-weight:700">Tarih</label>
+                <input type="date" id="sa-tarih" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem">
+            </div>
+            <button onclick="yukleSinyalAnaliz()" style="padding:8px 18px;border:0;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer">
+                🔄 Analizi Yükle
+            </button>
+            <div id="sa-status" style="font-size:.7rem;color:var(--muted);margin-left:auto"></div>
+        </div>
+
+        <!-- Özet kartları -->
+        <div id="sa-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
+            <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">Toplam Pulse</div>
+                <div id="sa-toplam" style="font-size:1.7rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+            </div>
+            <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">Ort. Süre</div>
+                <div id="sa-ortalama" style="font-size:1.7rem;font-weight:800;color:#34d399;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+            </div>
+            <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">En Uzun Gap</div>
+                <div id="sa-enuzun" style="font-size:1.7rem;font-weight:800;color:#f87171;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+            </div>
+            <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">En Kısa Gap</div>
+                <div id="sa-enkisa" style="font-size:1.7rem;font-weight:800;color:#22d3ee;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+            </div>
+        </div>
+
+        <!-- Ana grafik -->
+        <div style="background:var(--card);padding:16px 18px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px">
+            <h3 style="font-size:.92rem;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                Pulse Aralıkları (Saatlik Dağılım)
+                <span style="font-size:.65rem;color:var(--muted);font-weight:500">— scatter: her pulse · çizgi: saatlik ortalama · kırmızı/sarı bant: duruş</span>
+            </h3>
+            <div style="position:relative;height:380px">
+                <canvas id="sa-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Alt: aktif referans + duruş + üretilen referanslar -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px">
+            <div style="background:var(--card);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <h3 style="font-size:.85rem;font-weight:800;margin-bottom:10px">📋 O Gün Üretilen Referanslar</h3>
+                <div id="sa-referanslar" style="font-size:.82rem;max-height:240px;overflow-y:auto"></div>
+            </div>
+            <div style="background:var(--card);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <h3 style="font-size:.85rem;font-weight:800;margin-bottom:10px">⏸ Duruşlar</h3>
+                <div id="sa-duruslar" style="font-size:.82rem;max-height:240px;overflow-y:auto"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- ══════════════════ RAPORLAR SEKME ══════════════════ -->
     <div id="sekme-raporlar" class="d-none">
         <div class="filters-panel" style="margin-bottom:20px; display:flex; gap:10px; align-items:flex-end; background:var(--card); padding:15px; border-radius:var(--radius); box-shadow:var(--shadow)">
@@ -3068,7 +3157,7 @@
         function sekmeDegistir(sekme) {
             console.log("Sekme değiştiriliyor:", sekme);
             aktifSekme = sekme;
-            const sekmeler = ['vardiyalar', 'referanslar', 'andon-ayarlar', 'saha-cihazlari', 'raporlar'];
+            const sekmeler = ['vardiyalar', 'referanslar', 'andon-ayarlar', 'saha-cihazlari', 'sinyal-analiz', 'raporlar'];
 
             sekmeler.forEach(s => {
                 const el = document.getElementById('sekme-' + s);
@@ -3093,6 +3182,7 @@
                 'referanslar': 'Referans Listesi',
                 'andon-ayarlar': 'Andon Ekran Ayarları',
                 'saha-cihazlari': 'Saha Cihazları',
+                'sinyal-analiz': 'Sinyal Analizi',
                 'raporlar': 'Raporlar ve Analiz'
             };
             document.getElementById('page-title').textContent = basliklar[sekme] || sekme;
@@ -3106,6 +3196,11 @@
             } else if (window._sahaCihazTimer) {
                 clearInterval(window._sahaCihazTimer);
                 window._sahaCihazTimer = null;
+            }
+
+            // Sinyal analizi sekmesi açılınca filtreleri başlat
+            if (sekme === 'sinyal-analiz') {
+                sinyalAnalizSekmeAcildi();
             }
             const subtitle = document.getElementById('subtitle-text');
             if (subtitle) {
@@ -4648,6 +4743,285 @@
                     ${detayHtml}
                 </div>
             `;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // SİNYAL ANALİZİ (Saha cihazı pulse zaman analizi)
+        // ═══════════════════════════════════════════════════════
+        const SA_DEVICES = {
+            kaynak: ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9'],
+            montaj: ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12'],
+            metal:  ['300T','400T','550T'],
+        };
+        let _saChart = null;
+
+        function sinyalAnalizSekmeAcildi() {
+            // Tarih default: bugün
+            const tarihEl = document.getElementById('sa-tarih');
+            if (tarihEl && !tarihEl.value) {
+                tarihEl.value = new Date().toISOString().slice(0, 10);
+            }
+            // Robot listesi (bolume göre)
+            _saRobotListesiYukle();
+            // Bölüm değişince robot listesi tazelensin
+            const bolumEl = document.getElementById('sa-bolum');
+            if (bolumEl && !bolumEl._listenerAdded) {
+                bolumEl.addEventListener('change', () => {
+                    _saRobotListesiYukle();
+                    // Kaynak harici istasyon seçimini gizle
+                    const istEl = document.getElementById('sa-istasyon');
+                    if (istEl) {
+                        const bolum = document.getElementById('sa-bolum').value;
+                        istEl.disabled = (bolum !== 'kaynak');
+                        if (bolum !== 'kaynak') istEl.value = '';
+                    }
+                });
+                bolumEl._listenerAdded = true;
+            }
+            // İlk yükleme
+            if (document.getElementById('sa-toplam').textContent === '—') {
+                yukleSinyalAnaliz();
+            }
+        }
+
+        function _saRobotListesiYukle() {
+            const bolum = document.getElementById('sa-bolum').value;
+            const robotEl = document.getElementById('sa-robot');
+            const list = SA_DEVICES[bolum] || [];
+            robotEl.innerHTML = list.map(r => `<option value="${r}">${r}</option>`).join('');
+        }
+
+        async function yukleSinyalAnaliz() {
+            const bolum    = document.getElementById('sa-bolum').value;
+            const robot_no = document.getElementById('sa-robot').value;
+            const istasyon = document.getElementById('sa-istasyon').value;
+            const tarih    = document.getElementById('sa-tarih').value;
+            if (!robot_no || !tarih) return;
+
+            const statusEl = document.getElementById('sa-status');
+            statusEl.textContent = 'Yükleniyor...';
+
+            try {
+                const url = `/api/pilot/sinyal_analiz?bolum=${bolum}&robot_no=${encodeURIComponent(robot_no)}&istasyon=${istasyon}&tarih=${tarih}`;
+                const res = await fetch(url, { cache: 'no-store' });
+                const d = await res.json();
+                if (!res.ok) {
+                    statusEl.textContent = 'Hata: ' + (d.hata || res.status);
+                    return;
+                }
+                _saRenderOzet(d.ozet || {});
+                _saRenderChart(d);
+                _saRenderReferanslar(d.referans_donemler || [], d.aktif_referanslar || []);
+                _saRenderDuruslar(d.duruslar || []);
+                statusEl.textContent = `${d.olaylar.length} pulse · ${d.duruslar.length} duruş`;
+            } catch (e) {
+                statusEl.textContent = 'Bağlantı hatası';
+                console.error('sinyal_analiz fetch:', e);
+            }
+        }
+
+        function _saRenderOzet(ozet) {
+            const fmt = (v) => {
+                if (v == null) return '—';
+                if (v < 60) return v.toFixed(1) + ' sn';
+                const dk = Math.floor(v / 60), sn = Math.round(v % 60);
+                return dk + ':' + String(sn).padStart(2, '0');
+            };
+            document.getElementById('sa-toplam').textContent = ozet.toplam_pulse || 0;
+            document.getElementById('sa-ortalama').textContent = fmt(ozet.ortalama_gap_sn);
+            document.getElementById('sa-enuzun').textContent = fmt(ozet.en_uzun_gap_sn);
+            document.getElementById('sa-enkisa').textContent = fmt(ozet.en_kisa_gap_sn);
+        }
+
+        function _saRenderChart(data) {
+            const ctx = document.getElementById('sa-chart').getContext('2d');
+            if (_saChart) { _saChart.destroy(); _saChart = null; }
+
+            // Scatter datasets: ist1 (amber), ist2 (cyan)
+            const scatter1 = [], scatter2 = [];
+            (data.olaylar || []).forEach(o => {
+                if (o.gap_sn == null) return;
+                const t = new Date(o.ts).getTime();
+                const point = { x: t, y: o.gap_sn };
+                if (o.istasyon === 2) scatter2.push(point);
+                else                   scatter1.push(point);
+            });
+
+            // Saatlik ortalama line: x=saatin ortası (HH:30), y=ort_gap
+            const tarihBase = data.tarih; // 'YYYY-MM-DD'
+            const saatlikLine = (data.saatlik || []).map(s => ({
+                x: new Date(tarihBase + 'T' + String(s.hour).padStart(2,'0') + ':30:00').getTime(),
+                y: s.ort_gap_sn,
+            }));
+
+            // Duruşları annotation olarak — kırmızı/sarı band (plansiz/planli)
+            const annotations = {};
+            (data.duruslar || []).forEach((d, i) => {
+                const isPlanli = d.tip === 'planli';
+                annotations['durus_' + i] = {
+                    type: 'box',
+                    xMin: new Date(d.basla).getTime(),
+                    xMax: new Date(d.biti).getTime(),
+                    backgroundColor: isPlanli ? 'rgba(251,191,36,0.12)' : 'rgba(248,113,113,0.15)',
+                    borderColor:     isPlanli ? 'rgba(251,191,36,0.50)' : 'rgba(248,113,113,0.55)',
+                    borderWidth: 1,
+                    label: {
+                        content: d.sebep + ' · ' + d.sure_dk + 'dk',
+                        display: true,
+                        position: 'start',
+                        font: { size: 10, weight: 'bold' },
+                        color: isPlanli ? '#b45309' : '#b91c1c',
+                        backgroundColor: 'rgba(255,255,255,0.85)',
+                        padding: 3,
+                    }
+                };
+            });
+
+            _saChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'İstasyon 1',
+                            data: scatter1,
+                            backgroundColor: 'rgba(251,191,36,0.75)',
+                            borderColor:     'rgba(251,191,36,1)',
+                            pointRadius: 4,
+                        },
+                        {
+                            label: 'İstasyon 2',
+                            data: scatter2,
+                            backgroundColor: 'rgba(34,211,238,0.75)',
+                            borderColor:     'rgba(34,211,238,1)',
+                            pointRadius: 4,
+                        },
+                        {
+                            label: 'Saatlik Ort.',
+                            type: 'line',
+                            data: saatlikLine,
+                            borderColor: 'rgba(167,139,250,0.95)',
+                            backgroundColor: 'rgba(167,139,250,0.10)',
+                            borderWidth: 2.5,
+                            pointRadius: 5,
+                            pointBackgroundColor: 'rgba(167,139,250,1)',
+                            fill: false,
+                            tension: 0.3,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: getComputedStyle(document.body).getPropertyValue('--text') } },
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => {
+                                    if (!items.length) return '';
+                                    const d = new Date(items[0].raw.x);
+                                    return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                },
+                                label: (item) => {
+                                    const v = item.raw.y;
+                                    const fmt = v < 60 ? v.toFixed(1) + ' sn' : Math.floor(v/60) + 'dk ' + Math.round(v%60) + 'sn';
+                                    return item.dataset.label + ': ' + fmt;
+                                }
+                            }
+                        },
+                        annotation: { annotations: annotations },
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            ticks: {
+                                callback: (v) => {
+                                    const d = new Date(v);
+                                    return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                                },
+                                color: getComputedStyle(document.body).getPropertyValue('--muted'),
+                            },
+                            grid: { color: 'rgba(127,127,127,0.10)' },
+                        },
+                        y: {
+                            title: { display: true, text: 'Önceki pulse\'a süre (sn)', color: getComputedStyle(document.body).getPropertyValue('--muted') },
+                            beginAtZero: true,
+                            ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted') },
+                            grid: { color: 'rgba(127,127,127,0.10)' },
+                        }
+                    }
+                }
+            });
+        }
+
+        function _saRenderReferanslar(donemler, aktif) {
+            const el = document.getElementById('sa-referanslar');
+            if (!donemler.length && !aktif.length) {
+                el.innerHTML = '<div style="color:var(--muted);font-style:italic">Bu cihaz/tarih için referans kaydı yok.</div>';
+                return;
+            }
+            let html = '';
+            if (aktif.length) {
+                html += '<div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px">Şu An Aktif</div>';
+                html += aktif.map(a => `
+                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)">
+                        <span style="font-weight:700;color:#34d399">▶ ${a.referans_kodu}</span>
+                        <span style="color:var(--muted);font-size:.74rem">İst.${a.istasyon||'—'} · Hedef ${a.hedef_adet||0}</span>
+                    </div>
+                `).join('');
+                html += '<div style="height:10px"></div>';
+            }
+            if (donemler.length) {
+                html += '<div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px">Üretim Kayıtları (Kronolojik)</div>';
+                // Tekrar eden referansları birleştir
+                const acc = {};
+                donemler.forEach(d => {
+                    const k = d.referans_kodu;
+                    if (!acc[k]) acc[k] = { kod: k, ok: 0, nok: 0, ilk: d.ts, son: d.ts, hedef: d.hedef_cycle_sn || 0, gercek_cycle: [] };
+                    acc[k].ok  += d.ok_adet || 0;
+                    acc[k].nok += d.nok_adet || 0;
+                    acc[k].son = d.ts;
+                    if (d.cycle_time_sn) acc[k].gercek_cycle.push(d.cycle_time_sn);
+                });
+                html += Object.values(acc).map(r => {
+                    const ortGercek = r.gercek_cycle.length
+                        ? (r.gercek_cycle.reduce((a,b)=>a+b,0)/r.gercek_cycle.length).toFixed(1) : '—';
+                    return `
+                        <div style="padding:6px 0;border-bottom:1px solid var(--border)">
+                            <div style="display:flex;justify-content:space-between">
+                                <span style="font-weight:700;color:var(--text)">${r.kod}</span>
+                                <span style="color:var(--muted);font-size:.72rem">${r.ok} OK · ${r.nok} NOK</span>
+                            </div>
+                            <div style="color:var(--muted);font-size:.7rem;margin-top:2px">
+                                Hedef cycle: ${r.hedef || '—'} sn · Gerçek ort: ${ortGercek} sn
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            el.innerHTML = html;
+        }
+
+        function _saRenderDuruslar(duruslar) {
+            const el = document.getElementById('sa-duruslar');
+            if (!duruslar.length) {
+                el.innerHTML = '<div style="color:var(--muted);font-style:italic">Bu cihaz/tarih için duruş kaydı yok.</div>';
+                return;
+            }
+            el.innerHTML = duruslar.map(d => {
+                const isPlanli = d.tip === 'planli';
+                const renk = isPlanli ? '#f59e0b' : '#dc2626';
+                const tip  = isPlanli ? 'Planlı' : 'Plansız';
+                const saat = new Date(d.basla).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+                return `
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px">
+                        <div style="flex:1">
+                            <div style="font-weight:700;font-size:.82rem">${d.sebep}</div>
+                            <div style="color:var(--muted);font-size:.7rem;margin-top:2px">${saat} · ${tip}${d.aciklama ? ' · ' + d.aciklama : ''}</div>
+                        </div>
+                        <span style="color:${renk};font-weight:700;font-family:'JetBrains Mono',monospace;white-space:nowrap">${d.sure_dk} dk</span>
+                    </div>
+                `;
+            }).join('');
         }
 
         async function topluExcelIceAktar() {
