@@ -279,9 +279,39 @@
       margin-bottom: 6px; flex-shrink: 0;
       padding-bottom: 3px;
       border-bottom: 2px solid transparent;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
     .station-header.st1 { color: var(--c-amber); border-color: rgba(251,191,36,0.25); }
     .station-header.st2 { color: var(--c-cyan);  border-color: rgba(34,211,238,0.25); }
+
+    /* Saha sayaç rozeti — pilot ESP32 cihazlarından gelen bugünkü pulse adedi */
+    .station-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem; font-weight: 800;
+      letter-spacing: 0.02em;
+      padding: 2px 9px; border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: var(--muted);
+      transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+      flex-shrink: 0;
+    }
+    .station-count .sc-unit { opacity: 0.55; font-size: 0.66rem; margin-left: 2px; }
+    .station-count.calisiyor {
+      background: rgba(52,211,153,0.18);
+      border-color: rgba(52,211,153,0.55);
+      color: #6ee7b7;
+      animation: countPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes countPulse {
+      0%, 100% { box-shadow: 0 0 8px  rgba(52,211,153,0.25); }
+      50%      { box-shadow: 0 0 16px rgba(52,211,153,0.55); }
+    }
+    .station-count.offline {
+      background: rgba(248,113,113,0.08);
+      border-color: rgba(248,113,113,0.30);
+      color: rgba(248,113,113,0.70);
+    }
 
     .ref-list {
       flex: 1; min-height: 0;
@@ -862,6 +892,20 @@
       return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${uyari}${lc}</div>`;
     };
 
+    // Saha sayaç rozeti (pilot ESP32 cihazlarından) — robot_no'ya göre map'ten oku
+    const pilot = (window._pilotMap || {})[r.robot_no] || null;
+    const sayacBadge = (count, calisiyor) => {
+      const cls = pilot
+        ? (calisiyor ? 'station-count calisiyor' : (pilot.durum === 'offline' ? 'station-count offline' : 'station-count'))
+        : 'station-count';
+      const title = pilot
+        ? (pilot.durum === 'offline'
+            ? 'Saha cihazı offline — son ' + (pilot.son_heartbeat_dk || 0) + ' dk pulse yok'
+            : (calisiyor ? 'Robot çalışıyor — pulse alınıyor' : 'Bugünkü toplam pulse'))
+        : 'Saha cihazı henüz bağlanmamış';
+      return `<span class="${cls}" title="${title}">${count || 0}<span class="sc-unit">pulse</span></span>`;
+    };
+
     // Kaynak: 2 sütun (İstasyon 1 | İstasyon 2 + diğer) + pair cycle bandı
     // Montaj/Metal: tek geniş "Üretim" panel'i (ist1+ist2+diger birleşik)
     let stationsHtml;
@@ -869,6 +913,8 @@
       const st2_combined = [...ist2, ...diger];
       const st1Html = ist1.length ? ist1.map(refRow).join('') : '<div class="ref-empty">—</div>';
       const st2Html = st2_combined.length ? st2_combined.map(refRow).join('') : '<div class="ref-empty">—</div>';
+      const ist1Count = sayacBadge(pilot ? pilot.bugun_ist1 : 0, pilot && pilot.robot_calisiyor == 1);
+      const ist2Count = sayacBadge(pilot ? pilot.bugun_ist2 : 0, pilot && pilot.robot_calisiyor == 1);
 
       // Pair cycle bandı — robotun iki istasyonundaki referansların paralel çevrim süresi
       let pairBant = '';
@@ -889,11 +935,11 @@
       stationsHtml = `
         <div class="rc-stations two-col">
           <div class="station-pane">
-            <div class="station-header st1">İstasyon 1</div>
+            <div class="station-header st1"><span>İstasyon 1</span>${ist1Count}</div>
             <div class="ref-list">${st1Html}</div>
           </div>
           <div class="station-pane">
-            <div class="station-header st2">İstasyon 2</div>
+            <div class="station-header st2"><span>İstasyon 2</span>${ist2Count}</div>
             <div class="ref-list">${st2Html}</div>
           </div>
           ${pairBant}
@@ -901,10 +947,11 @@
     } else {
       const tum = [...ist1, ...ist2, ...diger];
       const tumHtml = tum.length ? tum.map(refRow).join('') : '<div class="ref-empty">Üretim kaydı yok</div>';
+      const toplamCount = sayacBadge(pilot ? pilot.bugun_toplam : 0, pilot && pilot.robot_calisiyor == 1);
       stationsHtml = `
         <div class="rc-stations one-col">
           <div class="station-pane">
-            <div class="station-header st1">Üretim</div>
+            <div class="station-header st1"><span>Üretim</span>${toplamCount}</div>
             <div class="ref-list">${tumHtml}</div>
           </div>
         </div>`;
@@ -1018,10 +1065,43 @@
     return _robots;
   }
 
+  // ── Pilot saha cihazları (sayaç verisi) — robot_no -> {bugun_ist1, bugun_ist2, bugun_toplam, robot_calisiyor, durum, son_heartbeat_dk} ──
+  async function fetchPilotMap() {
+    try {
+      const res = await fetch('/api/saha_cihazlari', { cache:'no-store' });
+      const d = await res.json();
+      const map = {};
+      // Aktif bölümün cihazlarını al; eşleme robot_no üzerinden
+      const liste = (d && d[BOLUM]) ? d[BOLUM] : [];
+      liste.forEach(c => {
+        if (c && c.robot_no) {
+          map[c.robot_no] = {
+            bugun_ist1:       c.bugun_ist1 || 0,
+            bugun_ist2:       c.bugun_ist2 || 0,
+            bugun_toplam:     c.bugun_toplam || 0,
+            robot_calisiyor:  c.robot_calisiyor || 0,
+            durum:            c.durum || 'beklemede',
+            son_heartbeat_dk: c.son_heartbeat_dk || 0,
+            kayitli:          c.kayitli || false,
+          };
+        }
+      });
+      window._pilotMap = map;
+    } catch (e) {
+      // Sayaç verisi yoksa kart yine de render edilsin — sadece badge'ler boş kalır
+      console.warn('saha_cihazlari fetch:', e);
+      window._pilotMap = window._pilotMap || {};
+    }
+  }
+
   // ── Ana fetch ──
   async function loadAndon() {
     try {
-      const res = await fetch(API_URL, { cache:'no-store' });
+      // Andon ve pilot verisini paralel çek
+      const [res] = await Promise.all([
+        fetch(API_URL, { cache:'no-store' }),
+        fetchPilotMap(),
+      ]);
       const d = await res.json();
 
       // Açık vardiyalar listesi — her vardiya = bir kart (aynı hat'a birden çok operatör açtıysa hepsi ayrı kart)
