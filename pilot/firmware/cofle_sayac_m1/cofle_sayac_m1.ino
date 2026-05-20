@@ -1,20 +1,18 @@
 /* ============================================================
- *  COFLE PILOT SAYAC — ABB5-IO firmware (v2.1)
+ *  COFLE PILOT SAYAC — MONTAJ-M1 firmware (v2.1)
  *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
- *  HEDEF:  ABB5 robotunun 3 dijital cikisini izler:
- *            - Istasyon 1 sayac (her parca = 1 pulse)
- *            - Istasyon 2 sayac (her parca = 1 pulse)
- *            - Robot calisiyor durumu (HIGH=calisiyor)
+ *  HEDEF:  Montaj masasi operatorunun butonuna her basisinda
+ *          1 uretim pulse'u olarak kaydeder.
  *
  *  PIN ATAMALARI:
- *   - GPIO25  -> Role 1 NO  (Istasyon 1 — BEYAZ tel)
- *   - GPIO26  -> Role 2 NO  (Istasyon 2 — GRI tel)
- *   - GPIO27  -> Role 3 NO  (Robot durumu — KAHVE tel)
- *   - GND     -> 3 role COM ortak (SARI tel)
+ *   - GPIO25  -> BUTON (NO momentary, GND'ye kapanir)
+ *   - GPIO26  -> BOS (INPUT_PULLUP)
+ *   - GPIO27  -> BOS (INPUT_PULLUP)
+ *   - GND     -> Buton 2. pini
  *
- *  Bu dosya pilot/firmware/_templates/kaynak.ino.tpl'den uretildi.
+ *  Bu dosya pilot/firmware/_templates/montaj.ino.tpl'den uretildi.
  * ============================================================ */
 
 #include <WiFi.h>
@@ -25,12 +23,12 @@
 #include <ArduinoOTA.h>
 
 // ════════════════════════════════════════════════════════════
-//   YAPILANDIRMA — ABB5
+//   YAPILANDIRMA — M1
 // ════════════════════════════════════════════════════════════
 
-const char* CIHAZ_ID  = "ABB5-IO";
-const char* BOLUM     = "kaynak";
-const char* ROBOT_NO  = "ABB5";
+const char* CIHAZ_ID  = "MONTAJ-M1";
+const char* BOLUM     = "montaj";
+const char* ROBOT_NO  = "M1";
 
 const char* WIFI_SSID = "COFLE-TK";
 const char* WIFI_PASS = "internet2011!";
@@ -38,21 +36,21 @@ const char* SUNUCU_HOST = "http://192.168.21.155:5001";
 const char* API_TOKEN = "cofle-pilot-2026";
 const char* OTA_PASS = "cofle-ota-2026";
 
-const int PIN_IST1_SAYAC      = 25;
-const int PIN_IST2_SAYAC      = 26;
-const int PIN_ROBOT_CALISIYOR = 27;
+const int PIN_IST1_SAYAC      = 25;   // Buton (NO temas)
+const int PIN_IST2_SAYAC      = 26;   // BOS
+const int PIN_ROBOT_CALISIYOR = 27;   // BOS
 const int PIN_LED             =  2;
 
 const int  DEBOUNCE_MS         = 100;
 const int  PARAZIT_SAMPLE_N    = 15;
 const int  PARAZIT_SAMPLE_GAP  = 5;
-const unsigned long MIN_PULSE_GAP_MS = 3000;
+const unsigned long MIN_PULSE_GAP_MS = 1000;  // MONTAJ: 1 sn (hizli operator)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.1.0-abb5";
+const char* FIRMWARE_VER  = "2.1.0-m1";
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
@@ -73,20 +71,8 @@ PulseKaydi buffer[BUFFER_MAX];
 int buf_bas = 0, buf_son = 0, buf_dolu = 0;
 
 int lastIst1State = HIGH;
-int lastIst2State = HIGH;
-int lastRobotState = HIGH;
 unsigned long lastDebounceIst1 = 0;
-unsigned long lastDebounceIst2 = 0;
-unsigned long lastDebounceRobot = 0;
-
 unsigned long lastValidPulseIst1 = 0;
-unsigned long lastValidPulseIst2 = 0;
-
-unsigned long lastRobotCheck = 0;
-const unsigned long ROBOT_CHECK_INTERVAL_MS = 500;
-const int           ROBOT_SAMPLE_N          = 10;
-const int           ROBOT_SAMPLE_THRESHOLD  = 7;
-unsigned long lastRobotStateChangeMs = 0;
 
 unsigned long lastHeartbeat = 0;
 unsigned long lastRetry     = 0;
@@ -151,7 +137,7 @@ bool bufferdanBirGonder() {
   doc["bolum"]      = BOLUM;
   doc["robot_no"]   = ROBOT_NO;
   doc["istasyon"]   = p.istasyon;
-  doc["kaynak_tip"] = "robot_io";
+  doc["kaynak_tip"] = "buton";
   String mac6 = WiFi.macAddress();
   mac6.replace(":", "");
   if (mac6.length() > 6) mac6 = mac6.substring(mac6.length() - 6);
@@ -182,10 +168,6 @@ void istasyonSinyali(uint8_t istasyon) {
     pulseIst1++;
     seq = pulseIst1;
     prefs.putULong("pulse_i1", pulseIst1);
-  } else if (istasyon == 2) {
-    pulseIst2++;
-    seq = pulseIst2;
-    prefs.putULong("pulse_i2", pulseIst2);
   } else {
     return;
   }
@@ -233,9 +215,8 @@ void heartbeatGonder() {
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
   http.end();
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · ist1=%lu · ist2=%lu · robot=%s\n",
-                rc, WiFi.RSSI(), buf_dolu, pulseIst1, pulseIst2,
-                robotCalisiyor ? "ON" : "OFF");
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · buton_sayim=%lu\n",
+                rc, WiFi.RSSI(), buf_dolu, pulseIst1);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -250,10 +231,10 @@ void setup() {
   Serial.println("\n╔════════════════════════════════════════════╗");
   Serial.printf( "║  COFLE PILOT SAYAC — %-21s ║\n", CIHAZ_ID);
   Serial.println("╚════════════════════════════════════════════╝");
-  Serial.printf("FW: %s · Bolum: %s · Robot: %s · 2 istasyon + durum\n",
+  Serial.printf("FW: %s · Bolum: %s · Masa: %s · MONTAJ BUTON MODU\n",
                 FIRMWARE_VER, BOLUM, ROBOT_NO);
-  Serial.printf("Pinler: Ist1=GPIO%d · Ist2=GPIO%d · Robot=GPIO%d\n",
-                PIN_IST1_SAYAC, PIN_IST2_SAYAC, PIN_ROBOT_CALISIYOR);
+  Serial.printf("Buton pini: GPIO%d (GND'ye basinca pulse)\n", PIN_IST1_SAYAC);
+  Serial.printf("Min pulse araligi: %lums (operator hizi siniri)\n", MIN_PULSE_GAP_MS);
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
   pinMode(PIN_IST1_SAYAC,      INPUT_PULLUP);
@@ -263,14 +244,12 @@ void setup() {
   digitalWrite(PIN_LED, LOW);
 
   lastIst1State  = digitalRead(PIN_IST1_SAYAC);
-  lastIst2State  = digitalRead(PIN_IST2_SAYAC);
-  lastRobotState = digitalRead(PIN_ROBOT_CALISIYOR);
-  robotCalisiyor = (lastRobotState == LOW);
+  robotCalisiyor = false;  // Montajda robot durumu kullanilmiyor
 
   prefs.begin("cofle", false);
   pulseIst1 = prefs.getULong("pulse_i1", 0);
   pulseIst2 = prefs.getULong("pulse_i2", 0);
-  Serial.printf("[NVS] Kayitli sayaclar: Ist1=%lu · Ist2=%lu\n", pulseIst1, pulseIst2);
+  Serial.printf("[NVS] Kayitli buton sayimi: %lu\n", pulseIst1);
 
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   esp_task_wdt_config_t wdt_config = {
@@ -306,7 +285,7 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] 3 girisli sayac aktif — robot DO sinyalleri bekleniyor...\n");
+  Serial.println("[READY] Montaj butonu aktif — operator basisi bekleniyor...\n");
   ledYakBlink(3, 60);
 }
 
@@ -323,6 +302,7 @@ void loop() {
     }
   }
 
+  // Buton — GPIO25 (debounce + multi-sample + min interval)
   int curIst1 = digitalRead(PIN_IST1_SAYAC);
   if (curIst1 != lastIst1State && (now - lastDebounceIst1) > DEBOUNCE_MS) {
     lastDebounceIst1 = now;
@@ -332,51 +312,14 @@ void loop() {
           istasyonSinyali(1);
           lastValidPulseIst1 = now;
         } else {
-          Serial.printf("[FILTRE] Ist.1 erken (gap=%lums < %lums) - SAYILMADI\n",
+          Serial.printf("[FILTRE] Buton erken (gap=%lums < %lums) - SAYILMADI\n",
                         now - lastValidPulseIst1, MIN_PULSE_GAP_MS);
         }
       } else {
-        Serial.println("[FILTRE] Ist.1 parazit (multi-sample basarisiz) - SAYILMADI");
+        Serial.println("[FILTRE] Buton parazit (multi-sample basarisiz) - SAYILMADI");
       }
     }
     lastIst1State = curIst1;
-  }
-
-  int curIst2 = digitalRead(PIN_IST2_SAYAC);
-  if (curIst2 != lastIst2State && (now - lastDebounceIst2) > DEBOUNCE_MS) {
-    lastDebounceIst2 = now;
-    if (curIst2 == LOW) {
-      if (pinGercektenLOW(PIN_IST2_SAYAC)) {
-        if ((now - lastValidPulseIst2) >= MIN_PULSE_GAP_MS) {
-          istasyonSinyali(2);
-          lastValidPulseIst2 = now;
-        } else {
-          Serial.printf("[FILTRE] Ist.2 erken (gap=%lums < %lums) - SAYILMADI\n",
-                        now - lastValidPulseIst2, MIN_PULSE_GAP_MS);
-        }
-      } else {
-        Serial.println("[FILTRE] Ist.2 parazit (multi-sample basarisiz) - SAYILMADI");
-      }
-    }
-    lastIst2State = curIst2;
-  }
-
-  if (now - lastRobotCheck >= ROBOT_CHECK_INTERVAL_MS) {
-    lastRobotCheck = now;
-    int lowSayim = 0;
-    for (int i = 0; i < ROBOT_SAMPLE_N; i++) {
-      if (digitalRead(PIN_ROBOT_CALISIYOR) == LOW) lowSayim++;
-      delay(2);
-    }
-    bool yeniDurum = (lowSayim >= ROBOT_SAMPLE_THRESHOLD);
-    if (yeniDurum != robotCalisiyor) {
-      robotCalisiyor = yeniDurum;
-      lastRobotStateChangeMs = now;
-      Serial.printf("[ROBOT] Durum: %s (low/total=%d/%d)\n",
-                    robotCalisiyor ? "CALISIYOR" : "DURDU",
-                    lowSayim, ROBOT_SAMPLE_N);
-      if (wifiHazir()) heartbeatGonder();
-    }
   }
 
   if (wifiHazir() && buf_dolu > 0 && (now - lastRetry) > RETRY_MS) {

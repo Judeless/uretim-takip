@@ -1,9 +1,9 @@
 /* ============================================================
- *  COFLE PILOT SAYAC — ABB5-IO firmware (v2.1)
+ *  COFLE PILOT SAYAC — ABB6-IO firmware (v2.1)
  *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
- *  HEDEF:  ABB5 robotunun 3 dijital cikisini izler:
+ *  HEDEF:  ABB6 robotunun 3 dijital cikisini izler:
  *            - Istasyon 1 sayac (her parca = 1 pulse)
  *            - Istasyon 2 sayac (her parca = 1 pulse)
  *            - Robot calisiyor durumu (HIGH=calisiyor)
@@ -25,12 +25,12 @@
 #include <ArduinoOTA.h>
 
 // ════════════════════════════════════════════════════════════
-//   YAPILANDIRMA — ABB5
+//   YAPILANDIRMA — ABB6
 // ════════════════════════════════════════════════════════════
 
-const char* CIHAZ_ID  = "ABB5-IO";
+const char* CIHAZ_ID  = "ABB6-IO";
 const char* BOLUM     = "kaynak";
-const char* ROBOT_NO  = "ABB5";
+const char* ROBOT_NO  = "ABB6";
 
 const char* WIFI_SSID = "COFLE-TK";
 const char* WIFI_PASS = "internet2011!";
@@ -52,7 +52,7 @@ const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.1.0-abb5";
+const char* FIRMWARE_VER  = "2.1.0-abb6";
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM

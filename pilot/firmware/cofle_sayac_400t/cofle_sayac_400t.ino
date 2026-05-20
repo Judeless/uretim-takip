@@ -1,18 +1,18 @@
 /* ============================================================
  *  COFLE PILOT SAYAC — 400T-IO firmware (v2.1)
+ *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
- *  HEDEF:  400T metal enjeksiyon makinesinin tek üretim
- *          sinyalini izler. Her parça çıkışında 1 pulse.
+ *  HEDEF:  400T metal enjeksiyon makinesinin tek uretim
+ *          sinyalini izler. Her parca cikisinda 1 pulse.
  *
  *  PIN ATAMALARI:
- *   - GPIO25  → Röle 1 NO  (Üretim sinyali — BEYAZ tel)
- *   - GPIO26  → BOŞ (kullanılmıyor)
- *   - GPIO27  → BOŞ (kullanılmıyor)
- *   - GND     → Röle 1 COM (SARI tel)
+ *   - GPIO25  -> Role 1 NO  (Uretim sinyali — BEYAZ tel)
+ *   - GPIO26  -> BOS (kullanilmiyor)
+ *   - GPIO27  -> BOS (kullanilmiyor)
+ *   - GND     -> Role 1 COM (SARI tel)
  *
- *  MONTAJ-M1'den FARKI: BOLUM=metal, kaynak_tip=makine_io,
- *                        MIN_PULSE_GAP_MS=3000 (makine 1sn'den hızlı değil)
+ *  Bu dosya pilot/firmware/_templates/metal.ino.tpl'den uretildi.
  * ============================================================ */
 
 #include <WiFi.h>
@@ -36,9 +36,9 @@ const char* SUNUCU_HOST = "http://192.168.21.155:5001";
 const char* API_TOKEN = "cofle-pilot-2026";
 const char* OTA_PASS = "cofle-ota-2026";
 
-const int PIN_IST1_SAYAC      = 25;   // Üretim sinyali
-const int PIN_IST2_SAYAC      = 26;   // BOŞ
-const int PIN_ROBOT_CALISIYOR = 27;   // BOŞ
+const int PIN_IST1_SAYAC      = 25;   // Uretim sinyali
+const int PIN_IST2_SAYAC      = 26;   // BOS
+const int PIN_ROBOT_CALISIYOR = 27;   // BOS
 const int PIN_LED             =  2;
 
 const int  DEBOUNCE_MS         = 100;
@@ -71,27 +71,15 @@ PulseKaydi buffer[BUFFER_MAX];
 int buf_bas = 0, buf_son = 0, buf_dolu = 0;
 
 int lastIst1State = HIGH;
-int lastIst2State = HIGH;
-int lastRobotState = HIGH;
 unsigned long lastDebounceIst1 = 0;
-unsigned long lastDebounceIst2 = 0;
-unsigned long lastDebounceRobot = 0;
-
 unsigned long lastValidPulseIst1 = 0;
-unsigned long lastValidPulseIst2 = 0;
-
-unsigned long lastRobotCheck = 0;
-const unsigned long ROBOT_CHECK_INTERVAL_MS = 500;
-const int           ROBOT_SAMPLE_N          = 10;
-const int           ROBOT_SAMPLE_THRESHOLD  = 7;
-unsigned long lastRobotStateChangeMs = 0;
 
 unsigned long lastHeartbeat = 0;
 unsigned long lastRetry     = 0;
 unsigned long bootMs        = 0;
 
 // ════════════════════════════════════════════════════════════
-//   YARDIMCI FONKSİYONLAR
+//   YARDIMCI FONKSIYONLAR
 // ════════════════════════════════════════════════════════════
 
 void ledYakBlink(int adet, int sure_ms = 80) {
@@ -149,7 +137,7 @@ bool bufferdanBirGonder() {
   doc["bolum"]      = BOLUM;
   doc["robot_no"]   = ROBOT_NO;
   doc["istasyon"]   = p.istasyon;
-  doc["kaynak_tip"] = "makine_io";   // metal makine sinyali (robot değil)
+  doc["kaynak_tip"] = "makine_io";
   String mac6 = WiFi.macAddress();
   mac6.replace(":", "");
   if (mac6.length() > 6) mac6 = mac6.substring(mac6.length() - 6);
@@ -225,7 +213,7 @@ void heartbeatGonder() {
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
   http.end();
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · uretim=%lu\n",
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · sayim=%lu\n",
                 rc, WiFi.RSSI(), buf_dolu, pulseIst1);
 }
 
@@ -243,8 +231,8 @@ void setup() {
   Serial.println("╚════════════════════════════════════════════╝");
   Serial.printf("FW: %s · Bolum: %s · Makine: %s · METAL ENJEKSIYON\n",
                 FIRMWARE_VER, BOLUM, ROBOT_NO);
-  Serial.printf("Pin: GPIO%d (tek uretim sinyali)\n", PIN_IST1_SAYAC);
-  Serial.printf("Min pulse araligi: %lums\n", MIN_PULSE_GAP_MS);
+  Serial.printf("Uretim pini: GPIO%d (makine her parcada pulse)\n", PIN_IST1_SAYAC);
+  Serial.printf("Min pulse araligi: %lums (makine cycle siniri)\n", MIN_PULSE_GAP_MS);
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
   pinMode(PIN_IST1_SAYAC,      INPUT_PULLUP);
@@ -254,12 +242,12 @@ void setup() {
   digitalWrite(PIN_LED, LOW);
 
   lastIst1State  = digitalRead(PIN_IST1_SAYAC);
-  robotCalisiyor = false;
+  robotCalisiyor = false;  // Metal'de robot durumu kullanilmiyor
 
   prefs.begin("cofle", false);
   pulseIst1 = prefs.getULong("pulse_i1", 0);
   pulseIst2 = prefs.getULong("pulse_i2", 0);
-  Serial.printf("[NVS] Kayitli uretim sayimi: %lu\n", pulseIst1);
+  Serial.printf("[NVS] Kayitli sayim: %lu\n", pulseIst1);
 
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   esp_task_wdt_config_t wdt_config = {
@@ -295,7 +283,7 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] 400T metal enjeksiyon sayac aktif — uretim bekleniyor...\n");
+  Serial.println("[READY] Metal makine sayac aktif — uretim sinyalleri bekleniyor...\n");
   ledYakBlink(3, 60);
 }
 
@@ -312,7 +300,7 @@ void loop() {
     }
   }
 
-  // Tek üretim sinyali — GPIO25
+  // Uretim sinyali — GPIO25 (debounce + multi-sample + min interval)
   int curIst1 = digitalRead(PIN_IST1_SAYAC);
   if (curIst1 != lastIst1State && (now - lastDebounceIst1) > DEBOUNCE_MS) {
     lastDebounceIst1 = now;
@@ -331,8 +319,6 @@ void loop() {
     }
     lastIst1State = curIst1;
   }
-
-  // GPIO26 ve GPIO27 boş — okuma yok
 
   if (wifiHazir() && buf_dolu > 0 && (now - lastRetry) > RETRY_MS) {
     bufferdanBirGonder();
