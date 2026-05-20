@@ -287,6 +287,11 @@ def init_db():
         c.execute("ALTER TABLE referans_takip ADD COLUMN istasyon INTEGER DEFAULT 0")
     except Exception:
         pass
+    # Migration: durum='uretimde'ye gectigi an — pilot sayac sifirlama referansi
+    try:
+        c.execute("ALTER TABLE referans_takip ADD COLUMN uretime_baslama_ts TEXT")
+    except Exception:
+        pass
 
     # Andon Robot Ayarları Tablosu
     c.execute('''

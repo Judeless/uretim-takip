@@ -1182,41 +1182,115 @@ def saha_cihazlari():
         finally:
             c.close()
 
+    # ─── Aktif referans bilgisi (durum='uretimde') ──────────────────
+    # Her robot+istasyon icin: hangi referans uretimde + ne zamandir + simdiye
+    # kadar kac pulse var. Operator yeni referans secince uretime_baslama_ts
+    # yenilenir, sayim sifirdan baslamis gibi gorunur.
+    aktif_ref_map = {}  # {(robot_no, istasyon): {referans_kodu, basla_ts}}
+    try:
+        conn_main = get_db()
+        for r in conn_main.execute('''
+            SELECT robot_no, istasyon, referans_kodu,
+                   COALESCE(uretime_baslama_ts, olusturma_tarihi) as basla_ts
+            FROM referans_takip
+            WHERE durum='uretimde' AND robot_no <> ''
+        ''').fetchall():
+            key = (r['robot_no'], int(r['istasyon'] or 0))
+            # Eger ayni robot+istasyon icin birden fazla varsa en sonuncuyu al
+            mevcut_ref = aktif_ref_map.get(key)
+            if (not mevcut_ref) or ((r['basla_ts'] or '') > (mevcut_ref['basla_ts'] or '')):
+                aktif_ref_map[key] = {'referans_kodu': r['referans_kodu'], 'basla_ts': r['basla_ts']}
+        conn_main.close()
+    except Exception as e:
+        print(f'[saha_cihazlari] referans_takip hata: {e}')
+
+    # ─── Aktif referans pulse sayımları (pilot DB'den, basla_ts sonrası) ───
+    def _aktif_pulse_say(cihaz_id, istasyon, basla_ts):
+        """Verilen cihaz/istasyon icin basla_ts'den sonraki pulse sayisi."""
+        if not basla_ts or not os.path.exists(pilot_db):
+            return 0
+        try:
+            import sqlite3
+            pc = sqlite3.connect(pilot_db)
+            try:
+                q = '''SELECT COUNT(*) FROM sayac_olaylari
+                       WHERE cihaz_id=? AND ts >= ?'''
+                params = [cihaz_id, basla_ts]
+                if istasyon and istasyon > 0:
+                    q += ' AND istasyon=?'
+                    params.append(istasyon)
+                row = pc.execute(q, params).fetchone()
+                return row[0] if row else 0
+            finally:
+                pc.close()
+        except Exception:
+            return 0
+
     sonuc = {}
     for bolum, cihazlar in BEKLENEN.items():
         liste = []
         for beklenen_cihaz in cihazlar:
             cid = beklenen_cihaz['cihaz_id']
+            rno = beklenen_cihaz['robot_no']
             kayit = mevcut.get(cid)
+
+            # Aktif referans tespiti — kaynakta her istasyon ayri olabilir,
+            # montaj/metal'de tek istasyon (genelde 0 veya 1)
+            aktif_referanslar = []
+            if bolum == 'kaynak':
+                for ist in (1, 2):
+                    a = aktif_ref_map.get((rno, ist))
+                    if a:
+                        aktif_referanslar.append({
+                            'istasyon':      ist,
+                            'referans_kodu': a['referans_kodu'],
+                            'basla_ts':      a['basla_ts'],
+                            'pulse_sayisi':  _aktif_pulse_say(cid, ist, a['basla_ts']),
+                        })
+            else:
+                # Montaj/metal: istasyon belirtilmemis (0) veya 1 — her ikisini de yakala
+                for ist in (0, 1):
+                    a = aktif_ref_map.get((rno, ist))
+                    if a:
+                        aktif_referanslar.append({
+                            'istasyon':      ist if ist > 0 else None,
+                            'referans_kodu': a['referans_kodu'],
+                            'basla_ts':      a['basla_ts'],
+                            'pulse_sayisi':  _aktif_pulse_say(cid, 0, a['basla_ts']),
+                        })
+                        break  # tek aktif yeterli
+
             if kayit:
                 # Pilot DB'den gelen güncel veri
                 ist_map = ist_sayimlari.get(cid, {})
                 liste.append({
-                    'cihaz_id':         cid,
-                    'robot_no':         beklenen_cihaz['robot_no'],
-                    'bolum':            bolum,
-                    'durum':            kayit.get('durum', 'offline'),
-                    'ip_adresi':        kayit.get('ip_adresi', ''),
-                    'wifi_rssi':        kayit.get('wifi_rssi', 0),
-                    'son_heartbeat':    kayit.get('son_heartbeat', ''),
-                    'son_heartbeat_dk': kayit.get('son_heartbeat_dk', 0),
-                    'firmware_ver':     kayit.get('firmware_ver', ''),
-                    'toplam_sinyal':    kayit.get('toplam_sinyal', 0),
-                    'buffer_kuyruk':    kayit.get('buffer_kuyruk', 0),
-                    'bugun_ist1':       ist_map.get(1, 0),
-                    'bugun_ist2':       ist_map.get(2, 0),
-                    'bugun_toplam':     sum(ist_map.values()),
-                    'robot_calisiyor':  1 if kayit.get('robot_calisiyor') else 0,
-                    'kayitli':          True,
+                    'cihaz_id':           cid,
+                    'robot_no':           rno,
+                    'bolum':              bolum,
+                    'durum':              kayit.get('durum', 'offline'),
+                    'ip_adresi':          kayit.get('ip_adresi', ''),
+                    'wifi_rssi':          kayit.get('wifi_rssi', 0),
+                    'son_heartbeat':      kayit.get('son_heartbeat', ''),
+                    'son_heartbeat_dk':   kayit.get('son_heartbeat_dk', 0),
+                    'firmware_ver':       kayit.get('firmware_ver', ''),
+                    'toplam_sinyal':      kayit.get('toplam_sinyal', 0),
+                    'buffer_kuyruk':      kayit.get('buffer_kuyruk', 0),
+                    'bugun_ist1':         ist_map.get(1, 0),
+                    'bugun_ist2':         ist_map.get(2, 0),
+                    'bugun_toplam':       sum(ist_map.values()),
+                    'robot_calisiyor':    1 if kayit.get('robot_calisiyor') else 0,
+                    'aktif_referanslar':  aktif_referanslar,
+                    'kayitli':            True,
                 })
             else:
                 # Hiç bağlanmamış
                 liste.append({
-                    'cihaz_id':      cid,
-                    'robot_no':      beklenen_cihaz['robot_no'],
-                    'bolum':         bolum,
-                    'durum':         'beklemede',
-                    'kayitli':       False,
+                    'cihaz_id':           cid,
+                    'robot_no':           rno,
+                    'bolum':              bolum,
+                    'durum':              'beklemede',
+                    'aktif_referanslar':  aktif_referanslar,
+                    'kayitli':            False,
                 })
         sonuc[bolum] = liste
 
@@ -2467,12 +2541,24 @@ def referans_takip_ekle():
         oncelik = _oncelik_clamp(c, bolum, oncelik)
         # Yeni kayıt: eski_oncelik=None, yeni_oncelik girildiyse mevcut >=N olanları +1
         _oncelik_kaydir(c, bolum, None, oncelik)
-        c.execute('''
-            INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ref, int(data.get('hedef_adet', 0)), data.get('aciklama', ''),
-              data.get('durum', 'launch_alinacak'), data.get('olusturan', ''),
-              data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik))
+        durum_init = data.get('durum', 'launch_alinacak')
+        # Eger referans dogrudan 'uretimde' durumda ekleniyorsa, pilot sayac sifirlama
+        # zamanini su an olarak isaretle (yeni referans secimi = sayac sifir)
+        uretime_baslama_init = "datetime('now','localtime')" if durum_init == 'uretimde' else None
+        if uretime_baslama_init:
+            c.execute(f'''
+                INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik, uretime_baslama_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {uretime_baslama_init})
+            ''', (ref, int(data.get('hedef_adet', 0)), data.get('aciklama', ''),
+                  durum_init, data.get('olusturan', ''),
+                  data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik))
+        else:
+            c.execute('''
+                INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (ref, int(data.get('hedef_adet', 0)), data.get('aciklama', ''),
+                  durum_init, data.get('olusturan', ''),
+                  data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik))
         conn.commit()
         return jsonify({'basarili': True}), 201
     except Exception as e:
@@ -2507,6 +2593,11 @@ def referans_takip_guncelle(id):
     fields, vals = [], []
     if 'durum' in data:
         fields.append('durum=?'); vals.append(data['durum'])
+        # Durum 'uretimde'ye geciliyorsa pilot sayac sifirlama referansi olarak
+        # uretime_baslama_ts'yi simdiye set et. (Duraklatip tekrar baslatirsa
+        # sayac yeniden sifirlanir — su anki uretim hizini gosterir.)
+        if data['durum'] == 'uretimde':
+            fields.append("uretime_baslama_ts=datetime('now','localtime')")
     if 'aciklama' in data:
         fields.append('aciklama=?'); vals.append(data['aciklama'])
     if 'hedef_adet' in data:

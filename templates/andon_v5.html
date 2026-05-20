@@ -894,16 +894,24 @@
 
     // Saha sayaç rozeti (pilot ESP32 cihazlarından) — robot_no'ya göre map'ten oku
     const pilot = (window._pilotMap || {})[r.robot_no] || null;
-    const sayacBadge = (count, calisiyor) => {
+    // count yerine {sayi, aktifRef} ver — aktif referans varsa tooltip'te göster
+    const sayacBadge = (sayi, calisiyor, aktifRef) => {
       const cls = pilot
         ? (calisiyor ? 'station-count calisiyor' : (pilot.durum === 'offline' ? 'station-count offline' : 'station-count'))
         : 'station-count';
-      const title = pilot
-        ? (pilot.durum === 'offline'
-            ? 'Saha cihazı offline — son ' + (pilot.son_heartbeat_dk || 0) + ' dk pulse yok'
-            : (calisiyor ? 'Robot çalışıyor — pulse alınıyor' : 'Bugünkü toplam pulse'))
-        : 'Saha cihazı henüz bağlanmamış';
-      return `<span class="${cls}" title="${title}">${count || 0}<span class="sc-unit">pulse</span></span>`;
+      let title;
+      if (!pilot) {
+        title = 'Saha cihazı henüz bağlanmamış';
+      } else if (pilot.durum === 'offline') {
+        title = 'Saha cihazı offline — son ' + (pilot.son_heartbeat_dk || 0) + ' dk pulse yok';
+      } else if (aktifRef) {
+        title = `Aktif referans: ${aktifRef.referans_kodu} · ${sayi || 0} pulse (referans seçildiğinden beri)`;
+      } else if (calisiyor) {
+        title = 'Robot çalışıyor — pulse alınıyor';
+      } else {
+        title = 'Bugünkü toplam pulse';
+      }
+      return `<span class="${cls}" title="${title}">${sayi || 0}<span class="sc-unit">pulse</span></span>`;
     };
 
     // Kaynak: 2 sütun (İstasyon 1 | İstasyon 2 + diğer) + pair cycle bandı
@@ -913,8 +921,11 @@
       const st2_combined = [...ist2, ...diger];
       const st1Html = ist1.length ? ist1.map(refRow).join('') : '<div class="ref-empty">—</div>';
       const st2Html = st2_combined.length ? st2_combined.map(refRow).join('') : '<div class="ref-empty">—</div>';
-      const ist1Count = sayacBadge(pilot ? pilot.bugun_ist1 : 0, pilot && pilot.robot_calisiyor == 1);
-      const ist2Count = sayacBadge(pilot ? pilot.bugun_ist2 : 0, pilot && pilot.robot_calisiyor == 1);
+      // Aktif referans varsa onun sayisi oncelikli (operator referans secince sifir gibi gorunur)
+      const ist1Sayi = pilot ? (pilot.aktif_ist1 ? pilot.aktif_ist1.pulse_sayisi : pilot.bugun_ist1) : 0;
+      const ist2Sayi = pilot ? (pilot.aktif_ist2 ? pilot.aktif_ist2.pulse_sayisi : pilot.bugun_ist2) : 0;
+      const ist1Count = sayacBadge(ist1Sayi, pilot && pilot.robot_calisiyor == 1, pilot && pilot.aktif_ist1);
+      const ist2Count = sayacBadge(ist2Sayi, pilot && pilot.robot_calisiyor == 1, pilot && pilot.aktif_ist2);
 
       // Pair cycle bandı — robotun iki istasyonundaki referansların paralel çevrim süresi
       let pairBant = '';
@@ -947,7 +958,9 @@
     } else {
       const tum = [...ist1, ...ist2, ...diger];
       const tumHtml = tum.length ? tum.map(refRow).join('') : '<div class="ref-empty">Üretim kaydı yok</div>';
-      const toplamCount = sayacBadge(pilot ? pilot.bugun_toplam : 0, pilot && pilot.robot_calisiyor == 1);
+      // Montaj/metal: aktif referans varsa onun sayisi, yoksa bugunun toplami
+      const toplamSayi = pilot ? (pilot.aktif_toplam ? pilot.aktif_toplam.pulse_sayisi : pilot.bugun_toplam) : 0;
+      const toplamCount = sayacBadge(toplamSayi, pilot && pilot.robot_calisiyor == 1, pilot && pilot.aktif_toplam);
       stationsHtml = `
         <div class="rc-stations one-col">
           <div class="station-pane">
@@ -1075,10 +1088,19 @@
       const liste = (d && d[BOLUM]) ? d[BOLUM] : [];
       liste.forEach(c => {
         if (c && c.robot_no) {
+          // Aktif referans pulse sayilari (varsa) — operator yeni referans secince sifirlanir
+          const aktifByIst = {};
+          (c.aktif_referanslar || []).forEach(a => {
+            aktifByIst[a.istasyon || 0] = a;
+          });
           map[c.robot_no] = {
             bugun_ist1:       c.bugun_ist1 || 0,
             bugun_ist2:       c.bugun_ist2 || 0,
             bugun_toplam:     c.bugun_toplam || 0,
+            // Aktif referans varsa onun sayisi oncelikli (sayac sifirlama hissi)
+            aktif_ist1:       aktifByIst[1] || null,
+            aktif_ist2:       aktifByIst[2] || null,
+            aktif_toplam:     aktifByIst[0] || aktifByIst[1] || null,
             robot_calisiyor:  c.robot_calisiyor || 0,
             durum:            c.durum || 'beklemede',
             son_heartbeat_dk: c.son_heartbeat_dk || 0,

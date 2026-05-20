@@ -4702,15 +4702,33 @@
                 else heartbeatTxt = Math.floor(dk/1440) + ' g önce';
             }
 
+            // Aktif referans bilgisi (durum='uretimde' olan ref'in pulse sayısı)
+            // Operator yeni referans secince uretime_baslama_ts yenilenir ve sayim sifirdan baslar gibi gorunur
+            const aktifRefMap = {};  // istasyon -> {referans_kodu, pulse_sayisi}
+            (c.aktif_referanslar || []).forEach(a => {
+                aktifRefMap[a.istasyon || 0] = a;
+            });
+
             // Kaynak ise ist1/ist2 ayrı göster; diğer bölümlerde tek toplam
             let sayimHtml = '';
             if (c.bolum === 'kaynak') {
+                const ref1 = aktifRefMap[1];
+                const ref2 = aktifRefMap[2];
+                const ist1Sayim = ref1 ? `${ref1.pulse_sayisi} <span style="font-size:.65rem;color:#34d399">▶ ${ref1.referans_kodu}</span>`
+                                       : `${c.bugun_ist1 || 0}`;
+                const ist2Sayim = ref2 ? `${ref2.pulse_sayisi} <span style="font-size:.65rem;color:#34d399">▶ ${ref2.referans_kodu}</span>`
+                                       : `${c.bugun_ist2 || 0}`;
                 sayimHtml = `
-                    <span>Bugün İst.1:</span><span style="color:var(--text);font-weight:700">${c.bugun_ist1 || 0} pulse</span>
-                    <span>Bugün İst.2:</span><span style="color:var(--text);font-weight:700">${c.bugun_ist2 || 0} pulse</span>
+                    <span>İst.1:</span><span style="color:var(--text);font-weight:700">${ist1Sayim}</span>
+                    <span>İst.2:</span><span style="color:var(--text);font-weight:700">${ist2Sayim}</span>
                 `;
             } else {
-                sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${c.toplam_sinyal || 0} pulse</span>`;
+                const ref = aktifRefMap[0] || aktifRefMap[1];
+                if (ref) {
+                    sayimHtml = `<span>Aktif:</span><span style="color:var(--text);font-weight:700">${ref.pulse_sayisi} <span style="font-size:.65rem;color:#34d399">▶ ${ref.referans_kodu}</span></span>`;
+                } else {
+                    sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${c.toplam_sinyal || 0} pulse</span>`;
+                }
             }
 
             const detayHtml = c.kayitli ? `
