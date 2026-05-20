@@ -1453,11 +1453,18 @@
                          '<option value="550T">550T</option>' +
                          '<option value="Şerit Testere">Şerit Testere</option>';
       } else {
-        // Montaj: hat seçimi yok — operatör doğrudan vardiyaya başlar.
-        // Backend robot_no NOT NULL olduğu için sabit 'MONTAJ' değeri set ediyoruz.
-        robotWrap.style.display = 'none';
-        rsel.innerHTML = '<option value="MONTAJ" selected>MONTAJ</option>';
-        rsel.value = 'MONTAJ';
+        // Montaj: hat seçimi zorunlu (M1..M12). Operatör hangi masada çalıştığını
+        // seçer; saha sayaç cihazı (ESP32 ile butona bağlı) o hatın pulse'larını
+        // o operatörün vardiyasına eşler.
+        robotWrap.style.display = 'block';
+        if (robotLabel) robotLabel.textContent = 'Hat';
+        var montajHatlari = '<option value="">Seçin...</option>';
+        for (var i = 1; i <= 12; i++) {
+          montajHatlari += '<option value="M' + i + '">M' + i + ' Hattı</option>';
+        }
+        montajHatlari += '<option value="__yeni__">+ Yeni hat ekle...</option>';
+        rsel.innerHTML = montajHatlari;
+        rsel.onchange = montajHatSecimDegisti;
       }
 
       gitEkran('B');

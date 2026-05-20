@@ -1961,7 +1961,7 @@
                         <!-- Robot/Makine seçimi form'da yalnızca metal'de görünür.
                              Robot Kaynak'ta robot/istasyon seçimi tablodan (satır içi dropdown)
                              yapılır — form sade. Montaj'da zaten yok. -->
-                        <div id="rt-robot-wrap" data-bolum-only="metal">
+                        <div id="rt-robot-wrap" data-bolum-only="metal,montaj">
                             <div style="font-size:.7rem;font-weight:700;color:var(--muted);margin-bottom:4px" id="rt-robot-label">Makine</div>
                             <select id="rt-robot" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card)">
                                 <option value="">Seç...</option>
@@ -2749,6 +2749,16 @@
                 const res = await fetch('/api/robotlar?bolum=' + encodeURIComponent(aktifBolum));
                 rtRobotListesi = await res.json();
             } catch (e) { rtRobotListesi = []; }
+            // Montaj icin sabit M1..M12 hat listesi (saha cihazlarinin hepsi) +
+            // DB'de ek olarak gorulen hatlar. Eski 'MONTAJ' generic kaydi varsa atilir.
+            if (aktifBolum === 'montaj') {
+                const sabitHatlar = [];
+                for (let i = 1; i <= 12; i++) sabitHatlar.push('M' + i);
+                const birlik = new Set([...sabitHatlar, ...(Array.isArray(rtRobotListesi) ? rtRobotListesi : [])]);
+                birlik.delete('MONTAJ');  // eski generic deger — yeni hat sistemine gomuldu
+                birlik.delete('');
+                rtRobotListesi = Array.from(birlik);
+            }
             // Form'daki rt-robot select'ini de doldur
             const sel = document.getElementById('rt-robot');
             if (sel) {
@@ -2773,7 +2783,7 @@
             const thRobot = document.getElementById('ref-takip-th-robot');
             if (thRobot) {
                 if (aktifBolum === 'montaj') {
-                    thRobot.textContent = '—';
+                    thRobot.textContent = 'Hat';
                 } else if (aktifBolum === 'kaynak') {
                     thRobot.textContent = 'Robot / İst.';
                 } else {
@@ -2841,15 +2851,14 @@
                                    transition:.2s">
                             ${d.label}
                         </button>`).join('');
-                    // Robot/Hat/Makine sütunu (montaj hariç)
+                    // Robot/Hat/Makine sütunu — montaj icin de Hat dropdown (M1..M12)
                     let robotSelectHTML;
-                    if (aktifBolum === 'montaj') {
-                        // Montaj'da robot kavramı yok
-                        robotSelectHTML = '<span style="font-size:.7rem;color:var(--muted)">—</span>';
-                    } else {
+                    {
                         const opts = [''].concat(rtRobotListesi);
                         if (r.robot_no && !opts.includes(r.robot_no)) opts.push(r.robot_no);
-                        const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
+                        const tekil = aktifBolum === 'montaj'
+                            ? 'Hat'
+                            : ((BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot');
                         robotSelectHTML = `
                             <div style="display:flex;align-items:center;gap:4px">
                                 <select class="rt-row-select" onchange="refRobotDogrudanGuncelle(${r.id}, this.value)">
@@ -2939,7 +2948,7 @@
                     body: JSON.stringify({
                         referans_kodu: ref,
                         hedef_adet: parseInt(document.getElementById('rt-adet').value) || 0,
-                        robot_no: aktifBolum === 'montaj' ? '' : ((document.getElementById('rt-robot') || {}).value || ''),
+                        robot_no: ((document.getElementById('rt-robot') || {}).value || ''),
                         istasyon: parseInt((document.getElementById('rt-istasyon') || {}).value || 0) || 0,
                         oncelik: oncelikGonder,
                         aciklama: document.getElementById('rt-aciklama').value.trim(),
