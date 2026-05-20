@@ -1757,21 +1757,19 @@
       var tarih = document.getElementById('b-tarih').value;
       var bolum = document.getElementById('b-bolum').value || 'kaynak';
       var robot = '';
-      if (bolum === 'kaynak') {
+      if (bolum === 'kaynak' || bolum === 'montaj' || bolum === 'metal') {
+        // Tum bolumlerde dropdown'dan secilen deger:
+        // kaynak: ABB1..ABB9, montaj: M1..M12 (hat), metal: 300T/400T/550T/Serit Testere
         robot = document.getElementById('b-robot').value;
-      } else if (bolum === 'montaj') {
-        robot = 'MONTAJ'; // Montaj'da hat se\u00e7imi yok \u2014 sabit 'MONTAJ' kullan\u0131l\u0131r
-      } else if (bolum === 'metal') {
-        robot = document.getElementById('b-robot').value; // Makine se\u00e7imi (300T/400T/550T/\u015eerit Testere)
       }
       var vt = document.getElementById('b-vardiya-turu').value;
       var bas = document.getElementById('b-bas').value;
       var bit = document.getElementById('b-bit').value;
 
       if (!op) { toast('Operat\u00f6r se\u00e7iniz', 'error'); return; }
-      // Montaj'da makine/hat se\u00e7imi zorunlu de\u011fil; kaynak ve metal'de zorunlu
-      if (bolum !== 'montaj' && (!robot || robot === '__yeni__')) {
-        var alanAdi = bolum === 'metal' ? 'Makine' : 'Robot';
+      // Tum bolumlerde zorunlu secim: kaynak=Robot, montaj=Hat, metal=Makine
+      if (!robot || robot === '__yeni__') {
+        var alanAdi = bolum === 'metal' ? 'Makine' : (bolum === 'montaj' ? 'Hat' : 'Robot');
         toast(alanAdi + ' se\u00e7iniz', 'error'); return;
       }
       if (!tarih) { toast('Tarih giriniz', 'error'); return; }
