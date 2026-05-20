@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template, send_file, g
 from flask_cors import CORS
 from datetime import datetime, date
+from functools import wraps
 import json
 import os
 import traceback # For debugging
@@ -147,6 +148,65 @@ def teardown_db(exception):
             db.close()
         except Exception:
             pass
+
+# ─────────────────────────────────────────────────────────────
+# OPERATÖR YETKİLENDİRME (PIN tabanlı)
+# Operatör mobile'dan gelen istekler X-Operator + X-Operator-Pin
+# header'larini icermeli. Dashboard/yonetici cagrilarinda bu
+# header'lar yoktur ve serbest erisim verilir (geri uyumluluk).
+# ─────────────────────────────────────────────────────────────
+def operator_required(f):
+    """Header'da X-Operator + X-Operator-Pin varsa PIN doğrular.
+    Yoksa (dashboard/yönetici) izin verir ama g.operator_adi None olur.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        op = (request.headers.get('X-Operator', '') or '').strip()
+        pin = (request.headers.get('X-Operator-Pin', '') or '').strip()
+        g.operator_adi = None
+        if op and pin:
+            conn = get_db()
+            row = conn.execute('SELECT pin FROM operatorler WHERE ad=?', (op,)).fetchone()
+            if not row:
+                return jsonify({'hata': f'Operatör bulunamadı: {op}'}), 403
+            if (row['pin'] or '0000') != pin:
+                return jsonify({'hata': 'PIN yanlış'}), 403
+            g.operator_adi = op
+        elif op or pin:
+            return jsonify({'hata': 'Operatör adı ve PIN birlikte gönderilmeli'}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _vardiya_sahibi_kontrol(vardiya_id):
+    """g.operator_adi varsa vardiya o operatöre ait mi kontrol eder.
+    g.operator_adi None ise (dashboard) izin verir.
+    Returns: (ok: bool, hata_mesaji: str|None)
+    """
+    if not getattr(g, 'operator_adi', None):
+        return True, None  # dashboard modu — operatör yetkisi gerekmez
+    conn = get_db()
+    row = conn.execute('SELECT operator_adi FROM vardiyalar WHERE id=?', (vardiya_id,)).fetchone()
+    if not row:
+        return False, f'Vardiya bulunamadı (id={vardiya_id})'
+    if row['operator_adi'] != g.operator_adi:
+        return False, f'Bu vardiya başka operatöre ait: {row["operator_adi"]}'
+    return True, None
+
+
+def _uretim_vardiya_bul(uretim_id):
+    """uretim_kayit id'den vardiya_id getirir (yoksa None)."""
+    conn = get_db()
+    row = conn.execute('SELECT vardiya_id FROM uretim_kayitlari WHERE id=?', (uretim_id,)).fetchone()
+    return row['vardiya_id'] if row else None
+
+
+def _durus_vardiya_bul(durus_id):
+    """durus id'den vardiya_id getirir (yoksa None)."""
+    conn = get_db()
+    row = conn.execute('SELECT vardiya_id FROM duruslar WHERE id=?', (durus_id,)).fetchone()
+    return row['vardiya_id'] if row else None
+
 
 # ─────────────────────────────────────────────────────────────
 # SAYFA ROUTES
@@ -346,14 +406,22 @@ def vardiya_listesi():
 
 
 @app.route('/api/vardiya', methods=['POST'])
+@operator_required
 def vardiya_ekle():
-    """Yeni vardiya kaydı oluştur."""
+    """Yeni vardiya kaydı oluştur.
+    Operatör mobile'dan gelirse X-Operator header'ı body'deki operator_adi ile eşleşmeli.
+    """
     data = request.get_json()
 
     zorunlu = ['tarih', 'vardiya_turu', 'robot_no', 'operator_adi', 'baslangic_saati', 'bitis_saati']
     for alan in zorunlu:
         if not data.get(alan):
             return jsonify({'hata': f'"{alan}" alanı zorunludur'}), 400
+
+    # Operatör mobile'dan gelen istekte header'daki operator = body'deki operator olmalı
+    # (başkasının adına vardiya açma engeli). Dashboard modunda g.operator_adi None.
+    if getattr(g, 'operator_adi', None) and g.operator_adi != data['operator_adi']:
+        return jsonify({'hata': f'Sadece kendi adınıza vardiya açabilirsiniz ({g.operator_adi})'}), 403
 
     # Planlı süreyi saat farkından hesapla
     try:
@@ -411,8 +479,14 @@ def vardiya_detay(vid):
 
 
 @app.route('/api/vardiya/<int:vid>', methods=['DELETE'])
+@operator_required
 def vardiya_sil(vid):
-    """Vardiyayi sil (uretim ve duruslarla birlikte)."""
+    """Vardiyayi sil (uretim ve duruslarla birlikte).
+    Operatör sadece kendi vardiyasını silebilir.
+    """
+    ok, hata = _vardiya_sahibi_kontrol(vid)
+    if not ok:
+        return jsonify({'hata': hata}), 403
     conn = get_db()
     conn.execute('DELETE FROM vardiyalar WHERE id = ?', (vid,))
     conn.commit()
@@ -442,8 +516,14 @@ def vardiya_bugun():
 
 
 @app.route('/api/vardiya/<int:vid>/kapat', methods=['PATCH'])
+@operator_required
 def vardiya_kapat(vid):
-    """Vardiyayi kapat ve bitis saatini guncelle."""
+    """Vardiyayi kapat ve bitis saatini guncelle.
+    Operatör sadece kendi vardiyasını kapatabilir.
+    """
+    ok, hata = _vardiya_sahibi_kontrol(vid)
+    if not ok:
+        return jsonify({'hata': hata}), 403
     data = request.get_json() or {}
     bitis = data.get('bitis_saati', datetime.now().strftime('%H:%M'))
     conn = get_db()
@@ -467,11 +547,15 @@ def vardiya_kapat(vid):
 
 
 @app.route('/api/vardiya/<int:vid>/robotla_calisiyor', methods=['PATCH'])
+@operator_required
 def vardiya_robotla_calisiyor(vid):
     """Vardiya 'robotla çalışıyor / tam otomasyon' bayrağını aç/kapat.
     Metal enjeksiyonda makine+robot otomatik çalışırken kullanılır.
     Body: { robotla_calisiyor: 0|1 }
     """
+    ok, hata = _vardiya_sahibi_kontrol(vid)
+    if not ok:
+        return jsonify({'hata': hata}), 403
     data = request.get_json() or {}
     yeni = 1 if data.get('robotla_calisiyor') else 0
     conn = get_db()
@@ -487,8 +571,12 @@ def vardiya_robotla_calisiyor(vid):
 
 
 @app.route('/api/vardiya/<int:vid>/ac', methods=['PATCH'])
+@operator_required
 def vardiya_ac(vid):
     """Kapanmış vardiyayı yeniden aç."""
+    ok, hata = _vardiya_sahibi_kontrol(vid)
+    if not ok:
+        return jsonify({'hata': hata}), 403
     conn = get_db()
     c = conn.cursor()
     vardiya = c.execute('SELECT * FROM vardiyalar WHERE id = ?', (vid,)).fetchone()
@@ -508,8 +596,12 @@ def vardiya_ac(vid):
 
 
 @app.route('/api/vardiya/<int:vid>', methods=['PUT'])
+@operator_required
 def vardiya_guncelle(vid):
     """Vardiya saatlerini ve detaylarını güncelle."""
+    ok, hata = _vardiya_sahibi_kontrol(vid)
+    if not ok:
+        return jsonify({'hata': hata}), 403
     data = request.get_json()
     conn = get_db()
     c = conn.cursor()
@@ -550,12 +642,18 @@ def vardiya_guncelle(vid):
 # ─────────────────────────────────────────────────────────────
 
 @app.route('/api/uretim', methods=['POST'])
+@operator_required
 def uretim_ekle():
     """Üretim kaydı ekle."""
     data = request.get_json() or {}
 
     if not data.get('vardiya_id') or not data.get('referans_kodu'):
         return jsonify({'hata': 'vardiya_id ve referans_kodu zorunludur'}), 400
+
+    # Operatör yetki kontrolü: header'da operator+pin geldiyse vardiya sahibi mi?
+    ok, hata = _vardiya_sahibi_kontrol(int(data['vardiya_id']))
+    if not ok:
+        return jsonify({'hata': hata}), 403
 
     conn = None
     try:
@@ -619,7 +717,13 @@ def uretim_ekle():
 
 
 @app.route('/api/uretim/<int:uid>', methods=['DELETE'])
+@operator_required
 def uretim_sil(uid):
+    vid = _uretim_vardiya_bul(uid)
+    if vid:
+        ok, hata = _vardiya_sahibi_kontrol(vid)
+        if not ok:
+            return jsonify({'hata': hata}), 403
     conn = get_db()
     conn.execute('DELETE FROM uretim_kayitlari WHERE id = ?', (uid,))
     conn.commit()
@@ -628,8 +732,14 @@ def uretim_sil(uid):
 
 
 @app.route('/api/uretim/<int:uid>', methods=['PUT'])
+@operator_required
 def uretim_guncelle(uid):
     """Uretim kaydini guncelle."""
+    vid = _uretim_vardiya_bul(uid)
+    if vid:
+        ok, hata = _vardiya_sahibi_kontrol(vid)
+        if not ok:
+            return jsonify({'hata': hata}), 403
     data = request.get_json() or {}
     conn = None
     try:
@@ -706,8 +816,14 @@ def uretim_ct_toplu_guncelle():
 # ─────────────────────────────────────────────────────────────
 
 @app.route('/api/uretim_kayit/<int:uid>/tamamlandi', methods=['PATCH'])
+@operator_required
 def uretim_tamamlandi_guncelle(uid):
     """Üretim kaydını tamamlandı / tamamlanmadı olarak işaretle."""
+    vid = _uretim_vardiya_bul(uid)
+    if vid:
+        ok, hata = _vardiya_sahibi_kontrol(vid)
+        if not ok:
+            return jsonify({'hata': hata}), 403
     data = request.get_json() or {}
     deger = 1 if data.get('tamamlandi') else 0
     conn = get_db()
@@ -717,6 +833,7 @@ def uretim_tamamlandi_guncelle(uid):
     return jsonify({'basarili': True})
 
 @app.route('/api/durus', methods=['POST'])
+@operator_required
 def durus_ekle():
     """Duruş kaydı ekle. Aynı vardiya + aynı durus_sebebi için zaten kayıt
     varsa: yenisini eklemek yerine süreyi mevcut kayda ekler (toplama yapar).
@@ -725,6 +842,11 @@ def durus_ekle():
 
     if not data.get('vardiya_id') or not data.get('durus_sebebi'):
         return jsonify({'hata': 'vardiya_id ve durus_sebebi zorunludur'}), 400
+
+    # Operatör yetki kontrolü: vardiya sahibi mi?
+    ok, hata = _vardiya_sahibi_kontrol(int(data['vardiya_id']))
+    if not ok:
+        return jsonify({'hata': hata}), 403
 
     # Birden fazla duruş gelebilir
     satirlar = data.get('satirlar', [data])
@@ -782,7 +904,13 @@ def durus_ekle():
 
 
 @app.route('/api/durus/<int:did>', methods=['DELETE'])
+@operator_required
 def durus_sil(did):
+    vid = _durus_vardiya_bul(did)
+    if vid:
+        ok, hata = _vardiya_sahibi_kontrol(vid)
+        if not ok:
+            return jsonify({'hata': hata}), 403
     conn = get_db()
     conn.execute('DELETE FROM duruslar WHERE id = ?', (did,))
     conn.commit()
@@ -791,8 +919,14 @@ def durus_sil(did):
 
 
 @app.route('/api/durus/<int:did>', methods=['PUT'])
+@operator_required
 def durus_guncelle(did):
     """Durus kaydini guncelle."""
+    vid = _durus_vardiya_bul(did)
+    if vid:
+        ok, hata = _vardiya_sahibi_kontrol(vid)
+        if not ok:
+            return jsonify({'hata': hata}), 403
     data = request.get_json()
     conn = get_db()
     c = conn.cursor()
@@ -1053,7 +1187,10 @@ def robot_listesi():
 
 @app.route('/api/operatorler', methods=['GET'])
 def operator_listesi():
-    """Operatör listesini döndür. ?bolum= ile filtrelenebilir."""
+    """Operatör listesini döndür. ?bolum= ile filtrelenebilir.
+    PIN bilgisi bu endpoint'te VERİLMEZ (operatör mobile bunu çağırır).
+    Yönetim için /api/operatorler/yonetim kullanın.
+    """
     bolum = request.args.get('bolum', '')
     conn = get_db()
     if bolum:
@@ -1062,6 +1199,62 @@ def operator_listesi():
         rows = conn.execute('SELECT id, ad, bolum FROM operatorler ORDER BY ad').fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/operatorler/yonetim', methods=['GET'])
+def operator_listesi_yonetim():
+    """Yönetici için operatör listesi + PIN bilgisi.
+    Dashboard'da PIN tanımlama panelinde kullanılır.
+    """
+    conn = get_db()
+    rows = conn.execute('SELECT id, ad, bolum, pin FROM operatorler ORDER BY bolum, ad').fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/operator/oturum_ac', methods=['POST'])
+def operator_oturum_ac():
+    """Operatör mobile'da PIN ile oturum açma.
+    Body: {operator_adi, pin}
+    Return 200 ok / 403 hata
+    """
+    data = request.get_json() or {}
+    op = (data.get('operator_adi') or '').strip()
+    pin = (data.get('pin') or '').strip()
+    if not op or not pin:
+        return jsonify({'hata': 'operator_adi ve pin zorunlu'}), 400
+    conn = get_db()
+    row = conn.execute('SELECT pin, bolum FROM operatorler WHERE ad=?', (op,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'hata': f'Operatör bulunamadı: {op}'}), 403
+    if (row['pin'] or '0000') != pin:
+        return jsonify({'hata': 'PIN yanlış'}), 403
+    return jsonify({
+        'basarili':     True,
+        'operator_adi': op,
+        'bolum':        row['bolum'] or '',
+    }), 200
+
+
+@app.route('/api/operator/<int:oid>/pin', methods=['PATCH'])
+def operator_pin_guncelle(oid):
+    """Yönetici operatörün PIN'ini günceller. Body: {pin}
+    PIN 4 haneli rakam olmalıdır.
+    """
+    data = request.get_json() or {}
+    yeni_pin = (data.get('pin') or '').strip()
+    if not yeni_pin or len(yeni_pin) != 4 or not yeni_pin.isdigit():
+        return jsonify({'hata': "PIN 4 haneli rakam olmalı (örn: '1234')"}), 400
+    conn = get_db()
+    row = conn.execute('SELECT ad FROM operatorler WHERE id=?', (oid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'hata': 'Operatör bulunamadı'}), 404
+    conn.execute('UPDATE operatorler SET pin=? WHERE id=?', (yeni_pin, oid))
+    conn.commit()
+    conn.close()
+    return jsonify({'basarili': True, 'operator_adi': row['ad']}), 200
 
 
 @app.route('/api/import_excel', methods=['POST'])

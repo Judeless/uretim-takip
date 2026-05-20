@@ -169,9 +169,15 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS operatorler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ad TEXT UNIQUE NOT NULL
+            ad TEXT UNIQUE NOT NULL,
+            pin TEXT DEFAULT '0000'
         )
     ''')
+    # Migration: mevcut DB'lerde pin kolonu yoksa ekle (default '0000')
+    try:
+        c.execute("ALTER TABLE operatorler ADD COLUMN pin TEXT DEFAULT '0000'")
+    except Exception:
+        pass
 
     # Varsayilan referanslar
     referanslar = [
