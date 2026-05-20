@@ -1497,6 +1497,8 @@
                     Saha Cihazları</a>
                 <a class="nav-item" onclick="sekmeDegistir('sinyal-analiz')"><span class="nav-icon">📊</span>
                     Sinyal Analizi</a>
+                <a class="nav-item" onclick="sekmeDegistir('operatorler')"><span class="nav-icon">🔐</span>
+                    Operatörler</a>
                 <a class="nav-item" onclick="sekmeDegistir('raporlar')"><span class="nav-icon">📈</span>
                     Raporlar</a>
                 <a class="nav-item" href="/rapor" target="_blank" style="background:rgba(37, 99, 235, 0.2);color:#93c5fd;border-left:3px solid #60a5fa"><span class="nav-icon">📲</span>
@@ -2381,6 +2383,48 @@
         </div>
     </div>
 
+    <!-- ══════════════════ OPERATÖRLER / PIN YÖNETİMİ SEKME ══════════════════ -->
+    <div id="sekme-operatorler" class="d-none">
+        <div style="margin-bottom:18px">
+            <h2 style="font-size:1.1rem;font-weight:800;margin:0">🔐 Operatör PIN Yönetimi</h2>
+            <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                Her operatöre 4 haneli PIN tanımlanır. Operatör mobile'da bu PIN ile giriş yapar; başka operatörün vardiyasını düzenleyemez.
+                Varsayılan PIN <code>0000</code> — ilk kullanım öncesi mutlaka değiştirin.
+            </p>
+        </div>
+
+        <div style="background:var(--card);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+                <h3 style="font-size:.92rem;font-weight:800;margin:0">Operatör Listesi</h3>
+                <div id="op-yonetim-status" style="font-size:.74rem;color:var(--muted)">—</div>
+            </div>
+            <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--border)">
+                            <th style="text-align:left;padding:8px 6px;font-size:.78rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Ad</th>
+                            <th style="text-align:left;padding:8px 6px;font-size:.78rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Bölüm</th>
+                            <th style="text-align:left;padding:8px 6px;font-size:.78rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Mevcut PIN</th>
+                            <th style="text-align:left;padding:8px 6px;font-size:.78rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Yeni PIN</th>
+                            <th style="padding:8px 6px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="op-yonetim-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div style="background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.28);padding:14px 18px;border-radius:var(--radius);font-size:.84rem;color:var(--text);line-height:1.6">
+            <div style="font-weight:800;margin-bottom:6px">⚠️ Güvenlik notu</div>
+            <ul style="margin:0;padding-left:18px;color:var(--muted)">
+                <li>PIN sade bir kilit — paylaşılan tablette başka operatörün adına işlem yapılmasını önler</li>
+                <li>Operatörler PIN'ini bilmiyorsa "0000" varsayılan ile başlar; her zaman değiştirilebilir</li>
+                <li>Dashboard'dan yapılan değişiklikler PIN gerektirmez (bu ekran yönetici içindir)</li>
+                <li>Operatör <strong>vardiya boyunca</strong> oturum açık kalır; "Çıkış" tuşuyla manuel kapanır</li>
+            </ul>
+        </div>
+    </div>
+
     <!-- ══════════════════ RAPORLAR SEKME ══════════════════ -->
     <div id="sekme-raporlar" class="d-none">
         <div class="filters-panel" style="margin-bottom:20px; display:flex; gap:10px; align-items:flex-end; background:var(--card); padding:15px; border-radius:var(--radius); box-shadow:var(--shadow)">
@@ -3166,7 +3210,7 @@
         function sekmeDegistir(sekme) {
             console.log("Sekme değiştiriliyor:", sekme);
             aktifSekme = sekme;
-            const sekmeler = ['vardiyalar', 'referanslar', 'andon-ayarlar', 'saha-cihazlari', 'sinyal-analiz', 'raporlar'];
+            const sekmeler = ['vardiyalar', 'referanslar', 'andon-ayarlar', 'saha-cihazlari', 'sinyal-analiz', 'operatorler', 'raporlar'];
 
             sekmeler.forEach(s => {
                 const el = document.getElementById('sekme-' + s);
@@ -3192,6 +3236,7 @@
                 'andon-ayarlar': 'Andon Ekran Ayarları',
                 'saha-cihazlari': 'Saha Cihazları',
                 'sinyal-analiz': 'Sinyal Analizi',
+                'operatorler': 'Operatör Yönetimi',
                 'raporlar': 'Raporlar ve Analiz'
             };
             document.getElementById('page-title').textContent = basliklar[sekme] || sekme;
@@ -3210,6 +3255,10 @@
             // Sinyal analizi sekmesi açılınca filtreleri başlat
             if (sekme === 'sinyal-analiz') {
                 sinyalAnalizSekmeAcildi();
+            }
+            // Operatörler sekmesi açılınca PIN yönetimi tablosunu yükle
+            if (sekme === 'operatorler') {
+                yukleOperatorlerYonetim();
             }
             const subtitle = document.getElementById('subtitle-text');
             if (subtitle) {
@@ -5050,6 +5099,93 @@
                 }).join('');
             }
             el.innerHTML = html;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // OPERATÖR PIN YÖNETİMİ
+        // ═══════════════════════════════════════════════════════
+        async function yukleOperatorlerYonetim() {
+            const statusEl = document.getElementById('op-yonetim-status');
+            const tbody = document.getElementById('op-yonetim-tbody');
+            statusEl.textContent = 'Yükleniyor...';
+            try {
+                const res = await fetch('/api/operatorler/yonetim', { cache: 'no-store' });
+                const list = await res.json();
+                if (!list.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted);font-style:italic">Henüz operatör kaydı yok. Excel\'den içe aktarınız.</td></tr>';
+                    statusEl.textContent = '';
+                    return;
+                }
+                tbody.innerHTML = list.map(o => {
+                    const bolumRenk = o.bolum === 'kaynak' ? '#a78bfa'
+                                    : o.bolum === 'montaj' ? '#34d399'
+                                    : o.bolum === 'metal'  ? '#fbbf24' : '#9ca3af';
+                    const pinDeger = o.pin || '0000';
+                    const varsayilan = pinDeger === '0000';
+                    return `
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <td style="padding:8px 6px;font-weight:700">${o.ad}</td>
+                            <td style="padding:8px 6px">
+                                <span style="background:${bolumRenk}22;color:${bolumRenk};padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em">
+                                    ${o.bolum || '—'}
+                                </span>
+                            </td>
+                            <td style="padding:8px 6px;font-family:'JetBrains Mono',monospace;font-weight:700;
+                                       color:${varsayilan ? '#dc2626' : 'var(--text)'}">
+                                ${pinDeger}${varsayilan ? ' ⚠️' : ''}
+                            </td>
+                            <td style="padding:8px 6px">
+                                <input type="text" inputmode="numeric" maxlength="4" placeholder="4 hane"
+                                       id="op-pin-input-${o.id}"
+                                       style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.95rem;text-align:center;background:var(--card)">
+                            </td>
+                            <td style="padding:8px 6px">
+                                <button onclick="opPinDegistir(${o.id},'${o.ad.replace(/'/g,"\\'")}')"
+                                    style="background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer">
+                                    Güncelle
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                const varsayilanSayi = list.filter(o => (o.pin || '0000') === '0000').length;
+                if (varsayilanSayi > 0) {
+                    statusEl.innerHTML = `<span style="color:#dc2626;font-weight:700">${varsayilanSayi} operatör hâlâ varsayılan PIN'de (0000)</span>`;
+                } else {
+                    statusEl.innerHTML = `<span style="color:#16a34a;font-weight:700">✓ Tüm operatörler özelleştirilmiş PIN</span>`;
+                }
+            } catch (e) {
+                statusEl.textContent = 'Bağlantı hatası';
+                console.error('operatorler/yonetim fetch:', e);
+            }
+        }
+
+        async function opPinDegistir(id, ad) {
+            const inp = document.getElementById('op-pin-input-' + id);
+            const yeni = (inp.value || '').trim();
+            if (!yeni || !/^\d{4}$/.test(yeni)) {
+                toast('PIN 4 haneli rakam olmalı (örn: 1234)', 'error');
+                inp.focus();
+                return;
+            }
+            if (!confirm(`${ad} operatörünün PIN'i "${yeni}" olarak ayarlansın mı?`)) return;
+            try {
+                const res = await fetch('/api/operator/' + id + '/pin', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: yeni })
+                });
+                const d = await res.json();
+                if (!res.ok) {
+                    toast(d.hata || 'PIN güncellenemedi', 'error');
+                    return;
+                }
+                toast(`${ad} PIN'i güncellendi`, 'success');
+                inp.value = '';
+                yukleOperatorlerYonetim();  // listeyi tazele
+            } catch (e) {
+                toast('Bağlantı hatası', 'error');
+            }
         }
 
         function _saRenderDuruslar(duruslar) {

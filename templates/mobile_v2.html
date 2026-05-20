@@ -1272,6 +1272,41 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- ═══ OPERATÖR PIN GİRİŞ MODAL ═══ -->
+  <div id="pin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
+    <div style="background:linear-gradient(160deg, var(--bg-2), var(--bg-1));border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(167,139,250,0.16)">
+      <div style="text-align:center;margin-bottom:18px">
+        <div style="font-size:2rem;margin-bottom:6px">🔐</div>
+        <div style="font-size:1.1rem;font-weight:800;color:var(--text)">Operatör Girişi</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:4px">Vardiya işlemleri için kimlik doğrulaması</div>
+      </div>
+      <label style="font-size:.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px">Operatör</label>
+      <select id="pin-modal-op" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line-strong);background:rgba(255,255,255,0.04);color:var(--text);font-size:.95rem;margin-bottom:12px">
+        <option value="">— Seçin —</option>
+      </select>
+      <label style="font-size:.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px">PIN (4 haneli)</label>
+      <input id="pin-modal-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"
+             placeholder="••••"
+             style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:rgba(255,255,255,0.04);color:var(--text);font-size:1.3rem;letter-spacing:.6em;text-align:center;font-family:'JetBrains Mono',monospace;margin-bottom:14px"
+             onkeydown="if(event.key==='Enter') pinModalGiris()">
+      <div style="display:flex;gap:10px">
+        <button onclick="pinModalKapat()" style="flex:1;padding:11px;border:1px solid var(--line);background:rgba(255,255,255,0.04);color:var(--muted);border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer">İptal</button>
+        <button onclick="pinModalGiris()" style="flex:2;padding:11px;border:0;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border-radius:10px;font-weight:800;font-size:.95rem;cursor:pointer">Giriş</button>
+      </div>
+      <div style="font-size:.66rem;color:var(--muted);margin-top:12px;text-align:center;font-style:italic">
+        PIN'inizi bilmiyorsanız vardiya amirinize danışın
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ AKTİF OPERATÖR STATUS BAR ═══ -->
+  <div id="operator-bar" style="display:none;position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg, rgba(52,211,153,0.16), rgba(34,211,238,0.10));border-bottom:1px solid rgba(52,211,153,0.32);padding:6px 12px;z-index:9000;display:none;align-items:center;justify-content:space-between;gap:10px;font-size:.78rem;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+    <div style="color:var(--text);font-weight:700">
+      <span style="opacity:.7">👤</span> <span id="operator-bar-ad">—</span>
+    </div>
+    <button onclick="operatorCikis()" style="background:rgba(248,113,113,0.14);border:1px solid rgba(248,113,113,0.35);color:#fca5a5;padding:3px 10px;border-radius:8px;font-size:.7rem;font-weight:700;cursor:pointer">Çıkış</button>
+  </div>
+
   <script>
     var aktifEkran = 'A';
     var aktifVardiyaId = null;
@@ -1280,6 +1315,116 @@
     var cacheDurus = [];
     var tTimer = null;
     var secilenBolum = 'kaynak';
+
+    // ═══════════════════════════════════════════════════════
+    // OPERATÖR PIN YETKİLENDİRME (sessionStorage)
+    // ═══════════════════════════════════════════════════════
+    // Tüm fetch çağrılarına otomatik X-Operator + X-Operator-Pin
+    // header ekler. Backend bunlarla operatör kimliğini doğrular.
+    (function () {
+      var origFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        init = init || {};
+        // Headers obj veya plain {} olabilir — Headers'a normalize et
+        var h = new Headers(init.headers || {});
+        var op = sessionStorage.getItem('aktif_operator');
+        var pin = sessionStorage.getItem('operator_pin');
+        if (op && pin) {
+          h.set('X-Operator', op);
+          h.set('X-Operator-Pin', pin);
+        }
+        init.headers = h;
+        return origFetch(input, init);
+      };
+    })();
+
+    // PIN modal callback — modal başarıyla kapanınca çağrılacak sonraki adım
+    var _pinModalSonraki = null;
+
+    function pinModalAc(sonraAdim) {
+      _pinModalSonraki = sonraAdim || null;
+      // Operatör listesini doldur (PIN'siz GET endpoint)
+      // Auth header monkey-patch eklemiyor (sessionStorage henüz boş) — istek temiz gider
+      fetch('/api/operatorler')
+        .then(function (r) { return r.json(); })
+        .then(function (ops) {
+          var sel = document.getElementById('pin-modal-op');
+          var html = '<option value="">— Seçin —</option>';
+          (ops || []).forEach(function (o) {
+            var label = o.bolum ? (o.ad + ' (' + o.bolum + ')') : o.ad;
+            html += '<option value="' + o.ad + '">' + label + '</option>';
+          });
+          sel.innerHTML = html;
+        })
+        .catch(function () { });
+      document.getElementById('pin-modal-pin').value = '';
+      document.getElementById('pin-modal').style.display = 'flex';
+      setTimeout(function () { document.getElementById('pin-modal-op').focus(); }, 100);
+    }
+
+    function pinModalKapat() {
+      document.getElementById('pin-modal').style.display = 'none';
+      _pinModalSonraki = null;
+    }
+
+    function pinModalGiris() {
+      var op = document.getElementById('pin-modal-op').value;
+      var pin = document.getElementById('pin-modal-pin').value.trim();
+      if (!op) { toast('Operatör seçin', 'error'); return; }
+      if (!pin || pin.length !== 4) { toast('PIN 4 haneli olmalı', 'error'); return; }
+      fetch('/api/operator/oturum_ac', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_adi: op, pin: pin })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            toast(res.body.hata || 'Giriş başarısız', 'error');
+            return;
+          }
+          sessionStorage.setItem('aktif_operator', op);
+          sessionStorage.setItem('operator_pin', pin);
+          operatorBarGuncelle();
+          document.getElementById('pin-modal').style.display = 'none';
+          toast('Hoşgeldiniz ' + op, 'success');
+          if (typeof _pinModalSonraki === 'function') {
+            var fn = _pinModalSonraki;
+            _pinModalSonraki = null;
+            setTimeout(fn, 100);
+          }
+        })
+        .catch(function () { toast('Bağlantı hatası', 'error'); });
+    }
+
+    function operatorCikis() {
+      if (aktifVardiyaId) {
+        if (!confirm('Aktif vardiyanız var. Yine de çıkış yapmak istiyor musunuz?')) return;
+      }
+      sessionStorage.removeItem('aktif_operator');
+      sessionStorage.removeItem('operator_pin');
+      aktifVardiyaId = null;
+      aktifVardiyaData = null;
+      operatorBarGuncelle();
+      gitEkran('A');
+      toast('Çıkış yapıldı', 'info');
+    }
+
+    function operatorBarGuncelle() {
+      var bar = document.getElementById('operator-bar');
+      var ad = document.getElementById('operator-bar-ad');
+      var op = sessionStorage.getItem('aktif_operator');
+      if (op) {
+        bar.style.display = 'flex';
+        ad.textContent = op;
+      } else {
+        bar.style.display = 'none';
+      }
+    }
+
+    function aktifOperatorAdi() {
+      return sessionStorage.getItem('aktif_operator') || '';
+    }
 
     // Duruş grupları Excel'den (data/uretim_verileri.xlsx) bölüme göre çekilir
     var DURUS_GRUPLARI = { planli: [], plansiz: [] };
@@ -1389,6 +1534,9 @@
       yukleVardiyalar();
       guncelleNav('A');
 
+      // Operatör status bar — sessionStorage'da aktif operatör varsa göster
+      operatorBarGuncelle();
+
       setInterval(function() {
         if (aktifEkran === 'C' && aktifVardiyaId) { yukleAtamalar(); }
       }, 30000);
@@ -1417,7 +1565,8 @@
         '<span class="bolum-badge ' + badgeClass[bolum] + '" style="font-size:.72rem;padding:5px 14px;">' + badgeLabel[bolum] + '</span>'
         + ' <button type="button" onclick="bolumDegistirGeri()" style="margin-left:8px;background:transparent;border:1px dashed var(--border);color:var(--muted);padding:3px 10px;border-radius:8px;font-size:.7rem;font-weight:700;cursor:pointer">Bölüm Değiştir</button>';
 
-      // Operatorleri yeniden yukle (bolum filtreli)
+      // Operatorleri yeniden yukle (bolum filtreli) ve aktif operatore kilitle.
+      // PIN ile oturum acmis kullanici sadece kendi adina vardiya acabilir.
       var sel = document.getElementById('b-operator');
       sel.innerHTML = '<option value="">\u2014 Operat\u00f6r Se\u00e7in \u2014</option>';
       fetch('/api/operatorler?bolum=' + bolum).then(function (r) { return r.json(); }).then(function (ops) {
@@ -1426,6 +1575,23 @@
           opt.value = o.ad; opt.textContent = o.ad;
           sel.appendChild(opt);
         });
+        // Aktif operat\u00f6r varsa onu sec + readonly yap
+        var aktifOp = aktifOperatorAdi();
+        if (aktifOp) {
+          var bulundu = Array.from(sel.options).some(function (o) { return o.value === aktifOp; });
+          if (!bulundu) {
+            // Operat\u00f6r bu b\u00f6l\u00fcm\u00fcn listesinde yok (farkli bolume tanimli olabilir) \u2014 yine de kilitle
+            var opt = document.createElement('option');
+            opt.value = aktifOp; opt.textContent = aktifOp + ' (oturum)';
+            sel.appendChild(opt);
+          }
+          sel.value = aktifOp;
+          sel.disabled = true;
+          sel.style.opacity = '0.75';
+        } else {
+          sel.disabled = false;
+          sel.style.opacity = '';
+        }
       }).catch(function () { });
 
       // Robot/Istasyon alanini goster/gizle
@@ -1507,7 +1673,13 @@
     }
 
     // "Yeni Vardiya Baslat" — kullanici daha once bolum sectiyse direkt B'ye, secmediyse B0'a (bolum secimi)
+    // Once operator PIN dogrulamasi sart. Oturum yoksa modal acilir, oturum
+    // acildiktan sonra otomatik olarak vardiya akisina devam edilir.
     function yeniVardiyaBaslat() {
+      if (!aktifOperatorAdi()) {
+        pinModalAc(yeniVardiyaBaslat);  // PIN gir, sonra bu fonksiyonu tekrar cagir
+        return;
+      }
       var hatirlanan = null;
       try { hatirlanan = localStorage.getItem('mobile_aktif_bolum'); } catch (e) {}
       if (hatirlanan === 'kaynak' || hatirlanan === 'montaj' || hatirlanan === 'metal') {
@@ -1730,6 +1902,12 @@
 
     function vardiyaSec(id) {
       fetch('/api/vardiya/' + id).then(function (r) { return r.json(); }).then(function (data) {
+        // Yetki kontrolu: aktif operator varsa vardiya sahibi olmali
+        var aktifOp = aktifOperatorAdi();
+        if (aktifOp && data.vardiya && data.vardiya.operator_adi !== aktifOp) {
+          toast('Bu vardiya ' + data.vardiya.operator_adi + ' operatorune ait. Duzenlemek icin Cikis yapip onun PIN ile giris yapin.', 'error');
+          return;
+        }
         aktifVardiyaId = id;
         aktifVardiyaData = data.vardiya;
         // Bolum bilgisini set et (mevcut vardiyalardan)
