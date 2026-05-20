@@ -4895,6 +4895,30 @@
                 };
             });
 
+            // Referans değişim noktaları — yeşil dikey çizgi + referans kodu etiketi
+            // Operator yeni referans secince sayac sifirlanir — grafikte bu an gorunur
+            (data.referans_degisim_noktalari || []).forEach((p, i) => {
+                annotations['ref_' + i] = {
+                    type: 'line',
+                    xMin: new Date(p.ts).getTime(),
+                    xMax: new Date(p.ts).getTime(),
+                    borderColor: 'rgba(52,211,153,0.85)',
+                    borderWidth: 2,
+                    borderDash: [6, 4],
+                    label: {
+                        content: '▶ ' + p.referans_kodu + (p.istasyon ? ' (İst.' + p.istasyon + ')' : ''),
+                        display: true,
+                        position: 'end',
+                        font: { size: 10, weight: 'bold' },
+                        color: '#065f46',
+                        backgroundColor: 'rgba(52,211,153,0.92)',
+                        padding: 4,
+                        borderRadius: 4,
+                        yAdjust: -8,
+                    }
+                };
+            });
+
             _saChart = new Chart(ctx, {
                 type: 'scatter',
                 data: {

@@ -1249,16 +1249,28 @@ def saha_cihazlari():
                         })
             else:
                 # Montaj/metal: istasyon belirtilmemis (0) veya 1 — her ikisini de yakala
+                a = None
                 for ist in (0, 1):
                     a = aktif_ref_map.get((rno, ist))
                     if a:
-                        aktif_referanslar.append({
-                            'istasyon':      ist if ist > 0 else None,
-                            'referans_kodu': a['referans_kodu'],
-                            'basla_ts':      a['basla_ts'],
-                            'pulse_sayisi':  _aktif_pulse_say(cid, 0, a['basla_ts']),
-                        })
-                        break  # tek aktif yeterli
+                        break
+                # Montaj fallback: operator hat secmez, robot_no='MONTAJ' default (memory)
+                # Bu durumda tum M1..M12 cihazlari ayni global aktif referansa bakar
+                if not a and bolum == 'montaj':
+                    for fallback_rno in ('MONTAJ', ''):
+                        for ist in (0, 1):
+                            a = aktif_ref_map.get((fallback_rno, ist))
+                            if a:
+                                break
+                        if a:
+                            break
+                if a:
+                    aktif_referanslar.append({
+                        'istasyon':      None,
+                        'referans_kodu': a['referans_kodu'],
+                        'basla_ts':      a['basla_ts'],
+                        'pulse_sayisi':  _aktif_pulse_say(cid, 0, a['basla_ts']),
+                    })
 
             if kayit:
                 # Pilot DB'den gelen güncel veri
@@ -1465,20 +1477,45 @@ def pilot_sinyal_analiz():
     ''', (robot_no,)).fetchall()
     aktif_referanslar = [dict(r) for r in aktif_ref_rows]
 
+    # ─── Referans değişim noktaları (o gün üretime giren referansların başlangıç anları) ───
+    # Sinyal Analizi grafiginde dikey cizgi olarak gosterilir
+    # Montaj icin robot_no='MONTAJ' veya bos olabilir — fallback ile yakala
+    robot_filtre = "(robot_no=? OR robot_no='MONTAJ' OR robot_no='')" if bolum == 'montaj' else "robot_no=?"
+    degisim_rows = conn.execute(f'''
+        SELECT referans_kodu, uretime_baslama_ts, istasyon
+        FROM referans_takip
+        WHERE uretime_baslama_ts IS NOT NULL
+          AND date(uretime_baslama_ts)=?
+          AND {robot_filtre}
+        ORDER BY uretime_baslama_ts
+    ''', (tarih, robot_no)).fetchall()
+    referans_degisim_noktalari = []
+    for r in degisim_rows:
+        ist = int(r['istasyon'] or 0)
+        # Istasyon filtresi varsa eslesmeyenleri at
+        if istasyon and ist > 0 and ist != int(istasyon):
+            continue
+        referans_degisim_noktalari.append({
+            'ts':            r['uretime_baslama_ts'],
+            'referans_kodu': r['referans_kodu'],
+            'istasyon':      ist if ist > 0 else None,
+        })
+
     conn.close()
 
     return jsonify({
-        'cihaz_id':           f'{robot_no}-IO' if bolum != 'montaj' else f'MONTAJ-{robot_no}',
-        'robot_no':           robot_no,
-        'bolum':              bolum,
-        'istasyon':           int(istasyon) if istasyon else None,
-        'tarih':              tarih,
-        'ozet':               ozet,
-        'olaylar':            olaylar,
-        'saatlik':            saatlik,
-        'duruslar':           duruslar,
-        'referans_donemler':  referans_donemler,
-        'aktif_referanslar':  aktif_referanslar,
+        'cihaz_id':                   f'{robot_no}-IO' if bolum != 'montaj' else f'MONTAJ-{robot_no}',
+        'robot_no':                   robot_no,
+        'bolum':                      bolum,
+        'istasyon':                   int(istasyon) if istasyon else None,
+        'tarih':                      tarih,
+        'ozet':                       ozet,
+        'olaylar':                    olaylar,
+        'saatlik':                    saatlik,
+        'duruslar':                   duruslar,
+        'referans_donemler':          referans_donemler,
+        'referans_degisim_noktalari': referans_degisim_noktalari,
+        'aktif_referanslar':          aktif_referanslar,
     }), 200
 
 
