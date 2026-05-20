@@ -1683,21 +1683,15 @@
       window.location.href = '/rapor?bolum=' + encodeURIComponent(bolum);
     }
 
-    // "Yeni Vardiya Baslat" — kullanici daha once bolum sectiyse direkt B'ye, secmediyse B0'a (bolum secimi)
-    // Once operator PIN dogrulamasi sart. Oturum yoksa modal acilir, oturum
-    // acildiktan sonra otomatik olarak vardiya akisina devam edilir.
+    // "Yeni Vardiya Baslat" — operator PIN dogrulamasindan sonra HER ZAMAN
+    // B0 (bolum secimi) ekrani acilir. Operator hangi bolumde calistigini
+    // her vardiya basinda secer (kaynak/montaj/metal); cihazda hatirlama yok.
     function yeniVardiyaBaslat() {
       if (!aktifOperatorAdi()) {
         pinModalAc(yeniVardiyaBaslat);  // PIN gir, sonra bu fonksiyonu tekrar cagir
         return;
       }
-      var hatirlanan = null;
-      try { hatirlanan = localStorage.getItem('mobile_aktif_bolum'); } catch (e) {}
-      if (hatirlanan === 'kaynak' || hatirlanan === 'montaj' || hatirlanan === 'metal') {
-        bolumSec(hatirlanan);
-      } else {
-        gitEkran('B0');
-      }
+      gitEkran('B0');  // Her zaman bolum secimi ekraninda baslat
     }
 
     // ── EKRAN YÖNETİMİ ──
@@ -1860,7 +1854,17 @@
                 geriAlBtn = '<button onclick="event.stopPropagation();vardiyaGeriAc(' + v.id + ')" class="btn-geri-ac">🔓 Vardiyay\u0131 Geri A\u00e7</button>';
               }
               var silBtn = '<button onclick="event.stopPropagation();vardiyaSil(' + v.id + ')" class="btn-vardiya-sil" title="Yanlış açılan vardiyayı sil">🗑 Sil</button>';
-              var kartHtml = '<div class="vardiya-kart" onclick="vardiyaSec(' + v.id + ')">' +
+              // Operatorun kendi vardiyasi mi? Farkli renkle goster.
+              var _aktifOp = aktifOperatorAdi();
+              var _kendisinin = (!_aktifOp) || (v.operator_adi === _aktifOp);
+              var _kartStyle = _kendisinin
+                ? 'border:2px solid rgba(52,211,153,0.45);background:linear-gradient(135deg,rgba(52,211,153,0.10),rgba(34,211,238,0.04));box-shadow:0 0 0 1px rgba(52,211,153,0.10),0 4px 14px rgba(0,0,0,0.18)'
+                : 'opacity:.55;cursor:not-allowed;filter:grayscale(0.3)';
+              var _kendiRozet = _kendisinin
+                ? '<span style="background:rgba(52,211,153,0.18);color:#6ee7b7;padding:2px 8px;border-radius:6px;font-size:.62rem;font-weight:800;letter-spacing:.04em;margin-left:6px;vertical-align:middle">SİZİN</span>'
+                : '<span title="Baska operatore ait" style="opacity:.85;font-size:.9rem;margin-left:4px">🔒</span>';
+              var kartHtml = '<div class="vardiya-kart" style="position:relative;' + _kartStyle + '" onclick="vardiyaSec(' + v.id + ')">' +
+                '<div style="position:absolute;top:8px;right:8px;z-index:2">' + _kendiRozet + '</div>' +
                 '<div class="ki-head"><div style="flex:1;min-width:0">' +
                 '<div class="vk-title">' + v.robot_no + ' \u2014 ' + v.operator_adi + '</div>' +
                 '<div class="vk-detail">' + v.baslangic_saati + ' \u2192 ' + (v.bitis_saati || '?') + ' \u00b7 ' + v.vardiya_turu + '</div>' +
