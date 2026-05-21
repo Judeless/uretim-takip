@@ -1551,6 +1551,8 @@ def saha_cihazlari():
                     'firmware_ver':       kayit.get('firmware_ver', ''),
                     'toplam_sinyal':      kayit.get('toplam_sinyal', 0),
                     'buffer_kuyruk':      kayit.get('buffer_kuyruk', 0),
+                    'uptime_sn':          kayit.get('uptime_sn', 0),
+                    'free_heap':          kayit.get('free_heap', 0),
                     'bugun_ist1':         ist1_v,
                     'bugun_ist2':         ist2_v,
                     'bugun_toplam':       toplam_v,
