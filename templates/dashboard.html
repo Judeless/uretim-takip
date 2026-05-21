@@ -2372,6 +2372,9 @@
             </div>
             <div style="position:relative;height:380px">
                 <canvas id="sa-chart"></canvas>
+                <!-- Zoom alanı istatistik kutusu — sol tık zoom yapıldığında belirir -->
+                <div id="sa-zoom-stats" style="position:absolute;top:8px;right:12px;background:rgba(15,23,42,0.88);color:#fff;padding:8px 12px;border-radius:8px;font-size:.72rem;font-family:'JetBrains Mono',monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(167,139,250,0.35);box-shadow:0 4px 14px rgba(0,0,0,0.35);display:none;z-index:5;line-height:1.5">
+                </div>
             </div>
         </div>
 
@@ -4930,6 +4933,7 @@
                     statusEl.textContent = 'Hata: ' + (d.hata || res.status);
                     return;
                 }
+                window._saSonVeri = d;  // _saRenderReferanslar olayları okur (pulse istatistiği için)
                 _saRenderOzet(d.ozet || {});
                 _saRenderChart(d);
                 _saRenderReferanslar(d.referans_donemler || [], d.aktif_referanslar || []);
@@ -4954,22 +4958,62 @@
             document.getElementById('sa-enkisa').textContent = fmt(ozet.en_kisa_gap_sn);
         }
 
+        // Zoom alanı istatistiği — sağ üst köşedeki overlay kutu
+        function _saZoomStatsGuncelle(chart) {
+            const statsEl = document.getElementById('sa-zoom-stats');
+            if (!statsEl || !chart || !chart.scales || !chart.scales.x) return;
+            const xMin = chart.scales.x.min, xMax = chart.scales.x.max;
+            const noktalar = [];
+            chart.data.datasets.forEach(ds => {
+                if (ds.type === 'line') return;  // saatlik ort hariç
+                (ds.data || []).forEach(p => {
+                    if (p.x >= xMin && p.x <= xMax) noktalar.push(p.y);
+                });
+            });
+            if (!noktalar.length) {
+                statsEl.style.display = 'none';
+                return;
+            }
+            const sorted = noktalar.slice().sort((a,b) => a-b);
+            const ort    = noktalar.reduce((s,v) => s+v, 0) / noktalar.length;
+            const mid    = Math.floor(sorted.length / 2);
+            const medyan = sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+            const enKisa = sorted[0];
+            const enUzun = sorted[sorted.length - 1];
+            const baslaStr = new Date(xMin).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+            const bitiStr  = new Date(xMax).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+            const fmt = v => v < 60 ? v.toFixed(1) + ' sn' : Math.floor(v/60) + 'dk ' + Math.round(v%60) + 'sn';
+            statsEl.innerHTML = `
+                <div style="font-weight:700;margin-bottom:4px;color:#a78bfa;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase">📊 Zoom Alanı</div>
+                <div style="opacity:.7;font-size:.66rem;margin-bottom:4px">${baslaStr} – ${bitiStr}</div>
+                <div>📍 <b>${noktalar.length}</b> pulse</div>
+                <div>⌀ Ort: <b>${fmt(ort)}</b></div>
+                <div>≈ Medyan: <b>${fmt(medyan)}</b></div>
+                <div style="opacity:.7;font-size:.66rem;margin-top:3px">${fmt(enKisa)} … ${fmt(enUzun)}</div>
+            `;
+            statsEl.style.display = 'block';
+        }
+
         function _saRenderChart(data) {
             const ctx = document.getElementById('sa-chart').getContext('2d');
             if (_saChart) { _saChart.destroy(); _saChart = null; }
+            // Stats kutusunu render başlangıcında gizle
+            const statsEl = document.getElementById('sa-zoom-stats');
+            if (statsEl) statsEl.style.display = 'none';
             // Sağ tık → resetZoom (canvas başına bir kez bağlanır)
             if (!ctx.canvas._zoomResetBound) {
                 ctx.canvas.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     if (_saChart && _saChart.resetZoom) {
                         _saChart.resetZoom();
+                        if (statsEl) statsEl.style.display = 'none';
                         if (typeof toast === 'function') toast('Zoom sıfırlandı', 'info');
                     }
                 });
                 ctx.canvas._zoomResetBound = true;
             }
 
-            // Scatter datasets: ist1 (amber), ist2 (cyan)
+            // Scatter datasets — kaynakta İst.1 + İst.2 ayrı, metal/montaj'da tek "Pulse"
             const scatter1 = [], scatter2 = [];
             (data.olaylar || []).forEach(o => {
                 if (o.gap_sn == null) return;
@@ -4978,6 +5022,8 @@
                 if (o.istasyon === 2) scatter2.push(point);
                 else                   scatter1.push(point);
             });
+            const bolumAktif = (data.bolum || document.getElementById('sa-bolum').value || 'kaynak');
+            const isKaynak = (bolumAktif === 'kaynak');
 
             // Saatlik ortalama line: x=saatin ortası (HH:30), y=ort_gap
             const tarihBase = data.tarih; // 'YYYY-MM-DD'
@@ -5033,38 +5079,48 @@
                 };
             });
 
+            const datasets = [];
+            if (isKaynak) {
+                datasets.push({
+                    label: 'İstasyon 1',
+                    data: scatter1,
+                    backgroundColor: 'rgba(251,191,36,0.75)',
+                    borderColor:     'rgba(251,191,36,1)',
+                    pointRadius: 4,
+                });
+                datasets.push({
+                    label: 'İstasyon 2',
+                    data: scatter2,
+                    backgroundColor: 'rgba(34,211,238,0.75)',
+                    borderColor:     'rgba(34,211,238,1)',
+                    pointRadius: 4,
+                });
+            } else {
+                // Metal/Montaj: tek istasyon mantığı — scatter1 ve scatter2'yi birleştir
+                datasets.push({
+                    label: 'Pulse',
+                    data: [...scatter1, ...scatter2],
+                    backgroundColor: 'rgba(167,139,250,0.75)',
+                    borderColor:     'rgba(167,139,250,1)',
+                    pointRadius: 4,
+                });
+            }
+            datasets.push({
+                label: 'Saatlik Ort.',
+                type: 'line',
+                data: saatlikLine,
+                borderColor: 'rgba(110,231,183,0.95)',
+                backgroundColor: 'rgba(110,231,183,0.10)',
+                borderWidth: 2.5,
+                pointRadius: 5,
+                pointBackgroundColor: 'rgba(110,231,183,1)',
+                fill: false,
+                tension: 0.3,
+            });
+
             _saChart = new Chart(ctx, {
                 type: 'scatter',
-                data: {
-                    datasets: [
-                        {
-                            label: 'İstasyon 1',
-                            data: scatter1,
-                            backgroundColor: 'rgba(251,191,36,0.75)',
-                            borderColor:     'rgba(251,191,36,1)',
-                            pointRadius: 4,
-                        },
-                        {
-                            label: 'İstasyon 2',
-                            data: scatter2,
-                            backgroundColor: 'rgba(34,211,238,0.75)',
-                            borderColor:     'rgba(34,211,238,1)',
-                            pointRadius: 4,
-                        },
-                        {
-                            label: 'Saatlik Ort.',
-                            type: 'line',
-                            data: saatlikLine,
-                            borderColor: 'rgba(167,139,250,0.95)',
-                            backgroundColor: 'rgba(167,139,250,0.10)',
-                            borderWidth: 2.5,
-                            pointRadius: 5,
-                            pointBackgroundColor: 'rgba(167,139,250,1)',
-                            fill: false,
-                            tension: 0.3,
-                        }
-                    ]
-                },
+                data: { datasets: datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -5096,6 +5152,7 @@
                                     threshold: 5,
                                 },
                                 mode: 'xy',
+                                onZoomComplete: ({chart}) => _saZoomStatsGuncelle(chart),
                             },
                             pan: { enabled: false },
                             limits: {
@@ -5144,29 +5201,73 @@
                 html += '<div style="height:10px"></div>';
             }
             if (donemler.length) {
-                html += '<div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px">Üretim Kayıtları (Kronolojik)</div>';
+                html += '<div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:6px">Üretim Kayıtları (Pulse İstatistiği)</div>';
+
                 // Tekrar eden referansları birleştir
                 const acc = {};
                 donemler.forEach(d => {
                     const k = d.referans_kodu;
-                    if (!acc[k]) acc[k] = { kod: k, ok: 0, nok: 0, ilk: d.ts, son: d.ts, hedef: d.hedef_cycle_sn || 0, gercek_cycle: [] };
+                    if (!acc[k]) acc[k] = { kod: k, ok: 0, nok: 0, ilk: d.ts, son: d.ts, hedef: d.hedef_cycle_sn || 0 };
                     acc[k].ok  += d.ok_adet || 0;
                     acc[k].nok += d.nok_adet || 0;
                     acc[k].son = d.ts;
-                    if (d.cycle_time_sn) acc[k].gercek_cycle.push(d.cycle_time_sn);
                 });
+
+                // Pulse'lardan referansa istatistik çıkar — her pulse'un zamanına göre
+                // o anda aktif olan referansa atanır (binary search yerine basit lineer)
+                const olaylar = (window._saSonVeri && window._saSonVeri.olaylar) || [];
+                const sortedDonemler = donemler.slice().sort((a,b) => new Date(a.ts) - new Date(b.ts));
+                const refByTs = (ts) => {
+                    const t = new Date(ts).getTime();
+                    for (let i = sortedDonemler.length - 1; i >= 0; i--) {
+                        if (new Date(sortedDonemler[i].ts).getTime() <= t) return sortedDonemler[i].referans_kodu;
+                    }
+                    return null;
+                };
+                const pulseGaps = {};  // ref_kodu -> [gap_sn, ...]
+                olaylar.forEach(o => {
+                    if (o.gap_sn == null) return;
+                    const ref = refByTs(o.ts);
+                    if (!ref) return;
+                    if (!pulseGaps[ref]) pulseGaps[ref] = [];
+                    pulseGaps[ref].push(o.gap_sn);
+                });
+
+                const istat = (gaps) => {
+                    if (!gaps.length) return null;
+                    const sorted = gaps.slice().sort((a,b) => a-b);
+                    const ort = gaps.reduce((s,v) => s+v, 0) / gaps.length;
+                    const mid = Math.floor(sorted.length / 2);
+                    const medyan = sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+                    // Mod: 1 sn yuvarlama ile en sık olan değer
+                    const counts = {};
+                    gaps.forEach(v => { const r = Math.round(v); counts[r] = (counts[r] || 0) + 1; });
+                    let mod = null, maxCount = 0;
+                    Object.entries(counts).forEach(([v, c]) => { if (c > maxCount) { maxCount = c; mod = +v; } });
+                    return { sayi: gaps.length, ort, medyan, mod, en_kisa: sorted[0], en_uzun: sorted[sorted.length-1] };
+                };
+
+                const fmt = v => v == null ? '—' : (v < 60 ? v.toFixed(1) + ' sn' : Math.floor(v/60) + 'dk ' + Math.round(v%60) + 'sn');
+
                 html += Object.values(acc).map(r => {
-                    const ortGercek = r.gercek_cycle.length
-                        ? (r.gercek_cycle.reduce((a,b)=>a+b,0)/r.gercek_cycle.length).toFixed(1) : '—';
+                    const s = istat(pulseGaps[r.kod] || []);
+                    const istatHtml = s ? `
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;padding:6px 8px;background:rgba(167,139,250,0.06);border-radius:6px;font-size:.7rem">
+                            <div><span style="color:var(--muted)">📍 Pulse:</span> <b style="font-family:'JetBrains Mono',monospace">${s.sayi}</b></div>
+                            <div><span style="color:var(--muted)">⌀ Ort:</span> <b style="color:#34d399;font-family:'JetBrains Mono',monospace">${fmt(s.ort)}</b></div>
+                            <div><span style="color:var(--muted)">≈ Medyan:</span> <b style="color:#22d3ee;font-family:'JetBrains Mono',monospace">${fmt(s.medyan)}</b></div>
+                            <div><span style="color:var(--muted)">📊 Mod:</span> <b style="color:#a78bfa;font-family:'JetBrains Mono',monospace">${s.mod} sn</b></div>
+                            <div><span style="color:var(--muted)">⏱ Min:</span> <b style="font-family:'JetBrains Mono',monospace">${fmt(s.en_kisa)}</b></div>
+                            <div><span style="color:var(--muted)">⏱ Max:</span> <b style="font-family:'JetBrains Mono',monospace">${fmt(s.en_uzun)}</b></div>
+                        </div>
+                    ` : `<div style="color:var(--muted);font-size:.7rem;margin-top:2px;font-style:italic">Bu referans için pulse verisi yok</div>`;
                     return `
-                        <div style="padding:6px 0;border-bottom:1px solid var(--border)">
+                        <div style="padding:8px 0;border-bottom:1px solid var(--border)">
                             <div style="display:flex;justify-content:space-between">
                                 <span style="font-weight:700;color:var(--text)">${r.kod}</span>
-                                <span style="color:var(--muted);font-size:.72rem">${r.ok} OK · ${r.nok} NOK</span>
+                                <span style="color:var(--muted);font-size:.72rem">${r.ok} OK · ${r.nok} NOK · Hedef ${r.hedef || '—'} sn</span>
                             </div>
-                            <div style="color:var(--muted);font-size:.7rem;margin-top:2px">
-                                Hedef cycle: ${r.hedef || '—'} sn · Gerçek ort: ${ortGercek} sn
-                            </div>
+                            ${istatHtml}
                         </div>
                     `;
                 }).join('');
