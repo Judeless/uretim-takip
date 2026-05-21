@@ -2389,6 +2389,55 @@
                 <div id="sa-duruslar" style="font-size:.82rem;max-height:240px;overflow-y:auto"></div>
             </div>
         </div>
+
+        <!-- İstatistik terimleri açıklaması — sayfanın en altında -->
+        <div style="background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.22);padding:16px 20px;border-radius:var(--radius);margin-bottom:24px;font-size:.82rem;line-height:1.65">
+            <h3 style="font-size:.92rem;font-weight:800;margin:0 0 10px 0;display:flex;align-items:center;gap:8px;color:var(--text)">
+                <span style="font-size:1.1rem">📚</span> Sayım istatistiği terimleri
+            </h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;color:var(--text)">
+                <div>
+                    <div style="font-weight:700;color:#34d399;margin-bottom:4px">⌀ Ortalama (Aritmetik)</div>
+                    <div style="color:var(--muted);font-size:.78rem">
+                        Tüm gap'lerin toplamı / pulse sayısı. <b>Uzun duruşlardan etkilenir</b> —
+                        bir 30 dakikalık duruş ortalamayı çok yukarı çeker. Genel verim için kullanışlı
+                        ama "tipik cycle'ı" yansıtmaz.
+                    </div>
+                </div>
+                <div>
+                    <div style="font-weight:700;color:#22d3ee;margin-bottom:4px">≈ Medyan</div>
+                    <div style="color:var(--muted);font-size:.78rem">
+                        Pulse'lar küçükten büyüğe sıralanıp <b>tam ortadaki değer</b>.
+                        Aşırı değerlerden (mola, parça bekleme) etkilenmez — gerçek üretim ritmini
+                        yansıtan en güvenilir metrik. Mola hariç pulse'ların %50'si bu değerden hızlı,
+                        %50'si daha yavaş gelmiş demektir.
+                    </div>
+                </div>
+                <div>
+                    <div style="font-weight:700;color:#a78bfa;margin-bottom:4px">📊 Mod</div>
+                    <div style="color:var(--muted);font-size:.78rem">
+                        <b>En sık tekrar eden gap</b> (1 sn yuvarlanmış). Robotun veya makinenin
+                        "alıştığı" cycle süresi. Hedef cycle ile karşılaştırılır:
+                        Mod ≈ Hedef ise üretim disiplinli; Mod >> Hedef ise üretimde sürekli bir
+                        gecikme/sapma var demektir.
+                    </div>
+                </div>
+                <div>
+                    <div style="font-weight:700;color:#f59e0b;margin-bottom:4px">⏱ Min / Max</div>
+                    <div style="color:var(--muted);font-size:.78rem">
+                        <b>En kısa</b> gap = en hızlı çevrim (genelde bu hedef cycle'a en yakındır).
+                        <b>En uzun</b> gap = en uzun duruş veya bekleme. İkisi arası fark büyükse
+                        üretim akışı stabil değil demektir.
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:12px;padding:8px 12px;background:rgba(110,231,183,0.08);border-left:3px solid #34d399;border-radius:6px;font-size:.78rem;color:var(--text)">
+                <b style="color:#34d399">💡 Pratik kullanım:</b>
+                Üretim hızını <b>Mod</b> ile ölç, <b>Medyan</b> ile doğrula. İkisi de hedefe yakınsa
+                üretim sağlıklı. <b>Ortalama</b>'nın Mod ve Medyan'dan çok yüksek olması duruş
+                yoğunluğunu gösterir.
+            </div>
+        </div>
     </div>
 
     <!-- ══════════════════ OPERATÖRLER / PIN YÖNETİMİ SEKME ══════════════════ -->
