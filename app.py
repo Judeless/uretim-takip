@@ -1385,6 +1385,8 @@ def saha_cihazlari():
     # kadar kac pulse var. Operator yeni referans secince uretime_baslama_ts
     # yenilenir, sayim sifirdan baslamis gibi gorunur.
     aktif_ref_map = {}  # {(robot_no, istasyon): {referans_kodu, basla_ts}}
+    # Aktif vardiyalar — sayac sifirlama icin ek baslangic referansi
+    aktif_vardiya_map = {}  # {(bolum, robot_no): vardiya_basla_ts ISO}
     try:
         conn_main = get_db()
         for r in conn_main.execute('''
@@ -1398,11 +1400,32 @@ def saha_cihazlari():
             mevcut_ref = aktif_ref_map.get(key)
             if (not mevcut_ref) or ((r['basla_ts'] or '') > (mevcut_ref['basla_ts'] or '')):
                 aktif_ref_map[key] = {'referans_kodu': r['referans_kodu'], 'basla_ts': r['basla_ts']}
+
+        # Bugun acik vardiyalari cek — operator vardiya acince sayim o andan
+        # itibaren olur (yeni referans secilmemis bile olsa sifirdan baslar)
+        bugun_str = datetime.now().strftime('%Y-%m-%d')
+        for r in conn_main.execute('''
+            SELECT robot_no, COALESCE(bolum,'kaynak') as bolum, baslangic_saati, tarih
+            FROM vardiyalar
+            WHERE durum='aktif' AND tarih=?
+        ''', (bugun_str,)).fetchall():
+            bs = (r['baslangic_saati'] or '').strip()
+            if bs and r['robot_no']:
+                # baslangic_saati 'HH:MM' formatinda — tarih ile birlestir ISO yap
+                try:
+                    ts_iso = f"{r['tarih']} {bs}:00" if len(bs) == 5 else f"{r['tarih']} {bs}"
+                    # Ayni (bolum, robot_no) icin birden fazla aktif vardiya varsa
+                    # en sonra acilmis olani al (en buyuk ts)
+                    key = (r['bolum'], r['robot_no'])
+                    if (key not in aktif_vardiya_map) or (ts_iso > aktif_vardiya_map[key]):
+                        aktif_vardiya_map[key] = ts_iso
+                except Exception:
+                    pass
         conn_main.close()
     except Exception as e:
-        print(f'[saha_cihazlari] referans_takip hata: {e}')
+        print(f'[saha_cihazlari] referans_takip/vardiyalar hata: {e}')
 
-    # ─── Aktif referans pulse sayımları (pilot DB'den, basla_ts sonrası) ───
+    # ─── Pulse sayımı (pilot DB'den, baslangic_ts sonrası) ───
     def _aktif_pulse_say(cihaz_id, istasyon, basla_ts):
         """Verilen cihaz/istasyon icin basla_ts'den sonraki pulse sayisi."""
         if not basla_ts or not os.path.exists(pilot_db):
@@ -1424,6 +1447,12 @@ def saha_cihazlari():
         except Exception:
             return 0
 
+    def _en_son_ts(*candidates):
+        """Verilen ISO timestamp string'lerinden en buyugunu (en son) dondur.
+        None/bos olanlar atlanir. Hicbiri yoksa None."""
+        gecerli = [t for t in candidates if t]
+        return max(gecerli) if gecerli else None
+
     sonuc = {}
     for bolum, cihazlar in BEKLENEN.items():
         liste = []
@@ -1432,18 +1461,24 @@ def saha_cihazlari():
             rno = beklenen_cihaz['robot_no']
             kayit = mevcut.get(cid)
 
+            # Aktif vardiya baslangic ts (varsa) — sayac sifirlama referansi
+            vardiya_ts = aktif_vardiya_map.get((bolum, rno))
+
             # Aktif referans tespiti — kaynakta her istasyon ayri olabilir,
-            # montaj/metal'de tek istasyon (genelde 0 veya 1)
+            # montaj/metal'de tek istasyon (genelde 0 veya 1).
+            # Sayim icin filtre = max(vardiya_basla_ts, referans_basla_ts):
+            # hangisi daha sonraysa o andan itibaren sayim baslar.
             aktif_referanslar = []
             if bolum == 'kaynak':
                 for ist in (1, 2):
                     a = aktif_ref_map.get((rno, ist))
                     if a:
+                        filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'])
                         aktif_referanslar.append({
                             'istasyon':      ist,
                             'referans_kodu': a['referans_kodu'],
-                            'basla_ts':      a['basla_ts'],
-                            'pulse_sayisi':  _aktif_pulse_say(cid, ist, a['basla_ts']),
+                            'basla_ts':      filt_ts,
+                            'pulse_sayisi':  _aktif_pulse_say(cid, ist, filt_ts),
                         })
             else:
                 # Montaj/metal: istasyon belirtilmemis (0) veya 1 — her ikisini de yakala
@@ -1452,8 +1487,7 @@ def saha_cihazlari():
                     a = aktif_ref_map.get((rno, ist))
                     if a:
                         break
-                # Montaj fallback: operator hat secmez, robot_no='MONTAJ' default (memory)
-                # Bu durumda tum M1..M12 cihazlari ayni global aktif referansa bakar
+                # Montaj fallback: operator hat secmez, robot_no='MONTAJ' default (eski kayitlar)
                 if not a and bolum == 'montaj':
                     for fallback_rno in ('MONTAJ', ''):
                         for ist in (0, 1):
@@ -1463,16 +1497,29 @@ def saha_cihazlari():
                         if a:
                             break
                 if a:
+                    filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'])
                     aktif_referanslar.append({
                         'istasyon':      None,
                         'referans_kodu': a['referans_kodu'],
-                        'basla_ts':      a['basla_ts'],
-                        'pulse_sayisi':  _aktif_pulse_say(cid, 0, a['basla_ts']),
+                        'basla_ts':      filt_ts,
+                        'pulse_sayisi':  _aktif_pulse_say(cid, 0, filt_ts),
                     })
 
+            # Sayac degerlerini hesapla:
+            # - Aktif vardiya varsa: vardiya baslangicindan sonraki pulse'lar (operator
+            #   yeni vardiya acinca otomatik sifirlanmis gibi gorunur)
+            # - Vardiya yoksa: bugunun tamamindaki pulse'lar (eski davranis)
             if kayit:
-                # Pilot DB'den gelen güncel veri
                 ist_map = ist_sayimlari.get(cid, {})
+                if vardiya_ts:
+                    ist1_v = _aktif_pulse_say(cid, 1, vardiya_ts)
+                    ist2_v = _aktif_pulse_say(cid, 2, vardiya_ts)
+                    toplam_v = ist1_v + ist2_v + _aktif_pulse_say(cid, 0, vardiya_ts)
+                else:
+                    ist1_v = ist_map.get(1, 0)
+                    ist2_v = ist_map.get(2, 0)
+                    toplam_v = sum(ist_map.values())
+
                 liste.append({
                     'cihaz_id':           cid,
                     'robot_no':           rno,
@@ -1485,10 +1532,11 @@ def saha_cihazlari():
                     'firmware_ver':       kayit.get('firmware_ver', ''),
                     'toplam_sinyal':      kayit.get('toplam_sinyal', 0),
                     'buffer_kuyruk':      kayit.get('buffer_kuyruk', 0),
-                    'bugun_ist1':         ist_map.get(1, 0),
-                    'bugun_ist2':         ist_map.get(2, 0),
-                    'bugun_toplam':       sum(ist_map.values()),
+                    'bugun_ist1':         ist1_v,
+                    'bugun_ist2':         ist2_v,
+                    'bugun_toplam':       toplam_v,
                     'robot_calisiyor':    1 if kayit.get('robot_calisiyor') else 0,
+                    'aktif_vardiya_ts':   vardiya_ts,
                     'aktif_referanslar':  aktif_referanslar,
                     'kayitli':            True,
                 })
@@ -1499,6 +1547,7 @@ def saha_cihazlari():
                     'robot_no':           rno,
                     'bolum':              bolum,
                     'durum':              'beklemede',
+                    'aktif_vardiya_ts':   vardiya_ts,
                     'aktif_referanslar':  aktif_referanslar,
                     'kayitli':            False,
                 })
