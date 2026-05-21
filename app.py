@@ -1349,6 +1349,7 @@ def saha_cihazlari():
     # Pilot DB'den mevcut cihaz_kayitlari + bugünün ist1/ist2 sayıları
     mevcut = {}
     ist_sayimlari = {}   # {cihaz_id: {1: adet, 2: adet}}
+    reset_map = {}       # {(cihaz_id, istasyon): reset_ts}
     if os.path.exists(pilot_db):
         import sqlite3
         c = sqlite3.connect(pilot_db)
@@ -1375,6 +1376,14 @@ def saha_cihazlari():
                 if cid not in ist_sayimlari:
                     ist_sayimlari[cid] = {}
                 ist_sayimlari[cid][r['istasyon']] = r['adet']
+
+            # Manuel reset noktalari — dashboard'dan "sayaci sifirla" tıklayınca yazıldı
+            # Sayım sırasında filtre olarak kullanılır (ts > reset_ts olanları say)
+            try:
+                for r in c.execute('SELECT cihaz_id, istasyon, reset_ts FROM sayac_reset_noktalari').fetchall():
+                    reset_map[(r['cihaz_id'], int(r['istasyon'] or 0))] = r['reset_ts']
+            except Exception:
+                pass  # Tablo henüz yoksa (pilot_app.py yeniden başlatılmamışsa) — atla
         except Exception as e:
             print(f'[saha_cihazlari] DB hata: {e}')
         finally:
@@ -1463,17 +1472,22 @@ def saha_cihazlari():
 
             # Aktif vardiya baslangic ts (varsa) — sayac sifirlama referansi
             vardiya_ts = aktif_vardiya_map.get((bolum, rno))
+            # Manuel reset ts'leri (varsa) — dashboard'dan butonla sifirlanmis
+            reset_ist1 = reset_map.get((cid, 1))
+            reset_ist2 = reset_map.get((cid, 2))
+            reset_all  = reset_map.get((cid, 0))  # tum istasyonlari kapsar
 
             # Aktif referans tespiti — kaynakta her istasyon ayri olabilir,
             # montaj/metal'de tek istasyon (genelde 0 veya 1).
-            # Sayim icin filtre = max(vardiya_basla_ts, referans_basla_ts):
+            # Sayim icin filtre = max(vardiya_ts, referans_ts, manuel_reset_ts):
             # hangisi daha sonraysa o andan itibaren sayim baslar.
             aktif_referanslar = []
             if bolum == 'kaynak':
                 for ist in (1, 2):
                     a = aktif_ref_map.get((rno, ist))
                     if a:
-                        filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'])
+                        reset_ist = reset_ist1 if ist == 1 else reset_ist2
+                        filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_ist, reset_all)
                         aktif_referanslar.append({
                             'istasyon':      ist,
                             'referans_kodu': a['referans_kodu'],
@@ -1497,7 +1511,7 @@ def saha_cihazlari():
                         if a:
                             break
                 if a:
-                    filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'])
+                    filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_all, reset_ist1)
                     aktif_referanslar.append({
                         'istasyon':      None,
                         'referans_kodu': a['referans_kodu'],
@@ -1506,15 +1520,20 @@ def saha_cihazlari():
                     })
 
             # Sayac degerlerini hesapla:
-            # - Aktif vardiya varsa: vardiya baslangicindan sonraki pulse'lar (operator
-            #   yeni vardiya acinca otomatik sifirlanmis gibi gorunur)
-            # - Vardiya yoksa: bugunun tamamindaki pulse'lar (eski davranis)
+            # - Aktif vardiya varsa veya manuel reset yapilmissa: o andan sonraki pulse'lar
+            # - Hicbiri yoksa: bugunun tamamindaki pulse'lar (eski davranis)
             if kayit:
                 ist_map = ist_sayimlari.get(cid, {})
-                if vardiya_ts:
-                    ist1_v = _aktif_pulse_say(cid, 1, vardiya_ts)
-                    ist2_v = _aktif_pulse_say(cid, 2, vardiya_ts)
-                    toplam_v = ist1_v + ist2_v + _aktif_pulse_say(cid, 0, vardiya_ts)
+                # Istasyon basina filtre ts: vardiya, kendi reset, all reset
+                ist1_filt = _en_son_ts(vardiya_ts, reset_ist1, reset_all)
+                ist2_filt = _en_son_ts(vardiya_ts, reset_ist2, reset_all)
+                if ist1_filt or ist2_filt:
+                    ist1_v = _aktif_pulse_say(cid, 1, ist1_filt) if ist1_filt else ist_map.get(1, 0)
+                    ist2_v = _aktif_pulse_say(cid, 2, ist2_filt) if ist2_filt else ist_map.get(2, 0)
+                    # ist=0 (montaj/metal generic) icin de all-reset uygula
+                    toplam_ts = _en_son_ts(vardiya_ts, reset_all)
+                    toplam_0 = _aktif_pulse_say(cid, 0, toplam_ts) if toplam_ts else 0
+                    toplam_v = ist1_v + ist2_v + toplam_0
                 else:
                     ist1_v = ist_map.get(1, 0)
                     ist2_v = ist_map.get(2, 0)
@@ -1554,6 +1573,73 @@ def saha_cihazlari():
         sonuc[bolum] = liste
 
     return jsonify(sonuc), 200
+
+
+@app.route('/api/saha_cihazlari/sayac_reset', methods=['POST'])
+def saha_cihazlari_sayac_reset():
+    """Manuel sayaç sıfırlama — dashboard kartından çağrılır.
+
+    Body:
+      - cihaz_id: 'ABB2-IO', 'MONTAJ-M3', '400T-IO' vb. (zorunlu)
+      - istasyon: 0 (tüm), 1 (sadece ist.1), 2 (sadece ist.2) — default 0
+      - yapan:    opsiyonel, logging için
+
+    Pilot.db.sayac_reset_noktalari'na INSERT OR REPLACE yapılır.
+    /api/saha_cihazlari endpoint'i sayım sırasında bu ts'i de en sona dahil eder.
+    """
+    import os, sqlite3
+    data = request.get_json() or {}
+    cihaz_id = (data.get('cihaz_id') or '').strip()
+    istasyon = int(data.get('istasyon') or 0)
+    yapan    = (data.get('yapan') or '').strip()
+
+    if not cihaz_id:
+        return jsonify({'hata': 'cihaz_id zorunlu'}), 400
+    if istasyon not in (0, 1, 2):
+        return jsonify({'hata': 'istasyon 0/1/2 olmalı'}), 400
+
+    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+    if not os.path.exists(pilot_db):
+        return jsonify({'hata': 'Pilot DB bulunamadı (pilot_app.py çalışıyor mu?)'}), 503
+
+    try:
+        pc = sqlite3.connect(pilot_db)
+        try:
+            # Tablo henüz yoksa (pilot_app.py yeniden başlatılmamışsa) oluştur
+            pc.execute('''
+                CREATE TABLE IF NOT EXISTS sayac_reset_noktalari (
+                    cihaz_id   TEXT NOT NULL,
+                    istasyon   INTEGER NOT NULL DEFAULT 0,
+                    reset_ts   TEXT NOT NULL,
+                    yapan      TEXT DEFAULT '',
+                    PRIMARY KEY (cihaz_id, istasyon)
+                )
+            ''')
+            cur = pc.execute('''
+                INSERT OR REPLACE INTO sayac_reset_noktalari
+                (cihaz_id, istasyon, reset_ts, yapan)
+                VALUES (?, ?, datetime('now','localtime'), ?)
+            ''', (cihaz_id, istasyon, yapan))
+            pc.commit()
+            # Yazılan ts'yi geri oku
+            row = pc.execute(
+                'SELECT reset_ts FROM sayac_reset_noktalari WHERE cihaz_id=? AND istasyon=?',
+                (cihaz_id, istasyon)
+            ).fetchone()
+            reset_ts = row[0] if row else None
+        finally:
+            pc.close()
+    except Exception as e:
+        return jsonify({'hata': f'Reset yazılamadı: {str(e)}'}), 500
+
+    ist_label = 'tüm istasyonlar' if istasyon == 0 else f'İstasyon {istasyon}'
+    print(f"[sayac_reset] {cihaz_id} / {ist_label} → reset_ts={reset_ts} (yapan: {yapan or 'belirtilmemiş'})")
+    return jsonify({
+        'basarili': True,
+        'cihaz_id': cihaz_id,
+        'istasyon': istasyon,
+        'reset_ts': reset_ts,
+    }), 200
 
 
 @app.route('/api/pilot/sinyal_analiz', methods=['GET'])

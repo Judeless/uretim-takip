@@ -4732,6 +4732,31 @@
             } catch (e) { console.warn('saha_cihazlari fetch:', e); }
         }
 
+        // Saha cihazı sayaç manuel sıfırlama
+        // istasyon: 0 = tüm, 1 = sadece İst.1, 2 = sadece İst.2
+        async function sahaSayacReset(cihazId, istasyon, label) {
+            if (!confirm(`${cihazId} — ${label} sayacını sıfırlamak istediğinize emin misiniz?\n\nBundan sonra gelen pulse'lar SIFIRDAN sayılır. Geçmiş pulse kayıtları silinmez (analiz sayfasından hâlâ görünür).`)) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/saha_cihazlari/sayac_reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cihaz_id: cihazId, istasyon: istasyon })
+                });
+                const d = await res.json();
+                if (!res.ok) {
+                    toast(d.hata || 'Sıfırlama başarısız', 'error');
+                    return;
+                }
+                toast(`${cihazId} — ${label} sayacı sıfırlandı`, 'success');
+                // Tabloyu hemen tazele — sayım sıfır olarak görünmeli
+                if (typeof yukleSahaCihazlari === 'function') yukleSahaCihazlari();
+            } catch (e) {
+                toast('Bağlantı hatası: ' + (e && e.message || ''), 'error');
+            }
+        }
+
         function renderSahaKart(c) {
             // Durum bazlı renkler + ikonlar
             const renkler = {
@@ -4767,6 +4792,19 @@
                 aktifRefMap[a.istasyon || 0] = a;
             });
 
+            // Aktif referans bilgisi (durum='uretimde' olan ref'in pulse sayısı)
+            // Operator yeni referans secince uretime_baslama_ts yenilenir ve sayim sifirdan baslar gibi gorunur
+            const aktifRefMap2 = aktifRefMap;  // alias
+
+            // Reset butonu — küçük ↻ ikonu, kart durumu kayıtlı olduğunda görünür
+            const resetBtn = (istasyon, label) => {
+                if (!c.kayitli) return '';
+                const cidEsc = (c.cihaz_id || '').replace(/'/g, "\\'");
+                return `<button onclick="event.stopPropagation();sahaSayacReset('${cidEsc}',${istasyon},'${label}')"
+                    title="${label} sayacını sıfırla"
+                    style="background:rgba(167,139,250,0.10);border:1px solid rgba(167,139,250,0.32);color:#a78bfa;border-radius:6px;padding:1px 7px;font-size:.62rem;cursor:pointer;margin-left:6px;vertical-align:middle;font-weight:700">↻</button>`;
+            };
+
             // Kaynak ise ist1/ist2 ayrı göster; diğer bölümlerde tek toplam
             let sayimHtml = '';
             if (c.bolum === 'kaynak') {
@@ -4777,15 +4815,15 @@
                 const ist2Sayim = ref2 ? `${ref2.pulse_sayisi} <span style="font-size:.65rem;color:#34d399">▶ ${ref2.referans_kodu}</span>`
                                        : `${c.bugun_ist2 || 0}`;
                 sayimHtml = `
-                    <span>İst.1:</span><span style="color:var(--text);font-weight:700">${ist1Sayim}</span>
-                    <span>İst.2:</span><span style="color:var(--text);font-weight:700">${ist2Sayim}</span>
+                    <span>İst.1:</span><span style="color:var(--text);font-weight:700">${ist1Sayim}${resetBtn(1, 'İstasyon 1')}</span>
+                    <span>İst.2:</span><span style="color:var(--text);font-weight:700">${ist2Sayim}${resetBtn(2, 'İstasyon 2')}</span>
                 `;
             } else {
                 const ref = aktifRefMap[0] || aktifRefMap[1];
                 if (ref) {
-                    sayimHtml = `<span>Aktif:</span><span style="color:var(--text);font-weight:700">${ref.pulse_sayisi} <span style="font-size:.65rem;color:#34d399">▶ ${ref.referans_kodu}</span></span>`;
+                    sayimHtml = `<span>Aktif:</span><span style="color:var(--text);font-weight:700">${ref.pulse_sayisi} <span style="font-size:.65rem;color:#34d399">▶ ${ref.referans_kodu}</span>${resetBtn(0, 'Sayaç')}</span>`;
                 } else {
-                    sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${c.toplam_sinyal || 0} pulse</span>`;
+                    sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${c.toplam_sinyal || 0} pulse${resetBtn(0, 'Sayaç')}</span>`;
                 }
             }
 

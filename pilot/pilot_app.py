@@ -88,6 +88,21 @@ def init_db():
             c.execute(f"ALTER TABLE cihaz_kayitlari ADD COLUMN {col} {ddl}")
         except Exception:
             pass  # zaten var
+
+    # Sayac reset noktalari — yonetici dashboard'dan "sayaci sifirla" tiklayinca
+    # bu tabloya o cihaz/istasyon icin reset timestamp'i yazilir.
+    # Saha cihazlari endpoint'i sayim sirasinda ts > reset_ts filtresini de uygular.
+    # istasyon=0 → tum istasyonlari kapsayan reset (montaj/metal icin)
+    # istasyon=1 veya 2 → sadece o istasyon (kaynak icin)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS sayac_reset_noktalari (
+            cihaz_id   TEXT NOT NULL,
+            istasyon   INTEGER NOT NULL DEFAULT 0,
+            reset_ts   TEXT NOT NULL,
+            yapan      TEXT DEFAULT '',
+            PRIMARY KEY (cihaz_id, istasyon)
+        )
+    ''')
     conn.commit()
     conn.close()
 
