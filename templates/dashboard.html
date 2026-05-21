@@ -15,6 +15,8 @@
     <meta name="theme-color" content="#1c1f3a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
 
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
@@ -2321,7 +2323,7 @@
                 <label style="display:block;font-size:.7rem;margin-bottom:4px;color:var(--muted);font-weight:700">Cihaz</label>
                 <select id="sa-robot" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;min-width:140px"></select>
             </div>
-            <div>
+            <div id="sa-istasyon-wrap">
                 <label style="display:block;font-size:.7rem;margin-bottom:4px;color:var(--muted);font-weight:700">İstasyon</label>
                 <select id="sa-istasyon" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;min-width:100px">
                     <option value="">Tümü</option>
@@ -2361,10 +2363,13 @@
 
         <!-- Ana grafik -->
         <div style="background:var(--card);padding:16px 18px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px">
-            <h3 style="font-size:.92rem;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            <h3 style="font-size:.92rem;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 Pulse Aralıkları (Saatlik Dağılım)
                 <span style="font-size:.65rem;color:var(--muted);font-weight:500">— scatter: her pulse · çizgi: saatlik ortalama · kırmızı/sarı bant: duruş</span>
             </h3>
+            <div style="font-size:.66rem;color:var(--muted);margin-bottom:8px;font-style:italic">
+                💡 Sol tık + sürükle → seçili alana zoom · Sağ tık → tam ekrana dön
+            </div>
             <div style="position:relative;height:380px">
                 <canvas id="sa-chart"></canvas>
             </div>
@@ -4877,18 +4882,20 @@
             }
             // Robot listesi (bolume göre)
             _saRobotListesiYukle();
-            // Bölüm değişince robot listesi tazelensin
+            // Bölüm değişince robot listesi tazelensin + istasyon wrap gizle
             const bolumEl = document.getElementById('sa-bolum');
+            const _saIstWrapGuncelle = () => {
+                const istWrap = document.getElementById('sa-istasyon-wrap');
+                const istEl   = document.getElementById('sa-istasyon');
+                const bolum   = document.getElementById('sa-bolum').value;
+                if (istWrap) istWrap.style.display = (bolum === 'kaynak') ? '' : 'none';
+                if (istEl && bolum !== 'kaynak') istEl.value = '';  // Tümü
+            };
+            _saIstWrapGuncelle();  // ilk açılışta da uygula
             if (bolumEl && !bolumEl._listenerAdded) {
                 bolumEl.addEventListener('change', () => {
                     _saRobotListesiYukle();
-                    // Kaynak harici istasyon seçimini gizle
-                    const istEl = document.getElementById('sa-istasyon');
-                    if (istEl) {
-                        const bolum = document.getElementById('sa-bolum').value;
-                        istEl.disabled = (bolum !== 'kaynak');
-                        if (bolum !== 'kaynak') istEl.value = '';
-                    }
+                    _saIstWrapGuncelle();
                 });
                 bolumEl._listenerAdded = true;
             }
@@ -4950,6 +4957,17 @@
         function _saRenderChart(data) {
             const ctx = document.getElementById('sa-chart').getContext('2d');
             if (_saChart) { _saChart.destroy(); _saChart = null; }
+            // Sağ tık → resetZoom (canvas başına bir kez bağlanır)
+            if (!ctx.canvas._zoomResetBound) {
+                ctx.canvas.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    if (_saChart && _saChart.resetZoom) {
+                        _saChart.resetZoom();
+                        if (typeof toast === 'function') toast('Zoom sıfırlandı', 'info');
+                    }
+                });
+                ctx.canvas._zoomResetBound = true;
+            }
 
             // Scatter datasets: ist1 (amber), ist2 (cyan)
             const scatter1 = [], scatter2 = [];
@@ -5067,6 +5085,23 @@
                             }
                         },
                         annotation: { annotations: annotations },
+                        // Sol mouse drag ile kutu çiz → o alana zoom in, sağ tık → resetZoom
+                        zoom: {
+                            zoom: {
+                                drag: {
+                                    enabled: true,
+                                    backgroundColor: 'rgba(167,139,250,0.18)',
+                                    borderColor:     'rgba(167,139,250,0.65)',
+                                    borderWidth: 1,
+                                    threshold: 5,
+                                },
+                                mode: 'xy',
+                            },
+                            pan: { enabled: false },
+                            limits: {
+                                y: { min: 0 },  // y ekseninde negatife inme
+                            }
+                        }
                     },
                     scales: {
                         x: {

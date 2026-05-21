@@ -1855,8 +1855,10 @@
               }
               var silBtn = '<button onclick="event.stopPropagation();vardiyaSil(' + v.id + ')" class="btn-vardiya-sil" title="Yanlış açılan vardiyayı sil">🗑 Sil</button>';
               // Operatorun kendi vardiyasi mi? Farkli renkle goster.
+              // PIN ile giris yapilmamissa hicbiri kendisinin sayilmaz —
+              // tum vardiyalar kilitli/gri gorunur, mudahale edilemez.
               var _aktifOp = aktifOperatorAdi();
-              var _kendisinin = (!_aktifOp) || (v.operator_adi === _aktifOp);
+              var _kendisinin = !!_aktifOp && (v.operator_adi === _aktifOp);
               var _kartStyle = _kendisinin
                 ? 'border:2px solid rgba(52,211,153,0.45);background:linear-gradient(135deg,rgba(52,211,153,0.10),rgba(34,211,238,0.04));box-shadow:0 0 0 1px rgba(52,211,153,0.10),0 4px 14px rgba(0,0,0,0.18)'
                 : 'opacity:.55;cursor:not-allowed;filter:grayscale(0.3)';
@@ -1916,10 +1918,15 @@
     }
 
     function vardiyaSec(id) {
+      var aktifOp = aktifOperatorAdi();
+      // PIN ile giris yapilmamissa vardiyaya erisim yok — operator girisi sart
+      if (!aktifOp) {
+        pinModalAc(function(){ vardiyaSec(id); });  // PIN al, sonra tekrar dene
+        return;
+      }
       fetch('/api/vardiya/' + id).then(function (r) { return r.json(); }).then(function (data) {
-        // Yetki kontrolu: aktif operator varsa vardiya sahibi olmali
-        var aktifOp = aktifOperatorAdi();
-        if (aktifOp && data.vardiya && data.vardiya.operator_adi !== aktifOp) {
+        // Yetki kontrolu: vardiya bu operatore ait olmali
+        if (data.vardiya && data.vardiya.operator_adi !== aktifOp) {
           toast('Bu vardiya ' + data.vardiya.operator_adi + ' operatorune ait. Duzenlemek icin Cikis yapip onun PIN ile giris yapin.', 'error');
           return;
         }
