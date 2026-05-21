@@ -92,6 +92,14 @@ unsigned long lastHeartbeat = 0;
 unsigned long lastRetry     = 0;
 unsigned long bootMs        = 0;
 
+// Self-heal sayaclari — Smart Counter'in donanim watchdog'unu yazilim ile taklit
+// eder. Manuel reset bagimliligi azalir.
+int httpFailCount = 0;                   // Ardisik HTTP -1 / fail sayisi
+unsigned long lastSuccessHttp = 0;       // Son basarili POST/heartbeat zamani
+int disconnectCount = 0;                 // 10dk penceredeki disconnect sayisi
+unsigned long lastDisconnectMs = 0;      // Son disconnect zamani
+const unsigned long UPTIME_RESET_MS = 24UL * 3600UL * 1000UL;  // 24 saat koruyucu
+
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
 // ════════════════════════════════════════════════════════════
@@ -105,7 +113,11 @@ void ledYakBlink(int adet, int sure_ms = 80) {
 
 void wifiBaglan() {
   Serial.printf("[WiFi] '%s' agina baglaniliyor...\n", WIFI_SSID);
+  WiFi.persistent(false);              // Flash spam onlenir
+  WiFi.setAutoReconnect(true);         // Kopunca otomatik reconnect
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);                // KRITIK: power save kapat (RSSI dusmesin)
+  WiFi.setTxPower(WIFI_POWER_19_5dBm); // Max TX gucu
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   unsigned long basla = millis();
   while (WiFi.status() != WL_CONNECTED && (millis() - basla) < (WIFI_TIMEOUT_S * 1000)) {
@@ -168,10 +180,13 @@ bool bufferdanBirGonder() {
     Serial.printf("[POST] OK Ist.%d seq=%lu (HTTP %d)\n", p.istasyon, p.seq, rc);
     buf_bas = (buf_bas + 1) % BUFFER_MAX;
     buf_dolu--;
+    httpFailCount = 0;
+    lastSuccessHttp = millis();
     return true;
   } else {
     Serial.printf("[POST] HATA Ist.%d seq=%lu (HTTP %d) — kuyrukta kal\n",
                   p.istasyon, p.seq, rc);
+    httpFailCount++;
     return false;
   }
 }
@@ -233,9 +248,15 @@ void heartbeatGonder() {
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
   http.end();
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · ist1=%lu · ist2=%lu · robot=%s\n",
+  if (rc == 200 || rc == 201) {
+    httpFailCount = 0;
+    lastSuccessHttp = millis();
+  } else {
+    httpFailCount++;
+  }
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · ist1=%lu · ist2=%lu · robot=%s · fail=%d\n",
                 rc, WiFi.RSSI(), buf_dolu, pulseIst1, pulseIst2,
-                robotCalisiyor ? "ON" : "OFF");
+                robotCalisiyor ? "ON" : "OFF", httpFailCount);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -286,6 +307,21 @@ void setup() {
   esp_task_wdt_init(WDT_TIMEOUT_S, true);
 #endif
   esp_task_wdt_add(NULL);
+
+  // WiFi event handler — disconnect olayinda agresif reconnect + sayim
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+      Serial.printf("[WiFi] DISCONNECTED — sebep=%d\n",
+                    info.wifi_sta_disconnected.reason);
+      unsigned long now = millis();
+      // 10dk'dan uzun sure once disconnect olduysa sayaci sifirla
+      if ((now - lastDisconnectMs) > 600000UL) {
+        disconnectCount = 0;
+      }
+      disconnectCount++;
+      lastDisconnectMs = now;
+    }
+  });
 
   wifiBaglan();
   delay(500);
@@ -387,6 +423,29 @@ void loop() {
   if (wifiHazir() && (now - lastHeartbeat) > HEARTBEAT_MS) {
     heartbeatGonder();
     lastHeartbeat = now;
+  }
+
+  // ─── SELF-HEAL kontrolleri ───
+  // 1) 24 saat uptime → koruyucu reset (Smart Counter benzeri preventive)
+  if ((now - bootMs) > UPTIME_RESET_MS) {
+    Serial.println("\n[SELFHEAL] 24 saat uptime doldu — koruyucu reset");
+    delay(500);
+    ESP.restart();
+  }
+  // 2) 5+ ardisik HTTP fail + 60sn sessizlik → reset (TCP yigini takilmis)
+  if (httpFailCount >= 5 && lastSuccessHttp > 0
+      && (now - lastSuccessHttp) > 60000UL) {
+    Serial.printf("\n[SELFHEAL] %d ardisik HTTP fail + 60sn sessizlik — RESET\n",
+                  httpFailCount);
+    delay(500);
+    ESP.restart();
+  }
+  // 3) 10dk icinde 3+ disconnect → reset (WiFi yigini bozulmus)
+  if (disconnectCount >= 3 && (now - lastDisconnectMs) < 600000UL) {
+    Serial.printf("\n[SELFHEAL] 10dk icinde %d disconnect — RESET\n",
+                  disconnectCount);
+    delay(500);
+    ESP.restart();
   }
 
   delay(5);

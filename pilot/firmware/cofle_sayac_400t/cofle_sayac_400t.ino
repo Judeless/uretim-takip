@@ -78,6 +78,13 @@ unsigned long lastHeartbeat = 0;
 unsigned long lastRetry     = 0;
 unsigned long bootMs        = 0;
 
+// Self-heal sayaclari — Smart Counter'in donanim watchdog'unu yazilim ile taklit
+int httpFailCount = 0;
+unsigned long lastSuccessHttp = 0;
+int disconnectCount = 0;
+unsigned long lastDisconnectMs = 0;
+const unsigned long UPTIME_RESET_MS = 24UL * 3600UL * 1000UL;
+
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
 // ════════════════════════════════════════════════════════════
@@ -91,7 +98,11 @@ void ledYakBlink(int adet, int sure_ms = 80) {
 
 void wifiBaglan() {
   Serial.printf("[WiFi] '%s' agina baglaniliyor...\n", WIFI_SSID);
+  WiFi.persistent(false);
+  WiFi.setAutoReconnect(true);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   unsigned long basla = millis();
   while (WiFi.status() != WL_CONNECTED && (millis() - basla) < (WIFI_TIMEOUT_S * 1000)) {
@@ -154,9 +165,12 @@ bool bufferdanBirGonder() {
     Serial.printf("[POST] OK seq=%lu (HTTP %d)\n", p.seq, rc);
     buf_bas = (buf_bas + 1) % BUFFER_MAX;
     buf_dolu--;
+    httpFailCount = 0;
+    lastSuccessHttp = millis();
     return true;
   } else {
     Serial.printf("[POST] HATA seq=%lu (HTTP %d) — kuyrukta kal\n", p.seq, rc);
+    httpFailCount++;
     return false;
   }
 }
@@ -213,8 +227,14 @@ void heartbeatGonder() {
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
   http.end();
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · sayim=%lu\n",
-                rc, WiFi.RSSI(), buf_dolu, pulseIst1);
+  if (rc == 200 || rc == 201) {
+    httpFailCount = 0;
+    lastSuccessHttp = millis();
+  } else {
+    httpFailCount++;
+  }
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · sayim=%lu · fail=%d\n",
+                rc, WiFi.RSSI(), buf_dolu, pulseIst1, httpFailCount);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -263,6 +283,20 @@ void setup() {
   esp_task_wdt_init(WDT_TIMEOUT_S, true);
 #endif
   esp_task_wdt_add(NULL);
+
+  // WiFi event handler — disconnect olayinda sayim
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+      Serial.printf("[WiFi] DISCONNECTED — sebep=%d\n",
+                    info.wifi_sta_disconnected.reason);
+      unsigned long now = millis();
+      if ((now - lastDisconnectMs) > 600000UL) {
+        disconnectCount = 0;
+      }
+      disconnectCount++;
+      lastDisconnectMs = now;
+    }
+  });
 
   wifiBaglan();
   delay(500);
@@ -328,6 +362,26 @@ void loop() {
   if (wifiHazir() && (now - lastHeartbeat) > HEARTBEAT_MS) {
     heartbeatGonder();
     lastHeartbeat = now;
+  }
+
+  // ─── SELF-HEAL kontrolleri ───
+  if ((now - bootMs) > UPTIME_RESET_MS) {
+    Serial.println("\n[SELFHEAL] 24 saat uptime doldu — koruyucu reset");
+    delay(500);
+    ESP.restart();
+  }
+  if (httpFailCount >= 5 && lastSuccessHttp > 0
+      && (now - lastSuccessHttp) > 60000UL) {
+    Serial.printf("\n[SELFHEAL] %d ardisik HTTP fail + 60sn sessizlik — RESET\n",
+                  httpFailCount);
+    delay(500);
+    ESP.restart();
+  }
+  if (disconnectCount >= 3 && (now - lastDisconnectMs) < 600000UL) {
+    Serial.printf("\n[SELFHEAL] 10dk icinde %d disconnect — RESET\n",
+                  disconnectCount);
+    delay(500);
+    ESP.restart();
   }
 
   delay(5);
