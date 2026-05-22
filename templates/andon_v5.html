@@ -892,12 +892,10 @@
   }
 
   // ── Robot durum sınıfı ──
+  // Operatör varsa hep 'active' (yesil cerceve) — durus suresine gore renk degisimi
+  // talebe gore kaldirildi. Karti gormeye sadece kim acmis sorusu kalmali.
   function robotStatusClass(r) {
     if (!r.operator || r.operator === '') return 'idle';
-    const plansiz = (r.durus_detay || []).filter(d => d.tip === 'plansiz');
-    const plansizSure = plansiz.reduce((a,d) => a + (d.sure_dk||0), 0);
-    if (plansizSure >= 30) return 'alert';
-    if (plansizSure > 0)   return 'warning';
     return 'active';
   }
 
