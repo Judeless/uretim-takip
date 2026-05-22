@@ -4901,14 +4901,46 @@
                 }
             }
 
+            // Uptime formatla
+            let uptimeTxt = '';
+            if (c.uptime_sn != null && c.uptime_sn > 0) {
+                const us = c.uptime_sn;
+                if (us < 60) uptimeTxt = us + ' sn';
+                else if (us < 3600) uptimeTxt = Math.floor(us/60) + ' dk ' + (us%60) + ' sn';
+                else uptimeTxt = Math.floor(us/3600) + ' sa ' + Math.floor((us%3600)/60) + ' dk';
+            }
+
+            // Offline uyarı bandı — 5 dk üstü offline ise göster
+            let offlineBand = '';
+            if (c.durum === 'offline' && c.kayitli) {
+                const offlineDk = c.son_heartbeat_dk;
+                let uyariMsg = '';
+                let uyariRenk = '#f59e0b';
+                let uyariBg   = 'rgba(245,158,11,0.10)';
+                if (offlineDk != null && offlineDk > 5) {
+                    if (offlineDk < 30) {
+                        uyariMsg = `⚠️ ${Math.round(offlineDk)} dk'dır yanıt yok — WiFi kopukluğu olabilir`;
+                    } else if (offlineDk < 120) {
+                        uyariMsg = `⚠️ ${Math.floor(offlineDk)} dk offline — EN reset veya güç döngüsü dene`;
+                    } else {
+                        uyariMsg = `🔴 ${Math.floor(offlineDk/60)} sa ${Math.floor(offlineDk%60)} dk offline — USB ile firmware yükle`;
+                        uyariRenk = '#dc2626';
+                        uyariBg   = 'rgba(220,38,38,0.10)';
+                    }
+                    offlineBand = `<div style="margin-top:8px;padding:5px 8px;border-radius:6px;background:${uyariBg};border:1px solid ${uyariRenk}55;color:${uyariRenk};font-size:.68rem;font-weight:700">${uyariMsg}</div>`;
+                }
+            }
+
             const detayHtml = c.kayitli ? `
                 <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.72rem;margin-top:8px;color:var(--muted)">
                     <span>IP:</span>      <span style="font-family:monospace;color:var(--text)">${c.ip_adresi || '—'}</span>
                     <span>Sinyal:</span>  <span style="color:${rssiRenk};font-weight:700">${rssi ? rssi + ' dBm' : '—'}</span>
                     <span>Heartbeat:</span><span style="color:var(--text)">${heartbeatTxt}</span>
+                    ${uptimeTxt ? `<span>Uptime:</span><span style="color:var(--text)">${uptimeTxt}</span>` : ''}
                     ${sayimHtml}
                     ${c.buffer_kuyruk > 0 ? `<span style="color:#f59e0b">Buffer:</span><span style="color:#f59e0b;font-weight:700">${c.buffer_kuyruk} bekliyor</span>` : ''}
                 </div>
+                ${offlineBand}
             ` : `
                 <div style="font-size:.72rem;color:var(--muted);margin-top:8px;font-style:italic">
                     Henüz kurulmamış — bekleniyor
