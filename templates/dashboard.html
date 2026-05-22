@@ -2389,6 +2389,12 @@
             </div>
         </div>
 
+        <!-- Saatlik üretim nabzı tablosu -->
+        <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px">
+            <h3 style="font-size:.85rem;font-weight:800;margin-bottom:10px">🕐 Saatlik Üretim Nabzı</h3>
+            <div id="sa-saatlik" style="font-size:.76rem;color:var(--muted);font-style:italic">Yükleniyor…</div>
+        </div>
+
         <!-- Alt: aktif referans + duruş + üretilen referanslar -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px">
             <div style="background:var(--card);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow)">
@@ -4996,6 +5002,7 @@
                 window._saSonVeri = d;  // _saRenderReferanslar olayları okur (pulse istatistiği için)
                 _saRenderOzet(d.ozet || {});
                 _saRenderChart(d);
+                _saRenderSaatlik(d.saatlik || []);
                 _saRenderReferanslar(d.referans_donemler || [], d.aktif_referanslar || []);
                 _saRenderDuruslar(d.duruslar || []);
                 statusEl.textContent = `${d.olaylar.length} pulse · ${d.duruslar.length} duruş`;
@@ -5429,6 +5436,61 @@
             } catch (e) {
                 toast('Bağlantı hatası', 'error');
             }
+        }
+
+        function _saRenderSaatlik(saatlik) {
+            const el = document.getElementById('sa-saatlik');
+            if (!saatlik || !saatlik.length) {
+                el.innerHTML = '<span style="font-style:italic">Bu tarih için saatlik veri yok.</span>';
+                return;
+            }
+            const maxPulse = Math.max(...saatlik.map(s => s.pulse_sayisi), 1);
+            const fmt = v => !v ? '—' : (v < 60 ? v.toFixed(0) + ' sn' : Math.floor(v/60) + 'dk ' + Math.round(v%60) + 'sn');
+            // Renk: ort_gap küçükse yeşil (hızlı üretim), büyükse sarı/turuncu
+            const gapRenk = (gap) => {
+                if (!gap) return 'var(--muted)';
+                if (gap < 60)  return '#34d399';   // < 1dk: yeşil
+                if (gap < 120) return '#86efac';   // 1-2dk: açık yeşil
+                if (gap < 300) return '#fbbf24';   // 2-5dk: sarı
+                return '#f87171';                  // > 5dk: kırmızı (yavaş/duruş ağırlıklı)
+            };
+            const html = `
+                <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;min-width:360px">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <th style="text-align:left;padding:4px 8px;font-size:.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;width:60px">Saat</th>
+                            <th style="text-align:left;padding:4px 8px;font-size:.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;width:70px">Pulse</th>
+                            <th style="padding:4px 8px;font-size:.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;width:80px;text-align:right">Ort. Gap</th>
+                            <th style="padding:4px 8px;font-size:.65rem;color:var(--muted);font-weight:700;width:auto"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${saatlik.map(s => {
+                            const pct = Math.round((s.pulse_sayisi / maxPulse) * 100);
+                            const renk = gapRenk(s.ort_gap_sn);
+                            return `<tr style="border-bottom:1px solid rgba(127,127,127,0.08)">
+                                <td style="padding:5px 8px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.78rem">
+                                    ${String(s.hour).padStart(2,'0')}:00
+                                </td>
+                                <td style="padding:5px 8px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.78rem;color:var(--text)">
+                                    ${s.pulse_sayisi}
+                                </td>
+                                <td style="padding:5px 8px;font-family:'JetBrains Mono',monospace;font-size:.76rem;color:${renk};font-weight:700;text-align:right;white-space:nowrap">
+                                    ${fmt(s.ort_gap_sn)}
+                                </td>
+                                <td style="padding:5px 8px">
+                                    <div style="background:rgba(167,139,250,0.12);border-radius:4px;height:8px;width:100%">
+                                        <div style="background:rgba(167,139,250,0.65);border-radius:4px;height:8px;width:${pct}%"></div>
+                                    </div>
+                                </td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+                </div>
+            `;
+            el.innerHTML = html;
         }
 
         function _saRenderDuruslar(duruslar) {
