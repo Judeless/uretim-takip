@@ -57,22 +57,37 @@ def pair_cycle_hesapla(ist1_kod, ist2_kod):
     r1 = _ref(ist1_kod)
     r2 = _ref(ist2_kod)
 
+    # ─── Tek istasyon hesaplari ─────────────────────────────────
+    # Robot + operator SIRA ILE calisir (paralel calisma yok):
+    #   K saniye boyunca robot kaynak yapar, op doldur-bosalt icin bekler
+    #   S saniye boyunca op soktak yapar, robot bekler
+    # Toplam cycle = K + S
+    # Toplam kapasite (robot + op cycle boyunca dolu olsaydi) = 2 × pair
+    # Gercek emek = K + S = pair (sadece bir taraf calisiyor o an)
+    # Bekleme = K + S = pair (robot S kadar, op K kadar)
+    # Verim = (2*pair - pair) / (2*pair) = %50 sabit
+    # Bu, paralel formuluyle birebir tutarli (paralel ideal = %100, tek istasyon = %50)
     if r1 and not r2:
+        K, S = r1['kaynak'], r1['soktak']
         return {
             'pair_cycle_sn': r1['toplam'],
-            'ist1_kaynak_sn': r1['kaynak'], 'ist1_soktak_sn': r1['soktak'],
+            'ist1_kaynak_sn': K, 'ist1_soktak_sn': S,
             'ist2_kaynak_sn': 0, 'ist2_soktak_sn': 0,
-            'ist1_bekleme_sn': 0, 'ist2_bekleme_sn': 0,
-            'verim_pct': 100.0,
+            # ist1 beklemesi: hem robot (S sn op soktak ederken) hem op (K sn robot kaynak yaparken)
+            'ist1_bekleme_sn': round(K + S, 1),
+            'ist2_bekleme_sn': 0,
+            'verim_pct': 50.0,  # Tek istasyon -> paralel yok -> kapasitenin yarisi kullanildi
             'mod': 'tek_istasyon_1',
         }
     if r2 and not r1:
+        K, S = r2['kaynak'], r2['soktak']
         return {
             'pair_cycle_sn': r2['toplam'],
             'ist1_kaynak_sn': 0, 'ist1_soktak_sn': 0,
-            'ist2_kaynak_sn': r2['kaynak'], 'ist2_soktak_sn': r2['soktak'],
-            'ist1_bekleme_sn': 0, 'ist2_bekleme_sn': 0,
-            'verim_pct': 100.0,
+            'ist2_kaynak_sn': K, 'ist2_soktak_sn': S,
+            'ist1_bekleme_sn': 0,
+            'ist2_bekleme_sn': round(K + S, 1),
+            'verim_pct': 50.0,
             'mod': 'tek_istasyon_2',
         }
     if not r1 and not r2:
