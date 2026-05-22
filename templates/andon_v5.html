@@ -46,6 +46,18 @@
 
       --font-sans: 'Inter', system-ui, sans-serif;
       --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+
+      /* Dashboard Andon Ayarlari ile JS uzerinden override edilir.
+         Defaultlar mevcut tema renkleri/boyutlari ile esler. */
+      --andon-st-fs:     0.85rem;
+      --andon-st1-color: #fbbf24;
+      --andon-st2-color: #22d3ee;
+      --andon-op-color:  #a78bfa;
+      --andon-op-fs:     0.75rem;
+      --andon-ref-color: #bef264;
+      --andon-ref-fs:    0.96rem;
+      --andon-dw-color:  #fecaca;
+      --andon-dw-fs:     0.78rem;
     }
 
     html, body {
@@ -245,8 +257,8 @@
     .rcard.alert    .rc-status-dot { background: var(--c-red);     box-shadow: 0 0 10px var(--c-red);     animation: blink 1.0s ease-in-out infinite; }
 
     .rc-op {
-      font-size: 0.75rem; font-weight: 700;
-      color: var(--c-violet);
+      font-size: var(--andon-op-fs); font-weight: 700;
+      color: var(--andon-op-color);
       text-transform: uppercase;
       text-align: center;
       max-width: 100%;
@@ -273,7 +285,7 @@
     .station-pane + .station-pane { border-left: 1px solid var(--line); }
 
     .station-header {
-      font-size: 0.85rem;
+      font-size: var(--andon-st-fs);
       font-weight: 900;
       text-transform: uppercase; letter-spacing: 0.1em;
       margin-bottom: 6px; flex-shrink: 0;
@@ -281,8 +293,8 @@
       border-bottom: 2px solid transparent;
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
-    .station-header.st1 { color: var(--c-amber); border-color: rgba(251,191,36,0.25); }
-    .station-header.st2 { color: var(--c-cyan);  border-color: rgba(34,211,238,0.25); }
+    .station-header.st1 { color: var(--andon-st1-color); border-color: rgba(251,191,36,0.25); }
+    .station-header.st2 { color: var(--andon-st2-color); border-color: rgba(34,211,238,0.25); }
 
     /* Saha sayaç rozeti — pilot ESP32 cihazlarından gelen bugünkü pulse adedi */
     .station-count {
@@ -337,9 +349,9 @@
     .ref-row.done .ref-code { text-decoration: line-through; }
 
     .ref-code {
-      font-size: 0.96rem;
+      font-size: var(--andon-ref-fs);
       font-weight: 800;
-      color: #bef264;
+      color: var(--andon-ref-color);
       font-family: var(--font-mono);
       white-space: nowrap;
       flex: 1; min-width: 0;
@@ -405,17 +417,24 @@
     /* Metal enjeksiyon: 4 makine olduğu için her kartta daha çok yer var,
        referans/operatör isimlerini ve diğer metinleri büyüt;
        sol kimlik paneli daha geniş (operatör adı sığsın);
-       referans kodu kutucuğun ortasına alınıp büyütülür (tek referans çalışıyor) */
+       referans kodu kutucuğun ortasına alınıp büyütülür (tek referans çalışıyor)
+
+       Font boyutlari --andon-*-fs degiskenleri uzerinden — dashboard'dan
+       override edilebilir; JS document.body.style.setProperty ile inline atar. */
+    body[data-bolum="metal"] {
+      --andon-st-fs:  1.0rem;
+      --andon-op-fs:  1.05rem;
+      --andon-ref-fs: 1.50rem;
+    }
     body[data-bolum="metal"] .rcard           { grid-template-columns: 190px 1fr 220px; }
     body[data-bolum="metal"] .rc-op {
-      font-size: 1.05rem;
       white-space: normal;            /* Uzun isim alt satıra düşebilsin */
       overflow: visible;
       line-height: 1.18;
       text-overflow: clip;
     }
     body[data-bolum="metal"] .rc-shift        { font-size: 0.74rem; }
-    body[data-bolum="metal"] .station-header  { font-size: 1.0rem; margin-bottom: 8px; }
+    body[data-bolum="metal"] .station-header  { margin-bottom: 8px; }
     body[data-bolum="metal"] .ref-list {
       /* "Üretim" başlığı üstte kalsın, referans kutucuğu dikey ortada olsun.
          Flex column içinde margin auto ile boş alanı absorbe ediyoruz. */
@@ -429,7 +448,6 @@
       justify-content: center;        /* İçeriği yatayda ortala */
     }
     body[data-bolum="metal"] .ref-code {
-      font-size: 1.50rem;             /* Belirgin ama duruşlarla çakışmayacak boyut */
       flex: 0 1 auto;                 /* Tüm genişliği kaplamasın, ortalanabilsin */
       text-align: center;
     }
@@ -577,20 +595,23 @@
     }
     .durus-sebep {
       flex: 1; min-width: 0;
-      color: #fecaca;
+      color: var(--andon-dw-color);
+      font-size: var(--andon-dw-fs);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       font-weight: 600;
     }
     .durus-row.planli .durus-sebep { color: #ddd6fe; }
     .durus-tip {
-      font-size: 0.62rem;
+      font-size: calc(var(--andon-dw-fs) * 0.82);
       flex-shrink: 0;
       letter-spacing: 0.06em;
     }
     .durus-tip.plansiz { color: #fca5a5; }
     .durus-tip.planli  { color: #c4b5fd; }
     .durus-dur {
-      color: var(--c-red); font-weight: 800; flex-shrink: 0;
+      color: var(--c-red);
+      font-size: var(--andon-dw-fs);
+      font-weight: 800; flex-shrink: 0;
       font-family: var(--font-mono);
     }
     .durus-row.planli .durus-dur { color: var(--c-violet); }
@@ -1155,6 +1176,33 @@
   }
 
   // ── Ana fetch ──
+  // Dashboard "Andon Ayarlari" sekmesindeki renk + font ayarlarini
+  // body uzerine inline CSS variable olarak yansit. Inline style,
+  // body[data-bolum] selector'larindan daha guclu — metal default'larini
+  // bile gecer; admin "boyut 1.5rem" derse o uygulanir.
+  function applyAndonAyarlari(d) {
+    const root = document.body.style;
+    const setColor = (key, prop) => { if (d[key]) root.setProperty(prop, d[key]); };
+    const setSize  = (key, prop) => {
+      const v = d[key];
+      if (v != null && v !== '') root.setProperty(prop, parseFloat(v) + 'rem');
+    };
+    setColor('andon_st1_color', '--andon-st1-color');
+    setColor('andon_st2_color', '--andon-st2-color');
+    setColor('andon_op_color',  '--andon-op-color');
+    setColor('andon_ref_color', '--andon-ref-color');
+    setColor('andon_dw_color',  '--andon-dw-color');
+    setSize('andon_st_fs',  '--andon-st-fs');
+    setSize('andon_op_fs',  '--andon-op-fs');
+    setSize('andon_ref_fs', '--andon-ref-fs');
+    setSize('andon_dw_fs',  '--andon-dw-fs');
+    // Geriye dönük: andon_font_size eskiden referans boyutuydu — özel ref_fs yoksa
+    // onu kullan
+    if (!d.andon_ref_fs && d.andon_font_size) {
+      root.setProperty('--andon-ref-fs', parseFloat(d.andon_font_size) + 'rem');
+    }
+  }
+
   async function loadAndon() {
     try {
       // Andon ve pilot verisini paralel çek
@@ -1163,6 +1211,7 @@
         fetchPilotMap(),
       ]);
       const d = await res.json();
+      applyAndonAyarlari(d);
 
       // Açık vardiyalar listesi — her vardiya = bir kart (aynı hat'a birden çok operatör açtıysa hepsi ayrı kart)
       const aktif = d.aktif_vardiyalar || [];
