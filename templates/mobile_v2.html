@@ -1317,18 +1317,39 @@
     var secilenBolum = 'kaynak';
 
     // ═══════════════════════════════════════════════════════
-    // OPERATÖR PIN YETKİLENDİRME (sessionStorage)
+    // OPERATÖR PIN YETKİLENDİRME (localStorage + gunluk expire)
     // ═══════════════════════════════════════════════════════
+    // Operator giris bilgileri AYNI gun icinde telefonda kalir
+    // (uygulama kapatilip acilsa bile). Tarih degisiminde otomatik
+    // temizlenir — ertesi gun yeniden PIN istenir.
+    //
     // Tüm fetch çağrılarına otomatik X-Operator + X-Operator-Pin
     // header ekler. Backend bunlarla operatör kimliğini doğrular.
+    function _bugunYYYYMMDD() {
+      var d = new Date();
+      return d.getFullYear() + '-' +
+             String(d.getMonth() + 1).padStart(2, '0') + '-' +
+             String(d.getDate()).padStart(2, '0');
+    }
+    // Sayfa acildiginda: eger kayitli giris baska bir gunden ise temizle
+    (function () {
+      try {
+        var savedGun = localStorage.getItem('operator_giris_gunu');
+        if (savedGun && savedGun !== _bugunYYYYMMDD()) {
+          localStorage.removeItem('aktif_operator');
+          localStorage.removeItem('operator_pin');
+          localStorage.removeItem('operator_giris_gunu');
+        }
+      } catch (e) { /* localStorage acik degilse sessizce gec */ }
+    })();
     (function () {
       var origFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         init = init || {};
         // Headers obj veya plain {} olabilir — Headers'a normalize et
         var h = new Headers(init.headers || {});
-        var op = sessionStorage.getItem('aktif_operator');
-        var pin = sessionStorage.getItem('operator_pin');
+        var op = localStorage.getItem('aktif_operator');
+        var pin = localStorage.getItem('operator_pin');
         if (op && pin) {
           // HTTP header'lari sadece ISO-8859-1 kabul eder. Operator adi
           // Turkce karakter icerebilir (S, C, G, vs.) — encodeURIComponent
@@ -1351,7 +1372,7 @@
     function pinModalAc(sonraAdim) {
       _pinModalSonraki = sonraAdim || null;
       // Operatör listesini doldur (PIN'siz GET endpoint)
-      // Auth header monkey-patch eklemiyor (sessionStorage henüz boş) — istek temiz gider
+      // Auth header monkey-patch eklemiyor (localStorage henüz boş) — istek temiz gider
       fetch('/api/operatorler')
         .then(function (r) { return r.json(); })
         .then(function (ops) {
@@ -1390,8 +1411,9 @@
             toast(res.body.hata || 'Giriş başarısız', 'error');
             return;
           }
-          sessionStorage.setItem('aktif_operator', op);
-          sessionStorage.setItem('operator_pin', pin);
+          localStorage.setItem('aktif_operator', op);
+          localStorage.setItem('operator_pin', pin);
+          localStorage.setItem('operator_giris_gunu', _bugunYYYYMMDD());
           operatorBarGuncelle();
           document.getElementById('pin-modal').style.display = 'none';
           toast('Hoşgeldiniz ' + op, 'success');
@@ -1408,8 +1430,9 @@
       if (aktifVardiyaId) {
         if (!confirm('Aktif vardiyanız var. Yine de çıkış yapmak istiyor musunuz?')) return;
       }
-      sessionStorage.removeItem('aktif_operator');
-      sessionStorage.removeItem('operator_pin');
+      localStorage.removeItem('aktif_operator');
+      localStorage.removeItem('operator_pin');
+      localStorage.removeItem('operator_giris_gunu');
       aktifVardiyaId = null;
       aktifVardiyaData = null;
       operatorBarGuncelle();
@@ -1420,7 +1443,7 @@
     function operatorBarGuncelle() {
       var bar = document.getElementById('operator-bar');
       var ad = document.getElementById('operator-bar-ad');
-      var op = sessionStorage.getItem('aktif_operator');
+      var op = localStorage.getItem('aktif_operator');
       if (op) {
         bar.style.display = 'flex';
         ad.textContent = op;
@@ -1434,7 +1457,7 @@
     }
 
     function aktifOperatorAdi() {
-      return sessionStorage.getItem('aktif_operator') || '';
+      return localStorage.getItem('aktif_operator') || '';
     }
 
     // Duruş grupları Excel'den (data/uretim_verileri.xlsx) bölüme göre çekilir
@@ -1545,7 +1568,7 @@
       yukleVardiyalar();
       guncelleNav('A');
 
-      // Operatör status bar — sessionStorage'da aktif operatör varsa göster
+      // Operatör status bar — localStorage'da aktif operatör varsa göster
       operatorBarGuncelle();
 
       setInterval(function() {
