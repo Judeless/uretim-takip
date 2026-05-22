@@ -61,33 +61,35 @@ def pair_cycle_hesapla(ist1_kod, ist2_kod):
     # Robot + operator SIRA ILE calisir (paralel calisma yok):
     #   K saniye boyunca robot kaynak yapar, op doldur-bosalt icin bekler
     #   S saniye boyunca op soktak yapar, robot bekler
-    # Toplam cycle = K + S
-    # Toplam kapasite (robot + op cycle boyunca dolu olsaydi) = 2 × pair
-    # Gercek emek = K + S = pair (sadece bir taraf calisiyor o an)
-    # Bekleme = K + S = pair (robot S kadar, op K kadar)
-    # Verim = (2*pair - pair) / (2*pair) = %50 sabit
-    # Bu, paralel formuluyle birebir tutarli (paralel ideal = %100, tek istasyon = %50)
+    # Robot meşgul orani = K / (K + S) × 100
+    #
+    # Ornek: K=9dk, S=1dk -> verim = 9/10 = %90
+    #        K=1dk, S=9dk -> verim = 1/10 = %10 (robot cok bekliyor)
+    #        K=S          -> verim = %50 (dengeli ama paralel olamadigi icin yari)
     if r1 and not r2:
         K, S = r1['kaynak'], r1['soktak']
+        toplam = K + S
+        verim = round(K / toplam * 100, 1) if toplam > 0 else 0
         return {
             'pair_cycle_sn': r1['toplam'],
             'ist1_kaynak_sn': K, 'ist1_soktak_sn': S,
             'ist2_kaynak_sn': 0, 'ist2_soktak_sn': 0,
-            # ist1 beklemesi: hem robot (S sn op soktak ederken) hem op (K sn robot kaynak yaparken)
-            'ist1_bekleme_sn': round(K + S, 1),
+            'ist1_bekleme_sn': round(S, 1),  # Robot S sn op soktak ederken bekledi
             'ist2_bekleme_sn': 0,
-            'verim_pct': 50.0,  # Tek istasyon -> paralel yok -> kapasitenin yarisi kullanildi
+            'verim_pct': verim,
             'mod': 'tek_istasyon_1',
         }
     if r2 and not r1:
         K, S = r2['kaynak'], r2['soktak']
+        toplam = K + S
+        verim = round(K / toplam * 100, 1) if toplam > 0 else 0
         return {
             'pair_cycle_sn': r2['toplam'],
             'ist1_kaynak_sn': 0, 'ist1_soktak_sn': 0,
             'ist2_kaynak_sn': K, 'ist2_soktak_sn': S,
             'ist1_bekleme_sn': 0,
-            'ist2_bekleme_sn': round(K + S, 1),
-            'verim_pct': 50.0,
+            'ist2_bekleme_sn': round(S, 1),
+            'verim_pct': verim,
             'mod': 'tek_istasyon_2',
         }
     if not r1 and not r2:

@@ -1003,20 +1003,18 @@
         const pc = r.pair_cycle;
         const verim = pc.verim_pct || 0;
         const tekIstasyon = (pc.mod === 'tek_istasyon_1' || pc.mod === 'tek_istasyon_2');
-        // Renk kodlama:
-        //  - Tek istasyon -> amber (her zaman %50, dogal yari verim)
-        //  - Paralel: >=90 yesil, >=70 amber, altinda kirmizi
-        const verimColor = tekIstasyon ? '#fbbf24'
-                          : (verim >= 90 ? '#34d399'
-                             : (verim >= 70 ? '#fbbf24' : '#f87171'));
+        // Renk kodlama: her iki modda da esik bazli (>=90 yesil, >=70 amber, altinda kirmizi)
+        // Tek istasyonda robot mesgul orani = K/(K+S) -> K cok ise yine yesil olabilir
+        const verimColor = verim >= 90 ? '#34d399'
+                          : (verim >= 70 ? '#fbbf24' : '#f87171');
         const modIcon = pc.mod === 'paralel' ? '🔀' : '➡️';
         const verimEtiket = tekIstasyon
-          ? `⚠ %${verim} <span style="font-size:.62rem;opacity:.7">(tek ist.)</span>`
+          ? `⚡ %${verim} <span style="font-size:.62rem;opacity:.7">(tek ist.)</span>`
           : `⚡ %${verim}`;
         const bantTitle = tekIstasyon
-          ? 'Tek istasyon — paralel calisma yok. Robot kaynak yaparken op bekler, '
-            + 'op soktak yaparken robot bekler. Maksimum verim teorik %50.'
-          : 'İki istasyon paralel calisma: max(K1,S2)+max(K2,S1)';
+          ? 'Tek istasyon — robot mesgul orani K/(K+S). Op soktak yaparken robot bekler. '
+            + `K=${pc.ist1_kaynak_sn || pc.ist2_kaynak_sn}sn, S=${pc.ist1_soktak_sn || pc.ist2_soktak_sn}sn`
+          : 'Iki istasyon paralel calisma: max(K1,S2)+max(K2,S1)';
         pairBant = `
           <div class="rc-pair-band" title="${bantTitle}">
             <span class="rc-pair-icon">${modIcon}</span>
