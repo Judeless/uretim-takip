@@ -2342,22 +2342,33 @@
         </div>
 
         <!-- Özet kartları -->
-        <div id="sa-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
+        <div id="sa-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px">
             <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
                 <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">Toplam Pulse</div>
                 <div id="sa-toplam" style="font-size:1.7rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
             </div>
             <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
-                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">Ort. Süre</div>
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">⌀ Ort. Süre</div>
                 <div id="sa-ortalama" style="font-size:1.7rem;font-weight:800;color:#34d399;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+                <div style="font-size:.6rem;color:var(--muted);margin-top:2px">tüm gün</div>
             </div>
             <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
-                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">En Uzun Gap</div>
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">≈ Medyan</div>
+                <div id="sa-medyan" style="font-size:1.7rem;font-weight:800;color:#22d3ee;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+                <div style="font-size:.6rem;color:var(--muted);margin-top:2px">uç değerden etkilenmez</div>
+            </div>
+            <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">📊 Mod</div>
+                <div id="sa-mod" style="font-size:1.7rem;font-weight:800;color:#a78bfa;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+                <div style="font-size:.6rem;color:var(--muted);margin-top:2px">en sık cycle süresi</div>
+            </div>
+            <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">⏱ En Uzun Gap</div>
                 <div id="sa-enuzun" style="font-size:1.7rem;font-weight:800;color:#f87171;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
             </div>
             <div style="background:var(--card);padding:14px 18px;border-radius:var(--radius);box-shadow:var(--shadow)">
-                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">En Kısa Gap</div>
-                <div id="sa-enkisa" style="font-size:1.7rem;font-weight:800;color:#22d3ee;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+                <div style="font-size:.66rem;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase">⏱ En Kısa Gap</div>
+                <div id="sa-enkisa" style="font-size:1.7rem;font-weight:800;color:#fbbf24;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
             </div>
         </div>
 
@@ -4996,15 +5007,24 @@
 
         function _saRenderOzet(ozet) {
             const fmt = (v) => {
-                if (v == null) return '—';
+                if (v == null || v === 0) return '—';
                 if (v < 60) return v.toFixed(1) + ' sn';
+                const dk = Math.floor(v / 60), sn = Math.round(v % 60);
+                return dk + ':' + String(sn).padStart(2, '0');
+            };
+            const fmtMod = (v) => {
+                // Mod tamsayı (saniye cinsinden yuvarlanmış) — küsüratsız göster
+                if (v == null || v === 0) return '—';
+                if (v < 60) return v + ' sn';
                 const dk = Math.floor(v / 60), sn = Math.round(v % 60);
                 return dk + ':' + String(sn).padStart(2, '0');
             };
             document.getElementById('sa-toplam').textContent = ozet.toplam_pulse || 0;
             document.getElementById('sa-ortalama').textContent = fmt(ozet.ortalama_gap_sn);
-            document.getElementById('sa-enuzun').textContent = fmt(ozet.en_uzun_gap_sn);
-            document.getElementById('sa-enkisa').textContent = fmt(ozet.en_kisa_gap_sn);
+            document.getElementById('sa-medyan').textContent  = fmt(ozet.medyan_gap_sn);
+            document.getElementById('sa-mod').textContent     = fmtMod(ozet.mod_gap_sn);
+            document.getElementById('sa-enuzun').textContent  = fmt(ozet.en_uzun_gap_sn);
+            document.getElementById('sa-enkisa').textContent  = fmt(ozet.en_kisa_gap_sn);
         }
 
         // Zoom alanı istatistiği — sağ üst köşedeki overlay kutu

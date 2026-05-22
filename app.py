@@ -1712,9 +1712,25 @@ def pilot_sinyal_analiz():
 
     # ─── Özet metrikleri ──────────────────────────────────────────
     gaps = [o['gap_sn'] for o in olaylar if o['gap_sn'] is not None]
+    # Medyan
+    _medyan = 0
+    if gaps:
+        _sorted = sorted(gaps)
+        _mid = len(_sorted) // 2
+        _medyan = round(_sorted[_mid] if len(_sorted) % 2 else (_sorted[_mid-1] + _sorted[_mid]) / 2, 1)
+    # Mod (1 sn yuvarlanmış değerlerin en sık görüleni)
+    _mod = 0
+    if gaps:
+        _counts = {}
+        for v in gaps:
+            r = round(v)
+            _counts[r] = _counts.get(r, 0) + 1
+        _mod = max(_counts, key=_counts.get)
     ozet = {
         'toplam_pulse':    len(olaylar),
         'ortalama_gap_sn': round(sum(gaps) / len(gaps), 1) if gaps else 0,
+        'medyan_gap_sn':   _medyan,
+        'mod_gap_sn':      _mod,
         'en_uzun_gap_sn':  round(max(gaps), 1) if gaps else 0,
         'en_kisa_gap_sn':  round(min(gaps), 1) if gaps else 0,
     }
