@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Cofle Manage fallback logo — sahada gerçek PNG yoksa bu görsel kullanılır.
+     Tercih sirasi: ~/OneDrive/Masaüstü/LOGO_COFLE ONLY.png > ~/Desktop/LOGO_COFLE ONLY.png > static/logo.png > static/logo.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <defs>
+    <linearGradient id="cofle-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="50%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+    <filter id="cofle-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Daire arka plan -->
+  <circle cx="30" cy="30" r="22" fill="none" stroke="url(#cofle-grad)" stroke-width="2.5" filter="url(#cofle-glow)"/>
+  <!-- C harfi -->
+  <path d="M 38 18 A 14 14 0 1 0 38 42"
+        fill="none" stroke="url(#cofle-grad)" stroke-width="4.5" stroke-linecap="round" filter="url(#cofle-glow)"/>
+
+  <!-- COFLE yazisi -->
+  <text x="60" y="30" font-family="Inter, system-ui, sans-serif"
+        font-size="20" font-weight="900" letter-spacing="2"
+        fill="url(#cofle-grad)" filter="url(#cofle-glow)">COFLE</text>
+  <text x="60" y="48" font-family="Inter, system-ui, sans-serif"
+        font-size="8" font-weight="600" letter-spacing="3"
+        fill="#94a3c4">MANAGE</text>
+</svg>

@@ -249,15 +249,21 @@ def dashboard_legacy_sayfasi():
 
 @app.route('/logo')
 def logo_serve():
-    """Şirket logosunu masaüstünden serve et."""
+    """Şirket logosunu serve et — tercih sırası:
+    1) Masaüstündeki gerçek PNG (varsa, sahada genelde bu)
+    2) Yerel static/logo.png (proje altında saklanan PNG)
+    3) Yerel static/logo.svg (kalıcı fallback, repo'da)
+    Her ihtimal başarısızsa 404."""
+    proje_dir = os.path.dirname(os.path.abspath(__file__))
     logo_yollar = [
-        os.path.join(os.path.expanduser('~'), 'OneDrive', 'Masaüstü', 'LOGO_COFLE ONLY.png'),
-        os.path.join(os.path.expanduser('~'), 'Desktop', 'LOGO_COFLE ONLY.png'),
-        os.path.join(os.path.dirname(__file__), 'static', 'logo.png'),
+        (os.path.join(os.path.expanduser('~'), 'OneDrive', 'Masaüstü', 'LOGO_COFLE ONLY.png'), 'image/png'),
+        (os.path.join(os.path.expanduser('~'), 'Desktop', 'LOGO_COFLE ONLY.png'), 'image/png'),
+        (os.path.join(proje_dir, 'static', 'logo.png'), 'image/png'),
+        (os.path.join(proje_dir, 'static', 'logo.svg'), 'image/svg+xml'),
     ]
-    for yol in logo_yollar:
+    for yol, mime in logo_yollar:
         if os.path.exists(yol):
-            return send_file(yol, mimetype='image/png')
+            return send_file(yol, mimetype=mime)
     return '', 404
 
 
