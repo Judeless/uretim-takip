@@ -2137,7 +2137,14 @@
 
         <!-- Andon Görünüm Özelleştirme -->
         <div class="table-card" style="margin-bottom:20px;padding:20px;border-left:4px solid #f59e0b">
-            <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">🎨 Görünüm Özelleştirme</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+                <h3 style="font-size:.9rem;font-weight:700;margin:0">🎨 Görünüm Özelleştirme</h3>
+                <button type="button" onclick="andonGorunumSifirla()"
+                    title="Renk + boyutu varsayılan andon temasına döndür"
+                    style="background:rgba(167,139,250,0.10);border:1px solid rgba(167,139,250,0.40);color:#a78bfa;border-radius:8px;padding:6px 12px;font-size:.74rem;font-weight:700;cursor:pointer">
+                    ↻ Varsayılana Sıfırla
+                </button>
+            </div>
             
             <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:20px">
                 <!-- İstasyon 1 -->
@@ -2146,7 +2153,7 @@
                     <div style="display:flex;flex-direction:column;gap:10px">
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Renk:</span>
-                            <input type="color" id="andon-st1-color" value="#fcd34d" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                            <input type="color" id="andon-st1-color" value="#fcd34d" data-default="#fcd34d" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
                         </div>
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Boyut:</span>
@@ -2161,7 +2168,7 @@
                     <div style="display:flex;flex-direction:column;gap:10px">
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Renk:</span>
-                            <input type="color" id="andon-st2-color" value="#67e8f9" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                            <input type="color" id="andon-st2-color" value="#67e8f9" data-default="#67e8f9" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
                         </div>
                         <!-- Note: ST1 and ST2 use the same header font size normally, but if we want separate, we could. The request said "istasyonların" (plural). I'll use one size for both headers for consistency unless user wants different. -->
                     </div>
@@ -2173,7 +2180,7 @@
                     <div style="display:flex;flex-direction:column;gap:10px">
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Renk:</span>
-                            <input type="color" id="andon-op-color" value="#c4b5fd" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                            <input type="color" id="andon-op-color" value="#c4b5fd" data-default="#c4b5fd" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
                         </div>
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Boyut:</span>
@@ -2188,7 +2195,7 @@
                     <div style="display:flex;flex-direction:column;gap:10px">
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Renk:</span>
-                            <input type="color" id="andon-ref-color" value="#bef264" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                            <input type="color" id="andon-ref-color" value="#bef264" data-default="#bef264" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
                         </div>
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Boyut:</span>
@@ -2203,7 +2210,7 @@
                     <div style="display:flex;flex-direction:column;gap:10px">
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Renk:</span>
-                            <input type="color" id="andon-dw-color" value="#fcd34d" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
+                            <input type="color" id="andon-dw-color" value="#fcd34d" data-default="#fcd34d" style="width:40px;height:35px;border:none;background:none;cursor:pointer">
                         </div>
                         <div style="display:flex;align-items:center;justify-content:space-between">
                             <span style="font-size:.8rem">Boyut:</span>
@@ -2214,10 +2221,32 @@
             </div>
         </div>
 
-        <!-- Robot Görünürlük -->
+        <!-- Robot/Hat/Makine Görünürlük -->
         <div class="table-card" style="margin-bottom:20px;padding:20px">
-            <h3 style="font-size:.9rem;font-weight:700;margin-bottom:4px">🤖 Robot Görünürlük Ayarları</h3>
-            <p style="font-size:.78rem;color:var(--muted);margin-bottom:16px">Andon ekranında hangi robotların görüneceğini seçin. Sırayı değiştirmek için sürükleyin.</p>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+                <h3 style="font-size:.9rem;font-weight:700">🤖 Robot / Hat / Makine Görünürlük Ayarları</h3>
+                <div id="andon-bolum-tabs" style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:10px;border:1px solid var(--border)">
+                    <button type="button" data-bolum="kaynak" onclick="andonBolumDegistir('kaynak')"
+                        class="andon-bolum-tab active"
+                        style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;background:#a78bfa;color:#fff">
+                        🔧 Kaynak
+                    </button>
+                    <button type="button" data-bolum="montaj" onclick="andonBolumDegistir('montaj')"
+                        class="andon-bolum-tab"
+                        style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;background:transparent;color:var(--text)">
+                        🔩 Montaj
+                    </button>
+                    <button type="button" data-bolum="metal" onclick="andonBolumDegistir('metal')"
+                        class="andon-bolum-tab"
+                        style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;background:transparent;color:var(--text)">
+                        🏭 Metal
+                    </button>
+                </div>
+            </div>
+            <p style="font-size:.78rem;color:var(--muted);margin-bottom:16px">
+                Seçili bölümün andon ekranında hangi cihazların görüneceğini ve sırasını ayarlayın.
+                Kaydet bastığında 3 bölümün de ayarları birden saklanır.
+            </p>
             <div id="andon-robot-liste" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
         </div>
 
@@ -3348,15 +3377,46 @@
         // ═══════════════════════════════════════════════════════
         // ANDON AYARLARI
         // ═══════════════════════════════════════════════════════
+        // Andon Ayarlari icin aktif bolum sekmesi (kaynak/montaj/metal)
+        let andonAktifBolum = 'kaynak';
+        // andonRobotVerisi artik 3 bolumun TUMUNU tutar — { kaynak:[...], montaj:[...], metal:[...] }
+        // Kaydederken hepsi tek payload olarak gonderilir
+        andonRobotVerisi = { kaynak: [], montaj: [], metal: [] };
+
+        // Renk/font default'lari — eski andon.html paleti + andon_v5.html boyut default'lari
+        const ANDON_VARSAYILAN = {
+            'andon-st1-color': '#fcd34d',   // amber sari (eski --accent-yellow)
+            'andon-st2-color': '#67e8f9',   // acik cyan (eski --accent-cyan)
+            'andon-op-color':  '#c4b5fd',   // acik mor (eski --accent-purple)
+            'andon-ref-color': '#bef264',   // lime (eski --ref-color)
+            'andon-dw-color':  '#fcd34d',   // amber (eski --dw-color)
+            'andon-st-fs':     '0.85',
+            'andon-op-fs':     '0.75',
+            'andon-ref-fs':    '0.96',
+            'andon-dw-fs':     '0.78'
+        };
+
         async function yukleAndonRobotlari() {
             try {
                 const [robotRes, ayarRes] = await Promise.all([
-                    fetch('/api/andon_robot_ayarlari'),
+                    fetch('/api/andon_robot_ayarlari'),   // bolum filtresi yoksa hepsi gelir
                     fetch('/api/ayarlar')
                 ]);
-                andonRobotVerisi = await robotRes.json();
+                const tumLista = await robotRes.json();
+                // Bolume gore grupla
+                andonRobotVerisi = { kaynak: [], montaj: [], metal: [] };
+                tumLista.forEach(r => {
+                    const b = r.bolum || 'kaynak';
+                    if (!andonRobotVerisi[b]) andonRobotVerisi[b] = [];
+                    andonRobotVerisi[b].push(r);
+                });
+                // Her bolumde sira gore sirala
+                Object.keys(andonRobotVerisi).forEach(b => {
+                    andonRobotVerisi[b].sort((a, b2) => (a.sira || 0) - (b2.sira || 0));
+                });
+
                 const ayarlar = await ayarRes.json();
-                
+
                 // Ayarları inputlara doldur
                 const idMap = {
                     'andon_st1_color': 'andon-st1-color',
@@ -3370,25 +3430,44 @@
                     'andon_dw_fs': 'andon-dw-fs',
                     'andon_font_size': 'andon-ref-fs' // Eski anahtar desteği
                 };
-                
+
                 for (let key in idMap) {
                     if (ayarlar[key]) {
                         const el = document.getElementById(idMap[key]);
                         if (el) el.value = ayarlar[key];
                     }
                 }
-                
+
                 renderAndonRobotListe();
             } catch(e) {}
+        }
+
+        function andonBolumDegistir(bolum) {
+            andonAktifBolum = bolum;
+            // Tab buton aktif görünümünü güncelle
+            document.querySelectorAll('.andon-bolum-tab').forEach(btn => {
+                const aktif = btn.dataset.bolum === bolum;
+                btn.style.background = aktif ? '#a78bfa' : 'transparent';
+                btn.style.color      = aktif ? '#fff' : 'var(--text)';
+                btn.classList.toggle('active', aktif);
+            });
+            renderAndonRobotListe();
         }
 
         function renderAndonRobotListe() {
             const container = document.getElementById('andon-robot-liste');
             if (!container) return;
-            container.innerHTML = andonRobotVerisi.map((r, i) => `
+            const liste = andonRobotVerisi[andonAktifBolum] || [];
+            if (!liste.length) {
+                container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-style:italic;font-size:.84rem">
+                    Bu bölüm için kayıtlı cihaz yok.
+                </div>`;
+                return;
+            }
+            container.innerHTML = liste.map((r, i) => `
                 <div style="background:var(--bg,#f8fafc);border:2px solid ${r.goster ? '#2563eb' : '#e2e8f0'};
                     border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;
-                    transition:border-color .2s;cursor:pointer" onclick="andonRobotToggle(${i})">
+                    transition:border-color .2s;cursor:pointer" onclick="andonRobotToggle('${andonAktifBolum}', ${i})">
                     <div style="width:20px;height:20px;border-radius:6px;border:2px solid ${r.goster ? '#2563eb' : '#cbd5e1'};
                         background:${r.goster ? '#2563eb' : 'transparent'};display:flex;align-items:center;justify-content:center;
                         flex-shrink:0;transition:.2s">
@@ -3398,14 +3477,24 @@
                         <div style="font-weight:700;font-size:.88rem">${r.robot_no}</div>
                         <div style="font-size:.72rem;color:var(--muted,#64748b)">${r.goster ? '✅ Andonda görünür' : '⛔ Gizlendi'}</div>
                     </div>
-                    <div style="font-size:.75rem;color:var(--muted,#64748b)">Sıra: ${r.sira + 1}</div>
+                    <div style="font-size:.75rem;color:var(--muted,#64748b)">Sıra: ${(r.sira || 0) + 1}</div>
                 </div>
             `).join('');
         }
 
-        function andonRobotToggle(i) {
-            andonRobotVerisi[i].goster = andonRobotVerisi[i].goster ? 0 : 1;
+        function andonRobotToggle(bolum, i) {
+            if (!andonRobotVerisi[bolum] || !andonRobotVerisi[bolum][i]) return;
+            andonRobotVerisi[bolum][i].goster = andonRobotVerisi[bolum][i].goster ? 0 : 1;
             renderAndonRobotListe();
+        }
+
+        function andonGorunumSifirla() {
+            if (!confirm('Renk ve boyut ayarları varsayılan andon temasına döndürülecek. Onaylıyor musun?')) return;
+            Object.entries(ANDON_VARSAYILAN).forEach(([id, val]) => {
+                const el = document.getElementById(id);
+                if (el) el.value = val;
+            });
+            if (typeof toast === 'function') toast('Varsayılanlar yüklendi — Kaydet bastığında etkin olur', 'info');
         }
 
         async function andonAyarlariKaydet() {
@@ -3423,11 +3512,25 @@
                     'andon_font_size': document.getElementById('andon-ref-fs').value // Geriye dönük uyumluluk
                 };
 
+                // 3 bolumun TUM cihazlarini tek flat array olarak gonder
+                // Backend her satira bolum bilgisini WHERE clause'da kullanir
+                const tumCihazlar = [];
+                ['kaynak','montaj','metal'].forEach(b => {
+                    (andonRobotVerisi[b] || []).forEach((r, i) => {
+                        tumCihazlar.push({
+                            robot_no: r.robot_no,
+                            bolum:    b,
+                            goster:   r.goster ? 1 : 0,
+                            sira:     i   // Mevcut sırayı pekiştir
+                        });
+                    });
+                });
+
                 await Promise.all([
                     fetch('/api/andon_robot_ayarlari', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(andonRobotVerisi)
+                        body: JSON.stringify(tumCihazlar)
                     }),
                     fetch('/api/ayarlar', {
                         method: 'POST',

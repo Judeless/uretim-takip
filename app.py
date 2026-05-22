@@ -2742,20 +2742,30 @@ def is_atamasi_sil(id):
 
 @app.route('/api/andon_robot_ayarlari', methods=['GET'])
 def andon_robot_ayarlari_listesi():
+    """?bolum=kaynak|montaj|metal ile filtrele; parametresizse hepsi döner."""
+    bolum = request.args.get('bolum', '').strip()
     conn = get_db()
-    rows = conn.execute('SELECT * FROM andon_robot_ayarlari ORDER BY sira').fetchall()
+    if bolum:
+        rows = conn.execute(
+            "SELECT * FROM andon_robot_ayarlari WHERE bolum=? ORDER BY sira",
+            (bolum,)
+        ).fetchall()
+    else:
+        rows = conn.execute('SELECT * FROM andon_robot_ayarlari ORDER BY bolum, sira').fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
 @app.route('/api/andon_robot_ayarlari', methods=['PATCH'])
 def andon_robot_ayarlari_guncelle():
-    """Toplu güncelleme: [{robot_no, goster, sira}, ...]"""
+    """Toplu güncelleme: [{robot_no, bolum, goster, sira}, ...]
+    Eski payload'larda bolum yoksa 'kaynak' varsayılır (geriye dönük uyumluluk)."""
     data = request.get_json() or []
     conn = get_db()
     for item in data:
+        bolum = item.get('bolum') or 'kaynak'
         conn.execute(
-            'UPDATE andon_robot_ayarlari SET goster=?, sira=? WHERE robot_no=?',
-            (int(item.get('goster', 1)), int(item.get('sira', 0)), item['robot_no'])
+            'UPDATE andon_robot_ayarlari SET goster=?, sira=? WHERE robot_no=? AND bolum=?',
+            (int(item.get('goster', 1)), int(item.get('sira', 0)), item['robot_no'], bolum)
         )
     conn.commit()
     conn.close()

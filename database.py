@@ -299,14 +299,25 @@ def init_db():
     except Exception:
         pass
 
-    # Andon Robot Ayarları Tablosu
+    # Andon Robot Ayarları Tablosu — bolum kolonu PRIMARY KEY'in parçası
+    # (M1 hat'i hem montaj'da hem kaynak'ta görünmesin)
     c.execute('''
         CREATE TABLE IF NOT EXISTS andon_robot_ayarlari (
-            robot_no TEXT PRIMARY KEY,
+            robot_no TEXT NOT NULL,
+            bolum TEXT NOT NULL DEFAULT 'kaynak',
             goster INTEGER NOT NULL DEFAULT 1,
-            sira INTEGER NOT NULL DEFAULT 0
+            sira INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (robot_no, bolum)
         )
     ''')
+    # Migration (2026-05-22): eski PK robot_no idi, yeni (robot_no, bolum) — bolum kolonu eklendi
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(andon_robot_ayarlari)").fetchall()]
+        if 'bolum' not in cols:
+            c.execute("ALTER TABLE andon_robot_ayarlari ADD COLUMN bolum TEXT NOT NULL DEFAULT 'kaynak'")
+    except Exception:
+        pass
+
     # Genel Ayarlar Tablosu
     c.execute('''
         CREATE TABLE IF NOT EXISTS genel_ayarlar (
@@ -317,13 +328,25 @@ def init_db():
     # Varsayılan ayarları ekle
     c.execute("INSERT OR IGNORE INTO genel_ayarlar (anahtar, deger) VALUES ('andon_font_size', '0.57')")
 
-    # Varsayılan robot satırlarını ekle (mevcut değilse)
-
+    # Varsayılan robot satırlarını ekle (mevcut değilse) — 3 bölüm için
+    # KAYNAK: ABB1..ABB9 (ABB9 default gizli)
     for i, rno in enumerate(['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9']):
         goster = 0 if rno == 'ABB9' else 1
         c.execute(
-            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, goster, sira) VALUES (?, ?, ?)',
-            (rno, goster, i)
+            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
+            (rno, 'kaynak', goster, i)
+        )
+    # MONTAJ: M1..M12 (default hepsi gizli — operatör vardiya açtığında dinamik gelir)
+    for i, mno in enumerate([f'M{n}' for n in range(1, 13)]):
+        c.execute(
+            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
+            (mno, 'montaj', 1, i)
+        )
+    # METAL: 300T, 400T, 550T (hepsi default görünür)
+    for i, mno in enumerate(['300T','400T','550T']):
+        c.execute(
+            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
+            (mno, 'metal', 1, i)
         )
 
     # Fikstür Raf Tablosu (KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods'tan gelir)

@@ -48,15 +48,16 @@
       --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
 
       /* Dashboard Andon Ayarlari ile JS uzerinden override edilir.
-         Defaultlar mevcut tema renkleri/boyutlari ile esler. */
+         Defaultlar eski andon.html'in renk kombinasyonuyla bire bir esler
+         (kullanici "robot andonundaki renkler degismis" geri bildirimi sonucu). */
       --andon-st-fs:     0.85rem;
-      --andon-st1-color: #fbbf24;
-      --andon-st2-color: #22d3ee;
-      --andon-op-color:  #a78bfa;
+      --andon-st1-color: #fcd34d;   /* amber sari — istasyon 1 basligi */
+      --andon-st2-color: #67e8f9;   /* acik cyan — istasyon 2 basligi */
+      --andon-op-color:  #c4b5fd;   /* acik mor — operator adi */
       --andon-op-fs:     0.75rem;
-      --andon-ref-color: #bef264;
+      --andon-ref-color: #bef264;   /* lime — referans kodu */
       --andon-ref-fs:    0.96rem;
-      --andon-dw-color:  #fecaca;
+      --andon-dw-color:  #fcd34d;   /* amber — durus sebep/sure */
       --andon-dw-fs:     0.78rem;
     }
 
@@ -1116,23 +1117,23 @@
     el.textContent = text || 'Cofle Manage Üretim Takip Sistemi aktif.';
   }
 
-  // ── Robot/Hat/Makine listesi (bolume göre kaynak: andon ayarları, diğerleri: dinamik) ──
+  // ── Robot/Hat/Makine listesi — 3 bolum icin de dashboard'daki sirali liste kullanilir
   async function fetchRobotSettings() {
     try {
-      if (BOLUM === 'kaynak') {
-        const res = await fetch(SETTINGS_URL, { cache:'no-store' });
-        const arr = await res.json();
-        _robots = (Array.isArray(arr) ? arr : []).filter(a => a.goster).sort((a,b) => a.sira - b.sira).map(a => a.robot_no);
-      } else {
-        // montaj veya metal: /api/robotlar?bolum= → distinct hat/makine listesi
-        const res = await fetch('/api/robotlar?bolum=' + encodeURIComponent(BOLUM), { cache:'no-store' });
-        const arr = await res.json();
-        _robots = Array.isArray(arr) ? arr : [];
-      }
+      const res = await fetch(SETTINGS_URL + '?bolum=' + encodeURIComponent(BOLUM), { cache:'no-store' });
+      const arr = await res.json();
+      _robots = (Array.isArray(arr) ? arr : [])
+        .filter(a => a.goster)
+        .sort((a,b) => (a.sira||0) - (b.sira||0))
+        .map(a => a.robot_no);
     } catch (e) {
+      _robots = [];
+    }
+    // Eger ayarlar bos veya hatalıysa: makul fallback
+    if (!_robots.length) {
       _robots = (BOLUM === 'kaynak')
         ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
-        : (BOLUM === 'metal' ? ['300T','400T','550T','Şerit Testere'] : ['HAT 1']);
+        : (BOLUM === 'metal' ? ['300T','400T','550T'] : ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12']);
     }
     return _robots;
   }
