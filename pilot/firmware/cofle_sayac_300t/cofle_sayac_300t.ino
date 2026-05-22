@@ -41,17 +41,18 @@ const int PIN_IST2_SAYAC      = 26;   // BOS
 const int PIN_ROBOT_CALISIYOR = 27;   // BOS
 const int PIN_LED             =  2;
 
-// Pulse algilama: GPIO interrupt (hardware) — multi-sample state polling kaldirildi
-// Rote 10sn aktif uzun bir LOW periyodu; bu sirada parazit spike olusursa ISR debounce
-// + MIN_PULSE_GAP_MS koruyor. Loop bloke iken (HTTP) pulse'lar kaybolmaz.
-const unsigned long ISR_DEBOUNCE_US  = 30000;  // 30 ms ISR seviyesinde donanim debounce
+// Pulse algilama: GPIO CHANGE interrupt + pulse genislik teyidi (state machine)
+// Rote 10sn aktif uzun bir LOW periyodu; icindeki mikro glitch'ler state machine
+// ile filtrelenir. Cross-talk spike'lari (<MIN_PULSE_US) reddedilir.
+const unsigned long ISR_DEBOUNCE_US  = 1000;   // 1ms ISR seviyesinde minimal debounce
+const unsigned long MIN_PULSE_US     = 100000; // 100ms minimum rote aktif suresi (metal cycle 8-10sn rote)
 const unsigned long MIN_PULSE_GAP_MS = 15000; // Metal: rote 10sn aktif, en kisa cycle 20sn → 15sn min gap (10+5 margin)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.2.0-300t";
+const char* FIRMWARE_VER  = "2.2.1-300t";
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
@@ -73,13 +74,11 @@ int buf_bas = 0, buf_son = 0, buf_dolu = 0;
 
 unsigned long lastValidPulseIst1 = 0;
 
-// Hardware interrupt — makine "uretim" cikis sinyali (PIN_IST1_SAYAC).
-// ISR FALLING edge'i (rote aktif olur, pin HIGH'tan LOW'a gecer) mikrosaniyelerde
-// yakalar. 30ms ISR debounce + loop seviyesinde MIN_PULSE_GAP_MS (15sn) filtre
-// kombinasyonu ile rote 10sn aktif periyodunda olusabilecek parazit spike'lari
-// reddedilir, gercek pulse'lar yakalanir. Loop bloke iken (HTTP) bile kayip yok.
-volatile bool ist1_pulse_flag = false;
-volatile unsigned long ist1_isr_last_us = 0;
+// Hardware CHANGE interrupt + state machine — makine "uretim" cikis sinyali.
+// state: 0=bekliyor, 1=rote aktif (LOW), 2=rote dustu ve gecerli (loop sayar)
+// Pulse genisligi >=100ms olmali (cross-talk spike'lari ve glitch'ler reddedilir).
+volatile uint8_t ist1_state = 0;
+volatile unsigned long ist1_pulse_start_us = 0;
 volatile uint32_t ist1_isr_count = 0;
 
 unsigned long lastHeartbeat = 0;
@@ -133,14 +132,25 @@ bool wifiHazir() {
 }
 
 // ════════════════════════════════════════════════════════════
-//   INTERRUPT SERVICE ROUTINE (FALLING edge yakalama)
+//   INTERRUPT SERVICE ROUTINE (CHANGE — hem rising hem falling)
 // ════════════════════════════════════════════════════════════
-void IRAM_ATTR onIst1Falling() {
+void IRAM_ATTR onIst1Change() {
   unsigned long now_us = micros();
-  if (now_us - ist1_isr_last_us > ISR_DEBOUNCE_US) {
-    ist1_pulse_flag = true;
-    ist1_isr_last_us = now_us;
-    ist1_isr_count++;
+  ist1_isr_count++;
+  if (digitalRead(PIN_IST1_SAYAC) == LOW) {
+    if (ist1_state == 0 && (now_us - ist1_pulse_start_us) > ISR_DEBOUNCE_US) {
+      ist1_state = 1;
+      ist1_pulse_start_us = now_us;
+    }
+  } else {
+    if (ist1_state == 1) {
+      unsigned long genislik = now_us - ist1_pulse_start_us;
+      if (genislik >= MIN_PULSE_US) {
+        ist1_state = 2;
+      } else {
+        ist1_state = 0;  // spike, atla
+      }
+    }
   }
 }
 
@@ -277,9 +287,10 @@ void setup() {
 
   robotCalisiyor = false;  // Metal'de robot durumu kullanilmiyor
 
-  // Hardware interrupt — makine pulse pinine FALLING edge
-  attachInterrupt(digitalPinToInterrupt(PIN_IST1_SAYAC), onIst1Falling, FALLING);
-  Serial.printf("[ISR] Uretim=GPIO%d — FALLING edge interrupt kuruldu\n", PIN_IST1_SAYAC);
+  // Hardware CHANGE interrupt + pulse genislik teyidi
+  attachInterrupt(digitalPinToInterrupt(PIN_IST1_SAYAC), onIst1Change, CHANGE);
+  Serial.printf("[ISR] Uretim=GPIO%d — CHANGE interrupt + pulse genislik teyidi (>=%lums)\n",
+                PIN_IST1_SAYAC, MIN_PULSE_US / 1000);
 
   prefs.begin("cofle", false);
   pulseIst1 = prefs.getULong("pulse_i1", 0);
@@ -334,8 +345,8 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] Interrupt-based metal sayac aktif — uretim sinyalleri bekleniyor...");
-  Serial.println("        (Multi-sample state polling kaldirildi, donanim interrupt'i kullaniliyor)\n");
+  Serial.println("[READY] CHANGE interrupt + pulse genislik teyidi aktif — uretim sinyalleri bekleniyor...");
+  Serial.println("        (Cross-talk ve glitch koruma: rote aktif suresi >=100ms olmali)\n");
   ledYakBlink(3, 60);
 }
 
@@ -352,9 +363,9 @@ void loop() {
     }
   }
 
-  // Uretim sinyali — ISR tarafindan flag set edildi, loop filtre uygular
-  if (ist1_pulse_flag) {
-    ist1_pulse_flag = false;
+  // Uretim sinyali — ISR state machine 2'ye getirdi (tamamlanmis gecerli pulse)
+  if (ist1_state == 2) {
+    ist1_state = 0;
     if ((now - lastValidPulseIst1) >= MIN_PULSE_GAP_MS) {
       istasyonSinyali(1);
       lastValidPulseIst1 = now;
