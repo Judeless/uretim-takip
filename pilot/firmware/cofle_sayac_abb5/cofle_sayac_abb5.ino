@@ -43,16 +43,17 @@ const int PIN_IST2_SAYAC      = 26;
 const int PIN_ROBOT_CALISIYOR = 27;
 const int PIN_LED             =  2;
 
-const int  DEBOUNCE_MS         = 100;
-const int  PARAZIT_SAMPLE_N    = 15;
-const int  PARAZIT_SAMPLE_GAP  = 5;
-const unsigned long MIN_PULSE_GAP_MS = 3000;
+// Pulse algilama: GPIO interrupt (hardware) — multi-sample state polling
+// loop bloke olursa (HTTP timeout, OTA, WiFi reconnect) yine de pulse yakalanir
+const unsigned long ISR_DEBOUNCE_US  = 30000;  // 30 ms ISR seviyesinde donanim debounce
+const unsigned long MIN_PULSE_GAP_MS = 800;    // Loop seviyesinde back-to-back filtre
+                                               // (kaynak robot cycle min 8sn, 800ms aralik yeterli buffer)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.1.0-abb5";
+const char* FIRMWARE_VER  = "2.2.0-abb5";
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
@@ -72,15 +73,22 @@ struct PulseKaydi {
 PulseKaydi buffer[BUFFER_MAX];
 int buf_bas = 0, buf_son = 0, buf_dolu = 0;
 
-int lastIst1State = HIGH;
-int lastIst2State = HIGH;
 int lastRobotState = HIGH;
-unsigned long lastDebounceIst1 = 0;
-unsigned long lastDebounceIst2 = 0;
 unsigned long lastDebounceRobot = 0;
 
 unsigned long lastValidPulseIst1 = 0;
 unsigned long lastValidPulseIst2 = 0;
+
+// Hardware interrupt — ist1 + ist2 pulse pinleri.
+// ISR: FALLING edge'i mikrosaniyeler icinde yakalar, 30ms donanim debounce uygular,
+// flag set eder. Loop flag'i gorur ve MIN_PULSE_GAP_MS filtresinden gecirip sayar.
+// Bu yontemle loop ne kadar bloke olursa olsun (HTTP, OTA, WiFi) pulse kaybolmaz.
+volatile bool ist1_pulse_flag = false;
+volatile bool ist2_pulse_flag = false;
+volatile unsigned long ist1_isr_last_us = 0;
+volatile unsigned long ist2_isr_last_us = 0;
+volatile uint32_t ist1_isr_count = 0;  // toplam ISR tetiklenme (debug/dogrulama)
+volatile uint32_t ist2_isr_count = 0;
 
 unsigned long lastRobotCheck = 0;
 const unsigned long ROBOT_CHECK_INTERVAL_MS = 500;
@@ -139,13 +147,31 @@ bool wifiHazir() {
   return WiFi.status() == WL_CONNECTED;
 }
 
-bool pinGercektenLOW(int pin) {
-  for (int i = 0; i < PARAZIT_SAMPLE_N; i++) {
-    if (digitalRead(pin) != LOW) return false;
-    delay(PARAZIT_SAMPLE_GAP);
+// ════════════════════════════════════════════════════════════
+//   INTERRUPT SERVICE ROUTINES (FALLING edge yakalama)
+// ════════════════════════════════════════════════════════════
+// IRAM_ATTR: ISR fonksiyonu IRAM'de saklanmali (cache miss sirasinda da calismali)
+// 30ms ISR debounce: kontaktor titremesini kabaca filtreler; gercek tekrar
+// pulse loop seviyesinde MIN_PULSE_GAP_MS ile kontrol edilir.
+void IRAM_ATTR onIst1Falling() {
+  unsigned long now_us = micros();
+  if (now_us - ist1_isr_last_us > ISR_DEBOUNCE_US) {
+    ist1_pulse_flag = true;
+    ist1_isr_last_us = now_us;
+    ist1_isr_count++;
   }
-  return true;
 }
+void IRAM_ATTR onIst2Falling() {
+  unsigned long now_us = micros();
+  if (now_us - ist2_isr_last_us > ISR_DEBOUNCE_US) {
+    ist2_pulse_flag = true;
+    ist2_isr_last_us = now_us;
+    ist2_isr_count++;
+  }
+}
+
+// (Legacy multi-sample helper — artik kullanilmiyor, interrupt-based algilamaya gecildi)
+// bool pinGercektenLOW(int pin) — kaldirildi
 
 bool bufferdanBirGonder() {
   if (buf_dolu == 0) return false;
@@ -243,6 +269,10 @@ void heartbeatGonder() {
   doc["free_heap"]       = (int)ESP.getFreeHeap();
   doc["pulse_ist1"]      = pulseIst1;
   doc["pulse_ist2"]      = pulseIst2;
+  // ISR raw count — sayim'a donen pulse'lardan farkli (MIN_PULSE_GAP filtresinden dusenler)
+  // ist1_isr_count - pulseIst1 = "FILTRE" ile reddedilen back-to-back pulse sayisi
+  doc["isr_count_ist1"]  = ist1_isr_count;
+  doc["isr_count_ist2"]  = ist2_isr_count;
   doc["robot_calisiyor"] = robotCalisiyor;
 
   String payload; serializeJson(doc, payload);
@@ -283,10 +313,15 @@ void setup() {
   pinMode(PIN_LED,             OUTPUT);
   digitalWrite(PIN_LED, LOW);
 
-  lastIst1State  = digitalRead(PIN_IST1_SAYAC);
-  lastIst2State  = digitalRead(PIN_IST2_SAYAC);
   lastRobotState = digitalRead(PIN_ROBOT_CALISIYOR);
   robotCalisiyor = (lastRobotState == LOW);
+
+  // Hardware interrupt'lari kur — FALLING edge (pin HIGH'tan LOW'a gecince)
+  // Robot DO pulse'lari mikrosaniyeler mertebesinde olsa bile yakalanir.
+  attachInterrupt(digitalPinToInterrupt(PIN_IST1_SAYAC), onIst1Falling, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PIN_IST2_SAYAC), onIst2Falling, FALLING);
+  Serial.printf("[ISR] Ist1=GPIO%d, Ist2=GPIO%d — FALLING edge interrupt kuruldu\n",
+                PIN_IST1_SAYAC, PIN_IST2_SAYAC);
 
   prefs.begin("cofle", false);
   pulseIst1 = prefs.getULong("pulse_i1", 0);
@@ -342,7 +377,8 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] 3 girisli sayac aktif — robot DO sinyalleri bekleniyor...\n");
+  Serial.println("[READY] Interrupt-based pulse algilama aktif — robot DO sinyalleri bekleniyor...");
+  Serial.println("        (Multi-sample state polling kaldirildi, donanim interrupt'i kullaniliyor)\n");
   ledYakBlink(3, 60);
 }
 
@@ -359,42 +395,27 @@ void loop() {
     }
   }
 
-  int curIst1 = digitalRead(PIN_IST1_SAYAC);
-  if (curIst1 != lastIst1State && (now - lastDebounceIst1) > DEBOUNCE_MS) {
-    lastDebounceIst1 = now;
-    if (curIst1 == LOW) {
-      if (pinGercektenLOW(PIN_IST1_SAYAC)) {
-        if ((now - lastValidPulseIst1) >= MIN_PULSE_GAP_MS) {
-          istasyonSinyali(1);
-          lastValidPulseIst1 = now;
-        } else {
-          Serial.printf("[FILTRE] Ist.1 erken (gap=%lums < %lums) - SAYILMADI\n",
-                        now - lastValidPulseIst1, MIN_PULSE_GAP_MS);
-        }
-      } else {
-        Serial.println("[FILTRE] Ist.1 parazit (multi-sample basarisiz) - SAYILMADI");
-      }
+  // Ist.1 pulse — ISR tarafindan flag set edildi, biz sadece kontrol + filtreleme yapariz
+  if (ist1_pulse_flag) {
+    ist1_pulse_flag = false;
+    if ((now - lastValidPulseIst1) >= MIN_PULSE_GAP_MS) {
+      istasyonSinyali(1);
+      lastValidPulseIst1 = now;
+    } else {
+      Serial.printf("[FILTRE] Ist.1 erken (gap=%lums < %lums) - SAYILMADI\n",
+                    now - lastValidPulseIst1, MIN_PULSE_GAP_MS);
     }
-    lastIst1State = curIst1;
   }
-
-  int curIst2 = digitalRead(PIN_IST2_SAYAC);
-  if (curIst2 != lastIst2State && (now - lastDebounceIst2) > DEBOUNCE_MS) {
-    lastDebounceIst2 = now;
-    if (curIst2 == LOW) {
-      if (pinGercektenLOW(PIN_IST2_SAYAC)) {
-        if ((now - lastValidPulseIst2) >= MIN_PULSE_GAP_MS) {
-          istasyonSinyali(2);
-          lastValidPulseIst2 = now;
-        } else {
-          Serial.printf("[FILTRE] Ist.2 erken (gap=%lums < %lums) - SAYILMADI\n",
-                        now - lastValidPulseIst2, MIN_PULSE_GAP_MS);
-        }
-      } else {
-        Serial.println("[FILTRE] Ist.2 parazit (multi-sample basarisiz) - SAYILMADI");
-      }
+  // Ist.2 pulse
+  if (ist2_pulse_flag) {
+    ist2_pulse_flag = false;
+    if ((now - lastValidPulseIst2) >= MIN_PULSE_GAP_MS) {
+      istasyonSinyali(2);
+      lastValidPulseIst2 = now;
+    } else {
+      Serial.printf("[FILTRE] Ist.2 erken (gap=%lums < %lums) - SAYILMADI\n",
+                    now - lastValidPulseIst2, MIN_PULSE_GAP_MS);
     }
-    lastIst2State = curIst2;
   }
 
   if (now - lastRobotCheck >= ROBOT_CHECK_INTERVAL_MS) {

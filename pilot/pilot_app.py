@@ -83,6 +83,10 @@ def init_db():
     for col, ddl in [
         ('robot_calisiyor',     'INTEGER DEFAULT 0'),
         ('robot_durum_zamani',  'TEXT'),
+        # Firmware v2.2+ interrupt-based — ISR raw count (loop seviyesinde filtre oncesi)
+        # isr_count - toplam_sinyal = MIN_PULSE_GAP_MS ile reddedilen back-to-back pulse sayisi
+        ('isr_count_ist1',      'INTEGER DEFAULT 0'),
+        ('isr_count_ist2',      'INTEGER DEFAULT 0'),
     ]:
         try:
             c.execute(f"ALTER TABLE cihaz_kayitlari ADD COLUMN {col} {ddl}")
@@ -190,8 +194,9 @@ def heartbeat():
         conn.execute('''
             INSERT INTO cihaz_kayitlari (cihaz_id, bolum, robot_no, firmware_ver, ip_adresi, mac_adresi,
                                           wifi_rssi, buffer_kuyruk, uptime_sn, free_heap,
+                                          isr_count_ist1, isr_count_ist2,
                                           robot_calisiyor, robot_durum_zamani, son_heartbeat)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))
             ON CONFLICT(cihaz_id) DO UPDATE SET
                 bolum = excluded.bolum,
                 robot_no = excluded.robot_no,
@@ -202,6 +207,8 @@ def heartbeat():
                 buffer_kuyruk = excluded.buffer_kuyruk,
                 uptime_sn = excluded.uptime_sn,
                 free_heap = excluded.free_heap,
+                isr_count_ist1 = excluded.isr_count_ist1,
+                isr_count_ist2 = excluded.isr_count_ist2,
                 robot_calisiyor = excluded.robot_calisiyor,
                 robot_durum_zamani = CASE
                     WHEN ? = 1 THEN datetime('now','localtime')
@@ -219,6 +226,8 @@ def heartbeat():
             int(d.get('buffer_kuyruk') or 0),
             int(d.get('uptime_sn') or 0),
             int(d.get('free_heap') or 0),
+            int(d.get('isr_count_ist1') or 0),
+            int(d.get('isr_count_ist2') or 0),
             yeni_robot_calisiyor,
             1 if durum_degisti else 0,
         ))
