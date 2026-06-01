@@ -513,18 +513,24 @@ void loop() {
     delay(500);
     ESP.restart();
   }
-  // 4) RSSI tabanli radyo recovery — connected ama sinyal cok zayifsa
+  // 4) RSSI tabanli radyo recovery — connected ama sinyal cok zayifsa.
+  //    KRITIK: radyo yenileme/reset BLOKLAR -> sadece makine BOS iken yap,
+  //    yoksa uretim sirasinda pulse kaybi olur. Zayif sinyal acil degil:
+  //    cihaz connected oldugu surece buffer + retry veriyi tasir.
   if (wifiHazir() && (now - lastRssiKontrol) > RSSI_KONTROL_MS) {
     lastRssiKontrol = now;
     sonRSSI = WiFi.RSSI();
+    bool makineBosRssi = (now - lastValidPulseIst1) > 120000UL
+                      && (now - lastValidPulseIst2) > 120000UL;
     if (sonRSSI < RSSI_ZAYIF_ESIK && sonRSSI < 0) {
       rssiZayifSayac++;
-      Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d ardisik)\n",
-                    sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX);
-      if (rssiZayifSayac >= RSSI_ZAYIF_MAX) {
+      Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d ardisik)%s\n",
+                    sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX,
+                    makineBosRssi ? "" : " — makine calisiyor, recovery ertelendi");
+      if (rssiZayifSayac >= RSSI_ZAYIF_MAX && makineBosRssi) {
         rssiZayifSayac = 0;
         radyoYenileSayac++;
-        wifiRadyoYenile();   // yumusak RF re-init (pulse kaybetmez)
+        wifiRadyoYenile();   // yumusak RF re-init (sadece bos iken — blok guvenli)
         // Radyo yenileme yeterli sayida denenip hala zayifsa, RF stack degil
         // gercek anten/donanim sorunu olabilir. Power-cycle basina en fazla 2 kez
         // tam reset dene (RTC bellegi sayaci), sonra zayif sinyalle calismaya devam.

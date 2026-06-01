@@ -435,14 +435,16 @@ void loop() {
     delay(500);
     ESP.restart();
   }
-  // 4) RSSI tabanli radyo recovery — connected ama sinyal cok zayifsa
+  // 4) RSSI tabanli radyo recovery — sadece makine BOS iken (blok pulse kaybetmesin)
   if (wifiHazir() && (now - lastRssiKontrol) > RSSI_KONTROL_MS) {
     lastRssiKontrol = now;
     sonRSSI = WiFi.RSSI();
+    bool makineBosRssi = (now - lastValidPulseIst1) > 120000UL;
     if (sonRSSI < RSSI_ZAYIF_ESIK && sonRSSI < 0) {
       rssiZayifSayac++;
-      Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d)\n", sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX);
-      if (rssiZayifSayac >= RSSI_ZAYIF_MAX) {
+      Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d)%s\n", sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX,
+                    makineBosRssi ? "" : " — buton aktif, recovery ertelendi");
+      if (rssiZayifSayac >= RSSI_ZAYIF_MAX && makineBosRssi) {
         rssiZayifSayac = 0;
         radyoYenileSayac++;
         wifiRadyoYenile();
