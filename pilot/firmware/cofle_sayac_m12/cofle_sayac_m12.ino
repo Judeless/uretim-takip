@@ -51,7 +51,15 @@ const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.2.1-m12";
+const char* FIRMWARE_VER  = "2.3.0-m12";
+
+// ─── RSSI tabanli radyo recovery (v2.3) ─────────────────────────
+// Connected gorunse bile sinyal cok zayifsa RF stack takilmis olabilir.
+// Yumusak radyo yenileme (WIFI_OFF -> WIFI_STA) reboot etmeden RF'i sifirlar.
+const int           RSSI_ZAYIF_ESIK  = -80;
+const unsigned long RSSI_KONTROL_MS  = 60000;
+const int           RSSI_ZAYIF_MAX   = 5;
+const int           RADYO_YENILE_MAX = 3;
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
@@ -91,6 +99,14 @@ int disconnectCount = 0;
 unsigned long lastDisconnectMs = 0;
 const unsigned long UPTIME_RESET_MS = 24UL * 3600UL * 1000UL;
 
+// RSSI recovery durumu
+unsigned long lastRssiKontrol = 0;
+int rssiZayifSayac    = 0;
+int radyoYenileSayac  = 0;
+int sonRSSI           = 0;
+uint32_t radyoYenileToplam = 0;
+RTC_DATA_ATTR int rtcRssiHardReset = 0;
+
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
 // ════════════════════════════════════════════════════════════
@@ -128,6 +144,31 @@ void wifiBaglan() {
 
 bool wifiHazir() {
   return WiFi.status() == WL_CONNECTED;
+}
+
+// Yumusak radyo yenileme — RF stack'i kapatip acar. Reboot etmez, sayac/buffer korunur.
+void wifiRadyoYenile() {
+  Serial.println("\n[RSSI] Radyo yenileniyor (WIFI_OFF -> WIFI_STA, RF re-init)...");
+  WiFi.disconnect(true);
+  delay(300);
+  WiFi.mode(WIFI_OFF);
+  delay(500);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  unsigned long basla = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - basla) < 15000) {
+    delay(500); Serial.print('+');
+    esp_task_wdt_reset();
+  }
+  radyoYenileToplam++;
+  if (WiFi.status() == WL_CONNECTED) {
+    sonRSSI = WiFi.RSSI();
+    Serial.printf("\n[RSSI] Radyo yenilendi · yeni RSSI=%d dBm\n", sonRSSI);
+  } else {
+    Serial.println("\n[RSSI] Radyo yenileme sonrasi baglanamadi");
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -252,6 +293,7 @@ void heartbeatGonder() {
   // ISR raw count — MIN_PULSE_GAP filtresinden onceki donanim pulse sayisi
   doc["isr_count_ist1"]  = ist1_isr_count;
   doc["robot_calisiyor"] = robotCalisiyor;
+  doc["radyo_yenile"]    = radyoYenileToplam;
 
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
@@ -392,10 +434,13 @@ void loop() {
   }
 
   // ─── SELF-HEAL kontrolleri ───
+  // 1) 24 saat uptime → koruyucu reset, AMA buton son 2 dk basilmadiysa (bos)
   if ((now - bootMs) > UPTIME_RESET_MS) {
-    Serial.println("\n[SELFHEAL] 24 saat uptime doldu — koruyucu reset");
-    delay(500);
-    ESP.restart();
+    if ((now - lastValidPulseIst1) > 120000UL) {
+      Serial.println("\n[SELFHEAL] 24h doldu + buton bos (2dk) — koruyucu reset");
+      delay(500);
+      ESP.restart();
+    }
   }
   if (httpFailCount >= 5 && lastSuccessHttp > 0
       && (now - lastSuccessHttp) > 60000UL) {
@@ -409,6 +454,34 @@ void loop() {
                   disconnectCount);
     delay(500);
     ESP.restart();
+  }
+  // 4) RSSI tabanli radyo recovery — connected ama sinyal cok zayifsa
+  if (wifiHazir() && (now - lastRssiKontrol) > RSSI_KONTROL_MS) {
+    lastRssiKontrol = now;
+    sonRSSI = WiFi.RSSI();
+    if (sonRSSI < RSSI_ZAYIF_ESIK && sonRSSI < 0) {
+      rssiZayifSayac++;
+      Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d)\n", sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX);
+      if (rssiZayifSayac >= RSSI_ZAYIF_MAX) {
+        rssiZayifSayac = 0;
+        radyoYenileSayac++;
+        wifiRadyoYenile();
+        if (radyoYenileSayac >= RADYO_YENILE_MAX) {
+          radyoYenileSayac = 0;
+          if (rtcRssiHardReset < 2) {
+            rtcRssiHardReset++;
+            Serial.printf("\n[SELFHEAL] RSSI zayif — ESP.restart() (#%d)\n", rtcRssiHardReset);
+            delay(500);
+            ESP.restart();
+          } else {
+            Serial.println("\n[RSSI] Hard reset limiti — zayif sinyalle devam");
+          }
+        }
+      }
+    } else {
+      rssiZayifSayac = 0;
+      radyoYenileSayac = 0;
+    }
   }
 
   delay(5);

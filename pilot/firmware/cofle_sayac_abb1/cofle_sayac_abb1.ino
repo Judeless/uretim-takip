@@ -60,7 +60,17 @@ const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.2.1-abb1";
+const char* FIRMWARE_VER  = "2.3.0-abb1";
+
+// ─── RSSI tabanli radyo recovery (v2.3) ─────────────────────────
+// Cihaz "connected" gorunse bile sinyal cok zayifsa (ornek -88dBm iken
+// komsu cihaz -39dBm) bu cogu zaman ESP32 RF yiginin takilmasidir.
+// Yumusak radyo yenileme (WIFI_OFF -> WIFI_STA) RF'i yeniden baslatir;
+// ESP.restart()'tan daha hedefli ve pulse kaybetmez (interrupt + buffer korur).
+const int           RSSI_ZAYIF_ESIK  = -80;     // dBm — alti "zayif" kabul edilir
+const unsigned long RSSI_KONTROL_MS  = 60000;   // her 60 sn RSSI olc
+const int           RSSI_ZAYIF_MAX   = 5;       // 5 ardisik zayif (~5 dk) -> radyo yenile
+const int           RADYO_YENILE_MAX = 3;       // 3 yenileme hala zayifsa -> 1 kez ESP.restart()
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
@@ -121,6 +131,16 @@ int disconnectCount = 0;                 // 10dk penceredeki disconnect sayisi
 unsigned long lastDisconnectMs = 0;      // Son disconnect zamani
 const unsigned long UPTIME_RESET_MS = 24UL * 3600UL * 1000UL;  // 24 saat koruyucu
 
+// RSSI recovery durumu
+unsigned long lastRssiKontrol = 0;
+int rssiZayifSayac    = 0;   // ardisik zayif RSSI okuma
+int radyoYenileSayac  = 0;   // bu zayif periyotta kac kez radyo yenilendi
+int sonRSSI           = 0;   // son olculen RSSI (heartbeat'te raporlanir)
+uint32_t radyoYenileToplam = 0;  // boot'tan beri toplam radyo yenileme (debug)
+// Hard reset'i sinirla — gercek anten/donanim arizasinda reset loop olmasin.
+// RTC bellegi ESP.restart()'i atlatir, sadece power-cycle sifirlar.
+RTC_DATA_ATTR int rtcRssiHardReset = 0;
+
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
 // ════════════════════════════════════════════════════════════
@@ -158,6 +178,33 @@ void wifiBaglan() {
 
 bool wifiHazir() {
   return WiFi.status() == WL_CONNECTED;
+}
+
+// Yumusak radyo yenileme — RF stack'i tamamen kapatip acar.
+// ESP.restart()'tan farki: cihaz reboot etmez, NVS/sayaclar/buffer korunur,
+// pulse'lar interrupt + buffer ile kaybolmaz. Takilmis RSSI durumunu cozer.
+void wifiRadyoYenile() {
+  Serial.println("\n[RSSI] Radyo yenileniyor (WIFI_OFF -> WIFI_STA, RF re-init)...");
+  WiFi.disconnect(true);     // baglantiyi kes + radyoyu kapat
+  delay(300);
+  WiFi.mode(WIFI_OFF);       // RF tamamen kapat
+  delay(500);
+  WiFi.mode(WIFI_STA);       // RF yeniden baslat
+  WiFi.setSleep(false);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  unsigned long basla = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - basla) < 15000) {
+    delay(500); Serial.print('+');
+    esp_task_wdt_reset();
+  }
+  radyoYenileToplam++;
+  if (WiFi.status() == WL_CONNECTED) {
+    sonRSSI = WiFi.RSSI();
+    Serial.printf("\n[RSSI] Radyo yenilendi · yeni RSSI=%d dBm\n", sonRSSI);
+  } else {
+    Serial.println("\n[RSSI] Radyo yenileme sonrasi baglanamadi — sonra tekrar");
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -311,6 +358,8 @@ void heartbeatGonder() {
   doc["isr_count_ist1"]  = ist1_isr_count;
   doc["isr_count_ist2"]  = ist2_isr_count;
   doc["robot_calisiyor"] = robotCalisiyor;
+  // RSSI recovery istatistigi — radyo kac kez yenilendi (yuksekse anten/konum sorunu)
+  doc["radyo_yenile"]    = radyoYenileToplam;
 
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
@@ -485,11 +534,17 @@ void loop() {
   }
 
   // ─── SELF-HEAL kontrolleri ───
-  // 1) 24 saat uptime → koruyucu reset (Smart Counter benzeri preventive)
+  // 1) 24 saat uptime → koruyucu reset, AMA makine bos iken (uretim kesintiye ugramasin)
+  //    Son pulse'tan beri 2 dk gectiyse (iki istasyon da) reset guvenli.
   if ((now - bootMs) > UPTIME_RESET_MS) {
-    Serial.println("\n[SELFHEAL] 24 saat uptime doldu — koruyucu reset");
-    delay(500);
-    ESP.restart();
+    bool makineBos = (now - lastValidPulseIst1) > 120000UL
+                  && (now - lastValidPulseIst2) > 120000UL;
+    if (makineBos) {
+      Serial.println("\n[SELFHEAL] 24h doldu + makine bos (2dk pulse yok) — koruyucu reset");
+      delay(500);
+      ESP.restart();
+    }
+    // Makine calisiyorsa reset ertelenir — bir sonraki bos doneme birakilir
   }
   // 2) 5+ ardisik HTTP fail + 60sn sessizlik → reset (TCP yigini takilmis)
   if (httpFailCount >= 5 && lastSuccessHttp > 0
@@ -505,6 +560,44 @@ void loop() {
                   disconnectCount);
     delay(500);
     ESP.restart();
+  }
+  // 4) RSSI tabanli radyo recovery — connected ama sinyal cok zayifsa
+  if (wifiHazir() && (now - lastRssiKontrol) > RSSI_KONTROL_MS) {
+    lastRssiKontrol = now;
+    sonRSSI = WiFi.RSSI();
+    if (sonRSSI < RSSI_ZAYIF_ESIK && sonRSSI < 0) {
+      rssiZayifSayac++;
+      Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d ardisik)\n",
+                    sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX);
+      if (rssiZayifSayac >= RSSI_ZAYIF_MAX) {
+        rssiZayifSayac = 0;
+        radyoYenileSayac++;
+        wifiRadyoYenile();   // yumusak RF re-init (pulse kaybetmez)
+        // Radyo yenileme yeterli sayida denenip hala zayifsa, RF stack degil
+        // gercek anten/donanim sorunu olabilir. Power-cycle basina en fazla 2 kez
+        // tam reset dene (RTC bellegi sayaci), sonra zayif sinyalle calismaya devam.
+        if (radyoYenileSayac >= RADYO_YENILE_MAX) {
+          radyoYenileSayac = 0;
+          if (rtcRssiHardReset < 2) {
+            rtcRssiHardReset++;
+            Serial.printf("\n[SELFHEAL] RSSI zayif + radyo yenileme yetersiz — ESP.restart() (#%d)\n",
+                          rtcRssiHardReset);
+            delay(500);
+            ESP.restart();
+          } else {
+            Serial.println("\n[RSSI] Hard reset limiti — muhtemel anten/donanim sorunu, "
+                           "zayif sinyalle devam (buffer + retry koruyor)");
+          }
+        }
+      }
+    } else {
+      // Sinyal iyi — sayaclari sifirla
+      if (rssiZayifSayac > 0 || radyoYenileSayac > 0) {
+        Serial.printf("[RSSI] Sinyal toparlandi: %d dBm\n", sonRSSI);
+      }
+      rssiZayifSayac = 0;
+      radyoYenileSayac = 0;
+    }
   }
 
   delay(5);
