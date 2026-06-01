@@ -1536,10 +1536,16 @@ def saha_cihazlari():
                 if ist1_filt or ist2_filt:
                     ist1_v = _aktif_pulse_say(cid, 1, ist1_filt) if ist1_filt else ist_map.get(1, 0)
                     ist2_v = _aktif_pulse_say(cid, 2, ist2_filt) if ist2_filt else ist_map.get(2, 0)
-                    # ist=0 (montaj/metal generic) icin de all-reset uygula
+                    # toplam = cihazin TUM pulse'lari (istasyon farketmez).
+                    # _aktif_pulse_say(cid, 0, ts) -> istasyon=0 falsy oldugu icin filtre
+                    # UYGULAMAZ, tum pulse'lari sayar. ESKI BUG: ist1_v + ist2_v + toplam_0
+                    # idi; montaj istasyon=1 gonderdigi icin o pulse hem ist1_v'de hem
+                    # toplam_0'da sayiliyordu = 2x. Duzeltme: dogrudan toplam say.
                     toplam_ts = _en_son_ts(vardiya_ts, reset_all)
-                    toplam_0 = _aktif_pulse_say(cid, 0, toplam_ts) if toplam_ts else 0
-                    toplam_v = ist1_v + ist2_v + toplam_0
+                    if toplam_ts:
+                        toplam_v = _aktif_pulse_say(cid, 0, toplam_ts)
+                    else:
+                        toplam_v = ist1_v + ist2_v
                 else:
                     ist1_v = ist_map.get(1, 0)
                     ist2_v = ist_map.get(2, 0)
