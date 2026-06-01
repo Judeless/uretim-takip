@@ -1163,6 +1163,18 @@
 
         <label style="margin-top:14px">Açıklama <span style="font-weight:400;text-transform:none;color:var(--muted)">(Opsiyonel)</span></label>
         <textarea id="d-aciklama" placeholder="Örn: Malzeme uyumsuzluğu, ölçü problemi, vs."></textarea>
+
+        <!-- Sayacı Sıfırla — emniyet butonu (deneme/test sinyalleri karışıklık yaratırsa).
+             Sadece kayıtlı (mevcut) kayıtta görünür. Sayacı şu andan 0'lar. -->
+        <div id="d-sayac-sifirla-wrap" style="display:none;margin-top:16px;padding-top:14px;border-top:1px dashed var(--border,rgba(255,255,255,.12))">
+          <button type="button" onclick="sayacSifirla()"
+            style="width:100%;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:12px;padding:12px;font-weight:800;font-size:.86rem;cursor:pointer">
+            ↻ Sayacı Sıfırla
+          </button>
+          <div style="font-size:.72rem;color:var(--muted,#94a3c4);margin-top:6px;text-align:center">
+            Bu referansın sayacı 0'lanır, şu andan itibaren yeniden sayılır. (Deneme sinyallerini temizlemek için)
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1771,6 +1783,8 @@
       }
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = 'none';  // yeni kayıtta sensör ipucu gizli
+      var sifirla = document.getElementById('d-sayac-sifirla-wrap');
+      if (sifirla) sifirla.style.display = 'none';  // yeni kayıtta reset butonu yok (henüz kayıt yok)
       istasyonSec(0);
       gitEkran('D');
     }
@@ -2308,6 +2322,9 @@
       document.getElementById('d-uid').value = id;
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = (sayacOtomatik == 1) ? 'block' : 'none';
+      // Mevcut (kayıtlı) kayıtta sayacı sıfırla butonu görünür
+      var sifirla = document.getElementById('d-sayac-sifirla-wrap');
+      if (sifirla) sifirla.style.display = 'block';
       // Auto kayıtsa: form açılışındaki OK değerini sakla; operatör değiştirirse
       // kaydederken sayacı dondurmak için 'ok_elle_degisti' göndereceğiz.
       window._dOkAcilis = (sayacOtomatik == 1) ? String(ok) : null;
@@ -2375,6 +2392,25 @@
       fetch('/api/uretim/' + id, { method: 'DELETE' })
         .then(function () { toast('Kayıt silindi', 'success'); yukleAktifVardiya(); setTimeout(refreshOEE, 400); })
         .catch(function () { toast('Silinemedi', 'error'); });
+    }
+
+    // Sayacı sıfırla — emniyet butonu. Bu referansın sayacını şu andan 0'lar
+    // (baseline=now, otomatik mod yeniden aktif). Deneme/test sinyallerini temizler.
+    function sayacSifirla() {
+      var uid = document.getElementById('d-uid').value;
+      if (!uid) { toast('Önce kaydı kaydedin', 'error'); return; }
+      if (!confirm('Bu referansın SAYACI SIFIRLANACAK ve şu andan itibaren yeniden sayılacak.\n\nDeneme sinyalleri temizlenir. Onaylıyor musunuz?')) return;
+      fetch('/api/uretim/' + uid + '/sayac_sifirla', { method: 'POST' })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+          if (!res.ok || res.body.hata) { toast(res.body.hata || 'Sıfırlanamadı', 'error'); return; }
+          document.getElementById('d-ok').value = 0;
+          window._dOkAcilis = '0';  // auto yeniden aktif, açılış değeri 0
+          var ip = document.getElementById('d-sayac-ipucu');
+          if (ip) ip.style.display = 'block';
+          toast('Sayaç sıfırlandı — şu andan itibaren sayılıyor', 'success');
+        })
+        .catch(function () { toast('Bağlantı hatası', 'error'); });
     }
 
     // ── EKRAN E: DURUŞ ──

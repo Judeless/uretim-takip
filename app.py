@@ -850,6 +850,32 @@ def uretim_ekle():
             conn.close()
 
 
+@app.route('/api/uretim/<int:uid>/sayac_sifirla', methods=['POST'])
+@operator_required
+def uretim_sayac_sifirla(uid):
+    """Operatör emniyet reseti — bu üretim kaydının sayacını ŞİMDİDEN sıfırlar.
+    Deneme/test sinyalleri karışıklık yaratırsa operatör sayacı 0'lar.
+    baseline=now → bu andan sonraki pulse'lar sayılır; otomatik mod yeniden aktif."""
+    vid = _uretim_vardiya_bul(uid)
+    if vid:
+        ok, hata = _vardiya_sahibi_kontrol(vid)
+        if not ok:
+            return jsonify({'hata': hata}), 403
+    conn = get_db()
+    try:
+        simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cur = conn.execute(
+            "UPDATE uretim_kayitlari SET sayac_baslangic_ts=?, ok_adet=0, sayac_otomatik=1 WHERE id=?",
+            (simdi, uid)
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return jsonify({'hata': 'Kayit bulunamadi'}), 404
+        return jsonify({'basarili': True, 'sayac_baslangic_ts': simdi})
+    finally:
+        conn.close()
+
+
 @app.route('/api/uretim/<int:uid>', methods=['DELETE'])
 @operator_required
 def uretim_sil(uid):
