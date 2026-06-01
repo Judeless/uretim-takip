@@ -43,24 +43,23 @@ const int PIN_IST2_SAYAC      = 26;
 const int PIN_ROBOT_CALISIYOR = 27;
 const int PIN_LED             =  2;
 
-// Pulse algilama: GPIO CHANGE interrupt (hardware) — pulse'un hem basini hem
-// sonunu yakalar, sadece tamamlanmis ve yeterli genislikteki pulse'lari sayar.
-// Bu sayede iki sorun cozulur:
-//  1) Cross-talk: bir pine pulse gelince diger pin de anlik LOW gibi gorunur,
-//     ama bu spike <1ms surdugu icin MIN_PULSE_US filtresinden gecmez.
-//  2) Pulse icinde glitch: 1sn'lik pulse icinde olusan mikro HIGH spike'lar
-//     pulse'u "bitti" gibi gostermez cunku CHANGE state machine durumu izler.
-const unsigned long ISR_DEBOUNCE_US  = 1000;   // 1ms ISR seviyesinde minimal debounce
-const unsigned long MIN_PULSE_US     = 5000;   // 5ms minimum pulse genisligi (spike koruma)
-                                               // ABB pulse 100ms+ tipik, 5ms cok altta
-const unsigned long MIN_PULSE_GAP_MS = 800;    // Loop seviyesinde back-to-back filtre
-                                               // (kaynak robot cycle min 8sn, 800ms aralik yeterli buffer)
+// Pulse algilama: state polling + multi-sample (v2.1 kanitlanmis yontem).
+// Pini surekli okur, HIGH->LOW gecisinde 75ms boyunca (15x5ms) hala LOW mu
+// dogrular. Bu yontem:
+//  - Cross-talk spike'larini eler (kisa spike 75ms LOW kalamaz)
+//  - Yavas/zayif pull-up kenarlarinda guvenilir (oturmus seviyeye bakar,
+//    interrupt edge timing'ine degil)
+//  - MIN_PULSE_GAP ile ayni pulse'in cift sayilmasini onler
+const int  DEBOUNCE_MS         = 100;          // edge sonrasi bekleme
+const int  PARAZIT_SAMPLE_N    = 15;           // multi-sample adedi
+const int  PARAZIT_SAMPLE_GAP  = 5;            // sample arasi ms (15x5 = 75ms onay)
+const unsigned long MIN_PULSE_GAP_MS = 3000;   // iki gecerli pulse arasi min (robot cycle 8sn+)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.3.0-abb9";
+const char* FIRMWARE_VER  = "2.3.1-abb9";
 
 // ─── RSSI tabanli radyo recovery (v2.3) ─────────────────────────
 // Cihaz "connected" gorunse bile sinyal cok zayifsa (ornek -88dBm iken
@@ -90,28 +89,15 @@ struct PulseKaydi {
 PulseKaydi buffer[BUFFER_MAX];
 int buf_bas = 0, buf_son = 0, buf_dolu = 0;
 
+int lastIst1State  = HIGH;
+int lastIst2State  = HIGH;
 int lastRobotState = HIGH;
+unsigned long lastDebounceIst1  = 0;
+unsigned long lastDebounceIst2  = 0;
 unsigned long lastDebounceRobot = 0;
 
 unsigned long lastValidPulseIst1 = 0;
 unsigned long lastValidPulseIst2 = 0;
-
-// Hardware CHANGE interrupt + state machine — ist1 + ist2 pulse pinleri.
-// state:
-//   0 = bekliyor (pin HIGH, idle)
-//   1 = pulse aktif (pin LOW, falling edge yakalandi)
-//   2 = pulse tamamlandi (rising edge geldi, genislik >= MIN_PULSE_US — loop'a sayim hazir)
-// Loop "state == 2" gorunce sayim yapar, sonra state'i 0'a reset eder.
-// Bu state machine ile:
-//  - Cross-talk spike'lari (genelde 100-1000us, < MIN_PULSE_US=5000us) reddedilir
-//  - Pulse icindeki glitch'ler state 1'den cikamadigi icin tek pulse sayilir
-//  - Loop bloke iken bile state degisimi takip edilir (interrupt seviyesinde)
-volatile uint8_t ist1_state = 0;
-volatile uint8_t ist2_state = 0;
-volatile unsigned long ist1_pulse_start_us = 0;
-volatile unsigned long ist2_pulse_start_us = 0;
-volatile uint32_t ist1_isr_count = 0;  // toplam ISR tetiklenme (debug/dogrulama)
-volatile uint32_t ist2_isr_count = 0;
 
 unsigned long lastRobotCheck = 0;
 const unsigned long ROBOT_CHECK_INTERVAL_MS = 500;
@@ -207,54 +193,14 @@ void wifiRadyoYenile() {
   }
 }
 
-// ════════════════════════════════════════════════════════════
-//   INTERRUPT SERVICE ROUTINES (CHANGE — hem rising hem falling)
-// ════════════════════════════════════════════════════════════
-// IRAM_ATTR: ISR fonksiyonu IRAM'de saklanmali (cache miss sirasinda da calismali)
-// CHANGE interrupt + state machine:
-//  - FALLING (LOW): pulse basladi, state 0 -> 1, baslangic zamanini kaydet
-//  - RISING (HIGH): pulse bitti, genislik >= MIN_PULSE_US ise state 1 -> 2 (loop sayar)
-//                    genislik < MIN_PULSE_US ise spike, state 1 -> 0 (sayim YOK)
-void IRAM_ATTR onIst1Change() {
-  unsigned long now_us = micros();
-  ist1_isr_count++;
-  // INPUT_PULLUP: LOW = pulse aktif (relay/buton kapali), HIGH = bos
-  if (digitalRead(PIN_IST1_SAYAC) == LOW) {
-    // Falling edge — pulse baslangici
-    if (ist1_state == 0 && (now_us - ist1_pulse_start_us) > ISR_DEBOUNCE_US) {
-      ist1_state = 1;
-      ist1_pulse_start_us = now_us;
-    }
-  } else {
-    // Rising edge — pulse bitisi
-    if (ist1_state == 1) {
-      unsigned long genislik = now_us - ist1_pulse_start_us;
-      if (genislik >= MIN_PULSE_US) {
-        ist1_state = 2;  // gecerli pulse, loop sayar
-      } else {
-        ist1_state = 0;  // spike (cross-talk veya kisa glitch), atla
-      }
-    }
+// Multi-sample parazit filtresi — pin PARAZIT_SAMPLE_N kez ust uste LOW mu?
+// Cross-talk spike'lari ve yavas kenarlardaki anlik gurultuyu eler.
+bool pinGercektenLOW(int pin) {
+  for (int i = 0; i < PARAZIT_SAMPLE_N; i++) {
+    if (digitalRead(pin) != LOW) return false;
+    delay(PARAZIT_SAMPLE_GAP);
   }
-}
-void IRAM_ATTR onIst2Change() {
-  unsigned long now_us = micros();
-  ist2_isr_count++;
-  if (digitalRead(PIN_IST2_SAYAC) == LOW) {
-    if (ist2_state == 0 && (now_us - ist2_pulse_start_us) > ISR_DEBOUNCE_US) {
-      ist2_state = 1;
-      ist2_pulse_start_us = now_us;
-    }
-  } else {
-    if (ist2_state == 1) {
-      unsigned long genislik = now_us - ist2_pulse_start_us;
-      if (genislik >= MIN_PULSE_US) {
-        ist2_state = 2;
-      } else {
-        ist2_state = 0;
-      }
-    }
-  }
+  return true;
 }
 
 bool bufferdanBirGonder() {
@@ -264,7 +210,7 @@ bool bufferdanBirGonder() {
   HTTPClient http;
   String url = String(SUNUCU_HOST) + "/api/sinyal";
   http.begin(url);
-  http.setTimeout(5000);
+  http.setTimeout(3000);   // kisa timeout — uzun blok = pulse polling gecikmesi
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", String("Bearer ") + API_TOKEN);
 
@@ -336,7 +282,7 @@ void heartbeatGonder() {
   if (!wifiHazir()) return;
   HTTPClient http;
   http.begin(String(SUNUCU_HOST) + "/api/sinyal/heartbeat");
-  http.setTimeout(5000);
+  http.setTimeout(3000);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", String("Bearer ") + API_TOKEN);
 
@@ -353,10 +299,6 @@ void heartbeatGonder() {
   doc["free_heap"]       = (int)ESP.getFreeHeap();
   doc["pulse_ist1"]      = pulseIst1;
   doc["pulse_ist2"]      = pulseIst2;
-  // ISR raw count — sayim'a donen pulse'lardan farkli (MIN_PULSE_GAP filtresinden dusenler)
-  // ist1_isr_count - pulseIst1 = "FILTRE" ile reddedilen back-to-back pulse sayisi
-  doc["isr_count_ist1"]  = ist1_isr_count;
-  doc["isr_count_ist2"]  = ist2_isr_count;
   doc["robot_calisiyor"] = robotCalisiyor;
   // RSSI recovery istatistigi — radyo kac kez yenilendi (yuksekse anten/konum sorunu)
   doc["radyo_yenile"]    = radyoYenileToplam;
@@ -399,16 +341,10 @@ void setup() {
   pinMode(PIN_LED,             OUTPUT);
   digitalWrite(PIN_LED, LOW);
 
+  lastIst1State  = digitalRead(PIN_IST1_SAYAC);
+  lastIst2State  = digitalRead(PIN_IST2_SAYAC);
   lastRobotState = digitalRead(PIN_ROBOT_CALISIYOR);
   robotCalisiyor = (lastRobotState == LOW);
-
-  // Hardware CHANGE interrupt — hem falling hem rising edge yakalanir.
-  // Pulse'un basini VE sonunu izleyerek tam pulse genisligini olcer (>= 5ms ise sayar).
-  // Cross-talk spike'lari (<1ms) ve glitch'ler reddedilir.
-  attachInterrupt(digitalPinToInterrupt(PIN_IST1_SAYAC), onIst1Change, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(PIN_IST2_SAYAC), onIst2Change, CHANGE);
-  Serial.printf("[ISR] Ist1=GPIO%d, Ist2=GPIO%d — CHANGE interrupt + pulse genislik teyidi (>=%lums)\n",
-                PIN_IST1_SAYAC, PIN_IST2_SAYAC, MIN_PULSE_US / 1000);
 
   prefs.begin("cofle", false);
   pulseIst1 = prefs.getULong("pulse_i1", 0);
@@ -464,8 +400,8 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] CHANGE interrupt + pulse genislik teyidi aktif — robot DO sinyalleri bekleniyor...");
-  Serial.println("        (Cross-talk ve glitch koruma: pulse >=5ms olmali, aksi reddedilir)\n");
+  Serial.println("[READY] State polling + multi-sample aktif — robot DO sinyalleri bekleniyor...");
+  Serial.println("        (75ms multi-sample cross-talk/parazit filtresi, MIN_PULSE_GAP=3sn)\n");
   ledYakBlink(3, 60);
 }
 
@@ -482,27 +418,43 @@ void loop() {
     }
   }
 
-  // Ist.1 pulse — ISR state machine tarafindan 2'ye getirildi (gecerli tamamlanmis pulse)
-  if (ist1_state == 2) {
-    ist1_state = 0;  // reset, sonraki pulse'a hazir
-    if ((now - lastValidPulseIst1) >= MIN_PULSE_GAP_MS) {
-      istasyonSinyali(1);
-      lastValidPulseIst1 = now;
-    } else {
-      Serial.printf("[FILTRE] Ist.1 erken (gap=%lums < %lums) - SAYILMADI\n",
-                    now - lastValidPulseIst1, MIN_PULSE_GAP_MS);
+  // Ist.1 pulse — state polling: HIGH->LOW gecisi + 75ms multi-sample + min gap
+  int curIst1 = digitalRead(PIN_IST1_SAYAC);
+  if (curIst1 != lastIst1State && (now - lastDebounceIst1) > DEBOUNCE_MS) {
+    lastDebounceIst1 = now;
+    if (curIst1 == LOW) {
+      if (pinGercektenLOW(PIN_IST1_SAYAC)) {
+        if ((now - lastValidPulseIst1) >= MIN_PULSE_GAP_MS) {
+          istasyonSinyali(1);
+          lastValidPulseIst1 = now;
+        } else {
+          Serial.printf("[FILTRE] Ist.1 erken (gap=%lums < %lums) - SAYILMADI\n",
+                        now - lastValidPulseIst1, MIN_PULSE_GAP_MS);
+        }
+      } else {
+        Serial.println("[FILTRE] Ist.1 parazit (multi-sample basarisiz) - SAYILMADI");
+      }
     }
+    lastIst1State = curIst1;
   }
   // Ist.2 pulse
-  if (ist2_state == 2) {
-    ist2_state = 0;
-    if ((now - lastValidPulseIst2) >= MIN_PULSE_GAP_MS) {
-      istasyonSinyali(2);
-      lastValidPulseIst2 = now;
-    } else {
-      Serial.printf("[FILTRE] Ist.2 erken (gap=%lums < %lums) - SAYILMADI\n",
-                    now - lastValidPulseIst2, MIN_PULSE_GAP_MS);
+  int curIst2 = digitalRead(PIN_IST2_SAYAC);
+  if (curIst2 != lastIst2State && (now - lastDebounceIst2) > DEBOUNCE_MS) {
+    lastDebounceIst2 = now;
+    if (curIst2 == LOW) {
+      if (pinGercektenLOW(PIN_IST2_SAYAC)) {
+        if ((now - lastValidPulseIst2) >= MIN_PULSE_GAP_MS) {
+          istasyonSinyali(2);
+          lastValidPulseIst2 = now;
+        } else {
+          Serial.printf("[FILTRE] Ist.2 erken (gap=%lums < %lums) - SAYILMADI\n",
+                        now - lastValidPulseIst2, MIN_PULSE_GAP_MS);
+        }
+      } else {
+        Serial.println("[FILTRE] Ist.2 parazit (multi-sample basarisiz) - SAYILMADI");
+      }
     }
+    lastIst2State = curIst2;
   }
 
   if (now - lastRobotCheck >= ROBOT_CHECK_INTERVAL_MS) {
