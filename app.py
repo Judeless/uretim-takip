@@ -216,6 +216,11 @@ def _durus_vardiya_bul(durus_id):
 # ─────────────────────────────────────────────────────────────
 # SAYAÇ ENTEGRASYONU — pilot sensör pulse'larını üretim kaydına bağlar
 # ─────────────────────────────────────────────────────────────
+# Sadece sahada kurulu + doğrulanmış cihazlarda OK adet sensörden otomatik beslenir.
+# Yeni cihaz devreye alınıp test edildikçe robot_no buraya eklenir.
+SAYAC_AUTO_CIHAZLAR = {'ABB2', 'ABB5', 'M1', '400T'}
+
+
 def _pilot_db_yolu():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
 
@@ -286,6 +291,9 @@ def _uretim_sayac_senkron(conn, vardiya_id):
             (vardiya_id,)
         ).fetchone()
         if not v or not v['robot_no']:
+            return
+        # Sadece allowlist cihazlarda sensör senkronu (desteklenmeyen cihaz manuel kalır)
+        if v['robot_no'] not in SAYAC_AUTO_CIHAZLAR:
             return
         rows = conn.execute(
             "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
@@ -582,6 +590,9 @@ def vardiya_detay(vid):
         'uretim': [dict(r) for r in uretim],
         'duruslar': [dict(r) for r in duruslar],
         'son_pulse_dk': son_pulse_dk,
+        # Bu cihazda sensör otomatik sayım destekli mi (allowlist) — mobil UI buna göre
+        # sensör rozeti/ipucu/sıfırla butonu gösterir
+        'sayac_destekli': (vardiya['robot_no'] in SAYAC_AUTO_CIHAZLAR),
     })
 
 
@@ -796,10 +807,11 @@ def uretim_ekle():
             ist_val = int(satir.get('istasyon', data.get('istasyon', 0)) or 0)
             ok_val  = int(satir.get('ok_adet', 0) or 0)
 
-            # Sayaç otomatik mod: tek satır + OK girilmemiş (0) ise sensör besler.
-            # Operatör referansa YENİ başlıyor demektir → sayaç o andan sıfırlanır.
-            # (Toplu/geçmiş giriş veya OK elle yazılmışsa manuel mod.)
-            auto = 1 if (tek_satir and ok_val == 0) else 0
+            # Sayaç otomatik mod: tek satır + OK girilmemiş (0) + cihaz allowlist'te ise
+            # sensör besler. Operatör referansa YENİ başlıyor demektir → sayaç o andan sıfırlanır.
+            # (Toplu/geçmiş giriş, OK elle yazılmış veya desteklenmeyen cihaz → manuel mod.)
+            auto = 1 if (tek_satir and ok_val == 0
+                         and vardiya_robot in SAYAC_AUTO_CIHAZLAR) else 0
 
             if auto:
                 # Aynı vardiya+istasyon önceki auto kayıt(lar)ı dondur: referans değişti,

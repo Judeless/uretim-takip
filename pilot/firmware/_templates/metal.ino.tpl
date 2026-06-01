@@ -41,19 +41,22 @@ const int PIN_IST2_SAYAC      = 26;   // BOS
 const int PIN_ROBOT_CALISIYOR = 27;   // BOS
 const int PIN_LED             =  2;
 
-// Pulse algilama: state polling + multi-sample (v2.1 kanitlanmis yontem).
-// Rote'nin oturmus LOW seviyesine 75ms boyunca bakar; kisa parazit/cross-talk
-// spike'larini eler. MIN_PULSE_GAP=15sn ile rote 10sn aktif periyodunda tek sayim.
+// Pulse algilama: state polling + UZUN multi-sample (metal'e ozel).
+// Metal rote sinyali ~10sn AKTIF kalir — bu yuzden cok uzun bir surekli-LOW
+// dogrulamasi yapabiliriz: pin 1 saniye boyunca KESINTISIZ LOW olmali.
+// Boylece makine kapaliyken olusan elektriksel parazit/transient (kontaktor,
+// VFD, motor, floating pin EMI — genelde <100ms) hayalet sayim YARATMAZ.
+// Gercek 10sn'lik rote sinyali 1sn dogrulamayi rahat gecer.
 const int  DEBOUNCE_MS         = 100;
-const int  PARAZIT_SAMPLE_N    = 15;
-const int  PARAZIT_SAMPLE_GAP  = 5;            // 15x5 = 75ms onay
+const int  PARAZIT_SAMPLE_N    = 40;
+const int  PARAZIT_SAMPLE_GAP  = 25;           // 40x25 = 1000ms KESINTISIZ LOW onayi
 const unsigned long MIN_PULSE_GAP_MS = 15000; // Metal: rote 10sn aktif, en kisa cycle 20sn → 15sn (10+5 margin)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.3.1-__FW_SUFFIX__";
+const char* FIRMWARE_VER  = "2.3.2-__FW_SUFFIX__";
 
 // ─── RSSI tabanli radyo recovery (v2.3) ─────────────────────────
 const int           RSSI_ZAYIF_ESIK  = -80;
@@ -361,8 +364,8 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] State polling + multi-sample aktif — uretim sinyalleri bekleniyor...");
-  Serial.println("        (75ms multi-sample parazit filtresi, MIN_PULSE_GAP=15sn)\n");
+  Serial.println("[READY] State polling + UZUN multi-sample aktif — uretim sinyalleri bekleniyor...");
+  Serial.println("        (1sn KESINTISIZ LOW onayi — parazit/hayalet sayim filtresi, MIN_PULSE_GAP=15sn)\n");
   ledYakBlink(3, 60);
 }
 

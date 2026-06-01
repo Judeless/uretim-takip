@@ -2196,6 +2196,8 @@
           });
         }
 
+        // Bu cihaz sensör otomatik sayım destekli mi (allowlist: ABB2/ABB5/M1/400T)
+        window._sayacDestekli = (d.sayac_destekli === true);
         // 10dk duruş uyarısı — makineden bu kadar dk sinyal gelmediyse banner göster
         var uyariEl = document.getElementById('c-durus-uyari');
         window._sonPulseDk = d.son_pulse_dk;
@@ -2322,9 +2324,9 @@
       document.getElementById('d-uid').value = id;
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = (sayacOtomatik == 1) ? 'block' : 'none';
-      // Mevcut (kayıtlı) kayıtta sayacı sıfırla butonu görünür
+      // Sayacı sıfırla butonu — sadece sensör destekli cihazlarda (allowlist) görünür
       var sifirla = document.getElementById('d-sayac-sifirla-wrap');
-      if (sifirla) sifirla.style.display = 'block';
+      if (sifirla) sifirla.style.display = (window._sayacDestekli ? 'block' : 'none');
       // Auto kayıtsa: form açılışındaki OK değerini sakla; operatör değiştirirse
       // kaydederken sayacı dondurmak için 'ok_elle_degisti' göndereceğiz.
       window._dOkAcilis = (sayacOtomatik == 1) ? String(ok) : null;
