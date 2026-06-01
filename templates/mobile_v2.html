@@ -1063,6 +1063,18 @@
         <div class="vb-oee-label">Anlık OEE</div>
       </div>
 
+      <!-- 10dk sinyal yok uyarı bandı — makine duruşu tespit edilince operatörü duruş tanımlamaya yönlendirir -->
+      <div id="c-durus-uyari" style="display:none;margin:12px 0;padding:14px 16px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.45);border-radius:14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:1.4rem">⚠️</span>
+          <div style="flex:1;min-width:140px">
+            <div style="font-weight:800;color:#fca5a5;font-size:.92rem" id="c-durus-uyari-baslik">Makineden sinyal yok</div>
+            <div style="font-size:.76rem;color:var(--c-muted,#94a3c4);margin-top:2px" id="c-durus-uyari-detay">Bu süre için bir duruş tanımlayın.</div>
+          </div>
+          <button onclick="durusUyaridanTanimla()" style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">⏸️ Duruş Tanımla</button>
+        </div>
+      </div>
+
       <!-- Robotla Çalışıyor toggle (sadece metal'de görünür) -->
       <div id="c-auto-toggle" style="display:none;margin:12px 0;padding:14px 18px;background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.28);border-radius:14px">
         <label style="display:flex;align-items:center;gap:14px;cursor:pointer;font-weight:700;font-size:.9rem;margin:0">
@@ -1117,6 +1129,10 @@
           <div>
             <label>ADET (OK)</label>
             <input type="number" id="d-ok" placeholder="0" min="0">
+          </div>
+          <!-- d-ok yanına sığmaz; sensör ipucu alanı aşağıda tam genişlik -->
+          <div id="d-sayac-ipucu" style="display:none;grid-column:1/-1;margin-top:2px;font-size:.74rem;color:#34d399;font-weight:600">
+            📡 Bu adet sensörden otomatik geliyor (canlı). Değiştirirsen sabitlenir, sayaç durur.
           </div>
           <div>
             <label>TAMİR</label>
@@ -1571,9 +1587,11 @@
       // Operatör status bar — localStorage'da aktif operatör varsa göster
       operatorBarGuncelle();
 
+      // Ekran C aktifken periyodik tazele — sensör sayacı (OK adet) ve 10dk
+      // duruş uyarısı canlı güncellensin. yukleAktifVardiya icinde yukleAtamalar da var.
       setInterval(function() {
-        if (aktifEkran === 'C' && aktifVardiyaId) { yukleAtamalar(); }
-      }, 30000);
+        if (aktifEkran === 'C' && aktifVardiyaId) { yukleAktifVardiya(); }
+      }, 20000);
     });
 
     // ── BOLUM SECIMI ──
@@ -1751,6 +1769,8 @@
       if (istWrap) {
         istWrap.style.display = (secilenBolum === 'kaynak') ? 'block' : 'none';
       }
+      var ipucu = document.getElementById('d-sayac-ipucu');
+      if (ipucu) ipucu.style.display = 'none';  // yeni kayıtta sensör ipucu gizli
       istasyonSec(0);
       gitEkran('D');
     }
@@ -1777,6 +1797,20 @@
         durusKategorileriniYukle(secilenBolum);
       }
       gitEkran('E');
+    }
+
+    // 10dk sinyal yok uyarısından duruş tanımlama — süre + başlangıç saati otomatik dolu,
+    // operatör sadece sebep seçer (duruş sebebi insiyatife bırakılmaz, zorunlu tanım)
+    function durusUyaridanTanimla() {
+      yeniDurusEkle();  // formu temizle + Ekran E
+      var spd = parseInt(window._sonPulseDk || 10);
+      document.getElementById('e-sure').value = spd;
+      // Başlangıç saati ≈ son sinyalden bu yana (şimdi - spd dk)
+      var t = new Date(Date.now() - spd * 60000);
+      document.getElementById('e-saat').value =
+        t.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('e-baslik').textContent = '⏸️ Duruş Tanımla (' + spd + ' dk)';
+      toast(spd + ' dk duruş — lütfen sebebini seçin', 'info');
     }
 
     function guncelleNav(id) {
@@ -2104,6 +2138,9 @@
             var ctTxt = ctSn > 0 ? ' · CT:' + Math.round(ctSn) + 'sn' : '';
             var isDkTxt = ctSn > 0 ? ' · ≈' + (adet * ctSn / 60).toFixed(1) + ' dk' : '';
             var nokTxt = u.nok_adet > 0 ? ' · NOK: ' + u.nok_adet : '';
+            // Sayaç otomatik kaydı: OK adet sensörden besleniyor (canlı). Operatör
+            // düzeltirse donar. 📡 rozeti operatöre bunun sayaçtan geldiğini gösterir.
+            var sayacBadge = (u.sayac_otomatik == 1) ? ' <span style="color:#34d399;font-weight:700">📡 sayaç</span>' : '';
             var tamam = u.tamamlandi ? 1 : 0;
             var tamamCls = tamam ? 'ki-btn-tamam is-tamam' : 'ki-btn-tamam is-devam';
             var tamamBtnTxt = tamam ? '✓ Tamam' : 'Devam';
@@ -2112,7 +2149,7 @@
             var aciklamaSatiri = ackEsc ? ('<div class="ki-detail" style="font-style:italic;color:var(--c-amber);margin-top:3px">📝 ' + ackEsc + '</div>') : '';
             div.innerHTML = '<div class="ki-head"><div>' +
               '<div class="ki-kod" style="' + (tamam ? 'opacity:.5;text-decoration:line-through;' : '') + '">' + u.referans_kodu + '</div>' +
-              '<div class="ki-detail">OK: ' + u.ok_adet + nokTxt + ctTxt + isDkTxt + '</div>' +
+              '<div class="ki-detail">OK: ' + u.ok_adet + sayacBadge + nokTxt + ctTxt + isDkTxt + '</div>' +
               aciklamaSatiri +
               '</div><div class="ki-actions">' +
               '<button class="' + tamamCls + '" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>' +
@@ -2143,6 +2180,22 @@
               '</div></div>';
             dlEl.appendChild(div);
           });
+        }
+
+        // 10dk duruş uyarısı — makineden bu kadar dk sinyal gelmediyse banner göster
+        var uyariEl = document.getElementById('c-durus-uyari');
+        window._sonPulseDk = d.son_pulse_dk;
+        if (uyariEl) {
+          var spd = d.son_pulse_dk;
+          if (spd != null && spd >= 10 && d.vardiya.durum !== 'kapali') {
+            document.getElementById('c-durus-uyari-baslik').textContent =
+              '⚠️ ' + spd + ' dakikadır makineden sinyal yok';
+            document.getElementById('c-durus-uyari-detay').textContent =
+              'Bu duruş süresi için bir sebep tanımlayın (operatör girişi zorunlu).';
+            uyariEl.style.display = 'block';
+          } else {
+            uyariEl.style.display = 'none';
+          }
         }
 
         refreshOEE();
@@ -2229,7 +2282,7 @@
       var type = btn.dataset.type;
       if (type === 'u-edit') {
         var u = cacheUretim.find(function (x) { return x.id === id; });
-        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0, u.aciklama || '', u.istasyon || 0, u.launch_adet || 0);
+        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0, u.aciklama || '', u.istasyon || 0, u.launch_adet || 0, u.sayac_otomatik || 0);
       } else if (type === 'u-tamam') {
         var mevcutTamam = parseInt(btn.dataset.tamam || '0');
         fetch('/api/uretim_kayit/' + id + '/tamamlandi', {
@@ -2251,8 +2304,13 @@
     });
 
     // ── EKRAN D: ÜRETİM ──
-    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir, aciklama, istasyon, launch) {
+    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir, aciklama, istasyon, launch, sayacOtomatik) {
       document.getElementById('d-uid').value = id;
+      var ipucu = document.getElementById('d-sayac-ipucu');
+      if (ipucu) ipucu.style.display = (sayacOtomatik == 1) ? 'block' : 'none';
+      // Auto kayıtsa: form açılışındaki OK değerini sakla; operatör değiştirirse
+      // kaydederken sayacı dondurmak için 'ok_elle_degisti' göndereceğiz.
+      window._dOkAcilis = (sayacOtomatik == 1) ? String(ok) : null;
       document.getElementById('d-ref').value = ref;
       document.getElementById('d-ref').dataset.cycle = ct;
       document.getElementById('d-ok').value = ok;
@@ -2282,9 +2340,10 @@
       var istEl = document.getElementById('d-istasyon');
       var launchEl = document.getElementById('d-launch');
       var acEl = document.getElementById('d-aciklama');
+      var okDeger = document.getElementById('d-ok').value;
       var payload = {
         referans_kodu: ref,
-        ok_adet: parseInt(document.getElementById('d-ok').value || 0),
+        ok_adet: parseInt(okDeger || 0),
         nok_adet: parseInt(document.getElementById('d-nok').value || 0),
         tamir_adet: parseInt(document.getElementById('d-tamir').value || 0),
         hedef_adet: parseInt(document.getElementById('d-hedef').value || 0),
@@ -2293,6 +2352,10 @@
         launch_adet: launchEl ? parseInt(launchEl.value || 0) : 0,
         aciklama: acEl ? (acEl.value || '').trim() : ''
       };
+      // Auto sayaç kaydında operatör OK alanını değiştirdiyse sayacı dondur (manuel düzeltme)
+      if (window._dOkAcilis != null && String(okDeger) !== window._dOkAcilis) {
+        payload.ok_elle_degisti = 1;
+      }
       var method, url;
       if (uid) { method = 'PUT'; url = '/api/uretim/' + uid; }
       else { method = 'POST'; url = '/api/uretim'; payload.vardiya_id = aktifVardiyaId; }

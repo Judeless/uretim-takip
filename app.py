@@ -898,19 +898,12 @@ def uretim_guncelle(uid):
                 ct = float(ref_row['hedef_cycle_time_sn'] or 0)
 
         submitted_ok = int(data.get('ok_adet', 0) or 0)
-        # Auto sayaç kaydıysa ve operatör OK'i canlı sensör değerinden FARKLI yaptıysa
-        # → manuel düzeltme yapılmış demektir, otomatik modu kapat (değeri dondur).
-        # Sadece NOK/açıklama değiştirip OK'e dokunmadıysa auto devam eder.
+        # Sayaç otomatik modu: mobil 'ok_elle_degisti' bayrağı gönderirse (operatör
+        # OK alanına dokundu) otomatik kapatılır (değer dondurulur). Sadece NOK/açıklama
+        # değişip OK'e dokunulmadıysa bayrak gelmez → auto devam eder.
         yeni_otomatik = mevcut['sayac_otomatik'] or 0
-        if yeni_otomatik == 1:
-            vrow = c.execute(
-                "SELECT COALESCE(bolum,'kaynak') as bolum, robot_no FROM vardiyalar WHERE id=?",
-                (mevcut['vardiya_id'],)
-            ).fetchone()
-            canli = _pilot_pulse_say(vrow['bolum'], vrow['robot_no'],
-                                     mevcut['istasyon'] or 0, mevcut['sayac_baslangic_ts']) if vrow else submitted_ok
-            if submitted_ok != canli:
-                yeni_otomatik = 0  # operatör elle düzeltti → dondur
+        if data.get('ok_elle_degisti'):
+            yeni_otomatik = 0
 
         c.execute('''
             UPDATE uretim_kayitlari
