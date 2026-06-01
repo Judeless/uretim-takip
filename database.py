@@ -102,6 +102,19 @@ def init_db():
     except Exception:
         pass  # Kolon zaten var
 
+    # Sayaç entegrasyonu (2026-06): operatör yeni referans kaydı açınca sensör
+    # sayacı o andan sıfırlanır. sayac_baslangic_ts = referansın üretime başlama
+    # anı (pulse filtresi bu ts'den sonrasını sayar). sayac_otomatik=1 iken ok_adet
+    # sensörden otomatik beslenir; operatör elle düzeltince 0 olur (donar).
+    try:
+        c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN sayac_baslangic_ts TEXT")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN sayac_otomatik INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
     # bolum kolonu - vardiyalar tablosu (montaj/metal enjeksiyon desteği)
     try:
         c.execute("ALTER TABLE vardiyalar ADD COLUMN bolum TEXT DEFAULT 'kaynak'")

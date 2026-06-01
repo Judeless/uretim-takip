@@ -214,6 +214,94 @@ def _durus_vardiya_bul(durus_id):
 
 
 # ─────────────────────────────────────────────────────────────
+# SAYAÇ ENTEGRASYONU — pilot sensör pulse'larını üretim kaydına bağlar
+# ─────────────────────────────────────────────────────────────
+def _pilot_db_yolu():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+
+
+def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
+    """Pilot DB'de (bolum, robot_no) için basla_ts ile biti_ts arasındaki pulse sayısı.
+    istasyon > 0 ise o istasyona filtrele; 0/None ise tüm istasyonlar (montaj/metal
+    tek istasyon, firmware istasyon=1 gönderir → filtre yok hepsini sayar)."""
+    pilot_db = _pilot_db_yolu()
+    if not basla_ts or not os.path.exists(pilot_db):
+        return 0
+    import sqlite3
+    try:
+        pc = sqlite3.connect(pilot_db)
+        try:
+            q = 'SELECT COUNT(*) FROM sayac_olaylari WHERE bolum=? AND robot_no=? AND ts >= ?'
+            params = [bolum, robot_no, basla_ts]
+            if biti_ts:
+                q += ' AND ts < ?'
+                params.append(biti_ts)
+            if istasyon and istasyon > 0:
+                q += ' AND istasyon=?'
+                params.append(istasyon)
+            row = pc.execute(q, params).fetchone()
+            return row[0] if row else 0
+        finally:
+            pc.close()
+    except Exception:
+        return 0
+
+
+def _pilot_son_pulse_dk(bolum, robot_no, gun=None):
+    """Bu cihazdan en son pulse'tan bu yana geçen dakika. Hiç pulse yoksa None.
+    10 dk duruş uyarısı için kullanılır."""
+    pilot_db = _pilot_db_yolu()
+    if not os.path.exists(pilot_db):
+        return None
+    import sqlite3
+    from datetime import datetime as _dt
+    gun = gun or date.today().isoformat()
+    try:
+        pc = sqlite3.connect(pilot_db)
+        try:
+            row = pc.execute(
+                "SELECT MAX(ts) FROM sayac_olaylari WHERE bolum=? AND robot_no=? AND date(ts)=?",
+                (bolum, robot_no, gun)
+            ).fetchone()
+            if not row or not row[0]:
+                return None
+            try:
+                son = _dt.fromisoformat(row[0])
+            except Exception:
+                return None
+            return max(0, int((_dt.now() - son).total_seconds() // 60))
+        finally:
+            pc.close()
+    except Exception:
+        return None
+
+
+def _uretim_sayac_senkron(conn, vardiya_id):
+    """Auto modlu (sayac_otomatik=1) üretim kayıtlarının ok_adet'ini sensör
+    pulse sayımıyla günceller. GET /api/vardiya ve OEE okumadan önce çağrılır,
+    böylece liste/rapor/OEE hep güncel sensör sayısını gösterir."""
+    try:
+        v = conn.execute(
+            "SELECT COALESCE(bolum,'kaynak') as bolum, robot_no FROM vardiyalar WHERE id=?",
+            (vardiya_id,)
+        ).fetchone()
+        if not v or not v['robot_no']:
+            return
+        rows = conn.execute(
+            "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
+            "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
+            (vardiya_id,)
+        ).fetchall()
+        for r in rows:
+            cnt = _pilot_pulse_say(v['bolum'], v['robot_no'], r['istasyon'] or 0,
+                                   r['sayac_baslangic_ts'])
+            conn.execute("UPDATE uretim_kayitlari SET ok_adet=? WHERE id=?", (cnt, r['id']))
+        conn.commit()
+    except Exception as e:
+        print(f"[_uretim_sayac_senkron] hata: {e}")
+
+
+# ─────────────────────────────────────────────────────────────
 # SAYFA ROUTES
 # ─────────────────────────────────────────────────────────────
 
@@ -478,14 +566,22 @@ def vardiya_detay(vid):
         conn.close()
         return jsonify({'hata': 'Vardiya bulunamadı'}), 404
 
+    # Auto sayaç kayıtlarının ok_adet'ini sensör pulse sayımıyla tazele
+    _uretim_sayac_senkron(conn, vid)
+
     uretim = c.execute('SELECT * FROM uretim_kayitlari WHERE vardiya_id = ?', (vid,)).fetchall()
     duruslar = c.execute('SELECT * FROM duruslar WHERE vardiya_id = ?', (vid,)).fetchall()
+
+    # 10dk duruş uyarısı: bu cihazdan en son pulse'tan beri geçen dakika.
+    vbolum = (vardiya['bolum'] if 'bolum' in vardiya.keys() else None) or 'kaynak'
+    son_pulse_dk = _pilot_son_pulse_dk(vbolum, vardiya['robot_no'])
     conn.close()
 
     return jsonify({
         'vardiya': dict(vardiya),
         'uretim': [dict(r) for r in uretim],
-        'duruslar': [dict(r) for r in duruslar]
+        'duruslar': [dict(r) for r in duruslar],
+        'son_pulse_dk': son_pulse_dk,
     })
 
 
@@ -671,15 +767,18 @@ def uretim_ekle():
         conn = get_db()
         c = conn.cursor()
 
-        # Vardiyanın bölümünü öğren — yeni eklenen referansların doğru bölüme yazılması için
+        # Vardiyanın bölümünü + robot_no'sunu öğren
         v_row = c.execute(
-            "SELECT COALESCE(bolum, 'kaynak') as bolum FROM vardiyalar WHERE id = ?",
+            "SELECT COALESCE(bolum, 'kaynak') as bolum, robot_no FROM vardiyalar WHERE id = ?",
             (data['vardiya_id'],)
         ).fetchone()
         vardiya_bolum = v_row['bolum'] if v_row else 'kaynak'
+        vardiya_robot = v_row['robot_no'] if v_row else ''
 
         # Birden fazla kayıt gelebilir
         satirlar = data.get('satirlar', [data])
+        tek_satir = (len(satirlar) == 1)
+        simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         eklenen = 0
         for satir in satirlar:
@@ -694,20 +793,44 @@ def uretim_ekle():
                 if ref_row:
                     ct_in = float(ref_row['hedef_cycle_time_sn'] or 0)
 
+            ist_val = int(satir.get('istasyon', data.get('istasyon', 0)) or 0)
+            ok_val  = int(satir.get('ok_adet', 0) or 0)
+
+            # Sayaç otomatik mod: tek satır + OK girilmemiş (0) ise sensör besler.
+            # Operatör referansa YENİ başlıyor demektir → sayaç o andan sıfırlanır.
+            # (Toplu/geçmiş giriş veya OK elle yazılmışsa manuel mod.)
+            auto = 1 if (tek_satir and ok_val == 0) else 0
+
+            if auto:
+                # Aynı vardiya+istasyon önceki auto kayıt(lar)ı dondur: referans değişti,
+                # önceki referansın sayımı bu ana kadar olan değerde sabitlenir.
+                onceki = c.execute(
+                    "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
+                    "WHERE vardiya_id=? AND istasyon=? AND sayac_otomatik=1",
+                    (data['vardiya_id'], ist_val)
+                ).fetchall()
+                for o in onceki:
+                    fcnt = _pilot_pulse_say(vardiya_bolum, vardiya_robot, ist_val,
+                                            o['sayac_baslangic_ts'], biti_ts=simdi)
+                    c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
+                              (fcnt, o['id']))
+
             c.execute('''
-                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['vardiya_id'],
                 ref,
-                int(satir.get('ok_adet', 0) or 0),
+                ok_val,
                 int(satir.get('nok_adet', 0) or 0),
                 int(satir.get('tamir_adet', 0) or 0),
                 int(satir.get('hedef_adet', 0) or 0),
                 ct_in,
-                int(satir.get('istasyon', data.get('istasyon', 0)) or 0),
+                ist_val,
                 int(satir.get('launch_adet', data.get('launch_adet', 0)) or 0),
-                (satir.get('aciklama') or data.get('aciklama') or '').strip()
+                (satir.get('aciklama') or data.get('aciklama') or '').strip(),
+                simdi if auto else None,
+                auto
             ))
             # Referansı listeye otomatik ekle — VARDIYANIN bölümüyle etiketle
             # (montaj operatörü tanımsız bir kod girince montaj'a düşsün, kaynak'a değil)
@@ -756,7 +879,10 @@ def uretim_guncelle(uid):
     try:
         conn = get_db()
         c = conn.cursor()
-        mevcut = c.execute('SELECT id FROM uretim_kayitlari WHERE id = ?', (uid,)).fetchone()
+        mevcut = c.execute(
+            'SELECT id, vardiya_id, istasyon, sayac_otomatik, sayac_baslangic_ts '
+            'FROM uretim_kayitlari WHERE id = ?', (uid,)
+        ).fetchone()
         if not mevcut:
             return jsonify({'hata': 'Kayit bulunamadi'}), 404
 
@@ -771,13 +897,28 @@ def uretim_guncelle(uid):
             if ref_row:
                 ct = float(ref_row['hedef_cycle_time_sn'] or 0)
 
+        submitted_ok = int(data.get('ok_adet', 0) or 0)
+        # Auto sayaç kaydıysa ve operatör OK'i canlı sensör değerinden FARKLI yaptıysa
+        # → manuel düzeltme yapılmış demektir, otomatik modu kapat (değeri dondur).
+        # Sadece NOK/açıklama değiştirip OK'e dokunmadıysa auto devam eder.
+        yeni_otomatik = mevcut['sayac_otomatik'] or 0
+        if yeni_otomatik == 1:
+            vrow = c.execute(
+                "SELECT COALESCE(bolum,'kaynak') as bolum, robot_no FROM vardiyalar WHERE id=?",
+                (mevcut['vardiya_id'],)
+            ).fetchone()
+            canli = _pilot_pulse_say(vrow['bolum'], vrow['robot_no'],
+                                     mevcut['istasyon'] or 0, mevcut['sayac_baslangic_ts']) if vrow else submitted_ok
+            if submitted_ok != canli:
+                yeni_otomatik = 0  # operatör elle düzeltti → dondur
+
         c.execute('''
             UPDATE uretim_kayitlari
-            SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?
+            SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?, sayac_otomatik=?
             WHERE id=?
         ''', (
             ref,
-            int(data.get('ok_adet', 0) or 0),
+            submitted_ok,
             int(data.get('nok_adet', 0) or 0),
             int(data.get('tamir_adet', 0) or 0),
             int(data.get('hedef_adet', 0) or 0),
@@ -785,6 +926,7 @@ def uretim_guncelle(uid):
             int(data.get('istasyon', 0) or 0),
             int(data.get('launch_adet', 0) or 0),
             (data.get('aciklama') or '').strip(),
+            yeni_otomatik,
             uid
         ))
         conn.commit()
@@ -970,6 +1112,13 @@ def durus_guncelle(did):
 @app.route('/api/oee/<int:vid>', methods=['GET'])
 def oee_vardiya(vid):
     """Tek vardiya OEE hesapla."""
+    # OEE'nin güncel sensör sayımını kullanması için auto kayıtları tazele
+    try:
+        _conn = get_db()
+        _uretim_sayac_senkron(_conn, vid)
+        _conn.close()
+    except Exception:
+        pass
     sonuc = hesapla_oee(vid)
     if not sonuc:
         return jsonify({'hata': 'Vardiya bulunamadı'}), 404
@@ -1402,6 +1551,8 @@ def saha_cihazlari():
     aktif_ref_map = {}  # {(robot_no, istasyon): {referans_kodu, basla_ts}}
     # Aktif vardiyalar — sayac sifirlama icin ek baslangic referansi
     aktif_vardiya_map = {}  # {(bolum, robot_no): vardiya_basla_ts ISO}
+    # Operator uretim baseline — yeni referans kaydi acinca sayac sifirlanir
+    op_baseline_map = {}  # {(bolum, robot_no, istasyon): sayac_baslangic_ts}
     try:
         conn_main = get_db()
         for r in conn_main.execute('''
@@ -1436,6 +1587,21 @@ def saha_cihazlari():
                         aktif_vardiya_map[key] = ts_iso
                 except Exception:
                     pass
+
+        # Operatör üretim baseline — operatör yeni referans kaydı açınca sayac_baslangic_ts
+        # set edilir; andon o andan sonrasını sayar (operatör aksiyonuyla sayaç sıfırlanır).
+        # (bolum, robot_no, istasyon) -> en son baseline ts
+        for r in conn_main.execute('''
+            SELECT COALESCE(v.bolum,'kaynak') as bolum, v.robot_no, u.istasyon,
+                   MAX(u.sayac_baslangic_ts) as bts
+            FROM uretim_kayitlari u
+            JOIN vardiyalar v ON u.vardiya_id = v.id
+            WHERE v.durum='aktif' AND v.tarih=? AND u.sayac_baslangic_ts IS NOT NULL
+            GROUP BY v.bolum, v.robot_no, u.istasyon
+        ''', (bugun_str,)).fetchall():
+            if r['robot_no'] and r['bts']:
+                op_baseline_map[(r['bolum'], r['robot_no'], int(r['istasyon'] or 0))] = r['bts']
+
         conn_main.close()
     except Exception as e:
         print(f'[saha_cihazlari] referans_takip/vardiyalar hata: {e}')
@@ -1493,7 +1659,8 @@ def saha_cihazlari():
                     a = aktif_ref_map.get((rno, ist))
                     if a:
                         reset_ist = reset_ist1 if ist == 1 else reset_ist2
-                        filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_ist, reset_all)
+                        op_bl = op_baseline_map.get((bolum, rno, ist))
+                        filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_ist, reset_all, op_bl)
                         aktif_referanslar.append({
                             'istasyon':      ist,
                             'referans_kodu': a['referans_kodu'],
@@ -1517,7 +1684,8 @@ def saha_cihazlari():
                         if a:
                             break
                 if a:
-                    filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_all, reset_ist1)
+                    op_bl = op_baseline_map.get((bolum, rno, 0)) or op_baseline_map.get((bolum, rno, 1))
+                    filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_all, reset_ist1, op_bl)
                     aktif_referanslar.append({
                         'istasyon':      None,
                         'referans_kodu': a['referans_kodu'],
@@ -1530,10 +1698,13 @@ def saha_cihazlari():
             # - Hicbiri yoksa: bugunun tamamindaki pulse'lar (eski davranis)
             if kayit:
                 ist_map = ist_sayimlari.get(cid, {})
-                # Istasyon basina filtre ts: vardiya, kendi reset, all reset
-                ist1_filt = _en_son_ts(vardiya_ts, reset_ist1, reset_all)
-                ist2_filt = _en_son_ts(vardiya_ts, reset_ist2, reset_all)
-                if ist1_filt or ist2_filt:
+                # Istasyon basina filtre ts: vardiya, kendi reset, all reset, operator baseline
+                op_bl_1 = op_baseline_map.get((bolum, rno, 1))
+                op_bl_2 = op_baseline_map.get((bolum, rno, 2))
+                op_bl_0 = op_baseline_map.get((bolum, rno, 0))
+                ist1_filt = _en_son_ts(vardiya_ts, reset_ist1, reset_all, op_bl_1)
+                ist2_filt = _en_son_ts(vardiya_ts, reset_ist2, reset_all, op_bl_2)
+                if ist1_filt or ist2_filt or op_bl_0:
                     ist1_v = _aktif_pulse_say(cid, 1, ist1_filt) if ist1_filt else ist_map.get(1, 0)
                     ist2_v = _aktif_pulse_say(cid, 2, ist2_filt) if ist2_filt else ist_map.get(2, 0)
                     # toplam = cihazin TUM pulse'lari (istasyon farketmez).
@@ -1541,7 +1712,8 @@ def saha_cihazlari():
                     # UYGULAMAZ, tum pulse'lari sayar. ESKI BUG: ist1_v + ist2_v + toplam_0
                     # idi; montaj istasyon=1 gonderdigi icin o pulse hem ist1_v'de hem
                     # toplam_0'da sayiliyordu = 2x. Duzeltme: dogrudan toplam say.
-                    toplam_ts = _en_son_ts(vardiya_ts, reset_all)
+                    # Montaj/metal icin op_bl_0 (istasyon=0 baseline) toplam filtresine girer.
+                    toplam_ts = _en_son_ts(vardiya_ts, reset_all, op_bl_0)
                     if toplam_ts:
                         toplam_v = _aktif_pulse_say(cid, 0, toplam_ts)
                     else:
