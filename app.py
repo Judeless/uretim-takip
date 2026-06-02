@@ -1604,7 +1604,7 @@ def saha_cihazlari():
         for r in conn_main.execute('''
             SELECT robot_no, COALESCE(bolum,'kaynak') as bolum, baslangic_saati, tarih
             FROM vardiyalar
-            WHERE durum='aktif' AND tarih=?
+            WHERE durum != 'kapali' AND tarih=?
         ''', (bugun_str,)).fetchall():
             bs = (r['baslangic_saati'] or '').strip()
             if bs and r['robot_no']:
@@ -1627,7 +1627,7 @@ def saha_cihazlari():
                    MAX(u.sayac_baslangic_ts) as bts
             FROM uretim_kayitlari u
             JOIN vardiyalar v ON u.vardiya_id = v.id
-            WHERE v.durum='aktif' AND v.tarih=? AND u.sayac_baslangic_ts IS NOT NULL
+            WHERE v.durum != 'kapali' AND v.tarih=? AND u.sayac_baslangic_ts IS NOT NULL
             GROUP BY v.bolum, v.robot_no, u.istasyon
         ''', (bugun_str,)).fetchall():
             if r['robot_no'] and r['bts']:
