@@ -42,21 +42,24 @@ const int PIN_ROBOT_CALISIYOR = 27;   // BOS
 const int PIN_LED             =  2;
 
 // Pulse algilama: state polling + UZUN multi-sample (metal'e ozel).
-// Metal rote sinyali ~10sn AKTIF kalir — bu yuzden cok uzun bir surekli-LOW
-// dogrulamasi yapabiliriz: pin 1 saniye boyunca KESINTISIZ LOW olmali.
-// Boylece makine kapaliyken olusan elektriksel parazit/transient (kontaktor,
-// VFD, motor, floating pin EMI — genelde <100ms) hayalet sayim YARATMAZ.
-// Gercek 10sn'lik rote sinyali 1sn dogrulamayi rahat gecer.
+// 400T sahada olculen sinyaller (2 gun analiz):
+//  - "MAKINE CALISIYOR" rolesi: 22sn TEMIZ aktif, tek pulse/cycle  --> KULLANIYORUZ
+//  - "SAYAC" rolesi: 12sn aktif AMA 6. saniyede 1sn birakip tekrar cekiyor
+//    -> bu cift-tetik CIFT SAYIM yaratir, bu yuzden KULLANMIYORUZ
+// 22sn'lik temiz sinyal, cok uzun surekli-LOW dogrulamasini rahat gecer:
+// pin 1 saniye KESINTISIZ LOW olmali -> makine kapaliyken parazit/transient
+// (<100ms: kontaktor/VFD/EMI) hayalet sayim YARATMAZ.
 const int  DEBOUNCE_MS         = 100;
 const int  PARAZIT_SAMPLE_N    = 40;
 const int  PARAZIT_SAMPLE_GAP  = 25;           // 40x25 = 1000ms KESINTISIZ LOW onayi
-const unsigned long MIN_PULSE_GAP_MS = 15000; // Metal: rote 10sn aktif, en kisa cycle 20sn → 15sn (10+5 margin)
+const unsigned long MIN_PULSE_GAP_MS = 18000; // Makine-calisiyor rolesi 22sn aktif -> 18sn gap
+                                              // (active periyot icindeki spurious edge'i eler, full cycle>22sn icin guvenli)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.3.2-400t";
+const char* FIRMWARE_VER  = "2.3.3-400t";
 
 // ─── RSSI tabanli radyo recovery (v2.3) ─────────────────────────
 const int           RSSI_ZAYIF_ESIK  = -80;
