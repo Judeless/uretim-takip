@@ -1,0 +1,48 @@
+TEYIT: launch 26-89188 / 94.PBL.96 / 30 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26   89188  Ass. 94.PBL.96                      Ord.Qty       109,000
+ 4|  Job      NEW              91802998 LEVA COMANDO SAHR     Rem.Qty         8,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0175130   MT2   RPR  21/05/26                 AD        70,000 A
+ 7|      200    26 0241796   MT2   RPR  16/07/26                 AD        31,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 2 → F10 (yeni satir)
+OK: adet 30 girildi, bayrak S: ' 1   300                 MT2   RPR  16/07/26                 AD            30 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26   89188  Ass. 94.PBL.96                      Ord.Qty       109,000
+ 4|  Job      NEW              91802998 LEVA COMANDO SAHR     Rem.Qty         8,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0175130   MT2   RPR  21/05/26                 AD        70,000 A
+ 7|      200    26 0241796   MT2   RPR  16/07/26                 AD        31,000 A
+ 8|  1   300                 MT2   RPR  16/07/26                 AD            30 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+HATA: 1. Enter sonrasi malzeme ozeti gelmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26   89188  Ass. 94.PBL.96                      Ord.Qty       109,000
+ 4|  Job      NEW              91802998 LEVA COMANDO SAHR     Rem.Qty         8,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0175130   MT2   RPR  21/05/26                 AD        70,000 A
+ 7|      200    26 0241796   MT2   RPR  16/07/26                 AD        31,000 A
+ 8|  1   300                 MT2   RPR  16/07/26                 AD            30 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                     131,000                131,000
+16|            Qty in order
+17|                     109,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+SONUC=IPTAL

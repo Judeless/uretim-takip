@@ -1,0 +1,70 @@
+CFI GIRIS: 10.130.5422GRW / 113 adet
+G0: navigasyon â€” ana menu > 07 > 01 > F1
+G0: 2-Variation giris ekrani acildi
+---------- EKRAN [giris-ekrani] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        20/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 8|  2-Variation
+ 9|  Record no. .           26  245550       Actual row      100  Rec.dt   20  7 26
+10|  Warehouse cd. . . .
+11|  Causal cd. . . . .
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+G1: alan haritasi â€” wh@10 ca@11 ar@12 qty@14 cp@18 kolon=25
+---------- EKRAN [giris-dolu] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        20/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 8|  2-Variation
+ 9|  Record no. .           26  245550       Actual row      100  Rec.dt   20  7 26
+10|  Warehouse cd. . . .    01D
+11|  Causal cd. . . . .     CFI
+12|  Article cd. . . .      10.130.5422GRW                           L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                              113 Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+OK: ust listede 10.130.5422GRW / 113 goruldu, giris alanlari bosaldi
+---------- EKRAN [basarili] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        20/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|       100  01D 10.130.5422GRW        VÝBRASYONLU DÝÞ ÇEKÝLMEMÝ AD       113,000
+ 8|  2-Variation
+ 9|  Record no. .           26  245550       Actual row      200  Rec.dt   20  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+SONUC=OK

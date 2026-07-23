@@ -1,0 +1,15 @@
+TEYIT: launch 26-133693 / 10.130.3680GAW / 276 adet / bayrak A
+HATA: Ana menuye ulasilamadi
+---------- EKRAN [iptal-ani] ----------
+ 1|                                 Collegamento
+ 2|                                                Sistema . . . . . :   COFLE
+ 3|                                                Sottosistema. . . :   QINTER
+ 4|                                                Video . . . . . . :   SELCUK0002
+ 6|                 Utente  . . . . . . . . . . . . .   EMR
+ 7|                 Parola d'ordine . . . . . . . . .
+ 8|                 Programma/procedura . . . . . . .
+ 9|                 Menu  . . . . . . . . . . . . . .
+10|                 Libreria corrente . . . . . . . .
+24|                                         (C) COPYRIGHT IBM CORP. 1980, 2018.
+----------
+SONUC=IPTAL

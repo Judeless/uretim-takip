@@ -1,0 +1,76 @@
+TEYIT: launch 26-134638 / 10.300.1940GW / 28 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  134638  Ass. 10.300.1940GW                  Ord.Qty       376,000
+ 4|  Job                       KAYNAKLI GRUP KAPLAMASIZ       Rem.Qty       376,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  20/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 28 girildi, bayrak A: ' 1   100                 MT2   RPR  20/07/26                 AD            28 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  134638  Ass. 10.300.1940GW                  Ord.Qty       376,000
+ 4|  Job                       KAYNAKLI GRUP KAPLAMASIZ       Rem.Qty       376,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  20/07/26                 AD            28 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 28
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  134638 Ass.cd  10.300.1940GW            Conf.qty        28,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1940           REP AD     376,000     376,000     376,000     28,000 A
+ 7|    LEVA                           War.cau. SPR Um     Rej.qty
+ 8|    10.300.1942           REP AD     376,000     376,000     376,000     28,000 A
+ 9|    0.001.3701.0 PERNO             War.cau. SPR Um     Rej.qty
+10|    10.300.1945           REP AD     376,000     376,000     376,000     28,000 A
+11|    ALBERO                         War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  134638 Ass.cd  10.300.1940GW            Conf.qty        28,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1940           REP AD     376,000     376,000     376,000     28,000 A
+ 7|    LEVA
+ 8|    10.300.1942                                                6,000     28,000 A
+ 9|    0.001.3701.0      Data movimento     21   7  26
+10|    10.300.1945       Tipo costo         S      S/C/L/P/U/M    6,000     28,000 A
+11|    ALBERO            Costo                     120,120747
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+HATA: F6 sonrasi ekran DEGISMEDI — teyit islenmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  134638 Ass.cd  10.300.1940GW            Conf.qty        28,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1940           REP AD     376,000     376,000     376,000     28,000 A
+ 7|    LEVA
+ 8|    10.300.1942                                                6,000     28,000 A
+ 9|    0.001.3701.0      Data movimento     21   7  26
+10|    10.300.1945       Tipo costo         S      S/C/L/P/U/M    6,000     28,000 A
+11|    ALBERO            Costo                     120,120747
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+SONUC=IPTAL

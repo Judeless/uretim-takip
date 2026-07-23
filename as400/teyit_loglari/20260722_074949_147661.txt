@@ -1,0 +1,81 @@
+TEYIT: launch 26-147661 / 10.300.5124G / 30 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147661  Ass. 10.300.5124G                   Ord.Qty        30,000
+ 4|  Job                       92119203 LEVER ASSY, APUH      Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 30 girildi, bayrak S: ' 1   100                 MT2   RPR  21/07/26                 AD            30 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147661  Ass. 10.300.5124G                   Ord.Qty        30,000
+ 4|  Job                       92119203 LEVER ASSY, APUH      Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD            30 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE → F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147661  Ass. 10.300.5124G                   Ord.Qty        30,000
+ 4|  Job                       92119203 LEVER ASSY, APUH      Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD            30 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                      30,000                 30,000
+16|            Qty in order
+17|                      30,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 30
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  147661 Ass.cd  10.300.5124G             Conf.qty        30,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.3204           REP AD     294,000      60,000      60,000     60,000 S
+ 7|    47980873 SCREW, HEX SOC M6*20  War.cau. SPR Um     Rej.qty
+ 8|    10.300.3203           REP AD     294,000      60,000      60,000     60,000 S
+ 9|    90358058 RFM-1214-06 BOCCOLA   War.cau. SPR Um     Rej.qty
+10|    10.300.5124           REP AD      30,000      30,000      30,000     30,000 S
+11|    92119202 BRACKET APUH LEVER    War.cau. SPR Um     Rej.qty
+12|    10.300.3201           REP AD     147,000      30,000      30,000     30,000 S
+13|    51634213 LEVER APUH            War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  147661 Ass.cd  10.300.5124G             Conf.qty        30,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.3204           REP AD     294,000      60,000      60,000     60,000 S
+ 7|    47980873 SCRE
+ 8|    10.300.3203                                                0,000     60,000 S
+ 9|    90358058 RFM-     Data movimento     22   7  26
+10|    10.300.5124       Tipo costo         S      S/C/L/P/U/M    0,000     30,000 S
+11|    92119202 BRAC     Costo                     199,369087
+12|    10.300.3201                                                0,000     30,000 S
+13|    51634213 LEVE   F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

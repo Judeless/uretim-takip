@@ -1,9 +1,15 @@
+from datetime import datetime
+
 from database import get_db
 
 # Planli durus kategorileri
 PLANLI_DURUS_KATEGORILER = {
     'Yemek Molasi',
+    'Yemek Molası',
     'Cay Molasi',
+    'Çay Molası',
+    'Maden Tkv. ve Yemek Molası',
+    'Maden Tkv. ve Çay Molası',
     'Planli Bakim',
     'Planli Temizlik',
 }
@@ -37,9 +43,12 @@ def pair_cycle_hesapla(ist1_kod, ist2_kod):
         if not kod:
             return None
         conn = get_db()
+        # Pair-cycle SADECE robot kaynak (TK2) kavramı — composite UNIQUE sonrası aynı kod
+        # TK1'de de olabilir (ct=0); yanlış tesisin satırı çekilmesin diye TK2'ye kapalı.
         r = conn.execute(
             "SELECT kaynak_suresi_sn, soktak_suresi_sn, hedef_cycle_time_sn "
-            "FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+            "FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND COALESCE(lokasyon,'TK2')='TK2'",
             (str(kod),)
         ).fetchone()
         conn.close()
@@ -152,7 +161,27 @@ def hesapla_oee(vardiya_id):
         conn.close()
         return None
 
-    toplam_vardiya_dk = vardiya['toplam_sure_dk']
+    # Vardiya süresi paydası:
+    #  - KAPALI vardiya: toplam_sure_dk (gerçek açılış→kapanış, kapatırken yazılır)
+    #  - AÇIK vardiya (bugün): başlangıçtan ŞU ANA kadar geçen dakika → performans
+    #    "o ana kadar üretilen ürün / o ana kadar geçen süre" olarak CANLI hesaplanır
+    #    ve süre ilerledikçe değişir (sayaçlı makineler + manuel adet teyidi aynı).
+    toplam_vardiya_dk = vardiya['toplam_sure_dk'] or 0
+    try:
+        durum_v = (vardiya['durum'] or 'kapali')
+    except Exception:
+        durum_v = 'kapali'
+    if durum_v != 'kapali' and (vardiya['tarih'] or '') == datetime.now().strftime('%Y-%m-%d'):
+        try:
+            bas_s = (vardiya['baslangic_saati'] or '').strip()[:5]
+            bas_t = datetime.strptime(bas_s, '%H:%M').time()
+            simdi = datetime.now().time()
+            gecen = (simdi.hour * 60 + simdi.minute) - (bas_t.hour * 60 + bas_t.minute)
+            if gecen < 0:
+                gecen += 1440
+            toplam_vardiya_dk = max(0, gecen)
+        except ValueError:
+            pass    # bozuk saat — kayıtlı süre ile devam
 
     # Planli duruslar (mola, planli bakim) — Net Plan Suresi'nden dusulur
     planli_row = c.execute(
@@ -251,8 +280,9 @@ def hesapla_oee(vardiya_id):
     }
 
 
-def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None, bolum=None):
-    """Tarih araligi, robot ve bolum icin OEE ozeti hesapla."""
+def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None, bolum=None, lokasyon=None):
+    """Tarih araligi, robot ve bolum icin OEE ozeti hesapla.
+    lokasyon verilirse o tesise kapali (TK1/TK2 montaj OEE'si karismasin)."""
     conn = get_db()
     c = conn.cursor()
 
@@ -271,6 +301,9 @@ def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None, bolu
     if bolum:
         query += " AND COALESCE(bolum, 'kaynak') = ?"
         params.append(bolum)
+    if lokasyon:
+        query += " AND COALESCE(lokasyon, 'TK2') = ?"
+        params.append(lokasyon)
 
     query += ' ORDER BY tarih DESC, id DESC'
     vardiya_ids = [row['id'] for row in c.execute(query, params).fetchall()]

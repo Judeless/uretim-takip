@@ -1,0 +1,16 @@
+TEYIT: launch 26-140672 / 10.300.1866-10W / 1 adet / bayrak A
+HATA: Bu launch'ta kaydedilmemis satir var (Session B'de yarim kalmis giris). Once B'de kontrol edin.
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       17/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  140672  Ass. 10.300.1866-10W                Ord.Qty       100,000
+ 4|  Job                       KAPLAMASIZ KAYNAKLI GRUP       Rem.Qty        97,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0243299   01D   RPR  17/07/26                 AD         1,000 A
+ 7|      200    26 0243300   01D   RPR  17/07/26                 AD         1,000 A
+ 8|      300    26 0243434   01D   RPR  17/07/26                 AD         1,000 A
+ 9|      400    In sistem.   01D   RPR                           AD         1,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+SONUC=IPTAL

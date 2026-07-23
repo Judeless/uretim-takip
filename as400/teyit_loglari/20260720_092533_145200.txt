@@ -1,0 +1,43 @@
+TEYIT: launch 26-145200 / 94.LTK.460 / 5 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145200  Ass. 94.LTK.460                     Ord.Qty         5,000
+ 4|  Job      COMPACT ORCHARD  48148560 LEVER PTO COMMAND ASS Rem.Qty         5,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 5 girildi, bayrak S: ' 1   100                 MT2   RPR                           AD             5 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145200  Ass. 94.LTK.460                     Ord.Qty         5,000
+ 4|  Job      COMPACT ORCHARD  48148560 LEVER PTO COMMAND ASS Rem.Qty         5,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD             5 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+HATA: 1. Enter sonrasi malzeme ozeti gelmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145200  Ass. 94.LTK.460                     Ord.Qty         5,000
+ 4|  Job      COMPACT ORCHARD  48148560 LEVER PTO COMMAND ASS Rem.Qty         5,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD             5 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                       5,000                  5,000
+16|            Qty in order
+17|                       5,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+SONUC=IPTAL

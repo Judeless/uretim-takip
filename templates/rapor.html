@@ -30,6 +30,9 @@
       --kaynak: #3b82f6;
       --montaj: #10b981;
       --metal:  #f59e0b;
+      --isleme: #8b5cf6;
+      --lazer:  #06b6d4;
+      --pres:   #ec4899;
 
       /* Tablo veri renkleri (paylasilirken net kalir) */
       --c-adet:  #92d050;
@@ -68,6 +71,9 @@
     .bolum-pill.kaynak { background: rgba(59,130,246,.15); color: #93c5fd; border:1px solid rgba(59,130,246,.4); }
     .bolum-pill.montaj { background: rgba(16,185,129,.15); color: #6ee7b7; border:1px solid rgba(16,185,129,.4); }
     .bolum-pill.metal  { background: rgba(245,158,11,.15); color: #fcd34d; border:1px solid rgba(245,158,11,.4); }
+    .bolum-pill.isleme { background: rgba(139,92,246,.15); color: #c4b5fd; border:1px solid rgba(139,92,246,.4); }
+    .bolum-pill.lazer  { background: rgba(6,182,212,.15);  color: #67e8f9; border:1px solid rgba(6,182,212,.4); }
+    .bolum-pill.pres   { background: rgba(236,72,153,.15); color: #f9a8d4; border:1px solid rgba(236,72,153,.4); }
 
     /* ── FİLTRE BARI ── */
     .toolbar {
@@ -235,7 +241,8 @@
 
   <!-- Üst bar -->
   <div class="topbar">
-    <a class="geri" href="/">‹ Ana Menü</a>
+    <img src="/logo?tema=koyu" alt="Cofle" style="height:34px;width:auto" onerror="this.style.display='none'">
+    <a class="geri" href="/" id="geri-link">‹ Ana Menü</a>
     <h1 id="rapor-baslik">Günlük Üretim Raporu</h1>
     <span id="bolum-pill" class="bolum-pill kaynak">KAYNAK</span>
   </div>
@@ -271,13 +278,25 @@
 const aktifBolum = (function () {
   const params = new URLSearchParams(window.location.search);
   const b = (params.get('bolum') || 'kaynak').toLowerCase();
-  return (b === 'montaj' || b === 'metal') ? b : 'kaynak';
+  return ['montaj','metal','isleme','lazer','pres'].includes(b) ? b : 'kaynak';
+})();
+
+// ── URL'den lokasyon oku; yoksa mobilin kaydettiği tesise, o da yoksa TK2'ye düş.
+// (TK1 vardiyaları da bolum='montaj' — lokasyon gönderilmezse backend TK2 varsayar;
+//  bu sayede TK1 operatörleri TK2 raporuna karışmaz, TK1 telefonu kendi raporunu görür.)
+const aktifLokasyon = (function () {
+  const params = new URLSearchParams(window.location.search);
+  const l = (params.get('lokasyon') || localStorage.getItem('mobile_aktif_lokasyon') || 'TK2').toUpperCase();
+  return (l === 'TK1') ? 'TK1' : 'TK2';
 })();
 
 const BOLUM_BILGI = {
   kaynak: { ad: 'Kaynakhane',       tekil: 'Robot',  ikon: '🔧', kolon3: 'PARÇA KODU' },
   montaj: { ad: 'Montaj',           tekil: 'Hat',    ikon: '🔩', kolon3: 'PARÇA KODU' },
-  metal:  { ad: 'Metal Enjeksiyon', tekil: 'Makine', ikon: '🏭', kolon3: 'PARÇA KODU' }
+  metal:  { ad: 'Metal Enjeksiyon', tekil: 'Makine', ikon: '🏭', kolon3: 'PARÇA KODU' },
+  isleme: { ad: 'İşleme',           tekil: 'Tezgah', ikon: '🛠️', kolon3: 'PARÇA KODU' },
+  lazer:  { ad: 'Lazer Kesim',      tekil: 'Makine', ikon: '🔦', kolon3: 'PARÇA KODU' },
+  pres:   { ad: 'Pres Abkant',      tekil: 'Makine', ikon: '🗜️', kolon3: 'PARÇA KODU' }
 };
 
 // Sayfayı bölüme göre etiketle
@@ -288,6 +307,9 @@ const BOLUM_BILGI = {
   const pill = document.getElementById('bolum-pill');
   pill.textContent = bilgi.ad.toUpperCase();
   pill.className = 'bolum-pill ' + aktifBolum;
+  // Geri linki tesise göre: TK1 telefonu '/' (TK2 sayfası) yerine '/tk1'e dönmeli —
+  // yoksa mobile sayfası localStorage lokasyonunu TK2'ye ezer.
+  if (aktifLokasyon === 'TK1') document.getElementById('geri-link').href = '/tk1';
 })();
 
 // ── Helpers ──
@@ -318,7 +340,7 @@ async function yukleVardiyalar(){
   if (!tarih) { sel.innerHTML='<option value="">— Tarih seçin —</option>'; return; }
 
   try {
-    const url = `/api/rapor/vardiya_listesi?tarih=${encodeURIComponent(tarih)}&bolum=${encodeURIComponent(aktifBolum)}`;
+    const url = `/api/rapor/vardiya_listesi?tarih=${encodeURIComponent(tarih)}&bolum=${encodeURIComponent(aktifBolum)}&lokasyon=${encodeURIComponent(aktifLokasyon)}`;
     const res = await fetch(url, { cache:'no-store' });
     const list = await res.json();
     if (!Array.isArray(list) || list.length === 0) {
@@ -349,7 +371,7 @@ async function yukleRapor(){
   ic.innerHTML = '<div class="durum"><div class="spinner"></div><br>Veriler yükleniyor...</div>';
 
   try {
-    const url = `/api/rapor/gunluk_detay?tarih=${encodeURIComponent(tarih)}&vardiya=${encodeURIComponent(vardiya)}&bolum=${encodeURIComponent(aktifBolum)}`;
+    const url = `/api/rapor/gunluk_detay?tarih=${encodeURIComponent(tarih)}&vardiya=${encodeURIComponent(vardiya)}&bolum=${encodeURIComponent(aktifBolum)}&lokasyon=${encodeURIComponent(aktifLokasyon)}`;
     const res  = await fetch(url, { cache:'no-store' });
     const text = await res.text();
     let veri;

@@ -1,0 +1,89 @@
+TEYIT: launch 26-142190 / 10.300.6339W / 30 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  142190  Ass. 10.300.6339W                   Ord.Qty        78,000
+ 4|  Job                       KAYNAKLI PARCA                 Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0242359   MT2   RPR  17/07/26                 AD        48,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 → F10 (yeni satir)
+OK: adet 30 girildi, bayrak S: ' 1   200                 MT2   RPR  17/07/26                 AD            30 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  142190  Ass. 10.300.6339W                   Ord.Qty        78,000
+ 4|  Job                       KAYNAKLI PARCA                 Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0242359   MT2   RPR  17/07/26                 AD        48,000 A
+ 7|  1   200                 MT2   RPR  17/07/26                 AD            30 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE → F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  142190  Ass. 10.300.6339W                   Ord.Qty        78,000
+ 4|  Job                       KAYNAKLI PARCA                 Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0242359   MT2   RPR  17/07/26                 AD        48,000 A
+ 7|  1   200                 MT2   RPR  17/07/26                 AD            30 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                      78,000                 78,000
+16|            Qty in order
+17|                      78,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 30
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  142190 Ass.cd  10.300.6339W             Conf.qty        30,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.6339A          REP AD      30,000      78,000      30,000     30,000 S
+ 7|    0.051.7461.0 LEVER - CLUTCH PE War.cau. SPR Um     Rej.qty
+ 8|    10.300.6339B          REP AD      30,000      78,000      30,000     30,000 S
+ 9|    FIX CLUTCH PEDAL SPRING        War.cau. SPR Um     Rej.qty
+10|    10.300.6339C          REP AD      30,000      78,000      30,000     30,000 S
+11|    0.051.7460.0 PLATE - CLUTCH PE War.cau. SPR Um     Rej.qty
+12|    10.300.6339D          REP AD      60,000     156,000      60,000     60,000 S
+13|    STOPPER SHEET                  War.cau. SPR Um     Rej.qty
+14|    10.300.6338B          REP AD      90,000      78,000      30,000     30,000 S
+15|    04451221 Pedal Plate           War.cau. SPR Um     Rej.qty
+16|    10.300.1857           REP AD      90,000      78,000      30,000     30,000 S
+17|    MOZZO                          War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  142190 Ass.cd  10.300.6339W             Conf.qty        30,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.6339A          REP AD      30,000      78,000      30,000     30,000 S
+ 7|    0.051.7461.0
+ 8|    10.300.6339B                                               0,000     30,000 S
+ 9|    FIX CLUTCH PE     Data movimento     20   7  26
+10|    10.300.6339C      Tipo costo         S      S/C/L/P/U/M    0,000     30,000 S
+11|    0.051.7460.0      Costo                     198,409189
+12|    10.300.6339D                                               0,000     60,000 S
+13|    STOPPER SHEET   F06=Conferma
+14|    10.300.6338B                                               0,000     30,000 S
+15|    04451221 Pedal Plate           War.cau. SPR Um     Rej.qty
+16|    10.300.1857           REP AD      90,000      78,000      30,000     30,000 S
+17|    MOZZO                          War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

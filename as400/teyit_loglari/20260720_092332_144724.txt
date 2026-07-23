@@ -1,0 +1,13 @@
+TEYIT: launch 26-144724 / 94.CV.034 / 78 adet / bayrak A
+HATA: Bu launch'ta kaydedilmemis satir var (Session B'de yarim kalmis giris). Once B'de kontrol edin.
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  144724  Ass. 94.CV.034                      Ord.Qty       200,000
+ 4|  Job      TT4              48147165 TORRETTA CAMBIO TTF   Rem.Qty       200,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    In sistem.   MT2   RPR                           AD        78,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+SONUC=IPTAL

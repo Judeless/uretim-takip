@@ -1,0 +1,43 @@
+TEYIT: launch 26-139042 / 94.LTK.05-C / 30 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139042  Ass. 94.LTK.05-C                    Ord.Qty        30,000
+ 4|  Job      TD5              Y-0-00-014484 5737 602 PTO KUM Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 01D   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 30 girildi, bayrak S: ' 1   100                 01D   RPR                           AD            30 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139042  Ass. 94.LTK.05-C                    Ord.Qty        30,000
+ 4|  Job      TD5              Y-0-00-014484 5737 602 PTO KUM Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 01D   RPR                           AD            30 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+HATA: 1. Enter sonrasi malzeme ozeti gelmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139042  Ass. 94.LTK.05-C                    Ord.Qty        30,000
+ 4|  Job      TD5              Y-0-00-014484 5737 602 PTO KUM Rem.Qty        30,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 01D   RPR                           AD            30 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                      30,000                 30,000
+16|            Qty in order
+17|                      30,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+SONUC=IPTAL

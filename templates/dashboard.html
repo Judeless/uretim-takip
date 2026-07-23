@@ -460,7 +460,10 @@
 
         @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .chart-grid { grid-template-columns: 1fr; } }
         @media (max-width: 768px) {
-            .sidebar { display: none; } .main { margin-left: 0; padding: 20px; }
+            /* DİKKAT: sidebar/main mobil kuralları aşağıdaki RESPONSİVE bloğunda
+               (slide-in drawer + hamburger). Buradaki eski '.sidebar{display:none}'
+               KALDIRILDI — drawer'ı tamamen öldürüyordu (hamburger'a basınca .open
+               ekleniyor ama display:none kazanıp menü hiç açılmıyordu). */
             .detail-panel { width: 100%; right: -100%; border-radius: 20px 20px 0 0; top: 10%; height: 90vh; transition: bottom 0.3s; }
             .detail-panel.open { right: 0; }
         }
@@ -1435,6 +1438,9 @@
             .bolum-toggle { width: 100%; }
             .bolum-btn { flex: 1; padding: 8px 12px; font-size: 0.7rem; gap: 4px; }
             .bolum-btn span:nth-child(2) { display: none; } /* Mobilde sadece ikon */
+            /* Lokasyon butonlarının metni (TK1/TK2) kısa — mobilde de görünür kalsın,
+               yoksa iki buton da aynı 🏢 ikonuyla ayırt edilemiyor */
+            #lokasyon-toggle .bolum-btn span:nth-child(2) { display: inline; }
 
             /* Andon shortcut grid */
             .andon-shortcuts-grid { grid-template-columns: 1fr; }
@@ -1474,11 +1480,2387 @@
 </head>
 
 <body>
+
+    <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) — workflow çıktısıyla GENİŞLETİLECEK ══════════ -->
+    <script id="i18n-sozluk">
+window.__I18N_SOZLUK__ = {
+  "Yönetici Paneli": {
+    "en": "Management Panel",
+    "it": "Pannello di gestione"
+  },
+  "Menüyü aç/kapat": {
+    "en": "Open/close menu",
+    "it": "Apri/chiudi menu"
+  },
+  "Dashboard": {
+    "en": "Dashboard",
+    "it": "Dashboard"
+  },
+  "Referanslar": {
+    "en": "References",
+    "it": "Riferimenti"
+  },
+  "Andon Ayarları": {
+    "en": "Andon Settings",
+    "it": "Impostazioni Andon"
+  },
+  "Saha Cihazları": {
+    "en": "Field Devices",
+    "it": "Dispositivi di campo"
+  },
+  "Sinyal Analizi": {
+    "en": "Signal Analysis",
+    "it": "Analisi del segnale"
+  },
+  "Operatörler": {
+    "en": "Operators",
+    "it": "Operatori"
+  },
+  "Raporlar": {
+    "en": "Reports",
+    "it": "Report"
+  },
+  "Paylaşılabilir salt-okunur rapor sayfası (yeni sekme)": {
+    "en": "Shareable read-only report page (new tab)",
+    "it": "Pagina report di sola lettura condivisibile (nuova scheda)"
+  },
+  "Rapor Paylaş": {
+    "en": "Share Report",
+    "it": "Condividi report"
+  },
+  "Operatör Formu": {
+    "en": "Operator Form",
+    "it": "Modulo operatore"
+  },
+  "Koyu Tema": {
+    "en": "Dark Theme",
+    "it": "Tema scuro"
+  },
+  "Yükleniyor...": {
+    "en": "Loading...",
+    "it": "Caricamento..."
+  },
+  "Lokasyon seçimi": {
+    "en": "Location selection",
+    "it": "Selezione sede"
+  },
+  "TK2 — mevcut fabrika": {
+    "en": "TK2 — current factory",
+    "it": "TK2 — stabilimento attuale"
+  },
+  "TK1 — yan tesis (montaj)": {
+    "en": "TK1 — secondary plant (assembly)",
+    "it": "TK1 — stabilimento secondario (assemblaggio)"
+  },
+  "Bölüm seçimi": {
+    "en": "Department selection",
+    "it": "Selezione reparto"
+  },
+  "Robot Kaynak (Kaynakhane)": {
+    "en": "Robot Welding (Welding Shop)",
+    "it": "Saldatura robotizzata (Reparto saldatura)"
+  },
+  "Robot Kaynak": {
+    "en": "Robot Welding",
+    "it": "Saldatura robotizzata"
+  },
+  "Montaj": {
+    "en": "Assembly",
+    "it": "Assemblaggio"
+  },
+  "Metal Enjeksiyon": {
+    "en": "Die Casting",
+    "it": "Pressofusione"
+  },
+  "İşleme": {
+    "en": "Machining",
+    "it": "Lavorazione"
+  },
+  "Lazer Kesim": {
+    "en": "Laser Cutting",
+    "it": "Taglio laser"
+  },
+  "Lazer": {
+    "en": "Laser",
+    "it": "Laser"
+  },
+  "Pres Abkant": {
+    "en": "Press Brake",
+    "it": "Pressa piegatrice"
+  },
+  "Andon ekranları": {
+    "en": "Andon screens",
+    "it": "Schermi Andon"
+  },
+  "Andon": {
+    "en": "Andon",
+    "it": "Andon"
+  },
+  "Robot Kaynak Andon": {
+    "en": "Robot Welding Andon",
+    "it": "Andon Saldatura robotizzata"
+  },
+  "Montaj Andon": {
+    "en": "Assembly Andon",
+    "it": "Andon Assemblaggio"
+  },
+  "Metal Enjeksiyon Andon": {
+    "en": "Die Casting Andon",
+    "it": "Andon Pressofusione"
+  },
+  "Excel → Program: sayfadaki referans/operatör listesini programa yükler": {
+    "en": "Excel → Program: loads the reference/operator list on the sheet into the program",
+    "it": "Excel → Programma: carica nel programma l'elenco riferimenti/operatori del foglio"
+  },
+  "Excel'den İçe Aktar": {
+    "en": "Import from Excel",
+    "it": "Importa da Excel"
+  },
+  "Yenile": {
+    "en": "Refresh",
+    "it": "Aggiorna"
+  },
+  "Başlangıç": {
+    "en": "Start",
+    "it": "Inizio"
+  },
+  "Bitiş": {
+    "en": "End",
+    "it": "Fine"
+  },
+  "Robot": {
+    "en": "Robot",
+    "it": "Robot"
+  },
+  "Tümü": {
+    "en": "All",
+    "it": "Tutti"
+  },
+  "Vardiya": {
+    "en": "Shift",
+    "it": "Turno"
+  },
+  "Filtrele": {
+    "en": "Filter",
+    "it": "Filtra"
+  },
+  "Günlük Üretim Raporu": {
+    "en": "Daily Production Report",
+    "it": "Report di produzione giornaliero"
+  },
+  "OEE Ortalaması": {
+    "en": "OEE Average",
+    "it": "Media OEE"
+  },
+  "Hesaplanıyor...": {
+    "en": "Calculating...",
+    "it": "Calcolo in corso..."
+  },
+  "Kullanılabilirlik": {
+    "en": "Availability",
+    "it": "Disponibilità"
+  },
+  "Planlı süre kullanımı": {
+    "en": "Planned time utilization",
+    "it": "Utilizzo del tempo pianificato"
+  },
+  "Performans": {
+    "en": "Performance",
+    "it": "Prestazioni"
+  },
+  "Hedef gerçekleşme": {
+    "en": "Target achievement",
+    "it": "Raggiungimento obiettivo"
+  },
+  "Kalite": {
+    "en": "Quality",
+    "it": "Qualità"
+  },
+  "OK / Toplam üretim": {
+    "en": "OK / Total production",
+    "it": "OK / Produzione totale"
+  },
+  "Özet": {
+    "en": "Summary",
+    "it": "Riepilogo"
+  },
+  "Üretim": {
+    "en": "Production",
+    "it": "Produzione"
+  },
+  "Duruşlar": {
+    "en": "Downtimes",
+    "it": "Fermi"
+  },
+  "Vardiyalar": {
+    "en": "Shifts",
+    "it": "Turni"
+  },
+  "Fikstür & Programlar": {
+    "en": "Fixtures & Programs",
+    "it": "Attrezzature e programmi"
+  },
+  "İş Yönetimi": {
+    "en": "Work Management",
+    "it": "Gestione del lavoro"
+  },
+  "Bu sekmeyi başlangıç olarak ayarla": {
+    "en": "Set this tab as the start",
+    "it": "Imposta questa scheda come iniziale"
+  },
+  "Başlangıç yap": {
+    "en": "Set as start",
+    "it": "Imposta come iniziale"
+  },
+  "Duruş Sebep Dağılımı": {
+    "en": "Downtime Reason Distribution",
+    "it": "Distribuzione cause di fermo"
+  },
+  "Robot Bazlı Üretim": {
+    "en": "Production by Robot",
+    "it": "Produzione per robot"
+  },
+  "Detaylı Üretim Kayıtları (Düzenlenebilir)": {
+    "en": "Detailed Production Records (Editable)",
+    "it": "Registri di produzione dettagliati (modificabili)"
+  },
+  "Tarih": {
+    "en": "Date",
+    "it": "Data"
+  },
+  "Operatör": {
+    "en": "Operator",
+    "it": "Operatore"
+  },
+  "Referans Kodu": {
+    "en": "Reference Code",
+    "it": "Codice riferimento"
+  },
+  "CT (sn)": {
+    "en": "CT (s)",
+    "it": "CT (s)"
+  },
+  "İşlem": {
+    "en": "Action",
+    "it": "Azione"
+  },
+  "Duruş Sebebi Kırılımı": {
+    "en": "Downtime Reason Breakdown",
+    "it": "Dettaglio cause di fermo"
+  },
+  "Sebep": {
+    "en": "Reason",
+    "it": "Causa"
+  },
+  "Tip": {
+    "en": "Type",
+    "it": "Tipo"
+  },
+  "Süre (dk)": {
+    "en": "Duration (min)",
+    "it": "Durata (min)"
+  },
+  "Adet": {
+    "en": "Quantity",
+    "it": "Quantità"
+  },
+  "Duruş Tipi Özeti": {
+    "en": "Downtime Type Summary",
+    "it": "Riepilogo tipi di fermo"
+  },
+  "Robot Bazlı Ürün Kırılımı": {
+    "en": "Product Breakdown by Robot",
+    "it": "Dettaglio prodotti per robot"
+  },
+  "Referans": {
+    "en": "Reference",
+    "it": "Riferimento"
+  },
+  "Toplam": {
+    "en": "Total",
+    "it": "Totale"
+  },
+  "OK": {
+    "en": "OK",
+    "it": "OK"
+  },
+  "Kalite %": {
+    "en": "Quality %",
+    "it": "Qualità %"
+  },
+  "Robot Bazlı Duruş Kırılımı": {
+    "en": "Downtime Breakdown by Robot",
+    "it": "Ripartizione fermi per robot"
+  },
+  "Duruş Sebebi": {
+    "en": "Downtime Reason",
+    "it": "Causa fermo"
+  },
+  "Vardiya Kayıtları": {
+    "en": "Shift Records",
+    "it": "Registri turni"
+  },
+  "OK Adet": {
+    "en": "OK Quantity",
+    "it": "Quantità OK"
+  },
+  "NOK": {
+    "en": "NOK",
+    "it": "NOK"
+  },
+  "Duruş": {
+    "en": "Downtime",
+    "it": "Fermo"
+  },
+  "OEE": {
+    "en": "OEE",
+    "it": "OEE"
+  },
+  "Fikstür Adresleri": {
+    "en": "Fixture Addresses",
+    "it": "Indirizzi attrezzature"
+  },
+  "ODS'tan İçe Aktar": {
+    "en": "Import from ODS",
+    "it": "Importa da ODS"
+  },
+  "ör:": {
+    "en": "e.g.:",
+    "it": "es.:"
+  },
+  "Raf Adresi": {
+    "en": "Shelf Address",
+    "it": "Indirizzo scaffale"
+  },
+  "Notlar": {
+    "en": "Notes",
+    "it": "Note"
+  },
+  "Opsiyonel not...": {
+    "en": "Optional note...",
+    "it": "Nota opzionale..."
+  },
+  "Ekle": {
+    "en": "Add",
+    "it": "Aggiungi"
+  },
+  "Referans kodu veya raf adresi ara...": {
+    "en": "Search reference code or shelf address...",
+    "it": "Cerca codice riferimento o indirizzo scaffale..."
+  },
+  "Referans & Robot Uyumu (Uygulanabilirlik)": {
+    "en": "Reference & Robot Compatibility (Applicability)",
+    "it": "Compatibilità riferimento e robot (applicabilità)"
+  },
+  "RAF ve PROGRAM ODS İçe Aktar": {
+    "en": "Import Shelf and Program ODS",
+    "it": "Importa ODS scaffale e programma"
+  },
+  "Robot No": {
+    "en": "Robot No.",
+    "it": "N. robot"
+  },
+  "Seç...": {
+    "en": "Select...",
+    "it": "Seleziona..."
+  },
+  "İstasyon": {
+    "en": "Station",
+    "it": "Stazione"
+  },
+  "İstasyon 1": {
+    "en": "Station 1",
+    "it": "Stazione 1"
+  },
+  "İstasyon 2": {
+    "en": "Station 2",
+    "it": "Stazione 2"
+  },
+  "Referans kodu veya robot ara...": {
+    "en": "Search reference code or robot...",
+    "it": "Cerca codice riferimento o robot..."
+  },
+  "Referans Takip (Launch / İş Emri)": {
+    "en": "Reference Tracking (Launch / Work Order)",
+    "it": "Tracciamento riferimenti (Launch / Ordine di lavoro)"
+  },
+  "Hedef Adet": {
+    "en": "Target Quantity",
+    "it": "Quantità obiettivo"
+  },
+  "Makine": {
+    "en": "Machine",
+    "it": "Macchina"
+  },
+  "Öncelik": {
+    "en": "Priority",
+    "it": "Priorità"
+  },
+  "boş ya da 1, 2, 3...": {
+    "en": "empty or 1, 2, 3...",
+    "it": "vuoto o 1, 2, 3..."
+  },
+  "Belirtme": {
+    "en": "Do not specify",
+    "it": "Non specificare"
+  },
+  "Açıklama (Opsiyonel)": {
+    "en": "Description (Optional)",
+    "it": "Descrizione (opzionale)"
+  },
+  "Not...": {
+    "en": "Note...",
+    "it": "Nota..."
+  },
+  "Kaynakhane": {
+    "en": "Welding Shop",
+    "it": "Reparto saldatura"
+  },
+  "Hedef": {
+    "en": "Target",
+    "it": "Obiettivo"
+  },
+  "Robot / İst.": {
+    "en": "Robot / Stn.",
+    "it": "Robot / St."
+  },
+  "Çevrim (Pair)": {
+    "en": "Cycle (Pair)",
+    "it": "Ciclo (coppia)"
+  },
+  "Açıklama": {
+    "en": "Description",
+    "it": "Descrizione"
+  },
+  "Durum": {
+    "en": "Status",
+    "it": "Stato"
+  },
+  "Güncelleme": {
+    "en": "Update",
+    "it": "Aggiornamento"
+  },
+  "Kayıt yok": {
+    "en": "No records",
+    "it": "Nessun record"
+  },
+  "Süre Teyit Durumu": {
+    "en": "Cycle-Time Confirmation Status",
+    "it": "Stato conferma tempi"
+  },
+  "Sahada ölçüp doğruladığın referansları işaretle. Andon'da teyitsizler operatöre uyarı olarak görünür.": {
+    "en": "Mark the references you have measured and verified on the shop floor. Unconfirmed ones appear as a warning to the operator on the Andon.",
+    "it": "Contrassegna i riferimenti che hai misurato e verificato in reparto. Quelli non confermati compaiono come avviso all'operatore sull'Andon."
+  },
+  "Toplam referans": {
+    "en": "Total references",
+    "it": "Riferimenti totali"
+  },
+  "Teyitli": {
+    "en": "Confirmed",
+    "it": "Confermato"
+  },
+  "Süresi teyitli": {
+    "en": "Cycle time confirmed",
+    "it": "Tempo confermato"
+  },
+  "Teyitsiz": {
+    "en": "Unconfirmed",
+    "it": "Non confermato"
+  },
+  "Süresi var ama teyit edilmemiş": {
+    "en": "Has a time but not confirmed",
+    "it": "Ha un tempo ma non confermato"
+  },
+  "Süresiz": {
+    "en": "No Time",
+    "it": "Senza tempo"
+  },
+  "Süresi tanımlı değil": {
+    "en": "No time defined",
+    "it": "Tempo non definito"
+  },
+  "Referans Listesi": {
+    "en": "Reference List",
+    "it": "Elenco riferimenti"
+  },
+  "Referans ara...": {
+    "en": "Search reference...",
+    "it": "Cerca riferimento..."
+  },
+  "Excel'e Yaz": {
+    "en": "Write to Excel",
+    "it": "Scrivi su Excel"
+  },
+  "Program → Excel: tanımlı süreleri Excel sayfasına yazar": {
+    "en": "Program → Excel: writes the defined times to the Excel sheet",
+    "it": "Programma → Excel: scrive i tempi definiti sul foglio Excel"
+  },
+  "+ Yeni Referans": {
+    "en": "+ New Reference",
+    "it": "+ Nuovo riferimento"
+  },
+  "Süre Tanımı Bekleyen Referanslar (Son 30 Gün)": {
+    "en": "References Awaiting Cycle-Time Definition (Last 30 Days)",
+    "it": "Riferimenti in attesa di definizione tempi (ultimi 30 giorni)"
+  },
+  "Aşağıdaki referanslar operatörler tarafından girilmiş ancak sistemde çevrim süreleri tanımlanmamıştır. Lütfen süre tanımlayın.": {
+    "en": "The references below were entered by operators but their cycle times are not defined in the system. Please define the times.",
+    "it": "I riferimenti seguenti sono stati inseriti dagli operatori ma i loro tempi ciclo non sono definiti nel sistema. Si prega di definire i tempi."
+  },
+  "Kaynak (sn)": {
+    "en": "Welding (s)",
+    "it": "Saldatura (s)"
+  },
+  "Söktak (sn)": {
+    "en": "Load/Unload (s)",
+    "it": "Carico/Scarico (s)"
+  },
+  "Toplam Cycle (sn)": {
+    "en": "Total Cycle (s)",
+    "it": "Ciclo totale (s)"
+  },
+  "Süre Teyit": {
+    "en": "Time Confirmation",
+    "it": "Conferma tempo"
+  },
+  "Andon Ekran Ayarları": {
+    "en": "Andon Screen Settings",
+    "it": "Impostazioni schermo Andon"
+  },
+  "Andon Ekranı Aç": {
+    "en": "Open Andon Screen",
+    "it": "Apri schermo Andon"
+  },
+  "Kaydet": {
+    "en": "Save",
+    "it": "Salva"
+  },
+  "Görünüm Özelleştirme": {
+    "en": "Appearance Customization",
+    "it": "Personalizzazione aspetto"
+  },
+  "Renk + boyutu varsayılan andon temasına döndür": {
+    "en": "Reset color + size to the default Andon theme",
+    "it": "Ripristina colore + dimensione al tema Andon predefinito"
+  },
+  "Varsayılana Sıfırla": {
+    "en": "Reset to Default",
+    "it": "Ripristina predefinito"
+  },
+  "Renk:": {
+    "en": "Color:",
+    "it": "Colore:"
+  },
+  "Boyut:": {
+    "en": "Size:",
+    "it": "Dimensione:"
+  },
+  "Operatör Adı": {
+    "en": "Operator Name",
+    "it": "Nome operatore"
+  },
+  "Duruş (Downtime)": {
+    "en": "Downtime",
+    "it": "Fermo"
+  },
+  "Robot / Hat / Makine Görünürlük Ayarları": {
+    "en": "Robot / Line / Machine Visibility Settings",
+    "it": "Impostazioni visibilità robot / linea / macchina"
+  },
+  "Kaynak": {
+    "en": "Welding",
+    "it": "Saldatura"
+  },
+  "Metal": {
+    "en": "Metal",
+    "it": "Metal"
+  },
+  "Seçili bölümün andon ekranında hangi cihazların görüneceğini ve sırasını ayarlayın. Kaydet bastığında 3 bölümün de ayarları birden saklanır.": {
+    "en": "Set which devices appear on the selected department's Andon screen and their order. When you press Save, the settings for all 3 departments are stored at once.",
+    "it": "Imposta quali dispositivi compaiono sullo schermo Andon del reparto selezionato e il loro ordine. Premendo Salva, le impostazioni di tutti e 3 i reparti vengono salvate insieme."
+  },
+  "Andon Yenileme Süresi": {
+    "en": "Andon Refresh Interval",
+    "it": "Intervallo di aggiornamento Andon"
+  },
+  "Andon ekranı her kaç saniyede bir güncellensin?": {
+    "en": "How often (in seconds) should the Andon screen refresh?",
+    "it": "Ogni quanti secondi deve aggiornarsi lo schermo Andon?"
+  },
+  "sn": {
+    "en": "s",
+    "it": "s"
+  },
+  "Not: Yenileme süresi andon ekranı yeniden açıldığında uygulanır.": {
+    "en": "Note: The refresh interval takes effect when the Andon screen is reopened.",
+    "it": "Nota: L'intervallo di aggiornamento si applica alla riapertura dello schermo Andon."
+  },
+  "Andon Duyuru Yönetimi": {
+    "en": "Andon Announcement Management",
+    "it": "Gestione annunci Andon"
+  },
+  "Andon ekranının alt kısmında görünecek kayan mesajı güncelleyin.": {
+    "en": "Update the scrolling message that appears at the bottom of the Andon screen.",
+    "it": "Aggiorna il messaggio scorrevole che appare in fondo allo schermo Andon."
+  },
+  "Duruş mesajı, kutlama veya genel bilgilendirme...": {
+    "en": "Downtime message, celebration or general information...",
+    "it": "Messaggio di fermo, celebrazione o informazione generale..."
+  },
+  "Yazar ismi (opsiyonel)": {
+    "en": "Author name (optional)",
+    "it": "Nome autore (opzionale)"
+  },
+  "Yayınla": {
+    "en": "Publish",
+    "it": "Pubblica"
+  },
+  "Kaldır": {
+    "en": "Remove",
+    "it": "Rimuovi"
+  },
+  "ESP32 Saha Cihazları": {
+    "en": "ESP32 Field Devices",
+    "it": "Dispositivi di campo ESP32"
+  },
+  "Her makine için ESP32 modülünün bağlantı durumu — 5 saniyede bir yenilenir.": {
+    "en": "Connection status of the ESP32 module for each machine — refreshes every 5 seconds.",
+    "it": "Stato di connessione del modulo ESP32 per ogni macchina — si aggiorna ogni 5 secondi."
+  },
+  "Online": {
+    "en": "Online",
+    "it": "Online"
+  },
+  "Offline": {
+    "en": "Offline",
+    "it": "Offline"
+  },
+  "Bekleyen": {
+    "en": "Pending",
+    "it": "In attesa"
+  },
+  "CANLI": {
+    "en": "LIVE",
+    "it": "LIVE"
+  },
+  "Aktif Cihazlar — sinyal alınan makineler": {
+    "en": "Active Devices — machines receiving signal",
+    "it": "Dispositivi attivi — macchine che ricevono segnale"
+  },
+  "Robot Kaynak Hatları (9 robot)": {
+    "en": "Robot Welding Lines (9 robots)",
+    "it": "Linee di saldatura robotizzata (9 robot)"
+  },
+  "Montaj Hatları (12 hat)": {
+    "en": "Assembly Lines (12 lines)",
+    "it": "Linee di assemblaggio (12 linee)"
+  },
+  "Metal Enjeksiyon (3 makine)": {
+    "en": "Die Casting (3 machines)",
+    "it": "Pressofusione (3 macchine)"
+  },
+  "Saha cihazlarından gelen her pulse'ın bir öncekiyle arasındaki süreyi (gap) zaman ekseninde gösterir. Duruşlar grafiğe renkli bant olarak yansır; o gün üretilen referanslar alt tabloda listelenir.": {
+    "en": "Shows the time (gap) between each pulse from the field devices and the previous one on a time axis. Downtimes appear as colored bands on the chart; the references produced that day are listed in the table below.",
+    "it": "Mostra su un asse temporale il tempo (gap) tra ogni impulso proveniente dai dispositivi di campo e quello precedente. I fermi appaiono come bande colorate sul grafico; i riferimenti prodotti quel giorno sono elencati nella tabella sottostante."
+  },
+  "Sinyal Kalitesi & Sayım Kararları": {
+    "en": "Signal Quality & Counting Decisions",
+    "it": "Qualità del segnale e decisioni di conteggio"
+  },
+  "her cihaz: gerçek sayım · elenen gürültü · veri kaybı (doğruluk kanıtı)": {
+    "en": "each device: real count · filtered noise · data loss (accuracy proof)",
+    "it": "ogni dispositivo: conteggio reale · rumore filtrato · perdita dati (prova di accuratezza)"
+  },
+  "Cihaz": {
+    "en": "Device",
+    "it": "Dispositivo"
+  },
+  "Bölüm": {
+    "en": "Department",
+    "it": "Reparto"
+  },
+  "Sayıldı": {
+    "en": "Counted",
+    "it": "Conteggiati"
+  },
+  "Elenen Gürültü": {
+    "en": "Filtered Noise",
+    "it": "Rumore filtrato"
+  },
+  "Erken": {
+    "en": "Early",
+    "it": "Anticipato"
+  },
+  "Kayıp": {
+    "en": "Loss",
+    "it": "Persi"
+  },
+  "Sinyal": {
+    "en": "Signal",
+    "it": "Segnale"
+  },
+  "Yükleniyor…": {
+    "en": "Loading…",
+    "it": "Caricamento…"
+  },
+  "Son Sayım Kararları (akış)": {
+    "en": "Recent Counting Decisions (stream)",
+    "it": "Ultime decisioni di conteggio (flusso)"
+  },
+  "Nasıl okunur": {
+    "en": "How to read",
+    "it": "Come leggere"
+  },
+  "gerçek üretim": {
+    "en": "real production",
+    "it": "produzione reale"
+  },
+  "sistemin ayıkladığı parazit (sayılmadı)": {
+    "en": "interference filtered out by the system (not counted)",
+    "it": "interferenza filtrata dal sistema (non conteggiata)"
+  },
+  "cihaz saydı ama merkeze ulaşmadı — 0 olmalı": {
+    "en": "device counted but did not reach the server — should be 0",
+    "it": "il dispositivo ha conteggiato ma non è arrivato al server — deve essere 0"
+  },
+  "Analizi Yükle": {
+    "en": "Load Analysis",
+    "it": "Carica analisi"
+  },
+  "Toplam Pulse": {
+    "en": "Total Pulses",
+    "it": "Impulsi totali"
+  },
+  "Ort. Süre": {
+    "en": "Avg. Duration",
+    "it": "Durata media"
+  },
+  "tüm gün": {
+    "en": "all day",
+    "it": "tutto il giorno"
+  },
+  "Medyan": {
+    "en": "Median",
+    "it": "Mediana"
+  },
+  "uç değerden etkilenmez": {
+    "en": "not affected by outliers",
+    "it": "non influenzata dai valori estremi"
+  },
+  "Mod": {
+    "en": "Mode",
+    "it": "Moda"
+  },
+  "en sık cycle süresi": {
+    "en": "most frequent cycle time",
+    "it": "tempo ciclo più frequente"
+  },
+  "En Uzun Gap": {
+    "en": "Longest Gap",
+    "it": "Gap più lungo"
+  },
+  "En Kısa Gap": {
+    "en": "Shortest Gap",
+    "it": "Gap più breve"
+  },
+  "Pulse Aralıkları (Saatlik Dağılım)": {
+    "en": "Pulse Intervals (Hourly Distribution)",
+    "it": "Intervalli tra impulsi (distribuzione oraria)"
+  },
+  "scatter: her pulse · çizgi: saatlik ortalama · kırmızı/sarı bant: duruş": {
+    "en": "scatter: each pulse · line: hourly average · red/yellow band: downtime",
+    "it": "scatter: ogni impulso · linea: media oraria · banda rossa/gialla: fermo"
+  },
+  "Sol tık + sürükle → seçili alana zoom · Sağ tık → tam ekrana dön": {
+    "en": "Left-click + drag → zoom to selected area · Right-click → return to full view",
+    "it": "Clic sinistro + trascina → zoom sull'area selezionata · Clic destro → torna alla vista completa"
+  },
+  "Saatlik Üretim Nabzı": {
+    "en": "Hourly Production Pulse",
+    "it": "Ritmo di produzione orario"
+  },
+  "O Gün Üretilen Referanslar": {
+    "en": "References Produced That Day",
+    "it": "Riferimenti prodotti quel giorno"
+  },
+  "Sayım istatistiği terimleri": {
+    "en": "Counting Statistics Terms",
+    "it": "Termini statistici di conteggio"
+  },
+  "Ortalama (Aritmetik)": {
+    "en": "Average (Arithmetic Mean)",
+    "it": "Media (aritmetica)"
+  },
+  "Tüm gap'lerin toplamı / pulse sayısı. Uzun duruşlardan etkilenir — bir 30 dakikalık duruş ortalamayı çok yukarı çeker. Genel verim için kullanışlı ama \"tipik cycle'ı\" yansıtmaz.": {
+    "en": "Sum of all gaps / number of pulses. Affected by long downtimes — a single 30-minute downtime pulls the average far up. Useful for overall efficiency but does not reflect the 'typical cycle'.",
+    "it": "Somma di tutti i gap / numero di impulsi. Influenzata dai fermi lunghi — un singolo fermo di 30 minuti alza molto la media. Utile per l'efficienza complessiva ma non riflette il 'ciclo tipico'."
+  },
+  "Pulse'lar küçükten büyüğe sıralanıp tam ortadaki değer. Aşırı değerlerden (mola, parça bekleme) etkilenmez — gerçek üretim ritmini yansıtan en güvenilir metrik. Mola hariç pulse'ların %50'si bu değerden hızlı, %50'si daha yavaş gelmiş demektir.": {
+    "en": "The middle value once the pulses are sorted from smallest to largest. Not affected by extreme values (breaks, waiting for parts) — the most reliable metric reflecting the real production rhythm. Excluding breaks, it means 50% of pulses arrived faster than this value and 50% slower.",
+    "it": "Il valore centrale una volta ordinati gli impulsi dal più piccolo al più grande. Non influenzato da valori estremi (pause, attesa pezzi) — la metrica più affidabile che riflette il vero ritmo di produzione. Escluse le pause, significa che il 50% degli impulsi è arrivato più veloce di questo valore e il 50% più lento."
+  },
+  "En sık tekrar eden gap (1 sn yuvarlanmış). Robotun veya makinenin \"alıştığı\" cycle süresi. Hedef cycle ile karşılaştırılır: Mod ≈ Hedef ise üretim disiplinli; Mod >> Hedef ise üretimde sürekli bir gecikme/sapma var demektir.": {
+    "en": "The most frequently recurring gap (rounded to 1 s). The cycle time the robot or machine is 'used to'. Compared against the target cycle: if Mode ≈ Target production is disciplined; if Mode >> Target there is a constant delay/deviation in production.",
+    "it": "Il gap che si ripete più frequentemente (arrotondato a 1 s). Il tempo ciclo a cui il robot o la macchina è 'abituato'. Confrontato con il ciclo obiettivo: se Moda ≈ Obiettivo la produzione è disciplinata; se Moda >> Obiettivo c'è un ritardo/scostamento costante nella produzione."
+  },
+  "Min / Max": {
+    "en": "Min / Max",
+    "it": "Min / Max"
+  },
+  "En kısa gap = en hızlı çevrim (genelde bu hedef cycle'a en yakındır). En uzun gap = en uzun duruş veya bekleme. İkisi arası fark büyükse üretim akışı stabil değil demektir.": {
+    "en": "Shortest gap = fastest cycle (usually the closest to the target cycle). Longest gap = longest downtime or wait. If the difference between the two is large, the production flow is not stable.",
+    "it": "Gap più breve = ciclo più veloce (di solito il più vicino al ciclo obiettivo). Gap più lungo = fermo o attesa più lunga. Se la differenza tra i due è grande, il flusso di produzione non è stabile."
+  },
+  "Pratik kullanım: Üretim hızını Mod ile ölç, Medyan ile doğrula. İkisi de hedefe yakınsa üretim sağlıklı. Ortalama'nın Mod ve Medyan'dan çok yüksek olması duruş yoğunluğunu gösterir.": {
+    "en": "Practical use: Measure production speed with the Mode, verify it with the Median. If both are close to target, production is healthy. An Average much higher than the Mode and Median indicates a high concentration of downtime.",
+    "it": "Uso pratico: Misura la velocità di produzione con la Moda, verificala con la Mediana. Se entrambe sono vicine all'obiettivo, la produzione è sana. Una Media molto più alta di Moda e Mediana indica un'alta concentrazione di fermi."
+  },
+  "Operatör PIN Yönetimi": {
+    "en": "Operator PIN Management",
+    "it": "Gestione PIN operatore"
+  },
+  "Her operatöre 4 haneli PIN tanımlanır. Operatör mobile'da bu PIN ile giriş yapar; başka operatörün vardiyasını düzenleyemez. Varsayılan PIN 0000 — ilk kullanım öncesi mutlaka değiştirin.": {
+    "en": "A 4-digit PIN is assigned to each operator. The operator logs into the mobile app with this PIN and cannot edit another operator's shift. The default PIN is 0000 — be sure to change it before first use.",
+    "it": "A ogni operatore viene assegnato un PIN di 4 cifre. L'operatore accede all'app mobile con questo PIN e non può modificare il turno di un altro operatore. Il PIN predefinito è 0000 — assicurati di cambiarlo prima del primo utilizzo."
+  },
+  "Operatör Listesi": {
+    "en": "Operator List",
+    "it": "Elenco operatori"
+  },
+  "Ad": {
+    "en": "Name",
+    "it": "Nome"
+  },
+  "Mevcut PIN": {
+    "en": "Current PIN",
+    "it": "PIN attuale"
+  },
+  "Yeni PIN": {
+    "en": "New PIN",
+    "it": "Nuovo PIN"
+  },
+  "Güvenlik notu": {
+    "en": "Security note",
+    "it": "Nota di sicurezza"
+  },
+  "PIN sade bir kilit — paylaşılan tablette başka operatörün adına işlem yapılmasını önler": {
+    "en": "The PIN is a simple lock — it prevents actions being taken under another operator's name on a shared tablet",
+    "it": "Il PIN è un semplice blocco — impedisce che vengano eseguite azioni a nome di un altro operatore su un tablet condiviso"
+  },
+  "Operatörler PIN'ini bilmiyorsa \"0000\" varsayılan ile başlar; her zaman değiştirilebilir": {
+    "en": "If operators do not know their PIN, they start with the default '0000'; it can be changed at any time",
+    "it": "Se gli operatori non conoscono il proprio PIN, partono con il valore predefinito '0000'; può essere modificato in qualsiasi momento"
+  },
+  "Dashboard'dan yapılan değişiklikler PIN gerektirmez (bu ekran yönetici içindir)": {
+    "en": "Changes made from the dashboard do not require a PIN (this screen is for the manager)",
+    "it": "Le modifiche effettuate dalla dashboard non richiedono un PIN (questa schermata è per il responsabile)"
+  },
+  "Operatör vardiya boyunca oturum açık kalır; \"Çıkış\" tuşuyla manuel kapanır": {
+    "en": "The operator stays logged in throughout the shift; it is closed manually with the 'Log out' button",
+    "it": "L'operatore rimane connesso per tutto il turno; si chiude manualmente con il pulsante 'Esci'"
+  },
+  "Rapor Tipi": {
+    "en": "Report Type",
+    "it": "Tipo di report"
+  },
+  "Operatör Performansı": {
+    "en": "Operator Performance",
+    "it": "Prestazioni operatore"
+  },
+  "Referans Üretimi": {
+    "en": "Reference Production",
+    "it": "Produzione per riferimento"
+  },
+  "TEEP Şelalesi": {
+    "en": "TEEP Waterfall",
+    "it": "Cascata TEEP"
+  },
+  "Robot (Opsiyonel)": {
+    "en": "Robot (Optional)",
+    "it": "Robot (opzionale)"
+  },
+  "Oluştur": {
+    "en": "Generate",
+    "it": "Genera"
+  },
+  "Rapor Grafiği": {
+    "en": "Report Chart",
+    "it": "Grafico report"
+  },
+  "Rapor Detayı": {
+    "en": "Report Detail",
+    "it": "Dettaglio report"
+  },
+  "Tarih filtrelerini belirleyip \"Oluştur\"a basın...": {
+    "en": "Set the date filters and press 'Generate'...",
+    "it": "Imposta i filtri data e premi 'Genera'..."
+  },
+  "Veri yok.": {
+    "en": "No data.",
+    "it": "Nessun dato."
+  },
+  "Otomatik Günlük Üretim Raporu E-postası": {
+    "en": "Automatic Daily Production Report Email",
+    "it": "Email report di produzione giornaliero automatico"
+  },
+  "Her gün belirlenen saatte, o gün üretilen tüm referanslar (tarih · tesis · bölüm · operatör · referans · adet) bir Excel dosyası olarak aşağıdaki alıcılara otomatik gönderilir.": {
+    "en": "Every day at the set time, all references produced that day (date · plant · department · operator · reference · quantity) are automatically sent as an Excel file to the recipients below.",
+    "it": "Ogni giorno all'orario stabilito, tutti i riferimenti prodotti quel giorno (data · stabilimento · reparto · operatore · riferimento · quantità) vengono inviati automaticamente come file Excel ai destinatari sottostanti."
+  },
+  "E-posta": {
+    "en": "Email",
+    "it": "Email"
+  },
+  "ornek@sirket.com": {
+    "en": "example@company.com",
+    "it": "esempio@azienda.com"
+  },
+  "Ad (opsiyonel)": {
+    "en": "Name (optional)",
+    "it": "Nome (opzionale)"
+  },
+  "Örn: Üretim Müdürü": {
+    "en": "e.g.: Production Manager",
+    "it": "es.: Direttore di produzione"
+  },
+  "Bugünün Raporunu Şimdi Gönder": {
+    "en": "Send Today's Report Now",
+    "it": "Invia ora il report di oggi"
+  },
+  "Test Maili Gönder": {
+    "en": "Send Test Email",
+    "it": "Invia email di test"
+  },
+  "Gönderim ayarı sunucudaki mail_config.json dosyasında tanımlıdır.": {
+    "en": "The sending configuration is defined in the mail_config.json file on the server.",
+    "it": "La configurazione di invio è definita nel file mail_config.json sul server."
+  },
+  "Vardiya Detayı": {
+    "en": "Shift Detail",
+    "it": "Dettaglio turno"
+  },
+  "Yeni Referans Ekle": {
+    "en": "Add New Reference",
+    "it": "Aggiungi nuovo riferimento"
+  },
+  "Referans Kodu *": {
+    "en": "Reference Code *",
+    "it": "Codice riferimento *"
+  },
+  "Parça adı...": {
+    "en": "Part name...",
+    "it": "Nome pezzo..."
+  },
+  "Kaynak Süresi (saniye)": {
+    "en": "Welding Time (seconds)",
+    "it": "Tempo di saldatura (secondi)"
+  },
+  "Söktak Süresi (saniye)": {
+    "en": "Load/Unload Time (seconds)",
+    "it": "Tempo di carico/scarico (secondi)"
+  },
+  "Hedef Cycle Time (saniye/parça)": {
+    "en": "Target Cycle Time (seconds/part)",
+    "it": "Tempo ciclo obiettivo (secondi/pezzo)"
+  },
+  "Toplam = Kaynak + Söktak (otomatik hesaplanır)": {
+    "en": "Total = Welding + Load/Unload (calculated automatically)",
+    "it": "Totale = Saldatura + Carico/Scarico (calcolato automaticamente)"
+  },
+  "Bu süreyi sahada ölçtüm, teyit ediyorum": {
+    "en": "I measured this time on the shop floor, I confirm it",
+    "it": "Ho misurato questo tempo in reparto, lo confermo"
+  },
+  "Teyit verince andon'da bu referans için uyarı işareti kalkar.": {
+    "en": "Once confirmed, the warning mark for this reference disappears on the Andon.",
+    "it": "Una volta confermato, il segnale di avviso per questo riferimento scompare sull'Andon."
+  },
+  "İptal": {
+    "en": "Cancel",
+    "it": "Annulla"
+  },
+  "Tarih ve vardiya seçince rapor otomatik yüklenir. Geçmiş günler için de tarih seçimi yapılabilir.": {
+    "en": "The report loads automatically when a date and shift are selected. A date can also be chosen for past days.",
+    "it": "Il report si carica automaticamente quando si selezionano una data e un turno. È possibile selezionare una data anche per i giorni passati."
+  },
+  "— Vardiya —": {
+    "en": "— Shift —",
+    "it": "— Turno —"
+  },
+  "Kapat": {
+    "en": "Close",
+    "it": "Chiudi"
+  },
+  "Hat": {
+    "en": "Line",
+    "it": "Linea"
+  },
+  "Tezgah": {
+    "en": "Machine tool",
+    "it": "Macchina utensile"
+  },
+  "Kaynak Referans": {
+    "en": "Welding Reference",
+    "it": "Riferimento saldatura"
+  },
+  "Montaj Referans": {
+    "en": "Assembly Reference",
+    "it": "Riferimento assemblaggio"
+  },
+  "Metal Referans": {
+    "en": "Metal Reference",
+    "it": "Riferimento metallo"
+  },
+  "İşleme Referans": {
+    "en": "Machining Reference",
+    "it": "Riferimento lavorazione"
+  },
+  "Lazer Referans": {
+    "en": "Laser Reference",
+    "it": "Riferimento laser"
+  },
+  "Pres Abkant Referans": {
+    "en": "Press Brake Reference",
+    "it": "Riferimento pressa piegatrice"
+  },
+  "Bu bölüm için andon ekranı yok.": {
+    "en": "There is no Andon screen for this department.",
+    "it": "Non c'è uno schermo Andon per questo reparto."
+  },
+  "Excel'e Aktar": {
+    "en": "Export to Excel",
+    "it": "Esporta su Excel"
+  },
+  "Veriler Masaüstü/UretimTakipArsiv.xlsx dosyasına kaydedilir. Dosya her kayıtta güncellenir (üzerine yazar).": {
+    "en": "The data is saved to the file Desktop/UretimTakipArsiv.xlsx. The file is updated on every save (it overwrites).",
+    "it": "I dati vengono salvati nel file Desktop/UretimTakipArsiv.xlsx. Il file viene aggiornato a ogni salvataggio (sovrascrive)."
+  },
+  "Başlangıç Tarihi": {
+    "en": "Start Date",
+    "it": "Data inizio"
+  },
+  "Bitiş Tarihi": {
+    "en": "End Date",
+    "it": "Data fine"
+  },
+  "Excel'e Kaydet": {
+    "en": "Save to Excel",
+    "it": "Salva su Excel"
+  },
+  "Kaydediliyor...": {
+    "en": "Saving...",
+    "it": "Salvataggio..."
+  },
+  "Kaydedildi!": {
+    "en": "Saved!",
+    "it": "Salvato!"
+  },
+  "vardiya · üretim · duruş kaydı aktarıldı": {
+    "en": "shifts · production · downtime records transferred",
+    "it": "turni · produzione · record di fermo trasferiti"
+  },
+  "Excel dosyası kaydedildi!": {
+    "en": "Excel file saved!",
+    "it": "File Excel salvato!"
+  },
+  "Hata:": {
+    "en": "Error:",
+    "it": "Errore:"
+  },
+  "Bilinmeyen hata": {
+    "en": "Unknown error",
+    "it": "Errore sconosciuto"
+  },
+  "Bağlantı hatası:": {
+    "en": "Connection error:",
+    "it": "Errore di connessione:"
+  },
+  "Launch Alınacak": {
+    "en": "Launch To Be Obtained",
+    "it": "Launch da ottenere"
+  },
+  "Launch Alındı": {
+    "en": "Launch Obtained",
+    "it": "Launch ottenuto"
+  },
+  "Launch Hazır": {
+    "en": "Launch Ready",
+    "it": "Launch pronto"
+  },
+  "kayıt": {
+    "en": "records",
+    "it": "record"
+  },
+  "Alınacak": {
+    "en": "To be obtained",
+    "it": "Da ottenere"
+  },
+  "Alındı": {
+    "en": "Obtained",
+    "it": "Ottenuto"
+  },
+  "Hazır": {
+    "en": "Ready",
+    "it": "Pronto"
+  },
+  "İst.": {
+    "en": "Stn.",
+    "it": "St."
+  },
+  "verim": {
+    "en": "efficiency",
+    "it": "efficienza"
+  },
+  "adet": {
+    "en": "pcs",
+    "it": "pz"
+  },
+  "Referans kodu zorunludur": {
+    "en": "Reference code is required",
+    "it": "Il codice riferimento è obbligatorio"
+  },
+  "Yönetici": {
+    "en": "Manager",
+    "it": "Responsabile"
+  },
+  "Sunucu hatası:": {
+    "en": "Server error:",
+    "it": "Errore del server:"
+  },
+  "Referans eklendi": {
+    "en": "Reference added",
+    "it": "Riferimento aggiunto"
+  },
+  "Hata": {
+    "en": "Error",
+    "it": "Errore"
+  },
+  "İş Kaydı Düzenle": {
+    "en": "Edit Work Record",
+    "it": "Modifica registro di lavoro"
+  },
+  "Referans kodu boş olamaz": {
+    "en": "Reference code cannot be empty",
+    "it": "Il codice riferimento non può essere vuoto"
+  },
+  "Güncelleme hatası": {
+    "en": "Update error",
+    "it": "Errore di aggiornamento"
+  },
+  "Kayıt güncellendi": {
+    "en": "Record updated",
+    "it": "Record aggiornato"
+  },
+  "Robot ataması güncellendi": {
+    "en": "Robot assignment updated",
+    "it": "Assegnazione robot aggiornata"
+  },
+  "Öncelik güncellendi": {
+    "en": "Priority updated",
+    "it": "Priorità aggiornata"
+  },
+  "Öncelik güncellenemedi": {
+    "en": "Priority could not be updated",
+    "it": "Impossibile aggiornare la priorità"
+  },
+  "Bu kaydı silmek istiyor musunuz?": {
+    "en": "Do you want to delete this record?",
+    "it": "Vuoi eliminare questo record?"
+  },
+  "Kayıt silindi": {
+    "en": "Record deleted",
+    "it": "Record eliminato"
+  },
+  "Bağlantı hatası": {
+    "en": "Connection error",
+    "it": "Errore di connessione"
+  },
+  "Duyuru yayınlandı": {
+    "en": "Announcement published",
+    "it": "Annuncio pubblicato"
+  },
+  "Duyuru kaldırıldı": {
+    "en": "Announcement removed",
+    "it": "Annuncio rimosso"
+  },
+  "📍 Başlangıç": {
+    "en": "Start",
+    "it": "Iniziale"
+  },
+  "Başlangıç sekmesi kaydedildi!": {
+    "en": "Start tab saved!",
+    "it": "Scheda iniziale salvata!"
+  },
+  "Operatör Yönetimi": {
+    "en": "Operator Management",
+    "it": "Gestione operatori"
+  },
+  "Raporlar ve Analiz": {
+    "en": "Reports and Analysis",
+    "it": "Report e analisi"
+  },
+  "Bu bölüm için kayıtlı cihaz yok.": {
+    "en": "No devices registered for this department.",
+    "it": "Nessun dispositivo registrato per questo reparto."
+  },
+  "Andonda görünür": {
+    "en": "Visible on Andon",
+    "it": "Visibile su Andon"
+  },
+  "Gizlendi": {
+    "en": "Hidden",
+    "it": "Nascosto"
+  },
+  "Sıra": {
+    "en": "Order",
+    "it": "Ordine"
+  },
+  "Renk ve boyut ayarları varsayılan andon temasına döndürülecek. Onaylıyor musun?": {
+    "en": "Color and size settings will be reset to the default Andon theme. Do you confirm?",
+    "it": "Le impostazioni di colore e dimensione verranno ripristinate al tema Andon predefinito. Confermi?"
+  },
+  "Varsayılanlar yüklendi — Kaydet bastığında etkin olur": {
+    "en": "Defaults loaded — they take effect when you press Save",
+    "it": "Valori predefiniti caricati — diventano effettivi premendo Salva"
+  },
+  "Andon ayarları kaydedildi!": {
+    "en": "Andon settings saved!",
+    "it": "Impostazioni Andon salvate!"
+  },
+  "Veri yüklenemedi:": {
+    "en": "Could not load data:",
+    "it": "Impossibile caricare i dati:"
+  },
+  "vardiya": {
+    "en": "shift",
+    "it": "turno"
+  },
+  "Bu aralıkta veri yok": {
+    "en": "No data in this range",
+    "it": "Nessun dato in questo intervallo"
+  },
+  "dk": {
+    "en": "min",
+    "it": "min"
+  },
+  "sa": {
+    "en": "h",
+    "it": "h"
+  },
+  "Bu tarih aralığında kayıt yok": {
+    "en": "No records in this date range",
+    "it": "Nessun record in questo intervallo di date"
+  },
+  "Sabah": {
+    "en": "Morning",
+    "it": "Mattino"
+  },
+  "Öğle": {
+    "en": "Noon",
+    "it": "Mezzogiorno"
+  },
+  "Düzenle": {
+    "en": "Edit",
+    "it": "Modifica"
+  },
+  "Sil": {
+    "en": "Delete",
+    "it": "Elimina"
+  },
+  "Vardiya Düzenle": {
+    "en": "Edit Shift",
+    "it": "Modifica turno"
+  },
+  "Vardiya Türü": {
+    "en": "Shift Type",
+    "it": "Tipo di turno"
+  },
+  "Başlangıç Saati (Saat:Dakika)": {
+    "en": "Start Time (Hour:Minute)",
+    "it": "Ora di inizio (Ora:Minuto)"
+  },
+  "Bitiş Saati (Saat:Dakika)": {
+    "en": "End Time (Hour:Minute)",
+    "it": "Ora di fine (Ora:Minuto)"
+  },
+  "Lütfen başlangıç ve bitiş saatlerini giriniz!": {
+    "en": "Please enter the start and end times!",
+    "it": "Inserire gli orari di inizio e fine!"
+  },
+  "Vardiya bilgileri güncellendi!": {
+    "en": "Shift information updated!",
+    "it": "Informazioni turno aggiornate!"
+  },
+  "Kaydedilemedi.": {
+    "en": "Could not be saved.",
+    "it": "Impossibile salvare."
+  },
+  "Bağlantı hatası.": {
+    "en": "Connection error.",
+    "it": "Errore di connessione."
+  },
+  "çeşit duruş": {
+    "en": "types of downtime",
+    "it": "tipi di fermo"
+  },
+  "Planlı": {
+    "en": "Planned",
+    "it": "Pianificato"
+  },
+  "Plansız": {
+    "en": "Unplanned",
+    "it": "Non pianificato"
+  },
+  "Duruş yok": {
+    "en": "No downtime",
+    "it": "Nessun fermo"
+  },
+  "Planlı Duruşlar": {
+    "en": "Planned Downtime",
+    "it": "Fermi pianificati"
+  },
+  "Plansız Duruşlar": {
+    "en": "Unplanned Downtime",
+    "it": "Fermi non pianificati"
+  },
+  "satır": {
+    "en": "rows",
+    "it": "righe"
+  },
+  "Yükleniyor": {
+    "en": "Loading",
+    "it": "Caricamento"
+  },
+  "Lık": {
+    "en": "Availability",
+    "it": "Disponibilità"
+  },
+  "Perf.": {
+    "en": "Perf.",
+    "it": "Perf."
+  },
+  "Vardiya Bilgileri": {
+    "en": "Shift Information",
+    "it": "Informazioni turno"
+  },
+  "Saat": {
+    "en": "Time",
+    "it": "Ora"
+  },
+  "Planlı Süre": {
+    "en": "Planned Time",
+    "it": "Tempo pianificato"
+  },
+  "Toplam Duruş": {
+    "en": "Total Downtime",
+    "it": "Fermo totale"
+  },
+  "Üretim Kayıtları": {
+    "en": "Production Records",
+    "it": "Registri di produzione"
+  },
+  "Hdf:": {
+    "en": "Tgt:",
+    "it": "Ob.:"
+  },
+  "Duruş Kayıtları": {
+    "en": "Downtime Records",
+    "it": "Registri di fermo"
+  },
+  "Yüklenemedi": {
+    "en": "Could not be loaded",
+    "it": "Impossibile caricare"
+  },
+  "Vardiya Saatleri": {
+    "en": "Shift Hours",
+    "it": "Orari del turno"
+  },
+  "Başlangıç Saati (HH:MM)": {
+    "en": "Start Time (HH:MM)",
+    "it": "Ora di inizio (HH:MM)"
+  },
+  "Bitiş Saati (HH:MM)": {
+    "en": "End Time (HH:MM)",
+    "it": "Ora di fine (HH:MM)"
+  },
+  "Planlı Toplam Süre (Dk)": {
+    "en": "Planned Total Time (Min)",
+    "it": "Tempo totale pianificato (Min)"
+  },
+  "Vardiya güncellendi!": {
+    "en": "Shift updated!",
+    "it": "Turno aggiornato!"
+  },
+  "Hata oluştu": {
+    "en": "An error occurred",
+    "it": "Si è verificato un errore"
+  },
+  "(referans tanımlı)": {
+    "en": "(reference defined)",
+    "it": "(definito dal riferimento)"
+  },
+  "(tanımsız)": {
+    "en": "(undefined)",
+    "it": "(non definito)"
+  },
+  "Üretim Düzenle": {
+    "en": "Edit Production",
+    "it": "Modifica produzione"
+  },
+  "NOK Adet": {
+    "en": "NOK Quantity",
+    "it": "Quantità NOK"
+  },
+  "Referans kodu...": {
+    "en": "Reference code...",
+    "it": "Codice riferimento..."
+  },
+  "Üretim güncellendi!": {
+    "en": "Production updated!",
+    "it": "Produzione aggiornata!"
+  },
+  "Duruş Düzenle": {
+    "en": "Edit Downtime",
+    "it": "Modifica fermo"
+  },
+  "Duruş Süresi (Dk)": {
+    "en": "Downtime Duration (Min)",
+    "it": "Durata del fermo (Min)"
+  },
+  "Duruş güncellendi!": {
+    "en": "Downtime updated!",
+    "it": "Fermo aggiornato!"
+  },
+  "Bu vardiya kaydını silmek istiyor musunuz?": {
+    "en": "Do you want to delete this shift record?",
+    "it": "Vuoi eliminare questo record del turno?"
+  },
+  "Vardiya silindi": {
+    "en": "Shift deleted",
+    "it": "Turno eliminato"
+  },
+  "Silinemedi": {
+    "en": "Could not be deleted",
+    "it": "Impossibile eliminare"
+  },
+  "Referanslar yüklenemedi": {
+    "en": "Could not load references",
+    "it": "Impossibile caricare i riferimenti"
+  },
+  "bölümü — filtreye uyan kayıt yok": {
+    "en": "department — no records match the filter",
+    "it": "reparto — nessun record corrisponde al filtro"
+  },
+  "\"Tümü\" filtresine geçebilir veya data/uretim_verileri.xlsx üzerinden veri aktarabilirsiniz.": {
+    "en": "You can switch to the \"All\" filter or import data via data/uretim_verileri.xlsx.",
+    "it": "Puoi passare al filtro \"Tutti\" o importare i dati da data/uretim_verileri.xlsx."
+  },
+  "Devamını göster": {
+    "en": "Show more",
+    "it": "Mostra altro"
+  },
+  "kalan": {
+    "en": "remaining",
+    "it": "rimanenti"
+  },
+  "Teyidi geri al": {
+    "en": "Undo confirmation",
+    "it": "Annulla conferma"
+  },
+  "Teyit ver": {
+    "en": "Confirm",
+    "it": "Conferma"
+  },
+  "Teyit verildi": {
+    "en": "Confirmation given",
+    "it": "Conferma effettuata"
+  },
+  "Teyit geri alındı": {
+    "en": "Confirmation undone",
+    "it": "Conferma annullata"
+  },
+  "Excel güncellenemedi:": {
+    "en": "Excel could not be updated:",
+    "it": "Impossibile aggiornare Excel:"
+  },
+  "Teyit verildi (Excel güncellendi)": {
+    "en": "Confirmation given (Excel updated)",
+    "it": "Conferma effettuata (Excel aggiornato)"
+  },
+  "Teyit geri alındı (Excel güncellendi)": {
+    "en": "Confirmation undone (Excel updated)",
+    "it": "Conferma annullata (Excel aggiornato)"
+  },
+  "Güncellenemedi": {
+    "en": "Could not be updated",
+    "it": "Impossibile aggiornare"
+  },
+  "Süre Tanımla": {
+    "en": "Define Time",
+    "it": "Definisci tempo"
+  },
+  "Bu referansı sil": {
+    "en": "Delete this reference",
+    "it": "Elimina questo riferimento"
+  },
+  "Toplam Cycle (Kaynak + Söktak — otomatik)": {
+    "en": "Total Cycle (Welding + Load/Unload — automatic)",
+    "it": "Ciclo totale (Saldatura + Carico/Scarico — automatico)"
+  },
+  "Referans Düzenle": {
+    "en": "Edit Reference",
+    "it": "Modifica riferimento"
+  },
+  "Referans kodu zorunlu": {
+    "en": "Reference code is required",
+    "it": "Il codice riferimento è obbligatorio"
+  },
+  "Kaydedilemedi": {
+    "en": "Could not be saved",
+    "it": "Impossibile salvare"
+  },
+  "Referans kaydedildi": {
+    "en": "Reference saved",
+    "it": "Riferimento salvato"
+  },
+  "referansını listeden silmek istiyor musunuz?": {
+    "en": "Do you want to delete the reference from the list?",
+    "it": "Vuoi eliminare il riferimento dall'elenco?"
+  },
+  "Referans silindi": {
+    "en": "Reference deleted",
+    "it": "Riferimento eliminato"
+  },
+  "bölümünün referanslarını data/uretim_verileri.xlsx → sayfasına yazmak istiyor musunuz?": {
+    "en": "Do you want to write the references of the department to the sheet in data/uretim_verileri.xlsx?",
+    "it": "Vuoi scrivere i riferimenti del reparto nel foglio in data/uretim_verileri.xlsx?"
+  },
+  "Excel güncelleniyor...": {
+    "en": "Updating Excel...",
+    "it": "Aggiornamento di Excel..."
+  },
+  "Excel başarıyla güncellendi!": {
+    "en": "Excel successfully updated!",
+    "it": "Excel aggiornato con successo!"
+  },
+  "Belirtilmedi": {
+    "en": "Not specified",
+    "it": "Non specificato"
+  },
+  "Raf:": {
+    "en": "Shelf:",
+    "it": "Scaffale:"
+  },
+  "Fikstür adresi eklendi, ODS güncellendi!": {
+    "en": "Fixture address added, ODS updated!",
+    "it": "Indirizzo attrezzatura aggiunto, ODS aggiornato!"
+  },
+  "Bu fikstür adresini silmek istiyor musunuz?": {
+    "en": "Do you want to delete this fixture address?",
+    "it": "Vuoi eliminare questo indirizzo dell'attrezzatura?"
+  },
+  "Silindi, ODS güncellendi!": {
+    "en": "Deleted, ODS updated!",
+    "it": "Eliminato, ODS aggiornato!"
+  },
+  "Masaüstündeki KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods okunup buraya eklenecek. Önceden var olan referanslar atlanacak. Onaylıyor musunuz?": {
+    "en": "The KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods file on the Desktop will be read and added here. References that already exist will be skipped. Do you confirm?",
+    "it": "Il file KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods sul Desktop verrà letto e aggiunto qui. I riferimenti già esistenti verranno saltati. Confermi?"
+  },
+  "İçe Aktarılıyor...": {
+    "en": "Importing...",
+    "it": "Importazione in corso..."
+  },
+  "İçe aktarıldı: yeni, es geçildi.": {
+    "en": "Imported: new, skipped.",
+    "it": "Importato: nuovi, saltati."
+  },
+  "Tüm alanları doldurun": {
+    "en": "Fill in all fields",
+    "it": "Compilare tutti i campi"
+  },
+  "Uyum kaydedildi!": {
+    "en": "Compatibility saved!",
+    "it": "Compatibilità salvata!"
+  },
+  "Bu silmek istiyor musunuz?": {
+    "en": "Do you want to delete this?",
+    "it": "Vuoi eliminare questo?"
+  },
+  "Silindi!": {
+    "en": "Deleted!",
+    "it": "Eliminato!"
+  },
+  "Masaüstündeki RAF ve PROGRAM..ods dosyası okunup eklenecek. Mükerrer olanlar atlanacak. İşlem biraz sürebilir, onaylıyor musunuz?": {
+    "en": "The RAF ve PROGRAM..ods file on the Desktop will be read and added. Duplicates will be skipped. This may take a while, do you confirm?",
+    "it": "Il file RAF ve PROGRAM..ods sul Desktop verrà letto e aggiunto. I duplicati verranno saltati. L'operazione potrebbe richiedere un po' di tempo, confermi?"
+  },
+  "Aktarıldı: yeni, es geçildi.": {
+    "en": "Imported: new, skipped.",
+    "it": "Importato: nuovi, saltati."
+  },
+  "Dosya bulunamadı veya hata oluştu": {
+    "en": "File not found or an error occurred",
+    "it": "File non trovato o si è verificato un errore"
+  },
+  "Bu bölümdeki tüm cihazlar aktif": {
+    "en": "All devices in this department are active",
+    "it": "Tutti i dispositivi di questo reparto sono attivi"
+  },
+  "Henüz online cihaz yok": {
+    "en": "No online devices yet",
+    "it": "Nessun dispositivo online ancora"
+  },
+  "sayacını sıfırlamak istediğinize emin misiniz?": {
+    "en": "Are you sure you want to reset the counter?",
+    "it": "Sei sicuro di voler azzerare il contatore?"
+  },
+  "Bundan sonra gelen pulse'lar SIFIRDAN sayılır. Geçmiş pulse kayıtları silinmez (analiz sayfasından hâlâ görünür).": {
+    "en": "Pulses received from now on will be counted FROM ZERO. Past pulse records are not deleted (still visible from the analysis page).",
+    "it": "Gli impulsi ricevuti d'ora in poi verranno conteggiati DA ZERO. I record degli impulsi passati non vengono eliminati (ancora visibili dalla pagina di analisi)."
+  },
+  "Sıfırlama başarısız": {
+    "en": "Reset failed",
+    "it": "Ripristino non riuscito"
+  },
+  "sayacı sıfırlandı": {
+    "en": "counter reset",
+    "it": "contatore azzerato"
+  },
+  "BEKLEMEDE": {
+    "en": "STANDBY",
+    "it": "IN ATTESA"
+  },
+  "şimdi": {
+    "en": "now",
+    "it": "adesso"
+  },
+  "dk önce": {
+    "en": "min ago",
+    "it": "min fa"
+  },
+  "sa önce": {
+    "en": "h ago",
+    "it": "h fa"
+  },
+  "g önce": {
+    "en": "d ago",
+    "it": "g fa"
+  },
+  "sayacını sıfırla": {
+    "en": "reset counter",
+    "it": "azzera contatore"
+  },
+  "İst.1:": {
+    "en": "St.1:",
+    "it": "St.1:"
+  },
+  "İst.2:": {
+    "en": "St.2:",
+    "it": "St.2:"
+  },
+  "Sayaç": {
+    "en": "Counter",
+    "it": "Contatore"
+  },
+  "Aktif:": {
+    "en": "Active:",
+    "it": "Attivo:"
+  },
+  "Toplam:": {
+    "en": "Total:",
+    "it": "Totale:"
+  },
+  "dk'dır yanıt yok — WiFi kopukluğu olabilir": {
+    "en": "min without response — possible WiFi disconnection",
+    "it": "min senza risposta — possibile disconnessione WiFi"
+  },
+  "dk offline — EN reset veya güç döngüsü dene": {
+    "en": "min offline — try EN reset or power cycle",
+    "it": "min offline — provare reset EN o ciclo di alimentazione"
+  },
+  "offline — USB ile firmware yükle": {
+    "en": "offline — flash firmware via USB",
+    "it": "offline — caricare il firmware via USB"
+  },
+  "bekliyor": {
+    "en": "pending",
+    "it": "in attesa"
+  },
+  "Henüz kurulmamış — bekleniyor": {
+    "en": "Not set up yet — awaiting",
+    "it": "Non ancora configurato — in attesa"
+  },
+  "Aktif": {
+    "en": "Active",
+    "it": "Attivo"
+  },
+  "pulse": {
+    "en": "pulse",
+    "it": "impulso"
+  },
+  "Henüz tanı verisi yok (v2.4+ firmware + heartbeat gerekir).": {
+    "en": "No diagnostic data yet (requires v2.4+ firmware + heartbeat).",
+    "it": "Nessun dato diagnostico (richiede firmware v2.4+ + heartbeat)."
+  },
+  "Henüz karar kaydı yok.": {
+    "en": "No decision records yet.",
+    "it": "Nessuna registrazione di decisione."
+  },
+  "SAYILDI": {
+    "en": "COUNTED",
+    "it": "CONTATO"
+  },
+  "ERKEN": {
+    "en": "EARLY",
+    "it": "ANTICIPATO"
+  },
+  "PARAZIT": {
+    "en": "NOISE",
+    "it": "DISTURBO"
+  },
+  "Yüklenemedi:": {
+    "en": "Could not load:",
+    "it": "Caricamento non riuscito:"
+  },
+  "duruş": {
+    "en": "downtime",
+    "it": "fermo"
+  },
+  "Zoom Alanı": {
+    "en": "Zoom Area",
+    "it": "Area di zoom"
+  },
+  "Ort:": {
+    "en": "Avg:",
+    "it": "Media:"
+  },
+  "Medyan:": {
+    "en": "Median:",
+    "it": "Mediana:"
+  },
+  "Zoom sıfırlandı": {
+    "en": "Zoom reset",
+    "it": "Zoom azzerato"
+  },
+  "Saatlik Ort.": {
+    "en": "Hourly Avg.",
+    "it": "Media oraria"
+  },
+  "Önceki pulse'a süre (sn)": {
+    "en": "Time to previous pulse (sec)",
+    "it": "Tempo dall'impulso precedente (s)"
+  },
+  "Bu cihaz/tarih için referans kaydı yok.": {
+    "en": "No reference record for this device/date.",
+    "it": "Nessuna registrazione di riferimento per questo dispositivo/data."
+  },
+  "Şu An Aktif": {
+    "en": "Currently Active",
+    "it": "Attivo ora"
+  },
+  "Üretim Kayıtları (Pulse İstatistiği)": {
+    "en": "Production Records (Pulse Statistics)",
+    "it": "Registrazioni di produzione (statistiche impulsi)"
+  },
+  "Pulse:": {
+    "en": "Pulse:",
+    "it": "Impulsi:"
+  },
+  "Mod:": {
+    "en": "Mode:",
+    "it": "Moda:"
+  },
+  "Bu referans için pulse verisi yok": {
+    "en": "No pulse data for this reference",
+    "it": "Nessun dato impulsi per questo riferimento"
+  },
+  "Henüz operatör kaydı yok. Excel'den içe aktarınız.": {
+    "en": "No operator records yet. Import from Excel.",
+    "it": "Nessuna registrazione operatore. Importare da Excel."
+  },
+  "4 hane": {
+    "en": "4 digits",
+    "it": "4 cifre"
+  },
+  "Güncelle": {
+    "en": "Update",
+    "it": "Aggiorna"
+  },
+  "operatör hâlâ varsayılan PIN'de (0000)": {
+    "en": "operators still on the default PIN (0000)",
+    "it": "operatori ancora con PIN predefinito (0000)"
+  },
+  "✓ Tüm operatörler özelleştirilmiş PIN": {
+    "en": "All operators have a customized PIN",
+    "it": "Tutti gli operatori hanno un PIN personalizzato"
+  },
+  "PIN 4 haneli rakam olmalı (örn: 1234)": {
+    "en": "PIN must be a 4-digit number (e.g. 1234)",
+    "it": "Il PIN deve essere un numero di 4 cifre (es. 1234)"
+  },
+  "operatörünün PIN'i \"...\" olarak ayarlansın mı?": {
+    "en": "Set this operator's PIN to \"...\"?",
+    "it": "Impostare il PIN di questo operatore su \"...\"?"
+  },
+  "Not: Yeni PIN bu kişinin kayıtlı olduğu TÜM bölümlerde geçerli olur.": {
+    "en": "Note: The new PIN will apply in ALL departments where this person is registered.",
+    "it": "Nota: il nuovo PIN sarà valido in TUTTI i reparti in cui questa persona è registrata."
+  },
+  "PIN güncellenemedi": {
+    "en": "PIN could not be updated",
+    "it": "Impossibile aggiornare il PIN"
+  },
+  "PIN'i güncellendi": {
+    "en": "'s PIN updated",
+    "it": "PIN aggiornato"
+  },
+  "Bu tarih için saatlik veri yok.": {
+    "en": "No hourly data for this date.",
+    "it": "Nessun dato orario per questa data."
+  },
+  "Ort. Gap": {
+    "en": "Avg. Gap",
+    "it": "Gap medio"
+  },
+  "Bu cihaz/tarih için duruş kaydı yok.": {
+    "en": "No downtime record for this device/date.",
+    "it": "Nessuna registrazione di fermo per questo dispositivo/data."
+  },
+  "Kaydedilmemiş": {
+    "en": "Unrecorded",
+    "it": "Non registrato"
+  },
+  "Bu boşluğa duruş sebebi tanımla": {
+    "en": "Assign a downtime reason to this gap",
+    "it": "Assegna un motivo di fermo a questo intervallo"
+  },
+  "tanımla": {
+    "en": "assign",
+    "it": "assegna"
+  },
+  "Duruş Tanımla": {
+    "en": "Define Downtime",
+    "it": "Definisci fermo"
+  },
+  "Duruş sebebi": {
+    "en": "Downtime reason",
+    "it": "Motivo del fermo"
+  },
+  "Diğer (elle yaz)…": {
+    "en": "Other (type manually)…",
+    "it": "Altro (inserisci manualmente)…"
+  },
+  "Sebep (elle)": {
+    "en": "Reason (manual)",
+    "it": "Motivo (manuale)"
+  },
+  "Sebep seç veya yaz": {
+    "en": "Select or enter a reason",
+    "it": "Seleziona o inserisci un motivo"
+  },
+  "Duruş tanımlandı:": {
+    "en": "Downtime defined:",
+    "it": "Fermo definito:"
+  },
+  "TK1 için \"data/Tk1 Veriler.xlsx\" dosyasından referans ve operatörler aktarılacak.": {
+    "en": "References and operators will be imported for TK1 from the \"data/Tk1 Veriler.xlsx\" file.",
+    "it": "I riferimenti e gli operatori per TK1 saranno importati dal file \"data/Tk1 Veriler.xlsx\"."
+  },
+  "Devam edilsin mi?": {
+    "en": "Proceed?",
+    "it": "Continuare?"
+  },
+  "bölümü için data/uretim_verileri.xlsx → \"...\" sayfalarından veriler aktarılacak.": {
+    "en": "Data will be imported for the {department} department from the sheets \"...\" in data/uretim_verileri.xlsx.",
+    "it": "I dati per il reparto {department} saranno importati dai fogli \"...\" in data/uretim_verileri.xlsx."
+  },
+  "Veriler aktarılıyor, lütfen bekleyin...": {
+    "en": "Importing data, please wait...",
+    "it": "Importazione dei dati, attendere..."
+  },
+  "ekle": {
+    "en": "added",
+    "it": "aggiunti"
+  },
+  "güncelle": {
+    "en": "updated",
+    "it": "aggiornati"
+  },
+  "sil": {
+    "en": "deleted",
+    "it": "eliminati"
+  },
+  "operatör": {
+    "en": "operators",
+    "it": "operatori"
+  },
+  "program": {
+    "en": "programs",
+    "it": "programmi"
+  },
+  "fikstür": {
+    "en": "fixtures",
+    "it": "attrezzature"
+  },
+  "Aktarım hatası:": {
+    "en": "Import error:",
+    "it": "Errore di importazione:"
+  },
+  "Robot Program Listesi": {
+    "en": "Robot Program List",
+    "it": "Elenco programmi robot"
+  },
+  "Fikstür Raf": {
+    "en": "Fixture Shelf",
+    "it": "Scaffale attrezzature"
+  },
+  "İşleme Operatör": {
+    "en": "Machining Operator",
+    "it": "Operatore lavorazione"
+  },
+  "Lazer Operatör": {
+    "en": "Laser Operator",
+    "it": "Operatore laser"
+  },
+  "Pres Abkant Operatör": {
+    "en": "Press Brake Operator",
+    "it": "Operatore pressa piegatrice"
+  },
+  "TK1 Montaj": {
+    "en": "TK1 Assembly",
+    "it": "TK1 Assemblaggio"
+  },
+  "Yapılandırıldı · kapalı": {
+    "en": "Configured · off",
+    "it": "Configurato · disattivato"
+  },
+  "SMTP tanımlı değil": {
+    "en": "SMTP not configured",
+    "it": "SMTP non configurato"
+  },
+  "Henüz alıcı yok — yukarıdan ekleyin.": {
+    "en": "No recipients yet — add above.",
+    "it": "Nessun destinatario — aggiungi sopra."
+  },
+  "Duraklat": {
+    "en": "Pause",
+    "it": "Sospendi"
+  },
+  "Etkinleştir": {
+    "en": "Enable",
+    "it": "Attiva"
+  },
+  "Pasif": {
+    "en": "Inactive",
+    "it": "Inattivo"
+  },
+  "E-posta giriniz": {
+    "en": "Enter an email",
+    "it": "Inserisci un'email"
+  },
+  "Eklenemedi": {
+    "en": "Could not add",
+    "it": "Impossibile aggiungere"
+  },
+  "Alıcı eklendi": {
+    "en": "Recipient added",
+    "it": "Destinatario aggiunto"
+  },
+  "Bu alıcıyı listeden silmek istiyor musunuz?": {
+    "en": "Do you want to remove this recipient from the list?",
+    "it": "Vuoi rimuovere questo destinatario dalla lista?"
+  },
+  "Alıcı silindi": {
+    "en": "Recipient deleted",
+    "it": "Destinatario eliminato"
+  },
+  "Bugünün üretim raporu ŞİMDİ oluşturulup aktif alıcılara e-posta ile gönderilecek. Devam edilsin mi?": {
+    "en": "Today's production report will be generated NOW and emailed to active recipients. Proceed?",
+    "it": "Il rapporto di produzione odierno sarà generato ORA e inviato via email ai destinatari attivi. Continuare?"
+  },
+  "Gönderiliyor…": {
+    "en": "Sending…",
+    "it": "Invio in corso…"
+  },
+  "Gönderildi": {
+    "en": "Sent",
+    "it": "Inviato"
+  },
+  "Gönderilemedi": {
+    "en": "Could not send",
+    "it": "Invio non riuscito"
+  },
+  "Test maili hangi adrese gönderilsin?": {
+    "en": "Which address should the test email be sent to?",
+    "it": "A quale indirizzo inviare l'email di test?"
+  },
+  "Test maili gönderiliyor…": {
+    "en": "Sending test email…",
+    "it": "Invio email di test…"
+  },
+  "Test maili gönderildi": {
+    "en": "Test email sent",
+    "it": "Email di test inviata"
+  },
+  "(Opsiyonel)": {
+    "en": "(Optional)",
+    "it": "(Opzionale)"
+  },
+  "Operatör OEE ve Üretim Performansı": {
+    "en": "Operator OEE and Production Performance",
+    "it": "OEE operatore e prestazioni di produzione"
+  },
+  "Çalışma(dk)": {
+    "en": "Working (min)",
+    "it": "Lavoro (min)"
+  },
+  "Toplam Ü.": {
+    "en": "Total Prod.",
+    "it": "Prod. tot."
+  },
+  "Planlı(dk)": {
+    "en": "Planned (min)",
+    "it": "Pianificato (min)"
+  },
+  "Plansız(dk)": {
+    "en": "Unplanned (min)",
+    "it": "Non pianif. (min)"
+  },
+  "Belirtilen aralıkta veri yok.": {
+    "en": "No data in the specified range.",
+    "it": "Nessun dato nell'intervallo specificato."
+  },
+  "Bilinmiyor": {
+    "en": "Unknown",
+    "it": "Sconosciuto"
+  },
+  "Ort. OEE %": {
+    "en": "Avg. OEE %",
+    "it": "OEE media %"
+  },
+  "Toplam Üretim (OK+NOK)": {
+    "en": "Total Production (OK+NOK)",
+    "it": "Produzione totale (OK+NOK)"
+  },
+  "Üretim Adedi": {
+    "en": "Production Quantity",
+    "it": "Quantità prodotta"
+  },
+  "Referans Bazlı Üretim ve Kalite": {
+    "en": "Reference-Based Production and Quality",
+    "it": "Produzione e qualità per riferimento"
+  },
+  "Ort. CT(sn)": {
+    "en": "Avg. CT (sec)",
+    "it": "CT medio (s)"
+  },
+  "Hedef CT(sn)": {
+    "en": "Target CT (sec)",
+    "it": "CT obiettivo (s)"
+  },
+  "Robotlar": {
+    "en": "Robots",
+    "it": "Robot"
+  },
+  "Toplam Üretim": {
+    "en": "Total Production",
+    "it": "Produzione totale"
+  },
+  "TEEP (Toplam Etkin Ekipman Performansı) Şelalesi": {
+    "en": "TEEP (Total Effective Equipment Performance) Waterfall",
+    "it": "Cascata TEEP (Total Effective Equipment Performance)"
+  },
+  "Tüm Fabrika": {
+    "en": "Whole Factory",
+    "it": "Intero stabilimento"
+  },
+  "Kademe": {
+    "en": "Stage",
+    "it": "Fase"
+  },
+  "Toplam Oranı": {
+    "en": "Total Ratio",
+    "it": "Rapporto totale"
+  },
+  "1. Takvim Süresi": {
+    "en": "1. Calendar Time",
+    "it": "1. Tempo di calendario"
+  },
+  "7/24 teorik kapasite süresi": {
+    "en": "24/7 theoretical capacity time",
+    "it": "Tempo di capacità teorica 24/7"
+  },
+  "Üretilmeyen Süre (-)": {
+    "en": "Non-Production Time (-)",
+    "it": "Tempo non produttivo (-)"
+  },
+  "Hafta sonu, tatil, boştaki zamanlar": {
+    "en": "Weekends, holidays, idle time",
+    "it": "Fine settimana, festività, tempi di inattività"
+  },
+  "2. Planlı Zaman (Loading)": {
+    "en": "2. Planned Time (Loading)",
+    "it": "2. Tempo pianificato (Loading)"
+  },
+  "Gerçekleşen toplam vardiya süresi": {
+    "en": "Actual total shift time",
+    "it": "Tempo totale effettivo dei turni"
+  },
+  "Planlı Duruşlar (-)": {
+    "en": "Planned Downtime (-)",
+    "it": "Fermi pianificati (-)"
+  },
+  "Yemek, çay molası, toplantı": {
+    "en": "Meal, tea break, meeting",
+    "it": "Pasto, pausa caffè, riunione"
+  },
+  "3. Net Plan Süresi": {
+    "en": "3. Net Planned Time",
+    "it": "3. Tempo netto pianificato"
+  },
+  "Duruşsuz üretim hedef süresi (OEE bazlıdır)": {
+    "en": "Downtime-free production target time (OEE-based)",
+    "it": "Tempo obiettivo di produzione senza fermi (basato su OEE)"
+  },
+  "Plansız Duruşlar (-)": {
+    "en": "Unplanned Downtime (-)",
+    "it": "Fermi non pianificati (-)"
+  },
+  "Arıza, kurulum, bekleme (Availability kaybı)": {
+    "en": "Breakdown, setup, waiting (Availability loss)",
+    "it": "Guasto, attrezzaggio, attesa (perdita di Availability)"
+  },
+  "4. Fiili Çalışma Süresi": {
+    "en": "4. Actual Operating Time",
+    "it": "4. Tempo operativo effettivo"
+  },
+  "Robotun üretim yaptığı süre": {
+    "en": "Time the robot spent producing",
+    "it": "Tempo in cui il robot ha prodotto"
+  },
+  "Performans Kayıpları (-)": {
+    "en": "Performance Losses (-)",
+    "it": "Perdite di prestazione (-)"
+  },
+  "Düşük hız tabanlı süre kaybı (Performance kaybı)": {
+    "en": "Time loss due to low speed (Performance loss)",
+    "it": "Perdita di tempo per bassa velocità (perdita di Performance)"
+  },
+  "5. İdeal Üretim Süresi": {
+    "en": "5. Ideal Production Time",
+    "it": "5. Tempo di produzione ideale"
+  },
+  "Tüm parçalar hedef sürede üretilseydi...": {
+    "en": "If all parts had been produced at target time...",
+    "it": "Se tutti i pezzi fossero stati prodotti al tempo obiettivo..."
+  },
+  "Kalite Kayıpları (-)": {
+    "en": "Quality Losses (-)",
+    "it": "Perdite di qualità (-)"
+  },
+  "Hurda, rework süresi (Quality kaybı)": {
+    "en": "Scrap, rework time (Quality loss)",
+    "it": "Scarto, tempo di rilavorazione (perdita di Quality)"
+  },
+  "6. Net Değerli Üretim": {
+    "en": "6. Net Value Production",
+    "it": "6. Produzione a valore netto"
+  },
+  "Sıfır hata, sıfır duruş karşılığı.": {
+    "en": "Equivalent to zero defects, zero downtime.",
+    "it": "Equivalente a zero difetti, zero fermi."
+  },
+  "Takvim Sür.": {
+    "en": "Calendar Time",
+    "it": "Tempo cal."
+  },
+  "Planlanmayan (-)": {
+    "en": "Non-scheduled (-)",
+    "it": "Non pianificato (-)"
+  },
+  "Vardiya Sür.": {
+    "en": "Shift Time",
+    "it": "Tempo turno"
+  },
+  "Planlı Duruş (-)": {
+    "en": "Planned Downtime (-)",
+    "it": "Fermo pianif. (-)"
+  },
+  "Net Plan Sür.": {
+    "en": "Net Plan Time",
+    "it": "Tempo netto pian."
+  },
+  "Plansız Duruş (-)": {
+    "en": "Unplanned Downtime (-)",
+    "it": "Fermo non pian. (-)"
+  },
+  "Fiili Çalışma": {
+    "en": "Actual Operating",
+    "it": "Operatività effettiva"
+  },
+  "Perf. Kaybı (-)": {
+    "en": "Perf. Loss (-)",
+    "it": "Perdita perf. (-)"
+  },
+  "İdeal Üretim": {
+    "en": "Ideal Production",
+    "it": "Produzione ideale"
+  },
+  "Kalite Kaybı (-)": {
+    "en": "Quality Loss (-)",
+    "it": "Perdita qualità (-)"
+  },
+  "Net Değerli": {
+    "en": "Net Value",
+    "it": "Valore netto"
+  },
+  "Dakika": {
+    "en": "Minutes",
+    "it": "Minuti"
+  },
+  "Tarih seçin": {
+    "en": "Select date",
+    "it": "Seleziona data"
+  },
+  "Bu tarihte kayıt yok": {
+    "en": "No records on this date",
+    "it": "Nessuna registrazione in questa data"
+  },
+  "için ... tarihinde üretim verisi bulunamadı.": {
+    "en": "No production data found for {department} on {date}.",
+    "it": "Nessun dato di produzione trovato per {reparto} in data {date}."
+  },
+  "Vardiyalar yüklenemedi:": {
+    "en": "Could not load shifts:",
+    "it": "Impossibile caricare i turni:"
+  },
+  "Tarih ve vardiya seçin.": {
+    "en": "Select date and shift.",
+    "it": "Seleziona data e turno."
+  },
+  "Rapor Hazırlanıyor...": {
+    "en": "Preparing report...",
+    "it": "Preparazione del rapporto..."
+  },
+  "için kayıt yok.": {
+    "en": "No records for {department} — {date} / {shift}.",
+    "it": "Nessuna registrazione per {reparto} — {date} / {turno}."
+  },
+  "GÜNLÜK ÜRETİM": {
+    "en": "DAILY PRODUCTION",
+    "it": "PRODUZIONE GIORNALIERA"
+  },
+  "Vardiya:": {
+    "en": "Shift:",
+    "it": "Turno:"
+  },
+  "Tarih:": {
+    "en": "Date:",
+    "it": "Data:"
+  },
+  "OPERATÖR": {
+    "en": "OPERATOR",
+    "it": "OPERATORE"
+  },
+  "PARÇA KODU": {
+    "en": "PART CODE",
+    "it": "CODICE PEZZO"
+  },
+  "ADET": {
+    "en": "QUANTITY",
+    "it": "QUANTITÀ"
+  },
+  "TAMİR": {
+    "en": "REPAIR",
+    "it": "RIPARAZIONE"
+  },
+  "HURDA": {
+    "en": "SCRAP",
+    "it": "SCARTO"
+  },
+  "GENEL TOPLAM": {
+    "en": "GRAND TOTAL",
+    "it": "TOTALE GENERALE"
+  },
+  "Açık Tema": {
+    "en": "Light Theme",
+    "it": "Tema chiaro"
+  }
+};
+</script>
+
+    <!-- ══════════ i18n MOTORU (TR varsayılan → NO-OP; EN/IT'de çevirir) ══════════ -->
+    <script>
+    (function(){
+      var DIL = localStorage.getItem('app_dil') || 'tr';
+      window.APP_DIL = DIL;
+      var S = window.__I18N_SOZLUK__ || {};
+      var HARF = /[0-9A-Za-zÇĞİÖŞÜçğıöşü]/;
+      function cev(txt){
+        if(DIL === 'tr' || !txt) return txt;
+        var k = txt.trim();
+        if(!k) return txt;
+        var e = S[k];
+        if(e && e[DIL]) return txt.replace(k, e[DIL]);
+        var i = 0; while(i < k.length && !HARF.test(k[i])) i++;
+        if(i > 0 && i < k.length){ var ck = k.slice(i).trim(); var e2 = S[ck]; if(e2 && e2[DIL]) return txt.replace(ck, e2[DIL]); }
+        var _si = k.indexOf(' · ');
+        if(_si > 0){ var _bas = k.slice(0, _si); var e3 = S[_bas]; if(e3 && e3[DIL]) return txt.replace(_bas, e3[DIL]); }
+        return txt;
+      }
+      function gez(node){
+        if(!node) return;
+        var nt = node.nodeType;
+        if(nt === 3){ var c = cev(node.nodeValue); if(c !== node.nodeValue) node.nodeValue = c; return; }
+        if(nt !== 1) return;
+        var tg = node.tagName;
+        if(tg === 'SCRIPT' || tg === 'STYLE' || node.id === 'dil-secici') return;
+        if(node.hasAttribute){
+          ['placeholder','title','aria-label'].forEach(function(a){ if(node.hasAttribute(a)){ var v=node.getAttribute(a), c=cev(v); if(c!==v) node.setAttribute(a,c); } });
+          if(tg === 'INPUT'){ var ty=(node.getAttribute('type')||'').toLowerCase(); if((ty==='button'||ty==='submit') && node.value){ var cv=cev(node.value); if(cv!==node.value) node.value=cv; } }
+        }
+        for(var ch = node.firstChild; ch; ch = ch.nextSibling) gez(ch);
+      }
+      var gozlemci = null;
+      function gozlemBasla(){
+        if(DIL === 'tr' || gozlemci || !window.MutationObserver) return;
+        gozlemci = new MutationObserver(function(muts){
+          for(var a=0; a<muts.length; a++){ var m=muts[a];
+            if(m.type === 'characterData'){ gez(m.target); continue; }
+            for(var b=0; b<m.addedNodes.length; b++) gez(m.addedNodes[b]);
+          }
+        });
+        try { gozlemci.observe(document.body, {childList:true, subtree:true, characterData:true}); } catch(e){}
+      }
+      window.dilDegistir = function(d){ if(d===DIL) return; localStorage.setItem('app_dil', d); location.reload(); };
+      function baslat(){
+        S = window.__I18N_SOZLUK__ || S;
+        document.documentElement.setAttribute('lang', DIL);
+        var sel = document.getElementById('dil-secici'); if(sel) sel.value = DIL;
+        if(DIL !== 'tr'){
+          try{ gez(document.body); }catch(e){}
+          gozlemBasla();
+          ['alert','confirm','prompt'].forEach(function(fn){
+            var orj = window[fn]; if(typeof orj !== 'function') return;
+            window[fn] = function(){ var a = Array.prototype.slice.call(arguments); if(a.length && a[0]!=null) a[0] = cev(String(a[0])); return orj.apply(window, a); };
+          });
+        }
+      }
+      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', baslat); else baslat();
+    })();
+    </script>
+
     <!-- Hamburger butonu (yalnızca mobilde görünür — CSS @media kontrol ediyor) -->
     <button type="button" class="hamburger-btn" id="hamburgerBtn" onclick="sidebarToggle()" aria-label="Menüyü aç/kapat">☰</button>
-    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="sidebarToggle(false)"></div>
 
     <div class="layout">
+        <!-- Mobil drawer arka planı — .layout İÇİNDE olmalı. Dışarıdayken .layout
+             (z-index:2) bir stacking context yaratıp içindeki sidebar'ı (z-index:1000)
+             backdrop'un (z-index:999) ALTINA hapsediyordu → menü açılıyor ama
+             görünmüyordu. Aynı context'te artık sidebar backdrop'un ÜSTÜNDE. -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="sidebarToggle(false)"></div>
 
         <!-- ══════════════════ SIDEBAR ══════════════════ -->
         <aside class="sidebar">
@@ -1503,7 +3885,7 @@
                     Operatörler</a>
                 <a class="nav-item" onclick="sekmeDegistir('raporlar')"><span class="nav-icon">📈</span>
                     Raporlar</a>
-                <a class="nav-item" href="/rapor" target="_blank" style="background:rgba(37, 99, 235, 0.2);color:#93c5fd;border-left:3px solid #60a5fa"><span class="nav-icon">📲</span>
+                <a class="nav-item" href="/rapor" target="_blank" title="Paylaşılabilir salt-okunur rapor sayfası (yeni sekme)" style="background:rgba(37, 99, 235, 0.2);color:#93c5fd;border-left:3px solid #60a5fa"><span class="nav-icon">📲</span>
                     Rapor Paylaş</a>
             </nav>
             <div class="sidebar-footer">
@@ -1523,6 +3905,14 @@
                     <h1 id="page-title">Dashboard</h1>
                     <p style="font-size:.8rem;color:var(--muted);margin-top:2px" id="subtitle-text">Yükleniyor...</p>
                 </div>
+                <div class="bolum-toggle" id="lokasyon-toggle" role="tablist" aria-label="Lokasyon seçimi" style="box-shadow:0 0 0 2px var(--accent,#60a5fa) inset">
+                    <button class="bolum-btn active" data-lokasyon="TK2" onclick="lokasyonDegistir('TK2')" title="TK2 — mevcut fabrika">
+                        <span>🏢</span><span>TK2</span>
+                    </button>
+                    <button class="bolum-btn" data-lokasyon="TK1" onclick="lokasyonDegistir('TK1')" title="TK1 — yan tesis (montaj)">
+                        <span>🏢</span><span>TK1</span>
+                    </button>
+                </div>
                 <div class="bolum-toggle" id="bolum-toggle" role="tablist" aria-label="Bölüm seçimi">
                     <button class="bolum-btn active" data-bolum="kaynak" onclick="bolumDegistir('kaynak')" title="Robot Kaynak (Kaynakhane)">
                         <span>🔧</span><span>Robot Kaynak</span>
@@ -1533,6 +3923,15 @@
                     <button class="bolum-btn" data-bolum="metal" onclick="bolumDegistir('metal')" title="Metal Enjeksiyon">
                         <span>🏭</span><span>Metal Enjeksiyon</span>
                     </button>
+                    <button class="bolum-btn" data-bolum="isleme" onclick="bolumDegistir('isleme')" title="İşleme">
+                        <span>⚙️</span><span>İşleme</span>
+                    </button>
+                    <button class="bolum-btn" data-bolum="lazer" onclick="bolumDegistir('lazer')" title="Lazer Kesim">
+                        <span>✂️</span><span>Lazer</span>
+                    </button>
+                    <button class="bolum-btn" data-bolum="pres" onclick="bolumDegistir('pres')" title="Pres Abkant">
+                        <span>🗜️</span><span>Pres Abkant</span>
+                    </button>
                 </div>
                 <div class="andon-pill-group" aria-label="Andon ekranları">
                     <span class="andon-pill-label">📺 Andon</span>
@@ -1540,6 +3939,12 @@
                     <button type="button" class="andon-pill ap-montaj" onclick="window.open('/andon_montaj','_blank')" title="Montaj Andon">🔩</button>
                     <button type="button" class="andon-pill ap-metal"  onclick="window.open('/andon_metal','_blank')"  title="Metal Enjeksiyon Andon">🏭</button>
                 </div>
+                <select id="dil-secici" aria-label="Dil / Language" onchange="dilDegistir(this.value)"
+                    style="margin-left:auto;align-self:center;background:rgba(255,255,255,0.06);color:var(--text,#f1f5f9);border:1px solid var(--line-strong,#334155);border-radius:10px;padding:8px 10px;font-size:.85rem;font-weight:700;cursor:pointer">
+                    <option value="tr">🇹🇷 TR</option>
+                    <option value="en">🇬🇧 EN</option>
+                    <option value="it">🇮🇹 IT</option>
+                </select>
             </div>
 
             <!-- ── SEKMELER KONTEYNERI ── -->
@@ -1549,7 +3954,8 @@
                     <!-- Dashboard specific actions -->
                     <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:20px">
                         <button class="btn btn-outline" style="color: var(--success); border-color: var(--success); font-size:.8rem"
-                            onclick="excelVeriAktar()">📥 Excel'den Veri Aktar</button>
+                            title="Excel → Program: sayfadaki referans/operatör listesini programa yükler"
+                            onclick="excelVeriAktar()">📥 Excel'den İçe Aktar</button>
                         <button class="btn btn-outline" style="font-size:.8rem" onclick="yukle()">🔄 Yenile</button>
                     </div>
 
@@ -1573,7 +3979,6 @@
                         <label>Vardiya</label>
                         <select id="f-vardiya">
                             <option value="">Tümü</option>
-                            <option>Gündüz</option>
                         </select>
                     </div>
                     <button class="btn btn-primary" onclick="yukle()">🔍 Filtrele</button>
@@ -1821,7 +4226,7 @@
                         <div style="display:flex;gap:8px;align-items:center">
                             <span id="fikstur-count" style="font-size:.8rem;color:var(--muted)"></span>
                             <button onclick="fiksturOdsImport()" id="ods-import-btn"
-                                style="background:#f0fdf4;color:#16a34a;border:1px solid #86efac;border-radius:8px;padding:4px 12px;font-size:.78rem;cursor:pointer;font-weight:700">
+                                style="background:rgba(52,211,153,0.12);color:var(--c-emerald);border:1px solid rgba(52,211,153,0.4);border-radius:8px;padding:4px 12px;font-size:.78rem;cursor:pointer;font-weight:700">
                                 📥 ODS'tan İçe Aktar
                             </button>
                         </div>
@@ -1864,7 +4269,7 @@
                             </thead>
 
                             <tbody id="fikstur-table-body">
-                                <tr><td colspan="3"><div class="loading"><span class="spinner"></span>Yükleniyor...</div></td></tr>
+                                <tr><td colspan="4"><div class="loading"><span class="spinner"></span>Yükleniyor...</div></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1879,7 +4284,7 @@
                         <div style="display:flex;gap:8px;align-items:center">
                             <span id="uyum-count" style="font-size:.8rem;color:var(--muted)"></span>
                             <button onclick="uyumOdsImport()" id="uyum-import-btn"
-                                style="background:#f0fdf4;color:#16a34a;border:1px solid #86efac;border-radius:8px;padding:4px 12px;font-size:.78rem;cursor:pointer;font-weight:700">
+                                style="background:rgba(52,211,153,0.12);color:var(--c-emerald);border:1px solid rgba(52,211,153,0.4);border-radius:8px;padding:4px 12px;font-size:.78rem;cursor:pointer;font-weight:700">
                                 📥 RAF ve PROGRAM ODS İçe Aktar
                             </button>
                         </div>
@@ -2023,23 +4428,9 @@
             <!-- ── REFERANSLAR SEKME ── -->
             <div id="sekme-referanslar" class="d-none">
 
-                <!-- ✨ TOPLU VERİ YÖNETİMİ (tek excel, tüm bölümler) -->
-                <div style="margin-bottom:24px;padding:18px 22px;background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(167,139,250,0.08));border:1px solid rgba(167,139,250,0.30);border-radius:16px">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-                        <div style="flex:1;min-width:300px">
-                            <div style="font-size:1rem;font-weight:800;color:var(--text);margin-bottom:4px">🗂️ Toplu Veri Yönetimi</div>
-                            <div style="font-size:.78rem;color:var(--muted);line-height:1.4">
-                                <code>data/uretim_verileri.xlsx</code> üzerinden <b>tüm bölümlerin</b> referans/operatör/duruş listesi/robot program ve fikstür raf bilgileri tek tıkla aktarılır.
-                            </div>
-                        </div>
-                        <div style="display:flex;gap:10px;flex-wrap:wrap">
-                            <button class="btn btn-primary" onclick="topluExcelIceAktar()"
-                                style="background:linear-gradient(135deg,#7c3aed,#2563eb);border:none;color:white;padding:10px 18px;font-weight:700">
-                                📥 Excel'den İçe Aktar
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- (Eski 'Toplu Veri Yönetimi' paneli kaldırıldı — üst bardaki tek
+                     '📥 Excel'den İçe Aktar' butonu aynı işi bölüm bazında yapar; kaynak
+                     bölümünde Robot Program + Fikstür Raf sayfalarını da kapsar.) -->
 
                 <!-- Süre Teyit Özeti (sadece kaynak için) -->
                 <div id="teyit-ozet-banner" style="display:none;margin-bottom:18px;padding:14px 18px;background:linear-gradient(135deg,rgba(16,185,129,0.06),rgba(99,102,241,0.06));border:1px solid rgba(99,102,241,0.25);border-radius:14px">
@@ -2080,17 +4471,19 @@
                     <div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">
                         <h2 style="font-size:1.1rem;font-weight:800;margin:0">📦 Referans Listesi</h2>
                         <span id="ref-bolum-pill" style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase">Robot Kaynak</span>
-                        <input type="text" id="ref-ara-input" onkeyup="refAra()" placeholder="Referans ara..."
+                        <span id="ref-kayit-sayac" style="font-size:.74rem;color:var(--muted);font-weight:700"></span>
+                        <input type="text" id="ref-ara-input" onkeyup="refAraDebounced()" placeholder="Referans ara..."
                                style="padding:8px 16px;border:1px solid var(--border);border-radius:10px;font-size:.85rem;width:260px;background:var(--card)">
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a">📥 Excel'den Aktar (Tek Bölüm)</button>
+                        <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:#16a34a;color:#16a34a" title="Excel → Program: sayfadaki referans/operatör listesini programa yükler">📥 Excel'den İçe Aktar</button>
+                        <button class="btn btn-outline" id="ref-excel-guncelle-btn" onclick="referansExcelGuncelle()" style="border-color:#2563eb;color:#2563eb" title="Program → Excel: tanımlı süreleri Excel sayfasına yazar">📤 Excel'e Yaz</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
                 </div>
 
                 <!-- Eksik Süre Tanımları Paneli [NEW] -->
-                <div id="eksik-referanslar-panel" style="display:none; margin-bottom:20px; background:#fff1f2; border:1px solid #fecdd3; border-radius:16px; padding:20px;">
+                <div id="eksik-referanslar-panel" style="display:none; margin-bottom:20px; background:rgba(248,113,113,0.10); border:1px solid rgba(248,113,113,0.35); border-radius:16px; padding:20px;">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
                         <span style="font-size:1.2rem">⚠️</span>
                         <h3 style="font-size:.9rem;font-weight:800;color:#9f1239;margin:0">Süre Tanımı Bekleyen Referanslar (Son 30 Gün)</h3>
@@ -2303,6 +4696,15 @@
             </div>
         </div>
 
+        <!-- Aktif (online) cihazlar — üstte yan yana, tam kart -->
+        <div style="margin-bottom:24px">
+            <h3 style="font-size:.92rem;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+                <span style="background:rgba(16,185,129,0.15);color:#16a34a;padding:2px 10px;border-radius:6px;font-size:.7rem;letter-spacing:.05em">● CANLI</span>
+                Aktif Cihazlar — sinyal alınan makineler
+            </h3>
+            <div id="saha-aktif-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px"></div>
+        </div>
+
         <div style="margin-bottom:24px">
             <h3 style="font-size:.92rem;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px">
                 <span style="background:rgba(167,139,250,0.15);color:#a78bfa;padding:2px 10px;border-radius:6px;font-size:.7rem;letter-spacing:.05em">KAYNAK</span>
@@ -2336,6 +4738,43 @@
                 Saha cihazlarından gelen her pulse'ın bir öncekiyle arasındaki süreyi (gap) zaman ekseninde gösterir.
                 Duruşlar grafiğe renkli bant olarak yansır; o gün üretilen referanslar alt tabloda listelenir.
             </p>
+        </div>
+
+        <!-- ── Sinyal Kalitesi & Sayım Kararları (tüm cihazlar) ── -->
+        <div style="background:var(--card);padding:16px 18px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px">
+            <h3 style="font-size:.95rem;font-weight:800;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                🛡️ Sinyal Kalitesi & Sayım Kararları
+                <span style="font-size:.65rem;color:var(--muted);font-weight:500">— her cihaz: gerçek sayım · elenen gürültü · veri kaybı (doğruluk kanıtı)</span>
+                <button onclick="yukleSinyalKalitesi()" style="margin-left:auto;padding:5px 12px;border:0;background:rgba(167,139,250,0.15);color:#a78bfa;border-radius:8px;font-weight:700;font-size:.72rem;cursor:pointer">🔄 Yenile</button>
+            </h3>
+            <div style="overflow-x:auto;margin-top:10px">
+                <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+                    <thead>
+                        <tr style="text-align:left;color:var(--muted);font-size:.64rem;text-transform:uppercase;letter-spacing:.04em">
+                            <th style="padding:6px 8px">Cihaz</th>
+                            <th style="padding:6px 8px">Bölüm</th>
+                            <th style="padding:6px 8px;text-align:right">Sayıldı</th>
+                            <th style="padding:6px 8px;text-align:right">Elenen Gürültü</th>
+                            <th style="padding:6px 8px;text-align:right">Erken</th>
+                            <th style="padding:6px 8px;text-align:right">Kayıp</th>
+                            <th style="padding:6px 8px;text-align:right">Sinyal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sk-tablo"><tr><td colspan="7" style="padding:10px;color:var(--muted);font-style:italic">Yükleniyor…</td></tr></tbody>
+                </table>
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;align-items:flex-start">
+                <div style="flex:1;min-width:260px">
+                    <div style="font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:6px">📡 Son Sayım Kararları (akış)</div>
+                    <div id="sk-akis" style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);max-height:170px;overflow-y:auto;line-height:1.7">Yükleniyor…</div>
+                </div>
+                <div style="font-size:.66rem;color:var(--muted);max-width:300px;line-height:1.6;background:rgba(167,139,250,0.06);padding:10px 12px;border-radius:8px">
+                    <b style="color:var(--text)">Nasıl okunur</b><br>
+                    <b style="color:#34d399">Sayıldı</b>: gerçek üretim<br>
+                    <b style="color:#f59e0b">Elenen Gürültü</b>: sistemin ayıkladığı parazit (sayılmadı)<br>
+                    <b style="color:#f87171">Kayıp</b>: cihaz saydı ama merkeze ulaşmadı — <b>0 olmalı</b>
+                </div>
+            </div>
         </div>
 
         <!-- Filtre paneli -->
@@ -2549,23 +4988,17 @@
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">Robot (Opsiyonel)</label>
+                    <label id="rapor-robot-label" style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">Robot (Opsiyonel)</label>
                     <select id="rapor-robot" class="form-control" style="width:140px" onchange="yukleRaporlar()">
                         <option value="">Tümü</option>
-                        <option value="ABB1">ABB1</option>
-                        <option value="ABB2">ABB2</option>
-                        <option value="ABB3">ABB3</option>
-                        <option value="ABB4">ABB4</option>
-                        <option value="ABB5">ABB5</option>
-                        <option value="ABB6">ABB6</option>
-                        <option value="ABB7">ABB7</option>
-                        <option value="ABB8">ABB8</option>
-                        <option value="ABB9">ABB9</option>
                     </select>
                 </div>
             </div>
-            <div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
                 <button class="btn btn-primary" onclick="yukleRaporlar()" style="min-width: 120px;">Oluştur</button>
+                <button class="btn"
+                    style="background:#0f172a;color:#fff;font-weight:700;padding:13px 18px;border-radius:12px;border:none;cursor:pointer;font-size:.88rem;box-shadow: 0 4px 12px rgba(0,0,0,0.2)"
+                    onclick="tavGunlukRaporAc()">📊 Günlük Üretim Raporu</button>
             </div>
         </div>
         
@@ -2591,6 +5024,48 @@
                         <tr><td style="text-align:center; padding: 20px;">Veri yok.</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- ══ Otomatik Günlük Rapor E-postası ══ -->
+        <div style="background:var(--card); padding:18px 20px; border-radius:var(--radius); box-shadow:var(--shadow); margin-top:20px">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px">
+                <div style="font-size:1.05rem; font-weight:800; color:var(--text)">📧 Otomatik Günlük Üretim Raporu E-postası</div>
+                <div id="mail-durum-rozet" style="font-size:.78rem; font-weight:700; padding:4px 12px; border-radius:999px; background:#334155; color:#cbd5e1">Yükleniyor…</div>
+            </div>
+            <div id="mail-durum-aciklama" style="font-size:.82rem; color:var(--muted); margin-bottom:16px">
+                Her gün belirlenen saatte, o gün üretilen tüm referanslar (tarih · tesis · bölüm · operatör · referans · adet) bir Excel dosyası olarak aşağıdaki alıcılara otomatik gönderilir.
+            </div>
+
+            <!-- Alıcı ekleme -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px">
+                <div>
+                    <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">E-posta</label>
+                    <input type="email" id="mail-yeni-email" class="form-control" style="width:240px" placeholder="ornek@sirket.com" onkeydown="if(event.key==='Enter')mailAliciEkle()">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.8rem; margin-bottom:5px; color:var(--muted)">Ad (opsiyonel)</label>
+                    <input type="text" id="mail-yeni-ad" class="form-control" style="width:180px" placeholder="Örn: Üretim Müdürü" onkeydown="if(event.key==='Enter')mailAliciEkle()">
+                </div>
+                <button class="btn btn-primary" onclick="mailAliciEkle()" style="min-width:90px">Ekle</button>
+            </div>
+
+            <!-- Alıcı listesi -->
+            <div class="table-wrap">
+                <table id="mail-alicilar-table">
+                    <thead>
+                        <tr><th style="text-align:left">E-posta</th><th style="text-align:left">Ad</th><th style="width:90px">Durum</th><th style="width:80px">İşlem</th></tr>
+                    </thead>
+                    <tbody id="mail-alicilar-tbody">
+                        <tr><td colspan="4" style="text-align:center; padding:16px; color:var(--muted)">Yükleniyor…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center">
+                <button class="btn" style="background:#0f172a;color:#fff;font-weight:700;padding:11px 16px;border-radius:10px;border:none;cursor:pointer;font-size:.85rem" onclick="mailSimdiGonder()">📤 Bugünün Raporunu Şimdi Gönder</button>
+                <button class="btn" style="background:transparent;color:var(--muted);font-weight:600;padding:11px 14px;border-radius:10px;border:1px solid var(--line, #334155);cursor:pointer;font-size:.85rem" onclick="mailTestGonder()">✉️ Test Maili Gönder</button>
+                <span id="mail-yontem-not" style="font-size:.78rem; color:var(--muted)">Gönderim ayarı sunucudaki <b>mail_config.json</b> dosyasında tanımlıdır.</span>
             </div>
         </div>
     </div><!-- #sekme-raporlar -->
@@ -2688,16 +5163,51 @@
         let chartRobot = null;
         let aktifSekme = 'vardiyalar';
         let ozetData = null;
-        // Aktif bolum: 'kaynak' | 'montaj' | 'metal'. localStorage'dan okunur, default 'kaynak'.
+        // Aktif bolum: 'kaynak' | 'montaj' | 'metal' | 'isleme' | 'lazer' | 'pres'. localStorage'dan okunur, default 'kaynak'.
         let aktifBolum = (function () {
             const v = localStorage.getItem('dashboard_aktif_bolum');
-            return (v === 'montaj' || v === 'metal') ? v : 'kaynak';
+            return (v === 'montaj' || v === 'metal' || v === 'isleme' || v === 'lazer' || v === 'pres') ? v : 'kaynak';
+        })();
+        // Aktif lokasyon: 'TK2' (mevcut fabrika) | 'TK1' (yan tesis, montaj mantığı). default TK2.
+        let aktifLokasyon = (localStorage.getItem('dashboard_aktif_lokasyon') === 'TK1') ? 'TK1' : 'TK2';
+        // TK1 başlangıçta seçiliyse bölüm montaj'a sabit
+        if (aktifLokasyon === 'TK1') aktifBolum = 'montaj';
+
+        // Fetch wrapper — tüm same-origin /api/ isteklerine aktif lokasyonu ekler (query string).
+        // Endpoint lokasyon'u okumuyorsa Flask yoksayar (zararsız). Body okuyan POST'lar da
+        // ?lokasyon='i fallback olarak okur (referans_ekle/referans_takip/vardiya).
+        (function () {
+            const _origFetch = window.fetch.bind(window);
+            window.fetch = function (input, init) {
+                try {
+                    let url = (typeof input === 'string') ? input : (input && input.url);
+                    if (url && url.indexOf('/api/') !== -1 && !/[?&]lokasyon=/.test(url)) {
+                        const sep = url.indexOf('?') !== -1 ? '&' : '?';
+                        const yeniUrl = url + sep + 'lokasyon=' + encodeURIComponent(aktifLokasyon);
+                        input = (typeof input === 'string') ? yeniUrl : new Request(yeniUrl, input);
+                    }
+                } catch (e) {}
+                return _origFetch(input, init);
+            };
         })();
 
         const BOLUM_BILGI = {
             kaynak: { ad: 'Robot Kaynak', tekil_etiket: 'Robot' },
             montaj: { ad: 'Montaj',        tekil_etiket: 'Hat' },
-            metal:  { ad: 'Metal Enjeksiyon', tekil_etiket: 'Makine' }
+            metal:  { ad: 'Metal Enjeksiyon', tekil_etiket: 'Makine' },
+            isleme: { ad: 'İşleme',        tekil_etiket: 'Tezgah' },
+            lazer:  { ad: 'Lazer Kesim',   tekil_etiket: 'Makine' },
+            pres:   { ad: 'Pres Abkant',   tekil_etiket: 'Makine' }
+        };
+
+        // Bölüm → Excel referans sayfası adı (import/export onay metinlerinde kullanılır)
+        const BOLUM_EXCEL_SAYFA = {
+            kaynak: 'Kaynak Referans',
+            montaj: 'Montaj Referans',
+            metal:  'Metal Referans',
+            isleme: 'İşleme Referans',
+            lazer:  'Lazer Referans',
+            pres:   'Pres Abkant Referans'
         };
 
         // Bolume gore robot/hat/makine dropdown'unu ve etiketi yenile
@@ -2734,18 +5244,57 @@
                 const ozetBtn = document.querySelector('#inner-tab-bar .inner-tab-btn[onclick*="\'ozet\'"]');
                 if (ozetBtn && typeof innerSecme === 'function') innerSecme('ozet', ozetBtn);
             }
-            document.querySelectorAll('.bolum-btn').forEach(b => {
+            document.querySelectorAll('#bolum-toggle .bolum-btn').forEach(b => {
                 b.classList.toggle('active', b.dataset.bolum === aktifBolum);
             });
             const sub = document.getElementById('subtitle-text');
             if (sub) {
                 const bilgi = BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak;
-                sub.textContent = bilgi.ad;
+                sub.textContent = (aktifLokasyon === 'TK1') ? ('TK1 · ' + bilgi.ad) : bilgi.ad;
             }
         }
 
+        // Lokasyon butonlarının aktifliği + TK1'de bölüm seçiciyi gizle (TK1 tek bölüm: montaj)
+        function lokasyonGorunurlugu() {
+            document.querySelectorAll('#lokasyon-toggle .bolum-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.lokasyon === aktifLokasyon);
+            });
+            const bt = document.getElementById('bolum-toggle');
+            if (bt) bt.style.display = (aktifLokasyon === 'TK1') ? 'none' : '';
+        }
+
+        async function lokasyonDegistir(yeni) {
+            if (yeni !== 'TK1' && yeni !== 'TK2') return;
+            if (yeni === aktifLokasyon) return;
+            aktifLokasyon = yeni;
+            localStorage.setItem('dashboard_aktif_lokasyon', yeni);
+            // TK1 → montaj mantığı (tek bölüm). TK2 → son seçili bölüme dön.
+            if (yeni === 'TK1') {
+                // TK2'de son kullanılan bölümü sakla — TK2'ye dönünce geri yüklenir
+                localStorage.setItem('dashboard_tk2_son_bolum', aktifBolum);
+                aktifBolum = 'montaj';
+                localStorage.setItem('dashboard_aktif_bolum', 'montaj');
+            } else {
+                // TK2'ye dönüş: TK1'e geçmeden önceki bölüm geçerliyse geri yükle
+                const son = localStorage.getItem('dashboard_tk2_son_bolum');
+                if (son && ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'].includes(son)) {
+                    aktifBolum = son;
+                    localStorage.setItem('dashboard_aktif_bolum', son);
+                }
+            }
+            const sel = document.getElementById('f-robot');
+            if (sel) sel.value = '';
+            lokasyonGorunurlugu();
+            bolumGorunurlugu();
+            await yukleRobotListesi();
+            if (typeof yukle === 'function') yukle();
+            try { if (typeof yukleReferanslar === 'function') yukleReferanslar(); } catch (e) {}
+            try { if (typeof yukleRefTakipPanel === 'function') yukleRefTakipPanel(); } catch (e) {}
+            try { if (typeof yukleOperatorlerYonetim === 'function') yukleOperatorlerYonetim(); } catch (e) {}
+        }
+
         async function bolumDegistir(yeni) {
-            if (yeni !== 'kaynak' && yeni !== 'montaj' && yeni !== 'metal') return;
+            if (yeni !== 'kaynak' && yeni !== 'montaj' && yeni !== 'metal' && yeni !== 'isleme' && yeni !== 'lazer' && yeni !== 'pres') return;
             if (yeni === aktifBolum) return;
             aktifBolum = yeni;
             localStorage.setItem('dashboard_aktif_bolum', yeni);
@@ -2756,11 +5305,23 @@
             if (typeof yukle === 'function') yukle();
             try { if (typeof yukleReferanslar === 'function') yukleReferanslar(); } catch (e) {}
             try { if (typeof yukleRefTakipPanel === 'function') yukleRefTakipPanel(); } catch (e) {}
+            // Raporlar sekmesi açıksa bölüm bağlamını yenile (dropdown + rapor)
+            try {
+                if (aktifSekme === 'raporlar') {
+                    if (typeof yukleRaporRobotListesi === 'function') yukleRaporRobotListesi();
+                    if (typeof yukleRaporlar === 'function') yukleRaporlar();
+                }
+            } catch (e) {}
         }
 
         // Aktif bölüme göre uygun andon ekranını yeni sekmede aç
         function andonEkraniAc() {
-            const yol = aktifBolum === 'montaj' ? '/andon_montaj'
+            if (aktifBolum === 'isleme' || aktifBolum === 'lazer' || aktifBolum === 'pres') {
+                alert('Bu bölüm için andon ekranı yok.');
+                return;
+            }
+            const yol = aktifLokasyon === 'TK1' ? '/andon_tk1'
+                      : aktifBolum === 'montaj' ? '/andon_montaj'
                       : aktifBolum === 'metal'  ? '/andon_metal'
                                                 : '/andon';
             window.open(yol, '_blank');
@@ -2796,27 +5357,27 @@
                 const bugun = new Date().toISOString().split('T')[0];
                 const birAyOnce = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                 modal.innerHTML = `
-                    <div style="background:#fff;border-radius:16px;padding:28px;width:420px;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+                    <div style="background:var(--bg-1);border:1px solid var(--border);border-radius:16px;padding:28px;width:420px;box-shadow:0 8px 40px rgba(0,0,0,.45)">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
                             <h3 style="font-size:1rem;font-weight:800">📥 Excel'e Aktar</h3>
-                            <button onclick="exportModalKapat()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:1rem">✕</button>
+                            <button onclick="exportModalKapat()" style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:1rem">✕</button>
                         </div>
-                        <div style="font-size:.82rem;color:#64748b;margin-bottom:16px;background:#f8fafc;padding:12px;border-radius:8px;border-left:3px solid #2563eb">
+                        <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px;background:var(--card);padding:12px;border-radius:8px;border-left:3px solid #2563eb">
                             Veriler <b>Masaüstü/UretimTakipArsiv.xlsx</b> dosyasına kaydedilir.<br>
                             Dosya her kayıtta güncellenir (üzerine yazar).
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
                             <div>
                                 <label style="font-size:.78rem;font-weight:700;color:#64748b;display:block;margin-bottom:4px">Başlangıç Tarihi</label>
-                                <input type="date" id="exp-bas" value="${birAyOnce}" style="width:100%;padding:10px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:.88rem">
+                                <input type="date" id="exp-bas" value="${birAyOnce}" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:8px;font-size:.88rem">
                             </div>
                             <div>
                                 <label style="font-size:.78rem;font-weight:700;color:#64748b;display:block;margin-bottom:4px">Bitiş Tarihi</label>
-                                <input type="date" id="exp-bit" value="${bugun}" style="width:100%;padding:10px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:.88rem">
+                                <input type="date" id="exp-bit" value="${bugun}" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:8px;font-size:.88rem">
                             </div>
                         </div>
                         <div style="display:flex;gap:8px">
-                            <button onclick="exportModalKapat()" style="flex:1;padding:12px;border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-weight:700;cursor:pointer">İptal</button>
+                            <button onclick="exportModalKapat()" style="flex:1;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-weight:700;cursor:pointer">İptal</button>
                             <button id="exp-btn" onclick="exportArsiv()" style="flex:2;padding:12px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:.92rem;cursor:pointer">
                                 📥 Excel'e Kaydet
                             </button>
@@ -2962,7 +5523,15 @@
                 const list = await res.json();
 
                 const count = document.getElementById('ref-takip-count');
-                if (count) count.textContent = list.length + ' kayıt';
+                if (count) {
+                    // Toplamın yanında durum kırılımı: alınacak / alındı / hazır
+                    const say = k => list.filter(x => x.durum === k).length;
+                    count.innerHTML =
+                        `${list.length} kayıt` +
+                        ` · <span style="color:var(--c-red);font-weight:700">Alınacak: ${say('launch_alinacak')}</span>` +
+                        ` · <span style="color:var(--info);font-weight:700">Alındı: ${say('launch_alindi')}</span>` +
+                        ` · <span style="color:var(--c-emerald);font-weight:700">Hazır: ${say('launch_hazir')}</span>`;
+                }
 
                 // Kaynak bölümünde pair cycle sütununu aç
                 const showPair = (aktifBolum === 'kaynak');
@@ -3059,7 +5628,7 @@
                         <td style="font-size:.72rem;color:var(--muted)">${(r.guncelleme_tarihi||'').slice(0,16)}</td>
                         <td style="display:flex;gap:4px">
                             <button onclick="refTakipDuzenleAc(${r.id},'${refKodEscaped}',${r.hedef_adet},'${roboNoEscaped}',${r.istasyon||0},'${aciklamaEscaped}')"
-                                style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
+                                style="background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35);border-radius:6px;padding:3px 10px;font-size:.72rem;cursor:pointer;font-weight:700">
                                 ✏️
                             </button>
                             <button onclick="refTakipSil(${r.id})"
@@ -3123,27 +5692,61 @@
             }
         }
 
-        // Inline düzenle
+        // Inline düzenle — gem modal ile tek form (eski 5 ardışık prompt yerine)
         let _rtDuzenleId = null;
         function refTakipDuzenleAc(id, ref, adet, robot, istasyon, aciklama) {
             _rtDuzenleId = id;
             const tekil = (BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot';
-            const yeniRef = prompt('Referans Kodu:', ref);
-            if (yeniRef === null) return;
-            const yeniAdet = prompt('Hedef Adet:', adet);
-            if (yeniAdet === null) return;
-            const yeniRobot = prompt(tekil + ' (boş bırakabilirsiniz):', robot);
-            if (yeniRobot === null) return;
-            // İstasyon yalnızca kaynak bölümünde sorulur
-            let yeniIst = istasyon || 0;
-            if (aktifBolum === 'kaynak') {
-                const cevap = prompt('İstasyon (0=belirtme, 1, 2):', istasyon);
-                if (cevap === null) return;
-                yeniIst = parseInt(cevap) || 0;
-            }
-            const yeniAciklama = prompt('Açıklama (boş bırakabilirsiniz):', aciklama || '');
-            if (yeniAciklama === null) return;
-            refTakipDuzenleKaydet(id, yeniRef.trim(), parseInt(yeniAdet)||0, yeniRobot.trim(), yeniIst, yeniAciklama.trim());
+            const inputStil = 'width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:0.9rem;outline:none;background:var(--card)';
+            const lblStil = 'font-size:0.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px';
+            // Robot/Hat/Makine seçenekleri — rtRobotListesiniYukle'nin doldurduğu kaynak
+            const opts = [''].concat(Array.isArray(rtRobotListesi) ? rtRobotListesi : []);
+            if (robot && !opts.includes(robot)) opts.push(robot);
+            const robotOptHtml = opts.map(r =>
+                `<option value="${r}" ${r === robot ? 'selected' : ''}>${r || (tekil + ' Seç...')}</option>`
+            ).join('');
+            // İstasyon yalnızca kaynak bölümünde görünür
+            const istasyonHtml = (aktifBolum === 'kaynak') ? `
+                <div>
+                    <label style="${lblStil}">İstasyon</label>
+                    <select id="gem-rt-istasyon" style="${inputStil}">
+                        <option value="0" ${!istasyon ? 'selected' : ''}>Belirtme</option>
+                        <option value="1" ${istasyon == 1 ? 'selected' : ''}>İstasyon 1</option>
+                        <option value="2" ${istasyon == 2 ? 'selected' : ''}>İstasyon 2</option>
+                    </select>
+                </div>` : '';
+            document.getElementById('gem-title').textContent = 'İş Kaydı Düzenle';
+            document.getElementById('gem-body').innerHTML = `
+                <div>
+                    <label style="${lblStil}">Referans Kodu</label>
+                    <input type="text" id="gem-rt-ref" value="${String(ref || '').replace(/"/g, '&quot;')}" style="${inputStil}">
+                </div>
+                <div>
+                    <label style="${lblStil}">Hedef Adet</label>
+                    <input type="number" id="gem-rt-adet" min="0" value="${adet || 0}" style="${inputStil}">
+                </div>
+                <div>
+                    <label style="${lblStil}">${tekil}</label>
+                    <select id="gem-rt-robot" style="${inputStil}">${robotOptHtml}</select>
+                </div>
+                ${istasyonHtml}
+                <div>
+                    <label style="${lblStil}">Açıklama</label>
+                    <input type="text" id="gem-rt-aciklama" value="${String(aciklama || '').replace(/"/g, '&quot;')}" style="${inputStil}">
+                </div>
+            `;
+            document.getElementById('gem-kaydet').onclick = async () => {
+                const yeniRef = document.getElementById('gem-rt-ref').value.trim();
+                if (!yeniRef) { toast('Referans kodu boş olamaz', 'error'); return; }
+                const yeniAdet = parseInt(document.getElementById('gem-rt-adet').value) || 0;
+                const yeniRobot = document.getElementById('gem-rt-robot').value.trim();
+                const istEl = document.getElementById('gem-rt-istasyon');
+                const yeniIst = istEl ? (parseInt(istEl.value) || 0) : (istasyon || 0);
+                const yeniAciklama = document.getElementById('gem-rt-aciklama').value.trim();
+                await refTakipDuzenleKaydet(id, yeniRef, yeniAdet, yeniRobot, yeniIst, yeniAciklama);
+                gemKapat();
+            };
+            document.getElementById('gem-modal').classList.add('open');
         }
 
         async function refTakipDuzenleKaydet(id, ref, adet, robot, istasyon, aciklama) {
@@ -3165,11 +5768,16 @@
 
         async function refRobotDogrudanGuncelle(id, robot) {
             try {
-                await fetch('/api/referans_takip/' + id, {
+                const res = await fetch('/api/referans_takip/' + id, {
                     method: 'PATCH',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ robot_no: robot })
                 });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok || body.hata) {
+                    toast(body.hata || ('Sunucu hatası: ' + res.status), 'error');
+                    return;
+                }
                 toast('Robot ataması güncellendi', 'ok');
                 // Optik update (isteğe bağlı) -> zaten panel kendini onchange de refresh de edebilir.
                 // await yukleRefTakipPanel();
@@ -3205,10 +5813,15 @@
         async function refTakipSil(id) {
             if (!confirm('Bu kaydı silmek istiyor musunuz?')) return;
             try {
-                await fetch('/api/referans_takip/' + id, { method: 'DELETE' });
+                const res = await fetch('/api/referans_takip/' + id, { method: 'DELETE' });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok || body.hata) {
+                    toast(body.hata || ('Sunucu hatası: ' + res.status), 'error');
+                    return;
+                }
                 await yukleRefTakipPanel();
                 toast('Kayıt silindi', 'ok');
-            } catch(e) {}
+            } catch(e) { toast('Bağlantı hatası', 'error'); }
         }
 
         async function andonDuyuruGuncelle() {
@@ -3247,22 +5860,29 @@
             document.getElementById('f-bas').value = bugun;
             document.getElementById('f-bit').value = bugun;
 
-            // Bolum durumunu UI'ye yansit (aktifBolum localStorage'dan zaten okundu)
+            // Lokasyon + bolum durumunu UI'ye yansit (localStorage'dan okundu)
+            lokasyonGorunurlugu();
             bolumGorunurlugu();
             // Robot/hat/makine listesini bolume gore yukle
             await yukleRobotListesi();
 
             yukle();
             yukleRefTakipPanel();
-            yukleFikstur();
+            // Fikstür listesi yalnız sekme açılışında yüklenir (innerSecme)
             yukleUyum();
             
 
-            // Kaydedilmiş iç sekme tercihini yükle
-            const kaydedilmisSekme = localStorage.getItem('dashboard_inner_tab') || 'ozet';
-            const ilkBtn = document.querySelector(`#inner-tab-bar .inner-tab-btn[onclick*="'${kaydedilmisSekme}'"]`);
-            if (ilkBtn) innerSecme(kaydedilmisSekme, ilkBtn);
-            tabPinGuncelle(kaydedilmisSekme);
+            // Kaydedilmiş iç sekme tercihini yükle — aktif bölümde GİZLİ olan sekmeyi
+            // restore etme (örn. isleme/lazer/pres'te İş Yönetimi kapalı → Özet'e düş);
+            // bolumGorunurlugu() yukarıda çalıştı, gizli butonların display'i 'none'.
+            let acilacakSekme = localStorage.getItem('dashboard_inner_tab') || 'ozet';
+            let ilkBtn = document.querySelector(`#inner-tab-bar .inner-tab-btn[onclick*="'${acilacakSekme}'"]`);
+            if (!ilkBtn || ilkBtn.style.display === 'none') {
+                acilacakSekme = 'ozet';
+                ilkBtn = document.querySelector(`#inner-tab-bar .inner-tab-btn[onclick*="'ozet'"]`);
+            }
+            if (ilkBtn) innerSecme(acilacakSekme, ilkBtn);
+            tabPinGuncelle(acilacakSekme);
 
             // Otomatik Yenileme (60 sn)
             setInterval(() => {
@@ -3285,6 +5905,8 @@
             // Buton aktif
             document.querySelectorAll('#inner-tab-bar .inner-tab-btn').forEach(b => b.classList.remove('active'));
             if (btn) btn.classList.add('active');
+            // Fikstür listesi yalnız sekme açılışında yüklenir (60sn döngüsünden çıkarıldı)
+            if (sekme === 'fikstur' && typeof yukleFikstur === 'function') yukleFikstur();
             tabPinGuncelle(sekme);
         }
 
@@ -3465,7 +6087,7 @@
                 return;
             }
             container.innerHTML = liste.map((r, i) => `
-                <div style="background:var(--bg,#f8fafc);border:2px solid ${r.goster ? '#2563eb' : '#e2e8f0'};
+                <div style="background:var(--card);border:2px solid ${r.goster ? 'var(--primary)' : 'var(--border)'};
                     border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;
                     transition:border-color .2s;cursor:pointer" onclick="andonRobotToggle('${andonAktifBolum}', ${i})">
                     <div style="width:20px;height:20px;border-radius:6px;border:2px solid ${r.goster ? '#2563eb' : '#cbd5e1'};
@@ -3626,6 +6248,34 @@
         // ═══════════════════════════════════════════════════════
         // ANA YÜKLEME
         // ═══════════════════════════════════════════════════════
+        // Vardiya türü karşılaştırma normalizasyonu: büyük/küçük + ü→u ('Gündüz' ~ 'gunduz')
+        function vardiyaNorm(s) {
+            return String(s || '').toLocaleLowerCase('tr-TR').replace(/ü/g, 'u');
+        }
+
+        // Filtre dropdown'unu yüklenen verideki distinct vardiya türleriyle doldur (mevcut seçim korunur)
+        function vardiyaFiltreSecenekleriGuncelle(varList) {
+            const sel = document.getElementById('f-vardiya');
+            if (!sel) return;
+            const onceki = sel.value;
+            const turler = [];
+            (varList || []).forEach(v => {
+                const t = v.vardiya;
+                if (!t) return;
+                if (!turler.some(x => vardiyaNorm(x) === vardiyaNorm(t))) turler.push(t);
+            });
+            sel.innerHTML = '<option value="">Tümü</option>';
+            turler.forEach(t => {
+                const o = document.createElement('option');
+                o.value = t; o.textContent = t;
+                sel.appendChild(o);
+            });
+            if (onceki) {
+                const eslesen = turler.find(x => vardiyaNorm(x) === vardiyaNorm(onceki));
+                if (eslesen) sel.value = eslesen;
+            }
+        }
+
         async function yukle() {
             const bas = document.getElementById('f-bas').value;
             const bit = document.getElementById('f-bit').value;
@@ -3655,9 +6305,12 @@
                 guncelleRobotRefUretim(ozetData.robot_referans_uretim || []);
                 guncelleRobotDurus(ozetData.robot_durus_kirilim || []);
 
-                // Tablo (vardiya filtresi client-side)
+                // Vardiya türü filtresini yüklenen verideki distinct değerlerle doldur
+                vardiyaFiltreSecenekleriGuncelle(ozetData.vardiyalar || []);
+
+                // Tablo (vardiya filtresi client-side — ü→u + büyük/küçük normalize)
                 let varList = ozetData.vardiyalar || [];
-                if (vtp) varList = varList.filter(v => v.vardiya === vtp);
+                if (vtp) varList = varList.filter(v => vardiyaNorm(v.vardiya) === vardiyaNorm(vtp));
                 guncelleTablo(varList);
 
             } catch (e) {
@@ -3665,99 +6318,9 @@
                 toast('Veri yüklenemedi: ' + e.message, 'err');
             }
 
-            // Fikstür ve Robot panellerini yükle
-            yukleFiksturPanel();
-            yukleRobotPrgPanel();
+            // Not: Fikstür paneli 60sn döngüsünden çıkarıldı — yalnız sekme
+            // açılışında (innerSecme) ve ekleme/silme sonrasında yüklenir.
         }
-
-        // ═════════════════════════════════════════════════════
-        // FİKSTÜR ADRESLERİ PANEL
-        // ═════════════════════════════════════════════════════
-        async function yukleFiksturPanel() {
-            try {
-                const res = await fetch('/api/fikstur');
-                const list = await res.json();
-                const tbody = document.getElementById('fikstur-table-body');
-                const count = document.getElementById('fikstur-count');
-                count.textContent = list.length + ' kayıt';
-                if (!list.length) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">Henüz fikstür raf adresi girilmedi.</td></tr>';
-                    return;
-                }
-                // Raf bazında grupla ve sırala
-                const raflar = {};
-                list.forEach(f => {
-                    const raf = f.raf_adresi || 'Belirtilmedi';
-                    if (!raflar[raf]) raflar[raf] = [];
-                    raflar[raf].push(f);
-                });
-                tbody.innerHTML = '';
-                Object.keys(raflar).sort().forEach(raf => {
-                    const rafRow = document.createElement('tr');
-                    rafRow.innerHTML = `<td colspan="3" style="background:#f1f5f9;font-weight:800;font-size:.78rem;color:var(--primary);padding:6px 12px">🗄️ Raf: ${raf}</td>`;
-                    tbody.appendChild(rafRow);
-                    raflar[raf].forEach(f => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `<td style="padding-left:24px"><b>${f.referans_kodu}</b></td><td>${f.raf_adresi || '—'}</td><td style="font-size:.8rem;color:var(--muted)">${f.notlar || ''}</td>`;
-                        tbody.appendChild(tr);
-                    });
-                });
-            } catch(e) {}
-        }
-
-        // ═════════════════════════════════════════════════════
-        // ROBOT PROGRAMLARI PANEL (Nested header tablo)
-        // ═════════════════════════════════════════════════════
-        async function yukleRobotPrgPanel() {
-            const ROBOTLAR = ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9'];
-            try {
-                const res = await fetch('/api/robot_programlari');
-                const list = await res.json();
-                const thead = document.getElementById('robot-prg-thead');
-                const tbody = document.getElementById('robot-prg-tbody');
-                const count = document.getElementById('robot-prg-count');
-                
-                // Üst satır: boş köşe + her robot colspan=2
-                let tr1 = '<tr><th rowspan="2" style="vertical-align:middle">—</th>';
-                ROBOTLAR.forEach(r => { tr1 += `<th colspan="2" style="text-align:center">${r}</th>`; });
-                tr1 += '</tr>';
-                // Alt satır: her robot için İst. 1 ve İst. 2
-                let tr2 = '<tr>';
-                ROBOTLAR.forEach(() => { tr2 += '<th style="font-size:.7rem;font-weight:600">İst.1</th><th style="font-size:.7rem;font-weight:600">İst.2</th>'; });
-                tr2 += '</tr>';
-                thead.innerHTML = tr1 + tr2;
-
-                tbody.innerHTML = '';
-                let toplam = 0;
-
-                // Tek satır: her robot için İst.1 ve İst.2 bitişik hücre
-                const tr = document.createElement('tr');
-                const corner = document.createElement('td');
-                corner.style.cssText = 'font-weight:800;font-size:.78rem;background:#f1f5f9';
-                corner.textContent = 'Kayıtlı Kodlar';
-                tr.appendChild(corner);
-
-                ROBOTLAR.forEach(rName => {
-                    [1, 2].forEach(ist => {
-                        const kayitlar = list.filter(x => x.robot_no === rName && x.istasyon === ist);
-                        toplam += kayitlar.length;
-                        const td = document.createElement('td');
-                        td.style.verticalAlign = 'top';
-                        if (kayitlar.length === 0) {
-                            td.innerHTML = '<span style="color:var(--muted);font-size:.75rem">—</span>';
-                        } else {
-                            td.innerHTML = kayitlar.map(k =>
-                                `<div style="background:#eff6ff;border-radius:4px;padding:2px 6px;margin-bottom:2px;font-size:.75rem;font-weight:600">${k.referans_kodu}</div>`
-                            ).join('');
-                        }
-                        tr.appendChild(td);
-                    });
-                });
-                tbody.appendChild(tr);
-                count.textContent = toplam + ' kayıt';
-            } catch(e) {}
-        }
-
 
         // ═══════════════════════════════════════════════════════
         // KPI
@@ -3780,10 +6343,33 @@
         // ═══════════════════════════════════════════════════════
         // GRAFİKLER
         // ═══════════════════════════════════════════════════════
+        // Grafik kartında boş-durum mesajı göster/gizle — veri yokken canvas gizlenir,
+        // veri gelince mesaj kalkar canvas geri gelir.
+        function grafikBosDurum(canvasId, bosMu) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const wrap = canvas.parentElement;
+            if (!wrap) return;
+            let msg = wrap.querySelector('.chart-empty-msg');
+            if (bosMu) {
+                canvas.style.display = 'none';
+                if (!msg) {
+                    msg = document.createElement('div');
+                    msg.className = 'chart-empty-msg';
+                    msg.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>Bu aralıkta veri yok</p></div>';
+                    wrap.appendChild(msg);
+                }
+            } else {
+                canvas.style.display = '';
+                if (msg) msg.remove();
+            }
+        }
+
         function guncelleGrafik_durus(data) {
             const ctx = document.getElementById('chart-durus').getContext('2d');
             if (chartDurus) chartDurus.destroy();
-            if (!data.length) { ctx.clearRect(0, 0, 400, 220); return; }
+            if (!data.length) { ctx.clearRect(0, 0, 400, 220); grafikBosDurum('chart-durus', true); return; }
+            grafikBosDurum('chart-durus', false);
             chartDurus = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -3807,7 +6393,8 @@
         function guncelleGrafik_robot(data) {
             const ctx = document.getElementById('chart-robot').getContext('2d');
             if (chartRobot) chartRobot.destroy();
-            if (!data.length) { return; }
+            if (!data.length) { grafikBosDurum('chart-robot', true); return; }
+            grafikBosDurum('chart-robot', false);
             chartRobot = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -3823,7 +6410,7 @@
                     plugins: { legend: { labels: { font: { size: 11 }, boxWidth: 12 } } },
                     scales: {
                         x: { grid: { display: false } },
-                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } }
+                        y: { beginAtZero: true, grid: { color: 'rgba(148,163,196,0.18)' } }
                     }
                 }
             });
@@ -3840,7 +6427,7 @@
                 return;
             }
             tbody.innerHTML = varList.map(v => {
-                const oeeColor = v.oee >= 80 ? '#16a34a' : v.oee >= 60 ? '#d97706' : '#dc2626';
+                const oeeColor = v.oee >= 80 ? 'var(--c-emerald)' : v.oee >= 60 ? 'var(--c-amber)' : 'var(--c-red)';
                 const vBadge = v.vardiya === 'Sabah' ? 'badge-blue' : v.vardiya === 'Öğle' ? 'badge-orange' : 'badge-purple';
                 return `<tr style="cursor:pointer" onclick="panelAc(${getVardiyaId(v)})">
       <td><b>${v.tarih}</b></td>
@@ -3858,7 +6445,7 @@
         <div class="oee-bar-bg"><div class="oee-bar" style="width:${v.oee}%;background:${oeeColor}"></div></div>
       </td>
       <td>
-        <button class="btn btn-warning" style="padding:4px 8px;font-size:0.8rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer;margin-right:2px" title="Düzenle" onclick="vardiyaDuzenle(event, ${getVardiyaId(v)}, '${v.tarih}', '${v.vardiya}', '${v.operator}', '${v.baslangic_saati || ''}', '${v.bitis_saati || ''}')">✏️</button>
+        <button class="btn btn-warning" style="padding:4px 8px;font-size:0.8rem;background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35);cursor:pointer;margin-right:2px" title="Düzenle" onclick="vardiyaDuzenle(event, ${getVardiyaId(v)}, '${v.tarih}', '${v.vardiya}', '${v.operator}', '${v.baslangic_saati || ''}', '${v.bitis_saati || ''}')">✏️</button>
         <button class="btn btn-danger" title="Sil" style="padding:4px 6px" onclick="vardiyaSil(event,${getVardiyaId(v)})">🗑</button>
       </td>
     </tr>`;
@@ -3874,6 +6461,16 @@
         // VARDİYA DÜZENLE MODALI
         function vardiyaDuzenle(e, vid, tarih, tur, operator, bas, bit) {
             e.stopPropagation();
+            // Vardiya türü seçenekleri — yüklü verideki distinct değerler; kaydın kendi
+            // değeri listede yoksa option olarak eklenir ve seçili gelir.
+            const turler = [];
+            (((ozetData || {}).vardiyalar) || []).forEach(v => {
+                if (v.vardiya && !turler.includes(v.vardiya)) turler.push(v.vardiya);
+            });
+            if (tur && !turler.includes(tur)) turler.push(tur);
+            const turOptHtml = turler.map(t =>
+                `<option value="${t}" ${t === tur ? 'selected' : ''}>${t}</option>`
+            ).join('');
             document.getElementById('gem-title').textContent = 'Vardiya Düzenle';
             document.getElementById('gem-body').innerHTML = `
                 <div style="display:flex; flex-direction:column; gap:12px;">
@@ -3884,9 +6481,7 @@
                     <div class="form-group">
                         <label>Vardiya Türü</label>
                         <select id="gem-v-tur" class="form-control">
-                            <option value="Sabah" ${tur==='Sabah'?'selected':''}>Sabah</option>
-                            <option value="Öğle" ${tur==='Öğle'?'selected':''}>Öğle</option>
-                            <option value="Gece" ${tur==='Gece'?'selected':''}>Gece</option>
+                            ${turOptHtml}
                         </select>
                     </div>
                     <div class="form-group">
@@ -3917,7 +6512,7 @@
                     alert('Lütfen başlangıç ve bitiş saatlerini giriniz!');
                     return;
                 }
-                const btn = document.getElementById('gem-save-btn');
+                const btn = document.getElementById('gem-kaydet');
                 btn.textContent = '⏱ Kaydediliyor...';
                 try {
                     const res = await fetch('/api/vardiya/' + vid, {
@@ -3967,7 +6562,7 @@
                     <td style="text-align:right;color:var(--danger);font-weight:700">${u.nok_adet}</td>
                     <td style="text-align:right">${ctStr}</td>
                     <td style="text-align:right;">
-                        <button onclick="duzenleUretim(${u.uretim_id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet || 0}, ${u.cycle_time_sn || 0})" class="btn" style="padding:4px 8px;font-size:0.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️ Düzenle</button>
+                        <button onclick="duzenleUretim(${u.uretim_id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet || 0}, ${u.cycle_time_sn || 0})" class="btn" style="padding:4px 8px;font-size:0.7rem;background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35);cursor:pointer">✏️ Düzenle</button>
                     </td>
                 </tr>`;
             }).join('');
@@ -4020,7 +6615,7 @@
                         <span style="font-size:.82rem;font-weight:700">${ikon} ${isPlanlı ? 'Planlı Duruşlar' : 'Plansız Duruşlar'}</span>
                         <span style="font-size:.82rem;font-weight:800;color:${renk}">${t.toplam_sure} dk</span>
                     </div>
-                    <div style="background:#f1f5f9;border-radius:6px;height:8px;overflow:hidden">
+                    <div style="background:var(--border);border-radius:6px;height:8px;overflow:hidden">
                         <div style="background:${renk};height:100%;width:${pct}%;border-radius:6px;transition:width .4s"></div>
                     </div>
                     <div style="display:flex;justify-content:space-between;margin-top:4px">
@@ -4052,7 +6647,7 @@
                 const kaliteColor = toplam > 0
                     ? (ok / toplam >= 0.95 ? '#16a34a' : ok / toplam >= 0.80 ? '#d97706' : '#dc2626')
                     : '#64748b';
-                return `<tr style="${isNew ? 'border-top:2px solid #e2e8f0' : ''}">
+                return `<tr style="${isNew ? 'border-top:2px solid var(--border)' : ''}">
                     <td style="font-weight:${isNew ? '800' : '400'};color:${isNew ? 'var(--primary)' : 'transparent'}">
                         ${isNew ? '🤖 ' + r.robot_no : '↳'}
                     </td>
@@ -4083,7 +6678,7 @@
                 const badge = planli
                     ? '<span class="badge badge-green" style="font-size:.62rem">Planlı</span>'
                     : '<span class="badge badge-red" style="font-size:.62rem">Plansız</span>';
-                return `<tr style="${isNew ? 'border-top:2px solid #e2e8f0' : ''}">
+                return `<tr style="${isNew ? 'border-top:2px solid var(--border)' : ''}">
                     <td style="font-weight:${isNew ? '800' : '400'};color:${isNew ? 'var(--primary)' : 'transparent'}">
                         ${isNew ? '🤖 ' + d.robot_no : '↳'}
                     </td>
@@ -4091,7 +6686,7 @@
                     <td>${badge}</td>
                     <td style="text-align:right;font-weight:700">${d.toplam_sure} dk</td>
                     <td style="text-align:right;">
-                        <button onclick="duzenleDurus(${d.durus_id}, '${d.durus_sebebi}', ${d.toplam_sure})" class="btn" style="padding:4px 8px;font-size:0.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️ Düzenle</button>
+                        <button onclick="duzenleDurus(${d.durus_id}, '${d.durus_sebebi}', ${d.toplam_sure})" class="btn" style="padding:4px 8px;font-size:0.7rem;background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35);cursor:pointer">✏️ Düzenle</button>
                     </td>
                 </tr>`;
             }).join('');
@@ -4132,7 +6727,7 @@
             <span>Saat</span>
             <b style="display:flex;align-items:center;gap:6px">
                 ${v.baslangic_saati} – ${v.bitis_saati}
-                <button onclick="duzenleVardiya(${v.id}, '${v.baslangic_saati}', '${v.bitis_saati}', ${v.toplam_sure_dk})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️</button>
+                <button onclick="duzenleVardiya(${v.id}, '${v.baslangic_saati}', '${v.bitis_saati}', ${v.toplam_sure_dk})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35);cursor:pointer">✏️</button>
             </b>
         </div>
         <div class="detail-row"><span>Planlı Süre</span><b>${v.toplam_sure_dk} dk</b></div>
@@ -4144,7 +6739,7 @@
                     detay.uretim.forEach(u => {
                         html += `<div class="detail-row"><span>📦 ${u.referans_kodu}</span><span style="display:flex;align-items:center;gap:6px">
                             <span><b style="color:var(--success)">${u.ok_adet}</b> OK / <span style="color:var(--danger)">${u.nok_adet}</span> NOK (Hdf: ${u.hedef_adet})</span>
-                            <button onclick="duzenleUretim(${u.id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️</button>
+                            <button onclick="duzenleUretim(${u.id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35);cursor:pointer">✏️</button>
                         </span></div>`;
                     });
                     html += `</div>`;
@@ -4155,7 +6750,7 @@
                     detay.duruslar.forEach(d => {
                         html += `<div class="detail-row"><span>⏸️ ${d.durus_sebebi}${d.baslangic_saati ? ' (' + d.baslangic_saati + ')' : ''}</span><b style="display:flex;align-items:center;gap:6px">
                             ${d.sure_dk} dk
-                            <button onclick="duzenleDurus(${d.id}, '${d.durus_sebebi}', ${d.sure_dk})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer">✏️</button>
+                            <button onclick="duzenleDurus(${d.id}, '${d.durus_sebebi}', ${d.sure_dk})" class="btn" style="padding:2px 6px;font-size:0.65rem;background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35);cursor:pointer">✏️</button>
                         </b></div>`;
                         if (d.aciklama) html += `<div style="font-size:.76rem;color:var(--muted);padding:2px 0 6px 22px">${d.aciklama}</div>`;
                     });
@@ -4182,7 +6777,7 @@
                     <h3 id="gem-title" style="margin:0 0 16px 0;color:var(--primary);font-weight:800;font-size:1.1rem">Düzenle</h3>
                     <div id="gem-body" style="display:flex;flex-direction:column;gap:12px;"></div>
                     <div style="display:flex;gap:8px;margin-top:20px">
-                        <button onclick="gemKapat()" class="btn" style="background:#e2e8f0;color:#475569;flex:1;padding:10px;border-radius:8px;font-weight:700;border:none;cursor:pointer">İptal</button>
+                        <button onclick="gemKapat()" class="btn" style="background:var(--card);color:var(--muted);border:1px solid var(--border);flex:1;padding:10px;border-radius:8px;font-weight:700;border:none;cursor:pointer">İptal</button>
                         <button id="gem-kaydet" class="btn" style="flex:1;background:var(--primary);color:#fff;padding:10px;border-radius:8px;font-weight:700;border:none;cursor:pointer">💾 Kaydet</button>
                     </div>
                 </div>
@@ -4202,7 +6797,7 @@
             body.innerHTML = alanlar.map((a, i) => `
                 <div>
                     <label style="font-size:0.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">${a.label}</label>
-                    <input type="${a.type||'text'}" id="gem-i-${i}" value="${a.value!=null?a.value:''}" style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;outline:none" ${a.disabled?'disabled':''}>
+                    <input type="${a.type||'text'}" id="gem-i-${i}" value="${a.value!=null?a.value:''}" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:0.9rem;outline:none" ${a.disabled?'disabled':''}>
                 </div>
             `).join('');
             document.getElementById('gem-kaydet').onclick = async () => {
@@ -4257,9 +6852,9 @@
             const refAcHtml = `
                 <div style="position:relative">
                     <input type="text" id="gem-ref-ac" value="${ref}" autocomplete="off"
-                        style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;outline:none"
+                        style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:0.9rem;outline:none"
                         placeholder="Referans kodu...">
-                    <div id="gem-ref-ddl" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:2px solid var(--primary);border-radius:8px;z-index:9999;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.15)"></div>
+                    <div id="gem-ref-ddl" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-1);color:var(--text);border:2px solid var(--primary);border-radius:8px;z-index:9999;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.15)"></div>
                 </div>
                 <div id="gem-ct-lbl" style="font-size:.75rem;color:var(--muted);margin-top:4px">⏱ CT: ${ct > 0 ? Math.round(ct) + ' sn (referans tanımlı)' : '— (tanımsız)'}</div>`;
 
@@ -4270,10 +6865,10 @@
                     ${refAcHtml}
                 </div>
                 <div><label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">OK Adet</label>
-                    <input type="number" id="gem-i-ok" value="${ok}" style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:.9rem;outline:none">
+                    <input type="number" id="gem-i-ok" value="${ok}" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.9rem;outline:none">
                 </div>
                 <div><label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">NOK Adet</label>
-                    <input type="number" id="gem-i-nok" value="${nok}" style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;font-size:.9rem;outline:none">
+                    <input type="number" id="gem-i-nok" value="${nok}" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.9rem;outline:none">
                 </div>`;
 
             // Autocomplete logic
@@ -4285,7 +6880,7 @@
                 if(!q) { ddl.style.display='none'; return; }
                 const matches = refList.filter(r => r.referans_kodu.replace(/\s+/g,'').toUpperCase().includes(q)).slice(0, 12);
                 if(!matches.length) { ddl.style.display='none'; return; }
-                ddl.innerHTML = matches.map(r => `<div class="gem-ddl-item" data-ref="${r.referans_kodu}" data-ct="${r.hedef_cycle_time_sn||0}" style="padding:8px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid #f1f5f9">
+                ddl.innerHTML = matches.map(r => `<div class="gem-ddl-item" data-ref="${r.referans_kodu}" data-ct="${r.hedef_cycle_time_sn||0}" style="padding:8px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--border)">
                     <b>${r.referans_kodu}</b>${r.hedef_cycle_time_sn > 0 ? ' <span style="color:var(--muted);font-size:.75rem">'+Math.round(r.hedef_cycle_time_sn)+' sn</span>' : ''}
                 </div>`).join('');
                 ddl.style.display='block';
@@ -4349,7 +6944,12 @@
             e.stopPropagation();
             if (!confirm('Bu vardiya kaydını silmek istiyor musunuz?')) return;
             try {
-                await fetch(`/api/vardiya/${vid}`, { method: 'DELETE' });
+                const res = await fetch(`/api/vardiya/${vid}`, { method: 'DELETE' });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok || body.hata) {
+                    toast(body.hata || ('Sunucu hatası: ' + res.status), 'error');
+                    return;
+                }
                 toast('Vardiya silindi', 'ok');
                 yukle();
             } catch (err) {
@@ -4374,6 +6974,7 @@
             try {
                 const res = await fetch('/api/referanslar?q=&bolum=' + encodeURIComponent(aktifBolum));
                 tumReferanslar = await res.json();
+                _refTumunuGoster = false;  // yeni listede ilk 200'e dön
                 renderReferanslar(tumReferanslar);
                 yukleEksikReferanslar();
                 yukleTeyitOzet();
@@ -4390,6 +6991,9 @@
                 pill.textContent = bilgi.ad;
                 const renk = aktifBolum === 'montaj' ? ['rgba(16,185,129,0.12)', '#34d399', 'rgba(16,185,129,0.4)']
                           : aktifBolum === 'metal'  ? ['rgba(245,158,11,0.12)', '#fbbf24', 'rgba(245,158,11,0.4)']
+                          : aktifBolum === 'isleme' ? ['rgba(139,92,246,0.12)', '#8b5cf6', 'rgba(139,92,246,0.4)']
+                          : aktifBolum === 'lazer'  ? ['rgba(6,182,212,0.12)',  '#06b6d4', 'rgba(6,182,212,0.4)']
+                          : aktifBolum === 'pres'   ? ['rgba(236,72,153,0.12)', '#ec4899', 'rgba(236,72,153,0.4)']
                                                    : ['rgba(59,130,246,0.12)',  '#60a5fa', 'rgba(59,130,246,0.4)'];
                 pill.style.background = renk[0];
                 pill.style.color = renk[1];
@@ -4397,8 +7001,12 @@
             }
             const btn = document.getElementById('ref-excel-aktar-btn');
             if (btn) {
-                btn.textContent = '📥 Excel\'den Aktar';
+                btn.textContent = '📥 Excel\'den İçe Aktar';
             }
+            // Exceli Güncelle (Program → Excel): TK1'de gizli — TK1 referansları ayrı
+            // dosyada (Tk1 Veriler.xlsx) ve cycle/teyit tutmaz, TK2 Excel'ine yazılmaz.
+            const gBtn = document.getElementById('ref-excel-guncelle-btn');
+            if (gBtn) gBtn.style.display = (aktifLokasyon === 'TK1') ? 'none' : '';
         }
 
         // Aktif teyit filtresi (all / teyitsiz / suresiz / teyitli)
@@ -4423,9 +7031,18 @@
             return true;
         }
 
+        // Uzun liste render durumu — filtre değişince ilk 200'e dönülür
+        let _refTumunuGoster = false;
+        let _refSonData = [];
+        function refDevaminiGoster() {
+            _refTumunuGoster = true;
+            renderReferanslar(_refSonData);
+        }
+
         function renderReferanslar(data) {
             const tbody = document.getElementById('ref-tbl-body');
             if (!tbody) return;
+            _refSonData = data;
 
             // Kaynak bölümünde 2 ek sütun (kaynak/söktak) + teyit kolonu
             const isKaynak = (aktifBolum === 'kaynak');
@@ -4438,21 +7055,30 @@
             // Filtre uygula (sadece kaynakta anlamlı)
             const liste = isKaynak ? data.filter(refFiltresinden) : data;
 
+            // Filtre sonrası kayıt sayacı (bölüm pill'inin yanı)
+            const sayac = document.getElementById('ref-kayit-sayac');
+            if (sayac) sayac.textContent = liste.length + ' kayıt';
+
             if (!liste.length) {
                 const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
-                const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans'
-                               : (aktifBolum === 'metal')  ? 'Metal Referans'
-                                                           : 'Kaynak Referans';
+                const sayfaAdi = BOLUM_EXCEL_SAYFA[aktifBolum] || 'Kaynak Referans';
                 tbody.innerHTML = `
                     <tr><td colspan="${colspan}" style="text-align:center;color:var(--muted);padding:36px 20px">
                         <div style="font-size:2rem;margin-bottom:10px">📦</div>
                         <div style="font-weight:700;color:var(--text);margin-bottom:4px">${bilgi} bölümü — filtreye uyan kayıt yok</div>
                         <div style="font-size:.82rem;margin-bottom:12px">"Tümü" filtresine geçebilir veya <b>data/uretim_verileri.xlsx</b> üzerinden veri aktarabilirsiniz.</div>
-                        <button class="btn btn-outline" style="border-color:#16a34a;color:#16a34a" onclick="excelVeriAktar()">📥 Excel'den Aktar</button>
+                        <button class="btn btn-outline" style="border-color:#16a34a;color:#16a34a" onclick="excelVeriAktar()" title="Excel → Program: sayfadaki referans/operatör listesini programa yükler">📥 Excel'den İçe Aktar</button>
                     </td></tr>`;
                 return;
             }
-            tbody.innerHTML = liste.map(r => {
+            // 200'den uzun listelerde ilk 200 satır + "Devamını göster" butonu
+            const gosterilecek = (!_refTumunuGoster && liste.length > 200) ? liste.slice(0, 200) : liste;
+            const devamHtml = (gosterilecek.length < liste.length)
+                ? `<tr><td colspan="${colspan}" style="text-align:center;padding:12px">
+                       <button class="btn btn-outline" style="font-size:.82rem" onclick="refDevaminiGoster()">Devamını göster (kalan ${liste.length - gosterilecek.length})</button>
+                   </td></tr>`
+                : '';
+            tbody.innerHTML = gosterilecek.map(r => {
                 const k = r.kaynak_suresi_sn || 0;
                 const s = r.soktak_suresi_sn || 0;
                 const ct = r.hedef_cycle_time_sn || 0;
@@ -4471,7 +7097,7 @@
                             : teyit
                                 ? `<span title="${teyitTarihi}" style="color:#16a34a;font-weight:700;font-size:.72rem">✅ Teyitli</span>
                                    <button onclick="refTeyitTogle('${r.referans_kodu}', 0)" style="margin-left:4px;background:transparent;border:none;cursor:pointer;color:var(--muted);font-size:.72rem" title="Teyidi geri al">↺</button>`
-                                : `<button onclick="refTeyitTogle('${r.referans_kodu}', 1)" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:6px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-weight:700">⏳ Teyit ver</button>`
+                                : `<button onclick="refTeyitTogle('${r.referans_kodu}', 1)" style="background:rgba(251,191,36,0.12);color:var(--c-amber);border:1px solid rgba(251,191,36,0.45);border-radius:6px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-weight:700">⏳ Teyit ver</button>`
                         }
                     </td>`) : '';
                 return `
@@ -4482,14 +7108,14 @@
                         <td style="text-align:right;font-weight:700">${ct || '0'} sn</td>
                         ${teyitCell}
                         <td style="display:flex;gap:4px;justify-content:center" onclick="event.stopPropagation()">
-                            <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe"
+                            <button class="btn" style="padding:4px 8px;font-size:.7rem;background:rgba(34,211,238,0.10);color:var(--info);border:1px solid rgba(34,211,238,0.35)"
                                     onclick="refDuzenle(${duzenleArgs})">✏️</button>
                             <button class="btn" style="padding:4px 8px;font-size:.7rem;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5"
                                     onclick="referansSil('${r.referans_kodu}')">🗑️</button>
                         </td>
                     </tr>
                 `;
-            }).join('');
+            }).join('') + devamHtml;
         }
 
         async function refTeyitTogle(kod, yeni) {
@@ -4500,7 +7126,13 @@
                     body: JSON.stringify({ referans_kodu: kod, sure_teyit: yeni })
                 });
                 if (res.ok) {
-                    toast(yeni ? '✅ Teyit verildi' : 'Teyit geri alındı', 'ok');
+                    const d = await res.json();
+                    if (d.excel_uyari) {
+                        // Teyit DB'ye işlendi ama Excel'e yazılamadı (dosya açık olabilir)
+                        toast((yeni ? '✅ Teyit verildi' : 'Teyit geri alındı') + ' — ⚠️ Excel güncellenemedi: ' + d.excel_uyari, 'err');
+                    } else {
+                        toast(yeni ? '✅ Teyit verildi (Excel güncellendi)' : 'Teyit geri alındı (Excel güncellendi)', 'ok');
+                    }
                     yukleReferanslar();
                     yukleTeyitOzet();
                 } else {
@@ -4523,21 +7155,32 @@
             } catch (e) { /* sessiz */ }
         }
 
+        // Arama inputu için 180ms debounce — 1300+ kayıtta her tuşta render'ı engeller
+        let _refAraTimer = null;
+        function refAraDebounced() {
+            if (_refAraTimer) clearTimeout(_refAraTimer);
+            _refAraTimer = setTimeout(refAra, 180);
+        }
+
         function refAra() {
             const q = document.getElementById('ref-ara-input').value.toLowerCase().replace(/\s+/g, '');
-            const filtered = tumReferanslar.filter(r => 
-                r.referans_kodu.toLowerCase().replace(/\s+/g, '').includes(q) || 
+            const filtered = tumReferanslar.filter(r =>
+                r.referans_kodu.toLowerCase().replace(/\s+/g, '').includes(q) ||
                 (r.aciklama && r.aciklama.toLowerCase().replace(/\s+/g, '').includes(q))
             );
+            _refTumunuGoster = false;  // yeni filtrede ilk 200'e dön
             renderReferanslar(filtered);
         }
 
         async function yukleEksikReferanslar() {
+            const panel = document.getElementById('eksik-referanslar-panel');
+            // TK1 (yan tesis montaj): referanslarda cycle time gerekmez →
+            // "süre tanımı bekleyen" uyarı panelini hiç gösterme.
+            if (aktifLokasyon === 'TK1') { if (panel) panel.style.display = 'none'; return; }
             try {
                 const res = await fetch('/api/referanslar/eksik?bolum=' + encodeURIComponent(aktifBolum));
                 if (!res.ok) throw new Error('API hatası');
                 const list = await res.json();
-                const panel = document.getElementById('eksik-referanslar-panel');
                 const listEl = document.getElementById('eksik-ref-list');
                 
                 if (list && list.length > 0) {
@@ -4545,11 +7188,11 @@
                     listEl.innerHTML = list.map(ref => `
                         <div style="display:inline-flex; border:1px solid #fca5a5; border-radius:10px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,.05)">
                             <button onclick="refDuzenle('${ref}', '', 0)" title="Süre Tanımla"
-                                    style="background:#fff; border:none; padding:6px 10px; font-size:.78rem; font-weight:700; color:#e11d48; cursor:pointer; transition:.2s">
+                                    style="background:rgba(248,113,113,0.12); border:none; padding:6px 10px; font-size:.78rem; font-weight:700; color:var(--c-red); cursor:pointer; transition:.2s">
                                 ${ref} +
                             </button>
                             <button onclick="referansSil('${ref}')" title="Bu referansı sil"
-                                    style="background:#fee2e2; border:none; border-left:1px solid #fca5a5; padding:6px 8px; font-size:.78rem; font-weight:700; color:#9f1239; cursor:pointer; transition:.2s">
+                                    style="background:rgba(248,113,113,0.10); border:none; border-left:1px solid rgba(248,113,113,0.4); padding:6px 8px; font-size:.78rem; font-weight:700; color:#9f1239; cursor:pointer; transition:.2s">
                                 ✖
                             </button>
                         </div>
@@ -4665,7 +7308,7 @@
         async function referansSil(kod) {
             if (!confirm(`'${kod}' referansını listeden silmek istiyor musunuz?`)) return;
             try {
-                const res = await fetch(`/api/referanslar/${kod}`, { method: 'DELETE' });
+                const res = await fetch(`/api/referanslar/${kod}?bolum=${encodeURIComponent(aktifBolum)}`, { method: 'DELETE' });
                 if (res.ok) {
                     toast('Referans silindi', 'ok');
                     yukleReferanslar();
@@ -4678,9 +7321,7 @@
 
         async function referansExcelGuncelle() {
             const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
-            const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans'
-                           : (aktifBolum === 'metal')  ? 'Metal Referans'
-                                                       : 'Kaynak Referans';
+            const sayfaAdi = BOLUM_EXCEL_SAYFA[aktifBolum] || 'Kaynak Referans';
             if (!confirm(`${bilgi} bölümünün referanslarını data/uretim_verileri.xlsx → "${sayfaAdi}" sayfasına yazmak istiyor musunuz?`)) return;
             toast('Excel güncelleniyor...', 'info');
             try {
@@ -4715,6 +7356,8 @@
             }
         }
 
+        // Birleşik render: raf-gruplu görünüm + her satırda sil butonu (eski
+        // yukleFiksturPanel/renderFikstur çifte-render'ı tek fonksiyonda toplandı).
         function renderFikstur(liste) {
             const tbody = document.getElementById('fikstur-table-body');
             document.getElementById('fikstur-count').textContent = liste.length + ' kayıt';
@@ -4722,16 +7365,27 @@
                 tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><p>Kayıt yok</p></div></td></tr>';
                 return;
             }
-            tbody.innerHTML = liste.map(r => `
-                <tr>
-                    <td><b>${r.referans_kodu}</b></td>
-                    <td>${r.raf_adresi}</td>
-                    <td>${r.notlar || '—'}</td>
-                    <td style="text-align:right">
-                        <button onclick="fiksturSil(${r.id})" class="btn" style="background:#fee2e2;color:#dc2626;padding:4px 8px;font-size:.7rem">🗑️</button>
-                    </td>
-                </tr>
-            `).join('');
+            // Raf bazında grupla ve sırala
+            const raflar = {};
+            liste.forEach(f => {
+                const raf = f.raf_adresi || 'Belirtilmedi';
+                if (!raflar[raf]) raflar[raf] = [];
+                raflar[raf].push(f);
+            });
+            tbody.innerHTML = Object.keys(raflar).sort().map(raf => {
+                const baslik = `<tr><td colspan="4" style="background:var(--table-header);font-weight:800;font-size:.78rem;color:var(--primary);padding:6px 12px">🗄️ Raf: ${raf}</td></tr>`;
+                const satirlar = raflar[raf].map(f => `
+                    <tr>
+                        <td style="padding-left:24px"><b>${f.referans_kodu}</b></td>
+                        <td>${f.raf_adresi || '—'}</td>
+                        <td style="font-size:.8rem;color:var(--muted)">${f.notlar || ''}</td>
+                        <td style="text-align:right">
+                            <button onclick="fiksturSil(${f.id})" class="btn" style="background:rgba(248,113,113,0.12);color:var(--c-red);padding:4px 8px;font-size:.7rem">🗑️</button>
+                        </td>
+                    </tr>
+                `).join('');
+                return baslik + satirlar;
+            }).join('');
         }
 
         function fiksturFiltrele(q) {
@@ -4817,7 +7471,7 @@
                     <td>${r.robot_no}</td>
                     <td>İstasyon ${r.istasyon}</td>
                     <td style="text-align:right">
-                        <button onclick="uyumSil(${r.id})" class="btn" style="background:#fee2e2;color:#dc2626;padding:4px 8px;font-size:.7rem">🗑️</button>
+                        <button onclick="uyumSil(${r.id})" class="btn" style="background:rgba(248,113,113,0.12);color:var(--c-red);padding:4px 8px;font-size:.7rem">🗑️</button>
                     </td>
                 </tr>
             `).join('');
@@ -4892,6 +7546,7 @@
                 const d = await res.json();
 
                 let toplamOnline = 0, toplamOffline = 0, toplamBekleme = 0;
+                const aktifKartlar = [];
                 ['kaynak', 'montaj', 'metal'].forEach(bolum => {
                     const liste = d[bolum] || [];
                     liste.forEach(c => {
@@ -4899,9 +7554,19 @@
                         else if (c.durum === 'offline') toplamOffline++;
                         else toplamBekleme++;
                     });
+                    // Online cihazlar üstteki "Aktif" bölümüne (yan yana, tam kart);
+                    // offline/beklemede bölüm grid'inde küçük kalır
+                    liste.filter(c => c.durum === 'online').forEach(c => aktifKartlar.push(c));
+                    const digerleri = liste.filter(c => c.durum !== 'online');
                     const grid = document.getElementById('saha-' + bolum + '-grid');
-                    if (grid) grid.innerHTML = liste.map(renderSahaKart).join('');
+                    if (grid) grid.innerHTML = digerleri.length
+                        ? digerleri.map(renderSahaKart).join('')
+                        : '<div style="color:var(--muted);font-style:italic;font-size:.78rem">Bu bölümdeki tüm cihazlar aktif</div>';
                 });
+                const aktifGrid = document.getElementById('saha-aktif-grid');
+                if (aktifGrid) aktifGrid.innerHTML = aktifKartlar.length
+                    ? aktifKartlar.map(renderSahaKart).join('')
+                    : '<div style="color:var(--muted);font-style:italic;font-size:.82rem">Henüz online cihaz yok</div>';
 
                 document.getElementById('saha-online').textContent     = toplamOnline;
                 document.getElementById('saha-offline').textContent    = toplamOffline;
@@ -4942,6 +7607,18 @@
                 'beklemede': { bg: 'rgba(156,163,175,0.08)', bd: 'rgba(156,163,175,0.30)', ic: '#9ca3af', text: 'BEKLEMEDE', pulse: false },
             };
             const r = renkler[c.durum] || renkler.beklemede;
+
+            // Beklemede (henüz kurulmamış) cihazlar — KOMPAKT kart.
+            // Tek satır (isim + küçük rozet), align-self:start ile satırı şişirmez.
+            // Aktif cihazlar öne çıksın / ekran görüntüsü sade olsun diye küçültüldü.
+            if (c.durum === 'beklemede') {
+                return `
+                    <div style="align-self:start;background:${r.bg};border:1px solid ${r.bd};border-radius:10px;padding:6px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.7">
+                        <span style="font-size:.82rem;font-weight:700;color:var(--text)">${c.robot_no}</span>
+                        <span style="background:${r.bd};color:${r.ic};padding:1px 7px;border-radius:999px;font-size:.5rem;font-weight:800;letter-spacing:.05em;flex-shrink:0">BEKLEMEDE</span>
+                    </div>
+                `;
+            }
 
             // RSSI rengi
             const rssi = c.wifi_rssi || 0;
@@ -5000,7 +7677,7 @@
                 if (ref) {
                     sayimHtml = `<span>Aktif:</span><span style="color:var(--text);font-weight:700">${ref.pulse_sayisi} <span style="font-size:.65rem;color:#34d399">▶ ${ref.referans_kodu}</span>${resetBtn(0, 'Sayaç')}</span>`;
                 } else {
-                    sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${c.toplam_sinyal || 0} pulse${resetBtn(0, 'Sayaç')}</span>`;
+                    sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${(c.bugun_toplam != null ? c.bugun_toplam : (c.toplam_sinyal || 0))} pulse${resetBtn(0, 'Sayaç')}</span>`;
                 }
             }
 
@@ -5078,13 +7755,66 @@
         };
         let _saChart = null;
 
+        // Sinyal Kalitesi & Sayım Kararları paneli (tüm cihazlar — tani + mutabakat)
+        async function yukleSinyalKalitesi() {
+            const tb = document.getElementById('sk-tablo');
+            const akis = document.getElementById('sk-akis');
+            try {
+                const res = await fetch('/api/pilot/sinyal_kalitesi', { cache: 'no-store' });
+                const d = await res.json();
+                const fmt = n => (n || 0).toLocaleString('tr-TR');
+                const cihazlar = (d.cihazlar || []).filter(c => c.sayildi > 0 || c.elenen_gurultu > 0 || c.kayip > 0);
+                if (!cihazlar.length) {
+                    tb.innerHTML = '<tr><td colspan="7" style="padding:10px;color:var(--muted);font-style:italic">Henüz tani verisi yok (v2.4+ firmware + heartbeat gerekir).</td></tr>';
+                } else {
+                    tb.innerHTML = cihazlar.map(c => {
+                        const rssi = c.wifi_rssi || 0;
+                        let rssiRenk = '#9ca3af';
+                        if (rssi < 0) rssiRenk = rssi >= -65 ? '#16a34a' : (rssi >= -75 ? '#f59e0b' : '#dc2626');
+                        const kayipRenk = c.kayip > 0 ? '#dc2626' : '#16a34a';
+                        const gurRenk = c.elenen_gurultu > 0 ? '#f59e0b' : 'var(--muted)';
+                        return `<tr style="border-top:1px solid var(--border)">
+                            <td style="padding:6px 8px;font-weight:700;color:var(--text)">${c.robot_no}${c.online ? '' : ' <span style="color:#9ca3af;font-size:.6rem">(offline)</span>'}</td>
+                            <td style="padding:6px 8px;color:var(--muted)">${c.bolum}</td>
+                            <td style="padding:6px 8px;text-align:right;font-weight:700;color:#34d399">${fmt(c.sayildi)}</td>
+                            <td style="padding:6px 8px;text-align:right;font-weight:700;color:${gurRenk}">${fmt(c.elenen_gurultu)}</td>
+                            <td style="padding:6px 8px;text-align:right;color:var(--muted)">${fmt(c.erken)}</td>
+                            <td style="padding:6px 8px;text-align:right;font-weight:700;color:${kayipRenk}">${fmt(c.kayip)}</td>
+                            <td style="padding:6px 8px;text-align:right;font-weight:700;color:${rssiRenk}">${rssi ? rssi + ' dBm' : '—'}</td>
+                        </tr>`;
+                    }).join('');
+                }
+                const kararlar = d.son_kararlar || [];
+                if (!kararlar.length) {
+                    akis.textContent = 'Henüz karar kaydı yok.';
+                } else {
+                    const tipRenk = { 'SAYILDI': '#34d399', 'ERKEN': '#fbbf24', 'PARAZIT': '#f87171' };
+                    akis.innerHTML = kararlar.map(k => {
+                        const saat = (k.ts || '').slice(11, 19);
+                        const renk = tipRenk[k.tip] || 'var(--muted)';
+                        const low = k.low_ms ? ` · ${(k.low_ms / 1000).toFixed(1)}s` : '';
+                        return `<div><span style="color:var(--muted)">${saat}</span> <b style="color:var(--text)">${k.robot_no || k.cihaz_id}</b> <span style="color:${renk};font-weight:700">${k.tip}</span>${low}</div>`;
+                    }).join('');
+                }
+            } catch (e) {
+                if (tb) tb.innerHTML = '<tr><td colspan="7" style="padding:10px;color:#dc2626">Yüklenemedi: ' + (e && e.message || '') + '</td></tr>';
+                if (akis) akis.textContent = '—';
+            }
+        }
+
         function sinyalAnalizSekmeAcildi() {
             // Tarih default: bugün
             const tarihEl = document.getElementById('sa-tarih');
             if (tarihEl && !tarihEl.value) {
                 tarihEl.value = new Date().toISOString().slice(0, 10);
             }
-            // Robot listesi (bolume göre)
+            // TK1 → bölüm montaj'a sabit (YF1 cihazı pilot.db'de bolum=montaj); bölüm seçici gizli.
+            const saBolumEl = document.getElementById('sa-bolum');
+            if (saBolumEl) {
+                if (aktifLokasyon === 'TK1') saBolumEl.value = 'montaj';
+                if (saBolumEl.parentElement) saBolumEl.parentElement.style.display = (aktifLokasyon === 'TK1') ? 'none' : '';
+            }
+            // Robot listesi (lokasyon + bölüme göre)
             _saRobotListesiYukle();
             // Bölüm değişince robot listesi tazelensin + istasyon wrap gizle
             const bolumEl = document.getElementById('sa-bolum');
@@ -5107,12 +7837,20 @@
             if (document.getElementById('sa-toplam').textContent === '—') {
                 yukleSinyalAnaliz();
             }
+            // Sinyal Kalitesi paneli — sekme her açılışta tazelensin
+            yukleSinyalKalitesi();
         }
 
         function _saRobotListesiYukle() {
-            const bolum = document.getElementById('sa-bolum').value;
             const robotEl = document.getElementById('sa-robot');
-            const list = SA_DEVICES[bolum] || [];
+            // TK1 → sadece TK1 cihazları (şu an YF1 deneme modülü). TK2 → bölümün cihazları.
+            let list;
+            if (aktifLokasyon === 'TK1') {
+                list = ['YF1'];
+            } else {
+                const bolum = document.getElementById('sa-bolum').value;
+                list = SA_DEVICES[bolum] || [];
+            }
             robotEl.innerHTML = list.map(r => `<option value="${r}">${r}</option>`).join('');
         }
 
@@ -5227,7 +7965,7 @@
             // Scatter datasets — kaynakta İst.1 + İst.2 ayrı, metal/montaj'da tek "Pulse"
             const scatter1 = [], scatter2 = [];
             (data.olaylar || []).forEach(o => {
-                if (o.gap_sn == null) return;
+                if (o.gap_sn == null || o.durus) return;   // duruş gap'i (uzun bekleme) scatter'ı şişirmesin
                 const t = new Date(o.ts).getTime();
                 const point = { x: t, y: o.gap_sn };
                 if (o.istasyon === 2) scatter2.push(point);
@@ -5258,6 +7996,7 @@
                         content: d.sebep + ' · ' + d.sure_dk + 'dk',
                         display: true,
                         position: 'start',
+                        yAdjust: (i % 3) * 22,   // yakın duruşlar üst üste binmesin — 3 farklı yükseklik
                         font: { size: 10, weight: 'bold' },
                         color: isPlanli ? '#b45309' : '#b91c1c',
                         backgroundColor: 'rgba(255,255,255,0.85)',
@@ -5437,7 +8176,7 @@
                 };
                 const pulseGaps = {};  // ref_kodu -> [gap_sn, ...]
                 olaylar.forEach(o => {
-                    if (o.gap_sn == null) return;
+                    if (o.gap_sn == null || o.durus) return;   // duruş gap'leri referans cycle istatistiğine girmesin
                     const ref = refByTs(o.ts);
                     if (!ref) return;
                     if (!pulseGaps[ref]) pulseGaps[ref] = [];
@@ -5501,31 +8240,49 @@
                     statusEl.textContent = '';
                     return;
                 }
-                tbody.innerHTML = list.map(o => {
-                    const bolumRenk = o.bolum === 'kaynak' ? '#a78bfa'
-                                    : o.bolum === 'montaj' ? '#34d399'
-                                    : o.bolum === 'metal'  ? '#fbbf24' : '#9ca3af';
-                    const pinDeger = o.pin || '0000';
+                // Kişi bazlı grupla — aynı ad tek satır (lokasyon zaten backend'de filtreli).
+                // PIN satırlar arasında senkron olduğundan ilk kaydın PIN'i gösterilir;
+                // PATCH kişinin herhangi bir satır id'siyle yapılır (backend tümüne yazar).
+                const bolumRenkGetir = (b) => b === 'kaynak' ? '#a78bfa'
+                                            : b === 'montaj' ? '#34d399'
+                                            : b === 'metal'  ? '#fbbf24'
+                                            : b === 'isleme' ? '#8b5cf6'
+                                            : b === 'lazer'  ? '#06b6d4'
+                                            : b === 'pres'   ? '#ec4899' : '#9ca3af';
+                const gruplar = {};
+                const sira = [];
+                list.forEach(o => {
+                    if (!gruplar[o.ad]) {
+                        gruplar[o.ad] = { id: o.id, ad: o.ad, pin: o.pin || '0000', bolumler: [] };
+                        sira.push(o.ad);
+                    }
+                    if (o.bolum && !gruplar[o.ad].bolumler.includes(o.bolum)) {
+                        gruplar[o.ad].bolumler.push(o.bolum);
+                    }
+                });
+                tbody.innerHTML = sira.map(ad => {
+                    const g = gruplar[ad];
+                    const rozetler = g.bolumler.length ? g.bolumler.map(b => {
+                        const renk = bolumRenkGetir(b);
+                        return `<span style="background:${renk}22;color:${renk};padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-right:4px;display:inline-block">${b}</span>`;
+                    }).join('') : '—';
+                    const pinDeger = g.pin;
                     const varsayilan = pinDeger === '0000';
                     return `
                         <tr style="border-bottom:1px solid var(--border)">
-                            <td style="padding:8px 6px;font-weight:700">${o.ad}</td>
-                            <td style="padding:8px 6px">
-                                <span style="background:${bolumRenk}22;color:${bolumRenk};padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em">
-                                    ${o.bolum || '—'}
-                                </span>
-                            </td>
+                            <td style="padding:8px 6px;font-weight:700">${g.ad}</td>
+                            <td style="padding:8px 6px">${rozetler}</td>
                             <td style="padding:8px 6px;font-family:'JetBrains Mono',monospace;font-weight:700;
                                        color:${varsayilan ? '#dc2626' : 'var(--text)'}">
                                 ${pinDeger}${varsayilan ? ' ⚠️' : ''}
                             </td>
                             <td style="padding:8px 6px">
                                 <input type="text" inputmode="numeric" maxlength="4" placeholder="4 hane"
-                                       id="op-pin-input-${o.id}"
+                                       id="op-pin-input-${g.id}"
                                        style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.95rem;text-align:center;background:var(--card)">
                             </td>
                             <td style="padding:8px 6px">
-                                <button onclick="opPinDegistir(${o.id},'${o.ad.replace(/'/g,"\\'")}')"
+                                <button onclick="opPinDegistir(${g.id},'${g.ad.replace(/'/g,"\\'")}')"
                                     style="background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer">
                                     Güncelle
                                 </button>
@@ -5533,7 +8290,7 @@
                         </tr>
                     `;
                 }).join('');
-                const varsayilanSayi = list.filter(o => (o.pin || '0000') === '0000').length;
+                const varsayilanSayi = sira.filter(ad => gruplar[ad].pin === '0000').length;
                 if (varsayilanSayi > 0) {
                     statusEl.innerHTML = `<span style="color:#dc2626;font-weight:700">${varsayilanSayi} operatör hâlâ varsayılan PIN'de (0000)</span>`;
                 } else {
@@ -5553,7 +8310,7 @@
                 inp.focus();
                 return;
             }
-            if (!confirm(`${ad} operatörünün PIN'i "${yeni}" olarak ayarlansın mı?`)) return;
+            if (!confirm(`${ad} operatörünün PIN'i "${yeni}" olarak ayarlansın mı?\n\nNot: Yeni PIN bu kişinin kayıtlı olduğu TÜM bölümlerde geçerli olur.`)) return;
             try {
                 const res = await fetch('/api/operator/' + id + '/pin', {
                     method: 'PATCH',
@@ -5639,10 +8396,17 @@
                 const renk = isPlanli ? '#f59e0b' : '#dc2626';
                 const tip  = isPlanli ? 'Planlı' : 'Plansız';
                 const saat = new Date(d.basla).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+                const tanimsiz = (d.sebep === 'Kaydedilmemiş');
+                const clickAttr = tanimsiz
+                    ? `onclick="durusTanimlaAc('${d.basla}','${d.biti}',${d.sure_dk})" title="Bu boşluğa duruş sebebi tanımla" style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px;cursor:pointer;border-radius:6px"`
+                    : `style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px"`;
+                const ad = tanimsiz
+                    ? `<span style="color:#9ca3af;font-style:italic">Kaydedilmemiş</span> <span style="color:#a78bfa;font-size:.7rem;font-weight:700">✏️ tanımla</span>`
+                    : d.sebep;
                 return `
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px">
+                    <div ${clickAttr}>
                         <div style="flex:1">
-                            <div style="font-weight:700;font-size:.82rem">${d.sebep}</div>
+                            <div style="font-weight:700;font-size:.82rem">${ad}</div>
                             <div style="color:var(--muted);font-size:.7rem;margin-top:2px">${saat} · ${tip}${d.aciklama ? ' · ' + d.aciklama : ''}</div>
                         </div>
                         <span style="color:${renk};font-weight:700;font-family:'JetBrains Mono',monospace;white-space:nowrap">${d.sure_dk} dk</span>
@@ -5651,46 +8415,100 @@
             }).join('');
         }
 
-        async function topluExcelIceAktar() {
-            if (!confirm(
-                'data/uretim_verileri.xlsx içindeki TÜM sayfalar veritabanına aktarılacak:\n\n' +
-                '• Kaynak/Montaj/Metal referansları + cycle time\n' +
-                '• Kaynak/Montaj/Metal operatörleri\n' +
-                '• Robot Program Listesi (kaynak için)\n' +
-                '• Fikstür Raf Listesi (kaynak için)\n\n' +
-                'Mevcut DB verileri Excel ile değiştirilecek. Devam edilsin mi?'
-            )) return;
-            toast('Excel okunuyor, lütfen bekleyin...', 'info');
+        // Kaydedilmemiş bir duruş boşluğuna sebep tanımlama modalı
+        async function durusTanimlaAc(basla, biti, sure_dk) {
+            const bolum   = document.getElementById('sa-bolum').value;
+            const robot   = document.getElementById('sa-robot').value;
+            const tarih   = document.getElementById('sa-tarih').value;
+            const b1 = new Date(basla).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+            const b2 = new Date(biti).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+            // Sebepleri çek
+            let sebepler = [];
             try {
-                const res = await fetch('/api/veri/import_tum', { method: 'POST' });
+                const res = await fetch('/api/durus_sebepleri?bolum=' + encodeURIComponent(bolum), {cache:'no-store'});
                 const d = await res.json();
-                if (d.basarili) {
-                    const ds = d.durus_sebepleri || {};
-                    const durusToplam = (ds.kaynak||0) + (ds.montaj||0) + (ds.metal||0);
-                    const ozet = [
-                        `${(d.referanslar_eklenen||0) + (d.referanslar_guncellenen||0)} referans`,
-                        `${d.operatorler_eklenen||0} operatör`,
-                        `${d.program_eklenen||0} program`,
-                        `${d.fikstur_eklenen||0} fikstür`,
-                        `${durusToplam} duruş sebebi`,
-                    ].join(' · ');
-                    toast('✅ İçe aktarma tamam: ' + ozet, 'ok');
-                    // Dashboard'u yenile
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    toast('❌ Hata: ' + (d.hata || 'bilinmeyen'), 'err');
-                }
-            } catch (e) {
-                toast('Bağlantı hatası: ' + e.message, 'err');
-            }
+                sebepler = d.sebepler || [];
+            } catch(e) {}
+            // Modal kur
+            const eski = document.getElementById('durus-tanim-modal');
+            if (eski) eski.remove();
+            const ov = document.createElement('div');
+            ov.id = 'durus-tanim-modal';
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+            const opsiyonlar = sebepler.map(s =>
+                `<option value="${(s.sebep||'').replace(/"/g,'&quot;')}" data-tip="${s.tip||'plansiz'}">${s.sebep} (${s.tip==='planli'?'Planlı':'Plansız'})</option>`
+            ).join('');
+            ov.innerHTML = `
+                <div style="background:var(--card);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.4);padding:20px 22px;width:min(420px,92vw)">
+                    <div style="font-size:1rem;font-weight:800;margin-bottom:4px">Duruş Tanımla</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px">${robot} · ${b1}–${b2} · <b>${sure_dk} dk</b></div>
+                    <label style="display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:4px">Duruş sebebi</label>
+                    <select id="dt-sebep" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;margin-bottom:10px">
+                        ${opsiyonlar}
+                        <option value="__diger__" data-tip="plansiz">Diğer (elle yaz)…</option>
+                    </select>
+                    <input id="dt-diger" placeholder="Sebep (elle)" style="display:none;width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;margin-bottom:10px">
+                    <label style="display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:4px">Tip</label>
+                    <select id="dt-tip" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:.85rem;margin-bottom:16px">
+                        <option value="plansiz">Plansız</option>
+                        <option value="planli">Planlı</option>
+                    </select>
+                    <div style="display:flex;gap:8px;justify-content:flex-end">
+                        <button onclick="document.getElementById('durus-tanim-modal').remove()" style="padding:8px 16px;border:1px solid var(--border);background:var(--card);border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">İptal</button>
+                        <button id="dt-kaydet" style="padding:8px 18px;border:0;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">Kaydet</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(ov);
+            const selEl = ov.querySelector('#dt-sebep');
+            const digerEl = ov.querySelector('#dt-diger');
+            const tipEl = ov.querySelector('#dt-tip');
+            const tipGuncelle = () => {
+                const opt = selEl.options[selEl.selectedIndex];
+                if (selEl.value === '__diger__') { digerEl.style.display = 'block'; }
+                else { digerEl.style.display = 'none'; if (opt) tipEl.value = opt.getAttribute('data-tip') || 'plansiz'; }
+            };
+            selEl.addEventListener('change', tipGuncelle); tipGuncelle();
+            ov.querySelector('#dt-kaydet').addEventListener('click', async () => {
+                let sebep = selEl.value === '__diger__' ? (digerEl.value || '').trim() : selEl.value;
+                if (!sebep) { toast('Sebep seç veya yaz', 'error'); return; }
+                try {
+                    const res = await fetch('/api/pilot/durus_tanimla', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ robot_no: robot, tarih, bolum, basla, biti, sure_dk,
+                                               durus_sebebi: sebep, durus_tipi: tipEl.value })
+                    });
+                    const d = await res.json();
+                    if (!res.ok) { toast(d.hata || 'Kaydedilemedi', 'error'); return; }
+                    toast('Duruş tanımlandı: ' + sebep, 'success');
+                    ov.remove();
+                    yukleSinyalAnaliz();
+                } catch(e) { toast('Bağlantı hatası', 'error'); }
+            });
         }
 
+        // (topluExcelIceAktar kaldırıldı — tek buton excelVeriAktar; kaynak bölümünde
+        //  Robot Program + Fikstür Raf sayfaları da otomatik dahildir.)
+
         async function excelVeriAktar() {
-            const sayfaAdi = (aktifBolum === 'montaj') ? 'Montaj Referans / Montaj Operator'
-                           : (aktifBolum === 'metal')  ? 'Metal Referans / Metal Operator'
-                                                       : 'Kaynak Referans / Kaynak Operator';
-            const bilgi = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
-            if (!confirm(`${bilgi} bölümü için data/uretim_verileri.xlsx → "${sayfaAdi}" sayfalarından referans ve operatör bilgileri aktarılacak.\n\nDevam edilsin mi?`)) return;
+            // TK1 ayrı dosya/akış: data/Tk1 Veriler.xlsx → import_tk1 (montaj)
+            if (aktifLokasyon === 'TK1') {
+                if (!confirm('TK1 için "data/Tk1 Veriler.xlsx" dosyasından referans ve operatörler aktarılacak.\n\nDevam edilsin mi?')) return;
+            } else {
+                // Operatör sayfası eki — eski bölümlerde ASCII 'Operator', yenilerde Türkçe 'Operatör' (import_excel.py ile aynı)
+                const opSayfaEk = {
+                    kaynak: 'Kaynak Operator + Robot Program Listesi + Fikstür Raf',
+                    montaj: 'Montaj Operator',
+                    metal:  'Metal Operator',
+                    isleme: 'İşleme Operatör',
+                    lazer:  'Lazer Operatör',
+                    pres:   'Pres Abkant Operatör'
+                };
+                const sayfaAdi = (BOLUM_EXCEL_SAYFA[aktifBolum] || 'Kaynak Referans')
+                               + ' / ' + (opSayfaEk[aktifBolum] || opSayfaEk.kaynak);
+                const bilgiTk2 = (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
+                if (!confirm(`${bilgiTk2} bölümü için data/uretim_verileri.xlsx → "${sayfaAdi}" sayfalarından veriler aktarılacak.\n\nDevam edilsin mi?`)) return;
+            }
+            const bilgi = (aktifLokasyon === 'TK1') ? 'TK1 Montaj' : (BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak).ad;
 
             toast('Veriler aktarılıyor, lütfen bekleyin...', 'info');
             try {
@@ -5702,6 +8520,9 @@
                     let mesaj = `✅ ${bilgi}: ${data.referanslar_eklenen} ekle, ${data.referanslar_guncellenen} güncelle`;
                     if (silinen > 0) mesaj += `, ${silinen} sil`;
                     mesaj += `, ${data.operatorler_eklenen} operatör`;
+                    // Kaynak aktarımında ek sayfalar (Robot Program + Fikstür Raf) da gelir
+                    if (data.program_eklenen !== undefined) mesaj += `, ${data.program_eklenen} program`;
+                    if (data.fikstur_eklenen !== undefined) mesaj += `, ${data.fikstur_eklenen} fikstür`;
                     toast(mesaj, 'ok');
                     if (aktifSekme === 'referanslar') {
                         yukleReferanslar();
@@ -5737,7 +8558,132 @@
                 bas.value = today;
                 bit.value = today;
             }
+            yukleRaporRobotListesi();
             yukleRaporlar();
+            mailPaneliYukle();
+        }
+
+        // ══ Otomatik günlük rapor e-postası — alıcı yönetimi ══
+        function mailEsc(s) {
+            return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+        function mailPaneliYukle() {
+            // SMTP durum rozeti
+            fetch('/api/mail/durum').then(r => r.json()).then(d => {
+                const rozet = document.getElementById('mail-durum-rozet');
+                if (!rozet) return;
+                if (d.etkin) {
+                    rozet.textContent = '● Aktif · ' + (d.gonderim_saati || '17:00');
+                    rozet.style.background = 'rgba(52,211,153,.15)'; rozet.style.color = '#34d399';
+                } else if (d.config_var) {
+                    rozet.textContent = '● Yapılandırıldı · kapalı';
+                    rozet.style.background = 'rgba(251,191,36,.15)'; rozet.style.color = '#fbbf24';
+                } else {
+                    rozet.textContent = '● SMTP tanımlı değil';
+                    rozet.style.background = 'rgba(248,113,113,.15)'; rozet.style.color = '#f87171';
+                }
+            }).catch(() => {});
+            // Alıcı listesi
+            fetch('/api/mail/alicilar').then(r => r.json()).then(list => {
+                const tb = document.getElementById('mail-alicilar-tbody');
+                if (!tb) return;
+                if (!Array.isArray(list) || !list.length) {
+                    tb.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--muted)">Henüz alıcı yok — yukarıdan ekleyin.</td></tr>';
+                    return;
+                }
+                tb.innerHTML = list.map(a => {
+                    const aktif = a.aktif == 1;
+                    const durumBtn = aktif
+                        ? `<button onclick="mailAliciDurum(${a.id},0)" title="Duraklat" style="background:rgba(52,211,153,.15);color:#34d399;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">● Aktif</button>`
+                        : `<button onclick="mailAliciDurum(${a.id},1)" title="Etkinleştir" style="background:#334155;color:#94a3b8;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">○ Pasif</button>`;
+                    return `<tr>
+                        <td style="text-align:left">${mailEsc(a.email)}</td>
+                        <td style="text-align:left; color:var(--muted)">${mailEsc(a.ad || '—')}</td>
+                        <td style="text-align:center">${durumBtn}</td>
+                        <td style="text-align:center"><button onclick="mailAliciSil(${a.id}, '${mailEsc(a.email)}')" title="Sil" style="background:transparent;color:#f87171;border:none;cursor:pointer;font-size:1rem">🗑</button></td>
+                    </tr>`;
+                }).join('');
+            }).catch(() => {});
+        }
+
+        function mailAliciEkle() {
+            const emailEl = document.getElementById('mail-yeni-email');
+            const adEl = document.getElementById('mail-yeni-ad');
+            const email = (emailEl.value || '').trim();
+            if (!email) { toast('E-posta giriniz', 'error'); return; }
+            fetch('/api/mail/alicilar', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: email, ad: (adEl.value || '').trim()})
+            }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
+                if (!res.ok) { toast(res.body.hata || 'Eklenemedi', 'error'); return; }
+                emailEl.value = ''; adEl.value = '';
+                toast('Alıcı eklendi', 'success');
+                mailPaneliYukle();
+            }).catch(() => toast('Bağlantı hatası', 'error'));
+        }
+
+        function mailAliciSil(id, email) {
+            if (!confirm(email + '\nBu alıcıyı listeden silmek istiyor musunuz?')) return;
+            fetch('/api/mail/alicilar/' + id, {method: 'DELETE'})
+                .then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
+                    if (!res.ok) { toast('Silinemedi', 'error'); return; }
+                    toast('Alıcı silindi', 'success'); mailPaneliYukle();
+                }).catch(() => toast('Bağlantı hatası', 'error'));
+        }
+
+        function mailAliciDurum(id, aktif) {
+            fetch('/api/mail/alicilar/' + id, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({aktif: aktif})
+            }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
+                if (!res.ok) { toast('Güncellenemedi', 'error'); return; }
+                mailPaneliYukle();
+            }).catch(() => toast('Bağlantı hatası', 'error'));
+        }
+
+        function mailSimdiGonder() {
+            if (!confirm('Bugünün üretim raporu ŞİMDİ oluşturulup aktif alıcılara e-posta ile gönderilecek. Devam edilsin mi?')) return;
+            toast('Gönderiliyor…', 'info');
+            fetch('/api/mail/gonder_simdi', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+            }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
+                toast(res.body.mesaj || (res.ok ? 'Gönderildi' : 'Gönderilemedi'), res.ok ? 'success' : 'error');
+            }).catch(() => toast('Bağlantı hatası', 'error'));
+        }
+
+        function mailTestGonder() {
+            const email = prompt('Test maili hangi adrese gönderilsin?');
+            if (!email) return;
+            toast('Test maili gönderiliyor…', 'info');
+            fetch('/api/mail/test', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: email.trim()})
+            }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
+                toast(res.body.mesaj || (res.ok ? 'Test maili gönderildi' : 'Gönderilemedi'), res.ok ? 'success' : 'error');
+            }).catch(() => toast('Bağlantı hatası', 'error'));
+        }
+
+        // Raporlar sekmesi robot/hat/makine dropdown'unu aktif bölüme göre doldur
+        async function yukleRaporRobotListesi() {
+            const sel = document.getElementById('rapor-robot');
+            const lbl = document.getElementById('rapor-robot-label');
+            if (lbl) lbl.textContent = ((BOLUM_BILGI[aktifBolum] || {}).tekil_etiket || 'Robot') + ' (Opsiyonel)';
+            if (!sel) return;
+            const onceki = sel.value;
+            sel.innerHTML = '<option value="">Tümü</option>';
+            try {
+                const res = await fetch('/api/robotlar?bolum=' + encodeURIComponent(aktifBolum));
+                const robotlar = await res.json();
+                robotlar.forEach(r => {
+                    const o = document.createElement('option');
+                    o.value = r; o.textContent = r;
+                    sel.appendChild(o);
+                });
+                if (onceki && Array.from(sel.options).some(op => op.value === onceki)) {
+                    sel.value = onceki;
+                }
+            } catch (e) { console.warn('Rapor robot listesi yüklenemedi:', e); }
         }
 
         async function yukleRaporlar() {
@@ -5752,7 +8698,7 @@
             tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:20px;">Yükleniyor...</td></tr>';
             
             try {
-                let url = `/api/rapor?rapor_tipi=${tipi}&tarih_bas=${bas}&tarih_bit=${bit}`;
+                let url = `/api/rapor?rapor_tipi=${tipi}&tarih_bas=${bas}&tarih_bit=${bit}&bolum=${encodeURIComponent(aktifBolum)}`;
                 if (robot) url += `&robot=${robot}`;
                 
                 const res = await fetch(url);
@@ -6052,6 +8998,9 @@
             const bilgi = BOLUM_BILGI[aktifBolum] || BOLUM_BILGI.kaynak;
             const renk = aktifBolum === 'montaj' ? ['rgba(16,185,129,.15)', '#34d399']
                        : aktifBolum === 'metal'  ? ['rgba(245,158,11,.15)', '#fbbf24']
+                       : aktifBolum === 'isleme' ? ['rgba(139,92,246,.15)', '#8b5cf6']
+                       : aktifBolum === 'lazer'  ? ['rgba(6,182,212,.15)',  '#06b6d4']
+                       : aktifBolum === 'pres'   ? ['rgba(236,72,153,.15)', '#ec4899']
                                                  : ['rgba(59,130,246,.15)',  '#60a5fa'];
             if (pill) {
                 pill.textContent = bilgi.ad;

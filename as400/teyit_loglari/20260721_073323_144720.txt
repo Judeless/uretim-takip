@@ -1,0 +1,91 @@
+TEYIT: launch 26-144720 / 94.CV.030 / 159 adet / bayrak A
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  144720  Ass. 94.CV.030                      Ord.Qty       200,000
+ 4|  Job      Yaris Utility    48034066 TORRETTA GAMME CNH    Rem.Qty       200,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 159 girildi, bayrak A: ' 1   100                 MT2   RPR                           AD           159 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  144720  Ass. 94.CV.030                      Ord.Qty       200,000
+ 4|  Job      Yaris Utility    48034066 TORRETTA GAMME CNH    Rem.Qty       200,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD           159 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 159
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  144720 Ass.cd  94.CV.030                Conf.qty       159,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.252            REP AD    1062,000     400,000     400,000    318,000 A
+ 7|    VITE A BRUGOLA M6X1 ES=5 H=40  War.cau. SPR Um     Rej.qty
+ 8|    10.130.3918           REP AD    1044,000     400,000     400,000    318,000 A
+ 9|    PERNO G=16 H=22 D=6            War.cau. SPR Um     Rej.qty
+10|    10.130.4183           REP AD    1044,000     400,000     400,000    318,000 A
+11|    48034256 TAPPO G=13 H=6        War.cau. SPR Um     Rej.qty
+12|    10.130.4413G          REP AD     200,000     200,000     200,000    159,000 A
+13|    48034373 ASSIEME GRUPPO ASTA   War.cau. SPR Um     Rej.qty
+14|    50.010.700            01D AD   11683,000-    200,000     200,000    159,000 A
+15|    ETICHETTE ADESIVE ARGENTO      War.cau. SPR Um     Rej.qty
+16|    10.130.3778GC         REP AD     522,000     200,000     200,000    159,000 A
+17|    TORRETTA CAMBIO GRUPPO         War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+Stok yetersiz (ozet) → F23 (force, tek sefer)
+---------- EKRAN [f23-ozet-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  144720 Ass.cd  94.CV.030                Conf.qty       159,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.252            REP AD    1062,000     400,000     400,000    318,000 A
+ 7|    VITE A BRUGOLA M6X1 ES=5 H=40  War.cau. SPR Um     Rej.qty
+ 8|    10.130.3918           REP AD    1044,000     400,000     400,000    318,000 A
+ 9|    PERNO G=16 H=22 D=6            War.cau. SPR Um     Rej.qty
+10|    10.130.4183           REP AD    1044,000     400,000     400,000    318,000 A
+11|    48034256 TAPPO G=13 H=6        War.cau. SPR Um     Rej.qty
+12|    10.130.4413G          REP AD     200,000     200,000     200,000    159,000 A
+13|    48034373 ASSIEME GRUPPO ASTA   War.cau. SPR Um     Rej.qty
+14|    50.010.700            01D AD   11683,000-    200,000     200,000    159,000 A
+15|    ETICHETTE ADESIVE ARGENTO      War.cau. SPR Um     Rej.qty
+16|    10.130.3778GC         REP AD     522,000     200,000     200,000    159,000 A
+17|    TORRETTA CAMBIO GRUPPO         War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  144720 Ass.cd  94.CV.030                Conf.qty       159,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.252            REP AD    1062,000     400,000     400,000    318,000 A
+ 7|    VITE A BRUGOL
+ 8|    10.130.3918                                                0,000    318,000 A
+ 9|    PERNO G=16 H=     Data movimento     21   7  26
+10|    10.130.4183       Tipo costo         S      S/C/L/P/U/M    0,000    318,000 A
+11|    48034256 TAPP     Costo                   1.156,068782
+12|    10.130.4413G                                               0,000    159,000 A
+13|    48034373 ASSI   F06=Conferma
+14|    50.010.700                                                 0,000    159,000 A
+15|    ETICHETTE ADESIVE ARGENTO      War.cau. SPR Um     Rej.qty
+16|    10.130.3778GC         REP AD     522,000     200,000     200,000    159,000 A
+17|    TORRETTA CAMBIO GRUPPO         War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

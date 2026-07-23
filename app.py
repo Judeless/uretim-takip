@@ -1,14 +1,16 @@
-from flask import Flask, request, jsonify, render_template, send_file, g
+from flask import Flask, request, jsonify, render_template, send_file, g, session, redirect
 from flask_cors import CORS
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
+import secrets
 import traceback # For debugging
 
 from database import get_db as db_connect, init_db
 from oee import hesapla_oee, hesapla_oee_ozet
-from import_excel import import_data, durus_sebepleri_yukle, import_tum, export_referans_cycle_times
+from import_excel import import_data, durus_sebepleri_yukle, import_tum, export_referans_cycle_times, import_tk1
 from export_excel import export_arsiv
 
 # ODS dosyası yolu
@@ -132,7 +134,125 @@ def _ods_guncelle(tum_kayitlar):
         print(f'ODS güncelleme hatası: {e}')
 
 app = Flask(__name__)
-CORS(app)
+
+# ── Oturum (session) gizli anahtarı ──
+# Panel girişi imzalı cookie ile tutulur. Anahtar RESTART'lar arasında SABİT
+# olmalı (yoksa her restart tüm oturumları düşürür). Öncelik: COFLE_SECRET_KEY
+# env; yoksa proje kökünde tek seferlik üretilip saklanan .flask_secret dosyası
+# (gitignore'da). Dosya yazılamazsa (salt-okunur FS) süreç-ömürlü rastgele anahtar.
+def _secret_key_yukle():
+    env_key = os.environ.get('COFLE_SECRET_KEY')
+    if env_key:
+        return env_key
+    yol = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.flask_secret')
+    try:
+        if os.path.exists(yol):
+            with open(yol, 'r', encoding='utf-8') as f:
+                k = f.read().strip()
+                if k:
+                    return k
+        k = secrets.token_hex(32)
+        with open(yol, 'w', encoding='utf-8') as f:
+            f.write(k)
+        return k
+    except Exception:
+        return secrets.token_hex(32)
+
+app.secret_key = _secret_key_yukle()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+)
+
+# ── Panel yetki modeli ──
+# İzin verilebilen sayfa anahtarları (dashboard_v2 sidebar data-sayfa değerleri).
+# 'kullanicilar' burada YOK — o admin'e özeldir (rol ile korunur, izinle değil).
+PANEL_SAYFALAR = [
+    'ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
+    'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
+    'as400-teyit',
+]
+
+def panel_kullanici():
+    """Aktif oturumdaki panel kullanıcısını DB'den taze çeker (izin/aktiflik anlık).
+    Oturum yoksa veya kullanıcı pasif/silinmişse None."""
+    kid = session.get('panel_uid')
+    if not kid:
+        return None
+    try:
+        conn = get_db()
+        row = conn.execute(
+            "SELECT id, kullanici_adi, ad_soyad, rol, izinler, aktif, sifre_gecici "
+            "FROM panel_kullanicilari WHERE id=?", (kid,)
+        ).fetchone()
+    except Exception:
+        return None
+    if not row or not row['aktif']:
+        return None
+    try:
+        izinler = json.loads(row['izinler'] or '[]')
+        if not isinstance(izinler, list):
+            izinler = []
+    except Exception:
+        izinler = []
+    admin = (row['rol'] == 'admin')
+    return {
+        'id': row['id'],
+        'kullanici_adi': row['kullanici_adi'],
+        'ad_soyad': row['ad_soyad'] or '',
+        'rol': row['rol'],
+        'admin': admin,
+        # admin tüm sayfaları görür; kullanıcı yalnız izin listesi
+        'izinler': PANEL_SAYFALAR[:] if admin else [s for s in izinler if s in PANEL_SAYFALAR],
+        'sifre_gecici': bool(row['sifre_gecici']),
+    }
+
+def panel_gerekli(izin=None, admin=False):
+    """Endpoint koruma decorator'ı.
+      panel_gerekli()                → sadece giriş yapılmış olmalı
+      panel_gerekli(izin='referanslar') → o sayfa izni (admin daima geçer)
+      panel_gerekli(admin=True)      → yalnız admin
+    401 = giriş yok, 403 = yetki yok. Operatör mobil/andon uç noktalarına
+    UYGULANMAZ (onlar oturumsuz çalışır)."""
+    def dekorator(fn):
+        @wraps(fn)
+        def sarmal(*args, **kwargs):
+            ku = panel_kullanici()
+            if not ku:
+                return jsonify({'hata': 'Oturum gerekli', 'giris_gerekli': True}), 401
+            if admin and not ku['admin']:
+                return jsonify({'hata': 'Bu işlem için yönetici yetkisi gerekli'}), 403
+            if izin and not ku['admin'] and izin not in ku['izinler']:
+                return jsonify({'hata': f'Bu sayfa için yetkiniz yok ({izin})'}), 403
+            g.panel_ku = ku
+            return fn(*args, **kwargs)
+        return sarmal
+    return dekorator
+
+# Şablon hot-reload — debug'dan BAĞIMSIZ. debug=False (güvenlik) iken Flask normalde
+# şablonları önbelleğe alır ve .html değişiklikleri ancak restart'ta yansır. Bunu açık
+# tutarak HTML değişikliklerini RESTART OLMADAN canlıya alıyoruz (ufak mtime kontrolü,
+# ihmal edilebilir maliyet) — güvenlik debug'ı kapalı kalır.
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+@app.after_request
+def _html_no_cache(resp):
+    """HTML sayfaları her açılışta TAZE gelsin — PWA/ana ekran kısayolu bayat
+    sürüm göstermesin (tarayıcı her seferinde sunucuyla doğrulasın)."""
+    try:
+        if resp.mimetype == 'text/html':
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            resp.headers['Pragma'] = 'no-cache'
+    except Exception:
+        pass
+    return resp
+
+# GUVENLIK: wildcard CORS YOK. Tum erisim same-origin oldugu icin varsayilan: cross-origin kapali.
+# Frontend ayri domaine bolunurse: COFLE_CORS_ORIGINS=https://alan.adi (virgulle coklu) ile ac.
+_cors_origins = [o.strip() for o in os.environ.get('COFLE_CORS_ORIGINS', '').split(',') if o.strip()]
+if _cors_origins:
+    CORS(app, origins=_cors_origins)
 
 # ── Veritabanı Bağlantı Yönetimi ──
 def get_db():
@@ -148,6 +268,24 @@ def teardown_db(exception):
             db.close()
         except Exception:
             pass
+
+
+@app.errorhandler(Exception)
+def api_hata_json(e):
+    """/api/* yollarında yakalanmamış istisna HTML 500 yerine JSON döner.
+    Mobil/dashboard r.json() bekler — HTML gelince operatör anlamsız 'Bağlantı hatası'
+    görür ve gerçek sebep gizlenir (2026-07-06 'closed database' arızası dersi).
+    Sayfa route'ları (HTML) etkilenmez. HTTPException'lar (404/400 vb.) aynen geçer."""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        # /api/* yollarında 400/404/405 vb. de JSON — mobil r.json() her zaman parse edebilsin
+        if request.path.startswith('/api/'):
+            return jsonify({'hata': e.description or e.name, 'kod': e.code}), e.code
+        return e
+    if request.path.startswith('/api/'):
+        print(f"HATA ({request.method} {request.path}): {traceback.format_exc()}")
+        return jsonify({'hata': f'Sunucu hatası: {type(e).__name__}: {e}'}), 500
+    raise e
 
 # ─────────────────────────────────────────────────────────────
 # OPERATÖR YETKİLENDİRME (PIN tabanlı)
@@ -169,14 +307,27 @@ def operator_required(f):
         op = unquote(op_raw) if op_raw else ''
         pin = (request.headers.get('X-Operator-Pin', '') or '').strip()
         g.operator_adi = None
+        g.operator_lokasyon = None
         if op and pin:
+            # Lokasyon (varsa, fetch wrapper query'e ekler) ile daralt — composite UNIQUE
+            # sonrası aynı ad iki tesiste olabilir. PIN'i tutan SATIRIN lokasyonu g'ye yazılır
+            # (sahiplik kontrolü tesis karşılaştırması yapabilsin).
+            lok = (request.args.get('lokasyon') or '').strip()
+            # DIKKAT: get_db() flask.g'de REQUEST-PAYLASIMLI baglanti doner — BURADA KAPATMA!
+            # (Decorator istegin BASINDA calisir; kapatirsak handler ayni kapali baglantiyi
+            # alir → "Cannot operate on a closed database" 500. Kapatma teardown_db'de.)
             conn = get_db()
-            row = conn.execute('SELECT pin FROM operatorler WHERE ad=?', (op,)).fetchone()
-            if not row:
+            if lok:
+                rows = conn.execute("SELECT pin, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE ad=? AND COALESCE(lokasyon,'TK2')=?", (op, lok)).fetchall()
+            else:
+                rows = conn.execute("SELECT pin, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE ad=?", (op,)).fetchall()
+            if not rows:
                 return jsonify({'hata': f'Operatör bulunamadı: {op}'}), 403
-            if (row['pin'] or '0000') != pin:
+            eslesen = next((r for r in rows if (r['pin'] or '0000') == pin), None)
+            if eslesen is None:
                 return jsonify({'hata': 'PIN yanlış'}), 403
             g.operator_adi = op
+            g.operator_lokasyon = eslesen['lokasyon'] or 'TK2'
         elif op or pin:
             return jsonify({'hata': 'Operatör adı ve PIN birlikte gönderilmeli'}), 403
         return f(*args, **kwargs)
@@ -190,12 +341,19 @@ def _vardiya_sahibi_kontrol(vardiya_id):
     """
     if not getattr(g, 'operator_adi', None):
         return True, None  # dashboard modu — operatör yetkisi gerekmez
+    if g.operator_adi == ADMIN_ADI:
+        return True, None  # yönetici — tüm vardiyalara erişir
     conn = get_db()
-    row = conn.execute('SELECT operator_adi FROM vardiyalar WHERE id=?', (vardiya_id,)).fetchone()
+    row = conn.execute("SELECT operator_adi, COALESCE(lokasyon,'TK2') as lokasyon FROM vardiyalar WHERE id=?", (vardiya_id,)).fetchone()
     if not row:
         return False, f'Vardiya bulunamadı (id={vardiya_id})'
     if row['operator_adi'] != g.operator_adi:
         return False, f'Bu vardiya başka operatöre ait: {row["operator_adi"]}'
+    # Tesis karşılaştırması: composite UNIQUE sonrası iki tesiste aynı ad olabilir —
+    # TK1'deki 'X', TK2'deki aynı adlı 'X'in vardiyasına dokunamasın.
+    op_lok = getattr(g, 'operator_lokasyon', None)
+    if op_lok and row['lokasyon'] != op_lok:
+        return False, f'Bu vardiya başka tesise ait ({row["lokasyon"]})'
     return True, None
 
 
@@ -218,7 +376,69 @@ def _durus_vardiya_bul(durus_id):
 # ─────────────────────────────────────────────────────────────
 # Sadece sahada kurulu + doğrulanmış cihazlarda OK adet sensörden otomatik beslenir.
 # Yeni cihaz devreye alınıp test edildikçe robot_no buraya eklenir.
-SAYAC_AUTO_CIHAZLAR = {'ABB2', 'ABB5', 'M1', '400T'}
+# Kaynak ABB1..ABB9: tüm robotlar devreye alındı (2026-06). NOT: 2 robotun fiziksel sayaç
+#   montajı 2026-06-26'da tamamlanacak — o robotlarda cihaz sayana kadar operatör ADET'i ELLE
+#   girmeli (auto mod sensörü 0 okur → boş bırakılırsa üretim 0 görünür).
+# Montaj M1..M12: tüm hatlara sayaç modülü kuruldu (2026-06) — hepsi sensör destekli.
+# Metal: 300T + 400T + 550T. 300T [PULSE] testinden geçti, sahada sayıyor (2026-07-16).
+# NOT: andon "makine çalışıyor" + sayaç rozeti bu allowlist'ten BAĞIMSIZ (saha_cihazlari
+# robot_calisiyor'u sinyalden türetir); allowlist SADECE operatör mobil otomatik sayacını açar.
+SAYAC_AUTO_CIHAZLAR = (
+    {f'ABB{i}' for i in range(1, 10)} | {'300T', '400T', '550T'} | {f'M{i}' for i in range(1, 13)}
+    | {'YF1', 'LF-LFP'}
+    # 2026-07-23 yeni sayaç modülleri: abkant (röle) + eksantrik pres (iki-el AND) →
+    # bölüm 'pres'; plastik enjeksiyon (320T/407T, metal mantığı) → bölüm 'plastik' (TK1).
+    | {'Abkant 1', 'Abkant 2', 'Abkant 3'} | {f'Pres {i}' for i in range(1, 6)}
+    | {'320T', '407T'}
+)
+# YF1: TK1 (yan tesis) montaj deneme modülü — MONTAJ-YF1 cihazı robot_no='YF1' ile flash'lı
+# (sahada zaten yüklü, yeniden flash YOK). pilot.db'de bolum=montaj/robot_no=YF1; saha_cihazlari
+# BEKLENEN'inde lokasyon=TK1 olarak izlenir. robot_no global benzersiz → firmware'de lokasyon gerekmez.
+
+# TK1 (yan tesis) cihazlarının robot_no'ları — pilot.db'de lokasyon kolonu olmadığı için
+# saha_cihazlari/sinyal_kalitesi'ni lokasyona göre filtrelerken robot_no ile eşleriz.
+# YF1 = sahadaki deneme modülü; diğerleri TK1 hatları (ileride cihaz takılırsa kapsanır).
+TK1_ROBOT_NOLARI = {'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP'}
+
+# Hat → sayaç cihazının robot_no eşlemesi: operatör hattı seçer (vardiya.robot_no='LF-LFP')
+# ama saha modülü pulse'ları robot_no='YF1' ile pilot.db'ye düşer. Sayım yapılırken hat
+# adı cihazın robot_no'suna çevrilir. (Yeniden flash gerektirmeden eşleştirme.)
+HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1'}
+
+# Yönetici kullanıcı — operatorler tablosunda 'Admin' (PIN varsayılan 9999, panelden
+# değiştirilebilir). Bu adla PIN girişi yapan TÜM vardiyalara erişir (sahiplik kontrolü
+# bypass, mobilde kart kilidi yok) ve başka operatör adına vardiya açabilir.
+ADMIN_ADI = 'Admin'
+
+# Geçerli bölüm anahtarları — TEK kaynak. isleme/lazer/pres (2026-07): TK2'ye eklenen
+# yeni bölümler; sayaç/andon/iş takibi YOK, sadece vardiya + üretim girişi + rapor.
+# Yeni bölüm eklerken: import_excel.BOLUM_SAYFA + mobil/dashboard/rapor template
+# toggle'ları da güncellenmeli (anahtarlar ASCII slug — URL/CSS class/JS map'lerde kullanılır).
+GECERLI_BOLUMLER = ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik')
+BOLUM_AD = {
+    'kaynak': 'Robot Kaynak',
+    'montaj': 'Montaj',
+    'metal':  'Metal Enjeksiyon',
+    'isleme': 'İşleme',
+    'lazer':  'Lazer Kesim',
+    'pres':   'Pres Abkant',
+}
+
+# Push bildirim alıcıları — bölüme yeni referans/launch eklendiğinde kimin
+# telefonuna bildirim gitsin. İsimler operatorler tablosundaki adlarla
+# (harf/Türkçe karakter duyarsız) eşleştirilir. Yeni alıcı: buraya ekle.
+BILDIRIM_ALICILARI = {
+    'kaynak': ['Cihan Zilci', 'Mevlüt Bora'],
+    'montaj': ['Mustafa Kuş'],
+}
+
+# Metal "makine calisiyor" durumu — her sinyal aslinda makine-calisiyor rolesi
+# darbesidir (400T firmware o ~22sn aktif roleyi izler). Yesil SADECE role aktifken
+# yansin diye esik role-aktif penceresine yakin tutulur: sinyal gelince yesil, ~20sn
+# sonra (role birakinca / sinyal kesilince) soner. Boylece andon makinenin nabzini
+# gosterir. NOT: andon bu durumu 3sn'de bir hizli poll eder (ana 30sn refresh'i
+# beklemeden) — yoksa 20sn'lik pencere 30sn poll arasinda kacardi.
+METAL_CALISIYOR_ESIK_SN = 20
 
 
 def _pilot_db_yolu():
@@ -229,13 +449,18 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
     """Pilot DB'de (bolum, robot_no) için basla_ts ile biti_ts arasındaki pulse sayısı.
     istasyon > 0 ise o istasyona filtrele; 0/None ise tüm istasyonlar (montaj/metal
     tek istasyon, firmware istasyon=1 gönderir → filtre yok hepsini sayar)."""
+    # Hat → cihaz robot_no eşlemesi (ör. LF-LFP hattının sayacı YF1 modülü)
+    robot_no = HAT_SAYAC_CIHAZI.get(robot_no, robot_no)
     pilot_db = _pilot_db_yolu()
-    if not basla_ts or not os.path.exists(pilot_db):
+    if not basla_ts:
         return 0
+    if not os.path.exists(pilot_db):
+        return None   # pilot.db yok = OKUNAMADI (hata); gercek 0 ile karistirma
     import sqlite3
     try:
-        pc = sqlite3.connect(pilot_db)
+        pc = sqlite3.connect(pilot_db, timeout=5.0)
         try:
+            pc.execute('PRAGMA busy_timeout=5000')   # kilitliyse 5sn bekle, hemen hata atma
             q = 'SELECT COUNT(*) FROM sayac_olaylari WHERE bolum=? AND robot_no=? AND ts >= ?'
             params = [bolum, robot_no, basla_ts]
             if biti_ts:
@@ -249,12 +474,13 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
         finally:
             pc.close()
     except Exception:
-        return 0
+        return None   # KILIT/HATA: 0 DONDURME — caller ok_adet'i sifirlamasin
 
 
 def _pilot_son_pulse_dk(bolum, robot_no, gun=None):
     """Bu cihazdan en son pulse'tan bu yana geçen dakika. Hiç pulse yoksa None.
     10 dk duruş uyarısı için kullanılır."""
+    robot_no = HAT_SAYAC_CIHAZI.get(robot_no, robot_no)   # hat → cihaz eşlemesi (LF-LFP→YF1)
     pilot_db = _pilot_db_yolu()
     if not os.path.exists(pilot_db):
         return None
@@ -281,32 +507,393 @@ def _pilot_son_pulse_dk(bolum, robot_no, gun=None):
         return None
 
 
+def _test_basari_say(conn, cihaz_id, referans_kodu, basla_ts, biti_ts=None):
+    """Cofle test cihazından (cofle_test poller'ı doldurur) basla_ts ile biti_ts
+    arasında o referansa ait BAŞARILI test sayısı. ESP32 pulse sayımının test-cihazı
+    karşılığı: 1 başarılı test = 1 pulse. Kaynak: test_sonuclari (ana DB).
+    basla_ts/biti_ts yerel '%Y-%m-%d %H:%M:%S' string; epoch'a çevrilir. Hata → None."""
+    if not cihaz_id or not basla_ts:
+        return None
+    try:
+        bas_epoch = int(datetime.strptime(basla_ts, '%Y-%m-%d %H:%M:%S').timestamp())
+    except Exception:
+        return None
+    norm = (referans_kodu or '').strip().upper().replace(' ', '')
+    q = ("SELECT COUNT(*) FROM test_sonuclari "
+         "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? AND (?='' OR referans_norm=?)")
+    params = [cihaz_id, bas_epoch, norm, norm]
+    if biti_ts:
+        try:
+            params.append(int(datetime.strptime(biti_ts, '%Y-%m-%d %H:%M:%S').timestamp()))
+            q += " AND ts_epoch < ?"
+        except Exception:
+            pass
+    try:
+        row = conn.execute(q, params).fetchone()
+        return row[0] if row else 0
+    except Exception:
+        return None   # tablo yok/hata: ok_adet'i SIFIRLAMA
+
+
+def _test_son_aktivite_dk(conn, vardiya_id):
+    """Vardiyanın AKTİF test-cihazı kayıtları (sayac_otomatik=1 + test_cihaz_id) için
+    son BAŞARILI testten beri geçen dakika. Pilot pulse'ın test-cihazı karşılığı:
+    operatör test cihazıyla çalışırken ESP32'ye pulse düşmez — '10dk sinyal yok'
+    duruş uyarısı test aktivitesine bakmazsa YANLIŞ duruş sayar.
+    Henüz hiç test yoksa referans başlangıcından beri sayar (o da gerçek duruştur).
+    Test-cihazı kaydı yoksa None (pilot mantığı tek başına geçerli)."""
+    try:
+        rows = conn.execute(
+            "SELECT test_cihaz_id, referans_kodu, sayac_baslangic_ts FROM uretim_kayitlari "
+            "WHERE vardiya_id=? AND sayac_otomatik=1 AND test_cihaz_id IS NOT NULL "
+            "AND sayac_baslangic_ts IS NOT NULL",
+            (vardiya_id,)
+        ).fetchall()
+        if not rows:
+            return None
+        en_yeni_epoch = None
+        for r in rows:
+            try:
+                bas_epoch = int(datetime.strptime(r['sayac_baslangic_ts'], '%Y-%m-%d %H:%M:%S').timestamp())
+            except Exception:
+                continue
+            norm = (r['referans_kodu'] or '').strip().upper().replace(' ', '')
+            row = conn.execute(
+                "SELECT MAX(ts_epoch) FROM test_sonuclari "
+                "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? AND (?='' OR referans_norm=?)",
+                (r['test_cihaz_id'], bas_epoch, norm, norm)
+            ).fetchone()
+            aktivite = (row[0] if row and row[0] else bas_epoch)  # hiç test yok → başlangıç anı
+            if en_yeni_epoch is None or aktivite > en_yeni_epoch:
+                en_yeni_epoch = aktivite
+        if en_yeni_epoch is None:
+            return None
+        return max(0, int((datetime.now().timestamp() - en_yeni_epoch) // 60))
+    except Exception:
+        return None
+
+
 def _uretim_sayac_senkron(conn, vardiya_id):
-    """Auto modlu (sayac_otomatik=1) üretim kayıtlarının ok_adet'ini sensör
-    pulse sayımıyla günceller. GET /api/vardiya ve OEE okumadan önce çağrılır,
-    böylece liste/rapor/OEE hep güncel sensör sayısını gösterir."""
+    """Auto modlu (sayac_otomatik=1) üretim kayıtlarının ok_adet'ini sensör sayımıyla
+    günceller. GET /api/vardiya ve OEE okumadan önce çağrılır, böylece liste/rapor/OEE
+    hep güncel sensör sayısını gösterir. İki sayaç kaynağı:
+      • test_cihaz_id dolu → Cofle test cihazı (test_sonuclari, başarılı test)
+      • aksi + robot allowlist'te → ESP32 pulse (pilot.db)"""
     try:
         v = conn.execute(
             "SELECT COALESCE(bolum,'kaynak') as bolum, robot_no FROM vardiyalar WHERE id=?",
             (vardiya_id,)
         ).fetchone()
-        if not v or not v['robot_no']:
-            return
-        # Sadece allowlist cihazlarda sensör senkronu (desteklenmeyen cihaz manuel kalır)
-        if v['robot_no'] not in SAYAC_AUTO_CIHAZLAR:
+        if not v:
             return
         rows = conn.execute(
-            "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
+            "SELECT id, istasyon, sayac_baslangic_ts, test_cihaz_id, referans_kodu "
+            "FROM uretim_kayitlari "
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vardiya_id,)
         ).fetchall()
+        robot_allow = bool(v['robot_no']) and v['robot_no'] in SAYAC_AUTO_CIHAZLAR
         for r in rows:
-            cnt = _pilot_pulse_say(v['bolum'], v['robot_no'], r['istasyon'] or 0,
-                                   r['sayac_baslangic_ts'])
-            conn.execute("UPDATE uretim_kayitlari SET ok_adet=? WHERE id=?", (cnt, r['id']))
+            if r['test_cihaz_id']:
+                cnt = _test_basari_say(conn, r['test_cihaz_id'], r['referans_kodu'],
+                                       r['sayac_baslangic_ts'])
+            elif robot_allow:
+                cnt = _pilot_pulse_say(v['bolum'], v['robot_no'], r['istasyon'] or 0,
+                                       r['sayac_baslangic_ts'])
+            else:
+                cnt = None
+            if cnt is not None:   # kaynak okunamadıysa ok_adet'i SIFIRLAMA (gerçek üretimi ezme)
+                conn.execute("UPDATE uretim_kayitlari SET ok_adet=? WHERE id=?", (cnt, r['id']))
         conn.commit()
     except Exception as e:
         print(f"[_uretim_sayac_senkron] hata: {e}")
+
+
+def _acik_auto_vardiyalari_senkronla(conn, bolum=None, lokasyon=None):
+    """Bugünün AÇIK vardiyalarındaki TÜM auto sayaç kayıtlarını (ESP32 + test cihazı)
+    sensör sayımıyla tazeler. Andon ve dashboard-özet okumaları ÖNCESİ çağrılır —
+    yoksa canlı makine adetleri (pilot rozeti) akarken performans/OEE bayat ok_adet'le
+    hesaplanır (operatör mobili açık değilse saatlerce güncellenmez). Yalnız AÇIK
+    vardiyalar: kapalı vardiyanın sayacı kapanış değerinde donuk kalmalı."""
+    try:
+        sql = ("SELECT DISTINCT v.id FROM vardiyalar v "
+               "JOIN uretim_kayitlari u ON u.vardiya_id = v.id "
+               "WHERE v.tarih = date('now','localtime') "
+               "AND COALESCE(v.durum,'acik') != 'kapali' AND u.sayac_otomatik = 1")
+        params = []
+        if bolum:
+            sql += " AND COALESCE(v.bolum,'kaynak') = ?"
+            params.append(bolum)
+        if lokasyon:
+            sql += " AND COALESCE(v.lokasyon,'TK2') = ?"
+            params.append(lokasyon)
+        for r in conn.execute(sql, params).fetchall():
+            _uretim_sayac_senkron(conn, r['id'])
+    except Exception as e:
+        print(f"[auto-senkron] hata: {e}")
+
+
+# ─────────────────────────────────────────────────────────────
+# OTOMATIK MOLALAR — sabit saatlerde planlı duruş (çay + yemek)
+# ─────────────────────────────────────────────────────────────
+# Şirket politikası: 09:00/13:00/15:00 çay (10dk), 11:00 yemek (30dk). Vardiya o
+# saatten ÖNCE açıldıysa ve saat GELDİYSE duruş otomatik işlenir — operatör elle
+# girmesin. AYNI TÜRDEN molalar tek duruş kaydında BİRİKİR (süre üzerine eklenir);
+# yeni satır sadece o türden kayıt yoksa açılır. cay_molasi_bayrak bitmask'i her
+# molayı bir kez işler (operatör kaydı silse de geri gelmez). Sadece BUGÜN.
+# Çay tüm bölümlerde aynı; YEMEK bölüme göre değişir:
+#   metal → 'Maden Tkv. ve Yemek Molası' 40dk (döküm alanı: maden takviyesi + yemek)
+#   diğer → 'Yemek Molası' 30dk
+def _bolum_molalari(bolum):
+    m = [
+        (1, '09:00', 10, 'Çay Molası'),
+        (2, '13:00', 10, 'Çay Molası'),
+        (4, '15:00', 10, 'Çay Molası'),
+    ]
+    if (bolum or 'kaynak') == 'metal':
+        m.append((8, '11:00', 40, 'Maden Tkv. ve Yemek Molası'))
+    else:
+        m.append((8, '11:00', 30, 'Yemek Molası'))
+    return sorted(m, key=lambda x: x[1])
+
+def _saat_to_time(s):
+    """'HH:MM' / 'HH:MM:SS' metnini datetime.time'a çevir; bozuksa None."""
+    s = (s or '').strip()
+    try:
+        return datetime.strptime(s[:5], '%H:%M').time()
+    except ValueError:
+        return None
+
+_TR_FOLD = str.maketrans('çÇıİöÖşŞüÜğĞ', 'cciioossuugg')
+def _mola_norm(s):
+    """Sebep adını eşleştirme için normalize et: Türkçe harf katla + küçült.
+    'Çay Molası' / 'Cay Molasi' / 'ÇAY MOLASI' → 'cay molasi'."""
+    return (s or '').translate(_TR_FOLD).lower().strip()
+
+def _otomatik_mola_uygula(conn, vardiya):
+    """Saati gelmiş otomatik molaları bu vardiyaya işler. Aynı türden planlı kayıt
+    varsa süresini ARTIRIR, yoksa yeni satır açar. Idempotent (bitmask). Caller
+    commit eder. Sadece bugünkü vardiya; eksik kolon/bozuk veri sessizce geçilir."""
+    try:
+        if 'cay_molasi_bayrak' not in vardiya.keys():
+            return                      # migration henüz çalışmadı
+    except Exception:
+        return
+    if (vardiya['tarih'] or '') != datetime.now().strftime('%Y-%m-%d'):
+        return                          # geçmiş ayrı (tek seferlik düzenleme yapıldı)
+    bas_t = _saat_to_time(vardiya['baslangic_saati'])
+    if bas_t is None:
+        return
+    # Etkin bitiş: vardiya açıksa ŞİMDİ, kapalıysa bitiş saati
+    if (vardiya['durum'] or '') == 'kapali':
+        etkin_bitis = _saat_to_time(vardiya['bitis_saati']) or datetime.now().time()
+    else:
+        etkin_bitis = datetime.now().time()
+    try:
+        vardiya_bolum = (vardiya['bolum'] if 'bolum' in vardiya.keys() else 'kaynak') or 'kaynak'
+    except Exception:
+        vardiya_bolum = 'kaynak'
+    bayrak = vardiya['cay_molasi_bayrak'] or 0
+    yeni = bayrak
+    for bit, mola_saati, mola_dk, sebep in _bolum_molalari(vardiya_bolum):
+        if bayrak & bit:
+            continue                    # bu mola zaten islendi
+        mola_t = _saat_to_time(mola_saati)
+        # Vardiya moladan ÖNCE açılmış + mola saati gelmiş olmalı
+        if not (mola_t and bas_t < mola_t <= etkin_bitis):
+            continue
+        # Aynı türden mevcut planlı kayıt var mı? (yazım varyantlarına dayanıklı)
+        hedef_id = None
+        for r in conn.execute(
+                "SELECT id, durus_sebebi FROM duruslar WHERE vardiya_id=? AND durus_tipi='planli' ORDER BY id",
+                (vardiya['id'],)).fetchall():
+            if _mola_norm(r['durus_sebebi']) == _mola_norm(sebep):
+                hedef_id = r['id']
+                break
+        if hedef_id is not None:
+            # BİRİKTİR: süreyi üzerine ekle, açıklamaya saati not düş
+            conn.execute(
+                "UPDATE duruslar SET sure_dk = sure_dk + ?, "
+                "aciklama = CASE WHEN COALESCE(aciklama,'')='' THEN ? ELSE aciklama || ' + ' || ? END "
+                "WHERE id=?",
+                (mola_dk, f'Otomatik: {mola_saati} ({mola_dk}dk)', f'{mola_saati} ({mola_dk}dk)', hedef_id)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi) "
+                "VALUES (?, ?, ?, ?, ?, 'planli')",
+                (vardiya['id'], sebep, f'Otomatik: {mola_saati} ({mola_dk}dk)', mola_dk, mola_saati)
+            )
+        yeni |= bit
+    if yeni != bayrak:
+        conn.execute("UPDATE vardiyalar SET cay_molasi_bayrak=? WHERE id=?", (yeni, vardiya['id']))
+
+
+# ─────────────────────────────────────────────────────────────
+# WEB PUSH BİLDİRİM — operatör telefonuna (VAPID)
+# ─────────────────────────────────────────────────────────────
+# Operatör mobil sayfada PIN ile girince tarayıcı push aboneliği kaydedilir
+# (/api/push/abone). Launch eklenince BILDIRIM_ALICILARI'ndaki operatörlerin
+# tüm cihazlarına bildirim gider. Anahtarlar ilk kullanımda üretilip
+# genel_ayarlar'da saklanır. pywebpush yoksa özellik sessizce devre dışı.
+_vapid_cache = {}
+
+def _vapid_keys():
+    """VAPID anahtar çifti (yoksa üret, genel_ayarlar'a yaz). {'priv','pub'} | None."""
+    if _vapid_cache:
+        return _vapid_cache
+    try:
+        import base64
+        from py_vapid import Vapid
+        from cryptography.hazmat.primitives import serialization
+        conn = db_connect()
+        try:
+            r_priv = conn.execute("SELECT deger FROM genel_ayarlar WHERE anahtar='push_vapid_priv'").fetchone()
+            r_pub  = conn.execute("SELECT deger FROM genel_ayarlar WHERE anahtar='push_vapid_pub'").fetchone()
+            if r_priv and r_pub:
+                try:
+                    Vapid.from_string(r_priv['deger'])   # format dogrulamasi (self-heal)
+                    _vapid_cache.update(priv=r_priv['deger'], pub=r_pub['deger'])
+                    return _vapid_cache
+                except Exception:
+                    print('[PUSH] Kayitli VAPID anahtari gecersiz formatta — yeniden uretiliyor')
+            v = Vapid()
+            v.generate_keys()
+            # pywebpush, vapid_private_key olarak 32-byte HAM degerin base64url'unu bekler
+            # (Vapid.from_string -> from_raw). PEM DEGIL.
+            priv_raw = v.private_key.private_numbers().private_value.to_bytes(32, 'big')
+            priv_b64 = base64.urlsafe_b64encode(priv_raw).rstrip(b'=').decode()
+            pub_raw = v.public_key.public_bytes(
+                serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+            pub_b64 = base64.urlsafe_b64encode(pub_raw).rstrip(b'=').decode()
+            conn.execute("INSERT OR REPLACE INTO genel_ayarlar (anahtar, deger) VALUES ('push_vapid_priv', ?)", (priv_b64,))
+            conn.execute("INSERT OR REPLACE INTO genel_ayarlar (anahtar, deger) VALUES ('push_vapid_pub', ?)", (pub_b64,))
+            conn.commit()
+            _vapid_cache.update(priv=priv_b64, pub=pub_b64)
+            return _vapid_cache
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f'[PUSH] VAPID anahtar hatası: {e}')
+        return None
+
+def _push_gonder(alici_adlari, baslik, govde, url='/'):
+    """Adı geçen operatörlerin TÜM cihazlarına push gönder (senkron).
+    Ölü abonelikler (404/410) otomatik silinir. Hata bildirimi düşürmez."""
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        print('[PUSH] pywebpush kurulu değil — bildirim atlandı')
+        return
+    keys = _vapid_keys()
+    if not keys:
+        return
+    hedef = {_mola_norm(a) for a in alici_adlari}
+    payload = json.dumps({'title': baslik, 'body': govde, 'url': url})
+    try:
+        conn = db_connect()
+    except Exception as e:
+        print(f'[PUSH] DB: {e}')
+        return
+    try:
+        subs = [s for s in conn.execute('SELECT * FROM push_abonelikler').fetchall()
+                if _mola_norm(s['operator_adi']) in hedef]
+        for s in subs:
+            try:
+                webpush(
+                    subscription_info={'endpoint': s['endpoint'],
+                                       'keys': {'p256dh': s['p256dh'], 'auth': s['auth']}},
+                    data=payload,
+                    vapid_private_key=keys['priv'],
+                    vapid_claims={'sub': 'mailto:bildirim@coflemanage.online'},
+                    timeout=10,
+                )
+            except WebPushException as e:
+                kod = getattr(getattr(e, 'response', None), 'status_code', None)
+                if kod in (404, 410):   # abonelik ölmüş (uygulama silinmiş vb.)
+                    conn.execute('DELETE FROM push_abonelikler WHERE id=?', (s['id'],))
+                    conn.commit()
+                else:
+                    print(f'[PUSH] gönderim hatası ({s["operator_adi"]}): {e}')
+            except Exception as e:
+                print(f'[PUSH] {e}')
+    finally:
+        conn.close()
+
+def _push_gonder_async(alici_adlari, baslik, govde, url='/'):
+    """Push'u arka plan thread'inde gönder — HTTP yanıtını bekletmez."""
+    import threading
+    threading.Thread(target=_push_gonder, args=(list(alici_adlari), baslik, govde, url),
+                     daemon=True).start()
+
+
+@app.route('/sw.js')
+def service_worker_js():
+    """Service worker — kök kapsam (push almak için / scope şart)."""
+    resp = send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'sw.js'),
+                     mimetype='application/javascript')
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+@app.route('/api/push/vapid', methods=['GET'])
+def push_vapid_public():
+    keys = _vapid_keys()
+    if not keys:
+        return jsonify({'hata': 'push devre dışı'}), 503
+    return jsonify({'public_key': keys['pub']})
+
+
+@app.route('/api/push/abone', methods=['POST'])
+@operator_required
+def push_abone():
+    """Operatör mobil cihazının push aboneliğini kaydet (PIN doğrulamalı)."""
+    if not getattr(g, 'operator_adi', None):
+        return jsonify({'hata': 'Operatör girişi gerekli'}), 400
+    sub = (request.get_json() or {}).get('subscription') or {}
+    endpoint = (sub.get('endpoint') or '').strip()
+    anahtarlar = sub.get('keys') or {}
+    p256dh, auth = anahtarlar.get('p256dh'), anahtarlar.get('auth')
+    if not (endpoint and p256dh and auth):
+        return jsonify({'hata': 'Geçersiz abonelik'}), 400
+    conn = get_db()
+    # endpoint UNIQUE: aynı cihaz tekrar abone olursa operatör adı güncellenir
+    conn.execute('''
+        INSERT INTO push_abonelikler (operator_adi, endpoint, p256dh, auth)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(endpoint) DO UPDATE SET
+            operator_adi = excluded.operator_adi,
+            p256dh = excluded.p256dh,
+            auth = excluded.auth
+    ''', (g.operator_adi, endpoint, p256dh, auth))
+    conn.commit()
+    return jsonify({'basarili': True})
+
+
+def _vardiya_efektif_dk(vardiya):
+    """Vardiyanın EFEKTİF süresi (dk) — canlı performans/kullanılabilirlik paydası.
+    Kapalı: toplam_sure_dk (gerçek açılış→kapanış; kapatırken yazılır).
+    Açık (bugün): başlangıçtan ŞU ANA kadar geçen dakika — süre ilerledikçe artar,
+    performans buna göre canlı değişir. Açık ama eski günde unutulmuş: kayıtlı süre."""
+    try:
+        durum = (vardiya['durum'] or 'kapali')
+        if durum == 'kapali':
+            return vardiya['toplam_sure_dk'] or 0
+        if (vardiya['tarih'] or '') == datetime.now().strftime('%Y-%m-%d'):
+            bas = _saat_to_time(vardiya['baslangic_saati'])
+            if bas is None:
+                return vardiya['toplam_sure_dk'] or 0
+            simdi = datetime.now().time()
+            gecen = (simdi.hour * 60 + simdi.minute) - (bas.hour * 60 + bas.minute)
+            if gecen < 0:
+                gecen += 1440   # gece yarısını geçen vardiya
+            return max(0, gecen)
+        return vardiya['toplam_sure_dk'] or 0
+    except Exception:
+        try:
+            return vardiya['toplam_sure_dk'] or 0
+        except Exception:
+            return 0
 
 
 # ─────────────────────────────────────────────────────────────
@@ -315,14 +902,21 @@ def _uretim_sayac_senkron(conn, vardiya_id):
 
 @app.route('/')
 def operator_sayfasi():
-    """Operatör mobil giriş sayfası (v2 — yeni tasarım canlıya alındı)."""
-    return render_template('mobile_v2.html')
+    """Operatör mobil giriş sayfası (v2). Varsayılan lokasyon: TK2 (mevcut fabrika)."""
+    return render_template('mobile_v2.html', lokasyon='TK2')
 
 
 @app.route('/mobile_v2')
 def operator_v2_preview():
     """Operatör v2 önizlemesi (canlı ile aynı şablon — direkt link için saklanıyor)."""
-    return render_template('mobile_v2.html')
+    return render_template('mobile_v2.html', lokasyon='TK2')
+
+
+@app.route('/tk1')
+def operator_tk1_sayfasi():
+    """TK1 (yan tesis) operatör mobil veri giriş sayfası. Lokasyon URL'den SABİT (TK1);
+    operatör ekranda TK1/TK2 seçmez — bu adres TK1 operatörlerinin telefonu içindir."""
+    return render_template('mobile_v2.html', lokasyon='TK1')
 
 
 @app.route('/mobile_legacy')
@@ -333,28 +927,308 @@ def operator_legacy_sayfasi():
 
 @app.route('/dashboard')
 def dashboard_sayfasi():
-    """Yönetici dashboard sayfası (yeni neon temada)."""
+    """Yönetici dashboard — YENİ tasarım (v2: önce genel bakış, gruplu menü, i18n).
+    Oturum yoksa giriş ekranı sunulur. Kullanıcının rol/izin bilgisi şablona
+    enjekte edilir (ekran titremeden yetkisiz sayfalar gizlenir)."""
+    ku = panel_kullanici()
+    if not ku:
+        return render_template('panel_giris.html')
+    return render_template('dashboard_v2.html', panel_ku=json.dumps({
+        'kullanici_adi': ku['kullanici_adi'],
+        'ad_soyad': ku['ad_soyad'],
+        'rol': ku['rol'],
+        'admin': ku['admin'],
+        'izinler': ku['izinler'],
+        'sifre_gecici': ku['sifre_gecici'],
+    }, ensure_ascii=False))
+
+
+@app.route('/dashboard_eski')
+def dashboard_eski_sayfasi():
+    """Eski yönetim paneli (v2 canlıya alınınca yedek olarak saklanıyor).
+    Bu panel sayfa-izni filtresi TAŞIMAZ (her şeyi gösterir) — bu yüzden yalnız
+    admin erişebilir; kısıtlı kullanıcı buradan kısıtlamayı aşamaz."""
+    ku = panel_kullanici()
+    if not ku:
+        return render_template('panel_giris.html')
+    if not ku['admin']:
+        return redirect('/dashboard')
     return render_template('dashboard.html')
 
 
 @app.route('/dashboard_legacy')
 def dashboard_legacy_sayfasi():
-    """Eski dashboard tasarımı (geri dönüş için saklanıyor)."""
+    """Eski dashboard tasarımı (geri dönüş için saklanıyor). Admin-only (yukarıdaki
+    gerekçeyle — izin filtresi yok)."""
+    ku = panel_kullanici()
+    if not ku:
+        return render_template('panel_giris.html')
+    if not ku['admin']:
+        return redirect('/dashboard')
     return render_template('dashboard_legacy.html')
+
+
+# ═══════════════════════ PANEL GİRİŞ / OTURUM ═══════════════════════
+@app.route('/api/panel/giris', methods=['POST'])
+def panel_giris():
+    """Panel (dashboard) giriş. Body: {kullanici_adi, sifre}.
+    Başarılı → imzalı oturum cookie'si kurulur. 401 = hatalı/pasif."""
+    data = request.get_json(silent=True) or {}
+    ka = (data.get('kullanici_adi') or '').strip().lower()
+    sifre = (data.get('sifre') or '')
+    if not ka or not sifre:
+        return jsonify({'hata': 'Kullanıcı adı ve şifre zorunlu'}), 400
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id, sifre_hash, aktif FROM panel_kullanicilari WHERE lower(kullanici_adi)=?",
+        (ka,)
+    ).fetchone()
+    if not row or not check_password_hash(row['sifre_hash'], sifre):
+        return jsonify({'hata': 'Kullanıcı adı veya şifre hatalı'}), 401
+    if not row['aktif']:
+        return jsonify({'hata': 'Bu hesap pasif durumda. Yöneticinize başvurun.'}), 403
+    conn.execute("UPDATE panel_kullanicilari SET son_giris=datetime('now','localtime') WHERE id=?", (row['id'],))
+    conn.commit()
+    session.permanent = True
+    session['panel_uid'] = row['id']
+    ku = panel_kullanici()
+    return jsonify({'basarili': True, 'kullanici': {
+        'kullanici_adi': ku['kullanici_adi'],
+        'ad_soyad': ku['ad_soyad'],
+        'rol': ku['rol'],
+        'admin': ku['admin'],
+        'izinler': ku['izinler'],
+        'sifre_gecici': ku['sifre_gecici'],
+    }}), 200
+
+
+@app.route('/api/panel/cikis', methods=['POST'])
+def panel_cikis():
+    """Oturumu kapatır."""
+    session.pop('panel_uid', None)
+    session.clear()
+    return jsonify({'basarili': True}), 200
+
+
+@app.route('/api/panel/oturum', methods=['GET'])
+def panel_oturum():
+    """Aktif oturum bilgisi (frontend yetki senkronu için)."""
+    ku = panel_kullanici()
+    if not ku:
+        return jsonify({'oturum': False}), 200
+    return jsonify({'oturum': True, 'kullanici': {
+        'kullanici_adi': ku['kullanici_adi'],
+        'ad_soyad': ku['ad_soyad'],
+        'rol': ku['rol'],
+        'admin': ku['admin'],
+        'izinler': ku['izinler'],
+        'sifre_gecici': ku['sifre_gecici'],
+    }}), 200
+
+
+@app.route('/api/panel/sifre_degistir', methods=['POST'])
+def panel_sifre_degistir():
+    """Giriş yapmış kullanıcı kendi şifresini değiştirir.
+    Body: {eski_sifre, yeni_sifre}. Geçici şifre bayrağı temizlenir."""
+    ku = panel_kullanici()
+    if not ku:
+        return jsonify({'hata': 'Oturum gerekli', 'giris_gerekli': True}), 401
+    data = request.get_json(silent=True) or {}
+    eski = (data.get('eski_sifre') or '')
+    yeni = (data.get('yeni_sifre') or '')
+    if len(yeni) < 6:
+        return jsonify({'hata': 'Yeni şifre en az 6 karakter olmalı'}), 400
+    conn = get_db()
+    row = conn.execute("SELECT sifre_hash FROM panel_kullanicilari WHERE id=?", (ku['id'],)).fetchone()
+    if not row or not check_password_hash(row['sifre_hash'], eski):
+        return jsonify({'hata': 'Mevcut şifre hatalı'}), 403
+    conn.execute(
+        "UPDATE panel_kullanicilari SET sifre_hash=?, sifre_gecici=0 WHERE id=?",
+        (generate_password_hash(yeni), ku['id'])
+    )
+    conn.commit()
+    return jsonify({'basarili': True}), 200
+
+
+# ═══════════════════════ PANEL KULLANICI YÖNETİMİ (admin) ═══════════════════════
+def _panel_ku_json(row):
+    try:
+        izinler = json.loads(row['izinler'] or '[]')
+        if not isinstance(izinler, list):
+            izinler = []
+    except Exception:
+        izinler = []
+    admin = (row['rol'] == 'admin')
+    return {
+        'id': row['id'],
+        'kullanici_adi': row['kullanici_adi'],
+        'ad_soyad': row['ad_soyad'] or '',
+        'rol': row['rol'],
+        'izinler': PANEL_SAYFALAR[:] if admin else [s for s in izinler if s in PANEL_SAYFALAR],
+        'aktif': bool(row['aktif']),
+        'sifre_gecici': bool(row['sifre_gecici']),
+        'son_giris': row['son_giris'] if 'son_giris' in row.keys() else None,
+    }
+
+
+def _temiz_izinler(deger):
+    """Gelen izin listesini geçerli sayfa anahtarlarına süzer."""
+    if not isinstance(deger, list):
+        return []
+    return [s for s in deger if s in PANEL_SAYFALAR]
+
+
+@app.route('/api/panel/kullanicilar', methods=['GET'])
+@panel_gerekli(admin=True)
+def panel_kullanicilar_liste():
+    """Tüm panel kullanıcılarını listeler (admin)."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, kullanici_adi, ad_soyad, rol, izinler, aktif, sifre_gecici, son_giris "
+        "FROM panel_kullanicilari ORDER BY (rol='admin') DESC, kullanici_adi"
+    ).fetchall()
+    return jsonify({'sayfalar': PANEL_SAYFALAR, 'kullanicilar': [_panel_ku_json(r) for r in rows]}), 200
+
+
+@app.route('/api/panel/kullanicilar', methods=['POST'])
+@panel_gerekli(admin=True)
+def panel_kullanici_ekle():
+    """Yeni panel kullanıcısı (admin). Body:
+    {kullanici_adi, ad_soyad, sifre, rol, izinler[]}. sifre_gecici=1 verilir."""
+    data = request.get_json(silent=True) or {}
+    ka = (data.get('kullanici_adi') or '').strip().lower()
+    ad_soyad = (data.get('ad_soyad') or '').strip()
+    sifre = (data.get('sifre') or '')
+    rol = 'admin' if (data.get('rol') == 'admin') else 'kullanici'
+    izinler = _temiz_izinler(data.get('izinler'))
+    if not ka:
+        return jsonify({'hata': 'Kullanıcı adı zorunlu'}), 400
+    if len(sifre) < 6:
+        return jsonify({'hata': 'Şifre en az 6 karakter olmalı'}), 400
+    conn = get_db()
+    var = conn.execute("SELECT 1 FROM panel_kullanicilari WHERE lower(kullanici_adi)=?", (ka,)).fetchone()
+    if var:
+        return jsonify({'hata': f'Bu kullanıcı adı zaten var: {ka}'}), 409
+    conn.execute(
+        "INSERT INTO panel_kullanicilari (kullanici_adi, ad_soyad, sifre_hash, rol, izinler, aktif, sifre_gecici) "
+        "VALUES (?, ?, ?, ?, ?, 1, 1)",
+        (ka, ad_soyad, generate_password_hash(sifre), rol, json.dumps(izinler))
+    )
+    conn.commit()
+    return jsonify({'basarili': True, 'kullanici_adi': ka}), 201
+
+
+@app.route('/api/panel/kullanicilar/<int:uid>', methods=['PATCH'])
+@panel_gerekli(admin=True)
+def panel_kullanici_guncelle(uid):
+    """Kullanıcı ad_soyad / rol / izinler / aktif günceller (admin).
+    Kilitlenme koruması: admin kendi rolünü düşüremez/kendini pasifleştiremez;
+    son aktif admin'in rolü düşürülemez."""
+    data = request.get_json(silent=True) or {}
+    conn = get_db()
+    row = conn.execute("SELECT id, rol, aktif FROM panel_kullanicilari WHERE id=?", (uid,)).fetchone()
+    if not row:
+        return jsonify({'hata': 'Kullanıcı bulunamadı'}), 404
+    ben = g.panel_ku
+    yeni_rol = row['rol']
+    if 'rol' in data:
+        yeni_rol = 'admin' if (data.get('rol') == 'admin') else 'kullanici'
+    yeni_aktif = row['aktif']
+    if 'aktif' in data:
+        yeni_aktif = 1 if data.get('aktif') else 0
+
+    # Kendini kilitleme koruması
+    if uid == ben['id']:
+        if yeni_rol != 'admin':
+            return jsonify({'hata': 'Kendi yönetici rolünüzü kaldıramazsınız'}), 400
+        if not yeni_aktif:
+            return jsonify({'hata': 'Kendi hesabınızı pasifleştiremezsiniz'}), 400
+    # Son admin koruması
+    if row['rol'] == 'admin' and (yeni_rol != 'admin' or not yeni_aktif):
+        aktif_admin = conn.execute(
+            "SELECT COUNT(*) c FROM panel_kullanicilari WHERE rol='admin' AND aktif=1"
+        ).fetchone()['c']
+        if aktif_admin <= 1:
+            return jsonify({'hata': 'Sistemde en az bir aktif yönetici kalmalı'}), 400
+
+    ad_soyad = data.get('ad_soyad')
+    if ad_soyad is None:
+        ad_soyad = conn.execute("SELECT ad_soyad FROM panel_kullanicilari WHERE id=?", (uid,)).fetchone()['ad_soyad']
+    else:
+        ad_soyad = ad_soyad.strip()
+    izinler = _temiz_izinler(data['izinler']) if 'izinler' in data else None
+    if izinler is None:
+        izinler_json = conn.execute("SELECT izinler FROM panel_kullanicilari WHERE id=?", (uid,)).fetchone()['izinler']
+    else:
+        izinler_json = json.dumps(izinler)
+    conn.execute(
+        "UPDATE panel_kullanicilari SET ad_soyad=?, rol=?, izinler=?, aktif=? WHERE id=?",
+        (ad_soyad, yeni_rol, izinler_json, yeni_aktif, uid)
+    )
+    conn.commit()
+    return jsonify({'basarili': True}), 200
+
+
+@app.route('/api/panel/kullanicilar/<int:uid>/sifre', methods=['POST'])
+@panel_gerekli(admin=True)
+def panel_kullanici_sifre_sifirla(uid):
+    """Admin bir kullanıcının şifresini sıfırlar. Body: {sifre}.
+    sifre_gecici=1 → kullanıcı ilk girişte değiştirmeye zorlanır."""
+    data = request.get_json(silent=True) or {}
+    sifre = (data.get('sifre') or '')
+    if len(sifre) < 6:
+        return jsonify({'hata': 'Şifre en az 6 karakter olmalı'}), 400
+    conn = get_db()
+    row = conn.execute("SELECT id FROM panel_kullanicilari WHERE id=?", (uid,)).fetchone()
+    if not row:
+        return jsonify({'hata': 'Kullanıcı bulunamadı'}), 404
+    conn.execute(
+        "UPDATE panel_kullanicilari SET sifre_hash=?, sifre_gecici=1 WHERE id=?",
+        (generate_password_hash(sifre), uid)
+    )
+    conn.commit()
+    return jsonify({'basarili': True}), 200
+
+
+@app.route('/api/panel/kullanicilar/<int:uid>', methods=['DELETE'])
+@panel_gerekli(admin=True)
+def panel_kullanici_sil(uid):
+    """Kullanıcı siler (admin). Kendini veya son aktif admin'i silemez."""
+    ben = g.panel_ku
+    if uid == ben['id']:
+        return jsonify({'hata': 'Kendi hesabınızı silemezsiniz'}), 400
+    conn = get_db()
+    row = conn.execute("SELECT rol, aktif FROM panel_kullanicilari WHERE id=?", (uid,)).fetchone()
+    if not row:
+        return jsonify({'hata': 'Kullanıcı bulunamadı'}), 404
+    if row['rol'] == 'admin' and row['aktif']:
+        aktif_admin = conn.execute(
+            "SELECT COUNT(*) c FROM panel_kullanicilari WHERE rol='admin' AND aktif=1"
+        ).fetchone()['c']
+        if aktif_admin <= 1:
+            return jsonify({'hata': 'Sistemde en az bir aktif yönetici kalmalı'}), 400
+    conn.execute("DELETE FROM panel_kullanicilari WHERE id=?", (uid,))
+    conn.commit()
+    return jsonify({'basarili': True}), 200
 
 
 @app.route('/logo')
 def logo_serve():
-    """Şirket logosunu serve et — tercih sırası:
-    1) Masaüstündeki gerçek PNG (varsa, sahada genelde bu)
-    2) Yerel static/logo.png (proje altında saklanan PNG)
-    3) Yerel static/logo.svg (kalıcı fallback, repo'da)
-    Her ihtimal başarısızsa 404."""
+    """Şirket logosu (Cofle Control Systems) — tercih sırası:
+    1) static/logo.png (resmi logo; 2026-07-21 kullanıcı isteğiyle kondu)
+    2) Masaüstündeki override PNG (varsa dosya değişimiyle güncellenebilir)
+    3) static/logo.svg (eski fallback)
+    ?tema=koyu → static/logo_koyu.png ('CONTROL SYSTEMS' yazısı BEYAZ —
+    koyu arkaplanlı ekranlar için; dashboard/andon/mobil bu varyantı kullanır)."""
     proje_dir = os.path.dirname(os.path.abspath(__file__))
+    if (request.args.get('tema') or '').strip() == 'koyu':
+        koyu = os.path.join(proje_dir, 'static', 'logo_koyu.png')
+        if os.path.exists(koyu):
+            return send_file(koyu, mimetype='image/png')
     logo_yollar = [
+        (os.path.join(proje_dir, 'static', 'logo.png'), 'image/png'),
         (os.path.join(os.path.expanduser('~'), 'OneDrive', 'Masaüstü', 'LOGO_COFLE ONLY.png'), 'image/png'),
         (os.path.join(os.path.expanduser('~'), 'Desktop', 'LOGO_COFLE ONLY.png'), 'image/png'),
-        (os.path.join(proje_dir, 'static', 'logo.png'), 'image/png'),
         (os.path.join(proje_dir, 'static', 'logo.svg'), 'image/svg+xml'),
     ]
     for yol, mime in logo_yollar:
@@ -376,12 +1250,22 @@ def favicon_serve():
 
 @app.route('/manifest.json')
 def web_manifest():
-    """Android PWA manifesti — ana ekrana eklendiğinde Cofle logosu + neon tema."""
+    """Android/iOS PWA manifesti — ana ekrana eklendiğinde Cofle logosu + neon tema.
+
+    ?lokasyon=TK1 → start_url '/tk1' (TK1 operatör telefonu ana ekran kısayolu TK1'den
+    açılır; yoksa PWA '/' açıp localStorage lokasyonu TK2'ye ezerdi ve TK2 operatörleri
+    listelenirdi). id alanı lokasyona göre farklı → iki tesis kısayolu aynı telefonda
+    ayrı uygulama olarak yaşayabilir.
+    """
+    lokasyon = (request.args.get('lokasyon') or 'TK2').upper()
+    tk1 = (lokasyon == 'TK1')
     return jsonify({
-        "name": "Cofle Manage",
-        "short_name": "Cofle",
-        "description": "Cofle Manage Üretim Takip Sistemi",
-        "start_url": "/",
+        "id": "/tk1" if tk1 else "/",
+        "name": "Cofle Manage TK1" if tk1 else "Cofle Manage",
+        "short_name": "Cofle TK1" if tk1 else "Cofle",
+        "description": "Cofle Manage Üretim Takip Sistemi" + (" — TK1" if tk1 else ""),
+        "start_url": "/tk1" if tk1 else "/",
+        "scope": "/",
         "display": "standalone",
         "orientation": "any",
         "background_color": "#060414",
@@ -453,6 +1337,17 @@ def andon_metal_sayfasi():
                            panel_baslik='Makine Durum Paneli')
 
 
+@app.route('/andon_tk1')
+def andon_tk1_sayfasi():
+    """TK1 (yan tesis) Andon ekranı — montaj mantığı, lokasyon=TK1 (v5 tasarım)."""
+    return render_template('andon_v5.html',
+                           bolum='montaj',
+                           lokasyon='TK1',
+                           bolum_ad='TK1 Montaj',
+                           bolum_ikon='🏢',
+                           panel_baslik='TK1 Hat Durum Paneli')
+
+
 @app.route('/andon_montaj_legacy')
 def andon_montaj_legacy_sayfasi():
     """Eski Montaj andon tasarımı (geri dönüş için saklanıyor)."""
@@ -485,6 +1380,7 @@ def vardiya_listesi():
     robot = request.args.get('robot')
     vardiya_turu = request.args.get('vardiya_turu')
     bolum = request.args.get('bolum')
+    lokasyon = request.args.get('lokasyon')
     limit = int(request.args.get('limit', 100))
 
     query = 'SELECT * FROM vardiyalar WHERE 1=1'
@@ -502,6 +1398,9 @@ def vardiya_listesi():
     if bolum:
         query += " AND COALESCE(bolum, 'kaynak') = ?"
         params.append(bolum)
+    if lokasyon:
+        query += " AND COALESCE(lokasyon, 'TK2') = ?"
+        params.append(lokasyon)
 
     query += ' ORDER BY tarih DESC, created_at DESC LIMIT ?'
     params.append(limit)
@@ -520,41 +1419,53 @@ def vardiya_ekle():
     """
     data = request.get_json()
 
-    zorunlu = ['tarih', 'vardiya_turu', 'robot_no', 'operator_adi', 'baslangic_saati', 'bitis_saati']
+    zorunlu = ['tarih', 'vardiya_turu', 'robot_no', 'operator_adi']
     for alan in zorunlu:
         if not data.get(alan):
             return jsonify({'hata': f'"{alan}" alanı zorunludur'}), 400
 
     # Operatör mobile'dan gelen istekte header'daki operator = body'deki operator olmalı
     # (başkasının adına vardiya açma engeli). Dashboard modunda g.operator_adi None.
-    if getattr(g, 'operator_adi', None) and g.operator_adi != data['operator_adi']:
+    # Admin bu kısıttan muaf — başka operatör adına vardiya açabilir.
+    if (getattr(g, 'operator_adi', None) and g.operator_adi != data['operator_adi']
+            and g.operator_adi != ADMIN_ADI):
         return jsonify({'hata': f'Sadece kendi adınıza vardiya açabilirsiniz ({g.operator_adi})'}), 403
 
-    # Planlı süreyi saat farkından hesapla
+    # Başlangıç: verilmediyse ŞU AN (operatör vardiyayı açtığı saat — sabit 07:00 yok).
+    # Bitiş: vardiya KAPATILINCA belli olur; açılışta boş kalabilir (toplam_sure_dk=0,
+    # açık vardiyada performans zaten "o ana kadar geçen süre" üzerinden hesaplanır).
+    bas_str = (data.get('baslangic_saati') or '').strip() or datetime.now().strftime('%H:%M')
+    bit_str = (data.get('bitis_saati') or '').strip()
     try:
-        bas = datetime.strptime(data['baslangic_saati'], '%H:%M')
-        bit = datetime.strptime(data['bitis_saati'], '%H:%M')
+        bas = datetime.strptime(bas_str, '%H:%M')
+    except ValueError:
+        return jsonify({'hata': 'Başlangıç saat formatı HH:MM olmalıdır'}), 400
+    fark_dk = 0
+    if bit_str:
+        try:
+            bit = datetime.strptime(bit_str, '%H:%M')
+        except ValueError:
+            return jsonify({'hata': 'Bitiş saat formatı HH:MM olmalıdır'}), 400
         fark_dk = int((bit - bas).total_seconds() / 60)
         if fark_dk < 0:
             fark_dk += 1440  # Gece yarısı geçen vardiyalar için
-    except ValueError:
-        return jsonify({'hata': 'Saat formatı HH:MM olmalıdır'}), 400
 
     conn = get_db()
     c = conn.cursor()
     c.execute('''
-        INSERT INTO vardiyalar (tarih, vardiya_turu, robot_no, operator_adi, baslangic_saati, bitis_saati, toplam_sure_dk, notlar, bolum)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO vardiyalar (tarih, vardiya_turu, robot_no, operator_adi, baslangic_saati, bitis_saati, toplam_sure_dk, notlar, bolum, lokasyon)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['tarih'],
         data['vardiya_turu'],
         data['robot_no'],
         data['operator_adi'],
-        data['baslangic_saati'],
-        data['bitis_saati'],
+        bas_str,
+        bit_str,
         fark_dk,
         data.get('notlar', ''),
-        data.get('bolum', 'kaynak')
+        data.get('bolum', 'kaynak'),
+        (data.get('lokasyon') or request.args.get('lokasyon') or 'TK2')
     ))
     vardiya_id = c.lastrowid
     conn.commit()
@@ -574,15 +1485,25 @@ def vardiya_detay(vid):
         conn.close()
         return jsonify({'hata': 'Vardiya bulunamadı'}), 404
 
+    # Otomatik molalar (çay/yemek) — saati gelmişse bu vardiyaya işle (idempotent)
+    _otomatik_mola_uygula(c, vardiya)
+    conn.commit()
+
     # Auto sayaç kayıtlarının ok_adet'ini sensör pulse sayımıyla tazele
     _uretim_sayac_senkron(conn, vid)
 
     uretim = c.execute('SELECT * FROM uretim_kayitlari WHERE vardiya_id = ?', (vid,)).fetchall()
     duruslar = c.execute('SELECT * FROM duruslar WHERE vardiya_id = ?', (vid,)).fetchall()
 
-    # 10dk duruş uyarısı: bu cihazdan en son pulse'tan beri geçen dakika.
+    # 10dk duruş uyarısı: son AKTİVİTE'den beri geçen dakika. İki kaynak:
+    # ESP32 pulse (pilot.db) VE test cihazı başarılı testleri (test_sonuclari) —
+    # test cihazıyla çalışan hatta pulse düşmez, yalnız pilot'a bakmak YANLIŞ duruş sayar.
+    # En yakın (en küçük dk) aktivite geçerli.
     vbolum = (vardiya['bolum'] if 'bolum' in vardiya.keys() else None) or 'kaynak'
     son_pulse_dk = _pilot_son_pulse_dk(vbolum, vardiya['robot_no'])
+    test_dk = _test_son_aktivite_dk(conn, vid)
+    if test_dk is not None:
+        son_pulse_dk = test_dk if son_pulse_dk is None else min(son_pulse_dk, test_dk)
     conn.close()
 
     return jsonify({
@@ -594,6 +1515,76 @@ def vardiya_detay(vid):
         # sensör rozeti/ipucu/sıfırla butonu gösterir
         'sayac_destekli': (vardiya['robot_no'] in SAYAC_AUTO_CIHAZLAR),
     })
+
+
+@app.route('/api/vardiya/<int:vid>/sayac_log', methods=['GET'])
+def vardiya_sayac_log(vid):
+    """Operatör mobil 'Sinyal Geçmişi' — vardiyanın sayaç olay logu (en yeni üstte, son 100).
+    İki kaynak birleşik: ESP32 pulse (pilot.db sayac_olaylari, vardiya günü + cihaz)
+    ve test cihazı kayıtları (test_sonuclari, referans başlangıcından beri)."""
+    conn = get_db()
+    v = conn.execute(
+        "SELECT robot_no, COALESCE(bolum,'kaynak') as bolum, tarih FROM vardiyalar WHERE id=?",
+        (vid,)
+    ).fetchone()
+    if not v:
+        return jsonify({'hata': 'Vardiya bulunamadı'}), 404
+    loglar = []
+
+    # ── ESP32 pulse'ları (hat → cihaz eşlemesi: LF-LFP→YF1) ──
+    robot = HAT_SAYAC_CIHAZI.get(v['robot_no'], v['robot_no'])
+    pilot_db = _pilot_db_yolu()
+    if os.path.exists(pilot_db):
+        try:
+            import sqlite3 as _sq
+            pc = _sq.connect(pilot_db, timeout=5.0)
+            pc.row_factory = _sq.Row
+            try:
+                pc.execute('PRAGMA busy_timeout=5000')
+                for r in pc.execute(
+                    "SELECT ts, istasyon FROM sayac_olaylari "
+                    "WHERE bolum=? AND robot_no=? AND date(ts)=? ORDER BY ts DESC LIMIT 100",
+                    (v['bolum'], robot, v['tarih'])
+                ).fetchall():
+                    loglar.append({
+                        'ts': r['ts'], 'kaynak': 'sensor',
+                        'detay': (f"İst.{r['istasyon']}" if (r['istasyon'] or 0) > 0 else 'Sayım'),
+                    })
+            finally:
+                pc.close()
+        except Exception as e:
+            print(f"[sayac_log] pilot okuma hatası: {e}")
+
+    # ── Test cihazı kayıtları (başarısızlar da listelenir — operatör tam geçmişi görsün) ──
+    try:
+        for u in conn.execute(
+            "SELECT test_cihaz_id, referans_kodu, sayac_baslangic_ts FROM uretim_kayitlari "
+            "WHERE vardiya_id=? AND test_cihaz_id IS NOT NULL", (vid,)
+        ).fetchall():
+            norm = (u['referans_kodu'] or '').strip().upper().replace(' ', '')
+            bas_epoch = 0
+            if u['sayac_baslangic_ts']:
+                try:
+                    bas_epoch = int(datetime.strptime(u['sayac_baslangic_ts'], '%Y-%m-%d %H:%M:%S').timestamp())
+                except Exception:
+                    pass
+            for t in conn.execute(
+                "SELECT ts_epoch, sonuc, basarili, cihaz_adi FROM test_sonuclari "
+                "WHERE cihaz_id=? AND ts_epoch>=? AND (?='' OR referans_norm=?) "
+                "ORDER BY ts_epoch DESC LIMIT 100",
+                (u['test_cihaz_id'], bas_epoch, norm, norm)
+            ).fetchall():
+                loglar.append({
+                    'ts': datetime.fromtimestamp(t['ts_epoch']).strftime('%Y-%m-%d %H:%M:%S'),
+                    'kaynak': 'test',
+                    'basarili': int(t['basarili'] or 0),
+                    'detay': (t['sonuc'] or ('BAŞARILI' if t['basarili'] else 'BAŞARISIZ')),
+                })
+    except Exception as e:
+        print(f"[sayac_log] test okuma hatası: {e}")
+
+    loglar.sort(key=lambda x: x['ts'], reverse=True)
+    return jsonify({'robot_no': v['robot_no'], 'loglar': loglar[:100]})
 
 
 @app.route('/api/vardiya/<int:vid>', methods=['DELETE'])
@@ -614,21 +1605,22 @@ def vardiya_sil(vid):
 
 @app.route('/api/vardiya/bugun', methods=['GET'])
 def vardiya_bugun():
-    """Bugune ait tum vardiylari getirir (operatorn secim ekrani icin). ?bolum= ile filtrelenebilir."""
+    """Bugune ait tum vardiylari getirir (operatorn secim ekrani icin). ?bolum= ve ?lokasyon= ile filtrelenebilir."""
     from datetime import date as _date
     bugun = _date.today().isoformat()
     bolum = request.args.get('bolum')
-    conn = get_db()
+    lokasyon = request.args.get('lokasyon')
+    q = 'SELECT * FROM vardiyalar WHERE tarih = ?'
+    params = [bugun]
     if bolum:
-        rows = conn.execute(
-            "SELECT * FROM vardiyalar WHERE tarih = ? AND COALESCE(bolum, 'kaynak') = ? ORDER BY baslangic_saati DESC",
-            (bugun, bolum)
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            'SELECT * FROM vardiyalar WHERE tarih = ? ORDER BY baslangic_saati DESC',
-            (bugun,)
-        ).fetchall()
+        q += " AND COALESCE(bolum, 'kaynak') = ?"
+        params.append(bolum)
+    if lokasyon:
+        q += " AND COALESCE(lokasyon, 'TK2') = ?"
+        params.append(lokasyon)
+    q += ' ORDER BY baslangic_saati DESC'
+    conn = get_db()
+    rows = conn.execute(q, params).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -650,11 +1642,26 @@ def vardiya_kapat(vid):
     if not vardiya:
         conn.close()
         return jsonify({'hata': 'Vardiya bulunamadi'}), 404
-    bas = datetime.strptime(vardiya['baslangic_saati'], '%H:%M')
-    bit = datetime.strptime(bitis, '%H:%M')
+    # Kapanmadan önce: vardiya boyunca geçen otomatik molaları kesinleştir (rapor tam olsun)
+    _otomatik_mola_uygula(c, vardiya)
+    # Saat parse KORUMALI: DB'de bozuk baslangic_saati varsa (eski/elle düzenlenmiş kayıt)
+    # veya body'de bozuk bitis gelirse vardiya SONSUZA dek kapatılamaz hale gelmesin —
+    # 'HH:MM:SS' toleransı + hata durumunda 400 JSON.
+    try:
+        bas = datetime.strptime(str(vardiya['baslangic_saati'])[:5], '%H:%M')
+        bit = datetime.strptime(str(bitis)[:5], '%H:%M')
+    except (ValueError, TypeError):
+        conn.close()
+        return jsonify({'hata': f"Saat formatı geçersiz (başlangıç='{vardiya['baslangic_saati']}', bitiş='{bitis}') — HH:MM olmalı"}), 400
     fark_dk = int((bit - bas).total_seconds() / 60)
     if fark_dk < 0:
         fark_dk += 1440
+    # Auto sayaç kayıtlarını KAPANIŞ DEĞERİNDE DONDUR: son sensör/test sayımını yaz,
+    # otomatik modu kapat. Yoksa kayıt sayac_otomatik=1 kaldığı için sonraki okumalar
+    # (mobil GET/OEE) vardiya KAPANDIKTAN sonraki pulse'ları da bu kayda yazar —
+    # yeni vardiyayla ÇİFT SAYIM olur.
+    _uretim_sayac_senkron(conn, vid)
+    c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE vardiya_id=? AND sayac_otomatik=1", (vid,))
     c.execute(
         "UPDATE vardiyalar SET durum='kapali', bitis_saati=?, toplam_sure_dk=? WHERE id=?",
         (bitis, fark_dk, vid)
@@ -713,6 +1720,69 @@ def vardiya_ac(vid):
     return jsonify({'basarili': True})
 
 
+@app.route('/api/vardiya/<int:vid>/hat', methods=['PATCH'])
+@operator_required
+def vardiya_hat_degistir(vid):
+    """Açık vardiyanın hattını (robot_no) değiştir — operatör masa değiştirince
+    vardiyayı kapatmadan geçtiği masanın sayacına bağlanır.
+
+    Eski masadaki AKTİF sayaç kayıtları o ana kadarki değerde DONDURULUR (yeni
+    masanın pulse'ları eski referansa karışmasın); operatör yeni masada '+ Ekle'
+    ile sayımı sıfırdan başlatır. Bölüm değişmez (montaj içinde masa değişimi).
+    Body: { robot_no }
+    """
+    ok, hata = _vardiya_sahibi_kontrol(vid)
+    if not ok:
+        return jsonify({'hata': hata}), 403
+    data = request.get_json() or {}
+    yeni_robot = (data.get('robot_no') or '').strip()
+    if not yeni_robot:
+        return jsonify({'hata': 'Hat (robot_no) zorunludur'}), 400
+
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        v = c.execute(
+            "SELECT COALESCE(bolum,'kaynak') as bolum, robot_no, durum FROM vardiyalar WHERE id=?",
+            (vid,)
+        ).fetchone()
+        if not v:
+            return jsonify({'hata': 'Vardiya bulunamadı'}), 404
+        if v['durum'] == 'kapali':
+            return jsonify({'hata': 'Kapalı vardiyanın hattı değiştirilemez'}), 400
+
+        eski_robot = v['robot_no']
+        if yeni_robot == eski_robot:
+            return jsonify({'basarili': True, 'degisti': False, 'robot_no': yeni_robot,
+                            'sayac_destekli': (yeni_robot in SAYAC_AUTO_CIHAZLAR)})
+
+        # Eski masadaki aktif sayaç kayıtlarını O ANA kadar dondur (eski robot_no ile say).
+        # uretim_ekle'deki referans-değişimi dondurma mantığıyla aynı.
+        simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        aktif = c.execute(
+            "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
+            "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
+            (vid,)
+        ).fetchall()
+        for o in aktif:
+            fcnt = _pilot_pulse_say(v['bolum'], eski_robot, o['istasyon'] or 0,
+                                    o['sayac_baslangic_ts'], biti_ts=simdi)
+            if fcnt is not None:
+                c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
+                          (fcnt, o['id']))
+            else:
+                # pilot.db okunamadı — ok_adet'i SIFIRLAMA; mevcut değerle manuel'e al
+                c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE id=?", (o['id'],))
+
+        c.execute("UPDATE vardiyalar SET robot_no=? WHERE id=?", (yeni_robot, vid))
+        conn.commit()
+        return jsonify({'basarili': True, 'degisti': True, 'robot_no': yeni_robot,
+                        'eski_robot': eski_robot, 'donduruldu': len(aktif),
+                        'sayac_destekli': (yeni_robot in SAYAC_AUTO_CIHAZLAR)})
+    finally:
+        conn.close()
+
+
 @app.route('/api/vardiya/<int:vid>', methods=['PUT'])
 @operator_required
 def vardiya_guncelle(vid):
@@ -734,7 +1804,24 @@ def vardiya_guncelle(vid):
     operator_adi = data.get('operator_adi', mevcut['operator_adi'])
     tarih = data.get('tarih', mevcut['tarih'])
     vardiya_turu = data.get('vardiya_turu', mevcut['vardiya_turu'])
-    
+
+    # Saat FORMAT DOĞRULAMA: bozuk değer DB'ye yazılırsa vardiya_kapat her denemede
+    # patlar ve vardiya kapatılamaz hale gelir — bozuk formatı 400 ile reddet.
+    # (Boş bitis_saati meşru: açık vardiya. 'HH:MM:SS' ilk 5 karaktere kırpılır.)
+    def _saat_ok(s):
+        if s is None or str(s).strip() == '':
+            return ''
+        try:
+            datetime.strptime(str(s).strip()[:5], '%H:%M')
+            return str(s).strip()[:5]
+        except ValueError:
+            return None
+    bas = _saat_ok(bas)
+    bit = _saat_ok(bit)
+    if bas is None or bit is None or bas == '':
+        conn.close()
+        return jsonify({'hata': 'Saat formatı HH:MM olmalıdır (örn: 07:30)'}), 400
+
     if fark_dk is None:
         try:
             b1 = datetime.strptime(bas, '%H:%M')
@@ -767,9 +1854,13 @@ def uretim_ekle():
 
     if not data.get('vardiya_id') or not data.get('referans_kodu'):
         return jsonify({'hata': 'vardiya_id ve referans_kodu zorunludur'}), 400
+    try:
+        vardiya_id_int = int(data['vardiya_id'])
+    except (ValueError, TypeError):
+        return jsonify({'hata': f"vardiya_id sayısal olmalı: {data.get('vardiya_id')!r}"}), 400
 
     # Operatör yetki kontrolü: header'da operator+pin geldiyse vardiya sahibi mi?
-    ok, hata = _vardiya_sahibi_kontrol(int(data['vardiya_id']))
+    ok, hata = _vardiya_sahibi_kontrol(vardiya_id_int)
     if not ok:
         return jsonify({'hata': hata}), 403
 
@@ -778,13 +1869,14 @@ def uretim_ekle():
         conn = get_db()
         c = conn.cursor()
 
-        # Vardiyanın bölümünü + robot_no'sunu öğren
+        # Vardiyanın bölümünü + robot_no'sunu + lokasyonunu öğren
         v_row = c.execute(
-            "SELECT COALESCE(bolum, 'kaynak') as bolum, robot_no FROM vardiyalar WHERE id = ?",
+            "SELECT COALESCE(bolum, 'kaynak') as bolum, robot_no, COALESCE(lokasyon, 'TK2') as lokasyon FROM vardiyalar WHERE id = ?",
             (data['vardiya_id'],)
         ).fetchone()
         vardiya_bolum = v_row['bolum'] if v_row else 'kaynak'
         vardiya_robot = v_row['robot_no'] if v_row else ''
+        vardiya_lokasyon = v_row['lokasyon'] if v_row else 'TK2'
 
         # Birden fazla kayıt gelebilir
         satirlar = data.get('satirlar', [data])
@@ -795,11 +1887,17 @@ def uretim_ekle():
         for satir in satirlar:
             ref = (satir.get('referans_kodu') or data.get('referans_kodu') or '').strip()
             ct_in = float(satir.get('cycle_time_sn', 0) or 0)
-            # cycle_time gönderilmediyse ya da 0 ise referanslardan otomatik çek
+            # cycle_time gönderilmediyse ya da 0 ise referanslardan otomatik çek.
+            # LOKASYON filtresi ŞART: composite UNIQUE sonrası aynı kod TK1+TK2'de
+            # iki satır olabilir — vardiyanın tesisinin cycle'ı çekilmeli.
+            # BÖLÜM TERCİHİ: aynı kod birden fazla bölümde farklı cycle ile olabilir —
+            # önce vardiyanın bölümündeki satır; yoksa (eski davranış) herhangi biri.
             if ct_in <= 0 and ref:
                 ref_row = c.execute(
-                    "SELECT hedef_cycle_time_sn FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
-                    (ref,)
+                    "SELECT hedef_cycle_time_sn FROM referans_listesi "
+                    "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND COALESCE(lokasyon,'TK2')=? "
+                    "ORDER BY (COALESCE(bolum,'kaynak') = ?) DESC LIMIT 1",
+                    (ref, vardiya_lokasyon, vardiya_bolum)
                 ).fetchone()
                 if ref_row:
                     ct_in = float(ref_row['hedef_cycle_time_sn'] or 0)
@@ -807,29 +1905,54 @@ def uretim_ekle():
             ist_val = int(satir.get('istasyon', data.get('istasyon', 0)) or 0)
             ok_val  = int(satir.get('ok_adet', 0) or 0)
 
-            # Sayaç otomatik mod: tek satır + OK girilmemiş (0) + cihaz allowlist'te ise
-            # sensör besler. Operatör referansa YENİ başlıyor demektir → sayaç o andan sıfırlanır.
-            # (Toplu/geçmiş giriş, OK elle yazılmış veya desteklenmeyen cihaz → manuel mod.)
-            auto = 1 if (tek_satir and ok_val == 0
-                         and vardiya_robot in SAYAC_AUTO_CIHAZLAR) else 0
+            # Test cihazı (Cofle/wicow) seçildiyse sayaç kaynağı o cihaz olur (ESP32 yerine)
+            tc_raw = satir.get('test_cihaz_id', data.get('test_cihaz_id'))
+            try:
+                tc_id = int(tc_raw) if tc_raw not in (None, '', 0, '0') else None
+            except (ValueError, TypeError):
+                tc_id = None
 
-            if auto:
-                # Aynı vardiya+istasyon önceki auto kayıt(lar)ı dondur: referans değişti,
-                # önceki referansın sayımı bu ana kadar olan değerde sabitlenir.
+            # Sayaç otomatik mod: tek satır + OK girilmemiş (0) + (cihaz allowlist'te VEYA
+            # test cihazı seçilmiş). Operatör referansa YENİ başlıyor → sayaç o andan sıfırlanır.
+            # (Toplu/geçmiş giriş, OK elle yazılmış veya desteklenmeyen kaynak → manuel mod.)
+            auto = 1 if (tek_satir and ok_val == 0
+                         and (vardiya_robot in SAYAC_AUTO_CIHAZLAR or tc_id)) else 0
+
+            if auto and tc_id:
+                # Aynı test cihazında önceki auto kayıt(lar)ı dondur (referans değişti)
+                onceki = c.execute(
+                    "SELECT id, sayac_baslangic_ts, referans_kodu FROM uretim_kayitlari "
+                    "WHERE vardiya_id=? AND test_cihaz_id=? AND sayac_otomatik=1",
+                    (data['vardiya_id'], tc_id)
+                ).fetchall()
+                for o in onceki:
+                    fcnt = _test_basari_say(conn, tc_id, o['referans_kodu'],
+                                            o['sayac_baslangic_ts'], biti_ts=simdi)
+                    if fcnt is not None:
+                        c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
+                                  (fcnt, o['id']))
+                    else:
+                        c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE id=?", (o['id'],))
+            elif auto:
+                # Aynı vardiya+istasyon önceki ESP32 auto kayıt(lar)ı dondur (test-cihazı hariç)
                 onceki = c.execute(
                     "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
-                    "WHERE vardiya_id=? AND istasyon=? AND sayac_otomatik=1",
+                    "WHERE vardiya_id=? AND istasyon=? AND sayac_otomatik=1 AND test_cihaz_id IS NULL",
                     (data['vardiya_id'], ist_val)
                 ).fetchall()
                 for o in onceki:
                     fcnt = _pilot_pulse_say(vardiya_bolum, vardiya_robot, ist_val,
                                             o['sayac_baslangic_ts'], biti_ts=simdi)
-                    c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
-                              (fcnt, o['id']))
+                    if fcnt is not None:
+                        c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
+                                  (fcnt, o['id']))
+                    else:
+                        # pilot.db okunamadi — ok_adet'i SIFIRLAMA; mevcut degerle dondur (manuel'e al)
+                        c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE id=?", (o['id'],))
 
             c.execute('''
-                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['vardiya_id'],
                 ref,
@@ -842,14 +1965,27 @@ def uretim_ekle():
                 int(satir.get('launch_adet', data.get('launch_adet', 0)) or 0),
                 (satir.get('aciklama') or data.get('aciklama') or '').strip(),
                 simdi if auto else None,
-                auto
+                auto,
+                tc_id
             ))
-            # Referansı listeye otomatik ekle — VARDIYANIN bölümüyle etiketle
-            # (montaj operatörü tanımsız bir kod girince montaj'a düşsün, kaynak'a değil)
-            c.execute(
-                'INSERT OR IGNORE INTO referans_listesi (referans_kodu, bolum) VALUES (?, ?)',
-                (ref, vardiya_bolum)
-            )
+            # Referansı listeye otomatik ekle — VARDIYANIN bölümü VE lokasyonuyla etiketle
+            # (montaj operatörü tanımsız bir kod girince montaj'a düşsün, kaynak'a değil;
+            #  TK1 operatörünün girdiği kod TK1'e düşsün, TK2'ye karışmasın)
+            # NORMALIZE kontrol: UNIQUE ham kod üzerinde — operatör '94. LTK. 341/10' gibi
+            # boşluklu/farklı yazarsa INSERT OR IGNORE yeni VARYANT satır açıyordu; bu
+            # duplike satırlar JOIN'lerde iş emirlerini çoğaltıyordu (fan-out). Normalize
+            # eş (aynı lokasyonda) varsa yeni satır AÇMA.
+            ref_var = c.execute(
+                "SELECT 1 FROM referans_listesi "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND COALESCE(lokasyon,'TK2')=? LIMIT 1",
+                (ref, vardiya_lokasyon)
+            ).fetchone()
+            if not ref_var:
+                c.execute(
+                    'INSERT OR IGNORE INTO referans_listesi (referans_kodu, bolum, lokasyon) VALUES (?, ?, ?)',
+                    (ref, vardiya_bolum, vardiya_lokasyon)
+                )
             eklenen += 1
 
         conn.commit()
@@ -884,6 +2020,9 @@ def uretim_sayac_sifirla(uid):
         if cur.rowcount == 0:
             return jsonify({'hata': 'Kayit bulunamadi'}), 404
         return jsonify({'basarili': True, 'sayac_baslangic_ts': simdi})
+    except Exception as e:
+        # DB kilidi/hata: mobil JSON bekler — HTML 500 yerine anlaşılır hata
+        return jsonify({'hata': f'Sayaç sıfırlanamadı: {e}'}), 500
     finally:
         conn.close()
 
@@ -926,11 +2065,18 @@ def uretim_guncelle(uid):
 
         ref = (data.get('referans_kodu') or '').strip()
         ct = float(data.get('cycle_time_sn', 0) or 0)
-        # Gelen CT 0 veya gönderilmediyse referanslardan çek
+        # Gelen CT 0 veya gönderilmediyse referanslardan çek — vardiyanın LOKASYONUYLA
+        # (composite UNIQUE sonrası aynı kod iki tesiste olabilir; yanlış tesisin ct'si çekilmesin)
         if ct <= 0 and ref:
+            v_lok_row = c.execute(
+                "SELECT COALESCE(lokasyon,'TK2') as lok FROM vardiyalar WHERE id = ?",
+                (mevcut['vardiya_id'],)
+            ).fetchone()
+            v_lok = v_lok_row['lok'] if v_lok_row else 'TK2'
             ref_row = c.execute(
-                "SELECT hedef_cycle_time_sn FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
-                (ref,)
+                "SELECT hedef_cycle_time_sn FROM referans_listesi "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND COALESCE(lokasyon,'TK2')=?",
+                (ref, v_lok)
             ).fetchone()
             if ref_row:
                 ct = float(ref_row['hedef_cycle_time_sn'] or 0)
@@ -974,12 +2120,16 @@ def uretim_guncelle(uid):
 def uretim_ct_toplu_guncelle():
     """Tum uretim kayitlarinda cycle_time_sn eksik olanlari referans listesinden toplu guncelle."""
     conn = get_db()
+    # Referans eşleşmesi kaydın VARDİYASININ lokasyonuna kapalı — composite UNIQUE
+    # sonrası aynı kod TK1+TK2'de olabilir; yanlış tesisin cycle'ı yazılmasın.
     cur = conn.execute("""
         UPDATE uretim_kayitlari
         SET cycle_time_sn = (
             SELECT r.hedef_cycle_time_sn
             FROM referans_listesi r
             WHERE UPPER(REPLACE(r.referans_kodu,' ','')) = UPPER(REPLACE(uretim_kayitlari.referans_kodu,' ',''))
+              AND COALESCE(r.lokasyon,'TK2') = (
+                    SELECT COALESCE(v.lokasyon,'TK2') FROM vardiyalar v WHERE v.id = uretim_kayitlari.vardiya_id)
               AND r.hedef_cycle_time_sn > 0
             LIMIT 1
         )
@@ -987,6 +2137,8 @@ def uretim_ct_toplu_guncelle():
           AND EXISTS (
             SELECT 1 FROM referans_listesi r
             WHERE UPPER(REPLACE(r.referans_kodu,' ','')) = UPPER(REPLACE(uretim_kayitlari.referans_kodu,' ',''))
+              AND COALESCE(r.lokasyon,'TK2') = (
+                    SELECT COALESCE(v.lokasyon,'TK2') FROM vardiyalar v WHERE v.id = uretim_kayitlari.vardiya_id)
               AND r.hedef_cycle_time_sn > 0
           )
     """)
@@ -1026,9 +2178,13 @@ def durus_ekle():
 
     if not data.get('vardiya_id') or not data.get('durus_sebebi'):
         return jsonify({'hata': 'vardiya_id ve durus_sebebi zorunludur'}), 400
+    try:
+        durus_vid_int = int(data['vardiya_id'])
+    except (ValueError, TypeError):
+        return jsonify({'hata': f"vardiya_id sayısal olmalı: {data.get('vardiya_id')!r}"}), 400
 
     # Operatör yetki kontrolü: vardiya sahibi mi?
-    ok, hata = _vardiya_sahibi_kontrol(int(data['vardiya_id']))
+    ok, hata = _vardiya_sahibi_kontrol(durus_vid_int)
     if not ok:
         return jsonify({'hata': hata}), 403
 
@@ -1111,7 +2267,12 @@ def durus_guncelle(did):
         ok, hata = _vardiya_sahibi_kontrol(vid)
         if not ok:
             return jsonify({'hata': hata}), 403
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    # sure_dk güvenli parse (boş input '' → ValueError → HTML 500 olmasın; durus_ekle kalıbı)
+    try:
+        sure_dk_val = int(data.get('sure_dk', 0) or 0)
+    except (ValueError, TypeError):
+        return jsonify({'hata': f"Süre sayısal olmalı: {data.get('sure_dk')!r}"}), 400
     conn = get_db()
     c = conn.cursor()
     mevcut = c.execute('SELECT id FROM duruslar WHERE id = ?', (did,)).fetchone()
@@ -1125,7 +2286,7 @@ def durus_guncelle(did):
     ''', (
         data.get('durus_sebebi'),
         data.get('aciklama', ''),
-        int(data.get('sure_dk', 0)),
+        sure_dk_val,
         data.get('baslangic_saati', ''),
         data.get('durus_tipi', 'plansiz'),
         did
@@ -1143,11 +2304,11 @@ def durus_guncelle(did):
 @app.route('/api/oee/<int:vid>', methods=['GET'])
 def oee_vardiya(vid):
     """Tek vardiya OEE hesapla."""
-    # OEE'nin güncel sensör sayımını kullanması için auto kayıtları tazele
+    # OEE'nin güncel sensör sayımını kullanması için auto kayıtları tazele.
+    # NOT: get_db() g-paylaşımlı — BURADA KAPATMA (teardown kapatır); erken close
+    # sonrası get_db kullanan kod eklenirse 'closed database' 500'e döner.
     try:
-        _conn = get_db()
-        _uretim_sayac_senkron(_conn, vid)
-        _conn.close()
+        _uretim_sayac_senkron(get_db(), vid)
     except Exception:
         pass
     sonuc = hesapla_oee(vid)
@@ -1163,6 +2324,7 @@ def oee_ozet():
     tarih_bit = request.args.get('tarih_bit')
     robot = request.args.get('robot')
     bolum = request.args.get('bolum')
+    lokasyon = request.args.get('lokasyon')   # TK1/TK2 montaj OEE'si karışmasın
 
     # Varsayılan: bugün
     if not tarih_bas and not tarih_bit:
@@ -1170,7 +2332,12 @@ def oee_ozet():
         tarih_bas = bugun
         tarih_bit = bugun
 
-    sonuc = hesapla_oee_ozet(tarih_bas, tarih_bit, robot, bolum)
+    # Aralık bugünü kapsıyorsa auto sayaçları tazele — OEE özeti canlı adetlerle hesaplansın
+    _bugun_o = date.today().isoformat()
+    if (not tarih_bas or tarih_bas <= _bugun_o) and (not tarih_bit or tarih_bit >= _bugun_o):
+        _acik_auto_vardiyalari_senkronla(get_db(), bolum or None, lokasyon or None)
+
+    sonuc = hesapla_oee_ozet(tarih_bas, tarih_bit, robot, bolum, lokasyon)
     return jsonify(sonuc)
 
 
@@ -1184,23 +2351,25 @@ def referans_listesi():
     Kaynak için kaynak_suresi_sn ve soktak_suresi_sn alanlarını da döner."""
     q = request.args.get('q', '')
     bolum = request.args.get('bolum', '')
+    lokasyon = request.args.get('lokasyon', '')
     conn = get_db()
     base = "SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, sure_teyit, sure_teyit_tarihi FROM referans_listesi"
+    sql = base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '')"
+    params = [f'%{q}%']
     if bolum:
-        rows = conn.execute(
-            base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '') AND bolum = ? ORDER BY referans_kodu",
-            (f'%{q}%', bolum)
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '') ORDER BY referans_kodu",
-            (f'%{q}%',)
-        ).fetchall()
+        sql += " AND bolum = ?"
+        params.append(bolum)
+    if lokasyon:
+        sql += " AND COALESCE(lokasyon, 'TK2') = ?"
+        params.append(lokasyon)
+    sql += " ORDER BY referans_kodu"
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
 
 @app.route('/api/referanslar', methods=['POST'])
+@panel_gerekli(izin='referanslar')
 def referans_ekle():
     """Yeni referans tanımla veya güncelle (bolum opsiyonel — varsayılan 'kaynak').
     Cycle time tanımlandığında Excel'in ilgili bölüm sayfası otomatik
@@ -1214,20 +2383,43 @@ def referans_ekle():
     ct = float(data.get('hedef_cycle_time_sn', 0))
     desc = data.get('aciklama', '')
     bolum = (data.get('bolum') or 'kaynak').strip()
-    if bolum not in ('kaynak', 'montaj', 'metal'):
+    if bolum not in GECERLI_BOLUMLER:
         bolum = 'kaynak'
+    lokasyon = (data.get('lokasyon') or request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
 
     conn = get_db()
     try:
-        # INSERT OR REPLACE — Mevcutsa günceller (Süre tanımı için önemli)
-        conn.execute(
-            'INSERT OR REPLACE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, bolum) VALUES (?, ?, ?, ?)',
-            (ref, desc, ct, bolum)
-        )
+        # BÖLÜM+LOKASYONA KAPALI UPSERT: aynı (referans_kodu, bolum, lokasyon) varsa GÜNCELLE,
+        # yoksa EKLE. (INSERT OR REPLACE kullanılmıyor → sure_teyit/kaynak/söktak gibi diğer
+        # kolonlar korunur; diğer fabrikanın/bölümün aynı kodlu satırına ASLA dokunulmaz —
+        # aynı kod birden fazla bölümde farklı cycle ile yaşayabilir.)
+        mevcut = conn.execute(
+            "SELECT id FROM referans_listesi "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=?",
+            (ref, bolum, lokasyon)
+        ).fetchone()
+        if mevcut:
+            conn.execute(
+                "UPDATE referans_listesi SET aciklama=?, hedef_cycle_time_sn=? WHERE id=?",
+                (desc, ct, mevcut['id'])
+            )
+        else:
+            conn.execute(
+                "INSERT INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, bolum, lokasyon) VALUES (?, ?, ?, ?, ?)",
+                (ref, desc, ct, bolum, lokasyon)
+            )
 
-        # Geriye dönük güncelleme: Aynı referansa sahip geçmiş üretim kayıtlarının süresini de güncelle.
+        # Geriye dönük: aynı referansın geçmiş üretim kayıtlarının cycle'ını güncelle —
+        # AMA sadece bu lokasyonun + bu bölümün vardiyalarına ait olanları
+        # (diğer fabrikayı/bölümü ezme — aynı kodun bölüm başına cycle'ı farklı olabilir).
         if ct > 0:
-            conn.execute("UPDATE uretim_kayitlari SET cycle_time_sn = ? WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', ''))", (ct, ref))
+            conn.execute(
+                "UPDATE uretim_kayitlari SET cycle_time_sn = ? "
+                "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', '')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? AND COALESCE(bolum,'kaynak')=?)",
+                (ct, ref, lokasyon, bolum)
+            )
 
         conn.commit()
     except Exception as e:
@@ -1235,114 +2427,206 @@ def referans_ekle():
         return jsonify({'hata': str(e)}), 400
     conn.close()
 
-    # Excel'i otomatik güncelle (sadece bu bölümün cycle time'larını yazar,
-    # diğer sayfalar dokunulmaz). Hata olsa bile referans kaydı başarılı sayılır.
+    # Excel auto-sync: SADECE TK2 (uretim_verileri.xlsx). TK1 referansları cycle time
+    # kullanmaz ve ayrı Excel'dedir → TK1'de export atlanır (TK1 verisi TK2 dosyasına sızmaz).
     try:
-        export_referans_cycle_times(bolum=bolum)
+        export_referans_cycle_times(bolum=bolum, lokasyon=lokasyon)
     except Exception as e:
-        print(f'[referans_ekle] Excel auto-sync hatası ({bolum}): {e}')
+        print(f'[referans_ekle] Excel auto-sync hatası ({bolum}/{lokasyon}): {e}')
 
     return jsonify({'basarili': True}), 201
 
 
+# ── Referans KODU değiştirme (rename) — TÜM ilgili tablolarda ──
+# Referans kodu 11 tablo.kolonda serbest string (FK yok); rename her yeri günceller.
+# as400_teyit_log (audit) DOKUNULMAZ.
+_REFERANS_KOD_TABLOLARI = [
+    ('referans_listesi', 'referans_kodu'), ('uretim_kayitlari', 'referans_kodu'),
+    ('referans_takip', 'referans_kodu'), ('referans_robot_uyumu', 'referans_kodu'),
+    ('robot_programlari', 'referans_kodu'), ('robot_programlari_eski', 'referans_kodu'),
+    ('robot_is_atamalari', 'referans_kodu'), ('fikstur_adresleri', 'referans_kodu'),
+    ('fikstur_raf', 'referans_kodu'), ('test_sonuclari', 'referans_kodu'),
+    ('test_sonuclari', 'referans_norm'),
+]
+
+
+def _guvenli_kod_replace(s, eski, yeni):
+    """s içindeki 'eski' kodunu 'yeni' ile değiştirir AMA 'eski' daha büyük bir
+    kodun parçasıysa (öncesi/sonrası alfasayısal veya - / ) o eşleşmeyi KORUR.
+    Örn: eski='10.300.4081' → '10.300.4081W' DOKUNULMAZ (W devam), ama
+    '10.300.4081 1. op' değişir (boşluk sınırı). Op etiketi hep korunur."""
+    if not s or eski not in s:
+        return s
+    out = []
+    i = 0
+    n = len(eski)
+    while True:
+        j = s.find(eski, i)
+        if j < 0:
+            out.append(s[i:])
+            break
+        son = j + n
+        onceki = s[j - 1] if j > 0 else ''
+        sonraki = s[son] if son < len(s) else ''
+        # DIKKAT: `sonraki in '-/'` KULLANMA — bos string ('' in '-/') True doner,
+        # string SONUNDA biten tam eslesmeler asla degistirilemezdi (2026-07-22 bug).
+        if onceki.isalnum() or sonraki.isalnum() or sonraki in ('-', '/'):
+            out.append(s[i:son])          # daha büyük kodun parçası → dokunma
+        else:
+            out.append(s[i:j])
+            out.append(yeni)
+        i = son
+    return ''.join(out)
+
+
+def _referans_kodu_rename(conn, eski, yeni, uygula):
+    """Tüm ilgili tablolarda kodu değiştirir. uygula=False → sadece önizleme (say + örnek).
+    MASTER BİRLEŞTİRME (2026-07-20, 4081 dersi): referans_listesi'nde yeni kod aynı
+    bölüm+lokasyonda ZATEN varsa (yazım hatası → doğru koda düzeltme senaryosu),
+    hatalı master satırı SİLİNİR, hedef kayıt korunur (süreleri elle taşınabilir).
+    Döner: (ozet {tablo.kolon: adet}, ornekler [{tablo, eski, yeni}])."""
+    eski = (eski or '').strip()
+    yeni = (yeni or '').strip()
+    ozet = {}
+    ornekler = []
+    for t, k in _REFERANS_KOD_TABLOLARI:
+        try:
+            rows = conn.execute(f"SELECT rowid, {k} FROM {t} WHERE {k} LIKE ?", (f'%{eski}%',)).fetchall()
+        except Exception:
+            continue   # tablo yoksa atla
+        say = 0
+        for r in rows:
+            rid, deger = r[0], r[1]
+            yd = _guvenli_kod_replace(deger, eski, yeni)
+            if yd != deger:
+                if t == 'referans_listesi':
+                    cakisan = conn.execute(
+                        "SELECT rowid FROM referans_listesi WHERE rowid != ? "
+                        "AND UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                        "AND COALESCE(bolum,'kaynak')=(SELECT COALESCE(bolum,'kaynak') FROM referans_listesi WHERE rowid=?) "
+                        "AND COALESCE(lokasyon,'TK2')=(SELECT COALESCE(lokasyon,'TK2') FROM referans_listesi WHERE rowid=?)",
+                        (rid, yd, rid, rid)).fetchone()
+                    if cakisan:
+                        say += 1
+                        if len(ornekler) < 15:
+                            ornekler.append({'tablo': t, 'eski': deger, 'yeni': yd + ' (BİRLEŞTİRME: hedef kayıt zaten var, hatalı tanım silinir)'})
+                        if uygula:
+                            conn.execute("DELETE FROM referans_listesi WHERE rowid=?", (rid,))
+                        continue
+                say += 1
+                if len(ornekler) < 15:
+                    ornekler.append({'tablo': t, 'eski': deger, 'yeni': yd})
+                if uygula:
+                    conn.execute(f"UPDATE {t} SET {k}=? WHERE rowid=?", (yd, rid))
+        if say:
+            ozet[f'{t}.{k}'] = say
+    return ozet, ornekler
+
+
+@app.route('/api/referans/kod_degistir', methods=['POST'])
+@panel_gerekli(izin='referanslar')
+def referans_kod_degistir():
+    """Bir referans kodunu TÜM ilgili tablolarda değiştirir (rename).
+    Body: {eski, yeni, onizleme?:bool}. onizleme=true → uygulamadan say+örnek döndürür."""
+    data = request.get_json(silent=True) or {}
+    eski = (data.get('eski') or '').strip()
+    yeni = (data.get('yeni') or '').strip()
+    onizleme = bool(data.get('onizleme'))
+    if not eski or not yeni:
+        return jsonify({'hata': 'eski ve yeni kod zorunlu'}), 400
+    if eski == yeni:
+        return jsonify({'hata': 'eski ve yeni kod aynı'}), 400
+    conn = get_db()
+    try:
+        ozet, ornekler = _referans_kodu_rename(conn, eski, yeni, uygula=not onizleme)
+        if onizleme:
+            return jsonify({'onizleme': True, 'eski': eski, 'yeni': yeni,
+                            'toplam': sum(ozet.values()), 'ozet': ozet, 'ornekler': ornekler})
+        conn.commit()
+        return jsonify({'basarili': True, 'eski': eski, 'yeni': yeni,
+                        'toplam': sum(ozet.values()), 'ozet': ozet})
+    except Exception as e:
+        conn.rollback()
+        msg = str(e)
+        if 'UNIQUE' in msg.upper():
+            return jsonify({'hata': f'Hedef kod aynı bölüm/lokasyonda zaten var: {msg}'}), 409
+        return jsonify({'hata': msg}), 400
+
+
 @app.route('/api/referanslar/eksik', methods=['GET'])
 def referans_eksik_listesi():
-    """Süresi tanımlanmamış (0 veya NULL) referansları getirir. ?bolum= ile filtrelenebilir."""
+    """Süresi tanımlanmamış (0 veya NULL) referansları getirir. ?bolum= ve ?lokasyon= ile filtrelenebilir."""
     bolum = request.args.get('bolum')
+    lokasyon = request.args.get('lokasyon')
     conn = get_db()
     c = conn.cursor()
+    sql = ("SELECT referans_kodu FROM referans_listesi "
+           "WHERE (hedef_cycle_time_sn IS NULL OR hedef_cycle_time_sn = 0)")
+    params = []
     if bolum:
-        rows = c.execute('''
-            SELECT referans_kodu
-            FROM referans_listesi
-            WHERE (hedef_cycle_time_sn IS NULL OR hedef_cycle_time_sn = 0)
-              AND COALESCE(bolum, 'kaynak') = ?
-            ORDER BY referans_kodu
-        ''', (bolum,)).fetchall()
-    else:
-        rows = c.execute('''
-            SELECT referans_kodu
-            FROM referans_listesi
-            WHERE (hedef_cycle_time_sn IS NULL OR hedef_cycle_time_sn = 0)
-            ORDER BY referans_kodu
-        ''').fetchall()
+        sql += " AND COALESCE(bolum, 'kaynak') = ?"
+        params.append(bolum)
+    if lokasyon:
+        sql += " AND COALESCE(lokasyon, 'TK2') = ?"
+        params.append(lokasyon)
+    sql += " ORDER BY referans_kodu"
+    rows = c.execute(sql, params).fetchall()
     conn.close()
     return jsonify([r['referans_kodu'] for r in rows])
 
 
 @app.route('/api/referanslar/export_excel', methods=['POST'])
+@panel_gerekli(izin='referanslar')
 def referans_excel_export():
     """Veritabanındaki referans listesini data/uretim_verileri.xlsx'in
     aktif bölüm sayfasına yazar.
 
     Body: { bolum: 'kaynak' | 'montaj' | 'metal' } — yoksa kaynak.
     """
-    BOLUM_SAYFA = {
-        'kaynak': 'Kaynak Referans',
-        'montaj': 'Montaj Referans',
-        'metal':  'Metal Referans',
-    }
+    # Sayfa adları import_excel.BOLUM_SAYFA'dan (tek kaynak) — yeni bölümler dahil.
+    from import_excel import BOLUM_SAYFA as _IE_SAYFA
+    BOLUM_SAYFA = {b: v['ref'] for b, v in _IE_SAYFA.items()}
     body = request.get_json(silent=True) or {}
     bolum = body.get('bolum', 'kaynak')
+    lokasyon = (body.get('lokasyon') or request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
     if bolum not in BOLUM_SAYFA:
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
-    sayfa_adi = BOLUM_SAYFA[bolum]
-
-    excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'uretim_verileri.xlsx')
-    if not os.path.exists(excel_path):
-        return jsonify({'hata': 'data/uretim_verileri.xlsx bulunamadı.'}), 404
-
+    # TK1 referansları cycle time kullanmaz ve ayrı dosyadadır (tek kolon) → TK2 Excel'ine yazma
+    if lokasyon == 'TK1':
+        return jsonify({'basarili': True, 'mesaj': 'TK1 referansları için cycle time Excel aktarımı yok.'}), 200
+    # TEK implementasyon: import_excel.export_referans_cycle_times — kaynak sayfasında
+    # 4+1 kolon (Kaynak/Söktak/Toplam/Süre Teyit), montaj/metal'de 2 kolon yazar.
+    # (Eski yerel kopya kaynak'ta B kolonuna toplam cycle yazıp Kaynak Süresi'ni eziyordu.)
     try:
-        import openpyxl
-
-        conn = get_db()
-        rows = conn.execute(
-            "SELECT referans_kodu, hedef_cycle_time_sn FROM referans_listesi "
-            "WHERE COALESCE(bolum, 'kaynak') = ? ORDER BY referans_kodu",
-            (bolum,)
-        ).fetchall()
-        conn.close()
-
-        wb = openpyxl.load_workbook(excel_path)
-        if sayfa_adi not in wb.sheetnames:
-            return jsonify({'hata': f"'{sayfa_adi}' sayfası bulunamadı"}), 404
-        sayfa = wb[sayfa_adi]
-        
-        # Temizleyip baştan yazalım mı? 
-        # Kullanıcının "doğrudan güncellesin" demesi mevcut verileri koruyup sadece bu tabloyu güncellemek olabilir.
-        # En güvenlisi: Mevcut satırları tara, varsa güncelle yoksa sona ekle.
-        
-        ref_map = {r['referans_kodu']: r['hedef_cycle_time_sn'] for r in rows}
-        
-        # Mevcut satırları kontrol et
-        max_r = sayfa.max_row
-        existing_refs = {}
-        for r in range(2, max_r + 1):
-            cell_val = sayfa.cell(row=r, column=1).value
-            if cell_val:
-                existing_refs[str(cell_val).strip()] = r
-                
-        for ref, ct in ref_map.items():
-            if ref in existing_refs:
-                row_idx = existing_refs[ref]
-                sayfa.cell(row=row_idx, column=2, value=ct)
-            else:
-                new_row = sayfa.max_row + 1
-                sayfa.cell(row=new_row, column=1, value=ref)
-                sayfa.cell(row=new_row, column=2, value=ct)
-        
-        wb.save(excel_path)
-        return jsonify({'basarili': True, 'mesaj': f'{len(ref_map)} referans güncellendi.'})
+        sonuc = export_referans_cycle_times(bolum=bolum, lokasyon=lokasyon)
+        if not sonuc.get('basarili'):
+            return jsonify({'hata': sonuc.get('hata', 'Excel yazılamadı')}), 500
+        return jsonify({'basarili': True, 'mesaj': f"{sonuc.get('yazilan', 0)} referans Excel'e yazıldı."})
     except Exception as e:
         return jsonify({'hata': str(e)}), 500
 
 
 @app.route('/api/referanslar/<string:kod>', methods=['DELETE'])
+@panel_gerekli(izin='referanslar')
 def referans_sil(kod):
-    """Referansı listeden sil."""
+    """Referansı listeden sil — SADECE aktif lokasyonun satırı (diğer fabrikanın aynı kodlu
+    referansına dokunma). lokasyon query/body'den; verilmezse TK2.
+    ?bolum= verilirse yalnız o bölümün satırı silinir (aynı kod birden fazla bölümde
+    yaşayabilir); verilmezse eski davranış (koddaki tüm TK2 satırları)."""
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
+    bolum = (request.args.get('bolum') or '').strip()
     conn = get_db()
     try:
-        conn.execute('DELETE FROM referans_listesi WHERE referans_kodu = ?', (kod,))
+        if bolum:
+            conn.execute(
+                "DELETE FROM referans_listesi WHERE referans_kodu = ? AND COALESCE(bolum,'kaynak') = ? AND COALESCE(lokasyon,'TK2') = ?",
+                (kod, bolum, lokasyon)
+            )
+        else:
+            conn.execute(
+                "DELETE FROM referans_listesi WHERE referans_kodu = ? AND COALESCE(lokasyon,'TK2') = ?",
+                (kod, lokasyon)
+            )
         conn.commit()
     except Exception as e:
         conn.close()
@@ -1355,25 +2639,68 @@ def referans_sil(kod):
 def robot_listesi():
     """Bölüm bazlı robot/hat/makine listesi.
     - kaynak: ABB1..ABB9 (sabit)
-    - montaj: vardiyalardan distinct robot_no (HAT 1, HAT 2 ...) — operatörler girdikçe dinamik büyür
     - metal: 300T, 400T, 550T, Şerit Testere (sabit)
+    - lazer: tek sabit hat 'Lazer' — makine (Lazer 1..6) vardiyada DEĞİL üretim kaydında
+      seçilir (istasyon kolonu 1..6; operatör aynı anda birden fazla makine çalıştırır)
+    - pres: sabit 4 makine (Abkant 1-3, Pres) + operatörün eklediği ekstralar
+    - montaj/isleme: vardiyalardan distinct robot_no — operatörler girdikçe dinamik büyür
     """
     bolum = request.args.get('bolum', 'kaynak')
-    if bolum == 'metal':
-        robotlar = ['300T', '400T', '550T', 'Şerit Testere']
-    elif bolum == 'montaj':
+    lokasyon = request.args.get('lokasyon', 'TK2')
+    # Plastik enjeksiyon (TK1, 2026-07-23): sabit 2 makine + operatörün eklediği ekstralar.
+    # TK1 montaj-hat kısayolundan ÖNCE — aksi halde plastik montaj hatlarıyla ezilirdi.
+    if bolum == 'plastik':
         conn = get_db()
         rows = conn.execute(
-            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum, 'kaynak') = 'montaj' AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no"
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='plastik' "
+            "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no").fetchall()
+        conn.close()
+        taban = ['320T', '407T']
+        return jsonify(taban + [r['robot_no'] for r in rows if r['robot_no'] not in taban])
+    if lokasyon == 'TK1':
+        # TK1 (yan tesis) sabit hatları — montaj mantığı
+        return jsonify(['Pull', 'Push-Pull', 'Iveco', 'LF-LFP'])
+    # Sabit makine tabanı olan bölümler (liste her zaman tam görünür; DISTINCT ekstraları eklenir)
+    SABIT_TABAN = {'pres': ['Abkant 1', 'Abkant 2', 'Abkant 3',
+                            'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5'],
+                   'plastik': ['320T', '407T']}
+    # Dinamik bölümlerde hiç vardiya yokken gösterilecek varsayılan makine/hat adı
+    DINAMIK_VARSAYILAN = {'montaj': 'HAT 1', 'isleme': 'Tezgah 1'}
+    if bolum == 'metal':
+        robotlar = ['300T', '400T', '550T', 'Şerit Testere']
+    elif bolum == 'lazer':
+        robotlar = ['Lazer']
+    elif bolum in SABIT_TABAN or bolum in DINAMIK_VARSAYILAN:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum, 'kaynak') = ? "
+            "AND COALESCE(lokasyon, 'TK2') = ? AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no",
+            (bolum, lokasyon or 'TK2')
         ).fetchall()
         conn.close()
-        robotlar = [r['robot_no'] for r in rows]
-        # Hiç kayıt yoksa varsayılan olarak HAT 1'i göster — operatör formundan ilk girişte yenileri otomatik eklenir
+        kullanilan = [r['robot_no'] for r in rows]
+        taban = SABIT_TABAN.get(bolum, [])
+        robotlar = taban + [r for r in kullanilan if r not in taban]
+        # Hiç kayıt yoksa varsayılanı göster — operatör formundan ilk girişte yenileri otomatik eklenir
         if not robotlar:
-            robotlar = ['HAT 1']
+            robotlar = [DINAMIK_VARSAYILAN[bolum]]
     else:
         robotlar = [f'ABB{i}' for i in range(1, 10)]
     return jsonify(robotlar)
+
+
+@app.route('/api/test_cihazlari', methods=['GET'])
+def test_cihazlari():
+    """Cofle test cihazı listesi (operatör mobil dropdown'u için). Token sunucuda
+    kalır — mobil API'ye doğrudan erişmez. Entegrasyon kapalıysa boş liste döner."""
+    try:
+        import cofle_test
+        if not cofle_test.etkin():
+            return jsonify({'etkin': False, 'cihazlar': []})
+        return jsonify({'etkin': True, 'cihazlar': cofle_test.cihaz_listesi()})
+    except Exception as e:
+        print(f"[test_cihazlari] hata: {e}")
+        return jsonify({'etkin': False, 'cihazlar': []})
 
 
 @app.route('/api/operatorler', methods=['GET'])
@@ -1383,22 +2710,38 @@ def operator_listesi():
     Yönetim için /api/operatorler/yonetim kullanın.
     """
     bolum = request.args.get('bolum', '')
+    lokasyon = request.args.get('lokasyon', '')
     conn = get_db()
+    sql = "SELECT id, ad, bolum, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE 1=1"
+    params = []
     if bolum:
-        rows = conn.execute('SELECT id, ad, bolum FROM operatorler WHERE bolum = ? ORDER BY ad', (bolum,)).fetchall()
-    else:
-        rows = conn.execute('SELECT id, ad, bolum FROM operatorler ORDER BY ad').fetchall()
+        # Admin her bölümün listesinde görünür (PIN modal + vardiya formu dropdown'u)
+        sql += " AND (bolum = ? OR ad = ?)"
+        params.extend([bolum, ADMIN_ADI])
+    if lokasyon:
+        sql += " AND COALESCE(lokasyon,'TK2') = ?"
+        params.append(lokasyon)
+    sql += " ORDER BY ad"
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
 
 @app.route('/api/operatorler/yonetim', methods=['GET'])
+@panel_gerekli(izin='operatorler')
 def operator_listesi_yonetim():
-    """Yönetici için operatör listesi + PIN bilgisi.
-    Dashboard'da PIN tanımlama panelinde kullanılır.
+    """Yönetici için operatör listesi + PIN bilgisi. ?lokasyon= ile tesise göre filtrelenir.
+    Dashboard'da PIN tanımlama panelinde kullanılır (aktif lokasyona göre).
     """
+    lokasyon = request.args.get('lokasyon')
     conn = get_db()
-    rows = conn.execute('SELECT id, ad, bolum, pin FROM operatorler ORDER BY bolum, ad').fetchall()
+    sql = "SELECT id, ad, bolum, pin, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE 1=1"
+    params = []
+    if lokasyon:
+        sql += " AND COALESCE(lokasyon,'TK2') = ?"
+        params.append(lokasyon)
+    sql += " ORDER BY COALESCE(lokasyon,'TK2'), bolum, ad"
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -1412,23 +2755,35 @@ def operator_oturum_ac():
     data = request.get_json() or {}
     op = (data.get('operator_adi') or '').strip()
     pin = (data.get('pin') or '').strip()
+    lokasyon = (data.get('lokasyon') or request.args.get('lokasyon') or '').strip()
     if not op or not pin:
         return jsonify({'hata': 'operator_adi ve pin zorunlu'}), 400
     conn = get_db()
-    row = conn.execute('SELECT pin, bolum FROM operatorler WHERE ad=?', (op,)).fetchone()
+    # lokasyon verildiyse o lokasyondaki operatörü seç (ad artık lokasyonlar arası tek değil);
+    # verilmezse ilk eşleşen (geriye dönük uyum).
+    # ÇOKLU BÖLÜM: UNIQUE(ad, bolum, lokasyon) sonrası aynı kişinin bölüm başına satırı
+    # olabilir — herhangi bir satırın PIN'i tutarsa giriş başarılı (satırlar tek PIN paylaşır,
+    # import + PIN güncelleme bunu korur).
+    if lokasyon:
+        rows = conn.execute("SELECT pin, bolum, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE ad=? AND COALESCE(lokasyon,'TK2')=?", (op, lokasyon)).fetchall()
+    else:
+        rows = conn.execute("SELECT pin, bolum, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE ad=?", (op,)).fetchall()
     conn.close()
-    if not row:
+    if not rows:
         return jsonify({'hata': f'Operatör bulunamadı: {op}'}), 403
-    if (row['pin'] or '0000') != pin:
+    eslesen = next((r for r in rows if (r['pin'] or '0000') == pin), None)
+    if eslesen is None:
         return jsonify({'hata': 'PIN yanlış'}), 403
     return jsonify({
         'basarili':     True,
         'operator_adi': op,
-        'bolum':        row['bolum'] or '',
+        'bolum':        eslesen['bolum'] or '',
+        'lokasyon':     eslesen['lokasyon'] or 'TK2',
     }), 200
 
 
 @app.route('/api/operator/<int:oid>/pin', methods=['PATCH'])
+@panel_gerekli(izin='operatorler')
 def operator_pin_guncelle(oid):
     """Yönetici operatörün PIN'ini günceller. Body: {pin}
     PIN 4 haneli rakam olmalıdır.
@@ -1438,11 +2793,16 @@ def operator_pin_guncelle(oid):
     if not yeni_pin or len(yeni_pin) != 4 or not yeni_pin.isdigit():
         return jsonify({'hata': "PIN 4 haneli rakam olmalı (örn: '1234')"}), 400
     conn = get_db()
-    row = conn.execute('SELECT ad FROM operatorler WHERE id=?', (oid,)).fetchone()
+    row = conn.execute("SELECT ad, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE id=?", (oid,)).fetchone()
     if not row:
         conn.close()
         return jsonify({'hata': 'Operatör bulunamadı'}), 404
-    conn.execute('UPDATE operatorler SET pin=? WHERE id=?', (yeni_pin, oid))
+    # Bir kişi = tek PIN: aynı kişinin tüm bölüm satırlarına yaz (aynı tesiste).
+    # (Çoklu bölüm modeli: UNIQUE(ad, bolum, lokasyon) — kişi başına bölüm satırları var.)
+    conn.execute(
+        "UPDATE operatorler SET pin=? WHERE ad=? AND COALESCE(lokasyon,'TK2')=?",
+        (yeni_pin, row['ad'], row['lokasyon'])
+    )
     conn.commit()
     conn.close()
     return jsonify({'basarili': True, 'operator_adi': row['ad']}), 200
@@ -1455,10 +2815,22 @@ def excel_import():
     parametre yoksa: hepsi.
     """
     bolum = request.args.get('bolum')
-    if bolum and bolum not in ('kaynak', 'montaj', 'metal'):
+    lokasyon = request.args.get('lokasyon')
+    # TK1: ayrı Excel + import_tk1 (mirror-sync YOK, TK2 verisini silmez)
+    if lokasyon == 'TK1':
+        try:
+            return jsonify(import_tk1()), 200
+        except Exception as e:
+            return jsonify({'hata': str(e), 'basarili': False}), 500
+    if bolum and bolum not in GECERLI_BOLUMLER:
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}", 'basarili': False}), 400
     try:
         sonuc = import_data(bolum=bolum)
+        # Kaynak bölümü aktarımı ek sayfaları da kapsar: Robot Program Listesi + Fikstür
+        # Raf (eski 'Toplu Veri Yönetimi' butonundan taşındı — tek buton, tek akış).
+        if sonuc.get('basarili') and (bolum == 'kaynak' or not bolum):
+            from import_excel import kaynak_ek_import
+            sonuc.update(kaynak_ek_import())
         return jsonify(sonuc), 200
     except Exception as e:
         return jsonify({'hata': str(e), 'basarili': False}), 500
@@ -1470,7 +2842,11 @@ def veri_import_tum():
     Kapsam: referans + operatör (3 bölüm), robot program, fikstür raf.
     Duruş sebepleri her API isteğinde Excel'den okunur, import gerekmez.
     """
+    # TK1: ayrı Excel + import_tk1 (TK2 dosyasını okumaz, TK2 verisini silmez)
+    lokasyon = request.args.get('lokasyon')
     try:
+        if lokasyon == 'TK1':
+            return jsonify(import_tk1()), 200
         sonuc = import_tum()
         return jsonify(sonuc), 200
     except Exception as e:
@@ -1478,13 +2854,20 @@ def veri_import_tum():
 
 
 @app.route('/api/referans/teyit', methods=['PATCH'])
+@panel_gerekli(izin='referanslar')
 def referans_teyit_guncelle():
     """Bir referansın süre teyidi bayrağını aç/kapat.
-    Body: {referans_kodu, sure_teyit: 0|1}
-    """
+    Body: {referans_kodu, sure_teyit: 0|1, lokasyon?} — lokasyon ile o fabrikanın
+    satırı hedeflenir (diğer fabrikanın aynı kodlu referansının teyidi değişmez)."""
     data = request.get_json() or {}
     kod = (data.get('referans_kodu') or '').strip()
     teyit = 1 if data.get('sure_teyit') else 0
+    lokasyon = (data.get('lokasyon') or request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
+    # Süre teyidi kaynak bölümüne özgü bir özellik — aynı kod başka bölümde de (lazer/pres)
+    # yaşayabildiğinden güncelleme bölümle kapatılır (body'de bolum gelirse o, yoksa kaynak).
+    bolum = (data.get('bolum') or 'kaynak').strip()
+    if bolum not in GECERLI_BOLUMLER:
+        bolum = 'kaynak'
     if not kod:
         return jsonify({'hata': 'referans_kodu zorunlu'}), 400
     conn = get_db()
@@ -1492,19 +2875,33 @@ def referans_teyit_guncelle():
         if teyit == 1:
             conn.execute(
                 "UPDATE referans_listesi SET sure_teyit=1, sure_teyit_tarihi=datetime('now','localtime') "
-                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
-                (kod,)
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=?",
+                (kod, bolum, lokasyon)
             )
         else:
             conn.execute(
                 "UPDATE referans_listesi SET sure_teyit=0, sure_teyit_tarihi=NULL "
-                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
-                (kod,)
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=?",
+                (kod, bolum, lokasyon)
             )
         conn.commit()
+        ref_row = {'bolum': bolum}
     finally:
         conn.close()
-    return jsonify({'basarili': True, 'referans_kodu': kod, 'sure_teyit': teyit}), 200
+    # Excel auto-sync: teyit bilgisi artık Excel'de 'Süre Teyit' (E) kolonunda tutulur.
+    # (Eskiden teyit yalnız DB'ye yazılıyor, kullanıcı Excel'de değişiklik göremiyordu.)
+    excel_uyari = None
+    if lokasyon != 'TK1' and ref_row:
+        try:
+            sonuc = export_referans_cycle_times(bolum=ref_row['bolum'], lokasyon=lokasyon)
+            if not sonuc.get('basarili'):
+                excel_uyari = sonuc.get('hata')
+        except Exception as e:
+            excel_uyari = str(e)
+        if excel_uyari:
+            print(f'[referans/teyit] Excel sync hatası: {excel_uyari}')
+    return jsonify({'basarili': True, 'referans_kodu': kod, 'sure_teyit': teyit,
+                    'excel_uyari': excel_uyari}), 200
 
 
 @app.route('/api/saha_cihazlari', methods=['GET'])
@@ -1522,9 +2919,13 @@ def saha_cihazlari():
     import os
     pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
 
+    # ?lokasyon= verilirse sadece o tesisin cihazları döner (saha cihazları + sinyal
+    # analizi TK1/TK2'ye özel). Entry'de lokasyon yoksa 'TK2' varsayılır.
+    lokasyon = request.args.get('lokasyon')
     BEKLENEN = {
         'kaynak': [{'cihaz_id': f'ABB{i}-IO', 'robot_no': f'ABB{i}'} for i in range(1, 10)],
-        'montaj': [{'cihaz_id': f'MONTAJ-M{i}', 'robot_no': f'M{i}'} for i in range(1, 13)],
+        'montaj': [{'cihaz_id': f'MONTAJ-M{i}', 'robot_no': f'M{i}'} for i in range(1, 13)]
+                  + [{'cihaz_id': 'MONTAJ-YF1', 'robot_no': 'YF1', 'lokasyon': 'TK1'}],
         'metal':  [
             {'cihaz_id': '300T-IO', 'robot_no': '300T'},
             {'cihaz_id': '400T-IO', 'robot_no': '400T'},
@@ -1534,7 +2935,6 @@ def saha_cihazlari():
 
     # Pilot DB'den mevcut cihaz_kayitlari + bugünün ist1/ist2 sayıları
     mevcut = {}
-    ist_sayimlari = {}   # {cihaz_id: {1: adet, 2: adet}}
     reset_map = {}       # {(cihaz_id, istasyon): reset_ts}
     if os.path.exists(pilot_db):
         import sqlite3
@@ -1550,18 +2950,6 @@ def saha_cihazlari():
                 d = dict(r)
                 d['durum'] = 'offline' if (d.get('son_heartbeat_dk') or 0) > 2 else 'online'
                 mevcut[d['cihaz_id']] = d
-
-            # Bugünün her cihaz + istasyon başına pulse adetleri (kaynak için ist1/ist2 ayrı göstermek için)
-            for r in c.execute('''
-                SELECT cihaz_id, istasyon, COUNT(*) as adet
-                FROM sayac_olaylari
-                WHERE date(ts) = date('now','localtime')
-                GROUP BY cihaz_id, istasyon
-            ''').fetchall():
-                cid = r['cihaz_id']
-                if cid not in ist_sayimlari:
-                    ist_sayimlari[cid] = {}
-                ist_sayimlari[cid][r['istasyon']] = r['adet']
 
             # Manuel reset noktalari — dashboard'dan "sayaci sifirla" tıklayınca yazıldı
             # Sayım sırasında filtre olarak kullanılır (ts > reset_ts olanları say)
@@ -1632,8 +3020,8 @@ def saha_cihazlari():
         ''', (bugun_str,)).fetchall():
             if r['robot_no'] and r['bts']:
                 op_baseline_map[(r['bolum'], r['robot_no'], int(r['istasyon'] or 0))] = r['bts']
-
-        conn_main.close()
+        # NOT: conn_main = get_db() g-paylaşımlı — istek ortasında KAPATMA (teardown kapatır).
+        # Erken close, sonrasına get_db kullanan kod eklenirse 'closed database' 500 üretir.
     except Exception as e:
         print(f'[saha_cihazlari] referans_takip/vardiyalar hata: {e}')
 
@@ -1671,6 +3059,9 @@ def saha_cihazlari():
         for beklenen_cihaz in cihazlar:
             cid = beklenen_cihaz['cihaz_id']
             rno = beklenen_cihaz['robot_no']
+            dev_lok = beklenen_cihaz.get('lokasyon', 'TK2')
+            if lokasyon and dev_lok != lokasyon:
+                continue   # bu tesisin cihazı değil — atla
             kayit = mevcut.get(cid)
 
             # Aktif vardiya baslangic ts (varsa) — sayac sifirlama referansi
@@ -1724,40 +3115,65 @@ def saha_cihazlari():
                         'pulse_sayisi':  _aktif_pulse_say(cid, 0, filt_ts),
                     })
 
-            # Sayac degerlerini hesapla:
-            # - Aktif vardiya varsa veya manuel reset yapilmissa: o andan sonraki pulse'lar
-            # - Hicbiri yoksa: bugunun tamamindaki pulse'lar (eski davranis)
+            # Sayac degerlerini hesapla — uretim kapisi = AKTIF VARDIYA (bkz. vardiya_acik):
+            # - Aktif vardiya varsa: vardiya basindan (veya daha gec reset/baseline'dan) say
+            # - Aktif vardiya yoksa: 0 (vardiya acilmadan gelen sinyal = hat paraziti, uretim degil)
             if kayit:
-                ist_map = ist_sayimlari.get(cid, {})
-                # Istasyon basina filtre ts: vardiya, kendi reset, all reset, operator baseline
+                # Istasyon basina baslangic referanslari (operator uretim baseline'i)
                 op_bl_1 = op_baseline_map.get((bolum, rno, 1))
                 op_bl_2 = op_baseline_map.get((bolum, rno, 2))
                 op_bl_0 = op_baseline_map.get((bolum, rno, 0))
-                ist1_filt = _en_son_ts(vardiya_ts, reset_ist1, reset_all, op_bl_1)
-                ist2_filt = _en_son_ts(vardiya_ts, reset_ist2, reset_all, op_bl_2)
-                if ist1_filt or ist2_filt or op_bl_0:
-                    ist1_v = _aktif_pulse_say(cid, 1, ist1_filt) if ist1_filt else ist_map.get(1, 0)
-                    ist2_v = _aktif_pulse_say(cid, 2, ist2_filt) if ist2_filt else ist_map.get(2, 0)
+                # ── URETIM KAPISI: AKTIF VARDIYA ──────────────────────────────
+                # Sayim ancak ACIK bir vardiya (veya o vardiyada acilmis operator
+                # uretim baseline'i) varsa yapilir. Aksi halde uretim baglami yoktur:
+                # vardiya acilmadan gelen sinyaller (gece/hafta sonu hat paraziti)
+                # uretim olarak SAYILMAZ.
+                # NOT: gunler oncesinden kalan BAYAT manuel reset noktasi TEK BASINA
+                # sayim baslatmaz; reset ancak acik vardiya icinde "su andan say" demektir.
+                vardiya_acik = bool(vardiya_ts or op_bl_0 or op_bl_1 or op_bl_2)
+                if not vardiya_acik:
+                    ist1_v = 0
+                    ist2_v = 0
+                    toplam_v = 0
+                else:
+                    # En gec baslangic noktasindan say: vardiya / manuel reset / baseline
+                    ist1_filt = _en_son_ts(vardiya_ts, reset_ist1, reset_all, op_bl_1)
+                    ist2_filt = _en_son_ts(vardiya_ts, reset_ist2, reset_all, op_bl_2)
+                    ist1_v = _aktif_pulse_say(cid, 1, ist1_filt) if ist1_filt else 0
+                    ist2_v = _aktif_pulse_say(cid, 2, ist2_filt) if ist2_filt else 0
                     # toplam = cihazin TUM pulse'lari (istasyon farketmez).
                     # _aktif_pulse_say(cid, 0, ts) -> istasyon=0 falsy oldugu icin filtre
                     # UYGULAMAZ, tum pulse'lari sayar. ESKI BUG: ist1_v + ist2_v + toplam_0
                     # idi; montaj istasyon=1 gonderdigi icin o pulse hem ist1_v'de hem
                     # toplam_0'da sayiliyordu = 2x. Duzeltme: dogrudan toplam say.
-                    # Montaj/metal icin op_bl_0 (istasyon=0 baseline) toplam filtresine girer.
                     toplam_ts = _en_son_ts(vardiya_ts, reset_all, op_bl_0)
-                    if toplam_ts:
-                        toplam_v = _aktif_pulse_say(cid, 0, toplam_ts)
-                    else:
-                        toplam_v = ist1_v + ist2_v
+                    toplam_v = _aktif_pulse_say(cid, 0, toplam_ts) if toplam_ts else (ist1_v + ist2_v)
+
+                # ── "Makine calisiyor" durumu ──────────────────────────────────
+                # Metal: sinyal akisindan TURETILIR. Her sinyal = makine-calisiyor rolesi
+                # darbesi (400T o roleyi izler). Son sinyal ESIK sn icindeyse calisiyor;
+                # sinyal kesilince durmus. Metal firmware robot_calisiyor=0 gonderir
+                # (kullanmaz), o yuzden bu alani metal'de biz uretiyoruz. Vardiya sart:
+                # vardiya yokken gelen sinyal hat parazitidir, "calisiyor" demek degildir.
+                # Kaynak/montaj: cihazin gercek robot_calisiyor IO sinyali aynen gecer.
+                if bolum == 'metal':
+                    robot_calisiyor_deger = 0
+                    son_sin = kayit.get('son_sinyal')
+                    if vardiya_acik and son_sin:
+                        try:
+                            gecen_sn = (datetime.now() - datetime.strptime(son_sin, '%Y-%m-%d %H:%M:%S')).total_seconds()
+                            if 0 <= gecen_sn < METAL_CALISIYOR_ESIK_SN:
+                                robot_calisiyor_deger = 1
+                        except (ValueError, TypeError):
+                            pass
                 else:
-                    ist1_v = ist_map.get(1, 0)
-                    ist2_v = ist_map.get(2, 0)
-                    toplam_v = sum(ist_map.values())
+                    robot_calisiyor_deger = 1 if kayit.get('robot_calisiyor') else 0
 
                 liste.append({
                     'cihaz_id':           cid,
                     'robot_no':           rno,
                     'bolum':              bolum,
+                    'lokasyon':           dev_lok,
                     'durum':              kayit.get('durum', 'offline'),
                     'ip_adresi':          kayit.get('ip_adresi', ''),
                     'wifi_rssi':          kayit.get('wifi_rssi', 0),
@@ -1771,7 +3187,7 @@ def saha_cihazlari():
                     'bugun_ist1':         ist1_v,
                     'bugun_ist2':         ist2_v,
                     'bugun_toplam':       toplam_v,
-                    'robot_calisiyor':    1 if kayit.get('robot_calisiyor') else 0,
+                    'robot_calisiyor':    robot_calisiyor_deger,
                     'aktif_vardiya_ts':   vardiya_ts,
                     'aktif_referanslar':  aktif_referanslar,
                     'kayitli':            True,
@@ -1782,6 +3198,7 @@ def saha_cihazlari():
                     'cihaz_id':           cid,
                     'robot_no':           rno,
                     'bolum':              bolum,
+                    'lokasyon':           dev_lok,
                     'durum':              'beklemede',
                     'aktif_vardiya_ts':   vardiya_ts,
                     'aktif_referanslar':  aktif_referanslar,
@@ -1793,6 +3210,7 @@ def saha_cihazlari():
 
 
 @app.route('/api/saha_cihazlari/sayac_reset', methods=['POST'])
+@panel_gerekli(izin='saha-cihazlari')
 def saha_cihazlari_sayac_reset():
     """Manuel sayaç sıfırlama — dashboard kartından çağrılır.
 
@@ -1859,7 +3277,122 @@ def saha_cihazlari_sayac_reset():
     }), 200
 
 
+@app.route('/api/pilot/durus_tanimla', methods=['POST'])
+@panel_gerekli(izin='andon-ayarlari')
+def pilot_durus_tanimla():
+    """Sinyal Analizi'nde 'Kaydedilmemiş' bir boşluğa sebep atar.
+    Sinyalden gelen GERÇEK başlangıç saati + süre ile bir duruş kaydı oluşturur
+    (baslangic_saati dolu → bir dahaki analizde tam eşleşir). Rapor SUM ile çalışır,
+    bu yüzden saatli/ayrı kayıt Andon/OEE toplamlarını bozmaz."""
+    data = request.get_json() or {}
+    robot_no = (data.get('robot_no') or '').strip()
+    tarih    = (data.get('tarih') or '').strip()
+    bolum    = (data.get('bolum') or '').strip()
+    basla    = (data.get('basla') or '').strip()   # ISO datetime (boşluğun başlangıcı)
+    sebep    = (data.get('durus_sebebi') or '').strip()
+    tip      = (data.get('durus_tipi') or 'plansiz').strip()
+    try:
+        sure_dk = int(round(float(data.get('sure_dk') or 0)))
+    except (ValueError, TypeError):
+        sure_dk = 0
+    if not robot_no or not tarih or not sebep or sure_dk <= 0:
+        return jsonify({'hata': 'robot_no, tarih, durus_sebebi, sure_dk zorunlu'}), 400
+    # Başlangıç saatini HH:MM'e çevir (timed kayıt — gelecekte kesin eşleşme)
+    hhmm = ''
+    try:
+        hhmm = datetime.fromisoformat(basla).strftime('%H:%M') if basla else ''
+    except Exception:
+        hhmm = ''
+    conn = get_db()
+    try:
+        v = None
+        if bolum and _kolon_var(conn, 'vardiyalar', 'bolum'):
+            v = conn.execute("SELECT id FROM vardiyalar WHERE robot_no=? AND tarih=? AND bolum=? ORDER BY id DESC LIMIT 1",
+                             (robot_no, tarih, bolum)).fetchone()
+        if not v:
+            v = conn.execute("SELECT id FROM vardiyalar WHERE robot_no=? AND tarih=? ORDER BY id DESC LIMIT 1",
+                             (robot_no, tarih)).fetchone()
+        if not v:
+            return jsonify({'hata': 'Bu cihaz/tarih için vardiya bulunamadı'}), 404
+        conn.execute('''INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi)
+                        VALUES (?, ?, ?, ?, ?, ?)''',
+                     (v['id'], sebep, (data.get('aciklama') or '').strip(), sure_dk, hhmm, tip))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({'basarili': True, 'baslangic_saati': hhmm, 'sure_dk': sure_dk}), 201
+
+
+@app.route('/api/pilot/sinyal_kalitesi', methods=['GET'])
+@panel_gerekli(izin='sinyal-analizi')
+def pilot_sinyal_kalitesi():
+    """Sinyal Kalitesi / Tani paneli — cihaz başına sayım kararları + kayıp mutabakatı.
+    Pilot.db'den okunur: cihaz_kayitlari (tani sayaçları + pulse_ist baseline) + sayac_olaylari.
+      - sayildi  : gerçek sayım (firmware kararı)
+      - parazit  : elenen gürültü (ham HIGH→LOW kenar) — sistemin ayıkladığı
+      - erken    : MIN_PULSE_GAP altında reddedilen
+      - kayip    : cihaz NVS sayımı − server'a ulaşan (transit/WiFi kaybı)
+      - son_kararlar: son tani olayları (SAYILDI/ERKEN) zaman akışı
+    """
+    import os, sqlite3
+    lokasyon = request.args.get('lokasyon')   # TK1/TK2'ye göre cihaz filtresi (robot_no eşlemesi)
+    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+    cihazlar, son_kararlar = [], []
+    if not os.path.exists(pilot_db):
+        return jsonify({'cihazlar': [], 'son_kararlar': [], 'hata': 'Pilot DB yok'}), 200
+    try:
+        pc = sqlite3.connect(pilot_db)
+        pc.row_factory = sqlite3.Row
+        try:
+            rows = pc.execute('''
+                SELECT cihaz_id, bolum, robot_no, wifi_rssi,
+                       tani_sayildi, tani_parazit, tani_erken,
+                       pulse_ist1, pulse_ist2, base_ist1, base_ist2,
+                       CAST((julianday('now','localtime')-julianday(son_heartbeat))*1440 AS INTEGER) hb_dk
+                FROM cihaz_kayitlari
+            ''').fetchall()
+            for r in rows:
+                cid = r['cihaz_id']
+                sc1 = pc.execute("SELECT COUNT(*) FROM sayac_olaylari WHERE cihaz_id=? AND istasyon=1", (cid,)).fetchone()[0]
+                sc2 = pc.execute("SELECT COUNT(*) FROM sayac_olaylari WHERE cihaz_id=? AND istasyon=2", (cid,)).fetchone()[0]
+                b1 = r['base_ist1'] if r['base_ist1'] is not None else 0
+                b2 = r['base_ist2'] if r['base_ist2'] is not None else 0
+                kayip = max(0, (r['pulse_ist1'] or 0) + b1 - sc1) + max(0, (r['pulse_ist2'] or 0) + b2 - sc2)
+                sayildi = r['tani_sayildi'] or 0
+                parazit = r['tani_parazit'] or 0   # TÜM ham HIGH→LOW kenar (gerçek pulse kenarı dahil)
+                erken   = r['tani_erken'] or 0
+                # Elenen gürültü = ham kenar − sayılan − erken (gerçek pulse'ların kenarı düşülür)
+                # Temiz sinyalde ~0 (her kenar sayıldı); 400T gibi gürültülü hatta yüksek.
+                elenen_gurultu = max(0, parazit - sayildi - erken)
+                cihazlar.append({
+                    'cihaz_id': cid, 'bolum': r['bolum'], 'robot_no': r['robot_no'],
+                    'wifi_rssi': r['wifi_rssi'], 'online': (r['hb_dk'] if r['hb_dk'] is not None else 999) <= 2,
+                    'sayildi': sayildi, 'elenen_gurultu': elenen_gurultu, 'erken': erken,
+                    'ham_kenar': parazit, 'kayip': kayip,
+                })
+            for r in pc.execute('''
+                SELECT cihaz_id, robot_no, tip, gap_ms, low_ms, ts
+                FROM tani_olaylari ORDER BY id DESC LIMIT 30
+            ''').fetchall():
+                son_kararlar.append(dict(r))
+        finally:
+            pc.close()
+    except Exception as e:
+        return jsonify({'cihazlar': [], 'son_kararlar': [], 'hata': str(e)}), 200
+    # Lokasyon filtresi (TK1 = TK1_ROBOT_NOLARI; TK2 = geri kalan)
+    if lokasyon == 'TK1':
+        cihazlar = [c for c in cihazlar if c.get('robot_no') in TK1_ROBOT_NOLARI]
+        son_kararlar = [k for k in son_kararlar if k.get('robot_no') in TK1_ROBOT_NOLARI]
+    elif lokasyon == 'TK2':
+        cihazlar = [c for c in cihazlar if c.get('robot_no') not in TK1_ROBOT_NOLARI]
+        son_kararlar = [k for k in son_kararlar if k.get('robot_no') not in TK1_ROBOT_NOLARI]
+    # En çok sinyal işleyen (tani verisi olan) cihazlar üstte
+    cihazlar.sort(key=lambda x: (x['sayildi'] + x['ham_kenar']), reverse=True)
+    return jsonify({'cihazlar': cihazlar, 'son_kararlar': son_kararlar})
+
+
 @app.route('/api/pilot/sinyal_analiz', methods=['GET'])
+@panel_gerekli(izin='sinyal-analizi')
 def pilot_sinyal_analiz():
     """Pilot sayaç pulse'larının zaman analizi.
 
@@ -1926,7 +3459,73 @@ def pilot_sinyal_analiz():
             pc.close()
 
     # ─── Özet metrikleri ──────────────────────────────────────────
-    gaps = [o['gap_sn'] for o in olaylar if o['gap_sn'] is not None]
+    # Duruş eşiği: bu süreyi aşan gap = duruş (gerçek cycle değil). ?durus_esik_sn ile ayarlanır.
+    DURUS_ESIK_SN = max(60, int(request.args.get('durus_esik_sn', 300) or 300))
+    # Kayıtlı duruşlar (SEBEP eşleştirmesi için). NOT: duruslar tablosu aynı vardiya+sebep'i
+    # TOPLAR (Andon toplamı için doğru) → kayıt zamanı timeline'da yanıltıcı. O yüzden
+    # duruşları SİNYALDEN (uzun gap) gerçek zamanında türetip sebebi buradan eşleştiriyoruz.
+    conn = get_db()
+    kayitli_duruslar = []
+    try:
+        for _r in conn.execute('''
+            SELECT d.baslangic_saati, d.sure_dk, d.durus_sebebi, d.durus_tipi, d.aciklama
+            FROM duruslar d JOIN vardiyalar v ON d.vardiya_id = v.id
+            WHERE v.robot_no=? AND v.tarih=? ORDER BY d.baslangic_saati
+        ''', (robot_no, tarih)).fetchall():
+            # NOT: kayıtların ~%100'ünde baslangic_saati BOŞ — bu yüzden eşleştirme
+            # öncelikle SÜRE ile yapılır (40dk gap ↔ 40dk kayıt). Saat varsa zaman da kullanılır.
+            _bs = (_r['baslangic_saati'] or '').strip()
+            _sure_sn = (_r['sure_dk'] or 0) * 60
+            _bdt = None
+            if _bs:
+                try:
+                    _iso = _bs if ('T' in _bs or len(_bs) > 8) else (f'{tarih}T{_bs}:00' if len(_bs) == 5 else f'{tarih}T{_bs}')
+                    _bdt = datetime.fromisoformat(_iso)
+                except Exception:
+                    _bdt = None
+            kayitli_duruslar.append({
+                'basla_dt': _bdt,
+                'biti_dt':  (_bdt + timedelta(seconds=_sure_sn)) if _bdt else None,
+                'sure_sn':  _sure_sn,
+                'sebep':    _r['durus_sebebi'] or '',
+                'tip':      _r['durus_tipi'] or 'plansiz',
+                'aciklama': _r['aciklama'] or '',
+                'used':     False,
+            })
+    except Exception as _e:
+        print(f'[sinyal_analiz] kayitli durus hata: {_e}')
+
+    def _durus_gap_mi(prev_dt, cur_dt, gap_sn):
+        """Gap bir duruşa mı denk geliyor? (eşik üstü VEYA kayıtlı duruşla örtüşen)"""
+        if gap_sn is not None and gap_sn > DURUS_ESIK_SN:
+            return True
+        if prev_dt is None or cur_dt is None:
+            return False
+        for kd in kayitli_duruslar:
+            if kd['basla_dt'] is not None and prev_dt < kd['biti_dt'] and cur_dt > kd['basla_dt']:
+                return True
+        return False
+
+    # Cycle istatistikleri SADECE gerçek cycle gap'lerinden (duruş gap'leri hariç) hesaplanır
+    cycle_gaps = []
+    haric_durus = 0
+    for o in olaylar:
+        g = o['gap_sn']
+        if g is None:
+            o['durus'] = False
+            continue
+        try:
+            _cur = datetime.fromisoformat(o['ts'])
+            _prev = _cur - timedelta(seconds=g)
+        except Exception:
+            _cur = _prev = None
+        _isdurus = _durus_gap_mi(_prev, _cur, g)
+        o['durus'] = _isdurus            # grafik scatter bu bayrakla duruş noktasını atlar
+        if _isdurus:
+            haric_durus += 1
+            continue
+        cycle_gaps.append(g)
+    gaps = cycle_gaps
     # Medyan
     _medyan = 0
     if gaps:
@@ -1948,6 +3547,7 @@ def pilot_sinyal_analiz():
         'mod_gap_sn':      _mod,
         'en_uzun_gap_sn':  round(max(gaps), 1) if gaps else 0,
         'en_kisa_gap_sn':  round(min(gaps), 1) if gaps else 0,
+        'haric_durus_gap': haric_durus,   # cycle dışı bırakılan (duruş) gap sayısı
     }
 
     # ─── Saatlik dağılım ─────────────────────────────────────────
@@ -1955,12 +3555,14 @@ def pilot_sinyal_analiz():
     saatlik_sayim = {}  # {hour: pulse_count}
     for o in olaylar:
         try:
-            h = datetime.fromisoformat(o['ts']).hour
+            _cur = datetime.fromisoformat(o['ts'])
         except Exception:
             continue
+        h = _cur.hour
         saatlik_sayim[h] = saatlik_sayim.get(h, 0) + 1
-        if o['gap_sn'] is not None:
-            saatlik_map.setdefault(h, []).append(o['gap_sn'])
+        g = o['gap_sn']
+        if g is not None and not _durus_gap_mi(_cur - timedelta(seconds=g), _cur, g):
+            saatlik_map.setdefault(h, []).append(g)
     saatlik = []
     for h in range(24):
         gaps_h = saatlik_map.get(h, [])
@@ -1972,38 +3574,54 @@ def pilot_sinyal_analiz():
             })
 
     # ─── Duruşlar (ana DB) ──────────────────────────────────────
-    conn = get_db()
-    durus_rows = conn.execute('''
-        SELECT d.baslangic_saati, d.sure_dk, d.durus_sebebi, d.durus_tipi, d.aciklama
-        FROM duruslar d
-        JOIN vardiyalar v ON d.vardiya_id = v.id
-        WHERE v.robot_no=? AND v.tarih=?
-        ORDER BY d.baslangic_saati
-    ''', (robot_no, tarih)).fetchall()
-    duruslar = []
-    for r in durus_rows:
-        bs = (r['baslangic_saati'] or '').strip()
-        sure_dk = r['sure_dk'] or 0
-        if not bs or sure_dk <= 0:
-            continue
-        # baslangic_saati "HH:MM" formatında — tarih ile birleştir
+    # SİNYALDEN türet: birleşik pulse akışında eşik üstü boşluk = bir duruş (GERÇEK zaman).
+    # Kayıttaki toplanmış süre/zaman KULLANILMAZ; sebep, kayıtlı duruştan eşleştirilir.
+    def _match_durus(prev_dt, cur_dt, gap_sn):
+        # 1) Saati DOLU kayıtla zaman örtüşmesi (nadir — kayıtların çoğu saatsiz)
+        for kd in kayitli_duruslar:
+            if (not kd['used'] and kd['basla_dt'] is not None
+                    and prev_dt < kd['biti_dt'] and cur_dt > kd['basla_dt']):
+                kd['used'] = True
+                return kd
+        # 2) SÜRE eşleşmesi (saatsiz kayıtlar): süresi gap'e en yakın, tolerans içinde kayıt
+        aday, en_fark = None, None
+        tol = max(120, gap_sn * 0.25)   # ±%25 veya en az 2dk
+        for kd in kayitli_duruslar:
+            if kd['used']:
+                continue
+            fark = abs(kd['sure_sn'] - gap_sn)
+            if fark <= tol and (en_fark is None or fark < en_fark):
+                en_fark, aday = fark, kd
+        if aday is not None:
+            aday['used'] = True
+        return aday
+    tum_ts = []
+    for o in olaylar:
         try:
-            if 'T' in bs or len(bs) > 8:
-                basla_iso = bs
-            else:
-                basla_iso = f'{tarih}T{bs}:00' if len(bs) == 5 else f'{tarih}T{bs}'
-            basla_dt = datetime.fromisoformat(basla_iso)
-            biti_dt = basla_dt + timedelta(minutes=sure_dk)
-            duruslar.append({
-                'basla':    basla_dt.isoformat(),
-                'biti':     biti_dt.isoformat(),
-                'sure_dk':  sure_dk,
-                'sebep':    r['durus_sebebi'] or '',
-                'tip':      r['durus_tipi'] or 'plansiz',
-                'aciklama': r['aciklama'] or '',
-            })
+            tum_ts.append(datetime.fromisoformat(o['ts']))
         except Exception:
             pass
+    tum_ts.sort()
+    # Kaydedilmemiş (sebebi olmayan) duruş ancak >=10dk ise timeline'a gelsin —
+    # kısa boşluklar "Kaydedilmemiş duruş" olarak kalabalık yapmasın. ?kayitsiz_esik_sn ile ayarlanır.
+    KAYITSIZ_DURUS_ESIK_SN = max(0, int(request.args.get('kayitsiz_esik_sn', 600) or 600))
+    duruslar = []
+    for _i in range(1, len(tum_ts)):
+        prev_dt, cur_dt = tum_ts[_i-1], tum_ts[_i]
+        gap_sn = (cur_dt - prev_dt).total_seconds()
+        if gap_sn <= DURUS_ESIK_SN:
+            continue
+        kd = _match_durus(prev_dt, cur_dt, gap_sn)
+        if kd is None and gap_sn < KAYITSIZ_DURUS_ESIK_SN:
+            continue  # kısa + kaydedilmemiş → timeline'a ekleme
+        duruslar.append({
+            'basla':    prev_dt.isoformat(),
+            'biti':     cur_dt.isoformat(),
+            'sure_dk':  round(gap_sn / 60, 1),
+            'sebep':    (kd['sebep'] if kd else '') or 'Kaydedilmemiş',
+            'tip':      kd['tip'] if kd else 'plansiz',
+            'aciklama': kd['aciklama'] if kd else '',
+        })
 
     # ─── Referans dönemler (üretim kayıtları timeline'ı) ────────
     uretim_rows = conn.execute('''
@@ -2096,10 +3714,11 @@ def _kolon_var(conn, tablo, kolon):
 
 @app.route('/api/referans/teyit_ozet', methods=['GET'])
 def referans_teyit_ozet():
-    """Bölüm bazında teyit özeti: toplam / teyitli / teyitsiz / süresiz sayıları."""
+    """Bölüm bazında teyit özeti: toplam / teyitli / teyitsiz / süresiz sayıları.
+    ?lokasyon= ile tesise göre filtrelenir (montaj çağrısında TK1/TK2 karışmasın)."""
     bolum = request.args.get('bolum', 'kaynak')
-    conn = get_db()
-    rows = conn.execute('''
+    lokasyon = request.args.get('lokasyon')
+    sql = '''
         SELECT
           COUNT(*) as toplam,
           SUM(CASE WHEN COALESCE(sure_teyit,0)=1 THEN 1 ELSE 0 END) as teyitli,
@@ -2107,11 +3726,18 @@ def referans_teyit_ozet():
           SUM(CASE WHEN COALESCE(hedef_cycle_time_sn,0)=0 THEN 1 ELSE 0 END) as suresiz
         FROM referans_listesi
         WHERE COALESCE(bolum,'kaynak')=?
-    ''', (bolum,)).fetchone()
+    '''
+    params = [bolum]
+    if lokasyon:
+        sql += " AND COALESCE(lokasyon,'TK2')=?"
+        params.append(lokasyon)
+    conn = get_db()
+    rows = conn.execute(sql, params).fetchone()
     conn.close()
     d = dict(rows) if rows else {}
     return jsonify({
         'bolum': bolum,
+        'lokasyon': lokasyon or '',
         'toplam': d.get('toplam', 0) or 0,
         'teyitli': d.get('teyitli', 0) or 0,
         'teyitsiz': d.get('teyitsiz', 0) or 0,
@@ -2155,16 +3781,20 @@ def referans_sureler_guncelle():
 
     conn = get_db()
     try:
+        # Bu endpoint kaynak (TK2) içindir → kaynak bölümü + TK2'ye kapat
+        # (aynı kodlu TK1 satırına ya da başka bölümün — lazer/pres — satırına dokunma)
         c = conn.cursor()
         c.execute(
             "UPDATE referans_listesi SET kaynak_suresi_sn=?, soktak_suresi_sn=?, hedef_cycle_time_sn=? "
-            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND COALESCE(bolum,'kaynak')='kaynak' AND COALESCE(lokasyon,'TK2')='TK2'",
             (kaynak, soktak, toplam, kod)
         )
-        # Geriye dönük: bu kodla mevcut üretim kayıtlarındaki cycle_time'ı güncelle
+        # Geriye dönük: bu kodla mevcut TK2 KAYNAK üretim kayıtlarındaki cycle_time'ı güncelle
         c.execute(
             "UPDATE uretim_kayitlari SET cycle_time_sn=? "
-            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')='TK2' AND COALESCE(bolum,'kaynak')='kaynak')",
             (toplam, kod)
         )
         conn.commit()
@@ -2220,10 +3850,11 @@ def durus_sebepleri_api():
     Cache-Control: no-store → Excel'de yapılan değişiklikler anında yansır.
     """
     bolum = (request.args.get('bolum') or 'kaynak').strip()
-    if bolum not in ('kaynak', 'montaj', 'metal'):
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
+    if bolum not in GECERLI_BOLUMLER:
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
-    sebepler = durus_sebepleri_yukle(bolum)
-    resp = jsonify({'bolum': bolum, 'sebepler': sebepler})
+    sebepler = durus_sebepleri_yukle(bolum, lokasyon)
+    resp = jsonify({'bolum': bolum, 'lokasyon': lokasyon, 'sebepler': sebepler})
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     resp.headers['Pragma'] = 'no-cache'
     return resp, 200
@@ -2257,6 +3888,13 @@ def ozet():
     tarih_bit = request.args.get('tarih_bit', bugun)
     robot = request.args.get('robot')
     bolum = request.args.get('bolum')
+    lokasyon = request.args.get('lokasyon')
+
+    # Sorgu bugünü kapsıyorsa: açık vardiyaların auto sayaçlarını ÖNCE tazele —
+    # dashboard performans/OEE'si canlı makine adetleriyle hesaplansın
+    # (andon rozeti canlıyken performansın bayat kalması sorunu).
+    if tarih_bas <= bugun <= tarih_bit:
+        _acik_auto_vardiyalari_senkronla(conn, bolum=bolum or None, lokasyon=lokasyon or None)
 
     param_vardiya = [tarih_bas, tarih_bit]
     sart_vardiya = 'tarih BETWEEN ? AND ?'
@@ -2266,6 +3904,9 @@ def ozet():
     if bolum:
         sart_vardiya += " AND COALESCE(v.bolum, 'kaynak') = ?"
         param_vardiya.append(bolum)
+    if lokasyon:
+        sart_vardiya += " AND COALESCE(v.lokasyon, 'TK2') = ?"
+        param_vardiya.append(lokasyon)
 
     # Vardiya sayıları
     vardiya_sayisi = c.execute(
@@ -2325,6 +3966,8 @@ def ozet():
     ''', param_vardiya).fetchall()
 
     # Üretim Kayıtları (Detaylı - Düzenlenebilir)
+    # istasyon: lazer bölümünde makine (1..6) — frontend 'Lazer N' kırılımı bundan çıkar
+    # (lazer'de v.robot_no hep 'Lazer'; makine ayrımı yalnız u.istasyon'da).
     uretim_detay_listesi = c.execute(f'''
         SELECT u.id as uretim_id,
                v.tarih,
@@ -2334,7 +3977,8 @@ def ozet():
                u.ok_adet,
                u.nok_adet,
                u.hedef_adet,
-               u.cycle_time_sn
+               u.cycle_time_sn,
+               COALESCE(u.istasyon, 0) as istasyon
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
@@ -2434,6 +4078,7 @@ def rapor_api():
     robot = request.args.get('robot', '')
     operator_filtre = request.args.get('operator', '')
     bolum = request.args.get('bolum', '')
+    lokasyon = request.args.get('lokasyon', '')
 
     conn = get_db()
     c = conn.cursor()
@@ -2450,6 +4095,16 @@ def rapor_api():
     if bolum:
         sart += " AND COALESCE(v.bolum, 'kaynak') = ?"
         params.append(bolum)
+    if lokasyon:
+        # TK1/TK2 montaj raporları karışmasın (operatör/referans/TEEP tüm tipler bu sartı paylaşır)
+        sart += " AND COALESCE(v.lokasyon, 'TK2') = ?"
+        params.append(lokasyon)
+
+    # Rapor bugünü kapsıyorsa: açık vardiyaların auto sayaçlarını ÖNCE tazele —
+    # operatör/referans/TEEP raporları canlı makine adetleriyle hesaplansın
+    _bugun_r = date.today().isoformat()
+    if tarih_bas <= _bugun_r <= tarih_bit:
+        _acik_auto_vardiyalari_senkronla(conn, bolum or None, lokasyon or None)
 
     if rapor_tipi == 'operator':
         # Operator bazli rapor
@@ -2473,9 +4128,12 @@ def rapor_api():
             vp = list(params)
             v_sart = sart + " AND v.operator_adi = ?"
             vp.append(op)
-            vids = [x['id'] for x in c.execute(
-                f'SELECT v.id FROM vardiyalar v WHERE {v_sart}', vp
-            ).fetchall()]
+            v_rows = c.execute(
+                f'SELECT v.* FROM vardiyalar v WHERE {v_sart}', vp
+            ).fetchall()
+            vids = [x['id'] for x in v_rows]
+            # Açık vardiyalarda "o ana kadar geçen süre" (canlı), kapalılarda gerçek süre
+            efektif_calisma_dk = sum(_vardiya_efektif_dk(x) for x in v_rows)
 
             # Durus toplami
             if vids:
@@ -2513,7 +4171,7 @@ def rapor_api():
             sonuclar.append({
                 'operator': op,
                 'vardiya_sayisi': r['vardiya_sayisi'],
-                'toplam_calisma_dk': r['toplam_calisma_dk'] or 0,
+                'toplam_calisma_dk': efektif_calisma_dk,
                 'toplam_ok': r['toplam_ok'] or 0,
                 'toplam_nok': r['toplam_nok'] or 0,
                 'toplam_uretim': toplam_uretim,
@@ -2549,11 +4207,18 @@ def rapor_api():
         for r in rows:
             toplam = (r['toplam_ok'] or 0) + (r['toplam_nok'] or 0)
             kalite = round((r['toplam_ok'] or 0) / toplam * 100, 1) if toplam > 0 else 0
-            # Hedef CT'yi referans listesinden al
-            ref_row = c.execute(
-                'SELECT hedef_cycle_time_sn FROM referans_listesi WHERE referans_kodu = ?',
-                (r['referans_kodu'],)
-            ).fetchone()
+            # Hedef CT'yi referans listesinden al — rapor lokasyon filtreliyse o tesisin satırı
+            # (composite UNIQUE sonrası aynı kod TK1+TK2'de olabilir)
+            if lokasyon:
+                ref_row = c.execute(
+                    "SELECT hedef_cycle_time_sn FROM referans_listesi WHERE referans_kodu = ? AND COALESCE(lokasyon,'TK2') = ?",
+                    (r['referans_kodu'], lokasyon)
+                ).fetchone()
+            else:
+                ref_row = c.execute(
+                    'SELECT hedef_cycle_time_sn FROM referans_listesi WHERE referans_kodu = ?',
+                    (r['referans_kodu'],)
+                ).fetchone()
             hedef_ct = ref_row['hedef_cycle_time_sn'] if ref_row else 0
 
             sonuclar.append({
@@ -2580,12 +4245,9 @@ def rapor_api():
         gun_sayisi = max((d_bit - d_bas).days + 1, 1)
         takvim_dk = gun_sayisi * 24 * 60  # 24h x gun
 
-        # 2) Toplam vardiya suresi
-        row = c.execute(f'''
-            SELECT COALESCE(SUM(v.toplam_sure_dk), 0) as toplam
-            FROM vardiyalar v WHERE {sart}
-        ''', params).fetchone()
-        toplam_vardiya_dk = row['toplam']
+        # 2) Toplam vardiya suresi — açık vardiyalarda "o ana kadar geçen süre" (canlı)
+        v_rows = c.execute(f'SELECT v.* FROM vardiyalar v WHERE {sart}', params).fetchall()
+        toplam_vardiya_dk = sum(_vardiya_efektif_dk(v) for v in v_rows)
 
         # 3) Planli duruslar
         row = c.execute(f'''
@@ -2957,30 +4619,39 @@ def is_atamasi_sil(id):
 
 @app.route('/api/andon_robot_ayarlari', methods=['GET'])
 def andon_robot_ayarlari_listesi():
-    """?bolum=kaynak|montaj|metal ile filtrele; parametresizse hepsi döner."""
+    """?bolum= ve ?lokasyon= ile filtrele; parametresizse hepsi döner.
+    NOT: TK1 hatları (Pull/...) ve TK2 montaj (M1-M12) aynı bolum='montaj' altında —
+    lokasyon filtresi ikisini ayırır."""
     bolum = request.args.get('bolum', '').strip()
-    conn = get_db()
+    lokasyon = request.args.get('lokasyon', '').strip()
+    sql = "SELECT * FROM andon_robot_ayarlari WHERE 1=1"
+    params = []
     if bolum:
-        rows = conn.execute(
-            "SELECT * FROM andon_robot_ayarlari WHERE bolum=? ORDER BY sira",
-            (bolum,)
-        ).fetchall()
-    else:
-        rows = conn.execute('SELECT * FROM andon_robot_ayarlari ORDER BY bolum, sira').fetchall()
+        sql += " AND bolum=?"
+        params.append(bolum)
+    if lokasyon:
+        sql += " AND COALESCE(lokasyon,'TK2')=?"
+        params.append(lokasyon)
+    sql += " ORDER BY bolum, sira"
+    conn = get_db()
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
 @app.route('/api/andon_robot_ayarlari', methods=['PATCH'])
+@panel_gerekli(izin='andon-ayarlari')
 def andon_robot_ayarlari_guncelle():
     """Toplu güncelleme: [{robot_no, bolum, goster, sira}, ...]
     Eski payload'larda bolum yoksa 'kaynak' varsayılır (geriye dönük uyumluluk)."""
     data = request.get_json() or []
+    arg_lok = request.args.get('lokasyon')
     conn = get_db()
     for item in data:
         bolum = item.get('bolum') or 'kaynak'
+        lokasyon = item.get('lokasyon') or arg_lok or 'TK2'
         conn.execute(
-            'UPDATE andon_robot_ayarlari SET goster=?, sira=? WHERE robot_no=? AND bolum=?',
-            (int(item.get('goster', 1)), int(item.get('sira', 0)), item['robot_no'], bolum)
+            "UPDATE andon_robot_ayarlari SET goster=?, sira=? WHERE robot_no=? AND bolum=? AND COALESCE(lokasyon,'TK2')=?",
+            (int(item.get('goster', 1)), int(item.get('sira', 0)), item['robot_no'], bolum, lokasyon)
         )
     conn.commit()
     conn.close()
@@ -3004,6 +4675,112 @@ def save_ayarlar():
     return jsonify({'basarili': True})
 
 
+# ─────────────────────────────────────────────────────────────
+# GÜNLÜK ÜRETİM RAPORU E-POSTASI — alıcı yönetimi + manuel gönderim
+# SMTP bilgileri mail_config.json'da (gitignore); alıcılar mail_alicilari tablosunda.
+# ─────────────────────────────────────────────────────────────
+import re as _re
+_EMAIL_RE = _re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+@app.route('/api/mail/durum', methods=['GET'])
+@panel_gerekli(izin='raporlar')
+def mail_durum():
+    """Dashboard göstergesi: SMTP config durumu (şifre içermez) + aktif alıcı sayısı."""
+    try:
+        import mail_raporu
+        d = mail_raporu.durum_ozeti()
+        conn = get_db()
+        d['alici_sayisi'] = conn.execute("SELECT COUNT(*) FROM mail_alicilari WHERE COALESCE(aktif,1)=1").fetchone()[0]
+        conn.close()
+        return jsonify(d)
+    except Exception as e:
+        return jsonify({'config_var': False, 'etkin': False, 'hata': str(e)})
+
+
+@app.route('/api/mail/alicilar', methods=['GET'])
+@panel_gerekli(izin='raporlar')
+def mail_alicilar_listesi():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, email, ad, COALESCE(aktif,1) as aktif, created_at FROM mail_alicilari ORDER BY email"
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/mail/alicilar', methods=['POST'])
+@panel_gerekli(izin='raporlar')
+def mail_alici_ekle():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    ad = (data.get('ad') or '').strip()
+    if not email or not _EMAIL_RE.match(email):
+        return jsonify({'hata': 'Geçerli bir e-posta adresi giriniz.'}), 400
+    conn = get_db()
+    try:
+        conn.execute("INSERT INTO mail_alicilari (email, ad, aktif) VALUES (?, ?, 1)", (email, ad))
+        conn.commit()
+    except Exception:
+        conn.close()
+        return jsonify({'hata': 'Bu e-posta zaten ekli.'}), 400
+    conn.close()
+    return jsonify({'basarili': True}), 201
+
+
+@app.route('/api/mail/alicilar/<int:aid>', methods=['DELETE'])
+@panel_gerekli(izin='raporlar')
+def mail_alici_sil(aid):
+    conn = get_db()
+    conn.execute("DELETE FROM mail_alicilari WHERE id=?", (aid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'basarili': True})
+
+
+@app.route('/api/mail/alicilar/<int:aid>', methods=['PATCH'])
+@panel_gerekli(izin='raporlar')
+def mail_alici_guncelle(aid):
+    """aktif bayrağını aç/kapat (listeden silmeden geçici durdurma)."""
+    data = request.get_json() or {}
+    aktif = 1 if data.get('aktif') else 0
+    conn = get_db()
+    conn.execute("UPDATE mail_alicilari SET aktif=? WHERE id=?", (aktif, aid))
+    conn.commit()
+    conn.close()
+    return jsonify({'basarili': True})
+
+
+@app.route('/api/mail/gonder_simdi', methods=['POST'])
+@panel_gerekli(izin='raporlar')
+def mail_gonder_simdi():
+    """Günlük raporu ŞİMDİ üretip aktif alıcılara gönderir (17:00'ı beklemeden test/manuel)."""
+    data = request.get_json(silent=True) or {}
+    tarih = data.get('tarih')  # opsiyonel YYYY-MM-DD; yoksa bugün
+    try:
+        import mail_raporu
+        sonuc = mail_raporu.gunluk_mail_gonder(tarih=tarih)
+        return jsonify(sonuc), (200 if sonuc.get('basarili') else 400)
+    except Exception as e:
+        return jsonify({'basarili': False, 'mesaj': str(e)}), 500
+
+
+@app.route('/api/mail/test', methods=['POST'])
+@panel_gerekli(izin='raporlar')
+def mail_test_gonder():
+    """Tek adrese test maili — SMTP kurulumunu doğrulamak için."""
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    if not email or not _EMAIL_RE.match(email):
+        return jsonify({'basarili': False, 'mesaj': 'Geçerli bir e-posta adresi giriniz.'}), 400
+    try:
+        import mail_raporu
+        sonuc = mail_raporu.test_gonder(email)
+        return jsonify(sonuc), (200 if sonuc.get('basarili') else 400)
+    except Exception as e:
+        return jsonify({'basarili': False, 'mesaj': str(e)}), 500
+
+
 
 # ─────────────────────────────────────────────────────────────
 # REFERANS TAKİP (LAUNCH / İŞ EMRİ) API
@@ -3014,51 +4791,56 @@ DURUM_SIRASI = ['launch_alinacak', 'launch_alindi', 'launch_hazir', 'uretimde', 
 @app.route('/api/referans_takip', methods=['GET'])
 def referans_takip_listesi():
     bolum = request.args.get('bolum')
+    lokasyon = request.args.get('lokasyon')
     conn = get_db()
     # Tüm bölümlerde öncelik ASC, NULL olanlar en sonda → oluşturma tarihine göre
     # Kaynak/Söktak süreleri de JOIN ile eklendi (pair_cycle hesabı için)
+    # GROUP BY rt.id — FAN-OUT KORUMASI: referans_listesi'nde aynı normalize koda sahip
+    # birden çok satır olabilir (örn. '94.LTK.341/10' vs '94. LTK. 341/10' — operatörün
+    # boşluklu yazımı auto-create ile ayrı satır açmıştı). JOIN ikisiyle de eşleşince
+    # TEK iş emri listede İKİ kez görünüyordu. MAX(): dolu cycle değeri tercih edilir.
+    sql = '''
+        SELECT rt.*,
+               MAX(rl.hedef_cycle_time_sn) as hedef_cycle_time_sn,
+               MAX(rl.kaynak_suresi_sn)    as kaynak_suresi_sn,
+               MAX(rl.soktak_suresi_sn)    as soktak_suresi_sn
+        FROM referans_takip rt
+        LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
+            AND COALESCE(rl.lokasyon,'TK2') = COALESCE(rt.lokasyon,'TK2')
+        WHERE 1=1'''
+    params = []
     if bolum:
-        rows = conn.execute('''
-            SELECT rt.*,
-                   rl.hedef_cycle_time_sn,
-                   rl.kaynak_suresi_sn,
-                   rl.soktak_suresi_sn
-            FROM referans_takip rt
-            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-            WHERE COALESCE(rt.bolum, 'kaynak') = ?
-            ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC
-        ''', (bolum,)).fetchall()
-    else:
-        rows = conn.execute('''
-            SELECT rt.*,
-                   rl.hedef_cycle_time_sn,
-                   rl.kaynak_suresi_sn,
-                   rl.soktak_suresi_sn
-            FROM referans_takip rt
-            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-            ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC
-        ''').fetchall()
+        sql += " AND COALESCE(rt.bolum, 'kaynak') = ?"
+        params.append(bolum)
+    if lokasyon:
+        sql += " AND COALESCE(rt.lokasyon, 'TK2') = ?"
+        params.append(lokasyon)
+    sql += " GROUP BY rt.id ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC"
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
-def _oncelik_clamp(c, bolum, yeni_oncelik, eski_oncelik=None, exclude_id=None):
-    """Yeni öncelik değerini, o bölümdeki mevcut öncelikli kayıt sayısına göre clamp eder.
+def _oncelik_clamp(c, bolum, yeni_oncelik, eski_oncelik=None, exclude_id=None, lokasyon=None):
+    """Yeni öncelik değerini, o bölüm(+lokasyon)daki mevcut öncelikli kayıt sayısına göre clamp eder.
 
     INSERT (eski_oncelik=None): max = mevcut_sayi + 1 (yeni eklenecek)
     UPDATE (eski var, yeni var): max = mevcut_sayi (toplam değişmiyor)
     UPDATE (eski None, yeni var): max = mevcut_sayi + 1 (öncelik atıyor, +1 olur)
 
+    lokasyon verilirse sayım o tesise kapanır (TK1/TK2 launch sıraları karışmasın).
     None döndürürse clamp gerekmedi (zaten geçerli) veya yeni_oncelik None.
     """
     if yeni_oncelik is None:
         return None
     where_excl = ' AND id != ?' if exclude_id is not None else ''
     excl_args = (exclude_id,) if exclude_id is not None else ()
+    lok_sql = " AND COALESCE(lokasyon,'TK2') = ?" if lokasyon else ''
+    lok_args = (lokasyon,) if lokasyon else ()
     row = c.execute(f'''
         SELECT COUNT(*) as cnt FROM referans_takip
         WHERE COALESCE(bolum, 'kaynak') = ? AND oncelik IS NOT NULL
-        {where_excl}
-    ''', (bolum,) + excl_args).fetchone()
+        {lok_sql}{where_excl}
+    ''', (bolum,) + lok_args + excl_args).fetchone()
     mevcut_sayi = row['cnt'] if row else 0
     # Bu kayıt da öncelikli olacak: max = mevcut_sayi + 1 (kendisi de dahil)
     max_izinli = mevcut_sayi + 1
@@ -3069,13 +4851,14 @@ def _oncelik_clamp(c, bolum, yeni_oncelik, eski_oncelik=None, exclude_id=None):
     return yeni_oncelik
 
 
-def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
+def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None, lokasyon=None):
     """Bir bölüm kaydının öncelik geçişinde diğer satırları doğru yönde kaydırır.
     Tüm bölümler için çalışır (kaynak/montaj/metal).
 
     eski_oncelik: kaydın önceki değeri (None = öncesinde öncelik yoktu / yeni kayıt)
     yeni_oncelik: kaydın yeni değeri (None = öncelik kaldırılıyor)
     exclude_id:   bu id'li satıra dokunma (PATCH için kendisini hariç tut)
+    lokasyon:     verilirse kaydırma o tesise kapanır (TK1/TK2 launch sıraları karışmasın)
     """
     # Değişiklik yok
     if eski_oncelik == yeni_oncelik:
@@ -3083,6 +4866,8 @@ def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
 
     where_excl = ' AND id != ?' if exclude_id is not None else ''
     excl_args = (exclude_id,) if exclude_id is not None else ()
+    lok_sql = " AND COALESCE(lokasyon,'TK2') = ?" if lokasyon else ''
+    lok_args = (lokasyon,) if lokasyon else ()
 
     # 1) Yeni öncelik atanıyor (önceden yoktu): >= yeni olanları +1 kaydır
     if eski_oncelik is None and yeni_oncelik is not None:
@@ -3091,8 +4876,8 @@ def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
             SET oncelik = oncelik + 1
             WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik >= ?
-              {where_excl}
-        ''', (bolum, yeni_oncelik) + excl_args)
+              {lok_sql}{where_excl}
+        ''', (bolum, yeni_oncelik) + lok_args + excl_args)
 
     # 2) Öncelik kaldırılıyor: > eski olanları -1 yukarı çek (boşluğu kapat)
     elif eski_oncelik is not None and yeni_oncelik is None:
@@ -3101,8 +4886,8 @@ def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
             SET oncelik = oncelik - 1
             WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik > ?
-              {where_excl}
-        ''', (bolum, eski_oncelik) + excl_args)
+              {lok_sql}{where_excl}
+        ''', (bolum, eski_oncelik) + lok_args + excl_args)
 
     # 3) Yukarı taşıma (önem artıyor: eski > yeni, ör. 4 -> 2)
     elif yeni_oncelik < eski_oncelik:
@@ -3111,8 +4896,8 @@ def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
             SET oncelik = oncelik + 1
             WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik >= ? AND oncelik < ?
-              {where_excl}
-        ''', (bolum, yeni_oncelik, eski_oncelik) + excl_args)
+              {lok_sql}{where_excl}
+        ''', (bolum, yeni_oncelik, eski_oncelik) + lok_args + excl_args)
 
     # 4) Aşağı taşıma (önem azalıyor: eski < yeni, ör. 1 -> 3)
     else:  # yeni_oncelik > eski_oncelik
@@ -3121,11 +4906,12 @@ def _oncelik_kaydir(c, bolum, eski_oncelik, yeni_oncelik, exclude_id=None):
             SET oncelik = oncelik - 1
             WHERE COALESCE(bolum, 'kaynak') = ?
               AND oncelik IS NOT NULL AND oncelik > ? AND oncelik <= ?
-              {where_excl}
-        ''', (bolum, eski_oncelik, yeni_oncelik) + excl_args)
+              {lok_sql}{where_excl}
+        ''', (bolum, eski_oncelik, yeni_oncelik) + lok_args + excl_args)
 
 
 @app.route('/api/referans_takip', methods=['POST'])
+@panel_gerekli(izin='is-yonetimi')
 def referans_takip_ekle():
     try:
         data = request.get_json() or {}
@@ -3134,8 +4920,9 @@ def referans_takip_ekle():
             return jsonify({'error': 'referans_kodu zorunludur'}), 400
 
         bolum = (data.get('bolum') or 'kaynak').strip()
-        if bolum not in ('kaynak', 'montaj', 'metal'):
+        if bolum not in GECERLI_BOLUMLER:
             bolum = 'kaynak'
+        lokasyon = (data.get('lokasyon') or request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
 
         # Öncelik (yalnızca montaj için anlamlı). Boş/None: belirtilmemiş.
         oncelik_raw = data.get('oncelik')
@@ -3151,34 +4938,54 @@ def referans_takip_ekle():
         c = conn.cursor()
         # Öncelik clamp: kullanıcı çok yüksek bir sayı girdiyse mevcut listedeki
         # ref sayısına göre maksimum izinliye düşür (örn. 3 ref var, 5 girilmişse → 4)
-        oncelik = _oncelik_clamp(c, bolum, oncelik)
+        oncelik = _oncelik_clamp(c, bolum, oncelik, lokasyon=lokasyon)
         # Yeni kayıt: eski_oncelik=None, yeni_oncelik girildiyse mevcut >=N olanları +1
-        _oncelik_kaydir(c, bolum, None, oncelik)
+        _oncelik_kaydir(c, bolum, None, oncelik, lokasyon=lokasyon)
         durum_init = data.get('durum', 'launch_alinacak')
         # Eger referans dogrudan 'uretimde' durumda ekleniyorsa, pilot sayac sifirlama
         # zamanini su an olarak isaretle (yeni referans secimi = sayac sifir)
         uretime_baslama_init = "datetime('now','localtime')" if durum_init == 'uretimde' else None
         if uretime_baslama_init:
             c.execute(f'''
-                INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik, uretime_baslama_ts)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {uretime_baslama_init})
+                INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik, lokasyon, uretime_baslama_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {uretime_baslama_init})
             ''', (ref, int(data.get('hedef_adet', 0)), data.get('aciklama', ''),
                   durum_init, data.get('olusturan', ''),
-                  data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik))
+                  data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik, lokasyon))
         else:
             c.execute('''
-                INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, istasyon, bolum, oncelik, lokasyon)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (ref, int(data.get('hedef_adet', 0)), data.get('aciklama', ''),
                   durum_init, data.get('olusturan', ''),
-                  data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik))
+                  data.get('robot_no', ''), int(data.get('istasyon', 0)), bolum, oncelik, lokasyon))
         conn.commit()
+
+        # PUSH bildirim — bölümün sorumlu operatörlerinin telefonuna (arka planda).
+        # LOKASYON: BILDIRIM_ALICILARI TK2 (ana fabrika) sorumluları — TK1 launch'ı
+        # TK2 montaj sorumlusuna GITMESIN (ayrı fabrika). TK1 için alıcı tanımlanınca
+        # burada (bolum, lokasyon) anahtarlı yapıya geçilir.
+        alicilar = (BILDIRIM_ALICILARI.get(bolum) or []) if lokasyon == 'TK2' else []
+        if alicilar:
+            parcalar = [ref]
+            if data.get('robot_no'):
+                parcalar.append(str(data.get('robot_no')))
+            if data.get('istasyon'):
+                parcalar.append(f"İst.{data.get('istasyon')}")
+            if data.get('hedef_adet'):
+                parcalar.append(f"{data.get('hedef_adet')} adet")
+            if data.get('olusturan'):
+                parcalar.append(f"Ekleyen: {data.get('olusturan')}")
+            bolum_ad = BOLUM_AD.get(bolum, bolum)
+            _push_gonder_async(alicilar, f'🚀 Yeni Launch — {bolum_ad}', ' · '.join(parcalar))
+
         return jsonify({'basarili': True}), 201
     except Exception as e:
         print(f"HATA (referans_takip_ekle): {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/referans_takip/<int:id>', methods=['PATCH'])
+@panel_gerekli(izin='is-yonetimi')
 def referans_takip_guncelle(id):
     data = request.get_json() or {}
     conn = get_db()
@@ -3186,9 +4993,10 @@ def referans_takip_guncelle(id):
 
     # Öncelik değişiyorsa shift mantığı çalıştır (tüm bölümler için)
     if 'oncelik' in data:
-        mevcut = c.execute("SELECT bolum, oncelik FROM referans_takip WHERE id=?", (id,)).fetchone()
+        mevcut = c.execute("SELECT bolum, oncelik, COALESCE(lokasyon,'TK2') as lokasyon FROM referans_takip WHERE id=?", (id,)).fetchone()
         if mevcut:
             bolum_kayit = (mevcut['bolum'] or 'kaynak')
+            lok_kayit = mevcut['lokasyon'] or 'TK2'
             eski_onc = mevcut['oncelik']  # None olabilir
             yeni_raw = data.get('oncelik')
             yeni_onc = None
@@ -3198,9 +5006,9 @@ def referans_takip_guncelle(id):
                     if yeni_onc < 1: yeni_onc = None
                 except (TypeError, ValueError):
                     yeni_onc = None
-            # Clamp: girilen sayı listedeki ref sayısını aşıyorsa düşür
-            yeni_onc = _oncelik_clamp(c, bolum_kayit, yeni_onc, eski_oncelik=eski_onc, exclude_id=id)
-            _oncelik_kaydir(c, bolum_kayit, eski_onc, yeni_onc, exclude_id=id)
+            # Clamp: girilen sayı listedeki ref sayısını aşıyorsa düşür (o tesise kapalı)
+            yeni_onc = _oncelik_clamp(c, bolum_kayit, yeni_onc, eski_oncelik=eski_onc, exclude_id=id, lokasyon=lok_kayit)
+            _oncelik_kaydir(c, bolum_kayit, eski_onc, yeni_onc, exclude_id=id, lokasyon=lok_kayit)
             data['oncelik'] = yeni_onc  # normalize edildi
 
     fields, vals = [], []
@@ -3213,14 +5021,24 @@ def referans_takip_guncelle(id):
             fields.append("uretime_baslama_ts=datetime('now','localtime')")
     if 'aciklama' in data:
         fields.append('aciklama=?'); vals.append(data['aciklama'])
+    if 'depo_notu' in data:
+        fields.append('depo_notu=?'); vals.append((data.get('depo_notu') or '').strip())
     if 'hedef_adet' in data:
-        fields.append('hedef_adet=?'); vals.append(int(data['hedef_adet']))
+        try:
+            fields.append('hedef_adet=?'); vals.append(int(data.get('hedef_adet') or 0))
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'error': f"hedef_adet sayısal olmalı: {data.get('hedef_adet')!r}"}), 400
     if 'referans_kodu' in data:
         fields.append('referans_kodu=?'); vals.append(data['referans_kodu'])
     if 'robot_no' in data:
         fields.append('robot_no=?'); vals.append(data['robot_no'])
     if 'istasyon' in data:
-        fields.append('istasyon=?'); vals.append(int(data['istasyon']))
+        try:
+            fields.append('istasyon=?'); vals.append(int(data.get('istasyon') or 0))
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'error': f"istasyon sayısal olmalı: {data.get('istasyon')!r}"}), 400
     if 'oncelik' in data:
         fields.append('oncelik=?'); vals.append(data['oncelik'])  # None olabilir
     if not fields:
@@ -3247,6 +5065,7 @@ def robot_atama_listesi(robot_no):
 
 
 @app.route('/api/referans_takip/<int:id>', methods=['DELETE'])
+@panel_gerekli(izin='is-yonetimi')
 def referans_takip_sil(id):
     conn = get_db()
     conn.execute('DELETE FROM referans_takip WHERE id=?', (id,))
@@ -3265,21 +5084,36 @@ def andon_veri():
     """Andon TV için bugünün tüm üretim verilerini tek sorguda döndürür. ?bolum= ile filtrelenebilir."""
     bugun = date.today().isoformat()
     bolum = request.args.get('bolum', '')
+    lokasyon = request.args.get('lokasyon', '')
     conn = get_db()
     c = conn.cursor()
 
-    # Bölüm filtresi
+    # Bölüm + lokasyon filtresi
     bolum_sart = ''
     bolum_params = [bugun]
     if bolum:
-        bolum_sart = ' AND v.bolum = ?'
-        bolum_params = [bugun, bolum]
+        bolum_sart += ' AND v.bolum = ?'
+        bolum_params.append(bolum)
+    if lokasyon:
+        bolum_sart += " AND COALESCE(v.lokasyon,'TK2') = ?"
+        bolum_params.append(lokasyon)
 
     # Bugünkü tüm vardiyalar
     vardiyalar = c.execute(
         f'SELECT * FROM vardiyalar v WHERE v.tarih = ?{bolum_sart} ORDER BY v.baslangic_saati',
         bolum_params
     ).fetchall()
+
+    # Otomatik molalar (çay/yemek) — saati gelenleri bu vardiyalara işle (idempotent, canlı)
+    for _v in vardiyalar:
+        _otomatik_mola_uygula(c, _v)
+    conn.commit()
+
+    # SAYAÇ SENKRONU — açık vardiyaların TÜM auto kayıtları (ESP32 + test cihazı).
+    # Andon 30sn'de bir çağrılır: canlı makine adetleri üretim/performans hesabına
+    # da anlık yansır (eskiden yalnız operatör mobili açıkken tazeleniyordu →
+    # pilot rozeti canlı ama adet/performans bayat görünüyordu).
+    _acik_auto_vardiyalari_senkronla(conn, bolum=bolum or None, lokasyon=lokasyon or None)
 
     # Vardiya id'leri
     vardiya_ids = [v['id'] for v in vardiyalar]
@@ -3309,7 +5143,8 @@ def andon_veri():
     kalite_pct = round((toplam_ok / toplam_uretim * 100), 1) if toplam_uretim > 0 else 0
 
     # Toplam planlı süre ve duruş
-    toplam_planli_dk = sum(v['toplam_sure_dk'] or 0 for v in vardiyalar)
+    # Açık vardiyalarda "o ana kadar geçen süre" (canlı), kapalılarda gerçek süre
+    toplam_planli_dk = sum(_vardiya_efektif_dk(v) for v in vardiyalar)
     toplam_durus_dk  = sum(d['sure_dk'] or 0 for d in durus_rows)
     planli_durus_dk  = sum(d['sure_dk'] or 0 for d in durus_rows if d['durus_tipi'] == 'planli')
     plansiz_durus_dk = toplam_durus_dk - planli_durus_dk
@@ -3407,7 +5242,7 @@ def andon_veri():
     # her operatörün kendi kartını ve kendi üretim/duruş kayıtlarını görmesini sağlar.
     aktif_vardiyalar = []
     for v in vardiyalar:
-        if v['durum'] != 'acik':
+        if v['durum'] == 'kapali':   # 'acik' VEYA 'aktif' (yeniden acilan) goster; sadece 'kapali' gizle
             continue
         durus_info = vardiya_durus_map.get(v['id'], {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []})
         # robotla_calisiyor — sütun yoksa eski DB; güvenli erişim
@@ -3431,12 +5266,21 @@ def andon_veri():
         }
         for u in uretim_rows:
             if u['vardiya_id'] == v['id']:
+                # test_cihaz_id: eski DB'de kolon olmayabilir — güvenli erişim
+                try:
+                    _tc = u['test_cihaz_id']
+                except (KeyError, IndexError):
+                    _tc = None
                 row = {
                     'ref': u['referans_kodu'],
                     'launch': u['launch_adet'] or 0,
                     'tamamlandi': 1 if u['tamamlandi'] else 0,
                     'teyit': 0,        # aşağıda ref_durum_map'ten doldurulacak
                     'suresiz': 0,
+                    'ct': u['cycle_time_sn'] or 0,   # metal andon CT gösterimi (referans_listesi hedefi ile override edilir)
+                    'ok': u['ok_adet'] or 0,
+                    # Test cihazı sayaç kaynağı — andon ref satırında canlı adet rozeti göstermek için
+                    'test_cihaz': 1 if _tc else 0,
                 }
                 ist = u['istasyon'] or 0
                 if ist == 1:   item['istasyon_1'].append(row)
@@ -3466,6 +5310,24 @@ def andon_veri():
                     if durum:
                         row['teyit'] = durum['teyit']
                         row['suresiz'] = durum['suresiz']
+    elif bolum == 'metal':
+        # Metal andon: her referans satırına güncel hedef cycle time'ı yaz.
+        # referans_listesi hedefi varsa o önceliklidir (panelden güncellenince andon yansır);
+        # yoksa row['ct'] zaten kayıttaki cycle_time_sn (fallback) olarak kalır.
+        ref_ct_map = {}
+        for r in c.execute(
+            "SELECT referans_kodu, COALESCE(hedef_cycle_time_sn,0) as ct "
+            "FROM referans_listesi WHERE COALESCE(bolum,'kaynak')='metal'"
+        ).fetchall():
+            norm = str(r['referans_kodu'] or '').upper().replace(' ', '')
+            ref_ct_map[norm] = r['ct']
+        for it in aktif_vardiyalar:
+            for koleksiyon in ('istasyon_1', 'istasyon_2', 'diger'):
+                for row in it[koleksiyon]:
+                    norm = str(row.get('ref') or '').upper().replace(' ', '')
+                    hedef = ref_ct_map.get(norm)
+                    if hedef and hedef > 0:
+                        row['ct'] = hedef
 
     # Atamaları her uygun shift kartına ekle (aynı robot_no'lu kartlara)
     # Montaj'da "atama" kavramı kullanılmıyor — operatöre sıradaki iş olarak
@@ -3495,7 +5357,7 @@ def andon_veri():
     # Eski 'robotlar' alanı (legacy andon.html için backward compat — robot bazında ilk vardiya)
     robotlar = {}
     for v in vardiyalar:
-        if v['durum'] != 'acik':
+        if v['durum'] == 'kapali':   # 'acik' VEYA 'aktif' (yeniden acilan) goster; sadece 'kapali' gizle
             continue
         r = v['robot_no']
         durus_info = robot_durus_map.get(r, {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []})
@@ -3521,22 +5383,26 @@ def andon_veri():
             robotlar[rn] = {'robot_no':rn, 'operator':'', 'vardiya':'', 'baslangic':'', 'bitis':'', 'istasyon_1':[], 'istasyon_2':[], 'diger':[], 'atamalar':[]}
         robotlar[rn]['atamalar'].append({'id': a['id'], 'istasyon': a['istasyon'], 'referans_kodu': a['referans_kodu'], 'aciklama': a['aciklama'], 'atayan': a['atayan']})
 
-    # Referans takip listesi — bölüme göre filtrelenir
+    # Referans takip listesi — bölüm VE lokasyona göre filtrelenir
+    # (TK1 andonunda TK2 montaj iş emirleri görünmesin / tersi)
+    # GROUP BY rt.id — fan-out koruması (normalize-duplike referans satırları JOIN'de
+    # tek iş emrini çoğaltmasın; bkz. /api/referans_takip'teki aynı koruma)
+    rt_sql = '''
+        SELECT rt.*, MAX(rl.hedef_cycle_time_sn) as hedef_cycle_time_sn
+        FROM referans_takip rt
+        LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
+            AND COALESCE(rl.lokasyon,'TK2') = COALESCE(rt.lokasyon,'TK2')
+        WHERE 1=1
+    '''
+    rt_params = []
     if bolum:
-        rt_rows = c.execute('''
-            SELECT rt.*, rl.hedef_cycle_time_sn
-            FROM referans_takip rt
-            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-            WHERE COALESCE(rt.bolum, 'kaynak') = ?
-            ORDER BY rt.olusturma_tarihi DESC
-        ''', (bolum,)).fetchall()
-    else:
-        rt_rows = c.execute('''
-            SELECT rt.*, rl.hedef_cycle_time_sn
-            FROM referans_takip rt
-            LEFT JOIN referans_listesi rl ON REPLACE(rt.referans_kodu, ' ', '') = REPLACE(rl.referans_kodu, ' ', '')
-            ORDER BY rt.olusturma_tarihi DESC
-        ''').fetchall()
+        rt_sql += " AND COALESCE(rt.bolum, 'kaynak') = ?"
+        rt_params.append(bolum)
+    if lokasyon:
+        rt_sql += " AND COALESCE(rt.lokasyon, 'TK2') = ?"
+        rt_params.append(lokasyon)
+    rt_sql += " GROUP BY rt.id ORDER BY rt.olusturma_tarihi DESC"
+    rt_rows = c.execute(rt_sql, rt_params).fetchall()
     referans_takip_list = [dict(row) for row in rt_rows]
 
     # Tum ayarlari yukle
@@ -3594,8 +5460,12 @@ def gunluk_rapor_detay():
     tarih = request.args.get('tarih')
     vardiya_turu = request.args.get('vardiya')
     bolum = (request.args.get('bolum') or 'kaynak').strip()
-    if bolum not in ('kaynak', 'montaj', 'metal'):
+    if bolum not in GECERLI_BOLUMLER:
         bolum = 'kaynak'
+    # Lokasyon verilmezse TK2 varsay: TK1 vardiyaları da bolum='montaj' olduğundan
+    # filtresiz sorgu TK1 operatörlerini TK2 montaj raporuna karıştırıyordu.
+    # (TK1 raporu isteyen istemciler — mobil/rapor sayfası — lokasyon=TK1 gönderir.)
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
 
     if not tarih or not vardiya_turu:
         return jsonify({'hata': 'tarih ve vardiya parametreleri zorunludur'}), 400
@@ -3603,23 +5473,38 @@ def gunluk_rapor_detay():
     try:
         conn = get_db()
 
-        rows = conn.execute("""
+        # Bugünün detayı isteniyorsa auto sayaçları tazele (canlı adetlerle raporla)
+        if tarih == date.today().isoformat():
+            _acik_auto_vardiyalari_senkronla(conn, bolum or None, lokasyon or None)
+
+        # LAZER: makine vardiyada değil ÜRETİM KAYDINDA seçilir (istasyon 1..6) —
+        # rapor makine bazında kırılır, gruplamaya istasyon eklenir.
+        lazer_modu = (bolum == 'lazer')
+        ist_kolon = ", COALESCE(u.istasyon, 0) as istasyon" if lazer_modu else ""
+        sql = f"""
             SELECT
                 v.robot_no,
                 v.operator_adi,
                 u.referans_kodu,
                 SUM(u.ok_adet)    as ok_toplam,
                 SUM(u.nok_adet)   as nok_toplam,
-                SUM(u.tamir_adet) as tamir_toplam
+                SUM(u.tamir_adet) as tamir_toplam{ist_kolon}
             FROM vardiyalar v
             LEFT JOIN uretim_kayitlari u ON v.id = u.vardiya_id
             WHERE v.tarih = ?
               AND UPPER(REPLACE(REPLACE(v.vardiya_turu,'ü','u'),'Ü','U')) =
                   UPPER(REPLACE(REPLACE(?,'ü','u'),'Ü','U'))
               AND COALESCE(v.bolum, 'kaynak') = ?
-            GROUP BY v.robot_no, v.operator_adi, u.referans_kodu
-            ORDER BY v.robot_no, v.operator_adi
-        """, (tarih, vardiya_turu, bolum)).fetchall()
+        """
+        params = [tarih, vardiya_turu, bolum]
+        if lokasyon:
+            sql += " AND COALESCE(v.lokasyon, 'TK2') = ?"
+            params.append(lokasyon)
+        if lazer_modu:
+            sql += " GROUP BY v.robot_no, v.operator_adi, u.referans_kodu, COALESCE(u.istasyon, 0) ORDER BY istasyon, v.operator_adi"
+        else:
+            sql += " GROUP BY v.robot_no, v.operator_adi, u.referans_kodu ORDER BY v.robot_no, v.operator_adi"
+        rows = conn.execute(sql, params).fetchall()
         conn.close()
 
         # Bolume gore robot/hat/makine sirasi
@@ -3627,7 +5512,9 @@ def gunluk_rapor_detay():
             robot_listesi = ['1','2','3','4','5','6','7','8','9','M']
         elif bolum == 'metal':
             robot_listesi = ['300T', '400T', '550T', 'Şerit Testere']
-        else:  # montaj
+        elif lazer_modu:
+            robot_listesi = [f'Lazer {i}' for i in range(1, 7)]
+        else:  # montaj / isleme / pres
             # O gun calisan distinct hat'lari sirayla
             seen = []
             for r in rows:
@@ -3652,6 +5539,11 @@ def gunluk_rapor_detay():
         for row in rows:
             if bolum == 'kaynak':
                 target_r = normalize_robot_kaynak(row['robot_no'])
+            elif lazer_modu:
+                # Kayıt hangi makinedeyse o gruba (istasyon 1..6 → 'Lazer N');
+                # makinesiz eski/boş kayıtlar genel 'Lazer' grubuna düşer.
+                ist = int(row['istasyon'] or 0)
+                target_r = f'Lazer {ist}' if ist > 0 else 'Lazer'
             else:
                 target_r = (row['robot_no'] or '').strip()
             if not target_r:
@@ -3690,24 +5582,818 @@ def rapor_vardiya_listesi():
     """Belirtilen tarihteki ve bolumdeki mevcut vardiya turlerini dondurur."""
     tarih = request.args.get('tarih')
     bolum = request.args.get('bolum')
+    # Lokasyon verilmezse TK2 varsay (gunluk_rapor_detay ile aynı gerekçe:
+    # TK1 vardiya türleri TK2 rapor dropdown'una karışmasın).
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
     if not tarih:
         return jsonify({'hata': 'tarih zorunludur'}), 400
     try:
         conn = get_db()
+        sql = "SELECT DISTINCT vardiya_turu FROM vardiyalar WHERE tarih = ?"
+        params = [tarih]
         if bolum:
-            rows = conn.execute(
-                "SELECT DISTINCT vardiya_turu FROM vardiyalar WHERE tarih = ? AND COALESCE(bolum, 'kaynak') = ? ORDER BY vardiya_turu",
-                (tarih, bolum)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT DISTINCT vardiya_turu FROM vardiyalar WHERE tarih = ? ORDER BY vardiya_turu",
-                (tarih,)
-            ).fetchall()
+            sql += " AND COALESCE(bolum, 'kaynak') = ?"
+            params.append(bolum)
+        if lokasyon:
+            sql += " AND COALESCE(lokasyon, 'TK2') = ?"
+            params.append(lokasyon)
+        sql += " ORDER BY vardiya_turu"
+        rows = conn.execute(sql, params).fetchall()
         conn.close()
         return jsonify([r['vardiya_turu'] for r in rows])
     except Exception as e:
         return jsonify({'hata': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# AS400 (ERP) TEYIT — günün üretimi ↔ açık launch eşlemesi
+# Kaynak: as400/launch_esle.py → canlı TKC0301F.XPRO90 (pyodbc; şifre Windows
+# Kimlik Bilgileri Yöneticisi'nde). Salt-okunur; ERP'ye hiçbir şey yazmaz.
+# ─────────────────────────────────────────────────────────────
+@app.route('/api/as400/teyit_listesi', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_teyit_listesi():
+    """Sabah teyit KUYRUĞU. İki mod:
+      ?gunler=3[&bugun=1]  → son 3 tamamlanmış günün (dün, önceki, ...) listesi;
+                             bugun=1 ise bugünü de ekler (varsayılan mod)
+      ?tarih=YYYY-MM-DD    → tek gün (geçmiş inceleme)
+    AS400 okumaları tek sefer yapılır (esle_coklu). Yanıt her gün için
+    kategorili liste + son robot gönderimleri (as400_teyit_log) içerir."""
+    tarih = (request.args.get('tarih') or '').strip()
+    if tarih:
+        tarihler = [tarih]
+    else:
+        try:
+            gunler = max(1, min(7, int(request.args.get('gunler') or 3)))
+        except ValueError:
+            gunler = 3
+        tarihler = []
+        if (request.args.get('bugun') or '') in ('1', 'true'):
+            tarihler.append(date.today().isoformat())
+        tarihler += [(date.today() - timedelta(days=i)).isoformat() for i in range(1, gunler + 1)]
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+        coklu = _le.esle_coklu(tarihler)
+    except Exception as e:
+        # AS400 kapalı/şifre yok/ağ hatası → paneli kırmadan anlaşılır mesaj
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+    conn = get_db()
+    son_gonderimler = [dict(r) for r in conn.execute(
+        "SELECT id, created_at, uretim_tarihi, yil, launch_no, referans, adet, sonuc, mesaj, olusturan "
+        "FROM as400_teyit_log ORDER BY id DESC LIMIT 15").fetchall()]
+
+    # İŞARETLER (2026-07-20): günlük 'kontrol edildi' + kalıcı 'gerek_yok'.
+    # Backend kanonik eşleştirir → her satıra 'isaret'/'kalici_haric' enjekte edilir
+    # (frontend'in normalize etmesine gerek kalmaz). Tablo yoksa (eski DB) sessiz geç.
+    try:
+        gun_isaret = {}
+        for t in tarihler:
+            gun_isaret[t] = {r['referans']: {'durum': r['durum'], 'aciklama': r['aciklama']}
+                             for r in conn.execute(
+                                 "SELECT referans, durum, aciklama FROM as400_teyit_isaret "
+                                 "WHERE kapsam='gun' AND uretim_tarihi=?", (t,)).fetchall()}
+        kalici_isaret = {r['referans']: r['aciklama'] for r in conn.execute(
+            "SELECT referans, aciklama FROM as400_teyit_isaret WHERE kapsam='kalici' AND durum='gerek_yok'").fetchall()}
+        for t in tarihler:
+            for satirlar in coklu[t].values():
+                for r in satirlar:
+                    kn = _le.kanonik(r.get('referans', ''))
+                    if kn in gun_isaret[t]:
+                        r['isaret'] = gun_isaret[t][kn]
+                    if kn in kalici_isaret:
+                        r['kalici_haric'] = True
+    except Exception as e:
+        print(f'[teyit_listesi] işaret enjeksiyonu atlandı: {e}')
+
+    return jsonify({
+        'gunler': [{'tarih': t,
+                    'ozet': {k: len(v) for k, v in coklu[t].items()},
+                    'liste': coklu[t]} for t in tarihler],
+        'son_gonderimler': son_gonderimler,
+    })
+
+
+@app.route('/api/as400/teyit_isaret', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_teyit_isaret():
+    """Teyit ekranında bir satırı işaretle / işareti kaldır.
+    Body: {kapsam:'gun'|'kalici', durum?:'kontrol'|'gerek_yok', referans, bolum?,
+           uretim_tarihi?, aciklama?, kaldir?}
+    kapsam='kalici' → referans HER GÜN teyit dışı (HARIC). kapsam='gun' → o güne özel.
+    Referans launch_esle.kanonik ile normalize saklanır (eşleşme tutarlı)."""
+    data = request.get_json(silent=True) or {}
+    kapsam = (data.get('kapsam') or 'gun').strip()
+    durum = (data.get('durum') or '').strip()
+    referans = (data.get('referans') or '').strip()
+    bolum = (data.get('bolum') or '').strip()
+    u_tarih = (data.get('uretim_tarihi') or '').strip()
+    aciklama = (data.get('aciklama') or '').strip()
+    kaldir = bool(data.get('kaldir'))
+    if kapsam not in ('gun', 'kalici') or not referans:
+        return jsonify({'hata': 'kapsam ve referans zorunlu'}), 400
+    if kapsam == 'kalici':
+        u_tarih = ''
+        durum = 'gerek_yok'
+    else:
+        if not u_tarih:
+            return jsonify({'hata': 'günlük işaret için uretim_tarihi zorunlu'}), 400
+        if durum not in ('kontrol', 'gerek_yok'):
+            durum = 'kontrol'
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+        ref_norm = _le.kanonik(referans)
+    except Exception:
+        ref_norm = referans.upper().replace(' ', '')
+    conn = get_db()
+    kullanici = g.panel_ku['kullanici_adi']
+    try:
+        if kaldir:
+            conn.execute(
+                "DELETE FROM as400_teyit_isaret WHERE kapsam=? AND uretim_tarihi=? AND bolum=? AND referans=?",
+                (kapsam, u_tarih, bolum, ref_norm))
+        else:
+            conn.execute(
+                "INSERT INTO as400_teyit_isaret (kapsam, uretim_tarihi, bolum, referans, durum, aciklama, olusturan) "
+                "VALUES (?,?,?,?,?,?,?) "
+                "ON CONFLICT(kapsam, uretim_tarihi, bolum, referans) "
+                "DO UPDATE SET durum=excluded.durum, aciklama=excluded.aciklama, olusturan=excluded.olusturan",
+                (kapsam, u_tarih, bolum, ref_norm, durum, aciklama, kullanici))
+        conn.commit()
+        return jsonify({'basarili': True, 'kapsam': kapsam, 'durum': durum, 'referans': ref_norm, 'kaldirildi': kaldir})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'hata': str(e)}), 400
+
+
+# ── AS400 teyit GÖNDERİMİ (yazma) ──
+# Session B'yi tek seferde tek istek sürebilir (fiziksel tek ekran) → global kilit.
+import threading as _threading
+_AS400_KILIT = _threading.Lock()
+# Nazik durdurma bayrağı: kullanıcı "Durdur"a basınca set edilir. Döngü HER satır
+# başında kontrol eder → set ise kalan satırlar 'atlandi'. Çalışan cscript ASLA
+# kill edilmez (record-lock riski); mevcut launch biter, SONRAKİLERE geçilmez.
+_AS400_DURDUR = _threading.Event()
+
+
+def _as400_launch_durum(yil, no):
+    """BPROF0'dan launch'ın (teyitli Q0QTRI, durum Q0AVAN) — bağımsız doğrulama.
+    Döner: (teyitli:float|None, durum:int|None)."""
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import keyring, pyodbc
+    import as400_config as _cfg
+    pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+    cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=15, autocommit=True)
+    try:
+        r = cn.cursor().execute(
+            "SELECT Q0QTRI, Q0AVAN FROM tkc0301F.BPROF0 WHERE Q0RED2=? AND Q0RENU=?",
+            (int(yil), int(no))).fetchone()
+        if not r:
+            return None, None
+        try:
+            durum = int(str(r[1]).strip())
+        except (TypeError, ValueError):
+            durum = None
+        return float(r[0]), durum
+    finally:
+        cn.close()
+
+
+@app.route('/api/as400/teyit_gonder', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_teyit_gonder():
+    """Seçili satırları AS400'e teyit olarak girer (Session B ekran robotu).
+    Body: {uretim_tarihi, satirlar: [{yil, no, article, referans, adet}], zorla}
+    KURALLAR: daima A bayrağı (launch kapatılMAZ — S insan işi); aynı üretim günü
+    + launch için ikinci gönderim reddedilir (zorla=true hariç); ilk hatada kalan
+    satırlar atlanır. Her satır sonrası BPROF0.Q0QTRI ile bağımsız doğrulama."""
+    data = request.get_json(silent=True) or {}
+    varsayilan_tarih = (data.get('uretim_tarihi') or '').strip()
+    satirlar = data.get('satirlar') or []
+    zorla = bool(data.get('zorla'))
+    if not satirlar:
+        return jsonify({'hata': 'satirlar zorunlu'}), 400
+    if len(satirlar) > 60:
+        return jsonify({'hata': 'Tek seferde en fazla 60 satır'}), 400
+
+    if not _AS400_KILIT.acquire(blocking=False):
+        return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
+    try:
+        _AS400_DURDUR.clear()   # yeni gönderim → önceki "durdur" bayrağını sıfırla
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'teyit_gir.js')
+        cscript = r'C:\Windows\SysWOW64\cscript.exe'
+        kullanici = g.panel_ku['kullanici_adi']
+        conn = get_db()
+        sonuclar = []
+        # Her satır BAĞIMSIZ denenir — bir launch hata/iptal verirse SONRAKİ launch'lara
+        # DEVAM edilir (kullanıcı 2026-07-20: hata alınca ilk sayfaya çıkıp sıradaki
+        # launch'tan devam et). Robot her çağrıda G0'da B'yi temizler + record-lock kurtarır.
+        import subprocess
+        for idx, s in enumerate(satirlar):
+            # NAZIK DURDURMA: kullanıcı "Durdur"a bastıysa kalan satırlara GEÇME (çalışan
+            # cscript öldürülMEZ; mevcut satır zaten bittiğinde bu kontrole geliriz).
+            if _AS400_DURDUR.is_set():
+                for kalan in satirlar[idx:]:
+                    sonuclar.append({
+                        'yil': str(kalan.get('yil') or '').strip(),
+                        'no': str(kalan.get('no') or '').strip(),
+                        'article': str(kalan.get('article') or '').strip(),
+                        'referans': str(kalan.get('referans') or '').strip(),
+                        'adet': kalan.get('adet'), 'sonuc': 'atlandi',
+                        'mesaj': 'Kullanıcı durdurdu'})
+                break
+            yil = str(s.get('yil') or '').strip()
+            no = str(s.get('no') or '').strip()
+            article = str(s.get('article') or '').strip()
+            referans = str(s.get('referans') or '').strip()
+            # Üretim tarihi SATIR bazlı (kuyruk görünümü birden çok günü birlikte gönderir)
+            u_tarih = (str(s.get('uretim_tarihi') or '').strip() or varsayilan_tarih)
+            try:
+                adet = int(s.get('adet') or 0)
+            except (TypeError, ValueError):
+                adet = 0
+            kayit = {'yil': yil, 'no': no, 'article': article, 'referans': referans,
+                     'adet': adet, 'uretim_tarihi': u_tarih}
+
+            if not (yil.isdigit() and len(yil) == 2 and no.isdigit() and 0 < adet <= 99999 and article and u_tarih):
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+                continue
+            # Mükerrer koruması 1: kendi gönderim log'umuz
+            var = conn.execute(
+                "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil=? AND launch_no=? AND sonuc='ok'",
+                (u_tarih, yil, no)).fetchone()
+            if var and not zorla:
+                sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                 'mesaj': f'Bu üretim günü için bu launch\'a zaten gönderilmiş (log #{var["id"]})'})
+                continue
+            # Mükerrer koruması 2 (ASIL): ERP'nin GERÇEK teyit hareketleri —
+            # operatörün ELLE girdiği teyitler de burada görünür. Frontend
+            # atlansa/eski liste gönderilse bile burada yakalanır.
+            if not zorla:
+                try:
+                    import launch_esle as _le2
+                    hrk = _le2.teyit_hareketleri([article]).get(_le2.kanonik(article), [])
+                    zt, ilgili = _le2._zaten_teyitli(hrk, u_tarih, adet,
+                                                     _le2.ref_uretim_gecmisi(referans, u_tarih))
+                except Exception:
+                    zt, ilgili = None, []
+                if zt == 'kesin':
+                    det = ', '.join(f"{h['tarih']}: {h['adet']:g}" for h in ilgili)
+                    sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                     'mesaj': f'ERP\'de bu üretim için zaten teyit var ({det}) — mükerrer olurdu'})
+                    continue
+
+            bayrak = 'S' if str(s.get('bayrak') or 'A').upper() == 'S' else 'A'
+            try:
+                once, once_durum = _as400_launch_durum(yil, no)
+            except Exception as e:
+                sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': f'Ön okuma hatası: {e}'})
+                continue
+
+            try:
+                pr = subprocess.run([cscript, '//nologo', script, yil, no, article, str(adet), bayrak],
+                                    capture_output=True, timeout=150)
+                cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
+            except subprocess.TimeoutExpired:
+                # Timeout → subprocess KILL edilir → yarım transaction + record-lock riski.
+                # Yine de sonraki satıra devam: sonraki robot G0'da record-lock'u kurtarır.
+                sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': 'Robot zaman aşımı (150 sn) — sıradakine geçildi', 'teyitli_once': once})
+                continue
+
+            robot_ok = 'SONUC=OK' in cikti
+            try:
+                sonra, sonra_durum = _as400_launch_durum(yil, no)
+            except Exception:
+                sonra, sonra_durum = None, None
+            # Doğrulama: teyitli tam +adet artmalı; S ise launch KAPANMIŞ (durum 70) olmalı.
+            teyit_ok = (once is not None and sonra is not None and abs(sonra - once - adet) < 0.001)
+            kapanma_ok = (bayrak == 'A') or (sonra_durum == 70)
+            dogrulandi = robot_ok and teyit_ok and kapanma_ok
+            son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-500:]
+            sonuc = 'ok' if dogrulandi else 'hata'
+            if dogrulandi:
+                mesaj = f'Doğrulandı: teyitli {once:g} → {sonra:g}' + (
+                    f' · launch KAPANDI (durum {sonra_durum})' if bayrak == 'S' else '')
+                mesaj += _is_emri_dus(conn, referans, adet)
+                # COP (hurda) BURADA GİRİLMEZ (kullanıcı 2026-07-23: robot Rientro↔07>01
+                # mekik dokuyordu) — hurda ayrı /cop_gonder fazında EN SONA girilir.
+            elif robot_ok and teyit_ok and not kapanma_ok:
+                mesaj = f'Teyit işlendi ({once:g}→{sonra:g}) ama S ile KAPANMADI (durum {sonra_durum}) — kontrol edin'
+            elif robot_ok:
+                mesaj = f'Robot OK ama doğrulama tutmadı (önce {once} sonra {sonra}, durum {sonra_durum})'
+            else:
+                mesaj = f'Robot iptal: {son_satirlar}'
+            conn.execute(
+                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, teyitli_once, teyitli_sonra, olusturan) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (u_tarih, yil, no, referans, article, adet, bayrak, sonuc, mesaj, once, sonra, kullanici))
+            conn.commit()
+            sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': sonuc, 'mesaj': mesaj,
+                             'teyitli_once': once, 'teyitli_sonra': sonra})
+            # Hata olsa bile SONRAKİ satıra devam (durdurma YOK).
+
+        ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
+        durduruldu = _AS400_DURDUR.is_set()
+        return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': durduruldu})
+    finally:
+        _AS400_DURDUR.clear()
+        _AS400_KILIT.release()
+
+
+@app.route('/api/as400/teyit_durum', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_teyit_durum():
+    """Şu an bir AS400 gönderimi çalışıyor mu? (Gönder butonundan sonra Durdur'u
+    doğru göstermek için sayfa açılışında sorulur.)"""
+    return jsonify({'calisiyor': _AS400_KILIT.locked(), 'durduruluyor': _AS400_DURDUR.is_set()})
+
+
+@app.route('/api/as400/teyit_durdur', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_teyit_durdur():
+    """Devam eden gönderimi NAZİKÇE durdurur: bayrağı set eder; döngü işlenmekte
+    olan launch'ı bitirince kalan satırlara GEÇMEZ. Çalışan cscript ASLA öldürülmez
+    (record-lock riski). Gönderim yoksa 'bos' döner."""
+    if not _AS400_KILIT.locked():
+        return jsonify({'durum': 'bos', 'mesaj': 'Şu an devam eden gönderim yok'})
+    _AS400_DURDUR.set()
+    return jsonify({'durum': 'durduruluyor',
+                    'mesaj': 'Durdurma istendi — işlenmekte olan launch bitince duracak'})
+
+
+def _is_emri_dus(conn, referans, adet):
+    """Başarılı teyit sonrası İŞ YÖNETİMİ kit düşümü (kullanıcı 2026-07-22):
+    kaynak/montaj iş emrinden (referans_takip) teyit edilen adet düşülür;
+    kalan <= 3 ise (tam / fazla / 3 eksik üretim) iş emri LİSTEDEN SİLİNİR —
+    'üretildi ama listeden silinmesi unutuldu' problemi biter.
+    Eşleşme gevşek (boşluk+nokta+büyük/küçük duyarsız). Döner: ek mesaj | ''."""
+    try:
+        adet = int(adet or 0)
+    except (TypeError, ValueError):
+        return ''
+    if not referans or adet <= 0:
+        return ''
+    try:
+        satir = conn.execute(
+            "SELECT id, referans_kodu, hedef_adet, bolum FROM referans_takip "
+            "WHERE COALESCE(bolum,'') IN ('kaynak','montaj') "
+            "  AND COALESCE(lokasyon,'TK2')='TK2' "
+            "  AND COALESCE(hedef_adet,0) > 0 "
+            "  AND UPPER(REPLACE(REPLACE(referans_kodu,' ',''),'.','')) = "
+            "      UPPER(REPLACE(REPLACE(?,' ',''),'.','')) "
+            "ORDER BY id LIMIT 1", (referans,)).fetchone()
+        if not satir:
+            return ''
+        kalan = int(satir['hedef_adet']) - adet
+        if kalan <= 3:
+            conn.execute("DELETE FROM referans_takip WHERE id=?", (satir['id'],))
+            conn.commit()
+            return f" · iş emri listeden SİLİNDİ ({satir['bolum']}, hedef {satir['hedef_adet']}, kalan {kalan})"
+        conn.execute(
+            "UPDATE referans_takip SET hedef_adet=?, guncelleme_tarihi=datetime('now','localtime') WHERE id=?",
+            (kalan, satir['id']))
+        conn.commit()
+        return f" · iş emrinden düşüldü ({satir['bolum']}: kalan {kalan})"
+    except Exception as e:
+        return f" · iş emri düşümü yapılamadı: {e}"
+
+
+def _as400_cfi_bugun(article, causal='CFI'):
+    """BUGÜN girilen CFI/COP hareket adetleri (bağımsız doğrulama kanalı).
+    Döner: [adet, ...] — BMMAF0 MGCACD=causal, hareket tarihi = bugün."""
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import keyring, pyodbc
+    import as400_config as _cfg
+    bugun = date.today()
+    pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+    cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=20, autocommit=True)
+    try:
+        rows = cn.cursor().execute(
+            "SELECT MGQTA FROM tkc0301F.BMMAF0 WHERE MGCACD=? AND MGARCD=? "
+            "AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? AND MGDGGO=?",
+            (causal, article, bugun.year // 100, bugun.year % 100, bugun.month, bugun.day)).fetchall()
+        return [float(r[0] or 0) for r in rows]
+    finally:
+        cn.close()
+
+
+@app.route('/api/as400/cfi_gonder', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_cfi_gonder():
+    """Launch'sız üretim için CFI depo girişi (Session B robotu, 07>01>F1 ekranı).
+    Body: {satirlar: [{referans, article?, adet, uretim_tarihi}]}
+    Kullanıcı akışı (2026-07-20): Warehouse=01D, Causal=CFI, Counterpart=01D,
+    kod + adet + Enter. Mükerrer koruması: (1) as400_teyit_log (yil='CF'),
+    (2) BMMAF0 RPR+CFI hareketleri (_zaten_teyitli). Doğrulama: bugünkü CFI
+    hareketlerinde adet birebir aranır."""
+    data = request.get_json(silent=True) or {}
+    satirlar = data.get('satirlar') or []
+    zorla = bool(data.get('zorla'))
+    if not satirlar:
+        return jsonify({'hata': 'satirlar zorunlu'}), 400
+    if len(satirlar) > 60:
+        return jsonify({'hata': 'Tek seferde en fazla 60 satır'}), 400
+    if not _AS400_KILIT.acquire(blocking=False):
+        return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
+    try:
+        _AS400_DURDUR.clear()
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'cfi_gir.js')
+        cscript = r'C:\Windows\SysWOW64\cscript.exe'
+        kullanici = g.panel_ku['kullanici_adi']
+        conn = get_db()
+        sonuclar = []
+        import subprocess
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+        for idx, s in enumerate(satirlar):
+            if _AS400_DURDUR.is_set():
+                for kalan in satirlar[idx:]:
+                    sonuclar.append({'referans': str(kalan.get('referans') or '').strip(),
+                                     'article': str(kalan.get('article') or '').strip(),
+                                     'adet': kalan.get('adet'), 'sonuc': 'atlandi',
+                                     'mesaj': 'Kullanıcı durdurdu'})
+                break
+            referans = str(s.get('referans') or '').strip()
+            article = (str(s.get('article') or '').strip() or referans)
+            u_tarih = str(s.get('uretim_tarihi') or '').strip()
+            try:
+                adet = int(s.get('adet') or 0)
+            except (TypeError, ValueError):
+                adet = 0
+            kayit = {'referans': referans, 'article': article, 'adet': adet, 'uretim_tarihi': u_tarih}
+            if not (article and 0 < adet <= 99999 and u_tarih):
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+                continue
+            # Mükerrer 1: kendi log'umuz (CFI kayıtları yil='CF', launch_no=article)
+            var = conn.execute(
+                "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CF' AND launch_no=? AND sonuc='ok'",
+                (u_tarih, article)).fetchone()
+            if var and not zorla:
+                sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için CFI zaten gönderilmiş (log)'})
+                continue
+            # Mükerrer 2: ERP hareketleri (RPR+CFI) — HEM article HEM üretim referansı
+            # (2026-07-21 4082W dersi: launch teyidi gerçek article'a, CFI adayı çıplak
+            # koda bakıyordu → aynı üretim iki kez gitti). Aynı-gün + geçmiş-açıklama kurallı.
+            try:
+                hrk_map = _le.teyit_hareketleri([article, referans])
+                hrk = list(hrk_map.get(_le.kanonik(article), []))
+                if _le.kanonik(referans) != _le.kanonik(article):
+                    hrk += hrk_map.get(_le.kanonik(referans), [])
+                zt, ilgili = _le._zaten_teyitli(hrk, u_tarih, adet,
+                                                _le.ref_uretim_gecmisi(referans, u_tarih))
+            except Exception:
+                zt, ilgili = None, []
+            if zt == 'kesin' and not zorla:
+                h0 = ilgili[0] if ilgili else {}
+                sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                 'mesaj': f"ERP'de karşılığı var: {h0.get('tarih','')} {h0.get('adet',0):g} adet ({h0.get('tur','')})"})
+                continue
+            try:
+                pr = subprocess.run([cscript, '//nologo', script, article, str(adet)],
+                                    capture_output=True, timeout=120)
+                cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
+            except subprocess.TimeoutExpired:
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Robot zaman aşımı (120 sn) — sıradakine geçildi'})
+                continue
+            robot_ok = 'SONUC=OK' in cikti
+            # Bağımsız doğrulama: bugünkü CFI hareketlerinde adet birebir var mı
+            try:
+                dogru = any(abs(q - adet) < 0.001 for q in _as400_cfi_bugun(article))
+            except Exception:
+                dogru = None   # okunamadı — yalnız robot çıktısına güven
+            dogrulandi = robot_ok and (dogru is not False)
+            son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-400:]
+            sonuc = 'ok' if dogrulandi else 'hata'
+            if dogrulandi:
+                mesaj = f'CFI girildi: {article} → {adet} adet' + ('' if dogru else ' (hareket sorgusu doğrulanamadı, robot OK)')
+                mesaj += _is_emri_dus(conn, referans, adet)
+                # COP (hurda) ayrı fazda EN SONA girilir (bkz. /api/as400/cop_gonder)
+            elif robot_ok:
+                mesaj = f'Robot OK ama bugünkü CFI hareketlerinde {adet} bulunamadı — elle kontrol edin'
+            else:
+                mesaj = f'Robot iptal: {son_satirlar}'
+            conn.execute(
+                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (u_tarih, 'CF', article, referans, article, adet, 'CFI', sonuc, mesaj, kullanici))
+            conn.commit()
+            sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+        ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
+        return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': _AS400_DURDUR.is_set()})
+    finally:
+        _AS400_DURDUR.clear()
+        _AS400_KILIT.release()
+
+
+# ── AS400 PLANLAMA (kaynak MRP yardımcısı, kullanıcı 2026-07-23 akışı öğretti) ──
+# Manuel akış: 07>10>01 stok → sipariş yoksa üst kodlar (implosion) → üst siparişleri
+# → üretilecekse alt parça stok kontrolü → launch. Dosyalar (keşif 2026-07-23,
+# çapalarla doğrulandı): STOK=TKC0300F.BSMAF0 (partita nedeniyle DAİMA GROUP BY);
+# SİPARİŞ=TKC0301F.BORDF1 (açık: OCDOSO<>'C' AND OCQTOR>OCQTCO; PR/BFABF0 KULLANMA —
+# operasyon süreli MRP önerileri); BOM=TKC0301F.BSPEF2 (Y2ARTI üst, Y2RICD alt,
+# Y2IVQT birim miktar — Y2QTA hep 0, kullanma). CHAR(21) alanlar boşluk dolgulu →
+# eşitlik parametreyle (DB2 blank-pad), TRIM yalnız SELECT'te.
+
+def _plan_stoklar(cn, articles):
+    """{artikel: {'depolar': {depo: {...}}, 'kullanilabilir': 01D+CF2+MK2+MT2 stok toplamı}}"""
+    if not articles:
+        return {}
+    yer = ','.join('?' * len(articles))
+    sonuc = {}
+    for r in cn.cursor().execute(
+            f"SELECT TRIM(S0ARTI), TRIM(S0MGCD), SUM(S0GIAD), SUM(S0IMPP)+SUM(S0IMPC), "
+            f"SUM(S0ORDF)+SUM(S0ORDP) FROM TKC0300F.BSMAF0 "
+            f"WHERE S0SOCI='01' AND S0ARTI IN ({yer}) GROUP BY TRIM(S0ARTI), TRIM(S0MGCD)",
+            list(articles)):
+        art, depo = r[0], r[1]
+        stok, engaged, ordered = float(r[2] or 0), float(r[3] or 0), float(r[4] or 0)
+        if not (stok or engaged or ordered):
+            continue
+        a = sonuc.setdefault(art, {'depolar': {}, 'kullanilabilir': 0.0, 'toplam_stok': 0.0})
+        a['depolar'][depo] = {'stok': stok, 'engaged': engaged, 'ordered': ordered,
+                              'avail': stok - engaged + ordered}
+        a['toplam_stok'] += stok
+        if depo in ('01D', 'CF2', 'MK2', 'MT2'):
+            a['kullanilabilir'] += stok
+    return sonuc
+
+
+def _plan_siparisler(cn, articles):
+    """{artikel: {'acik_toplam': N, 'satirlar': [{siparis, musteri, adet, acik, teslim}]}}"""
+    if not articles:
+        return {}
+    yer = ','.join('?' * len(articles))
+    sonuc = {}
+    for r in cn.cursor().execute(
+            f"SELECT TRIM(d.OCARCD), d.OCRED2, d.OCRENU, TRIM(a.ABRGSC), "
+            f"d.OCQTOR, d.OCQTCO, d.OCCCD2, d.OCCCD3, d.OCCCD4 "
+            f"FROM TKC0301F.BORDF1 d LEFT JOIN TKC0301F.BANAF0 a ON a.ABCFCD=d.OCCFCD "
+            f"WHERE d.OCARCD IN ({yer}) AND d.OCDOSO<>'C' AND d.OCQTOR>d.OCQTCO "
+            f"ORDER BY d.OCCCD2, d.OCCCD3, d.OCCCD4",
+            list(articles)):
+        art = r[0]
+        acik = float(r[4] or 0) - float(r[5] or 0)
+        s = sonuc.setdefault(art, {'acik_toplam': 0.0, 'satirlar': []})
+        s['acik_toplam'] += acik
+        if len(s['satirlar']) < 10:
+            # EBCDIC(1026)→ODBC çevirisinde Türkçe harfler bozuk gelir: "=Ü £=Ö $=İ §=Ş
+            musteri = str(r[3] or '').strip().translate(str.maketrans('"£$§', 'ÜÖİŞ'))
+            s['satirlar'].append({
+                'siparis': f'{int(r[1])}-{int(r[2])}',
+                'musteri': musteri,
+                'acik': acik,
+                'teslim': f'20{int(r[6] or 0):02d}-{int(r[7] or 0):02d}-{int(r[8] or 0):02d}',
+            })
+    return sonuc
+
+
+@app.route('/api/as400/cop_gonder', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_cop_gonder():
+    """HURDA (COP) girişleri — EN SON faz (kullanıcı 2026-07-23: COP'lar launch/CFI
+    fazlarına ARAYA GİRMESİN; robot Rientro↔07>01 mekik dokuyordu). Tüm hurdalar
+    ardışık girilir: B, 07>01>F1 ekranında kalır (alanlar kalıcı — hızlı).
+    Body: {satirlar: [{referans, article, adet(hurda), uretim_tarihi}]}"""
+    data = request.get_json(silent=True) or {}
+    satirlar = data.get('satirlar') or []
+    if not satirlar:
+        return jsonify({'hata': 'satirlar zorunlu'}), 400
+    if len(satirlar) > 60:
+        return jsonify({'hata': 'Tek seferde en fazla 60 satır'}), 400
+    if not _AS400_KILIT.acquire(blocking=False):
+        return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
+    try:
+        _AS400_DURDUR.clear()
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'cfi_gir.js')
+        cscript = r'C:\Windows\SysWOW64\cscript.exe'
+        kullanici = g.panel_ku['kullanici_adi']
+        conn = get_db()
+        sonuclar = []
+        import subprocess
+        for idx, s in enumerate(satirlar):
+            if _AS400_DURDUR.is_set():
+                for kalan in satirlar[idx:]:
+                    sonuclar.append({'referans': str(kalan.get('referans') or '').strip(),
+                                     'article': str(kalan.get('article') or '').strip(),
+                                     'adet': kalan.get('adet'), 'bayrak': 'COP',
+                                     'sonuc': 'atlandi', 'mesaj': 'Kullanıcı durdurdu'})
+                break
+            referans = str(s.get('referans') or '').strip()
+            article = (str(s.get('article') or '').strip() or referans)
+            u_tarih = str(s.get('uretim_tarihi') or '').strip()
+            try:
+                adet = int(s.get('adet') or 0)
+            except (TypeError, ValueError):
+                adet = 0
+            kayit = {'referans': referans, 'article': article, 'adet': adet,
+                     'uretim_tarihi': u_tarih, 'bayrak': 'COP'}
+            if not (article and 0 < adet <= 99999 and u_tarih):
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+                continue
+            # Mükerrer: aynı üretim günü + article için COP zaten girildiyse atla
+            var = conn.execute(
+                "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CO' AND launch_no=? AND sonuc='ok'",
+                (u_tarih, article)).fetchone()
+            if var:
+                sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
+                continue
+            try:
+                pr = subprocess.run([cscript, '//nologo', script, article, str(adet), 'COP'],
+                                    capture_output=True, timeout=120)
+                cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
+            except subprocess.TimeoutExpired:
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Robot zaman aşımı (120 sn) — sıradakine geçildi'})
+                continue
+            robot_ok = 'SONUC=OK' in cikti
+            try:
+                dogru = any(abs(q - adet) < 0.001 for q in _as400_cfi_bugun(article, causal='COP'))
+            except Exception:
+                dogru = None
+            dogrulandi = robot_ok and (dogru is not False)
+            sonuc = 'ok' if dogrulandi else 'hata'
+            if dogrulandi:
+                mesaj = f'♻ Hurda COP girildi: {article} → {adet} adet'
+            elif robot_ok:
+                mesaj = f'Robot OK ama bugünkü COP hareketlerinde {adet} bulunamadı — elle kontrol edin'
+            else:
+                son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-300:]
+                mesaj = f'Robot iptal: {son_satirlar}'
+            conn.execute(
+                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (u_tarih, 'CO', article, referans, article, adet, 'COP', sonuc, mesaj, kullanici))
+            conn.commit()
+            sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+        ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
+        return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': _AS400_DURDUR.is_set()})
+    finally:
+        _AS400_DURDUR.clear()
+        _AS400_KILIT.release()
+
+
+@app.route('/api/as400/planlama', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_planlama():
+    """Tek referans için planlama görünümü: depo stokları + doğrudan açık
+    siparişler + üst kodlar (3 seviye implosion; her biri stok+sipariş ile) +
+    alt parçalar (1 seviye explosion; 01D/CF2/MK2/MT2 stoklarıyla)."""
+    ref = (request.args.get('ref') or '').strip()
+    if not ref or len(ref) > 21:
+        return jsonify({'hata': 'ref zorunlu (en fazla 21 karakter)'}), 400
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import keyring, pyodbc
+    import launch_esle as _le
+    import as400_config as _cfg
+    ref = _le.bosluk_nokta(ref)
+    # ASCII dışı karakter (Türkçe İ/Ü/Ö...) AS400 sorgusunu CWBNL0107 ile patlatır
+    import re as _re2
+    if not _re2.match(r'^[A-Za-z0-9./\-]{3,21}$', ref):
+        return jsonify({'hata': f"Geçersiz referans: '{ref}' — yalnız harf/rakam/nokta/tire (Türkçe karakter olmadan)"}), 400
+    try:
+        pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+        cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
+    except Exception as e:
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
+    try:
+        # ÜST KODLAR — 3 seviyeye kadar implosion (iteratif; döngü/patlama korumalı)
+        ustler = []          # [{kod, seviye, birim}]
+        gorulen = {ref}
+        seviye_kume = [ref]
+        for seviye in (1, 2, 3):
+            if not seviye_kume or len(gorulen) > 40:
+                break
+            yer = ','.join('?' * len(seviye_kume))
+            yeni = []
+            for r in cn.cursor().execute(
+                    f"SELECT DISTINCT TRIM(Y2ARTI), TRIM(Y2RICD), Y2IVQT "
+                    f"FROM TKC0301F.BSPEF2 WHERE Y2RICD IN ({yer})", seviye_kume):
+                ust = r[0]
+                if ust and ust not in gorulen:
+                    gorulen.add(ust)
+                    ustler.append({'kod': ust, 'seviye': seviye,
+                                   'alt': r[1], 'birim': float(r[2] or 0)})
+                    yeni.append(ust)
+            seviye_kume = yeni
+        # ALT PARÇA AĞACI — ÇOK SEVİYELİ explosion (kullanıcı 2026-07-23 kademeli
+        # kontrol: bu kademenin stoğu yetmiyorsa bir alt kademenin parçalarıyla
+        # üretilebilir mi? — derinlik 4, toplam ≤ 80 düğüm, döngü korumalı).
+        agac_kodlari = set()
+
+        def _patlat(kod, derinlik, yol):
+            if derinlik <= 0 or len(agac_kodlari) > 80 or kod in yol:
+                return []
+            cocuklar = []
+            for r in cn.cursor().execute(
+                    "SELECT TRIM(Y2RICD), Y2IVQT, Y2IVUM FROM TKC0301F.BSPEF2 "
+                    "WHERE Y2ARTI = ? ORDER BY Y2RIPR", (kod,)):
+                alt_kod = str(r[0] or '').strip()
+                if not alt_kod:
+                    continue
+                agac_kodlari.add(alt_kod)
+                cocuklar.append({
+                    'kod': alt_kod, 'birim': float(r[1] or 0), 'um': str(r[2] or '').strip(),
+                    'cocuklar': _patlat(alt_kod, derinlik - 1, yol | {kod}),
+                })
+            return cocuklar
+
+        agac = _patlat(ref, 4, set())
+        # STOK + SİPARİŞLER (ref + üstler + ağaçtaki tüm kodlar tek seferde)
+        tum_kodlar = [ref] + [u['kod'] for u in ustler] + sorted(agac_kodlari)
+        stoklar = _plan_stoklar(cn, tum_kodlar)
+        siparisler = _plan_siparisler(cn, [ref] + [u['kod'] for u in ustler])
+        for u in ustler:
+            u['stok'] = stoklar.get(u['kod'], {'depolar': {}, 'kullanilabilir': 0, 'toplam_stok': 0})
+            u['siparis'] = siparisler.get(u['kod'], {'acik_toplam': 0, 'satirlar': []})
+
+        def _stok_bagla(dugumler):
+            for d in dugumler:
+                s = stoklar.get(d['kod'], {'depolar': {}, 'kullanilabilir': 0, 'toplam_stok': 0})
+                d['stok'] = s
+                # MDT = FASONDA (kullanıcı 2026-07-23): üretilmiş, dış işlemde; dönüşte
+                # ÜST koda girer → arz sayılır ama ayrı gösterilir.
+                d['fasonda'] = float((s['depolar'].get('MDT') or {}).get('stok', 0) or 0)
+                _stok_bagla(d['cocuklar'])
+        _stok_bagla(agac)
+        kok_stok = stoklar.get(ref, {'depolar': {}, 'kullanilabilir': 0, 'toplam_stok': 0})
+        return jsonify({
+            'ref': ref,
+            'stok': kok_stok,
+            'fasonda': float((kok_stok['depolar'].get('MDT') or {}).get('stok', 0) or 0),
+            'dogrudan_siparis': siparisler.get(ref, {'acik_toplam': 0, 'satirlar': []}),
+            'ustler': ustler,
+            'agac': agac,
+        })
+    except Exception as e:
+        return jsonify({'hata': f'AS400 planlama sorgusu başarısız: {e}'}), 502
+    finally:
+        cn.close()
+
+
+@app.route('/api/as400/acik_transferler', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_acik_transferler():
+    """TK1 'hayali stok' transferleri (kullanıcı 2026-07-22 öğretti): alt parça
+    yolda iken launch açabilmek için 07>01>F1'den TA causal ile 02→01 stok
+    taşınır (02 eksiye düşer); parça gelince Shift+F4 ile İPTAL edilmeli —
+    iptal kaydı fiziksel SİLER. Dolayısıyla BMMAF0'da hâlâ duran her TA 02→01
+    hareketi = iptal edilmemiş transfer. Tarih bazlı liste döner."""
+    try:
+        gunler = max(7, min(365, int(request.args.get('gunler') or 60)))
+    except (TypeError, ValueError):
+        gunler = 60
+    bas = date.today() - timedelta(days=gunler)
+    esik = bas.year * 10000 + bas.month * 100 + bas.day   # YYYYMMDD karşılaştırma
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import keyring, pyodbc
+    import as400_config as _cfg
+    try:
+        pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+        cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
+    except Exception as e:
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
+    try:
+        rows = cn.cursor().execute(
+            "SELECT MGDSSO, MGDAAO, MGDMMO, MGDGGO, MGARCD, MGQTA, MGUTVA, MGANRE, MGNURE, MGPRRE "
+            "FROM tkc0301F.BMMAF0 "
+            "WHERE MGCACD='TA' AND MGMGCD='02' AND MGMCCD='01' "
+            "  AND (MGDSSO*1000000 + MGDAAO*10000 + MGDMMO*100 + MGDGGO) >= ? "
+            "ORDER BY (MGDSSO*1000000 + MGDAAO*10000 + MGDMMO*100 + MGDGGO) DESC, MGNURE DESC, MGPRRE",
+            (esik,)).fetchall()
+        transferler = [{
+            'tarih': f'{int(r[0])}{int(r[1]):02d}-{int(r[2]):02d}-{int(r[3]):02d}',
+            'article': str(r[4]).strip(),
+            'adet': float(r[5] or 0),
+            'kullanici': str(r[6]).strip(),
+            'kayit': f'{int(r[7])}-{int(r[8])}',
+            'satir': int(r[9]),
+        } for r in rows]
+        return jsonify({'gunler': gunler, 'transferler': transferler})
+    except Exception as e:
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+    finally:
+        cn.close()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -3744,4 +6430,6 @@ if __name__ == '__main__':
     print("  Sistem artik bu adresten yayinlanmaktadir.")
     print("  Otomatik arsiv : Her gun 18:00 (data/arsiv/)")
     print("="*55 + "\n")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # GUVENLIK: internete acik sistemde debug=True = uzaktan kod calistirma (RCE).
+    # Varsayilan KAPALI; yerel gelistirmede ortam degiskeni ile ac: COFLE_DEBUG=1
+    app.run(host='0.0.0.0', port=5000, debug=(os.environ.get('COFLE_DEBUG') == '1'))

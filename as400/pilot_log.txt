@@ -1,0 +1,57 @@
+PILOT BASLIYOR: launch 26-140672 / 10.300.1866-10W / 1 adet (A)
+G0: kilit cozme (reset+fieldexit+reset), OIA inhibit=0
+OK: Ana menu (TME1)
+OK: menu 10 -> TP00
+OK: menu 05 -> TP40
+OK: menu 12 -> TP41
+OK: RIENTRO / Limits request
+OK: Order No girildi:  Order No. . . . . .        26  140672
+Enter sonrasi OIA inhibit: 1
+OK: Re-entry summary — launch 140672 / 10.300.1866-10W dogrulandi
+---------- EKRAN [re-entry-summary-ilk] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       17/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  140672  Ass. 10.300.1866-10W                Ord.Qty       100,000
+ 4|  Job                       KAPLAMASIZ KAYNAKLI GRUP       Rem.Qty        98,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0243299   01D   RPR  17/07/26                 AD         1,000 A
+ 7|      200    26 0243300   01D   RPR  17/07/26                 AD         1,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+--------------------------------------
+OK: Adet 1 girildi, bayrak A: ' 1   300                 01D   RPR  17/07/26                 AD             1 A'
+---------- EKRAN [adet-girildi] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       17/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  140672  Ass. 10.300.1866-10W                Ord.Qty       100,000
+ 4|  Job                       KAPLAMASIZ KAYNAKLI GRUP       Rem.Qty        98,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0243299   01D   RPR  17/07/26                 AD         1,000 A
+ 7|      200    26 0243300   01D   RPR  17/07/26                 AD         1,000 A
+ 8|  1   300                 01D   RPR  17/07/26                 AD             1 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+--------------------------------------
+OK: Enter #1
+OK: Enter #2
+---------- EKRAN [enterlar-sonrasi] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       17/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  140672 Ass.cd  10.300.1866-10W          Conf.qty         1,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1866A-10       REP AD      98,000     100,000      98,000      1,000 A
+ 7|    0.010.1588.0/
+ 8|    10.300.1866B                                               8,000      1,000 A
+ 9|    2.1559.377.0      Data movimento     17   7  26
+10|    10.300.1866C      Tipo costo         S      S/C/L/P/U/M    8,000      1,000 A
+11|    0.010.1537.0      Costo                      51,959992
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+--------------------------------------
+---------- EKRAN [F6-sonrasi] ----------
+--------------------------------------
+OK: F6 gonderildi
+OK: Session B ana menuye birakildi
+SONUC=OK

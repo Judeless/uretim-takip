@@ -87,11 +87,50 @@ def init_db():
         # isr_count - toplam_sinyal = MIN_PULSE_GAP_MS ile reddedilen back-to-back pulse sayisi
         ('isr_count_ist1',      'INTEGER DEFAULT 0'),
         ('isr_count_ist2',      'INTEGER DEFAULT 0'),
+        # Firmware v2.4+ tani — sayim filtresi kararlarinin kumulatif sayaclari
+        # (eksik/fazla sayma teshisi: parazit=opto zayif, erken=cycle/gap)
+        ('tani_sayildi',        'INTEGER DEFAULT 0'),
+        ('tani_parazit',        'INTEGER DEFAULT 0'),
+        ('tani_erken',          'INTEGER DEFAULT 0'),
+        # Cihazin NVS'teki reset-korumali sayimi (heartbeat'te gelir). server'a ulasan
+        # sayim (sayac_olaylari) ile karsilastirilip transit/reset kaybi tespit edilir.
+        # base_ist* = ilk goruste kurulan baseline offset (server_count - pulse_ist).
+        # kayip = max(0, pulse_ist + base - server_count) (okuma aninda hesaplanir).
+        ('pulse_ist1',          'INTEGER DEFAULT 0'),
+        ('pulse_ist2',          'INTEGER DEFAULT 0'),
+        ('base_ist1',           'INTEGER'),   # NULL = henuz baseline kurulmadi
+        ('base_ist2',           'INTEGER'),
+        # Firmware v2.6+ self-heal/zombie teshisi (heartbeat ile gelir)
+        ('radyo_yenile',        'INTEGER DEFAULT 0'),   # radyoYenileToplam — artiyor ama offline ise kurtaramayan tedavi
+        ('http_fail',           'INTEGER DEFAULT 0'),   # httpFailCount — RSSI iyi + artiyorsa zombie WL_CONNECTED isareti
+        ('disconnect_say',      'INTEGER DEFAULT 0'),   # disconnectCount (10dk penceresi)
     ]:
         try:
             c.execute(f"ALTER TABLE cihaz_kayitlari ADD COLUMN {col} {ddl}")
         except Exception:
             pass  # zaten var
+
+    # ─── Cihaz sağlık zaman serisi (append-only) ───
+    # cihaz_kayitlari TEK satır (her heartbeat'te ezilir) → "iyi RSSI ama offline" gibi
+    # olayların post-mortem'i imkansızdı. Bu tablo ANOMALİ anlarını (reboot/radyo tazele/
+    # buffer dolu/httpfail) + ~10dk'da bir baseline'ı KALICI loglar; 30 günden eski budanır.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS saglik_olaylari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT DEFAULT (datetime('now','localtime')),
+            cihaz_id TEXT NOT NULL,
+            robot_no TEXT DEFAULT '',
+            sebep TEXT DEFAULT '',
+            wifi_rssi INTEGER,
+            free_heap INTEGER,
+            uptime_sn INTEGER,
+            buffer_kuyruk INTEGER,
+            radyo_yenile INTEGER,
+            http_fail INTEGER,
+            disconnect_say INTEGER
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_saglik_cihaz_ts ON saglik_olaylari(cihaz_id, ts)')
 
     # Sayac reset noktalari — yonetici dashboard'dan "sayaci sifirla" tiklayinca
     # bu tabloya o cihaz/istasyon icin reset timestamp'i yazilir.
@@ -107,6 +146,29 @@ def init_db():
             PRIMARY KEY (cihaz_id, istasyon)
         )
     ''')
+
+    # Tani olaylari — firmware'in sayim filtresi her karar verdiginde bir satir.
+    # Heartbeat'e binip gelir (firmware v2.4+). Eksik/fazla sayma teshisi icin:
+    #   tip='SAYILDI' → gecerli pulse sayildi (gap_ms=onceki sayimdan fark, low_ms=LOW suresi)
+    #   tip='PARAZIT' → multi-sample basarisiz (low_ms=kopmadan once kac ms LOW kaldi); opto zayif belirtisi
+    #   tip='ERKEN'   → gap < MIN_PULSE_GAP, pulse elendi (gap_ms); cycle gap'ten kisa demek
+    # low_ms (SAYILDI): ~22sn → tek parca; ~2x → role ardisik parcalari birlestirdi (eksik sayim).
+    # idem UNIQUE → ayni olay tekrar heartbeat ile gelirse INSERT reddedilir (cift kayit yok).
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS tani_olaylari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT DEFAULT (datetime('now', 'localtime')),
+            cihaz_id TEXT NOT NULL,
+            robot_no TEXT DEFAULT '',
+            uptime_ms INTEGER DEFAULT 0,
+            tip TEXT DEFAULT '',
+            gap_ms INTEGER DEFAULT 0,
+            low_ms INTEGER DEFAULT 0,
+            dev_seq INTEGER DEFAULT 0,
+            idem TEXT NOT NULL UNIQUE
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_tani_cihaz_ts ON tani_olaylari(cihaz_id, ts)')
     conn.commit()
     conn.close()
 
@@ -183,20 +245,53 @@ def heartbeat():
 
     conn = get_db()
     try:
-        # Önceki robot durumunu öğren — değiştiyse durum_zamani'nı güncelleyeceğiz
+        # Önceki robot durumunu + pulse baseline'larını + sağlık metriklerini öğren
         mevcut = conn.execute(
-            "SELECT robot_calisiyor FROM cihaz_kayitlari WHERE cihaz_id = ?",
+            "SELECT robot_calisiyor, pulse_ist1, pulse_ist2, base_ist1, base_ist2, "
+            "uptime_sn, radyo_yenile FROM cihaz_kayitlari WHERE cihaz_id = ?",
             (cihaz_id,)
         ).fetchone()
         eski_durum = (mevcut['robot_calisiyor'] if mevcut else None)
         durum_degisti = (eski_durum is None) or (eski_durum != yeni_robot_calisiyor)
 
+        # Sağlık/self-heal metrikleri (firmware v2.6+) — yoksa 0
+        yeni_radyo    = int(d.get('radyo_yenile') or 0)
+        yeni_httpfail = int(d.get('http_fail') or 0)
+        yeni_disc     = int(d.get('disconnect') or 0)
+        yeni_uptime   = int(d.get('uptime_sn') or 0)
+        yeni_buffer   = int(d.get('buffer_kuyruk') or 0)
+
+        # ─── Pulse mutabakatı: cihazın NVS sayımı vs server'a ulaşan ───
+        # Cihaz pulse_ist'i NVS'te tutar (reboot'a dayanıklı). Server'a POST'lanan
+        # sayım WiFi kopması/reset'te kaybolabilir. İlk görüşte baseline kur:
+        #   base = server_count - pulse_ist  (o an kayıp 0 varsayımı)
+        # Sonraki heartbeat'lerde okuma anında: kayip = max(0, pulse_ist + base - server_count)
+        yeni_p1 = int(d.get('pulse_ist1') or 0)
+        yeni_p2 = int(d.get('pulse_ist2') or 0)
+        base_ist1 = (mevcut['base_ist1'] if mevcut else None)
+        base_ist2 = (mevcut['base_ist2'] if mevcut else None)
+        try:
+            eski_p1 = (mevcut['pulse_ist1'] if mevcut else 0) or 0
+            eski_p2 = (mevcut['pulse_ist2'] if mevcut else 0) or 0
+            # base henüz yoksa ya da cihaz NVS sıfırlandıysa (pulse geriledi) → yeniden kur
+            if base_ist1 is None or yeni_p1 < eski_p1:
+                sc1 = conn.execute("SELECT COUNT(*) FROM sayac_olaylari WHERE cihaz_id=? AND istasyon=1", (cihaz_id,)).fetchone()[0]
+                base_ist1 = sc1 - yeni_p1
+            if base_ist2 is None or yeni_p2 < eski_p2:
+                sc2 = conn.execute("SELECT COUNT(*) FROM sayac_olaylari WHERE cihaz_id=? AND istasyon=2", (cihaz_id,)).fetchone()[0]
+                base_ist2 = sc2 - yeni_p2
+        except Exception:
+            pass  # mutabakat hatası heartbeat'i düşürmesin
+
         conn.execute('''
             INSERT INTO cihaz_kayitlari (cihaz_id, bolum, robot_no, firmware_ver, ip_adresi, mac_adresi,
                                           wifi_rssi, buffer_kuyruk, uptime_sn, free_heap,
                                           isr_count_ist1, isr_count_ist2,
+                                          tani_sayildi, tani_parazit, tani_erken,
+                                          pulse_ist1, pulse_ist2, base_ist1, base_ist2,
+                                          radyo_yenile, http_fail, disconnect_say,
                                           robot_calisiyor, robot_durum_zamani, son_heartbeat)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))
             ON CONFLICT(cihaz_id) DO UPDATE SET
                 bolum = excluded.bolum,
                 robot_no = excluded.robot_no,
@@ -209,6 +304,16 @@ def heartbeat():
                 free_heap = excluded.free_heap,
                 isr_count_ist1 = excluded.isr_count_ist1,
                 isr_count_ist2 = excluded.isr_count_ist2,
+                tani_sayildi = excluded.tani_sayildi,
+                tani_parazit = excluded.tani_parazit,
+                tani_erken = excluded.tani_erken,
+                pulse_ist1 = excluded.pulse_ist1,
+                pulse_ist2 = excluded.pulse_ist2,
+                base_ist1 = excluded.base_ist1,
+                base_ist2 = excluded.base_ist2,
+                radyo_yenile = excluded.radyo_yenile,
+                http_fail = excluded.http_fail,
+                disconnect_say = excluded.disconnect_say,
                 robot_calisiyor = excluded.robot_calisiyor,
                 robot_durum_zamani = CASE
                     WHEN ? = 1 THEN datetime('now','localtime')
@@ -223,14 +328,83 @@ def heartbeat():
             (d.get('ip_adresi') or '').strip(),
             (d.get('mac_adresi') or '').strip(),
             int(d.get('wifi_rssi') or 0),
-            int(d.get('buffer_kuyruk') or 0),
-            int(d.get('uptime_sn') or 0),
+            yeni_buffer,
+            yeni_uptime,
             int(d.get('free_heap') or 0),
             int(d.get('isr_count_ist1') or 0),
             int(d.get('isr_count_ist2') or 0),
+            int(d.get('tani_sayildi') or 0),
+            int(d.get('tani_parazit') or 0),
+            int(d.get('tani_erken') or 0),
+            yeni_p1, yeni_p2, base_ist1, base_ist2,
+            yeni_radyo, yeni_httpfail, yeni_disc,
             yeni_robot_calisiyor,
             1 if durum_degisti else 0,
         ))
+
+        # ─── Sağlık zaman serisi: ANOMALİ veya ~10dk baseline'ı KALICI logla ───
+        # Amaç: "iyi RSSI ama offline" tipi olayların post-mortem'i (cihaz_kayitlari tek
+        # satır olduğu için geçmiş eziliyordu). Sadece ilginç durumda satır açar → tablo şişmez.
+        try:
+            eski_uptime = (mevcut['uptime_sn'] if mevcut else None)
+            eski_radyo  = ((mevcut['radyo_yenile'] if mevcut else 0) or 0)
+            sebep = ''
+            if eski_uptime is None or yeni_uptime < (eski_uptime or 0):
+                sebep = 'reboot'        # uptime geriledi/ilk görüş = cihaz yeniden başladı
+            elif yeni_radyo > eski_radyo:
+                sebep = 'radyo'         # radyo tazeleme yapıldı (kurtarma denemesi)
+            elif yeni_httpfail >= 3:
+                sebep = 'httpfail'      # sunucuya ulaşamıyor (RSSI iyiyse zombie adayı)
+            elif yeni_buffer > 0:
+                sebep = 'buffer'        # kuyrukta gönderilemeyen pulse var
+            else:
+                son = conn.execute("SELECT MAX(ts) FROM saglik_olaylari WHERE cihaz_id=?",
+                                   (cihaz_id,)).fetchone()[0]
+                if not son:
+                    sebep = 'baseline'
+                else:
+                    fark_dk = conn.execute(
+                        "SELECT (julianday('now','localtime') - julianday(?)) * 1440", (son,)
+                    ).fetchone()[0]
+                    if fark_dk is None or fark_dk > 10:
+                        sebep = 'baseline'
+            if sebep:
+                conn.execute('''
+                    INSERT INTO saglik_olaylari
+                        (cihaz_id, robot_no, sebep, wifi_rssi, free_heap, uptime_sn,
+                         buffer_kuyruk, radyo_yenile, http_fail, disconnect_say)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (cihaz_id, (d.get('robot_no') or '').strip(), sebep,
+                      int(d.get('wifi_rssi') or 0), int(d.get('free_heap') or 0), yeni_uptime,
+                      yeni_buffer, yeni_radyo, yeni_httpfail, yeni_disc))
+                # Retention: 30 günden eski sağlık kayıtlarını buda (tablo şişmesin)
+                conn.execute("DELETE FROM saglik_olaylari WHERE ts < datetime('now','localtime','-30 days')")
+        except Exception:
+            pass  # sağlık logu heartbeat'i ASLA düşürmesin
+
+        # Tani olay dizisi (firmware v2.4+) — varsa her birini idempotent ekle
+        robot_no_hb = (d.get('robot_no') or '').strip()
+        TIP_AD = {0: 'SAYILDI', 1: 'PARAZIT', 2: 'ERKEN'}
+        for ev in (d.get('tani') or []):
+            try:
+                # NOT: 0 gecerli deger (tip 0=SAYILDI, gap/low 0) → `or` KULLANMA, .get(k, default)
+                dev_seq = int(ev.get('s', 0))
+                idem = f"{cihaz_id}_{int(ev.get('b', 0))}_{dev_seq}"
+                conn.execute('''
+                    INSERT OR IGNORE INTO tani_olaylari
+                        (cihaz_id, robot_no, uptime_ms, tip, gap_ms, low_ms, dev_seq, idem)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    cihaz_id, robot_no_hb,
+                    int(ev.get('u', 0)),
+                    TIP_AD.get(int(ev.get('t', -1)), 'BILINMEYEN'),
+                    int(ev.get('g', 0)),
+                    int(ev.get('l', 0)),
+                    dev_seq, idem,
+                ))
+            except (ValueError, TypeError):
+                continue  # bozuk olay kaydini atla, heartbeat'i dusurme
+
         conn.commit()
     finally:
         conn.close()
@@ -398,12 +572,119 @@ def son_sinyaller():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route('/api/sinyal/mutabakat', methods=['GET'])
+def mutabakat():
+    """Pulse mutabakatı — cihazın NVS sayımı (pulse_ist) vs server'a ulaşan sayım.
+    kayip > 0 → o cihazda WiFi/reset kaynaklı transit kaybı var (artıyorsa anten/bağlantı bak).
+    Anten düzeldikten sonra kayip ~0'da kalmalı.
+    """
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT cihaz_id, bolum, robot_no, pulse_ist1, pulse_ist2, base_ist1, base_ist2, wifi_rssi "
+        "FROM cihaz_kayitlari ORDER BY cihaz_id"
+    ).fetchall()
+    out = []
+    for r in rows:
+        cid = r['cihaz_id']
+        sc1 = conn.execute("SELECT COUNT(*) FROM sayac_olaylari WHERE cihaz_id=? AND istasyon=1", (cid,)).fetchone()[0]
+        sc2 = conn.execute("SELECT COUNT(*) FROM sayac_olaylari WHERE cihaz_id=? AND istasyon=2", (cid,)).fetchone()[0]
+        b1 = r['base_ist1'] if r['base_ist1'] is not None else 0
+        b2 = r['base_ist2'] if r['base_ist2'] is not None else 0
+        kayip1 = max(0, (r['pulse_ist1'] or 0) + b1 - sc1)
+        kayip2 = max(0, (r['pulse_ist2'] or 0) + b2 - sc2)
+        out.append({
+            'cihaz_id': cid, 'bolum': r['bolum'], 'robot_no': r['robot_no'], 'wifi_rssi': r['wifi_rssi'],
+            'cihaz_sayim_ist1': r['pulse_ist1'] or 0, 'server_sayim_ist1': sc1, 'kayip_ist1': kayip1,
+            'cihaz_sayim_ist2': r['pulse_ist2'] or 0, 'server_sayim_ist2': sc2, 'kayip_ist2': kayip2,
+            'baseline_kuruldu': r['base_ist1'] is not None,
+        })
+    conn.close()
+    return jsonify(out)
+
+
+@app.route('/api/sinyal/tani', methods=['GET'])
+def tani_oku():
+    """Sayim filtresi tani olaylari — eksik/fazla sayma teshisi.
+
+    ?cihaz_id=400T-IO&limit=200  → o cihazin son N olayi + kumulatif sayaclar.
+    Ozet: parazit cok → opto zayif; erken cok → cycle/gap; SAYILDI low_ms ~2x → role
+    ardisik parcalari birlestiriyor (eksik sayim).
+    """
+    cihaz_id = (request.args.get('cihaz_id') or '').strip()
+    n = min(int(request.args.get('limit', 200)), 1000)
+    conn = get_db()
+
+    sayaclar = {}
+    if cihaz_id:
+        r = conn.execute('''
+            SELECT tani_sayildi, tani_parazit, tani_erken, firmware_ver, toplam_sinyal
+            FROM cihaz_kayitlari WHERE cihaz_id = ?
+        ''', (cihaz_id,)).fetchone()
+        if r:
+            sayaclar = dict(r)
+
+    if cihaz_id:
+        rows = conn.execute('''
+            SELECT * FROM tani_olaylari WHERE cihaz_id = ?
+            ORDER BY id DESC LIMIT ?
+        ''', (cihaz_id, n)).fetchall()
+    else:
+        rows = conn.execute('''
+            SELECT * FROM tani_olaylari ORDER BY id DESC LIMIT ?
+        ''', (n,)).fetchall()
+    conn.close()
+
+    olaylar = [dict(r) for r in rows]
+    sayildi_low = [o['low_ms'] for o in olaylar if o['tip'] == 'SAYILDI' and o['low_ms'] > 0]
+    ozet = {
+        'sayildi': sum(1 for o in olaylar if o['tip'] == 'SAYILDI'),
+        'parazit': sum(1 for o in olaylar if o['tip'] == 'PARAZIT'),
+        'erken':   sum(1 for o in olaylar if o['tip'] == 'ERKEN'),
+        'low_ms_min': min(sayildi_low) if sayildi_low else 0,
+        'low_ms_max': max(sayildi_low) if sayildi_low else 0,
+        'low_ms_ort': round(sum(sayildi_low) / len(sayildi_low)) if sayildi_low else 0,
+    }
+    return jsonify({
+        'cihaz_id': cihaz_id,
+        'kumulatif_sayaclar': sayaclar,
+        'pencere_ozeti': ozet,
+        'olaylar': olaylar,
+    })
+
+
+@app.route('/api/sinyal/saglik', methods=['GET'])
+def saglik_oku():
+    """Cihaz sağlık zaman serisi — "iyi RSSI ama offline" tipi olayların post-mortem'i.
+
+    ?cihaz_id=MONTAJ-M7&limit=200  → o cihazın son N sağlık olayı (reboot/radyo/buffer/
+    httpfail/baseline). free_heap düşüşü, uptime sıfırlanması (reboot), radyo_yenile artışı
+    ve http_fail birikimi burada görülür — cihaz_kayitlari tek-satır ezdiği için tek kaynak budur.
+    """
+    cihaz_id = (request.args.get('cihaz_id') or '').strip()
+    n = min(int(request.args.get('limit', 200)), 2000)
+    conn = get_db()
+    if cihaz_id:
+        rows = conn.execute(
+            'SELECT * FROM saglik_olaylari WHERE cihaz_id = ? ORDER BY id DESC LIMIT ?',
+            (cihaz_id, n)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            'SELECT * FROM saglik_olaylari ORDER BY id DESC LIMIT ?', (n,)
+        ).fetchall()
+    conn.close()
+    return jsonify({'cihaz_id': cihaz_id, 'olaylar': [dict(r) for r in rows]})
+
+
 @app.route('/logo')
 def logo_serve():
-    """Cofle logosu — ana sistemdeki ile aynı yol."""
+    """Cofle Control Systems logosu — ana projedeki static/ dosyalarından
+    (2026-07-21: resmi logo static/logo_koyu.png koyu-tema, logo.png orijinal)."""
+    ana_static = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
     yollar = [
+        os.path.join(ana_static, 'logo_koyu.png'),   # pilot konsolu koyu temali
+        os.path.join(ana_static, 'logo.png'),
         os.path.join(os.path.expanduser('~'), 'OneDrive', 'Masaüstü', 'LOGO_COFLE ONLY.png'),
-        os.path.join(os.path.expanduser('~'), 'Desktop', 'LOGO_COFLE ONLY.png'),
     ]
     for y in yollar:
         if os.path.exists(y):
@@ -423,4 +704,6 @@ if __name__ == '__main__':
     print(f"  Canlı UI  : http://<bu-pc-ip>:{PORT}/")
     print(f"  ESP32 URL : http://<bu-pc-ip>:{PORT}/api/sinyal")
     print("=" * 55 + "\n")
-    app.run(host='0.0.0.0', port=PORT, debug=True)
+    # GUVENLIK: debug=True = uzaktan kod calistirma riski. Varsayilan KAPALI;
+    # yerel gelistirmede: COFLE_DEBUG=1
+    app.run(host='0.0.0.0', port=PORT, debug=(os.environ.get('COFLE_DEBUG') == '1'))

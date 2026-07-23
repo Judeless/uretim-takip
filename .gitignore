@@ -19,6 +19,9 @@ env/
 Tunel_Onar.bat
 .env
 *.env
+cofle_test_config.json
+mail_config.json
+.flask_secret
 
 # Log ve debug çıktıları
 *.log
@@ -39,3 +42,22 @@ app_db_trace.txt
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# Claude Code (worktree'ler = tam repo kopyalari, gerekmez)
+.claude/
+
+# Sunucu kurulum/cutover scriptleri (cloudflared TOKEN icerir - GitHub'a GITMEZ)
+_sunucu_cutover.ps1
+
+# Calisma verisi ve belgeler (makineye ozel / kod disi; sunucuda ayri durur)
+data/
+belgeler/
+mail
+
+# Windows 'nul' ayrilmis-ad cop dosyasi (git indexlemede patliyor)
+nul
+
+# Veritabani yedekleri ve SQLite yan dosyalari
+*.db.bak*
+*.db-wal
+*.db-shm

@@ -1,0 +1,26 @@
+{
+  "_aciklama": "Bu dosyayi 'mail_config.json' adiyla kopyalayin. Iki gonderim yontemi var: 'outlook' (acik Outlook masaustu uygulamasi uzerinden — sifre GEREKMEZ) veya 'smtp' (sunucu bilgileriyle). mail_config.json git'e girmez (gitignore).",
+  "etkin": false,
+  "yontem": "outlook",
+
+  "_outlook_notu": "yontem='outlook' ise asagidaki smtp_* alanlari GEREKMEZ. Sart: Outlook ayni Windows oturumunda acik ve giris yapilmis olmali; mail o hesaptan gider. pywin32 gerekir (kurulu).",
+
+  "smtp_host": "smtp.sirketiniz.com",
+  "smtp_port": 587,
+  "guvenlik": "starttls",
+  "kullanici": "raporlar@sirketiniz.com",
+  "sifre": "BURAYA_SMTP_SIFRESI",
+  "gonderen": "raporlar@sirketiniz.com",
+  "gonderen_ad": "Cofle Manage",
+
+  "gonderim_saati": "17:00",
+  "kapsam_lokasyon": "HEPSI",
+
+  "_notlar": {
+    "yontem": "outlook (Outlook masaustu, sifresiz) | smtp (sunucu bilgileriyle)",
+    "etkin": "Kurulum bitince true yapin; false iken hicbir mail gonderilmez.",
+    "guvenlik": "smtp icin: starttls (587) | ssl (465) | none",
+    "gonderim_saati": "SS:DD. Degistirince ana sunucu (5000) yeniden baslatilmali.",
+    "kapsam_lokasyon": "HEPSI (iki tesis) | TK2 (ana fabrika) | TK1 (yan tesis)"
+  }
+}

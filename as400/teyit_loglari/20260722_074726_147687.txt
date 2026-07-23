@@ -1,0 +1,61 @@
+TEYIT: launch 26-147687 / 10.300.5292W / 67 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147687  Ass. 10.300.5292W                   Ord.Qty        95,000
+ 4|  Job                       BOYASIZ KAYNAKLI PARÇA         Rem.Qty        90,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245743   MT2   RPR  21/07/26                 AD         5,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 â†’ F10 (yeni satir)
+OK: adet 67 girildi, bayrak A: ' 1   200                 MT2   RPR  21/07/26                 AD            67 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147687  Ass. 10.300.5292W                   Ord.Qty        95,000
+ 4|  Job                       BOYASIZ KAYNAKLI PARÇA         Rem.Qty        90,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245743   MT2   RPR  21/07/26                 AD         5,000 A
+ 7|  1   200                 MT2   RPR  21/07/26                 AD            67 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 67
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  147687 Ass.cd  10.300.5292W             Conf.qty        67,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.5292A          REP AD      90,000      95,000      90,000     67,000 A
+ 7|    3040-1285 BASE BRACKET         War.cau. SPR Um     Rej.qty
+ 8|    10.300.5292E          REP AD     180,000     190,000     180,000    134,000 A
+ 9|    3040-1308 BASE SUPPORT SIDE    War.cau. SPR Um     Rej.qty
+10|    10.300.5292C-ABK      REP 01D     90,000      95,000      90,000     67,000 A
+11|    ABKANT BUKUMLU SAC             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  147687 Ass.cd  10.300.5292W             Conf.qty        67,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.5292A          REP AD      90,000      95,000      90,000     67,000 A
+ 7|    3040-1285 BAS
+ 8|    10.300.5292E                                               0,000    134,000 A
+ 9|    3040-1308 BAS     Data movimento     22   7  26
+10|    10.300.5292C-     Tipo costo         S      S/C/L/P/U/M    0,000     67,000 A
+11|    ABKANT BUKUML     Costo                     866,060648
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

@@ -1,0 +1,102 @@
+TEYIT: launch 26-133149 / 94.LTK.51 / 40 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133149  Ass. 94.LTK.51                      Ord.Qty       200,000
+ 4|  Job      UTILITY MEDIUM   47404676 PICK UP HITCH BRIDGE  Rem.Qty        40,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244372   MT2   RPR  20/07/26                 AD        60,000 A
+ 7|      200    26 0245754   MT2   RPR  21/07/26                 AD       100,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 2 → F10 (yeni satir)
+OK: adet 40 girildi, bayrak S: ' 1   300                 MT2   RPR  21/07/26                 AD            40 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133149  Ass. 94.LTK.51                      Ord.Qty       200,000
+ 4|  Job      UTILITY MEDIUM   47404676 PICK UP HITCH BRIDGE  Rem.Qty        40,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244372   MT2   RPR  20/07/26                 AD        60,000 A
+ 7|      200    26 0245754   MT2   RPR  21/07/26                 AD       100,000 A
+ 8|  1   300                 MT2   RPR  21/07/26                 AD            40 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE → F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133149  Ass. 94.LTK.51                      Ord.Qty       200,000
+ 4|  Job      UTILITY MEDIUM   47404676 PICK UP HITCH BRIDGE  Rem.Qty        40,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244372   MT2   RPR  20/07/26                 AD        60,000 A
+ 7|      200    26 0245754   MT2   RPR  21/07/26                 AD       100,000 A
+ 8|  1   300                 MT2   RPR  21/07/26                 AD            40 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                     200,000                200,000
+16|            Qty in order
+17|                     200,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 40
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  133149 Ass.cd  94.LTK.51                Conf.qty        40,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0400           REP AD      40,000     200,000      40,000     40,000 S
+ 7|    5161411 SPRING                 War.cau. SPR Um     Rej.qty
+ 8|    10.300.0399           REP AD      80,000     400,000      80,000     80,000 S
+ 9|    84559655 WASHER IGUS GTM -2442 War.cau. SPR Um     Rej.qty
+10|    10.300.1513           REP AD     208,000     400,000      80,000     80,000 S
+11|    NUT LOCK M8X1.25 (FIBERLI)     War.cau. SPR Um     Rej.qty
+12|    10.300.1514           REP AD      40,000     200,000      40,000     40,000 S
+13|    BOLT,M8X50                     War.cau. SPR Um     Rej.qty
+14|    10.300.1515           REP AD      40,000     200,000      40,000     40,000 S
+15|    BOLT,M8X25                     War.cau. SPR Um     Rej.qty
+16|    10.300.0631           REP AD      40,000     200,000      40,000     40,000 S
+17|    84577227 BRACKET               War.cau. SPR Um     Rej.qty
+18|    10.DTC.1687           REP AD      40,000     200,000      40,000     40,000 S
+19|    VITE M6 L=10                   War.cau. SPR Um     Rej.qty
+20|    10.DTC.589            REP AD     619,000     200,000      40,000     40,000 S
+21|    6,5*11,5*1,5 CR3 PUL           War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  133149 Ass.cd  94.LTK.51                Conf.qty        40,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0400           REP AD      40,000     200,000      40,000     40,000 S
+ 7|    5161411 SPRIN
+ 8|    10.300.0399                                                0,000     80,000 S
+ 9|    84559655 WASH     Data movimento     22   7  26
+10|    10.300.1513       Tipo costo         S      S/C/L/P/U/M    0,000     80,000 S
+11|    NUT LOCK M8X1     Costo                     661,756232
+12|    10.300.1514                                                0,000     40,000 S
+13|    BOLT,M8X50      F06=Conferma
+14|    10.300.1515                                                0,000     40,000 S
+15|    BOLT,M8X25                     War.cau. SPR Um     Rej.qty
+16|    10.300.0631           REP AD      40,000     200,000      40,000     40,000 S
+17|    84577227 BRACKET               War.cau. SPR Um     Rej.qty
+18|    10.DTC.1687           REP AD      40,000     200,000      40,000     40,000 S
+19|    VITE M6 L=10                   War.cau. SPR Um     Rej.qty
+20|    10.DTC.589            REP AD     619,000     200,000      40,000     40,000 S
+21|    6,5*11,5*1,5 CR3 PUL           War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

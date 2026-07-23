@@ -1,0 +1,78 @@
+CFI GIRIS: 10.130.5422GRW / 66 adet
+G0: zaten CFI giris ekraninda (2-Variation)
+---------- EKRAN [giris-ekrani] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        23/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|      1300  01D 10.130.4031A          STAFFA LEVA DISTIBUTORI   AD       465,000
+ 5|      1400  01D 10.130.4031B          PIASTRA SUPPORTO PERNO LE AD      1234,000
+ 6|      1500  01D 10.300.1363-B         PRES BUKUM CATAL          AD       300,000
+ 8|  2-Variation
+ 9|  Record no. .           26  250195       Actual row     1600  Rec.dt   23  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+G1: alan haritasi â€” wh@10 ca@11 ar@12 qty@14 cp@18 kolon=25
+---------- EKRAN [giris-dolu] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        23/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|      1300  01D 10.130.4031A          STAFFA LEVA DISTIBUTORI   AD       465,000
+ 5|      1400  01D 10.130.4031B          PIASTRA SUPPORTO PERNO LE AD      1234,000
+ 6|      1500  01D 10.300.1363-B         PRES BUKUM CATAL          AD       300,000
+ 8|  2-Variation
+ 9|  Record no. .           26  250195       Actual row     1600  Rec.dt   23  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .      10.130.5422GRW                           L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                               66 Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+OK: ust listede 10.130.5422GRW / 66 goruldu, giris alanlari bosaldi
+---------- EKRAN [basarili] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        23/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|      1300  01D 10.130.4031A          STAFFA LEVA DISTIBUTORI   AD       465,000
+ 5|      1400  01D 10.130.4031B          PIASTRA SUPPORTO PERNO LE AD      1234,000
+ 6|      1500  01D 10.300.1363-B         PRES BUKUM CATAL          AD       300,000
+ 7|      1600  01D 10.130.5422GRW        VÝBRASYONLU DÝÞ ÇEKÝLMEMÝ AD        66,000
+ 8|  2-Variation
+ 9|  Record no. .           26  250195       Actual row     1700  Rec.dt   23  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+SONUC=OK

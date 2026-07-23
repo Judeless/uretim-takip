@@ -1,0 +1,110 @@
+TEYIT: launch 26-127584 / 94.SBR.003.6 / 66 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  127584  Ass. 94.SBR.003.6                   Ord.Qty       225,000
+ 4|  Job      NEW              22711390 ARMREST SUPPORT K08   Rem.Qty       148,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0222455   MT2   RPR   1/07/26                 AD        11,000 A
+ 7|      200    26 0232166   MT2   RPR   8/07/26                 AD        33,000 A
+ 8|      300    26 0238807   MT2   RPR  14/07/26                 AD        33,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 3 → F10 (yeni satir)
+OK: adet 66 girildi, bayrak A: ' 1   400                 MT2   RPR  14/07/26                 AD            66 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  127584  Ass. 94.SBR.003.6                   Ord.Qty       225,000
+ 4|  Job      NEW              22711390 ARMREST SUPPORT K08   Rem.Qty       148,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0222455   MT2   RPR   1/07/26                 AD        11,000 A
+ 7|      200    26 0232166   MT2   RPR   8/07/26                 AD        33,000 A
+ 8|      300    26 0238807   MT2   RPR  14/07/26                 AD        33,000 A
+ 9|  1   400                 MT2   RPR  14/07/26                 AD            66 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 66
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  127584 Ass.cd  94.SBR.003.6             Conf.qty        66,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0448.2         REP AD     148,000     225,000     148,000     66,000 A
+ 7|    21635042 ALU SLIDER PART       War.cau. SPR Um     Rej.qty
+ 8|    10.300.0449.2         REP AD     148,000     225,000     148,000     66,000 A
+ 9|    21635072 COPRS ACCOUDOIR       War.cau. SPR Um     Rej.qty
+10|    10.300.0454           REP AD     296,000     450,000     296,000    132,000 A
+11|    21643660 AXE SUPPORT ACC K08   War.cau. SPR Um     Rej.qty
+12|    10.300.0562           REP AD    1184,000    1800,000    1184,000    528,000 A
+13|    21825260 BOCCOLA 1517-15       War.cau. SPR Um     Rej.qty
+14|    10.300.0445.2         REP AD     148,000     225,000     148,000     66,000 A
+15|    21634172 INTERFACE SIEGES      War.cau. SPR Um     Rej.qty
+16|    10.300.0447.1         REP AD     296,000     450,000     296,000    132,000 A
+17|    21634941 BRAS SUPPORT ACCOUD.  War.cau. SPR Um     Rej.qty
+18|    10.300.1202           REP AD     296,000     450,000     296,000    132,000 A
+19|    DADO M12X1.75 AUTOBLOCCANTE    War.cau. SPR Um     Rej.qty
+20|    10.300.0686.1         REP AD     148,000     225,000     148,000     66,000 A
+21|    21792231 PLAQUE RENFORT        War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+Stok yetersiz (ozet) → F23 (force, tek sefer)
+---------- EKRAN [f23-ozet-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  127584 Ass.cd  94.SBR.003.6             Conf.qty        66,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0448.2         REP AD     148,000     225,000     148,000     66,000 A
+ 7|    21635042 ALU SLIDER PART       War.cau. SPR Um     Rej.qty
+ 8|    10.300.0449.2         REP AD     148,000     225,000     148,000     66,000 A
+ 9|    21635072 COPRS ACCOUDOIR       War.cau. SPR Um     Rej.qty
+10|    10.300.0454           REP AD     296,000     450,000     296,000    132,000 A
+11|    21643660 AXE SUPPORT ACC K08   War.cau. SPR Um     Rej.qty
+12|    10.300.0562           REP AD    1184,000    1800,000    1184,000    528,000 A
+13|    21825260 BOCCOLA 1517-15       War.cau. SPR Um     Rej.qty
+14|    10.300.0445.2         REP AD     148,000     225,000     148,000     66,000 A
+15|    21634172 INTERFACE SIEGES      War.cau. SPR Um     Rej.qty
+16|    10.300.0447.1         REP AD     296,000     450,000     296,000    132,000 A
+17|    21634941 BRAS SUPPORT ACCOUD.  War.cau. SPR Um     Rej.qty
+18|    10.300.1202           REP AD     296,000     450,000     296,000    132,000 A
+19|    DADO M12X1.75 AUTOBLOCCANTE    War.cau. SPR Um     Rej.qty
+20|    10.300.0686.1         REP AD     148,000     225,000     148,000     66,000 A
+21|    21792231 PLAQUE RENFORT        War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  127584 Ass.cd  94.SBR.003.6             Conf.qty        66,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0448.2         REP AD     148,000     225,000     148,000     66,000 A
+ 7|    21635042 ALU
+ 8|    10.300.0449.2                                              8,000     66,000 A
+ 9|    21635072 COPR     Data movimento     22   7  26
+10|    10.300.0454       Tipo costo         S      S/C/L/P/U/M    6,000    132,000 A
+11|    21643660 AXE      Costo                   1.644,301034
+12|    10.300.0562                                                4,000    528,000 A
+13|    21825260 BOCC   F06=Conferma
+14|    10.300.0445.2                                              8,000     66,000 A
+15|    21634172 INTERFACE SIEGES      War.cau. SPR Um     Rej.qty
+16|    10.300.0447.1         REP AD     296,000     450,000     296,000    132,000 A
+17|    21634941 BRAS SUPPORT ACCOUD.  War.cau. SPR Um     Rej.qty
+18|    10.300.1202           REP AD     296,000     450,000     296,000    132,000 A
+19|    DADO M12X1.75 AUTOBLOCCANTE    War.cau. SPR Um     Rej.qty
+20|    10.300.0686.1         REP AD     148,000     225,000     148,000     66,000 A
+21|    21792231 PLAQUE RENFORT        War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

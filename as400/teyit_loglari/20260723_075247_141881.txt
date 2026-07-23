@@ -1,0 +1,79 @@
+TEYIT: launch 26-141881 / 10.300.4725W / 19 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  141881  Ass. 10.300.4725W                   Ord.Qty        65,000
+ 4|  Job                       KAYNAKLI BOYASIZ PARCA         Rem.Qty        19,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245742   MT2   RPR  21/07/26                 AD        40,000 A
+ 7|      200    26 0247708   MT2   RPR  22/07/26                 AD         6,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 2 → F10 (yeni satir)
+OK: adet 19 girildi, bayrak S: ' 1   300                 MT2   RPR  22/07/26                 AD            19 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  141881  Ass. 10.300.4725W                   Ord.Qty        65,000
+ 4|  Job                       KAYNAKLI BOYASIZ PARCA         Rem.Qty        19,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245742   MT2   RPR  21/07/26                 AD        40,000 A
+ 7|      200    26 0247708   MT2   RPR  22/07/26                 AD         6,000 A
+ 8|  1   300                 MT2   RPR  22/07/26                 AD            19 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE → F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  141881  Ass. 10.300.4725W                   Ord.Qty        65,000
+ 4|  Job                       KAYNAKLI BOYASIZ PARCA         Rem.Qty        19,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245742   MT2   RPR  21/07/26                 AD        40,000 A
+ 7|      200    26 0247708   MT2   RPR  22/07/26                 AD         6,000 A
+ 8|  1   300                 MT2   RPR  22/07/26                 AD            19 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                      65,000                 65,000
+16|            Qty in order
+17|                      65,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 19
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  141881 Ass.cd  10.300.4725W             Conf.qty        19,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1394B          REP AD      19,000      65,000      19,000     19,000 S
+ 7|    ISOLATOR LH BUSHING FOR LEVER  War.cau. SPR Um     Rej.qty
+ 8|    10.300.4725A          REP AD      19,000      65,000      19,000     19,000 S
+ 9|    715809 LEVER,VALVE             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  141881 Ass.cd  10.300.4725W             Conf.qty        19,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1394B          REP AD      19,000      65,000      19,000     19,000 S
+ 7|    ISOLATOR LH B
+ 8|    10.300.4725A                                               9,000     19,000 S
+ 9|    715809 LEVER,     Data movimento     23   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      34,709840
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

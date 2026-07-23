@@ -1,0 +1,105 @@
+TEYIT: launch 26-150335 / 94.CV.025/30 / 15 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  150335  Ass. 94.CV.025/30                   Ord.Qty        50,000
+ 4|  Job      NEW              0.025.4518.4/30 REVERSE/GEAR   Rem.Qty        50,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  22/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 â†’ ILK teyit, F10 YOK
+OK: adet 15 girildi, bayrak A: ' 1   100                 MT2   RPR  22/07/26                 AD            15 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  150335  Ass. 94.CV.025/30                   Ord.Qty        50,000
+ 4|  Job      NEW              0.025.4518.4/30 REVERSE/GEAR   Rem.Qty        50,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  22/07/26                 AD            15 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 15
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  150335 Ass.cd  94.CV.025/30             Conf.qty        15,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.4337GD         REP AD      50,000      50,000      50,000     15,000 A
+ 7|    GANASCIA SINISTRA COMPLETA     War.cau. SPR Um     Rej.qty
+ 8|    10.130.4309           REP AD      75,000      50,000      50,000     15,000 A
+ 9|    ASTA COMANDO                   War.cau. SPR Um     Rej.qty
+10|    10.130.3526           REP AD     150,000     100,000     100,000     30,000 A
+11|    PUNTALE G=11                   War.cau. SPR Um     Rej.qty
+12|    10.130.4339           REP AD     150,000     100,000     100,000     30,000 A
+13|    TUBETTO G=14 H=102 D=10.5      War.cau. SPR Um     Rej.qty
+14|    10.130.3521           REP AD      75,000      50,000      50,000     15,000 A
+15|    PERNO G=14 H=97                War.cau. SPR Um     Rej.qty
+16|    10.130.723            REP AD     200,000     100,000     100,000     30,000 A
+17|    6X15X1,2 ÇANAK PUL             War.cau. SPR Um     Rej.qty
+18|    10.DTC.944            REP AD     330,000     100,000     100,000     30,000 A
+19|    6*16 CIVATA                    War.cau. SPR Um     Rej.qty
+20|    10.130.5327           REP AD     125,000     100,000     100,000     30,000 A
+21|    MOLLA G=9 H=39 FD=1.1 SP=12.2  War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+Stok yetersiz (ozet) â†’ F23 (force, tek sefer)
+---------- EKRAN [f23-ozet-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  150335 Ass.cd  94.CV.025/30             Conf.qty        15,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.4337GD         REP AD      50,000      50,000      50,000     15,000 A
+ 7|    GANASCIA SINISTRA COMPLETA     War.cau. SPR Um     Rej.qty
+ 8|    10.130.4309           REP AD      75,000      50,000      50,000     15,000 A
+ 9|    ASTA COMANDO                   War.cau. SPR Um     Rej.qty
+10|    10.130.3526           REP AD     150,000     100,000     100,000     30,000 A
+11|    PUNTALE G=11                   War.cau. SPR Um     Rej.qty
+12|    10.130.4339           REP AD     150,000     100,000     100,000     30,000 A
+13|    TUBETTO G=14 H=102 D=10.5      War.cau. SPR Um     Rej.qty
+14|    10.130.3521           REP AD      75,000      50,000      50,000     15,000 A
+15|    PERNO G=14 H=97                War.cau. SPR Um     Rej.qty
+16|    10.130.723            REP AD     200,000     100,000     100,000     30,000 A
+17|    6X15X1,2 ÇANAK PUL             War.cau. SPR Um     Rej.qty
+18|    10.DTC.944            REP AD     330,000     100,000     100,000     30,000 A
+19|    6*16 CIVATA                    War.cau. SPR Um     Rej.qty
+20|    10.130.5327           REP AD     125,000     100,000     100,000     30,000 A
+21|    MOLLA G=9 H=39 FD=1.1 SP=12.2  War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  150335 Ass.cd  94.CV.025/30             Conf.qty        15,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.4337GD         REP AD      50,000      50,000      50,000     15,000 A
+ 7|    GANASCIA SINI
+ 8|    10.130.4309                                                0,000     15,000 A
+ 9|    ASTA COMANDO      Data movimento     23   7  26
+10|    10.130.3526       Tipo costo         S      S/C/L/P/U/M    0,000     30,000 A
+11|    PUNTALE G=11      Costo                   1.849,268715
+12|    10.130.4339                                                0,000     30,000 A
+13|    TUBETTO G=14    F06=Conferma
+14|    10.130.3521                                                0,000     15,000 A
+15|    PERNO G=14 H=97                War.cau. SPR Um     Rej.qty
+16|    10.130.723            REP AD     200,000     100,000     100,000     30,000 A
+17|    6X15X1,2 ÇANAK PUL             War.cau. SPR Um     Rej.qty
+18|    10.DTC.944            REP AD     330,000     100,000     100,000     30,000 A
+19|    6*16 CIVATA                    War.cau. SPR Um     Rej.qty
+20|    10.130.5327           REP AD     125,000     100,000     100,000     30,000 A
+21|    MOLLA G=9 H=39 FD=1.1 SP=12.2  War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

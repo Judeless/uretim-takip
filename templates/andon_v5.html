@@ -88,8 +88,11 @@
       animation-delay: -14s;
     }
     @keyframes drift {
-      0%,100% { transform: translate(0,0) scale(1); }
-      50%     { transform: translate(80px,40px) scale(1.15); }
+      /* scale() kaldirildi: olcekli blur(120px) her frame yeniden rasterize oluyordu
+         (kaynak backdrop-filter kalkinca buyuk fark, ama tum bolumlerde taban yuku duser).
+         Sadece konum kaymasi — blur zaten yumusattigi icin gorsel fark yok. */
+      0%,100% { transform: translate(0,0); }
+      50%     { transform: translate(60px,30px); }
     }
     .noise {
       position: fixed; inset: 0; pointer-events: none; z-index: 1;
@@ -209,6 +212,16 @@
       overflow: hidden;
       min-height: 0;
       transition: border-color .3s ease;
+    }
+    /* KAYNAK: cok kart x backdrop-filter blur = GPU/compositor bellek tukenmesi (OOM).
+       Her 30sn innerHTML re-render'da N adet buyuk blur backing-store yeniden tahsis
+       ediliyor; kaynak en cok kart gosterdigi icin once orada cokuyor. Blur'u kaldir,
+       camsi his icin hafifce daha opak yari-saydam gradient birak. Gorunum TV
+       mesafesinde korunur; metal/montaj (az kart) backdrop-filter'i aynen tutar. */
+    body[data-bolum="kaynak"] .rcard {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      background: linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
     }
     .rcard::before {
       content: ''; position: absolute;
@@ -832,6 +845,318 @@
   </style>
 </head>
 <body data-bolum="{{ bolum|default('kaynak') }}">
+
+  <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) — ajan çıktısıyla GENİŞLETİLECEK ══════════ -->
+  <script id="i18n-sozluk">
+window.__I18N_SOZLUK__ = {
+  "Robot Kaynak": {
+    "en": "Robot Welding",
+    "it": "Saldatura robotizzata"
+  },
+  "Andon": {
+    "en": "Andon",
+    "it": "Andon"
+  },
+  "Canlı": {
+    "en": "Live",
+    "it": "Live"
+  },
+  "Tam Ekran": {
+    "en": "Fullscreen",
+    "it": "Schermo intero"
+  },
+  "Duyuru": {
+    "en": "Announcement",
+    "it": "Annuncio"
+  },
+  "Robot Durum Paneli": {
+    "en": "Robot Status Panel",
+    "it": "Pannello di stato robot"
+  },
+  "Referans Takip — Launch / İş Emri": {
+    "en": "Reference Tracking — Launch / Work Order",
+    "it": "Tracciamento riferimenti — Launch / Ordine di lavoro"
+  },
+  "Yükleniyor...": {
+    "en": "Loading...",
+    "it": "Caricamento..."
+  },
+  "Cofle Manage Üretim Takip Sistemi aktif.": {
+    "en": "Cofle Manage Production Tracking System active.",
+    "it": "Sistema di monitoraggio produzione Cofle Manage attivo."
+  },
+  "Andon Duyuru Mesajı": {
+    "en": "Andon Announcement Message",
+    "it": "Messaggio di annuncio Andon"
+  },
+  "Duyuru mesajını buraya yazın...": {
+    "en": "Type the announcement message here...",
+    "it": "Scrivi qui il messaggio di annuncio..."
+  },
+  "Yazan (isteğe bağlı)": {
+    "en": "Author (optional)",
+    "it": "Autore (facoltativo)"
+  },
+  "İptal": {
+    "en": "Cancel",
+    "it": "Annulla"
+  },
+  "Temizle": {
+    "en": "Clear",
+    "it": "Cancella"
+  },
+  "Yayınla": {
+    "en": "Publish",
+    "it": "Pubblica"
+  },
+  "sn": {
+    "en": "sec",
+    "it": "sec"
+  },
+  "dk": {
+    "en": "min",
+    "it": "min"
+  },
+  "adet": {
+    "en": "pcs",
+    "it": "pz"
+  },
+  "Adet test cihazından canlı sayılıyor": {
+    "en": "Quantity counted live from the test device",
+    "it": "Quantità conteggiata in tempo reale dal dispositivo di test"
+  },
+  "Süre tanımlı değil — dashboard'dan süre tanımla!": {
+    "en": "No standard time defined — set the time from the dashboard!",
+    "it": "Tempo standard non definito — imposta il tempo dalla dashboard!"
+  },
+  "Süre tanımlı ama sahada teyit edilmemiş — ölç ve dashboard'da teyit ver": {
+    "en": "Standard time defined but not confirmed on the floor — measure and confirm it in the dashboard",
+    "it": "Tempo standard definito ma non confermato in reparto — misura e conferma nella dashboard"
+  },
+  "Saha cihazı henüz bağlanmamış": {
+    "en": "Field device not connected yet",
+    "it": "Dispositivo di campo non ancora connesso"
+  },
+  "Robot çalışıyor — sayım devam ediyor": {
+    "en": "Robot running — counting in progress",
+    "it": "Robot in funzione — conteggio in corso"
+  },
+  "Bugünkü toplam üretim adedi": {
+    "en": "Total production quantity today",
+    "it": "Quantità di produzione totale odierna"
+  },
+  "(tek ist.)": {
+    "en": "(single st.)",
+    "it": "(staz. singola)"
+  },
+  "Iki istasyon paralel calisma: max(K1,S2)+max(K2,S1)": {
+    "en": "Two stations working in parallel: max(K1,S2)+max(K2,S1)",
+    "it": "Due stazioni in parallelo: max(K1,S2)+max(K2,S1)"
+  },
+  "Çevrim": {
+    "en": "Cycle",
+    "it": "Ciclo"
+  },
+  "İstasyon 1": {
+    "en": "Station 1",
+    "it": "Stazione 1"
+  },
+  "İstasyon 2": {
+    "en": "Station 2",
+    "it": "Stazione 2"
+  },
+  "Üretim": {
+    "en": "Production",
+    "it": "Produzione"
+  },
+  "Üretim kaydı yok": {
+    "en": "No production record",
+    "it": "Nessun record di produzione"
+  },
+  "Sıradaki İş": {
+    "en": "Next Job",
+    "it": "Prossimo lavoro"
+  },
+  "Duruş": {
+    "en": "Downtime",
+    "it": "Fermo"
+  },
+  "Aktif iş ve duruş yok": {
+    "en": "No active job or downtime",
+    "it": "Nessun lavoro o fermo attivo"
+  },
+  "Standby": {
+    "en": "Standby",
+    "it": "In attesa"
+  },
+  "Robot + Makine tam otomasyon modunda": {
+    "en": "Robot + Machine in full automation mode",
+    "it": "Robot + Macchina in modalità automazione completa"
+  },
+  "AUTO": {
+    "en": "AUTO",
+    "it": "AUTO"
+  },
+  "Launch Alınacak": {
+    "en": "Launch Pending",
+    "it": "Launch in attesa"
+  },
+  "Launch Alındı": {
+    "en": "Launch Received",
+    "it": "Launch ricevuto"
+  },
+  "Launch Hazır": {
+    "en": "Launch Ready",
+    "it": "Launch pronto"
+  },
+  "Üretimde": {
+    "en": "In Production",
+    "it": "In produzione"
+  },
+  "Tamamlandı": {
+    "en": "Completed",
+    "it": "Completato"
+  },
+  "Aktif referans takibi yok.": {
+    "en": "No active reference tracking.",
+    "it": "Nessun tracciamento riferimenti attivo."
+  },
+  "Şerit Testere": {
+    "en": "Band Saw",
+    "it": "Sega a nastro"
+  },
+  "HAT 1": {
+    "en": "Line 1",
+    "it": "Linea 1"
+  },
+  "Aktif Üretim Yok": {
+    "en": "No Active Production",
+    "it": "Nessuna produzione attiva"
+  },
+  "Operatörler vardiya açtığında robotlar burada görünecek.": {
+    "en": "The robots will appear here once operators open a shift.",
+    "it": "I robot appariranno qui quando gli operatori apriranno un turno."
+  },
+  "Bağlantı hatası": {
+    "en": "Connection error",
+    "it": "Errore di connessione"
+  },
+  "Mesaj boş olamaz": {
+    "en": "Message cannot be empty",
+    "it": "Il messaggio non può essere vuoto"
+  },
+  "Kaydedilemedi:": {
+    "en": "Could not be saved:",
+    "it": "Impossibile salvare:"
+  },
+  "Hata:": {
+    "en": "Error:",
+    "it": "Errore:"
+  },
+  "Montaj": {
+    "en": "Assembly",
+    "it": "Assemblaggio"
+  },
+  "Metal Enjeksiyon": {
+    "en": "Die Casting",
+    "it": "Pressofusione"
+  },
+  "TK1 Montaj": {
+    "en": "TK1 Assembly",
+    "it": "TK1 Assemblaggio"
+  },
+  "Robot Kaynak · Andon": {
+    "en": "Robot Welding · Andon",
+    "it": "Saldatura robotizzata · Andon"
+  },
+  "Montaj · Andon": {
+    "en": "Assembly · Andon",
+    "it": "Assemblaggio · Andon"
+  },
+  "Metal Enjeksiyon · Andon": {
+    "en": "Die Casting · Andon",
+    "it": "Pressofusione · Andon"
+  },
+  "TK1 Montaj · Andon": {
+    "en": "TK1 Assembly · Andon",
+    "it": "TK1 Assemblaggio · Andon"
+  },
+  "Hat Durum Paneli": {
+    "en": "Line Status Panel",
+    "it": "Pannello di stato linea"
+  },
+  "Makine Durum Paneli": {
+    "en": "Machine Status Panel",
+    "it": "Pannello di stato macchina"
+  },
+  "TK1 Hat Durum Paneli": {
+    "en": "TK1 Line Status Panel",
+    "it": "Pannello di stato linea TK1"
+  }
+};
+  </script>
+
+  <!-- ══════════ i18n MOTORU (TR varsayılan → NO-OP; EN/IT'de çevirir) ══════════ -->
+  <script>
+  (function(){
+    var DIL = localStorage.getItem('app_dil') || 'tr';
+    window.APP_DIL = DIL;
+    var S = window.__I18N_SOZLUK__ || {};
+    var HARF = /[0-9A-Za-zÇĞİÖŞÜçğıöşü]/;
+    function cev(txt){
+      if(DIL === 'tr' || !txt) return txt;
+      var k = txt.trim();
+      if(!k) return txt;
+      var e = S[k];
+      if(e && e[DIL]) return txt.replace(k, e[DIL]);
+      var i = 0; while(i < k.length && !HARF.test(k[i])) i++;
+      if(i > 0 && i < k.length){ var ck = k.slice(i).trim(); var e2 = S[ck]; if(e2 && e2[DIL]) return txt.replace(ck, e2[DIL]); }
+      var _si = k.indexOf(' · ');
+      if(_si > 0){ var _bas = k.slice(0, _si); var e3 = S[_bas]; if(e3 && e3[DIL]) return txt.replace(_bas, e3[DIL]); }
+      return txt;
+    }
+    function gez(node){
+      if(!node) return;
+      var nt = node.nodeType;
+      if(nt === 3){ var c = cev(node.nodeValue); if(c !== node.nodeValue) node.nodeValue = c; return; }
+      if(nt !== 1) return;
+      var tg = node.tagName;
+      if(tg === 'SCRIPT' || tg === 'STYLE' || node.id === 'dil-secici') return;
+      if(node.hasAttribute){
+        ['placeholder','title','aria-label'].forEach(function(a){ if(node.hasAttribute(a)){ var v=node.getAttribute(a), c=cev(v); if(c!==v) node.setAttribute(a,c); } });
+        if(tg === 'INPUT'){ var ty=(node.getAttribute('type')||'').toLowerCase(); if((ty==='button'||ty==='submit') && node.value){ var cv=cev(node.value); if(cv!==node.value) node.value=cv; } }
+      }
+      for(var ch = node.firstChild; ch; ch = ch.nextSibling) gez(ch);
+    }
+    var gozlemci = null;
+    function gozlemBasla(){
+      if(DIL === 'tr' || gozlemci || !window.MutationObserver) return;
+      gozlemci = new MutationObserver(function(muts){
+        for(var a=0; a<muts.length; a++){ var m=muts[a];
+          if(m.type === 'characterData'){ gez(m.target); continue; }
+          for(var b=0; b<m.addedNodes.length; b++) gez(m.addedNodes[b]);
+        }
+      });
+      try { gozlemci.observe(document.body, {childList:true, subtree:true, characterData:true}); } catch(e){}
+    }
+    window.dilDegistir = function(d){ if(d===DIL) return; localStorage.setItem('app_dil', d); location.reload(); };
+    function baslat(){
+      S = window.__I18N_SOZLUK__ || S;
+      document.documentElement.setAttribute('lang', DIL);
+      var sel = document.getElementById('dil-secici'); if(sel) sel.value = DIL;
+      if(DIL !== 'tr'){
+        try{ gez(document.body); }catch(e){}
+        gozlemBasla();
+        ['alert','confirm','prompt'].forEach(function(fn){
+          var orj = window[fn]; if(typeof orj !== 'function') return;
+          window[fn] = function(){ var a = Array.prototype.slice.call(arguments); if(a.length && a[0]!=null) a[0] = cev(String(a[0])); return orj.apply(window, a); };
+        });
+      }
+    }
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', baslat); else baslat();
+  })();
+  </script>
+
   <div class="noise"></div>
 
   <div class="root">
@@ -839,7 +1164,7 @@
     <!-- Üst bar -->
     <header class="topbar">
       <div class="brand">
-        <img class="brand-logo" src="/logo" alt="Cofle Logo" onerror="this.style.display='none'">
+        <img class="brand-logo" src="/logo?tema=koyu" alt="Cofle Logo" onerror="this.style.display='none'">
         <div class="brand-text">
           <div class="brand-name">COFLE MANAGE</div>
           <div class="brand-sub">{{ bolum_ad|default('Robot Kaynak') }} · Andon</div>
@@ -854,6 +1179,12 @@
         <span class="pill"><span class="dot"></span><span id="refresh-label">Canlı</span></span>
         <button class="header-btn" onclick="toggleFullscreen()">Tam Ekran</button>
         <button class="header-btn accent" onclick="openAnnouncementModal()">Duyuru</button>
+        <select id="dil-secici" aria-label="Dil / Language" onchange="dilDegistir(this.value)"
+          style="background:rgba(255,255,255,0.06);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:10px;padding:8px 10px;font-size:0.9rem;font-weight:700;cursor:pointer">
+          <option value="tr">🇹🇷 TR</option>
+          <option value="en">🇬🇧 EN</option>
+          <option value="it">🇮🇹 IT</option>
+        </select>
       </div>
     </header>
 
@@ -899,7 +1230,8 @@
   'use strict';
 
   const BOLUM        = '{{ bolum|default("kaynak") }}';
-  const API_URL      = '/api/andon?bolum=' + encodeURIComponent(BOLUM);
+  const LOKASYON     = '{{ lokasyon|default("TK2") }}';
+  const API_URL      = '/api/andon?bolum=' + encodeURIComponent(BOLUM) + '&lokasyon=' + encodeURIComponent(LOKASYON);
   const SETTINGS_URL = '/api/andon_robot_ayarlari';
   const ANNOUNCE_URL = '/api/andon/mesaj';
   const REFRESH_SEC  = 30;
@@ -955,17 +1287,28 @@
 
       const lc  = i.launch ? `<span class="ref-launch">${i.launch}</span>` : '';
       const ic  = i.tamamlandi ? '<span class="ref-done-icon">✓</span>' : '';
+      // Metal: referansın cycle time'ını göster (ct>0 ise). Diğer bölümlerde gizli.
+      const ctc = (BOLUM === 'metal' && i.ct && i.ct > 0)
+        ? `<span class="ref-ct" style="display:inline-block;margin-left:10px;padding:1px 9px;border-radius:8px;background:rgba(96,165,250,.16);color:#93c5fd;font-size:.82em;font-weight:700;white-space:nowrap">⏱ ${Math.round(i.ct)} sn</span>`
+        : '';
+      // Test cihazı sayaç kaynağı: canlı adet rozeti (ESP32 pulse yerine test cihazından sayılır;
+      // pilot sayaç rozeti bu hatlarda boş kalır — adet buradan izlenir)
+      const tcc = (i.test_cihaz == 1)
+        ? `<span title="Adet test cihazından canlı sayılıyor" style="display:inline-block;margin-left:10px;padding:1px 9px;border-radius:8px;background:rgba(52,211,153,.16);color:#6ee7b7;font-size:.82em;font-weight:800;white-space:nowrap">🔬 ${i.ok || 0}</span>`
+        : '';
       // Uyarı ikonu — vardiya amiri görsün
       let uyari = '';
       if (uyariSuresiz)       uyari = `<span class="ref-uyari ref-uyari-kirmizi" title="Süre tanımlı değil — dashboard'dan süre tanımla!">⚠️</span>`;
       else if (uyariTeyitsiz) uyari = `<span class="ref-uyari ref-uyari-sari" title="Süre tanımlı ama sahada teyit edilmemiş — ölç ve dashboard'da teyit ver">⏳</span>`;
-      return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${uyari}${lc}</div>`;
+      return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${uyari}${ctc}${tcc}${lc}</div>`;
     };
 
     // Saha sayaç rozeti (pilot ESP32 cihazlarından) — robot_no'ya göre map'ten oku
     const pilot = (window._pilotMap || {})[r.robot_no] || null;
     // count yerine {sayi, aktifRef} ver — aktif referans varsa tooltip'te göster
     const sayacBadge = (sayi, calisiyor, aktifRef) => {
+      // Sadece SİNYAL ALINAN makinelerde adet göster — sayaç cihazı bağlı (kayitli) değilse boş bırak
+      if (!pilot || !pilot.kayitli) return '';
       const cls = pilot
         ? (calisiyor ? 'station-count calisiyor' : (pilot.durum === 'offline' ? 'station-count offline' : 'station-count'))
         : 'station-count';
@@ -1093,7 +1436,7 @@
     const autoModeClass = (r.robotla_calisiyor == 1) ? ' auto-mode' : '';
 
     return `
-      <div class="rcard ${status}${autoModeClass}${robotAktifClass}">
+      <div class="rcard ${status}${autoModeClass}${robotAktifClass}" data-robot="${escapeHtml(r.robot_no)}">
         ${autoBadge}
         <div class="rc-id">
           <div class="rc-no">${escapeHtml(r.robot_no)}</div>
@@ -1146,7 +1489,7 @@
   // ── Robot/Hat/Makine listesi — 3 bolum icin de dashboard'daki sirali liste kullanilir
   async function fetchRobotSettings() {
     try {
-      const res = await fetch(SETTINGS_URL + '?bolum=' + encodeURIComponent(BOLUM), { cache:'no-store' });
+      const res = await fetch(SETTINGS_URL + '?bolum=' + encodeURIComponent(BOLUM) + '&lokasyon=' + encodeURIComponent(LOKASYON), { cache:'no-store' });
       const arr = await res.json();
       _robots = (Array.isArray(arr) ? arr : [])
         .filter(a => a.goster)
@@ -1157,9 +1500,11 @@
     }
     // Eger ayarlar bos veya hatalıysa: makul fallback
     if (!_robots.length) {
-      _robots = (BOLUM === 'kaynak')
-        ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
-        : (BOLUM === 'metal' ? ['300T','400T','550T'] : ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12']);
+      _robots = (LOKASYON === 'TK1')
+        ? ['Pull','Push-Pull','Iveco','LF-LFP']
+        : (BOLUM === 'kaynak')
+          ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
+          : (BOLUM === 'metal' ? ['300T','400T','550T'] : ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12']);
     }
     return _robots;
   }
@@ -1248,16 +1593,18 @@
         shiftsByRobot[s.robot_no].push(s);
       });
 
-      const fallback = (BOLUM === 'kaynak') ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
+      const fallback = (LOKASYON === 'TK1') ? ['Pull','Push-Pull','Iveco','LF-LFP']
+                     : (BOLUM === 'kaynak') ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
                      : (BOLUM === 'metal')  ? ['300T','400T','550T','Şerit Testere']
                                             : ['HAT 1'];
       const target = _robots.length ? _robots : fallback;
       const grid = document.getElementById('robot-grid');
       const cards = [];
 
-      // Kaynak bölümünde sadece üretim yapan (vardiyası açık) robotları göster
-      // — boş/standby kartlar gizlenir, ekranda yer kalır, yazılar tam görünür
-      const sadeceAktifGoster = (BOLUM === 'kaynak');
+      // Kaynak + Montaj: sadece üretim yapan (vardiyası açık) hatları göster
+      // — boş/standby kartlar gizlenir (çalışmayan hat listede görünmez), ekran sade kalır.
+      // Metal: tüm makineler standby dahil görünür (az makine, hepsi izlenir).
+      const sadeceAktifGoster = (BOLUM === 'kaynak' || BOLUM === 'montaj');
 
       // Görünür sıradaki her robot için: vardiya varsa hepsini ayrı kart, yoksa standby kartı
       target.forEach(rn => {
@@ -1362,11 +1709,36 @@
     } catch (e) { alert('Hata: ' + e.message); }
   }
 
+  // ── Metal: "makine çalışıyor" yeşili — hızlı, hafif güncelleme ──
+  // Ana refresh 30sn; ama metal yeşili rölenin ~20sn'lik aktif penceresini yansıtır,
+  // o yüzden 3sn'de bir saha_cihazları'ndan robot_calisiyor çekip SADECE kartın yeşil
+  // class'ını değiştiririz (tam re-render YOK → TV'de titreme olmaz).
+  function updateMetalGreen() {
+    const map = window._pilotMap || {};
+    document.querySelectorAll('.rcard[data-robot]').forEach(card => {
+      const p = map[card.getAttribute('data-robot')];
+      card.classList.toggle('robot-aktif', !!(p && p.robot_calisiyor == 1));
+    });
+  }
+
+  // ── 7/24 TV ekranı: periyodik TAM SAYFA YENİLEME (bellek birikimi/OOM önleme) ──
+  // Andon salt-görüntüdür, saklanacak durum yoktur → reload güvenli ve ~1sn'lik flash dışında
+  // görünmez. Uzun uptime'da tarayıcı renderer/GPU belleği büyür ("bellek hatası"); periyodik
+  // reload tüm birikimi temizler. ~30dk + küçük rastgele jitter (tüm andonlar aynı anda
+  // yenilenip sunucuya yüklenmesin). Tarayıcı kapatmaya/kısayola gerek bırakmaz.
+  var ANDON_RELOAD_DK = 30;
+  setTimeout(function () { location.reload(); },
+            (ANDON_RELOAD_DK * 60 + Math.floor(Math.random() * 60)) * 1000);
+
   // ── Başlat ──
   (async () => {
     await fetchRobotSettings();
     await loadAndon();
     startCountdown();
+    // Metal: makine-çalışıyor yeşili için hızlı hafif poll (rölenin nabzını yakalar)
+    if (BOLUM === 'metal') {
+      setInterval(async () => { await fetchPilotMap(); updateMetalGreen(); }, 3000);
+    }
   })();
 </script>
 </body>

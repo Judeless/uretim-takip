@@ -13,6 +13,154 @@ def get_db():
     return conn
 
 
+def _migrate_composite_unique(c):
+    """TK1/TK2 ayrı fabrika: aynı referans kodu / operatör adı iki lokasyonda
+    legitimce var olabilmeli. Eski şema referans_kodu / ad'ı GLOBAL UNIQUE yapıyordu
+    → çakışan kodlar tek lokasyona sıkışıyordu (INSERT OR IGNORE diğerini atlıyordu).
+    Bu migration tabloları composite UNIQUE(.., lokasyon) ile yeniden kurar
+    (robot_programlari rebuild paterni). Idempotent: sadece eski global UNIQUE varsa çalışır."""
+    # referans_listesi → UNIQUE(referans_kodu, lokasyon)
+    try:
+        rl = c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='referans_listesi'").fetchone()
+        if rl and 'referans_kodu TEXT UNIQUE' in (rl[0] or ''):
+            c.execute("DROP TABLE IF EXISTS _ref_eski")
+            c.execute("ALTER TABLE referans_listesi RENAME TO _ref_eski")
+            # TAZE DB SİGORTASI: init_db'deki bolum/lokasyon/kaynak-söktak ALTER'ları
+            # CREATE'ten ÖNCE koştuğu için sıfırdan kurulan DB'de bu kolonlar henüz yok —
+            # aşağıdaki INSERT..SELECT 'no such column' ile patlar ve satırlar _ref_eski'de
+            # mahsur kalırdı. Eksik kolonları eski tabloya ekle (varsa sessizce geç).
+            for _sql in (
+                "ALTER TABLE _ref_eski ADD COLUMN bolum TEXT DEFAULT 'kaynak'",
+                "ALTER TABLE _ref_eski ADD COLUMN kaynak_suresi_sn REAL DEFAULT 0",
+                "ALTER TABLE _ref_eski ADD COLUMN soktak_suresi_sn REAL DEFAULT 0",
+                "ALTER TABLE _ref_eski ADD COLUMN sure_teyit INTEGER DEFAULT 0",
+                "ALTER TABLE _ref_eski ADD COLUMN sure_teyit_tarihi TEXT",
+                "ALTER TABLE _ref_eski ADD COLUMN lokasyon TEXT DEFAULT 'TK2'",
+            ):
+                try:
+                    c.execute(_sql)
+                except Exception:
+                    pass
+            c.execute('''CREATE TABLE referans_listesi (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referans_kodu TEXT NOT NULL,
+                aciklama TEXT DEFAULT '',
+                hedef_cycle_time_sn REAL DEFAULT 0,
+                bolum TEXT DEFAULT 'kaynak',
+                kaynak_suresi_sn REAL DEFAULT 0,
+                soktak_suresi_sn REAL DEFAULT 0,
+                sure_teyit INTEGER DEFAULT 0,
+                sure_teyit_tarihi TEXT,
+                lokasyon TEXT DEFAULT 'TK2',
+                UNIQUE(referans_kodu, lokasyon)
+            )''')
+            c.execute('''INSERT INTO referans_listesi
+                (id, referans_kodu, aciklama, hedef_cycle_time_sn, bolum, kaynak_suresi_sn,
+                 soktak_suresi_sn, sure_teyit, sure_teyit_tarihi, lokasyon)
+                SELECT id, referans_kodu, aciklama, hedef_cycle_time_sn, COALESCE(bolum,'kaynak'),
+                       COALESCE(kaynak_suresi_sn,0), COALESCE(soktak_suresi_sn,0),
+                       COALESCE(sure_teyit,0), sure_teyit_tarihi, COALESCE(lokasyon,'TK2')
+                FROM _ref_eski''')
+            c.execute("DROP TABLE _ref_eski")
+            print('[MIGRATION] referans_listesi -> UNIQUE(referans_kodu, lokasyon)')
+    except Exception as e:
+        print(f'[MIGRATION] referans_listesi hata: {e}')
+    # operatorler → UNIQUE(ad, lokasyon)
+    try:
+        op = c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='operatorler'").fetchone()
+        if op and 'ad TEXT UNIQUE' in (op[0] or ''):
+            c.execute("DROP TABLE IF EXISTS _op_eski")
+            c.execute("ALTER TABLE operatorler RENAME TO _op_eski")
+            # Taze DB sigortası (yukarıdaki _ref_eski notuyla aynı sebep)
+            for _sql in (
+                "ALTER TABLE _op_eski ADD COLUMN bolum TEXT DEFAULT 'kaynak'",
+                "ALTER TABLE _op_eski ADD COLUMN pin TEXT DEFAULT '0000'",
+                "ALTER TABLE _op_eski ADD COLUMN lokasyon TEXT DEFAULT 'TK2'",
+            ):
+                try:
+                    c.execute(_sql)
+                except Exception:
+                    pass
+            c.execute('''CREATE TABLE operatorler (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ad TEXT NOT NULL,
+                bolum TEXT DEFAULT 'kaynak',
+                pin TEXT DEFAULT '0000',
+                lokasyon TEXT DEFAULT 'TK2',
+                UNIQUE(ad, lokasyon)
+            )''')
+            c.execute('''INSERT INTO operatorler (id, ad, bolum, pin, lokasyon)
+                SELECT id, ad, COALESCE(bolum,'kaynak'), COALESCE(pin,'0000'), COALESCE(lokasyon,'TK2')
+                FROM _op_eski''')
+            c.execute("DROP TABLE _op_eski")
+            print('[MIGRATION] operatorler -> UNIQUE(ad, lokasyon)')
+    except Exception as e:
+        print(f'[MIGRATION] operatorler hata: {e}')
+
+
+def _migrate_bolum_composite_unique(c):
+    """Çoklu bölüm desteği: aynı operatör birden fazla bölümde çalışabilir (İbrahim Nak:
+    metal + işleme) ve aynı referans kodu birden fazla bölümde farklı süreyle var olabilir
+    (aynı parça lazer'de kesilir, pres'te bükülür, kaynak'ta kaynatılır — her operasyonun
+    cycle'ı farklı). Eski UNIQUE(ad, lokasyon) / UNIQUE(referans_kodu, lokasyon) bunu
+    engelliyordu: import aynı ismi ikinci bölüme SESSİZCE atlıyor, ortak kodlar bölümler
+    arasında el değiştiriyordu. bolum anahtara eklenerek bölüm başına satır açılır.
+    Idempotent: sadece eski 2'li composite UNIQUE varsa çalışır."""
+    # referans_listesi → UNIQUE(referans_kodu, bolum, lokasyon)
+    try:
+        rl = c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='referans_listesi'").fetchone()
+        if rl and 'UNIQUE(referans_kodu, lokasyon)' in (rl[0] or ''):
+            c.execute("DROP TABLE IF EXISTS _ref_eski2")
+            c.execute("ALTER TABLE referans_listesi RENAME TO _ref_eski2")
+            c.execute('''CREATE TABLE referans_listesi (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referans_kodu TEXT NOT NULL,
+                aciklama TEXT DEFAULT '',
+                hedef_cycle_time_sn REAL DEFAULT 0,
+                bolum TEXT DEFAULT 'kaynak',
+                kaynak_suresi_sn REAL DEFAULT 0,
+                soktak_suresi_sn REAL DEFAULT 0,
+                sure_teyit INTEGER DEFAULT 0,
+                sure_teyit_tarihi TEXT,
+                lokasyon TEXT DEFAULT 'TK2',
+                UNIQUE(referans_kodu, bolum, lokasyon)
+            )''')
+            c.execute('''INSERT INTO referans_listesi
+                (id, referans_kodu, aciklama, hedef_cycle_time_sn, bolum, kaynak_suresi_sn,
+                 soktak_suresi_sn, sure_teyit, sure_teyit_tarihi, lokasyon)
+                SELECT id, referans_kodu, aciklama, hedef_cycle_time_sn, COALESCE(bolum,'kaynak'),
+                       COALESCE(kaynak_suresi_sn,0), COALESCE(soktak_suresi_sn,0),
+                       COALESCE(sure_teyit,0), sure_teyit_tarihi, COALESCE(lokasyon,'TK2')
+                FROM _ref_eski2''')
+            c.execute("DROP TABLE _ref_eski2")
+            print('[MIGRATION] referans_listesi -> UNIQUE(referans_kodu, bolum, lokasyon)')
+    except Exception as e:
+        print(f'[MIGRATION] referans_listesi (bolum) hata: {e}')
+    # operatorler → UNIQUE(ad, bolum, lokasyon)
+    # NOT: aynı kişinin bölüm satırları TEK PIN paylaşır — import yeni bölüm satırını
+    # mevcut satırın PIN'iyle açar, PIN güncelleme (app.py) tüm satırlara yazar.
+    try:
+        op = c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='operatorler'").fetchone()
+        if op and 'UNIQUE(ad, lokasyon)' in (op[0] or ''):
+            c.execute("DROP TABLE IF EXISTS _op_eski2")
+            c.execute("ALTER TABLE operatorler RENAME TO _op_eski2")
+            c.execute('''CREATE TABLE operatorler (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ad TEXT NOT NULL,
+                bolum TEXT DEFAULT 'kaynak',
+                pin TEXT DEFAULT '0000',
+                lokasyon TEXT DEFAULT 'TK2',
+                UNIQUE(ad, bolum, lokasyon)
+            )''')
+            c.execute('''INSERT INTO operatorler (id, ad, bolum, pin, lokasyon)
+                SELECT id, ad, COALESCE(bolum,'kaynak'), COALESCE(pin,'0000'), COALESCE(lokasyon,'TK2')
+                FROM _op_eski2''')
+            c.execute("DROP TABLE _op_eski2")
+            print('[MIGRATION] operatorler -> UNIQUE(ad, bolum, lokasyon)')
+    except Exception as e:
+        print(f'[MIGRATION] operatorler (bolum) hata: {e}')
+
+
 def init_db():
     conn = get_db()
     c = conn.cursor()
@@ -115,6 +263,14 @@ def init_db():
     except Exception:
         pass
 
+    # Test cihazı sayaç kaynağı (2026-06): operatör harici test cihazı (Cofle/wicow) ile
+    # çalışıyorsa bu kolon o cihazın id'sini tutar. Dolu ise sayaç ESP32 pulse yerine
+    # test_sonuclari'ndaki başarılı testlerden beslenir (bkz. cofle_test.py).
+    try:
+        c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN test_cihaz_id INTEGER")
+    except Exception:
+        pass
+
     # bolum kolonu - vardiyalar tablosu (montaj/metal enjeksiyon desteği)
     try:
         c.execute("ALTER TABLE vardiyalar ADD COLUMN bolum TEXT DEFAULT 'kaynak'")
@@ -153,6 +309,21 @@ def init_db():
         c.execute("UPDATE referans_takip SET bolum='metal' WHERE robot_no='ME' AND (bolum IS NULL OR bolum='' OR bolum='kaynak')")
     except Exception:
         pass
+
+    # ── lokasyon kolonu (TK1/TK2 çok-tesis desteği) ──────────────────
+    # Mevcut tüm veri default 'TK2' (mevcut fabrika). TK1 (yan tesis) verileri
+    # lokasyon='TK1' ile eklenir. bolum paterninin aynısı; lokasyonsuz sorgu = TK2.
+    # NOT: andon_robot_ayarlari'nın lokasyon ALTER'ı CREATE'inden SONRA (aşağıda).
+    # sayac_olaylari/cihaz_kayitlari ATLANDI — sensör verisi pilot/pilot.db'de tutulur,
+    # bu tablolar ana DB'de pratikte kullanılmıyor; lokasyon eşlemesi robot_no ile yapılır.
+    for tbl in ('vardiyalar', 'referans_listesi', 'operatorler', 'referans_takip'):
+        try:
+            c.execute(f"ALTER TABLE {tbl} ADD COLUMN lokasyon TEXT DEFAULT 'TK2'")
+        except Exception:
+            pass  # Kolon zaten var
+    # NOT: uniqueness artık _migrate_composite_unique + _migrate_bolum_composite_unique ile
+    # operatorler=UNIQUE(ad, bolum, lokasyon), referans_listesi=UNIQUE(referans_kodu, bolum,
+    # lokasyon) olarak rebuild edilir (aynı kişi/kod birden çok bölümde var olabilir).
 
     # oncelik kolonu — Montaj iş emirlerinde sıralama için (1, 2, 3 ...)
     # NULL = öncelik belirtilmemiş. Sadece montaj için anlamlı, diğer bölümler ignore eder.
@@ -311,6 +482,12 @@ def init_db():
         c.execute("ALTER TABLE referans_takip ADD COLUMN uretime_baslama_ts TEXT")
     except Exception:
         pass
+    # Migration (2026-07-16): depo notu — depocu kit hazirlarken durumu (eksik parca vb.)
+    # yazar. aciklama'dan AYRI: aciklama = planlayicinin is tanimi; depo_notu = deponun notu.
+    try:
+        c.execute("ALTER TABLE referans_takip ADD COLUMN depo_notu TEXT DEFAULT ''")
+    except Exception:
+        pass
 
     # Andon Robot Ayarları Tablosu — bolum kolonu PRIMARY KEY'in parçası
     # (M1 hat'i hem montaj'da hem kaynak'ta görünmesin)
@@ -328,6 +505,12 @@ def init_db():
         cols = [r[1] for r in c.execute("PRAGMA table_info(andon_robot_ayarlari)").fetchall()]
         if 'bolum' not in cols:
             c.execute("ALTER TABLE andon_robot_ayarlari ADD COLUMN bolum TEXT NOT NULL DEFAULT 'kaynak'")
+    except Exception:
+        pass
+    # lokasyon kolonu — TK1/TK2 ayrımı. PK (robot_no, bolum) DEĞİŞMEZ (TK1 hat adları
+    # M1-M12 ile çakışmaz); lokasyon sadece andon/dashboard filtresi içindir.
+    try:
+        c.execute("ALTER TABLE andon_robot_ayarlari ADD COLUMN lokasyon TEXT DEFAULT 'TK2'")
     except Exception:
         pass
 
@@ -360,6 +543,13 @@ def init_db():
         c.execute(
             'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
             (mno, 'metal', 1, i)
+        )
+    # TK1 (yan tesis) hatları — montaj mantığı, lokasyon='TK1'. PK (robot_no, bolum)
+    # ile TK2 montaj M1-M12'den ayrı (farklı robot_no). Hepsi default görünür.
+    for i, hat in enumerate(['Pull', 'Push-Pull', 'Iveco', 'LF-LFP']):
+        c.execute(
+            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira, lokasyon) VALUES (?, ?, ?, ?, ?)',
+            (hat, 'montaj', 1, i, 'TK1')
         )
 
     # Fikstür Raf Tablosu (KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods'tan gelir)
@@ -441,6 +631,23 @@ def init_db():
                   WHERE UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(referans_listesi.referans_kodu,' ',''))
                     AND COALESCE(v.bolum, 'kaynak') != 'kaynak'
               )
+              -- Hedef bölümde aynı kod zaten varsa retag ETME: UNIQUE(kod, bolum, lokasyon)
+              -- ile çakışır ve tek UPDATE atomik olduğundan TÜM düzeltmeler iptal olurdu.
+              AND NOT EXISTS (
+                  SELECT 1 FROM referans_listesi r2
+                  WHERE r2.id != referans_listesi.id
+                    AND UPPER(REPLACE(r2.referans_kodu,' ','')) = UPPER(REPLACE(referans_listesi.referans_kodu,' ',''))
+                    AND COALESCE(r2.lokasyon,'TK2') = COALESCE(referans_listesi.lokasyon,'TK2')
+                    AND COALESCE(r2.bolum,'kaynak') = (
+                        SELECT COALESCE(v.bolum, 'kaynak')
+                        FROM uretim_kayitlari u
+                        JOIN vardiyalar v ON v.id = u.vardiya_id
+                        WHERE UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(referans_listesi.referans_kodu,' ',''))
+                        GROUP BY v.bolum
+                        ORDER BY COUNT(*) DESC
+                        LIMIT 1
+                    )
+              )
         ''')
     except Exception as e:
         print(f'[migration] tanımsız referans bölüm düzeltmesi atlandı: {e}')
@@ -452,6 +659,29 @@ def init_db():
         c.execute("ALTER TABLE vardiyalar ADD COLUMN robotla_calisiyor INTEGER DEFAULT 0")
     except Exception:
         pass
+
+    # Migration (2026-06-11): Otomatik mola takip bitmask'ı.
+    # Çay 09:00(1)/13:00(2)/15:00(4) 10dk + Yemek 11:00(8) 30dk planlı duruş olarak
+    # bir kez otomatik işlenir (aynı türden tek kayıtta birikir); hangi molanın
+    # işlendiği bit bit burada tutulur (operatör kaydı silse de tekrar eklenmez).
+    try:
+        c.execute("ALTER TABLE vardiyalar ADD COLUMN cay_molasi_bayrak INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
+    # Migration (2026-06-12): Web Push abonelikleri — operatör telefonuna bildirim.
+    # Operatör mobilde PIN ile giriş yapınca tarayıcı push aboneliği buraya yazılır;
+    # launch/referans eklendiğinde ilgili operatörlerin cihazlarına bildirim gönderilir.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS push_abonelikler (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            operator_adi TEXT NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            olusturma TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ''')
 
     # Migration (2026-05-13): Metal enjeksiyondaki "500T" makinesinin gerçek adı "550T"
     # Tüm robot_no=='500T' kayıtları güncellenir. Tek seferlik, idempotent (ikinci çalıştırmada hiçbir şey yapmaz).
@@ -517,6 +747,142 @@ def init_db():
             notlar TEXT DEFAULT ''
         )
     ''')
+
+    # ─────────────────────────────────────────────────────────────
+    # MAIL ALICILARI — günlük üretim raporu e-posta alıcı listesi
+    # (dashboard'dan yönetilir; SMTP bilgileri mail_config.json'da — DB'de değil)
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS mail_alicilari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            ad TEXT DEFAULT '',
+            aktif INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+
+    # ── Composite UNIQUE migration (TK1/TK2 tam ayrışma) ──
+    _migrate_composite_unique(c)
+    # ── Bölüm-composite UNIQUE migration (çoklu bölüm: işleme/lazer/pres genişlemesi) ──
+    _migrate_bolum_composite_unique(c)
+
+    # ── Yönetici kullanıcı (Admin, PIN 9999) — her iki tesiste ──
+    # Bu adla PIN girişi yapan mobilde TÜM vardiyalara erişir (app.py ADMIN_ADI).
+    # INSERT OR IGNORE: PIN panelden değiştirilmişse ezilmez. Migration'dan SONRA
+    # (UNIQUE(ad,lokasyon) aktifken) çalışmalı ki iki lokasyon kaydı da eklenebilsin.
+    for _lok in ('TK2', 'TK1'):
+        try:
+            c.execute("INSERT OR IGNORE INTO operatorler (ad, bolum, pin, lokasyon) VALUES ('Admin', 'montaj', '9999', ?)", (_lok,))
+        except Exception:
+            pass
+
+    # ─────────────────────────────────────────────────────────────
+    # TEST SONUÇLARI (Cofle/wicow harici test cihazı entegrasyonu)
+    # cofle_test.py poller'ı API'den çeker. Bir test cihazı = sayaç kaynağı:
+    # başarılı test (result 'PASSED…') = 1 pulse. test_id = API'nin benzersiz id'si
+    # (poller bununla dedup eder). Sayaç: referans başlangıcından beri basarili=1 say.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS test_sonuclari (
+            test_id INTEGER PRIMARY KEY,
+            cihaz_id INTEGER NOT NULL,
+            cihaz_adi TEXT DEFAULT '',
+            referans_kodu TEXT DEFAULT '',
+            referans_norm TEXT DEFAULT '',
+            sonuc TEXT DEFAULT '',
+            basarili INTEGER DEFAULT 0,
+            ts_epoch INTEGER DEFAULT 0,
+            operator TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    try:
+        c.execute('CREATE INDEX IF NOT EXISTS idx_test_sonuc_say ON test_sonuclari(cihaz_id, referans_norm, basarili, ts_epoch)')
+    except Exception:
+        pass
+
+    # ─────────────────────────────────────────────────────────────
+    # PANEL KULLANICILARI (Dashboard/yönetici paneli giriş + yetki)
+    # Şifreler HASH'li saklanır (werkzeug). rol='admin' → tüm sayfalar +
+    # kullanıcı yönetimi. rol='kullanici' → yalnız izinler listesindeki
+    # sayfalar. izinler = JSON dizi, sayfa anahtarları (data-sayfa değerleri):
+    #   ozet, bolum, kayitlar, is-yonetimi, fikstur, referanslar,
+    #   operatorler, saha-cihazlari, sinyal-analizi, andon-ayarlari, raporlar
+    # sifre_gecici=1 → kullanıcı ilk girişte şifresini değiştirmeye zorlanır.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS panel_kullanicilari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kullanici_adi TEXT NOT NULL UNIQUE,
+            ad_soyad TEXT DEFAULT '',
+            sifre_hash TEXT NOT NULL,
+            rol TEXT DEFAULT 'kullanici',
+            izinler TEXT DEFAULT '[]',
+            aktif INTEGER DEFAULT 1,
+            sifre_gecici INTEGER DEFAULT 0,
+            son_giris TEXT,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    # ─────────────────────────────────────────────────────────────
+    # AS400 TEYIT GONDERIM GUNLUGU — robotun ERP'ye yazdigi her teyit.
+    # Mukerrer korumasi: ayni (uretim_tarihi, launch) icin sonuc='ok' kayit
+    # varsa ikinci gonderim reddedilir (zorla bayragi haric).
+    # teyitli_once/sonra: gonderim oncesi/sonrasi BPROF0.Q0QTRI (bagimsiz dogrulama).
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS as400_teyit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uretim_tarihi TEXT NOT NULL,
+            yil TEXT NOT NULL,
+            launch_no TEXT NOT NULL,
+            referans TEXT DEFAULT '',
+            article TEXT DEFAULT '',
+            adet REAL NOT NULL,
+            bayrak TEXT DEFAULT 'A',
+            sonuc TEXT NOT NULL,
+            mesaj TEXT DEFAULT '',
+            teyitli_once REAL,
+            teyitli_sonra REAL,
+            olusturan TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+
+    # ─────────────────────────────────────────────────────────────
+    # AS400 teyit ekranı İŞARETLERİ (2026-07-20). İki kapsam:
+    #  - kapsam='kalici': referans bazında SÜREKLİ 'gerek_yok' (örn 6343a ara ürün)
+    #    → launch_esle bu referansları teyit dışı bırakır (her gün otomatik gizli).
+    #  - kapsam='gun'   : o üretim gününe özel 'kontrol' (kullanıcı elle gözden geçirdi).
+    # referans: normalize (UPPER + boşluksuz) saklanır. uretim_tarihi kalıcıda ''.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS as400_teyit_isaret (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kapsam TEXT NOT NULL DEFAULT 'gun',
+            uretim_tarihi TEXT DEFAULT '',
+            bolum TEXT DEFAULT '',
+            referans TEXT NOT NULL,
+            durum TEXT NOT NULL,
+            aciklama TEXT DEFAULT '',
+            olusturan TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            UNIQUE(kapsam, uretim_tarihi, bolum, referans)
+        )
+    ''')
+
+    # Seed: ilk admin (emre.dogutekin). Geçici şifre 'cofle1234' — ilk girişte
+    # değiştirilir. INSERT OR IGNORE: şifre/izin panelden değiştirilmişse ezilmez.
+    try:
+        from werkzeug.security import generate_password_hash
+        c.execute(
+            "INSERT OR IGNORE INTO panel_kullanicilari (kullanici_adi, ad_soyad, sifre_hash, rol, izinler, aktif, sifre_gecici) "
+            "VALUES (?, ?, ?, 'admin', '[]', 1, 1)",
+            ('emre.dogutekin', 'Emre Doğutekin', generate_password_hash('cofle1234'))
+        )
+    except Exception as _seed_err:
+        print('Panel admin seed hatası:', _seed_err)
 
     conn.commit()
     conn.close()

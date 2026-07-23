@@ -1,0 +1,57 @@
+TEYIT: launch 26-133693 / 10.130.3680GAW / 276 adet / bayrak A
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133693  Ass. 10.130.3680GAW                 Ord.Qty      2376,000
+ 4|  Job      BASAK            GRUPPO LEVA RINVIO DITRIBUTOR  Rem.Qty      2376,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 276 girildi, bayrak A: ' 1   100                 MT2   RPR                           AD           276 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133693  Ass. 10.130.3680GAW                 Ord.Qty      2376,000
+ 4|  Job      BASAK            GRUPPO LEVA RINVIO DITRIBUTOR  Rem.Qty      2376,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD           276 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133693 Ass.cd  10.130.3680GAW           Conf.qty       276,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.3680A          REP AD    2376,000    2376,000    2376,000    276,000 A
+ 7|    LEVETTA COMANDO CAVO DISTRIBUT War.cau. SPR Um     Rej.qty
+ 8|    10.130.3218A          REP AD    2376,000    2376,000    2376,000    276,000 A
+ 9|    PERNO G=18 H=42,4 M6x1 - M8x1, War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: onay penceresi acildi (F06=Conferma)
+---------- EKRAN [onay-penceresi] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133693 Ass.cd  10.130.3680GAW           Conf.qty       276,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.3680A          REP AD    2376,000    2376,000    2376,000    276,000 A
+ 7|    LEVETTA COMAN
+ 8|    10.130.3218A                                               6,000    276,000 A
+ 9|    PERNO G=18 H=     Data movimento     20   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      29,162565
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: Conf.qty dogrulandi = 276
+DRYRUN: onay penceresine kadar geldi (Conf.qty dogru), F6 BASILMADI → iptal (commit YOK).
+SONUC=DRYRUN-OK

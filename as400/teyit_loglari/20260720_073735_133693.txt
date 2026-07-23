@@ -1,0 +1,37 @@
+TEYIT: launch 26-133693 / 10.130.3680GAW / 276 adet / bayrak A
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133693  Ass. 10.130.3680GAW                 Ord.Qty      2376,000
+ 4|  Job      BASAK            GRUPPO LEVA RINVIO DITRIBUTOR  Rem.Qty      2376,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: adet 276 girildi, bayrak A: ' 1   100                 MT2   RPR                           AD           276 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133693  Ass. 10.130.3680GAW                 Ord.Qty      2376,000
+ 4|  Job      BASAK            GRUPPO LEVA RINVIO DITRIBUTOR  Rem.Qty      2376,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD           276 A
+ 7|  1   200                 MT2   RPR                           AD               A
+22|  Quantity obligatory
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+HATA: Malzeme ozeti (Summary materials) gelmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133693  Ass. 10.130.3680GAW                 Ord.Qty      2376,000
+ 4|  Job      BASAK            GRUPPO LEVA RINVIO DITRIBUTOR  Rem.Qty      2376,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD       276,000 A
+ 7|  1   200                 MT2   RPR                           AD               A
+22|  Quantity obligatory
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+SONUC=IPTAL

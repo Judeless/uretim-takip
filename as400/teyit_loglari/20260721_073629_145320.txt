@@ -1,0 +1,79 @@
+TEYIT: launch 26-145320 / 94.LTK.668 / 30 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145320  Ass. 94.LTK.668                     Ord.Qty        65,000
+ 4|  Job                       91849526 SUPPORT ASSY, PTO     Rem.Qty        65,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  20/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 â†’ ILK teyit, F10 YOK
+OK: adet 30 girildi, bayrak A: ' 1   100                 MT2   RPR  20/07/26                 AD            30 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145320  Ass. 94.LTK.668                     Ord.Qty        65,000
+ 4|  Job                       91849526 SUPPORT ASSY, PTO     Rem.Qty        65,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  20/07/26                 AD            30 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 30
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  145320 Ass.cd  94.LTK.668               Conf.qty        30,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.1795M          REP AD     115,000      65,000      65,000     30,000 A
+ 7|    PLASTÝK TOPUZ                  War.cau. SPR Um     Rej.qty
+ 8|    10.130.1796           REP AD     115,000      65,000      65,000     30,000 A
+ 9|    MOLLA G=15 H=32FD=1,2SP=4,5    War.cau. SPR Um     Rej.qty
+10|    10.130.2109           REP AD     115,000      65,000      65,000     30,000 A
+11|    VITE M5X8 UNI 5933 8.8         War.cau. SPR Um     Rej.qty
+12|    10.130.4115           REP AD     115,000      65,000      65,000     30,000 A
+13|    CURSORE G=37 H=78,5            War.cau. SPR Um     Rej.qty
+14|    10.300.3656           REP AD      65,000      65,000      65,000     30,000 A
+15|    90379915 BUSHING               War.cau. SPR Um     Rej.qty
+16|    10.300.3658           REP AD      65,000      65,000      65,000     30,000 A
+17|    90379913 SPACER                War.cau. SPR Um     Rej.qty
+18|    10.300.3659           REP AD     130,000     130,000     130,000     60,000 A
+19|    90398843 SPACER                War.cau. SPR Um     Rej.qty
+20|    10.300.3992           REP AD      65,000      65,000      65,000     30,000 A
+21|    90469382 SUPPORT PTO SPEED     War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  145320 Ass.cd  94.LTK.668               Conf.qty        30,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.1795M          REP AD     115,000      65,000      65,000     30,000 A
+ 7|    PLASTÝK TOPUZ
+ 8|    10.130.1796                                                5,000     30,000 A
+ 9|    MOLLA G=15 H=     Data movimento     21   7  26
+10|    10.130.2109       Tipo costo         S      S/C/L/P/U/M    5,000     30,000 A
+11|    VITE M5X8 UNI     Costo                     964,867832
+12|    10.130.4115                                                5,000     30,000 A
+13|    CURSORE G=37    F06=Conferma
+14|    10.300.3656                                                5,000     30,000 A
+15|    90379915 BUSHING               War.cau. SPR Um     Rej.qty
+16|    10.300.3658           REP AD      65,000      65,000      65,000     30,000 A
+17|    90379913 SPACER                War.cau. SPR Um     Rej.qty
+18|    10.300.3659           REP AD     130,000     130,000     130,000     60,000 A
+19|    90398843 SPACER                War.cau. SPR Um     Rej.qty
+20|    10.300.3992           REP AD      65,000      65,000      65,000     30,000 A
+21|    90469382 SUPPORT PTO SPEED     War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

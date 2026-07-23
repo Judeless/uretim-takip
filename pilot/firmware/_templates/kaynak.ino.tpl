@@ -43,23 +43,26 @@ const int PIN_IST2_SAYAC      = 26;
 const int PIN_ROBOT_CALISIYOR = 27;
 const int PIN_LED             =  2;
 
-// Pulse algilama: state polling + multi-sample (v2.1 kanitlanmis yontem).
-// Pini surekli okur, HIGH->LOW gecisinde 75ms boyunca (15x5ms) hala LOW mu
-// dogrular. Bu yontem:
-//  - Cross-talk spike'larini eler (kisa spike 75ms LOW kalamaz)
-//  - Yavas/zayif pull-up kenarlarinda guvenilir (oturmus seviyeye bakar,
-//    interrupt edge timing'ine degil)
-//  - MIN_PULSE_GAP ile ayni pulse'in cift sayilmasini onler
-const int  DEBOUNCE_MS         = 100;          // edge sonrasi bekleme
-const int  PARAZIT_SAMPLE_N    = 15;           // multi-sample adedi
-const int  PARAZIT_SAMPLE_GAP  = 5;            // sample arasi ms (15x5 = 75ms onay)
+// Pulse algilama: BLOKLAMAYAN INTEGRATOR debounce (v2.5).
+// Eski "15 ardisik ornek HEPSI LOW" (75ms) filtresi tek bir parazit HIGH ile
+// sifirlandigi icin, kaynak EMI'si pulse aninda denk gelince pulse'i eliyordu (eksik sayim).
+// Integrator: her dongude pini ornekle -> LOW'da +1 / HIGH'da -1 (0..MAX).
+// integ >= YUKSEK_ESIK -> "gercek pulse" (say); histerezisle DUSUK_ESIK'te biter.
+// Esik eski 75ms ile ayni hassasiyette ama tek glitch artik pulse'i oldurmez.
+const int  INTEG_YUKSEK_ESIK   = 15;   // ~75ms net LOW -> pulse algilandi (eski filtre ile ayni)
+const int  INTEG_MAX           = 40;   // tavan (~200ms) — glitch toleransi tamponu
+const int  INTEG_DUSUK_ESIK    = 4;    // ~20ms HIGH -> pulse bitti (histerezis)
 const unsigned long MIN_PULSE_GAP_MS = 3000;   // iki gecerli pulse arasi min (robot cycle 8sn+)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
-const int  BUFFER_MAX     = 200;
-const char* FIRMWARE_VER  = "2.3.1-__FW_SUFFIX__";
+const int  BUFFER_MAX     = 2000;  // kesinti kuyrugu (eskiden 200) — elektrik varken gunlerce pulse tutar
+const char* FIRMWARE_VER  = "2.6.2-__FW_SUFFIX__";   // 2.6.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
+
+// ─── TANI (diagnostic) — sayim filtresi kararlarini heartbeat ile gonderir ──
+const int TANI_MAX          = 30;   // RAM ring buffer
+const int TANI_HEARTBEAT_N  = 20;   // tek heartbeat'te en fazla kac olay
 
 // ─── RSSI tabanli radyo recovery (v2.3) ─────────────────────────
 // Cihaz "connected" gorunse bile sinyal cok zayifsa (ornek -88dBm iken
@@ -70,6 +73,17 @@ const int           RSSI_ZAYIF_ESIK  = -80;     // dBm — alti "zayif" kabul ed
 const unsigned long RSSI_KONTROL_MS  = 60000;   // her 60 sn RSSI olc
 const int           RSSI_ZAYIF_MAX   = 5;       // 5 ardisik zayif (~5 dk) -> radyo yenile
 const int           RADYO_YENILE_MAX = 3;       // 3 yenileme hala zayifsa -> 1 kez ESP.restart()
+
+// ─── Zombie WL_CONNECTED kurtarma + NVS watermark (v2.6) ────────────
+// Cihaz AP'ye bagli gorunup (RSSI iyi okunur, disconnect event'i ATISLANMAZ) ama
+// L3/uygulama yolu (IP/soket/upstream) kopabilir -> heartbeat POST'lari sessizce fail,
+// sunucu offline gosterir, SADECE manuel reset duzeltir. Eski self-heal kuyrukta pulse
+// varken REBOOT ETMIYORDU -> sonsuz radyo-tazele livelock. Cozum: kuyruk dolu olsa bile
+// 5dk'dir sunucuya ulasilamiyorsa watermark'lari (sent_i1/sent_i2) NVS'e yazip GUVENLE
+// reboot et (boot'ta gonderilmemis araliklar tekrar gonderilir; bootId NVS'te stabil
+// -> sunucu cift saymaz). Kaynak 2 istasyonlu: watermark her istasyon icin ayri.
+const unsigned long SUNUCU_SESSIZ_HARD_RESET_MS = 300000UL;  // 5dk: bu sure sunucuya HIC ulasilamazsa watermark + reboot
+const unsigned long WATERMARK_YAZ_MS            = 30000UL;   // NVS watermark yazma throttle (yipranma siniri; crash resend penceresi ~30s)
 
 // ════════════════════════════════════════════════════════════
 //   GLOBAL DURUM
@@ -89,15 +103,8 @@ struct PulseKaydi {
 PulseKaydi buffer[BUFFER_MAX];
 int buf_bas = 0, buf_son = 0, buf_dolu = 0;
 
-int lastIst1State  = HIGH;
-int lastIst2State  = HIGH;
 int lastRobotState = HIGH;
-unsigned long lastDebounceIst1  = 0;
-unsigned long lastDebounceIst2  = 0;
 unsigned long lastDebounceRobot = 0;
-
-unsigned long lastValidPulseIst1 = 0;
-unsigned long lastValidPulseIst2 = 0;
 
 unsigned long lastRobotCheck = 0;
 const unsigned long ROBOT_CHECK_INTERVAL_MS = 500;
@@ -113,9 +120,18 @@ unsigned long bootMs        = 0;
 // eder. Manuel reset bagimliligi azalir.
 int httpFailCount = 0;                   // Ardisik HTTP -1 / fail sayisi
 unsigned long lastSuccessHttp = 0;       // Son basarili POST/heartbeat zamani
-int disconnectCount = 0;                 // 10dk penceredeki disconnect sayisi
-unsigned long lastDisconnectMs = 0;      // Son disconnect zamani
+// volatile: WiFi event task'i yazar, loop okur (32-bit hizali erisim — kritik bolge gerekmez)
+volatile int disconnectCount = 0;        // 10dk penceredeki disconnect sayisi
+volatile unsigned long lastDisconnectMs = 0;  // Son disconnect zamani
+unsigned long wifiKoptuMs = 0;           // wifiHazir() false'a dustugu an (0=bagli) — WiFi-down hard reset icin
+unsigned long retryGecikmeMs = RETRY_MS; // basarisiz POST'ta ustel artar (cap 60s) — sunucu kapaliyken sampling'i korur
 const unsigned long UPTIME_RESET_MS = 24UL * 3600UL * 1000UL;  // 24 saat koruyucu
+
+// Zombie kurtarma + watermark durumu (v2.6) — kaynak 2 istasyonlu: her istasyon icin ayri watermark
+unsigned long lastRadyoYenile = 0;   // zombie kurtarma radyo-tazele throttle (lastSuccessHttp'yi EZMEDEN)
+unsigned long lastWatermark   = 0;   // NVS watermark periyodik yazma zamani
+uint32_t sonYazilanSent1 = 0;        // sent_i1 son yazilan deger (gereksiz NVS yazimini onler)
+uint32_t sonYazilanSent2 = 0;        // sent_i2 son yazilan deger
 
 // RSSI recovery durumu
 unsigned long lastRssiKontrol = 0;
@@ -126,6 +142,37 @@ uint32_t radyoYenileToplam = 0;  // boot'tan beri toplam radyo yenileme (debug)
 // Hard reset'i sinirla — gercek anten/donanim arizasinda reset loop olmasin.
 // RTC bellegi ESP.restart()'i atlatir, sadece power-cycle sifirlar.
 RTC_DATA_ATTR int rtcRssiHardReset = 0;
+// Sunucu-bakim churn onleme: bot'tan beri hic basarili HTTP olmadan art arda kac kez
+// "kuyruk bos + sessiz" reset atildi. 3+ ise reset esigi 60sn -> 30dk (3dk'da bir reboot
+// dongusunu keser). Basarili HTTP'de sifirlanir. RTC: reboot'u atlatir, guc kesintisi sifirlar.
+RTC_DATA_ATTR uint32_t rtcSunucuResetSayac = 0;
+
+// ─── TANI durumu ────────────────────────────────────────────────
+struct TaniOlay {
+  uint32_t seq;        // cihaz ici artan olay no (boot_id ile birlikte idempotency)
+  uint32_t uptime_ms;  // olay anindaki millis()
+  uint8_t  tip;        // 0=SAYILDI, 2=ERKEN  (gurultu taniParazit sayacinda)
+  uint32_t gap_ms;     // onceki gecerli sayimdan fark
+  uint32_t low_ms;     // SAYILDI: gercek LOW (pulse) suresi — pulse bitince yazilir
+};
+TaniOlay taniBuf[TANI_MAX];
+int taniBas = 0, taniSon = 0, taniDolu = 0;
+uint32_t taniSeq = 0;
+uint32_t taniSayildi = 0, taniParazit = 0, taniErken = 0;  // parazit = ham (gurultu) HIGH->LOW kenar
+uint32_t bootId = 0;
+
+// ─── Sayim kanali — integrator debounce durumu (Ist.1 / Ist.2) ───
+struct Kanal {
+  int           integ;          // 0..INTEG_MAX
+  bool          stableLow;      // debounced "gercek LOW" durumu
+  int           lastRaw;        // ham pin durumu (gurultu kenar sayimi)
+  unsigned long lastValidPulse; // son gecerli sayim (MIN_PULSE_GAP)
+  bool          taniBekliyor;   // pulse devam ediyor; bitince SAYILDI (low_ms ile) push edilir
+  unsigned long taniLowStart;
+  uint32_t      taniBekleyenGap;
+};
+Kanal k1 = { 0, false, HIGH, 0, false, 0, 0 };
+Kanal k2 = { 0, false, HIGH, 0, false, 0, 0 };
 
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
@@ -166,6 +213,15 @@ bool wifiHazir() {
   return WiFi.status() == WL_CONNECTED;
 }
 
+// Loop icinden cagrilan BLOKLAMAYAN reconnect tetigi: denemeyi baslatir, BEKLEMEZ.
+// Sonuc sonraki loop turlarinda wifiHazir() ile gorulur. Senkron bekleyen wifiBaglan()
+// SADECE setup()'ta kullanilir — loop'ta 30sn senkron bekleme, kesinti boyunca
+// sampling'i %66 kor birakip pulse kaybettiriyordu (buffer'a bile girmeden).
+void wifiBaglanBaslat() {
+  Serial.println("[WiFi] Non-blocking reconnect tetiklendi");
+  WiFi.reconnect();
+}
+
 // Yumusak radyo yenileme — RF stack'i tamamen kapatip acar.
 // ESP.restart()'tan farki: cihaz reboot etmez, NVS/sayaclar/buffer korunur,
 // pulse'lar interrupt + buffer ile kaybolmaz. Takilmis RSSI durumunu cozer.
@@ -193,14 +249,18 @@ void wifiRadyoYenile() {
   }
 }
 
-// Multi-sample parazit filtresi — pin PARAZIT_SAMPLE_N kez ust uste LOW mu?
-// Cross-talk spike'lari ve yavas kenarlardaki anlik gurultuyu eler.
-bool pinGercektenLOW(int pin) {
-  for (int i = 0; i < PARAZIT_SAMPLE_N; i++) {
-    if (digitalRead(pin) != LOW) return false;
-    delay(PARAZIT_SAMPLE_GAP);
-  }
-  return true;
+// Tani ring buffer'a olay ekle.
+int taniPush(uint8_t tip, uint32_t gap_ms, uint32_t low_ms) {
+  if (taniDolu >= TANI_MAX) { taniBas = (taniBas + 1) % TANI_MAX; taniDolu--; }
+  int idx = taniSon;
+  taniBuf[idx].seq       = ++taniSeq;
+  taniBuf[idx].uptime_ms = millis();
+  taniBuf[idx].tip       = tip;
+  taniBuf[idx].gap_ms    = gap_ms;
+  taniBuf[idx].low_ms    = low_ms;
+  taniSon = (taniSon + 1) % TANI_MAX;
+  taniDolu++;
+  return idx;
 }
 
 bool bufferdanBirGonder() {
@@ -211,6 +271,7 @@ bool bufferdanBirGonder() {
   String url = String(SUNUCU_HOST) + "/api/sinyal";
   http.begin(url);
   http.setTimeout(3000);   // kisa timeout — uzun blok = pulse polling gecikmesi
+  http.setConnectTimeout(3000);   // TCP connect asamasi da sinirli olsun (core-default'a birakma)
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", String("Bearer ") + API_TOKEN);
 
@@ -223,7 +284,9 @@ bool bufferdanBirGonder() {
   String mac6 = WiFi.macAddress();
   mac6.replace(":", "");
   if (mac6.length() > 6) mac6 = mac6.substring(mac6.length() - 6);
-  String idem = String(CIHAZ_ID) + "_" + mac6 + "_i" + String(p.istasyon) + "_" + String(p.seq);
+  // bootId (her acilista rastgele) idem key'e dahil — NVS sifirlanip seq 1'den
+  // baslarsa eski key'lerle CAKISMAZ (yoksa INSERT OR IGNORE yeni pulse'lari atardi).
+  String idem = String(CIHAZ_ID) + "_" + mac6 + "_b" + String(bootId) + "_i" + String(p.istasyon) + "_" + String(p.seq);
   doc["idempotency_key"] = idem;
 
   String payload;
@@ -238,6 +301,7 @@ bool bufferdanBirGonder() {
     buf_dolu--;
     httpFailCount = 0;
     lastSuccessHttp = millis();
+    rtcSunucuResetSayac = 0;   // basarili temas — churn-onleme reset sayacini sifirla
     return true;
   } else {
     Serial.printf("[POST] HATA Ist.%d seq=%lu (HTTP %d) — kuyrukta kal\n",
@@ -273,9 +337,65 @@ void istasyonSinyali(uint8_t istasyon) {
 
   Serial.printf("[PULSE] Ist.%d #%lu (kuyruk=%d) — gonderiliyor...\n",
                 istasyon, seq, buf_dolu);
-  ledYakBlink(2, 50);
+  // Sayim yolu BLOKLANMAZ: LED blink (200ms) + in-path HTTP POST (3s'ye kadar)
+  // buradan KALDIRILDI — pulse aninda integrator DONMASIN (kaynak'ta 2. kanal kacmasin).
+  // Pulse buffer'da; loop'taki retry yolu (RETRY_MS'de bir) gonderir.
+}
 
-  if (wifiHazir()) bufferdanBirGonder();
+// Bloklamayan integrator debounce — her istasyon icin loop'ta her dongude cagrilir.
+void kanalGuncelle(int pin, uint8_t istasyon, Kanal* k, unsigned long now) {
+  int v = digitalRead(pin);
+
+  if (k->lastRaw == HIGH && v == LOW) taniParazit++;   // ham gurultu kenar gostergesi
+  k->lastRaw = v;
+
+  if (v == LOW) { if (k->integ < INTEG_MAX) k->integ++; }
+  else          { if (k->integ > 0)         k->integ--; }
+
+  if (!k->stableLow && k->integ >= INTEG_YUKSEK_ESIK) {
+    k->stableLow = true;
+    unsigned long gap = now - k->lastValidPulse;
+    if (gap >= MIN_PULSE_GAP_MS) {
+      istasyonSinyali(istasyon);
+      k->lastValidPulse  = now;
+      taniSayildi++;
+      k->taniBekliyor    = true;
+      k->taniLowStart    = now;
+      k->taniBekleyenGap = gap;
+    } else {
+      Serial.printf("[FILTRE] Ist.%d erken (gap=%lums < %lums) - SAYILMADI\n",
+                    istasyon, gap, MIN_PULSE_GAP_MS);
+      taniErken++;
+      taniPush(2, gap, 0);
+      k->taniBekliyor = false;
+    }
+  } else if (k->stableLow && k->integ <= INTEG_DUSUK_ESIK) {
+    k->stableLow = false;
+    if (k->taniBekliyor) {
+      taniPush(0, k->taniBekleyenGap, now - k->taniLowStart);
+      k->taniBekliyor = false;
+    }
+  }
+}
+
+// NVS watermark (2 istasyon) — her istasyon icin sunucuya ULASMIS son seq'i yaz (sent_iX).
+// Buffer FIFO; gonderilmemis kayitlar buf_bas'tan itibaren. Her istasyon icin kuyruktaki
+// EN DUSUK seq -> last_sent = o-1 (kuyrukta yoksa hepsi gonderildi = pulse_iX). Boot'ta
+// [sent_iX+1..pulse_iX] tekrar gonderilir. Yipranma icin sadece DEGISINCE yazar.
+void watermarkYaz() {
+  uint32_t minUnsent1 = 0, minUnsent2 = 0;   // 0 = o istasyonda gonderilmemis yok
+  int idx = buf_bas;
+  for (int n = 0; n < buf_dolu; n++) {
+    uint8_t  ist = buffer[idx].istasyon;
+    uint32_t s   = buffer[idx].seq;
+    if (ist == 1) { if (minUnsent1 == 0 || s < minUnsent1) minUnsent1 = s; }
+    else if (ist == 2) { if (minUnsent2 == 0 || s < minUnsent2) minUnsent2 = s; }
+    idx = (idx + 1) % BUFFER_MAX;
+  }
+  uint32_t sent1 = (minUnsent1 > 0) ? (minUnsent1 - 1) : pulseIst1;
+  uint32_t sent2 = (minUnsent2 > 0) ? (minUnsent2 - 1) : pulseIst2;
+  if (sent1 != sonYazilanSent1) { prefs.putULong("sent_i1", sent1); sonYazilanSent1 = sent1; }
+  if (sent2 != sonYazilanSent2) { prefs.putULong("sent_i2", sent2); sonYazilanSent2 = sent2; }
 }
 
 void heartbeatGonder() {
@@ -283,10 +403,11 @@ void heartbeatGonder() {
   HTTPClient http;
   http.begin(String(SUNUCU_HOST) + "/api/sinyal/heartbeat");
   http.setTimeout(3000);
+  http.setConnectTimeout(3000);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", String("Bearer ") + API_TOKEN);
 
-  StaticJsonDocument<512> doc;
+  DynamicJsonDocument doc(4096);
   doc["cihaz_id"]        = CIHAZ_ID;
   doc["bolum"]           = BOLUM;
   doc["robot_no"]        = ROBOT_NO;
@@ -300,8 +421,26 @@ void heartbeatGonder() {
   doc["pulse_ist1"]      = pulseIst1;
   doc["pulse_ist2"]      = pulseIst2;
   doc["robot_calisiyor"] = robotCalisiyor;
-  // RSSI recovery istatistigi — radyo kac kez yenilendi (yuksekse anten/konum sorunu)
   doc["radyo_yenile"]    = radyoYenileToplam;
+  doc["http_fail"]       = httpFailCount;     // sunucu post-mortem: RSSI iyi + artiyorsa zombie
+  doc["disconnect"]      = disconnectCount;
+
+  // ─── TANI: kumulatif sayaclar + son olaylar (Ist.1 + Ist.2 ortak) ───
+  doc["tani_sayildi"] = taniSayildi;
+  doc["tani_parazit"] = taniParazit;   // = ham gurultu kenar sayisi (iki istasyon toplami)
+  doc["tani_erken"]   = taniErken;
+  int taniGonder = taniDolu;
+  if (taniGonder > TANI_HEARTBEAT_N) taniGonder = TANI_HEARTBEAT_N;
+  if (taniGonder > 0) {
+    JsonArray arr = doc.createNestedArray("tani");
+    int i = taniBas;
+    for (int kk = 0; kk < taniGonder; kk++) {
+      JsonObject o = arr.createNestedObject();
+      o["s"] = taniBuf[i].seq;  o["b"] = bootId;            o["u"] = taniBuf[i].uptime_ms;
+      o["t"] = taniBuf[i].tip;  o["g"] = taniBuf[i].gap_ms; o["l"] = taniBuf[i].low_ms;
+      i = (i + 1) % TANI_MAX;
+    }
+  }
 
   String payload; serializeJson(doc, payload);
   int rc = http.POST(payload);
@@ -309,12 +448,15 @@ void heartbeatGonder() {
   if (rc == 200 || rc == 201) {
     httpFailCount = 0;
     lastSuccessHttp = millis();
+    rtcSunucuResetSayac = 0;   // basarili temas — churn-onleme reset sayacini sifirla
+    taniBas = (taniBas + taniGonder) % TANI_MAX;   // gonderilenleri dusur
+    taniDolu -= taniGonder;
   } else {
     httpFailCount++;
   }
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · ist1=%lu · ist2=%lu · robot=%s · fail=%d\n",
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · ist1=%lu · ist2=%lu · robot=%s · tani(S%lu/P%lu/E%lu) · fail=%d\n",
                 rc, WiFi.RSSI(), buf_dolu, pulseIst1, pulseIst2,
-                robotCalisiyor ? "ON" : "OFF", httpFailCount);
+                robotCalisiyor ? "ON" : "OFF", taniSayildi, taniParazit, taniErken, httpFailCount);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -325,6 +467,8 @@ void setup() {
   Serial.begin(115200);
   delay(300);
   bootMs = millis();
+  // bootId, NVS acildiktan SONRA atanir (prefs.begin asagida) — reboot'lar arasi STABIL
+  // olmali ki watermark resend'i ayni idempotency_key'i uretsin (cift sayim yok).
 
   Serial.println("\n╔════════════════════════════════════════════╗");
   Serial.printf( "║  COFLE PILOT SAYAC — %-21s ║\n", CIHAZ_ID);
@@ -341,8 +485,8 @@ void setup() {
   pinMode(PIN_LED,             OUTPUT);
   digitalWrite(PIN_LED, LOW);
 
-  lastIst1State  = digitalRead(PIN_IST1_SAYAC);
-  lastIst2State  = digitalRead(PIN_IST2_SAYAC);
+  k1.lastRaw     = digitalRead(PIN_IST1_SAYAC);
+  k2.lastRaw     = digitalRead(PIN_IST2_SAYAC);
   lastRobotState = digitalRead(PIN_ROBOT_CALISIYOR);
   robotCalisiyor = (lastRobotState == LOW);
 
@@ -350,6 +494,47 @@ void setup() {
   pulseIst1 = prefs.getULong("pulse_i1", 0);
   pulseIst2 = prefs.getULong("pulse_i2", 0);
   Serial.printf("[NVS] Kayitli sayaclar: Ist1=%lu · Ist2=%lu\n", pulseIst1, pulseIst2);
+
+  // bootId STABIL (reboot'lar arasi ayni). NVS silinirse boot_id de gider -> yeni bootId +
+  // sayim 0'dan baslar, eski idempotency key'leriyle CAKISMAZ. (Eski kod her boot'ta
+  // esp_random uretiyordu; o, reboot resend'inde ayni pulse'a yeni key verip CIFT saydirirdi.)
+  bootId = prefs.getULong("boot_id", 0);
+  if (bootId == 0) {
+    bootId = esp_random();
+    prefs.putULong("boot_id", bootId);
+  }
+
+  // Reboot resend (2 istasyon): sunucuya ulasmis son seq = sent_iX. Gonderilememis
+  // [sent_iX+1 .. pulse_iX] araligini kuyruga geri koy. Eski firmware'de sent_iX yok ->
+  // default pulse_iX (yanlis resend yok). Stabil bootId -> sunucu cift saymaz.
+  uint32_t sent1 = prefs.getULong("sent_i1", pulseIst1);
+  uint32_t sent2 = prefs.getULong("sent_i2", pulseIst2);
+  if (sent1 > pulseIst1) sent1 = pulseIst1;
+  if (sent2 > pulseIst2) sent2 = pulseIst2;
+  sonYazilanSent1 = sent1;
+  sonYazilanSent2 = sent2;
+  // Yardimci lambda yerine acik dongu (Arduino .ino oto-prototip uyumu)
+  for (uint8_t ist = 1; ist <= 2; ist++) {
+    uint32_t toplam = (ist == 1) ? pulseIst1 : pulseIst2;
+    uint32_t sent   = (ist == 1) ? sent1     : sent2;
+    if (toplam <= sent) continue;
+    uint32_t resendBas = sent + 1;
+    uint32_t adet      = toplam - sent;
+    if ((int)(buf_dolu + adet) > BUFFER_MAX) {       // tavan: en yeni seq'leri tut
+      uint32_t tasma = (buf_dolu + adet) - BUFFER_MAX;
+      if (tasma >= adet) continue;                   // bu istasyon icin yer kalmadi
+      resendBas += tasma;
+      adet -= tasma;
+    }
+    for (uint32_t s = resendBas; s <= toplam; s++) {
+      buffer[buf_son].seq      = s;
+      buffer[buf_son].istasyon = ist;
+      buf_son = (buf_son + 1) % BUFFER_MAX;
+      buf_dolu++;
+    }
+    Serial.printf("[NVS] Ist.%d gonderilememis %lu pulse kuyruga kondu (seq %lu..%lu) — reboot resend\n",
+                  ist, (unsigned long)adet, (unsigned long)resendBas, (unsigned long)toplam);
+  }
 
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   esp_task_wdt_config_t wdt_config = {
@@ -386,12 +571,20 @@ void setup() {
 
   ArduinoOTA.setHostname(CIHAZ_ID);
   ArduinoOTA.setPassword(OTA_PASS);
-  ArduinoOTA.onStart([]() { Serial.println("\n[OTA] Guncelleme basliyor"); });
+  ArduinoOTA.onStart([]() {
+    // OTA transferi loop'a donmeden dakikalarca surebilir — 30sn task-WDT
+    // yukleme ortasinda panik reset atmasin diye loopTask'i izlemeden cikar.
+    esp_task_wdt_delete(NULL);
+    Serial.println("\n[OTA] Guncelleme basliyor (WDT askida)");
+  });
   ArduinoOTA.onEnd([]()   { Serial.println("\n[OTA] Tamam, yeniden baslatiliyor"); });
   ArduinoOTA.onProgress([](unsigned int p, unsigned int t) {
     Serial.printf("[OTA] %u%%\r", (p / (t / 100)));
   });
-  ArduinoOTA.onError([](ota_error_t e) { Serial.printf("[OTA] HATA %u\n", e); });
+  ArduinoOTA.onError([](ota_error_t e) {
+    Serial.printf("[OTA] HATA %u\n", e);
+    esp_task_wdt_add(NULL);   // OTA basarisiz — normal calisma surecek, WDT korumasini geri tak
+  });
   ArduinoOTA.begin();
   Serial.printf("[OTA] Aktif — IDE Network Port: %s @ %s\n",
                 CIHAZ_ID, WiFi.localIP().toString().c_str());
@@ -400,8 +593,9 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] State polling + multi-sample aktif — robot DO sinyalleri bekleniyor...");
-  Serial.println("        (75ms multi-sample cross-talk/parazit filtresi, MIN_PULSE_GAP=3sn)\n");
+  Serial.println("[READY] Integrator debounce + TANI aktif — robot DO sinyalleri bekleniyor...");
+  Serial.printf( "        (YUKSEK=%d/MAX=%d/DUSUK=%d · MIN_PULSE_GAP=%lums)\n\n",
+                 INTEG_YUKSEK_ESIK, INTEG_MAX, INTEG_DUSUK_ESIK, MIN_PULSE_GAP_MS);
   ledYakBlink(3, 60);
 }
 
@@ -411,51 +605,19 @@ void loop() {
   unsigned long now = millis();
 
   if (!wifiHazir()) {
+    if (wifiKoptuMs == 0) wifiKoptuMs = now;   // kesinti baslangicini isaretle
     digitalWrite(PIN_LED, (now / 200) % 2);
     if ((now - lastHeartbeat) > 15000) {
-      wifiBaglan();
+      wifiBaglanBaslat();     // BLOKLAMAZ — sampling kesintide de devam eder
       lastHeartbeat = now;
     }
+  } else {
+    wifiKoptuMs = 0;
   }
 
-  // Ist.1 pulse — state polling: HIGH->LOW gecisi + 75ms multi-sample + min gap
-  int curIst1 = digitalRead(PIN_IST1_SAYAC);
-  if (curIst1 != lastIst1State && (now - lastDebounceIst1) > DEBOUNCE_MS) {
-    lastDebounceIst1 = now;
-    if (curIst1 == LOW) {
-      if (pinGercektenLOW(PIN_IST1_SAYAC)) {
-        if ((now - lastValidPulseIst1) >= MIN_PULSE_GAP_MS) {
-          istasyonSinyali(1);
-          lastValidPulseIst1 = now;
-        } else {
-          Serial.printf("[FILTRE] Ist.1 erken (gap=%lums < %lums) - SAYILMADI\n",
-                        now - lastValidPulseIst1, MIN_PULSE_GAP_MS);
-        }
-      } else {
-        Serial.println("[FILTRE] Ist.1 parazit (multi-sample basarisiz) - SAYILMADI");
-      }
-    }
-    lastIst1State = curIst1;
-  }
-  // Ist.2 pulse
-  int curIst2 = digitalRead(PIN_IST2_SAYAC);
-  if (curIst2 != lastIst2State && (now - lastDebounceIst2) > DEBOUNCE_MS) {
-    lastDebounceIst2 = now;
-    if (curIst2 == LOW) {
-      if (pinGercektenLOW(PIN_IST2_SAYAC)) {
-        if ((now - lastValidPulseIst2) >= MIN_PULSE_GAP_MS) {
-          istasyonSinyali(2);
-          lastValidPulseIst2 = now;
-        } else {
-          Serial.printf("[FILTRE] Ist.2 erken (gap=%lums < %lums) - SAYILMADI\n",
-                        now - lastValidPulseIst2, MIN_PULSE_GAP_MS);
-        }
-      } else {
-        Serial.println("[FILTRE] Ist.2 parazit (multi-sample basarisiz) - SAYILMADI");
-      }
-    }
-    lastIst2State = curIst2;
-  }
+  // Ist.1 + Ist.2 — bloklamayan integrator debounce (gurultuye dayanikli)
+  kanalGuncelle(PIN_IST1_SAYAC, 1, &k1, now);
+  kanalGuncelle(PIN_IST2_SAYAC, 2, &k2, now);
 
   if (now - lastRobotCheck >= ROBOT_CHECK_INTERVAL_MS) {
     lastRobotCheck = now;
@@ -471,44 +633,111 @@ void loop() {
       Serial.printf("[ROBOT] Durum: %s (low/total=%d/%d)\n",
                     robotCalisiyor ? "CALISIYOR" : "DURDU",
                     lowSayim, ROBOT_SAMPLE_N);
-      if (wifiHazir()) heartbeatGonder();
+      // Throttle: role flap'inde (her cevrimde ac/kapa) her degisim 3-6sn'lik senkron
+      // POST olmasin — min 5sn araliksa gonder; degilse 30sn periyodik heartbeat tasir.
+      if (wifiHazir() && (now - lastHeartbeat) > 5000UL) {
+        heartbeatGonder();
+        lastHeartbeat = now;
+      }
     }
   }
 
-  if (wifiHazir() && buf_dolu > 0 && (now - lastRetry) > RETRY_MS) {
-    bufferdanBirGonder();
+  // Retry: basarisiz gonderimde ustel geri cekilme (3s -> 60s cap). Sunucu kapaliyken
+  // her 3sn'de 3-6sn bloklanip sampling'i %50 kor birakmayi engeller; basarida 3sn'e doner.
+  if (wifiHazir() && buf_dolu > 0 && (now - lastRetry) > retryGecikmeMs) {
+    if (bufferdanBirGonder()) {
+      retryGecikmeMs = RETRY_MS;
+    } else {
+      retryGecikmeMs = (retryGecikmeMs * 2 > 60000UL) ? 60000UL : retryGecikmeMs * 2;
+    }
     lastRetry = now;
   }
 
-  if (wifiHazir() && (now - lastHeartbeat) > HEARTBEAT_MS) {
-    heartbeatGonder();
-    lastHeartbeat = now;
+  // Heartbeat: sunucu cevap vermiyorsa araligi 4x'e cikar (30s->120s) — kor pencereyi kucult
+  {
+    unsigned long hbAralik = (httpFailCount >= 3) ? (HEARTBEAT_MS * 4) : HEARTBEAT_MS;
+    if (wifiHazir() && (now - lastHeartbeat) > hbAralik) {
+      heartbeatGonder();
+      lastHeartbeat = now;
+    }
+  }
+
+  // NVS watermark periyodik yazimi (WiFi'den BAGIMSIZ) — beklenmeyen reset/guc kesintisinde
+  // tekrar-gonderim penceresini ~30s ile sinirlar. Sadece deger degisince yazar (yipranma).
+  if ((now - lastWatermark) > WATERMARK_YAZ_MS) {
+    watermarkYaz();
+    lastWatermark = now;
   }
 
   // ─── SELF-HEAL kontrolleri ───
   // 1) 24 saat uptime → koruyucu reset, AMA makine bos iken (uretim kesintiye ugramasin)
   //    Son pulse'tan beri 2 dk gectiyse (iki istasyon da) reset guvenli.
   if ((now - bootMs) > UPTIME_RESET_MS) {
-    bool makineBos = (now - lastValidPulseIst1) > 120000UL
-                  && (now - lastValidPulseIst2) > 120000UL;
-    if (makineBos) {
-      Serial.println("\n[SELFHEAL] 24h doldu + makine bos (2dk pulse yok) — koruyucu reset");
+    bool makineBos = (now - k1.lastValidPulse) > 120000UL
+                  && (now - k2.lastValidPulse) > 120000UL;
+    if (makineBos && buf_dolu == 0) {
+      Serial.println("\n[SELFHEAL] 24h doldu + makine bos + kuyruk bos — koruyucu reset");
       delay(500);
       ESP.restart();
     }
     // Makine calisiyorsa reset ertelenir — bir sonraki bos doneme birakilir
   }
-  // 2) 5+ ardisik HTTP fail + 60sn sessizlik → reset (TCP yigini takilmis)
-  if (httpFailCount >= 5 && lastSuccessHttp > 0
-      && (now - lastSuccessHttp) > 60000UL) {
-    Serial.printf("\n[SELFHEAL] %d ardisik HTTP fail + 60sn sessizlik — RESET\n",
-                  httpFailCount);
+  // 2) Sunucuya ulasilamiyor — ZOMBIE WL_CONNECTED dahil (RSSI iyi gorunur, disconnect
+  //    event'i ATISLANMAZ; bu yuzden lastSuccessHttp tabanli BAGIMSIZ kurtarma sart).
+  if (httpFailCount >= 5) {
+    unsigned long sonTemas = (lastSuccessHttp > 0) ? lastSuccessHttp : bootMs;
+    unsigned long sessizMs = now - sonTemas;
+    if (buf_dolu == 0) {
+      // Kuyruk bos: kaybedecek veri yok -> hizli reset. CHURN ONLEME: sunucu uzun
+      // bakimda ise art arda 3 basarisiz reset'ten sonra esik 60sn -> 30dk cikar
+      // (yoksa cihaz bakim boyunca ~3dk'da bir reboot dongusune girer).
+      unsigned long resetEsik = (rtcSunucuResetSayac >= 3) ? 1800000UL : 60000UL;
+      if (sessizMs > resetEsik) {
+        rtcSunucuResetSayac++;
+        Serial.printf("\n[SELFHEAL] %d HTTP fail + kuyruk bos + %lus sessiz — RESET (#%lu)\n",
+                      httpFailCount, sessizMs / 1000, (unsigned long)rtcSunucuResetSayac);
+        delay(500);
+        ESP.restart();
+      }
+    } else if (sessizMs > SUNUCU_SESSIZ_HARD_RESET_MS) {
+      // Kuyruk DOLU ama 5dk'dir sunucuya HIC ulasilamiyor (zombie/upstream) -> watermark
+      // (sent_i1/sent_i2) yaz, GUVENLE reboot et. Boot'ta gonderilmemis araliklar tekrar
+      // gonderilir (stabil bootId -> cift saymaz). Eski "kuyruk varken reboot yok" livelock'u biter.
+      watermarkYaz();
+      Serial.printf("\n[SELFHEAL] Sunucuya %lus ulasilamadi (zombie?) — watermark(kuyruk=%d) + REBOOT\n",
+                    sessizMs / 1000, buf_dolu);
+      delay(500);
+      ESP.restart();
+    } else if ((now - lastRadyoYenile) > 60000UL) {
+      // Once YUMUSAK kurtarma: radyo tazele (gercek RF/L2 hang'i reset'siz toparlar).
+      // SADECE MAKINE BOSKEN: wifiRadyoYenile ~16sn bloklar, uretim suruyorken pulse
+      // kaybettirir (RSSI dalindaki kuralin aynisi). Uretim varsa atla — 5dk
+      // watermark+reboot yolu zaten guvenli kurtarmayi saglar.
+      bool makineBosZ = (now - k1.lastValidPulse) > 120000UL
+                     && (now - k2.lastValidPulse) > 120000UL;
+      if (makineBosZ) {
+        Serial.printf("\n[SELFHEAL] %d HTTP fail, %lus sessiz, kuyruk=%d — radyo tazele\n",
+                      httpFailCount, sessizMs / 1000, buf_dolu);
+        wifiRadyoYenile();
+        lastRadyoYenile = now;
+      }
+    }
+  }
+  // 2b) WiFi 5dk'dir HIC baglanamiyor (AP kayip / assoc wedge) — httpFailCount'tan
+  //     BAGIMSIZ kurtarma. POST hic denenemedigi icin fail sayaci artmaz ve 2) dali
+  //     ASLA tetiklenmez (ABB4 tipi RF-katmani kilidinin kor noktasi). Watermark NVS'te
+  //     oldugu icin kuyruk doluyken bile reboot GUVENLI (stabil bootId -> cift sayim yok).
+  if (wifiKoptuMs != 0 && (now - wifiKoptuMs) > SUNUCU_SESSIZ_HARD_RESET_MS) {
+    watermarkYaz();
+    Serial.printf("\n[SELFHEAL] WiFi %lus'dir baglanamiyor — watermark(kuyruk=%d) + REBOOT\n",
+                  (now - wifiKoptuMs) / 1000, buf_dolu);
     delay(500);
     ESP.restart();
   }
   // 3) 10dk icinde 3+ disconnect → reset (WiFi yigini bozulmus)
-  if (disconnectCount >= 3 && (now - lastDisconnectMs) < 600000UL) {
-    Serial.printf("\n[SELFHEAL] 10dk icinde %d disconnect — RESET\n",
+  if (disconnectCount >= 3 && (now - lastDisconnectMs) < 600000UL && buf_dolu == 0) {
+    // Kuyrukta pulse varken reboot etme — loop zaten wifiBaglan ile reconnect dener
+    Serial.printf("\n[SELFHEAL] 10dk icinde %d disconnect + kuyruk bos — RESET\n",
                   disconnectCount);
     delay(500);
     ESP.restart();
@@ -520,8 +749,8 @@ void loop() {
   if (wifiHazir() && (now - lastRssiKontrol) > RSSI_KONTROL_MS) {
     lastRssiKontrol = now;
     sonRSSI = WiFi.RSSI();
-    bool makineBosRssi = (now - lastValidPulseIst1) > 120000UL
-                      && (now - lastValidPulseIst2) > 120000UL;
+    bool makineBosRssi = (now - k1.lastValidPulse) > 120000UL
+                      && (now - k2.lastValidPulse) > 120000UL;
     if (sonRSSI < RSSI_ZAYIF_ESIK && sonRSSI < 0) {
       rssiZayifSayac++;
       Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d ardisik)%s\n",
@@ -536,7 +765,7 @@ void loop() {
         // tam reset dene (RTC bellegi sayaci), sonra zayif sinyalle calismaya devam.
         if (radyoYenileSayac >= RADYO_YENILE_MAX) {
           radyoYenileSayac = 0;
-          if (rtcRssiHardReset < 2) {
+          if (rtcRssiHardReset < 2 && buf_dolu == 0) {
             rtcRssiHardReset++;
             Serial.printf("\n[SELFHEAL] RSSI zayif + radyo yenileme yetersiz — ESP.restart() (#%d)\n",
                           rtcRssiHardReset);

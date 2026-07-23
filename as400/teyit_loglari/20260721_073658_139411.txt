@@ -1,0 +1,99 @@
+TEYIT: launch 26-139411 / 94.LTK.685 / 80 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139411  Ass. 94.LTK.685                     Ord.Qty       100,000
+ 4|  Job      NEW              91866004 LEVER, PTO, ASSY      Rem.Qty        80,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244374   MT2   RPR  20/07/26                 AD        20,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 â†’ F10 (yeni satir)
+OK: adet 80 girildi, bayrak S: ' 1   200                 MT2   RPR  20/07/26                 AD            80 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139411  Ass. 94.LTK.685                     Ord.Qty       100,000
+ 4|  Job      NEW              91866004 LEVER, PTO, ASSY      Rem.Qty        80,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244374   MT2   RPR  20/07/26                 AD        20,000 A
+ 7|  1   200                 MT2   RPR  20/07/26                 AD            80 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE â†’ F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139411  Ass. 94.LTK.685                     Ord.Qty       100,000
+ 4|  Job      NEW              91866004 LEVER, PTO, ASSY      Rem.Qty        80,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244374   MT2   RPR  20/07/26                 AD        20,000 A
+ 7|  1   200                 MT2   RPR  20/07/26                 AD            80 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                     100,000                100,000
+16|            Qty in order
+17|                     100,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 80
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  139411 Ass.cd  94.LTK.685               Conf.qty        80,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.1056           REP AD    1653,000     100,000      80,000     80,000 S
+ 7|    82006917 KAUCUK                War.cau. SPR Um     Rej.qty
+ 8|    10.DTC.128            REP AD    1738,000     400,000     320,000    320,000 S
+ 9|    M6 FÝBERLÝ SOMUN               War.cau. SPR Um     Rej.qty
+10|    10.DTC.170            REP AD     188,000     200,000     160,000    160,000 S
+11|    DADO ES=7 M4X0,7 H=6           War.cau. SPR Um     Rej.qty
+12|    10.DTC.903TR          REP AD     106,000     100,000      80,000     80,000 S
+13|    LEVYA KOLU                     War.cau. SPR Um     Rej.qty
+14|    10.002.080F           REP AD     106,000     100,000      80,000     80,000 S
+15|    47582692 YAY ÇAP=15,2x56       War.cau. SPR Um     Rej.qty
+16|    10.300.0953           REP AD     106,000     100,000      80,000     80,000 S
+17|    KUPILYA CAP2*1                 War.cau. SPR Um     Rej.qty
+18|    10.300.1014           REP AD     160,000     200,000     160,000    160,000 S
+19|    CIVATA M4*35 ES.6              War.cau. SPR Um     Rej.qty
+20|    10.300.1015           REP AD      80,000     100,000      80,000     80,000 S
+21|    47687558 PLAKA 30X30 H=10      War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  139411 Ass.cd  94.LTK.685               Conf.qty        80,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.1056           REP AD    1653,000     100,000      80,000     80,000 S
+ 7|    82006917 KAUC
+ 8|    10.DTC.128                                                 0,000    320,000 S
+ 9|    M6 FÝBERLÝ SO     Data movimento     21   7  26
+10|    10.DTC.170        Tipo costo         S      S/C/L/P/U/M    0,000    160,000 S
+11|    DADO ES=7 M4X     Costo                   1.238,580934
+12|    10.DTC.903TR                                               0,000     80,000 S
+13|    LEVYA KOLU      F06=Conferma
+14|    10.002.080F                                                0,000     80,000 S
+15|    47582692 YAY ÇAP=15,2x56       War.cau. SPR Um     Rej.qty
+16|    10.300.0953           REP AD     106,000     100,000      80,000     80,000 S
+17|    KUPILYA CAP2*1                 War.cau. SPR Um     Rej.qty
+18|    10.300.1014           REP AD     160,000     200,000     160,000    160,000 S
+19|    CIVATA M4*35 ES.6              War.cau. SPR Um     Rej.qty
+20|    10.300.1015           REP AD      80,000     100,000      80,000     80,000 S
+21|    47687558 PLAKA 30X30 H=10      War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

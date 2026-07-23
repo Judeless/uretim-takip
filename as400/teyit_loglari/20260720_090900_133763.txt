@@ -1,0 +1,67 @@
+TEYIT: launch 26-133763 / 10.130.4031W / 47 adet / bayrak A
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133763  Ass. 10.130.4031W                   Ord.Qty       499,000
+ 4|  Job      NEW              KAYNAKLI KAPLAMASIZ GRUP       Rem.Qty       216,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0237162   MT2   RPR  13/07/26                 AD        16,000 A
+ 7|      200    26 0238820   MT2   RPR  14/07/26                 AD       194,000 A
+ 8|      300    26 0240251   MT2   RPR  16/07/26                 AD        73,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 3 → F10 (yeni satir)
+OK: adet 47 girildi, bayrak A: ' 1   400                 MT2   RPR  16/07/26                 AD            47 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133763  Ass. 10.130.4031W                   Ord.Qty       499,000
+ 4|  Job      NEW              KAYNAKLI KAPLAMASIZ GRUP       Rem.Qty       216,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0237162   MT2   RPR  13/07/26                 AD        16,000 A
+ 7|      200    26 0238820   MT2   RPR  14/07/26                 AD       194,000 A
+ 8|      300    26 0240251   MT2   RPR  16/07/26                 AD        73,000 A
+ 9|  1   400                 MT2   RPR  16/07/26                 AD            47 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133763 Ass.cd  10.130.4031W             Conf.qty        47,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.4031A          REP AD     216,000     499,000     216,000     47,000 A
+ 7|    STAFFA LEVA DISTIBUTORI        War.cau. SPR Um     Rej.qty
+ 8|    10.130.4031B          REP AD     216,000     499,000     216,000     47,000 A
+ 9|    PIASTRA SUPPORTO PERNO LEVA    War.cau. SPR Um     Rej.qty
+10|    10.130.4031C          REP AD     216,000     499,000     216,000     47,000 A
+11|    PIASTRA RINFORZO LEVA DISTRIBU War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: Conf.qty dogrulandi = 47
+OK: onay penceresi acildi, Data movimento dolu (F06=Conferma)
+---------- EKRAN [onay-penceresi] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133763 Ass.cd  10.130.4031W             Conf.qty        47,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.4031A          REP AD     216,000     499,000     216,000     47,000 A
+ 7|    STAFFA LEVA D
+ 8|    10.130.4031B                                               6,000     47,000 A
+ 9|    PIASTRA SUPPO     Data movimento     20   7  26
+10|    10.130.4031C      Tipo costo         S      S/C/L/P/U/M    6,000     47,000 A
+11|    PIASTRA RINFO     Costo                     105,645534
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [F6-sonrasi] ----------
+----------
+OK: F6 Conferma islendi (ekran degisti)
+OK: Session B ana menude
+SONUC=OK

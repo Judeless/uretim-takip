@@ -1,0 +1,73 @@
+TEYIT: launch 26-111310 / 10.300.1156GW / 11 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  111310  Ass. 10.300.1156GW                  Ord.Qty       890,000
+ 4|  Job                       KAYNAKLI BOYASIZ PARÇA         Rem.Qty       181,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0202133   MT2   RPR  16/06/26                 AD        70,000 A
+ 7|      200    26 0204449   MT2   RPR  17/06/26                 AD        63,000 A
+ 8|      300    26 0206307   MT2   RPR  18/06/26                 AD        90,000 A
+ 9|      400    26 0208194   MT2   RPR  19/06/26                 AD       117,000 A
+10|      500    26 0209929   MT2   RPR  22/06/26                 AD       195,000 A
+11|      600    26 0211400   MT2   RPR  23/06/26                 AD        90,000 A
+12|      700    26 0215027   MT2   RPR  25/06/26                 AD         9,000 A
+13|      800    26 0216976   MT2   RPR  26/06/26                 AD        75,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 8 â†’ F10 (yeni satir)
+OK: adet 11 girildi, bayrak A: ' 1   900                 MT2   RPR  26/06/26                 AD            11 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  111310  Ass. 10.300.1156GW                  Ord.Qty       890,000
+ 4|  Job                       KAYNAKLI BOYASIZ PARÇA         Rem.Qty       181,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0202133   MT2   RPR  16/06/26                 AD        70,000 A
+ 7|      200    26 0204449   MT2   RPR  17/06/26                 AD        63,000 A
+ 8|      300    26 0206307   MT2   RPR  18/06/26                 AD        90,000 A
+ 9|      400    26 0208194   MT2   RPR  19/06/26                 AD       117,000 A
+10|      500    26 0209929   MT2   RPR  22/06/26                 AD       195,000 A
+11|      600    26 0211400   MT2   RPR  23/06/26                 AD        90,000 A
+12|      700    26 0215027   MT2   RPR  25/06/26                 AD         9,000 A
+13|      800    26 0216976   MT2   RPR  26/06/26                 AD        75,000 A
+14|  1   900                 MT2   RPR  26/06/26                 AD            11 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 11
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  111310 Ass.cd  10.300.1156GW            Conf.qty        11,000
+ 4|  Progress.        900
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1156           REP AD     181,000     890,000     181,000     11,000 A
+ 7|    47659355 PTO SUPPORT           War.cau. SPR Um     Rej.qty
+ 8|    10.300.1157           REP AD     362,000    1780,000     362,000     22,000 A
+ 9|    86626344 STUD,PROJ WELD TYPE U War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  111310 Ass.cd  10.300.1156GW            Conf.qty        11,000
+ 4|  Progress.        900
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1156           REP AD     181,000     890,000     181,000     11,000 A
+ 7|    47659355 PTO
+ 8|    10.300.1157                                                2,000     22,000 A
+ 9|    86626344 STUD     Data movimento     23   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      99,990647
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

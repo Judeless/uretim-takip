@@ -1,0 +1,106 @@
+TEYIT: launch 26-127122 / 94.LTK.215 / 35 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  127122  Ass. 94.LTK.215                     Ord.Qty       200,000
+ 4|  Job      TT4              47659385 CONTROL ASSY HYDRAULI Rem.Qty        70,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0235598   MT2   RPR  10/07/26                 AD       130,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 â†’ F10 (yeni satir)
+OK: adet 35 girildi, bayrak A: ' 1   200                 MT2   RPR  10/07/26                 AD            35 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  127122  Ass. 94.LTK.215                     Ord.Qty       200,000
+ 4|  Job      TT4              47659385 CONTROL ASSY HYDRAULI Rem.Qty        70,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0235598   MT2   RPR  10/07/26                 AD       130,000 A
+ 7|  1   200                 MT2   RPR  10/07/26                 AD            35 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 35
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  127122 Ass.cd  94.LTK.215               Conf.qty        35,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.1823           REP AD     201,000     200,000      70,000     35,000 A
+ 7|    2.1430.006.2 4 AY SEGMAN       War.cau. SPR Um     Rej.qty
+ 8|    10.130.3156           REP AD     402,000     400,000     140,000     70,000 A
+ 9|    87682398 TORX CIVATA M6X16 10. War.cau. SPR Um     Rej.qty
+10|    10.300.0073           REP AD     151,000     200,000      70,000     35,000 A
+11|    84346648 BAGLANTI SACI         War.cau. SPR Um     Rej.qty
+12|    10.300.0078           REP AD     201,000     200,000      70,000     35,000 A
+13|    84318178 84487176 YAY          War.cau. SPR Um     Rej.qty
+14|    10.300.0177           REP AD     201,000     200,000      70,000     35,000 A
+15|    84295488 BAGLANTI SACI         War.cau. SPR Um     Rej.qty
+16|    10.300.0187           REP AD     201,000     200,000      70,000     35,000 A
+17|    12639701 RONDELLA Ø11*Ø6.2 H=1 War.cau. SPR Um     Rej.qty
+18|    10.300.0188           REP AD     201,000     200,000      70,000     35,000 A
+19|    VITE M5*55                     War.cau. SPR Um     Rej.qty
+20|    10.300.0189           REP AD     201,000     200,000      70,000     35,000 A
+21|    10*1,25*20 CR3 CIVATA          War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+Stok yetersiz (ozet) â†’ F23 (force, tek sefer)
+---------- EKRAN [f23-ozet-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  127122 Ass.cd  94.LTK.215               Conf.qty        35,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.1823           REP AD     201,000     200,000      70,000     35,000 A
+ 7|    2.1430.006.2 4 AY SEGMAN       War.cau. SPR Um     Rej.qty
+ 8|    10.130.3156           REP AD     402,000     400,000     140,000     70,000 A
+ 9|    87682398 TORX CIVATA M6X16 10. War.cau. SPR Um     Rej.qty
+10|    10.300.0073           REP AD     151,000     200,000      70,000     35,000 A
+11|    84346648 BAGLANTI SACI         War.cau. SPR Um     Rej.qty
+12|    10.300.0078           REP AD     201,000     200,000      70,000     35,000 A
+13|    84318178 84487176 YAY          War.cau. SPR Um     Rej.qty
+14|    10.300.0177           REP AD     201,000     200,000      70,000     35,000 A
+15|    84295488 BAGLANTI SACI         War.cau. SPR Um     Rej.qty
+16|    10.300.0187           REP AD     201,000     200,000      70,000     35,000 A
+17|    12639701 RONDELLA Ø11*Ø6.2 H=1 War.cau. SPR Um     Rej.qty
+18|    10.300.0188           REP AD     201,000     200,000      70,000     35,000 A
+19|    VITE M5*55                     War.cau. SPR Um     Rej.qty
+20|    10.300.0189           REP AD     201,000     200,000      70,000     35,000 A
+21|    10*1,25*20 CR3 CIVATA          War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       22/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  127122 Ass.cd  94.LTK.215               Conf.qty        35,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.1823           REP AD     201,000     200,000      70,000     35,000 A
+ 7|    2.1430.006.2
+ 8|    10.130.3156                                                0,000     70,000 A
+ 9|    87682398 TORX     Data movimento     22   7  26
+10|    10.300.0073       Tipo costo         S      S/C/L/P/U/M    0,000     35,000 A
+11|    84346648 BAGL     Costo                     569,111119
+12|    10.300.0078                                                0,000     35,000 A
+13|    84318178 8448   F06=Conferma
+14|    10.300.0177                                                0,000     35,000 A
+15|    84295488 BAGLANTI SACI         War.cau. SPR Um     Rej.qty
+16|    10.300.0187           REP AD     201,000     200,000      70,000     35,000 A
+17|    12639701 RONDELLA Ø11*Ø6.2 H=1 War.cau. SPR Um     Rej.qty
+18|    10.300.0188           REP AD     201,000     200,000      70,000     35,000 A
+19|    VITE M5*55                     War.cau. SPR Um     Rej.qty
+20|    10.300.0189           REP AD     201,000     200,000      70,000     35,000 A
+21|    10*1,25*20 CR3 CIVATA          War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

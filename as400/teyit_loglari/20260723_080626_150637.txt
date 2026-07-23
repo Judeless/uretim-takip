@@ -1,0 +1,79 @@
+TEYIT: launch 26-150637 / 94.LTK.245 / 40 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  150637  Ass. 94.LTK.245                     Ord.Qty       300,000
+ 4|  Job      TT4              47659381 GE ARBOX, SELECTOR AS Rem.Qty       300,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 40 girildi, bayrak A: ' 1   100                 MT2   RPR  21/07/26                 AD            40 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  150637  Ass. 94.LTK.245                     Ord.Qty       300,000
+ 4|  Job      TT4              47659381 GE ARBOX, SELECTOR AS Rem.Qty       300,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD            40 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 40
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  150637 Ass.cd  94.LTK.245               Conf.qty        40,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0528           REP AD     302,000     300,000     300,000     40,000 A
+ 7|    16407870 PIN SPRING SLOTTED    War.cau. SPR Um     Rej.qty
+ 8|    10.300.0853G          REP AD     300,000     300,000     300,000     40,000 A
+ 9|    84583500 ORTALAMA MEKANIZMASI  War.cau. SPR Um     Rej.qty
+10|    10.300.1430           REP AD     302,000     300,000     300,000     40,000 A
+11|    84325171 SPRING                War.cau. SPR Um     Rej.qty
+12|    10.300.1439           REP AD    4600,000     600,000     600,000     80,000 A
+13|    84295357 BUSHING(IGUS JFM-1618 War.cau. SPR Um     Rej.qty
+14|    10.300.1441           REP AD     600,000     600,000     600,000     80,000 A
+15|    84338346 SPACER                War.cau. SPR Um     Rej.qty
+16|    10.300.1444           REP AD     300,000     300,000     300,000     40,000 A
+17|    84583575 SUPPORT GEARSHIFT     War.cau. SPR Um     Rej.qty
+18|    10.300.1445           REP AD     300,000     300,000     300,000     40,000 A
+19|    84478538 SIDE SUPPORT          War.cau. SPR Um     Rej.qty
+20|    10.300.1446           REP AD     300,000     300,000     300,000     40,000 A
+21|    84338367 SHAFT                 War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  150637 Ass.cd  94.LTK.245               Conf.qty        40,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0528           REP AD     302,000     300,000     300,000     40,000 A
+ 7|    16407870 PIN
+ 8|    10.300.0853G                                               0,000     40,000 A
+ 9|    84583500 ORTA     Data movimento     23   7  26
+10|    10.300.1430       Tipo costo         S      S/C/L/P/U/M    0,000     40,000 A
+11|    84325171 SPRI     Costo                   1.082,528383
+12|    10.300.1439                                                0,000     80,000 A
+13|    84295357 BUSH   F06=Conferma
+14|    10.300.1441                                                0,000     80,000 A
+15|    84338346 SPACER                War.cau. SPR Um     Rej.qty
+16|    10.300.1444           REP AD     300,000     300,000     300,000     40,000 A
+17|    84583575 SUPPORT GEARSHIFT     War.cau. SPR Um     Rej.qty
+18|    10.300.1445           REP AD     300,000     300,000     300,000     40,000 A
+19|    84478538 SIDE SUPPORT          War.cau. SPR Um     Rej.qty
+20|    10.300.1446           REP AD     300,000     300,000     300,000     40,000 A
+21|    84338367 SHAFT                 War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

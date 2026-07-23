@@ -1,0 +1,99 @@
+TEYIT: launch 26-147687 / 10.300.5292W / 40 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147687  Ass. 10.300.5292W                   Ord.Qty        95,000
+ 4|  Job                       BOYASIZ KAYNAKLI PARÇA         Rem.Qty        23,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245743   MT2   RPR  21/07/26                 AD         5,000 A
+ 7|      200    26 0247709   MT2   RPR  22/07/26                 AD        67,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 2 â†’ F10 (yeni satir)
+OK: adet 40 girildi, bayrak S: ' 1   300                 MT2   RPR  22/07/26                 AD            40 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147687  Ass. 10.300.5292W                   Ord.Qty        95,000
+ 4|  Job                       BOYASIZ KAYNAKLI PARÇA         Rem.Qty        23,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245743   MT2   RPR  21/07/26                 AD         5,000 A
+ 7|      200    26 0247709   MT2   RPR  22/07/26                 AD        67,000 A
+ 8|  1   300                 MT2   RPR  22/07/26                 AD            40 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE â†’ F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  147687  Ass. 10.300.5292W                   Ord.Qty        95,000
+ 4|  Job                       BOYASIZ KAYNAKLI PARÇA         Rem.Qty        23,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0245743   MT2   RPR  21/07/26                 AD         5,000 A
+ 7|      200    26 0247709   MT2   RPR  22/07/26                 AD        67,000 A
+ 8|  1   300                 MT2   RPR  22/07/26                 AD            40 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                     112,000                112,000
+16|            Qty in order
+17|                      95,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 40
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  147687 Ass.cd  10.300.5292W             Conf.qty        40,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.5292A          REP AD      23,000      95,000      23,000     40,000 S
+ 7|    3040-1285 BASE BRACKET         War.cau. SPR Um     Rej.qty
+ 8|    10.300.5292E          REP AD      46,000     190,000      46,000     80,000 S
+ 9|    3040-1308 BASE SUPPORT SIDE    War.cau. SPR Um     Rej.qty
+10|    10.300.5292C-ABK      REP 01D     23,000      95,000      23,000     40,000 S
+11|    ABKANT BUKUMLU SAC             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+Stok yetersiz (ozet) â†’ F23 (force, tek sefer)
+---------- EKRAN [f23-ozet-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  147687 Ass.cd  10.300.5292W             Conf.qty        40,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.5292A          REP AD      23,000      95,000      23,000     40,000 S
+ 7|    3040-1285 BASE BRACKET         War.cau. SPR Um     Rej.qty
+ 8|    10.300.5292E          REP AD      46,000     190,000      46,000     80,000 S
+ 9|    3040-1308 BASE SUPPORT SIDE    War.cau. SPR Um     Rej.qty
+10|    10.300.5292C-ABK      REP 01D     23,000      95,000      23,000     40,000 S
+11|    ABKANT BUKUMLU SAC             War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force               +
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim3] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  147687 Ass.cd  10.300.5292W             Conf.qty        40,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.5292A          REP AD      23,000      95,000      23,000     40,000 S
+ 7|    3040-1285 BAS
+ 8|    10.300.5292E                                               6,000     80,000 S
+ 9|    3040-1308 BAS     Data movimento     23   7  26
+10|    10.300.5292C-     Tipo costo         S      S/C/L/P/U/M    3,000     40,000 S
+11|    ABKANT BUKUML     Costo                     866,378697
+13|                    F06=Conferma
+22|  Qty to collect is higher than the q.ty in stock - F23 to force               +
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

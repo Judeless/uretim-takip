@@ -1,0 +1,79 @@
+TEYIT: launch 26-139051 / 94.LTK.12 / 100 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139051  Ass. 94.LTK.12                      Ord.Qty       120,000
+ 4|  Job      Yaris Utility    84401434 ILERI GERI KUMANDA ME Rem.Qty       120,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 â†’ ILK teyit, F10 YOK
+OK: adet 100 girildi, bayrak A: ' 1   100                 MT2   RPR                           AD           100 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139051  Ass. 94.LTK.12                      Ord.Qty       120,000
+ 4|  Job      Yaris Utility    84401434 ILERI GERI KUMANDA ME Rem.Qty       120,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD           100 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 100
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  139051 Ass.cd  94.LTK.12                Conf.qty       100,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.1823           REP AD     321,000     120,000     120,000    100,000 A
+ 7|    2.1430.006.2 4 AY SEGMAN       War.cau. SPR Um     Rej.qty
+ 8|    10.130.3156           REP AD     642,000     240,000     240,000    200,000 A
+ 9|    87682398 TORX CIVATA M6X16 10. War.cau. SPR Um     Rej.qty
+10|    10.300.0078           REP AD     321,000     120,000     120,000    100,000 A
+11|    84318178 84487176 YAY          War.cau. SPR Um     Rej.qty
+12|    10.300.0177           REP AD     321,000     120,000     120,000    100,000 A
+13|    84295488 BAGLANTI SACI         War.cau. SPR Um     Rej.qty
+14|    10.300.0187           REP AD     321,000     120,000     120,000    100,000 A
+15|    12639701 RONDELLA Ø11*Ø6.2 H=1 War.cau. SPR Um     Rej.qty
+16|    10.300.0188           REP AD     321,000     120,000     120,000    100,000 A
+17|    VITE M5*55                     War.cau. SPR Um     Rej.qty
+18|    10.300.0189           REP AD     321,000     120,000     120,000    100,000 A
+19|    10*1,25*20 CR3 CIVATA          War.cau. SPR Um     Rej.qty
+20|    10.300.0194           REP AD     321,000     120,000     120,000    100,000 A
+21|    PIM Ø10 *36.25                 War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  139051 Ass.cd  94.LTK.12                Conf.qty       100,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.1823           REP AD     321,000     120,000     120,000    100,000 A
+ 7|    2.1430.006.2
+ 8|    10.130.3156                                                0,000    200,000 A
+ 9|    87682398 TORX     Data movimento     21   7  26
+10|    10.300.0078       Tipo costo         S      S/C/L/P/U/M    0,000    100,000 A
+11|    84318178 8448     Costo                     552,666535
+12|    10.300.0177                                                0,000    100,000 A
+13|    84295488 BAGL   F06=Conferma
+14|    10.300.0187                                                0,000    100,000 A
+15|    12639701 RONDELLA Ø11*Ø6.2 H=1 War.cau. SPR Um     Rej.qty
+16|    10.300.0188           REP AD     321,000     120,000     120,000    100,000 A
+17|    VITE M5*55                     War.cau. SPR Um     Rej.qty
+18|    10.300.0189           REP AD     321,000     120,000     120,000    100,000 A
+19|    10*1,25*20 CR3 CIVATA          War.cau. SPR Um     Rej.qty
+20|    10.300.0194           REP AD     321,000     120,000     120,000    100,000 A
+21|    PIM Ø10 *36.25                 War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

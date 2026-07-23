@@ -1,0 +1,18 @@
+TEYIT: launch 26-140672 / 10.300.1866-10W / 1 adet / bayrak A
+HATA: Ana menuye ulasilamadi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       17/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  140672 Ass.cd  10.300.1866-10W          Conf.qty         1,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1866A-10       REP AD      97,000     100,000      97,000      1,000 A
+ 7|    0.010.1588.0/10 LEVA RINVIO    War.cau. SPR Um     Rej.qty
+ 8|    10.300.1866B          REP AD      97,000     100,000      97,000      1,000 A
+ 9|    2.1559.377.0 BOCCOLA           War.cau. SPR Um     Rej.qty
+10|    10.300.1866C          REP AD      97,000     100,000      97,000      1,000 A
+11|    0.010.1537.0 PERNO             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+SONUC=IPTAL

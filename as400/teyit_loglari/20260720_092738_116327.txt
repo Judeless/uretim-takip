@@ -1,0 +1,84 @@
+TEYIT: launch 26-116327 / 94.PBL.113A / 88 adet / bayrak A
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  116327  Ass. 94.PBL.113A                    Ord.Qty       185,000
+ 4|  Job      NEW              92084211 LEVER ASSY, SUPT HAND Rem.Qty       121,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0202896   MT2   RPR  16/06/26                 AD        39,000 A
+ 7|      200    26 0242838   MT2   RPR  17/07/26                 AD        25,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 2 → F10 (yeni satir)
+OK: adet 88 girildi, bayrak A: ' 1   300                 MT2   RPR  17/07/26                 AD            88 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  116327  Ass. 94.PBL.113A                    Ord.Qty       185,000
+ 4|  Job      NEW              92084211 LEVER ASSY, SUPT HAND Rem.Qty       121,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0202896   MT2   RPR  16/06/26                 AD        39,000 A
+ 7|      200    26 0242838   MT2   RPR  17/07/26                 AD        25,000 A
+ 8|  1   300                 MT2   RPR  17/07/26                 AD            88 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  116327 Ass.cd  94.PBL.113A              Conf.qty        88,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.5142           REP AD     121,000     185,000     121,000     88,000 A
+ 7|    92084219 BRAKE.HAND WA         War.cau. SPR Um     Rej.qty
+ 8|    10.300.5666G          REP AD     121,000     185,000     121,000     88,000 A
+ 9|    HANDBRAKE LEVER GROUP          War.cau. SPR Um     Rej.qty
+10|    10.300.1493           REP AD     121,000     185,000     121,000     88,000 A
+11|    NUT, M10x1.25 CLASS 10         War.cau. SPR Um     Rej.qty
+12|    10.300.1494           REP AD     121,000     185,000     121,000     88,000 A
+13|    WASHER, CONICAL SPRN M10X20 ZN War.cau. SPR Um     Rej.qty
+14|    10.300.1411           REP AD     121,000     185,000     121,000     88,000 A
+15|    47844545 PIN, PARKING BRAKE LE War.cau. SPR Um     Rej.qty
+16|    10.300.1412           REP AD     121,000     185,000     121,000     88,000 A
+17|    47844625 PIN, PARKING BRAKE LE War.cau. SPR Um     Rej.qty
+18|    10.300.2387           REP AD     121,000     185,000     121,000     88,000 A
+19|    SPACER                         War.cau. SPR Um     Rej.qty
+20|    10.300.6482G          REP AD     121,000     185,000     121,000     88,000 A
+21|    BUTTON ASSY.                   War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: Conf.qty dogrulandi = 88
+OK: onay penceresi acildi, Data movimento dolu (F06=Conferma)
+---------- EKRAN [onay-penceresi] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  116327 Ass.cd  94.PBL.113A              Conf.qty        88,000
+ 4|  Progress.        300
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.5142           REP AD     121,000     185,000     121,000     88,000 A
+ 7|    92084219 BRAK
+ 8|    10.300.5666G                                               1,000     88,000 A
+ 9|    HANDBRAKE LEV     Data movimento     20   7  26
+10|    10.300.1493       Tipo costo         S      S/C/L/P/U/M    1,000     88,000 A
+11|    NUT, M10x1.25     Costo                     822,598074
+12|    10.300.1494                                                1,000     88,000 A
+13|    WASHER, CONIC   F06=Conferma
+14|    10.300.1411                                                1,000     88,000 A
+15|    47844545 PIN, PARKING BRAKE LE War.cau. SPR Um     Rej.qty
+16|    10.300.1412           REP AD     121,000     185,000     121,000     88,000 A
+17|    47844625 PIN, PARKING BRAKE LE War.cau. SPR Um     Rej.qty
+18|    10.300.2387           REP AD     121,000     185,000     121,000     88,000 A
+19|    SPACER                         War.cau. SPR Um     Rej.qty
+20|    10.300.6482G          REP AD     121,000     185,000     121,000     88,000 A
+21|    BUTTON ASSY.                   War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [F6-sonrasi] ----------
+----------
+OK: F6 Conferma islendi (ekran degisti)
+OK: Session B ana menude
+SONUC=OK

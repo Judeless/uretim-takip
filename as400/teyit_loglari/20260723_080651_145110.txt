@@ -1,0 +1,97 @@
+TEYIT: launch 26-145110 / 94.LTK.340 / 31 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145110  Ass. 94.LTK.340                     Ord.Qty        31,000
+ 4|  Job      SAME             0.025.4121.4/10 4WD COMMAND    Rem.Qty        31,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 31 girildi, bayrak S: ' 1   100                 MT2   RPR  21/07/26                 AD            31 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145110  Ass. 94.LTK.340                     Ord.Qty        31,000
+ 4|  Job      SAME             0.025.4121.4/10 4WD COMMAND    Rem.Qty        31,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD            31 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE → F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  145110  Ass. 94.LTK.340                     Ord.Qty        31,000
+ 4|  Job      SAME             0.025.4121.4/10 4WD COMMAND    Rem.Qty        31,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  21/07/26                 AD            31 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                      31,000                 31,000
+16|            Qty in order
+17|                      31,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 31
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  145110 Ass.cd  94.LTK.340               Conf.qty        31,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.3137           REP AD      93,000      93,000      93,000     93,000 S
+ 7|    RONDELLA G=20 D=11 H=2         War.cau. SPR Um     Rej.qty
+ 8|    10.130.460            REP AD     233,000      62,000      62,000     62,000 S
+ 9|    7 AY SEGMAN                    War.cau. SPR Um     Rej.qty
+10|    10.300.1863           REP AD      31,000      31,000      31,000     31,000 S
+11|    0.024.1328.3 SUPPORTO          War.cau. SPR Um     Rej.qty
+12|    10.300.1864-10        REP AD      31,000      31,000      31,000     31,000 S
+13|    0.024.1326.0/10 TIRANTE LATO   War.cau. SPR Um     Rej.qty
+14|    10.300.1865           REP AD      31,000      31,000      31,000     31,000 S
+15|    0.025.3589.2 ALBERO DI AZIONA  War.cau. SPR Um     Rej.qty
+16|    10.300.1866-10        REP AD      31,000      31,000      31,000     31,000 S
+17|    0.010.1588.3/10 LEVA RINVIO    War.cau. SPR Um     Rej.qty
+18|    10.300.1867-10        REP AD      31,000      31,000      31,000     31,000 S
+19|    0.025.3586.0/10 TIRANTE LATO   War.cau. SPR Um     Rej.qty
+20|    10.300.1868           REP AD      31,000      31,000      31,000     31,000 S
+21|    2.4049.235.2 MOLLA             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  145110 Ass.cd  94.LTK.340               Conf.qty        31,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.3137           REP AD      93,000      93,000      93,000     93,000 S
+ 7|    RONDELLA G=20
+ 8|    10.130.460                                                 2,000     62,000 S
+ 9|    7 AY SEGMAN       Data movimento     23   7  26
+10|    10.300.1863       Tipo costo         S      S/C/L/P/U/M    1,000     31,000 S
+11|    0.024.1328.3      Costo                     438,927240
+12|    10.300.1864-1                                              1,000     31,000 S
+13|    0.024.1326.0/   F06=Conferma
+14|    10.300.1865                                                1,000     31,000 S
+15|    0.025.3589.2 ALBERO DI AZIONA  War.cau. SPR Um     Rej.qty
+16|    10.300.1866-10        REP AD      31,000      31,000      31,000     31,000 S
+17|    0.010.1588.3/10 LEVA RINVIO    War.cau. SPR Um     Rej.qty
+18|    10.300.1867-10        REP AD      31,000      31,000      31,000     31,000 S
+19|    0.025.3586.0/10 TIRANTE LATO   War.cau. SPR Um     Rej.qty
+20|    10.300.1868           REP AD      31,000      31,000      31,000     31,000 S
+21|    2.4049.235.2 MOLLA             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

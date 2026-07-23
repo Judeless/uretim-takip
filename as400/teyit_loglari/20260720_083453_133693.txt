@@ -1,0 +1,20 @@
+TEYIT: launch 26-133693 / 10.130.3680GAW / 1 adet / bayrak A
+HATA: Ana menuye ulasilamadi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETK
+ 2|                                Re-entry summary
+ 7|                         Risorsa richiesta
+ 8|                         Archivio . . . . . .   BMMA10
+ 9|                         Libreria . . . . . .   TKC0301F
+10|                         Richiedente
+11|                         Nome del lavoro. . .   SELCUK0002
+12|                         Utente . . . . . . .   EMREDTK
+13|                         Numero lavoro. . . .   895047
+14|                         Nome programma . . .   YM471
+15|                         Libreria . . . . . .   TKC0300P
+16|                         Operazione tentata .   UPDATR
+17|                         Numero di specifica.   126500
+18|                         Data inizio esecuz.    200726
+19|                         Ora  inizio esecuz.    070627
+21|    INVIO=Riprova  F03=Uscita
+----------

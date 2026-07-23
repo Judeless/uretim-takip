@@ -60,18 +60,41 @@ DEVICES = {
         ('MONTAJ-M10', 'M10'),
         ('MONTAJ-M11', 'M11'),
         ('MONTAJ-M12', 'M12'),
+        ('MONTAJ-YF1', 'YF1'),   # TK1 yan tesis montaj deneme modülü (sahada robot_no=YF1 ile flash'li)
     ],
     'metal': [
         ('300T-IO', '300T'),
         ('400T-IO', '400T'),
         ('550T-IO', '550T'),
     ],
+    # Abkant — pres bolumunun makineleri (bolum='pres', role sinyali). Bkz abkant.ino.tpl
+    'abkant': [
+        ('ABKANT-A1', 'Abkant 1'),
+        ('ABKANT-A2', 'Abkant 2'),
+        ('ABKANT-A3', 'Abkant 3'),
+    ],
+    # Eksantrik pres — iki-el AND butonu (bolum='pres'). Bkz pres.ino.tpl
+    'pres': [
+        ('PRES-P1', 'Pres 1'),
+        ('PRES-P2', 'Pres 2'),
+        ('PRES-P3', 'Pres 3'),
+        ('PRES-P4', 'Pres 4'),
+        ('PRES-P5', 'Pres 5'),
+    ],
+    # Plastik enjeksiyon — TK1, metal mantigi (bolum='plastik'). Bkz plastik.ino.tpl
+    'plastik': [
+        ('PLASTIK-320T', '320T'),
+        ('PLASTIK-407T', '407T'),
+    ],
 }
 
 TEMPLATES = {
-    'kaynak': 'kaynak.ino.tpl',
-    'montaj': 'montaj.ino.tpl',
-    'metal':  'metal.ino.tpl',
+    'kaynak':  'kaynak.ino.tpl',
+    'montaj':  'montaj.ino.tpl',
+    'metal':   'metal.ino.tpl',
+    'abkant':  'abkant.ino.tpl',
+    'pres':    'pres.ino.tpl',
+    'plastik': 'plastik.ino.tpl',
 }
 
 

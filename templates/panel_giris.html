@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cofle Manage — Giriş</title>
+    <link rel="icon" href="/logo">
+    <style>
+        :root {
+            --bg: #060414;
+            --bg2: #0d0b24;
+            --card: #14122e;
+            --border: #2a2850;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --dim: #64748b;
+            --primary: #8b5cf6;   /* dashboard komuta-merkezi moruyla uyumlu (2026-07-21) */
+            --primary-2: #a78bfa;
+            --danger: #ef4444;
+            --ok: #22c55e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background:
+                radial-gradient(1200px 600px at 20% -10%, rgba(99,102,241,0.18), transparent 60%),
+                radial-gradient(900px 500px at 100% 110%, rgba(59,130,246,0.16), transparent 55%),
+                var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .giris-kart {
+            width: 100%;
+            max-width: 400px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 38px 32px 30px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+            position: relative;
+        }
+        .dil-bar {
+            position: absolute; top: 16px; right: 16px;
+            display: flex; gap: 4px;
+        }
+        .dil-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 8px;
+            padding: 5px 8px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            line-height: 1;
+            transition: all .15s;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .dil-btn:hover { color: var(--text); border-color: var(--primary); }
+        .dil-btn.active { background: rgba(59,130,246,0.18); color: var(--text); border-color: var(--primary); }
+        .dil-bayrak { display: inline-flex; align-items: center; }
+        .logo-alan { text-align: center; margin-bottom: 26px; }
+        .logo-alan img { height: 46px; width: auto; object-fit: contain; }
+        .logo-alan h1 { font-size: 1.35rem; font-weight: 800; margin-top: 10px; letter-spacing: .3px; }
+        .logo-alan p { color: var(--muted); font-size: 0.82rem; margin-top: 4px; font-weight: 600; }
+        .alan { margin-bottom: 16px; }
+        .alan label {
+            display: block; font-size: 0.78rem; font-weight: 700;
+            color: var(--muted); margin-bottom: 7px; letter-spacing: .3px;
+        }
+        .alan input {
+            width: 100%;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            padding: 13px 14px;
+            color: var(--text);
+            font-size: 0.98rem;
+            outline: none;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .alan input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+        .btn-giris {
+            width: 100%;
+            margin-top: 8px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: #fff;
+            border: none;
+            border-radius: 11px;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .1s, filter .15s;
+        }
+        .btn-giris:hover { filter: brightness(1.08); }
+        .btn-giris:active { transform: translateY(1px); }
+        .btn-giris:disabled { opacity: .6; cursor: default; }
+        .mesaj {
+            margin-top: 16px; padding: 11px 13px; border-radius: 10px;
+            font-size: 0.86rem; font-weight: 600; display: none; text-align: center;
+        }
+        .mesaj.hata { display: block; background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+        .mesaj.ok { display: block; background: rgba(34,197,94,0.12); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+        .alt-bilgi { text-align: center; margin-top: 22px; color: var(--dim); font-size: 0.75rem; }
+        .gizli { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="giris-kart">
+        <div class="dil-bar" id="dil-bar">
+            <!-- Windows bayrak emojisi gostermez → gercek SVG bayraklar (2026-07-21) -->
+            <button class="dil-btn" data-dil="tr"><span class="dil-bayrak"><svg viewBox="0 0 18 12" width="18" height="12" style="border-radius:2px;display:block" aria-hidden="true"><rect width="18" height="12" rx="1.5" fill="#e30a17"/><circle cx="7" cy="6" r="3" fill="#fff"/><circle cx="7.9" cy="6" r="2.4" fill="#e30a17"/><polygon points="11.6,4.6 12.02,5.52 13.02,5.57 12.26,6.24 12.5,7.2 11.6,6.68 10.7,7.2 10.94,6.24 10.18,5.57 11.18,5.52" fill="#fff"/></svg></span>TR</button>
+            <button class="dil-btn" data-dil="en"><span class="dil-bayrak"><svg viewBox="0 0 18 12" width="18" height="12" style="border-radius:2px;display:block" aria-hidden="true"><rect width="18" height="12" rx="1.5" fill="#012169"/><path d="M0 0l18 12M18 0L0 12" stroke="#fff" stroke-width="2.4"/><path d="M0 0l18 12M18 0L0 12" stroke="#C8102E" stroke-width="1"/><rect x="7.1" width="3.8" height="12" fill="#fff"/><rect y="4.1" width="18" height="3.8" fill="#fff"/><rect x="8" width="2" height="12" fill="#C8102E"/><rect y="5" width="18" height="2" fill="#C8102E"/></svg></span>EN</button>
+            <button class="dil-btn" data-dil="it"><span class="dil-bayrak"><svg viewBox="0 0 18 12" width="18" height="12" style="border-radius:2px;display:block" aria-hidden="true"><rect width="18" height="12" rx="1.5" fill="#fff"/><rect width="6" height="12" fill="#009246"/><rect x="12" width="6" height="12" fill="#ce2b37"/></svg></span>IT</button>
+        </div>
+
+        <div class="logo-alan">
+            <img src="/logo?tema=koyu" alt="Cofle" onerror="this.style.display='none'">
+            <h1>Cofle Manage</h1>
+            <p data-i18n="altbaslik">Yönetici Paneli</p>
+        </div>
+
+        <!-- GİRİŞ FORMU -->
+        <form id="form-giris">
+            <div class="alan">
+                <label data-i18n="kullanici">Kullanıcı Adı</label>
+                <input type="text" id="kullanici_adi" autocomplete="username" autofocus
+                       data-i18n-ph="kullanici_ph" placeholder="ör. emre.dogutekin">
+            </div>
+            <div class="alan">
+                <label data-i18n="sifre">Şifre</label>
+                <input type="password" id="sifre" autocomplete="current-password"
+                       data-i18n-ph="sifre_ph" placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn-giris" id="btn-giris" data-i18n="giris_btn">Giriş Yap</button>
+        </form>
+
+        <!-- ŞİFRE DEĞİŞTİRME (geçici şifreyle ilk giriş) -->
+        <form id="form-sifre" class="gizli">
+            <div class="alan">
+                <label data-i18n="yeni_sifre">Yeni Şifre</label>
+                <input type="password" id="yeni_sifre" autocomplete="new-password"
+                       data-i18n-ph="yeni_sifre_ph" placeholder="En az 6 karakter">
+            </div>
+            <div class="alan">
+                <label data-i18n="yeni_sifre2">Yeni Şifre (Tekrar)</label>
+                <input type="password" id="yeni_sifre2" autocomplete="new-password"
+                       data-i18n-ph="yeni_sifre_ph" placeholder="En az 6 karakter">
+            </div>
+            <button type="submit" class="btn-giris" id="btn-sifre" data-i18n="sifre_kaydet">Şifreyi Kaydet ve Gir</button>
+        </form>
+
+        <div class="mesaj" id="mesaj"></div>
+        <div class="alt-bilgi">© Cofle Manage · Üretim Takip Sistemi</div>
+    </div>
+
+    <script>
+    (function () {
+        var SOZLUK = {
+            tr: {
+                altbaslik: 'Yönetici Paneli', kullanici: 'Kullanıcı Adı', sifre: 'Şifre',
+                giris_btn: 'Giriş Yap', kullanici_ph: 'ör. emre.dogutekin', sifre_ph: '••••••••',
+                yeni_sifre: 'Yeni Şifre', yeni_sifre2: 'Yeni Şifre (Tekrar)', yeni_sifre_ph: 'En az 6 karakter',
+                sifre_kaydet: 'Şifreyi Kaydet ve Gir',
+                bos: 'Kullanıcı adı ve şifre giriniz', giris_yapiliyor: 'Giriş yapılıyor…',
+                sifre_uyar: 'İlk giriş: lütfen yeni bir şifre belirleyin',
+                sifre_kisa: 'Şifre en az 6 karakter olmalı', sifre_uyusmaz: 'Şifreler uyuşmuyor',
+                kaydediliyor: 'Kaydediliyor…', basarili: 'Giriş başarılı, yönlendiriliyorsunuz…',
+                sunucu_hata: 'Sunucu hatası, tekrar deneyin'
+            },
+            en: {
+                altbaslik: 'Admin Panel', kullanici: 'Username', sifre: 'Password',
+                giris_btn: 'Sign In', kullanici_ph: 'e.g. emre.dogutekin', sifre_ph: '••••••••',
+                yeni_sifre: 'New Password', yeni_sifre2: 'New Password (Repeat)', yeni_sifre_ph: 'At least 6 characters',
+                sifre_kaydet: 'Save Password & Enter',
+                bos: 'Enter username and password', giris_yapiliyor: 'Signing in…',
+                sifre_uyar: 'First login: please set a new password',
+                sifre_kisa: 'Password must be at least 6 characters', sifre_uyusmaz: 'Passwords do not match',
+                kaydediliyor: 'Saving…', basarili: 'Login successful, redirecting…',
+                sunucu_hata: 'Server error, please try again'
+            },
+            it: {
+                altbaslik: 'Pannello Admin', kullanici: 'Nome utente', sifre: 'Password',
+                giris_btn: 'Accedi', kullanici_ph: 'es. emre.dogutekin', sifre_ph: '••••••••',
+                yeni_sifre: 'Nuova Password', yeni_sifre2: 'Nuova Password (Ripeti)', yeni_sifre_ph: 'Almeno 6 caratteri',
+                sifre_kaydet: 'Salva Password ed Entra',
+                bos: 'Inserisci nome utente e password', giris_yapiliyor: 'Accesso in corso…',
+                sifre_uyar: 'Primo accesso: imposta una nuova password',
+                sifre_kisa: 'La password deve avere almeno 6 caratteri', sifre_uyusmaz: 'Le password non coincidono',
+                kaydediliyor: 'Salvataggio…', basarili: 'Accesso riuscito, reindirizzamento…',
+                sunucu_hata: 'Errore del server, riprova'
+            }
+        };
+        var DIL = localStorage.getItem('app_dil') || 'tr';
+        if (!SOZLUK[DIL]) DIL = 'tr';
+
+        function T(k) { return (SOZLUK[DIL] && SOZLUK[DIL][k]) || (SOZLUK.tr[k] || k); }
+        function ceviriUygula() {
+            document.documentElement.setAttribute('lang', DIL);
+            document.querySelectorAll('[data-i18n]').forEach(function (el) {
+                el.textContent = T(el.getAttribute('data-i18n'));
+            });
+            document.querySelectorAll('[data-i18n-ph]').forEach(function (el) {
+                el.setAttribute('placeholder', T(el.getAttribute('data-i18n-ph')));
+            });
+            document.querySelectorAll('.dil-btn').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-dil') === DIL);
+            });
+        }
+        document.getElementById('dil-bar').addEventListener('click', function (e) {
+            var b = e.target.closest('.dil-btn'); if (!b) return;
+            DIL = b.getAttribute('data-dil');
+            localStorage.setItem('app_dil', DIL);
+            ceviriUygula();
+        });
+
+        var mesajEl = document.getElementById('mesaj');
+        function mesaj(txt, tip) {
+            mesajEl.textContent = txt;
+            mesajEl.className = 'mesaj ' + (tip || 'hata');
+        }
+        function mesajTemizle() { mesajEl.className = 'mesaj'; mesajEl.textContent = ''; }
+
+        var formGiris = document.getElementById('form-giris');
+        var formSifre = document.getElementById('form-sifre');
+        var btnGiris = document.getElementById('btn-giris');
+        var btnSifre = document.getElementById('btn-sifre');
+
+        formGiris.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var ka = document.getElementById('kullanici_adi').value.trim();
+            var sf = document.getElementById('sifre').value;
+            if (!ka || !sf) { mesaj(T('bos')); return; }
+            mesajTemizle();
+            btnGiris.disabled = true; btnGiris.textContent = T('giris_yapiliyor');
+            fetch('/api/panel/giris', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kullanici_adi: ka, sifre: sf })
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+              .then(function (res) {
+                btnGiris.disabled = false; btnGiris.textContent = T('giris_btn');
+                if (!res.ok) { mesaj(res.d.hata || T('sunucu_hata')); return; }
+                if (res.d.kullanici && res.d.kullanici.sifre_gecici) {
+                    // Geçici şifre → değiştirmeye zorla
+                    formGiris.classList.add('gizli');
+                    formSifre.classList.remove('gizli');
+                    mesaj(T('sifre_uyar'), 'ok');
+                    document.getElementById('yeni_sifre').focus();
+                    return;
+                }
+                mesaj(T('basarili'), 'ok');
+                window.location.href = '/dashboard';
+            }).catch(function () {
+                btnGiris.disabled = false; btnGiris.textContent = T('giris_btn');
+                mesaj(T('sunucu_hata'));
+            });
+        });
+
+        formSifre.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var y1 = document.getElementById('yeni_sifre').value;
+            var y2 = document.getElementById('yeni_sifre2').value;
+            if (y1.length < 6) { mesaj(T('sifre_kisa')); return; }
+            if (y1 !== y2) { mesaj(T('sifre_uyusmaz')); return; }
+            mesajTemizle();
+            btnSifre.disabled = true; btnSifre.textContent = T('kaydediliyor');
+            // Oturum zaten açık (giriş başarılıydı); eski şifre = giriş ekranında girilen
+            fetch('/api/panel/sifre_degistir', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eski_sifre: document.getElementById('sifre').value, yeni_sifre: y1 })
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+              .then(function (res) {
+                btnSifre.disabled = false; btnSifre.textContent = T('sifre_kaydet');
+                if (!res.ok) { mesaj(res.d.hata || T('sunucu_hata')); return; }
+                mesaj(T('basarili'), 'ok');
+                window.location.href = '/dashboard';
+            }).catch(function () {
+                btnSifre.disabled = false; btnSifre.textContent = T('sifre_kaydet');
+                mesaj(T('sunucu_hata'));
+            });
+        });
+
+        ceviriUygula();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+TEYIT: launch 26-146167 / 10.300.0853G / 186 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  146167  Ass. 10.300.0853G                   Ord.Qty       500,000
+ 4|  Job                       84583500 ORTALAMA MEKANIZMASI  Rem.Qty       200,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0247956   01D   RPR  22/07/26                 AD       300,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 → F10 (yeni satir)
+OK: adet 186 girildi, bayrak A: ' 1   200                 01D   RPR  22/07/26                 AD           186 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  146167  Ass. 10.300.0853G                   Ord.Qty       500,000
+ 4|  Job                       84583500 ORTALAMA MEKANIZMASI  Rem.Qty       200,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0247956   01D   RPR  22/07/26                 AD       300,000 A
+ 7|  1   200                 01D   RPR  22/07/26                 AD           186 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 186
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  146167 Ass.cd  10.300.0853G             Conf.qty       186,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.2209           REP AD     975,000    2000,000     800,000    744,000 A
+ 7|    11087676 ANELLO ELASTICO 3 PUN War.cau. SPR Um     Rej.qty
+ 8|    10.300.0369           REP AD     460,000    1000,000     400,000    372,000 A
+ 9|    84583955 ARM ROLLER �:12 H:6,1 War.cau. SPR Um     Rej.qty
+10|    10.300.0735           REP AD     200,000     500,000     200,000    186,000 A
+11|    84583948 SAG KOL               War.cau. SPR Um     Rej.qty
+12|    10.300.0735A          REP AD     260,000     500,000     200,000    186,000 A
+13|    84583949 SOL KOL               War.cau. SPR Um     Rej.qty
+14|    10.300.0853           REP AD     200,000     500,000     200,000    186,000 A
+15|    84583959 PAN,ROCKER ARMS       War.cau. SPR Um     Rej.qty
+16|    10.300.0854           REP AD     400,000    1000,000     400,000    372,000 A
+17|    84583956 ROCKER ARM, PIN       War.cau. SPR Um     Rej.qty
+18|    10.300.0969           REP AD     460,000    1000,000     400,000    372,000 A
+19|    84583922 YAY                   War.cau. SPR Um     Rej.qty
+20|    10.300.0972           REP AD     400,000    1000,000     400,000    372,000 A
+21|    RONDELA                        War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       23/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  146167 Ass.cd  10.300.0853G             Conf.qty       186,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.2209           REP AD     975,000    2000,000     800,000    744,000 A
+ 7|    11087676 ANEL
+ 8|    10.300.0369                                                0,000    372,000 A
+ 9|    84583955 ARM      Data movimento     23   7  26
+10|    10.300.0735       Tipo costo         S      S/C/L/P/U/M    0,000    186,000 A
+11|    84583948 SAG      Costo                     227,463266
+12|    10.300.0735A                                               0,000    186,000 A
+13|    84583949 SOL    F06=Conferma
+14|    10.300.0853                                                0,000    186,000 A
+15|    84583959 PAN,ROCKER ARMS       War.cau. SPR Um     Rej.qty
+16|    10.300.0854           REP AD     400,000    1000,000     400,000    372,000 A
+17|    84583956 ROCKER ARM, PIN       War.cau. SPR Um     Rej.qty
+18|    10.300.0969           REP AD     460,000    1000,000     400,000    372,000 A
+19|    84583922 YAY                   War.cau. SPR Um     Rej.qty
+20|    10.300.0972           REP AD     400,000    1000,000     400,000    372,000 A
+21|    RONDELA                        War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

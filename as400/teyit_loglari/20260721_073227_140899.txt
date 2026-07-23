@@ -1,0 +1,71 @@
+TEYIT: launch 26-140899 / 10.300.2060-S / 186 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  140899  Ass. 10.300.2060-S                  Ord.Qty       660,000
+ 4|  Job                       AYAK GAZI KUTU ACINIM SACI     Rem.Qty       412,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0243604   MT2   RPR  17/07/26                 AD       248,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 → F10 (yeni satir)
+OK: adet 186 girildi, bayrak A: ' 1   200                 MT2   RPR  17/07/26                 AD           186 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  140899  Ass. 10.300.2060-S                  Ord.Qty       660,000
+ 4|  Job                       AYAK GAZI KUTU ACINIM SACI     Rem.Qty       412,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0243604   MT2   RPR  17/07/26                 AD       248,000 A
+ 7|  1   200                 MT2   RPR  17/07/26                 AD           186 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 186
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  140899 Ass.cd  10.300.2060-S            Conf.qty       186,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.030-S235       REP KG     679,800    1089,000     679,800    306,900 A
+ 7|    3 mm S235 SAC 1500*3000*3      War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  140899 Ass.cd  10.300.2060-S            Conf.qty       186,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.030-S235       REP KG     679,800    1089,000     679,800    306,900 A
+ 7|    3 mm S235 SAC
+ 9|                      Data movimento     21   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      63,558851
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+HATA: F6 sonrasi ekran DEGISMEDI — teyit islenmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  140899 Ass.cd  10.300.2060-S            Conf.qty       186,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.030-S235       REP KG     679,800    1089,000     679,800    306,900 A
+ 7|    3 mm S235 SAC
+ 9|                      Data movimento     21   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      63,558851
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+SONUC=IPTAL

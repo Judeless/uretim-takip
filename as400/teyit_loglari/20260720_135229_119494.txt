@@ -1,0 +1,155 @@
+TEYIT: launch 26-119494 / 10.300.2757W-10 / 39 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  119494  Ass. 10.300.2757W-10                Ord.Qty       605,000
+ 4|  Job      26/0119494       KAYNAKLI BOYASIZ GOVDE         Rem.Qty        36,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0208187   MT2   RPR  19/06/26                 AD        34,000 A
+ 7|      200    26 0209903   MT2   RPR  22/06/26                 AD        53,000 A
+ 8|      300    26 0211364   MT2   RPR  23/06/26                 AD        58,000 A
+ 9|      400    26 0213096   MT2   RPR  24/06/26                 AD        11,000 A
+10|      500    26 0215045   MT2   RPR  25/06/26                 AD        57,000 A
+11|      600    26 0230234   MT2   RPR   7/07/26                 AD         7,000 A
+12|      700    26 0232133   MT2   RPR   8/07/26                 AD        52,000 A
+13|      800    26 0234227   MT2   RPR   9/07/26                 AD        54,000 A
+14|      900    26 0235655   MT2   RPR  10/07/26                 AD        52,000 A
+15|     1000    26 0237171   MT2   RPR  13/07/26                 AD        11,000 A
+16|     1100    26 0238821   MT2   RPR  14/07/26                 AD        54,000 A
+17|     1200    26 0240254   MT2   RPR  16/07/26                 AD        68,000 A
+18|     1300    26 0242383   MT2   RPR  17/07/26                 AD        57,000 A
+19|     1400    26 0243907   MT2   RPR  17/07/26                 AD         1,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 14 → F10 (yeni satir)
+OK: adet 39 girildi, bayrak S: ' 1  1500                 MT2   RPR  17/07/26                 AD            39 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  119494  Ass. 10.300.2757W-10                Ord.Qty       605,000
+ 4|  Job      26/0119494       KAYNAKLI BOYASIZ GOVDE         Rem.Qty        36,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0208187   MT2   RPR  19/06/26                 AD        34,000 A
+ 7|      200    26 0209903   MT2   RPR  22/06/26                 AD        53,000 A
+ 8|      300    26 0211364   MT2   RPR  23/06/26                 AD        58,000 A
+ 9|      400    26 0213096   MT2   RPR  24/06/26                 AD        11,000 A
+10|      500    26 0215045   MT2   RPR  25/06/26                 AD        57,000 A
+11|      600    26 0230234   MT2   RPR   7/07/26                 AD         7,000 A
+12|      700    26 0232133   MT2   RPR   8/07/26                 AD        52,000 A
+13|      800    26 0234227   MT2   RPR   9/07/26                 AD        54,000 A
+14|      900    26 0235655   MT2   RPR  10/07/26                 AD        52,000 A
+15|     1000    26 0237171   MT2   RPR  13/07/26                 AD        11,000 A
+16|     1100    26 0238821   MT2   RPR  14/07/26                 AD        54,000 A
+17|     1200    26 0240254   MT2   RPR  16/07/26                 AD        68,000 A
+18|     1300    26 0242383   MT2   RPR  17/07/26                 AD        57,000 A
+19|     1400    26 0243907   MT2   RPR  17/07/26                 AD         1,000 A
+20|  1  1500                 MT2   RPR  17/07/26                 AD            39 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE → F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  119494  Ass. 10.300.2757W-10                Ord.Qty       605,000
+ 4|  Job      26/0119494       KAYNAKLI BOYASIZ GOVDE         Rem.Qty        36,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0208187   MT2   RPR  19/06/26                 AD        34,000 A
+ 7|      200    26 0209903   MT2   RPR  22/06/26                 AD        53,000 A
+ 8|      300    26 0211364   MT2   RPR  23/06/26                 AD        58,000 A
+ 9|      400    26 0213096   MT2   RPR  24/06/26                 AD        11,000 A
+10|      500    26 0215045   MT2   RPR  25/06/26                 AD        57,000 A
+11|      600    26 0230234   MT2   RPR   7/07/26                 AD         7,000 A
+12|                                  CHECK QUADRATURE                             A
+13|                                **F R O M  D E F I N I T I V E  D A T A **     A
+14|             Tot.confirmed          Tot.produced           Tot.rejected        A
+15|                     608,000                608,000                            A
+16|            Qty in order                                                       A
+17|                     605,000    Movements in warehouse to adjust   S/N:  S     A
+18|                                                                               A
+19|        F03=Exit    F06=Confirm                                                A
+20|  1                                                                            S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 39
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  119494 Ass.cd  10.300.2757W-10          Conf.qty        39,000
+ 4|  Progress.       1500
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.2757A-10       REP AD      36,000     605,000      36,000     39,000 S
+ 7|    BRACKET                        War.cau. SPR Um     Rej.qty
+ 8|    10.300.2757B-10       REP AD      72,000    1210,000      72,000     78,000 S
+ 9|    PIN D=8*45                     War.cau. SPR Um     Rej.qty
+10|    10.300.2757C          REP AD      36,000     605,000      36,000     39,000 S
+11|    PIN 14*22                      War.cau. SPR Um     Rej.qty
+12|    10.300.2757D          REP AD      36,000     605,000      36,000     39,000 S
+13|    PIN 14*73,5                    War.cau. SPR Um     Rej.qty
+14|    10.300.2757E          REP AD      36,000     605,000      36,000     39,000 S
+15|    BUKUMLU L                      War.cau. SPR Um     Rej.qty
+16|    10.300.2757F          REP AD      36,000     605,000      36,000     39,000 S
+17|    RIB.22*22*3                    War.cau. SPR Um     Rej.qty
+18|    10.300.2757H          REP AD     144,000    2420,000     144,000    156,000 S
+19|    SPACER D=28*14                 War.cau. SPR Um     Rej.qty
+20|    10.300.0656           REP AD     460,000    3630,000     216,000    234,000 S
+21|    M6 KAYNAK SOMUNU DIN929        War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+Stok yetersiz (ozet) → F23 (force, tek sefer)
+---------- EKRAN [f23-ozet-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  119494 Ass.cd  10.300.2757W-10          Conf.qty        39,000
+ 4|  Progress.       1500
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.2757A-10       REP AD      36,000     605,000      36,000     39,000 S
+ 7|    BRACKET                        War.cau. SPR Um     Rej.qty
+ 8|    10.300.2757B-10       REP AD      72,000    1210,000      72,000     78,000 S
+ 9|    PIN D=8*45                     War.cau. SPR Um     Rej.qty
+10|    10.300.2757C          REP AD      36,000     605,000      36,000     39,000 S
+11|    PIN 14*22                      War.cau. SPR Um     Rej.qty
+12|    10.300.2757D          REP AD      36,000     605,000      36,000     39,000 S
+13|    PIN 14*73,5                    War.cau. SPR Um     Rej.qty
+14|    10.300.2757E          REP AD      36,000     605,000      36,000     39,000 S
+15|    BUKUMLU L                      War.cau. SPR Um     Rej.qty
+16|    10.300.2757F          REP AD      36,000     605,000      36,000     39,000 S
+17|    RIB.22*22*3                    War.cau. SPR Um     Rej.qty
+18|    10.300.2757H          REP AD     144,000    2420,000     144,000    156,000 S
+19|    SPACER D=28*14                 War.cau. SPR Um     Rej.qty
+20|    10.300.0656           REP AD     460,000    3630,000     216,000    234,000 S
+21|    M6 KAYNAK SOMUNU DIN929        War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force               +
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim3] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  119494 Ass.cd  10.300.2757W-10          Conf.qty        39,000
+ 4|  Progress.       1500
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.2757A-10       REP AD      36,000     605,000      36,000     39,000 S
+ 7|    BRACKET
+ 8|    10.300.2757B-                                              2,000     78,000 S
+ 9|    PIN D=8*45        Data movimento     20   7  26
+10|    10.300.2757C      Tipo costo         S      S/C/L/P/U/M    6,000     39,000 S
+11|    PIN 14*22         Costo                     354,207965
+12|    10.300.2757D                                               6,000     39,000 S
+13|    PIN 14*73,5     F06=Conferma
+14|    10.300.2757E                                               6,000     39,000 S
+15|    BUKUMLU L                      War.cau. SPR Um     Rej.qty
+16|    10.300.2757F          REP AD      36,000     605,000      36,000     39,000 S
+17|    RIB.22*22*3                    War.cau. SPR Um     Rej.qty
+18|    10.300.2757H          REP AD     144,000    2420,000     144,000    156,000 S
+19|    SPACER D=28*14                 War.cau. SPR Um     Rej.qty
+20|    10.300.0656           REP AD     460,000    3630,000     216,000    234,000 S
+21|    M6 KAYNAK SOMUNU DIN929        War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force               +
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

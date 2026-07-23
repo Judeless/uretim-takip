@@ -3,10 +3,13 @@
 data/uretim_verileri.xlsx dosyasından referansları ve operatörleri
 uretim.db veritabanına aktarır.
 
-Excel yapısı (6 sayfa):
-  - Kaynak Referans   | Kaynak Operator
-  - Montaj Referans   | Montaj Operator
-  - Metal Referans    | Metal Operator
+Excel yapısı (bölüm başına referans + operatör sayfası):
+  - Kaynak Referans      | Kaynak Operator
+  - Montaj Referans      | Montaj Operator
+  - Metal Referans       | Metal Operator
+  - İşleme Referans      | İşleme Operatör
+  - Lazer Referans       | Lazer Operatör
+  - Pres Abkant Referans | Pres Abkant Operatör
 
 Her referans sayfası: 1. sütun kod, 2. sütun cycle time (sn).
 Her operator sayfası: 2. sütun operatör adı (1. sütun No).
@@ -23,39 +26,67 @@ BOLUM_SAYFA = {
     'kaynak': {'ref': 'Kaynak Referans', 'op': 'Kaynak Operator'},
     'montaj': {'ref': 'Montaj Referans', 'op': 'Montaj Operator'},
     'metal':  {'ref': 'Metal Referans',  'op': 'Metal Operator'},
+    # Yeni TK2 bölümleri (2026-07): iş takibi/sayaç/andon YOK — sadece vardiya + üretim girişi.
+    # Sayfa adları Excel'dekiyle BAYT-BAYT aynı olmalı (yenilerde Türkçe 'Operatör', eskilerde ASCII 'Operator').
+    'isleme': {'ref': 'İşleme Referans',      'op': 'İşleme Operatör'},
+    'lazer':  {'ref': 'Lazer Referans',       'op': 'Lazer Operatör'},
+    'pres':   {'ref': 'Pres Abkant Referans', 'op': 'Pres Abkant Operatör'},
 }
 
-# Bölüm bazlı duruş sebepleri sayfaları
+# Bölüm bazlı duruş sebepleri sayfaları.
+# Yeni bölümlerin sayfası Excel'de henüz yok → durus_sebepleri_yukle sayfa bulunamazsa
+# 'Montaj Duruş Listesi'ne düşer (genel sebepler). Kendi sayfası eklenirse otomatik kullanılır.
 BOLUM_DURUS_SAYFA = {
     'kaynak': 'Robotik Kaynak Duruş Listesi',
     'montaj': 'Montaj Duruş Listesi',
     'metal':  'Metal Enjeksiyon Duruş Listesi',
+    'isleme': 'İşleme Duruş Listesi',
+    'lazer':  'Lazer Duruş Listesi',
+    'pres':   'Pres Abkant Duruş Listesi',
 }
 
 # Ek sayfalar (kaynak bölümüne özel — diğer bölümler için gerekmez)
 ROBOT_PROGRAM_SAYFA = 'Robot Program Listesi'
 FIKSTUR_RAF_SAYFA   = 'Fikstür Raf Listesi'
 
+# ── TK1 (yan tesis) — ayrı Excel, montaj mantığı, lokasyon='TK1' ──
+TK1_EXCEL_YOL = os.path.join(PROJECT_DIR, 'data', 'Tk1 Veriler.xlsx')
+TK1_SAYFA = {
+    'ref':   'Refernaslar',     # tek kolon 'Ürün Kodu' (sayfa adı Excel'de bu typo ile)
+    'op':    'Operatörler',     # BAŞLIK SATIRI YOK — row 0 = ilk operatör
+    'durus': 'Duruş Listesi',   # No | Duruş Listesi | Planlı/Plansız
+}
 
-def durus_sebepleri_yukle(bolum):
-    """data/uretim_verileri.xlsx içinden bölüme ait duruş sebeplerini okur.
+
+def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
+    """Bölüme (TK2) veya lokasyona (TK1) ait duruş sebeplerini Excel'den okur.
 
     Sayfa formatı: No | Duruş Listesi | Planlı/Plansız
     Döner: [{'sebep': str, 'tip': 'planli'|'plansiz'}, ...]
 
-    Excel veya sayfa yoksa boş liste döner (frontend fallback'e güveneceğinden değil,
-    hatayı görsün diye).
+    TK1 → data/Tk1 Veriler.xlsx 'Duruş Listesi' (bolum'dan bağımsız, tek liste).
+    TK2 (default) → data/uretim_verileri.xlsx, bolum-spesifik sayfa.
+    Excel/sayfa yoksa boş liste.
     """
-    if bolum not in BOLUM_DURUS_SAYFA:
-        return []
-    if not os.path.exists(EXCEL_YOL):
+    if (lokasyon or 'TK2').upper() == 'TK1':
+        excel_yol = TK1_EXCEL_YOL
+        sayfa_adi = TK1_SAYFA['durus']
+    else:
+        if bolum not in BOLUM_DURUS_SAYFA:
+            return []
+        excel_yol = EXCEL_YOL
+        sayfa_adi = BOLUM_DURUS_SAYFA[bolum]
+    if not os.path.exists(excel_yol):
         return []
 
-    sayfa_adi = BOLUM_DURUS_SAYFA[bolum]
     try:
-        wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
+        wb = openpyxl.load_workbook(excel_yol, data_only=True)
         if sayfa_adi not in wb.sheetnames:
-            return []
+            # Bölümün kendi duruş sayfası yoksa genel listeye düş (yeni bölümler:
+            # işleme/lazer/pres — Excel'e kendi sayfaları eklenince otomatik geçilir).
+            sayfa_adi = BOLUM_DURUS_SAYFA.get('montaj', '')
+            if sayfa_adi not in wb.sheetnames:
+                return []
         ws = wb[sayfa_adi]
         sonuc = []
         for i, row in enumerate(ws.iter_rows(values_only=True)):
@@ -104,8 +135,10 @@ def _bolum_import(conn, wb, bolum):
     excel_kodlari_norm = set()
 
     # Kaynak bölümü için Excel artık 4 kolon: Kod | Kaynak Süresi | Söktak Süresi | Toplam Cycle
-    # Montaj/Metal için eski 2 kolon: Kod | Cycle Time (tek değer)
+    # Pres Abkant 3 kolon: Kod | Açıklama | Süre (operatör mobilde açıklamayı görür)
+    # Montaj/Metal/diğerleri eski 2 kolon: Kod | Cycle Time (tek değer)
     kaynak_modu = (bolum == 'kaynak')
+    pres_modu = (bolum == 'pres')
 
     for i, row in enumerate(ref_sayfa.iter_rows(values_only=True)):
         if i == 0:
@@ -120,6 +153,7 @@ def _bolum_import(conn, wb, bolum):
         kaynak_sn = 0.0
         soktak_sn = 0.0
         cycle = 0.0
+        aciklama = ''
         if kaynak_modu:
             # B = Kaynak Süresi, C = Söktak Süresi, D = Toplam (formül)
             try:
@@ -131,8 +165,15 @@ def _bolum_import(conn, wb, bolum):
             except (ValueError, TypeError):
                 soktak_sn = 0.0
             cycle = round(kaynak_sn + soktak_sn, 2)
+        elif pres_modu:
+            # B = Açıklama (metin), C = Süre
+            aciklama = str(row[1]).strip() if (len(row) > 1 and row[1] is not None) else ''
+            try:
+                cycle = float(row[2]) if (len(row) > 2 and row[2] is not None) else 0.0
+            except (ValueError, TypeError):
+                cycle = 0.0
         else:
-            # Montaj/Metal — tek değer
+            # Montaj/Metal/diğerleri — tek değer
             try:
                 cycle = float(row[1]) if (len(row) > 1 and row[1] is not None) else 0.0
             except (ValueError, TypeError):
@@ -140,34 +181,57 @@ def _bolum_import(conn, wb, bolum):
 
         excel_kodlari_norm.add(kod.upper().replace(' ', ''))
 
+        # LOKASYON GÜVENLİĞİ: _bolum_import YALNIZCA TK2 Excel'ini (EXCEL_YOL) işler.
+        # Tüm referans_listesi okuma/yazma işlemleri lokasyon='TK2' ile kapatılır ki
+        # TK2 import'u TK1 (yan tesis) kayıtlarını eşleştirip ezmesin/silmesin.
+        # BÖLÜM KAPSAMASI: UNIQUE(referans_kodu, bolum, lokasyon) sonrası aynı kod birden
+        # fazla bölümde farklı süreyle yaşayabilir (16 kod metal+işleme'de ortak) —
+        # eşleştirme ve cycle geri-yayılımı bu bölümün satırı/vardiyalarıyla sınırlı,
+        # yoksa bölümler birbirinin kaydını çalar/cycle'ını ezer.
+        # TAM-EŞ TERCİHİ: DB'de aynı koda normalize olan birden fazla yazım varyantı
+        # olabilir (eski auto-create kalıntısı: '94.LTK.10' + '94.ltk.10'). Excel'deki
+        # yazımla birebir eşleşen satır varsa ONU güncelle — yoksa varyantı Excel
+        # yazımına çevirirken tam-eş satırla UNIQUE çakışması oluşur.
         mevcut = c.execute(
             "SELECT id, referans_kodu FROM referans_listesi "
-            "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', ''))",
-            (kod,)
+            "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', '')) "
+            "AND COALESCE(bolum, 'kaynak') = ? AND COALESCE(lokasyon, 'TK2') = 'TK2' "
+            "ORDER BY (referans_kodu = ?) DESC, id LIMIT 1",
+            (kod, bolum, kod)
         ).fetchone()
 
         if mevcut:
-            c.execute(
-                'UPDATE referans_listesi SET hedef_cycle_time_sn = ?, kaynak_suresi_sn = ?, soktak_suresi_sn = ?, referans_kodu = ?, bolum = ? WHERE id = ?',
-                (cycle, kaynak_sn, soktak_sn, kod, bolum, mevcut[0])
-            )
+            if pres_modu:
+                # Pres'te açıklama Excel'den yönetilir — import her seferinde günceller
+                c.execute(
+                    'UPDATE referans_listesi SET hedef_cycle_time_sn = ?, kaynak_suresi_sn = ?, soktak_suresi_sn = ?, referans_kodu = ?, aciklama = ? WHERE id = ?',
+                    (cycle, kaynak_sn, soktak_sn, kod, aciklama, mevcut[0])
+                )
+            else:
+                # Diğer bölümlerde aciklama'ya DOKUNMA (dashboard'dan girilmiş olabilir)
+                c.execute(
+                    'UPDATE referans_listesi SET hedef_cycle_time_sn = ?, kaynak_suresi_sn = ?, soktak_suresi_sn = ?, referans_kodu = ? WHERE id = ?',
+                    (cycle, kaynak_sn, soktak_sn, kod, mevcut[0])
+                )
             if cycle > 0:
                 c.execute(
                     "UPDATE uretim_kayitlari SET cycle_time_sn = ? "
-                    "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', ''))",
-                    (cycle, kod)
+                    "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', '')) "
+                    "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon, 'TK2') = 'TK2' AND COALESCE(bolum, 'kaynak') = ?)",
+                    (cycle, kod, bolum)
                 )
             ref_guncellenen += 1
         else:
             c.execute(
-                'INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, bolum) VALUES (?, ?, ?, ?, ?)',
-                (kod, cycle, kaynak_sn, soktak_sn, bolum)
+                "INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, aciklama, bolum, lokasyon) VALUES (?, ?, ?, ?, ?, ?, 'TK2')",
+                (kod, cycle, kaynak_sn, soktak_sn, aciklama, bolum)
             )
             if cycle > 0:
                 c.execute(
                     "UPDATE uretim_kayitlari SET cycle_time_sn = ? "
-                    "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', ''))",
-                    (cycle, kod)
+                    "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', '')) "
+                    "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon, 'TK2') = 'TK2' AND COALESCE(bolum, 'kaynak') = ?)",
+                    (cycle, kod, bolum)
                 )
             ref_sayisi += 1
 
@@ -177,7 +241,8 @@ def _bolum_import(conn, wb, bolum):
     ref_silinen = 0
     if excel_kodlari_norm:
         bolum_refs = c.execute(
-            "SELECT id, referans_kodu FROM referans_listesi WHERE COALESCE(bolum, 'kaynak') = ?",
+            "SELECT id, referans_kodu FROM referans_listesi "
+            "WHERE COALESCE(bolum, 'kaynak') = ? AND COALESCE(lokasyon, 'TK2') = 'TK2'",
             (bolum,)
         ).fetchall()
         for ref_row in bolum_refs:
@@ -204,18 +269,24 @@ def _bolum_import(conn, wb, bolum):
             if not ad:
                 continue
             try:
+                # LOKASYON: TK2 import'u yalnız TK2 operatörlerine bakar/yazar —
+                # TK1'de aynı ad varsa TK2 operatörü sessizce atlanmasın (ayrı fabrika).
+                # ÇOKLU BÖLÜM: aynı kişi birden fazla bölümde çalışabilir → bölüm başına
+                # satır (UNIQUE(ad, bolum, lokasyon)). Kişi başka bölümde zaten varsa
+                # yeni bölüm satırı ONUN PIN'iyle açılır (bir kişi = tek PIN).
                 mevcut_op = c.execute(
-                    "SELECT id FROM operatorler WHERE UPPER(ad) = UPPER(?) AND bolum = ?",
+                    "SELECT id FROM operatorler WHERE UPPER(ad) = UPPER(?) AND bolum = ? AND COALESCE(lokasyon,'TK2')='TK2'",
                     (ad, bolum)
                 ).fetchone()
                 if not mevcut_op:
                     ayni_isim = c.execute(
-                        "SELECT id, bolum FROM operatorler WHERE UPPER(ad) = UPPER(?)",
+                        "SELECT id, pin FROM operatorler WHERE UPPER(ad) = UPPER(?) AND COALESCE(lokasyon,'TK2')='TK2'",
                         (ad,)
                     ).fetchone()
-                    if not ayni_isim:
-                        c.execute('INSERT INTO operatorler (ad, bolum) VALUES (?, ?)', (ad, bolum))
-                        op_sayisi += 1
+                    # conn row_factory'siz (tuple) — pin = index 1
+                    pin = (ayni_isim[1] or '0000') if ayni_isim else '0000'
+                    c.execute("INSERT INTO operatorler (ad, bolum, pin, lokasyon) VALUES (?, ?, ?, 'TK2')", (ad, bolum, pin))
+                    op_sayisi += 1
             except Exception as e:
                 print(f"  Operatör eklenemedi ({ad}): {e}")
         print(f"  Operatörler: {op_sayisi} eklendi")
@@ -228,11 +299,71 @@ def _bolum_import(conn, wb, bolum):
     }
 
 
+def import_tk1(conn=None):
+    """TK1 (yan tesis) referans + operatör verisini import eder — lokasyon='TK1', bolum='montaj'.
+
+    _bolum_import'tan AYRI (mirror-sync YOK → TK2 verisini silmez). referans_kodu global
+    UNIQUE olduğu için INSERT OR IGNORE (TK2 ile çakışan ~47 kod atlanır; kod yine elle
+    girilebilir). TK1 'Operatörler' sayfasında BAŞLIK SATIRI YOK → row 0 dahil. PIN default
+    '0000' (panelden değiştirilir). Idempotent — tekrar çalıştırılabilir.
+    """
+    kapat = False
+    if conn is None:
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        kapat = True
+    c = conn.cursor()
+    if not os.path.exists(TK1_EXCEL_YOL):
+        return {'basarili': False, 'hata': f"'{TK1_EXCEL_YOL}' bulunamadı"}
+    wb = openpyxl.load_workbook(TK1_EXCEL_YOL, data_only=True)
+
+    # ── Referanslar (tek kolon 'Ürün Kodu', row 0 = başlık) ──
+    ref_eklenen = 0
+    if TK1_SAYFA['ref'] in wb.sheetnames:
+        for i, row in enumerate(wb[TK1_SAYFA['ref']].iter_rows(values_only=True)):
+            if i == 0 or not row or row[0] is None:
+                continue
+            kod = str(row[0]).strip()
+            if not kod or len(kod) < 2:
+                continue
+            cur = c.execute(
+                "INSERT OR IGNORE INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, bolum, lokasyon) "
+                "VALUES (?, 0, 'montaj', 'TK1')",
+                (kod,)
+            )
+            ref_eklenen += cur.rowcount
+
+    # ── Operatörler (BAŞLIK YOK — row 0 = ilk operatör) ──
+    op_eklenen = 0
+    if TK1_SAYFA['op'] in wb.sheetnames:
+        for row in wb[TK1_SAYFA['op']].iter_rows(values_only=True):
+            if not row or row[0] is None:
+                continue
+            ad = str(row[0]).strip()
+            if not ad:
+                continue
+            cur = c.execute(
+                "INSERT OR IGNORE INTO operatorler (ad, pin, bolum, lokasyon) VALUES (?, '0000', 'montaj', 'TK1')",
+                (ad,)
+            )
+            op_eklenen += cur.rowcount
+
+    conn.commit()
+    if kapat:
+        conn.close()
+    print(f"[TK1] {ref_eklenen} referans + {op_eklenen} operatör eklendi (lokasyon=TK1, bolum=montaj)")
+    # NOT: referans_kodu GLOBAL UNIQUE → TK2 ile çakışan TK1 kodları INSERT OR IGNORE ile
+    # atlanır (atlanan = bu kodlar TK2'de var). Tam ayrışma için UNIQUE(referans_kodu,lokasyon)
+    # migration gerekir (bkz. lokasyon denetimi). 'referanslar_guncellenen' UI mesajı için 0.
+    return {'basarili': True, 'referanslar_eklenen': ref_eklenen,
+            'referanslar_guncellenen': 0, 'referanslar_silinen': 0,
+            'operatorler_eklenen': op_eklenen}
+
+
 def import_data(bolum=None):
     """Excel'den verileri import eder.
 
-    bolum=None  → tüm bölümler
-    bolum='kaynak' / 'montaj' / 'metal' → sadece o bölüm
+    bolum=None  → tüm bölümler (BOLUM_SAYFA anahtarları)
+    bolum='kaynak' / 'montaj' / 'metal' / 'isleme' / 'lazer' / 'pres' → sadece o bölüm
     """
     if bolum and bolum not in BOLUM_SAYFA:
         return {'basarili': False, 'hata': f"Geçersiz bölüm: {bolum}"}
@@ -240,7 +371,7 @@ def import_data(bolum=None):
     if not os.path.exists(EXCEL_YOL):
         return {'basarili': False, 'hata': f'Excel dosyası bulunamadı: {EXCEL_YOL}'}
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     c = conn.cursor()
 
     c.execute('''
@@ -390,6 +521,34 @@ def _fikstur_raf_import(conn, wb):
     return {'eklenen': eklenen}
 
 
+def kaynak_ek_import():
+    """Robot Program Listesi + Fikstür Raf sayfalarını içe alır — kaynak alanının ek
+    sayfaları. Eski 'Toplu Veri Yönetimi' panelinden taşındı: dashboard'da kaynak bölümü
+    için 'Excel'den Aktar' artık bunları da kapsar (tek buton, tek akış)."""
+    if not os.path.exists(EXCEL_YOL):
+        return {'program_eklenen': 0, 'fikstur_eklenen': 0}
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    try:
+        wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
+        sonuc = {}
+        try:
+            p = _program_listesi_import(conn, wb)
+            sonuc['program_eklenen'] = p.get('eklenen', 0)
+        except Exception as e:
+            print(f"  Robot Program HATA: {e}")
+            sonuc['program_eklenen'] = 0
+        try:
+            f = _fikstur_raf_import(conn, wb)
+            sonuc['fikstur_eklenen'] = f.get('eklenen', 0)
+        except Exception as e:
+            print(f"  Fikstür HATA: {e}")
+            sonuc['fikstur_eklenen'] = 0
+        conn.commit()
+        return sonuc
+    finally:
+        conn.close()
+
+
 def import_tum(yedek_al=False):
     """Excel'deki TÜM sayfaları okuyup DB'yi günceller:
        - Tüm bölüm referansları (cycle time)
@@ -405,7 +564,7 @@ def import_tum(yedek_al=False):
     sonuc = import_data()
 
     # Sonra ek sayfalar
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     try:
         wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
 
@@ -439,14 +598,19 @@ def import_tum(yedek_al=False):
     return sonuc
 
 
-def export_referans_cycle_times(bolum=None):
-    """DB'deki cycle_time'ları Excel'in <Bolum> Referans sayfa(lar)ına yazar.
+def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
+    """DB'deki cycle_time'ları Excel'in <Bolum> Referans sayfa(lar)ına yazar (SADECE TK2).
     Diğer veriler (operatör, duruş, program, fikstür) korunur.
+
+    lokasyon='TK1' ise ATLA: TK1 referansları cycle time kullanmaz ve ayrı dosyadadır
+    (data/Tk1 Veriler.xlsx, tek kolon) — TK1 verisi TK2 Excel'ine sızmamalı.
     """
+    if (lokasyon or 'TK2').upper() == 'TK1':
+        return {'basarili': True, 'atlandi': 'TK1 (cycle time export yok)', 'yazilan': 0}
     if not os.path.exists(EXCEL_YOL):
         return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     bolum_listesi = [bolum] if bolum else list(BOLUM_SAYFA.keys())
     toplam_yazilan = 0
@@ -457,39 +621,75 @@ def export_referans_cycle_times(bolum=None):
         if sayfa_adi not in wb.sheetnames:
             continue
         ws = wb[sayfa_adi]
-        # Mevcut Excel satırlarını oku, kod → satır map'i
+        kaynak_modu = (b == 'kaynak')
+        # Mevcut Excel satırlarını oku, kod → (satır, sayfadaki ham yazım) map'i
         kod_satir = {}
         for i, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if i == 1: continue  # Başlık
             if not row or row[0] is None: continue
             kod = str(row[0]).strip()
-            kod_satir[kod.upper().replace(' ', '')] = i
+            kod_satir[kod.upper().replace(' ', '')] = (i, kod)
 
-        # DB'deki bu bölüme ait referansları çek
+        # DB'deki bu bölüme ait referansları çek — SADECE TK2 (TK1 ayrı dosyada/cycle'sız).
+        # SÜRESİZLER (ct=0/NULL) HARİÇ: Excel resmî/tanımlı referans listesidir; operatör
+        # üretim girişinden auto-create ile doğan "Süre Tanımı Bekleyen" kodlar Excel'e
+        # YAZILMAZ (yeni satır olarak eklenmez, Excel'de zaten varsa değeri de ezilmez).
+        # Süre tanımlanınca (ct>0) bir sonraki sync'te Excel'e girer.
         db_rows = conn.execute(
-            "SELECT referans_kodu, hedef_cycle_time_sn FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? ORDER BY referans_kodu",
+            "SELECT referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, "
+            "COALESCE(sure_teyit,0) as sure_teyit, COALESCE(aciklama,'') as aciklama FROM referans_listesi "
+            "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')='TK2' "
+            "AND COALESCE(hedef_cycle_time_sn,0) > 0 ORDER BY referans_kodu",
             (b,)
         ).fetchall()
 
+        # Kaynak sayfası 4+1 kolonlu: Kod | Kaynak(B) | Söktak(C) | Toplam(D formül) | Süre Teyit(E)
+        # (ESKİ BUG: her bölümde B'ye toplam cycle yazılıyordu — kaynakta B=Kaynak Süresi
+        #  kolonunu eziyordu. Montaj/metal 2 kolonlu: Kod | Cycle(B) — o davranış doğru.)
+        if kaynak_modu and (ws.cell(row=1, column=5).value or '') == '':
+            ws.cell(row=1, column=5, value='Süre Teyit')
+
         yazilan = 0
+        # Aynı koda normalize olan birden fazla DB satırı (eski yazım varyantları:
+        # '94.LTK.10' + '94.ltk.10') aynı Excel satırına düşer — sayfadaki yazımla
+        # birebir eşleşen satır ÖNCELİKLİDİR; bayat varyantın taze değeri ezmesine izin verme.
+        yazilan_norm = {}
         for r in db_rows:
             kod = (r['referans_kodu'] or '').strip()
             norm = kod.upper().replace(' ', '')
             if norm in kod_satir:
-                # Mevcut satırın 2. kolonunu güncelle
-                ws.cell(row=kod_satir[norm], column=2, value=r['hedef_cycle_time_sn'] or 0)
-                yazilan += 1
+                ri, sayfa_kod = kod_satir[norm]
+                tam_es = (kod == sayfa_kod)
             else:
-                # Yeni satır — sonuna ekle
-                yeni_r = ws.max_row + 1
-                ws.cell(row=yeni_r, column=1, value=kod)
-                ws.cell(row=yeni_r, column=2, value=r['hedef_cycle_time_sn'] or 0)
-                yazilan += 1
+                ri = ws.max_row + 1
+                ws.cell(row=ri, column=1, value=kod)
+                kod_satir[norm] = (ri, kod)
+                tam_es = True
+            if yazilan_norm.get(norm) and not tam_es:
+                continue  # bu koda tam-eş (veya ilk) yazım zaten yazıldı — varyantla ezme
+            if kaynak_modu:
+                ws.cell(row=ri, column=2, value=r['kaynak_suresi_sn'] or 0)
+                ws.cell(row=ri, column=3, value=r['soktak_suresi_sn'] or 0)
+                ws.cell(row=ri, column=4, value=f'=B{ri}+C{ri}')
+                ws.cell(row=ri, column=5, value='EVET' if r['sure_teyit'] else '')
+            elif b == 'pres':
+                # Pres 3 kolonlu: B=Açıklama, C=Süre — süreyi B'ye yazmak açıklamayı ezerdi
+                ws.cell(row=ri, column=2, value=r['aciklama'] or '')
+                ws.cell(row=ri, column=3, value=r['hedef_cycle_time_sn'] or 0)
+            else:
+                ws.cell(row=ri, column=2, value=r['hedef_cycle_time_sn'] or 0)
+            yazilan_norm[norm] = True
+            yazilan += 1
         toplam_yazilan += yazilan
         print(f"  {b}: {yazilan} satır Excel'e yazıldı")
 
     conn.close()
-    wb.save(EXCEL_YOL)
+    try:
+        wb.save(EXCEL_YOL)
+    except PermissionError:
+        # Dosya Excel'de/OneDrive'da AÇIK — kullanıcı sessiz kayıp yaşamasın, net mesaj dön
+        return {'basarili': False,
+                'hata': 'Excel dosyası şu an açık (uretim_verileri.xlsx) — kapatıp tekrar deneyin.'}
     return {'basarili': True, 'yazilan': toplam_yazilan, 'dosya': EXCEL_YOL}
 
 

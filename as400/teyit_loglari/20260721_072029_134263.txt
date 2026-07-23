@@ -1,0 +1,73 @@
+TEYIT: launch 26-134263 / 10.300.1013W / 324 adet / bayrak A
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  134263  Ass. 10.300.1013W                   Ord.Qty       355,000
+ 4|  Job                       KAYNAKLI BORU GRUBU            Rem.Qty       331,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244339   MT2   RPR  20/07/26                 AD        24,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 â†’ F10 (yeni satir)
+OK: adet 324 girildi, bayrak A: ' 1   200                 MT2   RPR  20/07/26                 AD           324 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  134263  Ass. 10.300.1013W                   Ord.Qty       355,000
+ 4|  Job                       KAYNAKLI BORU GRUBU            Rem.Qty       331,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0244339   MT2   RPR  20/07/26                 AD        24,000 A
+ 7|  1   200                 MT2   RPR  20/07/26                 AD           324 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 324
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  134263 Ass.cd  10.300.1013W             Conf.qty       324,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1013A          REP AD     331,000     355,000     331,000    324,000 A
+ 7|    PLATE                          War.cau. SPR Um     Rej.qty
+ 8|    10.300.1013B          REP AD     331,000     355,000     331,000    324,000 A
+ 9|    TUBE ÇAP=14 X 48.5             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  134263 Ass.cd  10.300.1013W             Conf.qty       324,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1013A          REP AD     331,000     355,000     331,000    324,000 A
+ 7|    PLATE
+ 8|    10.300.1013B                                               1,000    324,000 A
+ 9|    TUBE ÇAP=14 X     Data movimento     21   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      31,210545
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+HATA: F6 sonrasi ekran DEGISMEDI â€” teyit islenmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  134263 Ass.cd  10.300.1013W             Conf.qty       324,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1013A          REP AD     331,000     355,000     331,000    324,000 A
+ 7|    PLATE
+ 8|    10.300.1013B                                               1,000    324,000 A
+ 9|    TUBE ÇAP=14 X     Data movimento     21   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      31,210545
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+SONUC=IPTAL

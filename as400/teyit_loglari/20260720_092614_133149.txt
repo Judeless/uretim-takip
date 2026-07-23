@@ -1,0 +1,81 @@
+TEYIT: launch 26-133149 / 94.LTK.51 / 60 adet / bayrak A
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133149  Ass. 94.LTK.51                      Ord.Qty       200,000
+ 4|  Job      UTILITY MEDIUM   47404676 PICK UP HITCH BRIDGE  Rem.Qty       200,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 60 girildi, bayrak A: ' 1   100                 MT2   RPR                           AD            60 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133149  Ass. 94.LTK.51                      Ord.Qty       200,000
+ 4|  Job      UTILITY MEDIUM   47404676 PICK UP HITCH BRIDGE  Rem.Qty       200,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD            60 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133149 Ass.cd  94.LTK.51                Conf.qty        60,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0400           REP AD     275,000     200,000     200,000     60,000 A
+ 7|    5161411 SPRING                 War.cau. SPR Um     Rej.qty
+ 8|    10.300.0399           REP AD     550,000     400,000     400,000    120,000 A
+ 9|    84559655 WASHER IGUS GTM -2442 War.cau. SPR Um     Rej.qty
+10|    10.300.1513           REP AD     678,000     400,000     400,000    120,000 A
+11|    NUT LOCK M8X1.25 (FIBERLI)     War.cau. SPR Um     Rej.qty
+12|    10.300.1514           REP AD     275,000     200,000     200,000     60,000 A
+13|    BOLT,M8X50                     War.cau. SPR Um     Rej.qty
+14|    10.300.1515           REP AD     275,000     200,000     200,000     60,000 A
+15|    BOLT,M8X25                     War.cau. SPR Um     Rej.qty
+16|    10.300.0631           REP AD     200,000     200,000     200,000     60,000 A
+17|    84577227 BRACKET               War.cau. SPR Um     Rej.qty
+18|    10.DTC.1687           REP AD     275,000     200,000     200,000     60,000 A
+19|    VITE M6 L=10                   War.cau. SPR Um     Rej.qty
+20|    10.DTC.589            REP AD    1045,000     200,000     200,000     60,000 A
+21|    6,5*11,5*1,5 CR3 PUL           War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: Conf.qty dogrulandi = 60
+OK: onay penceresi acildi, Data movimento dolu (F06=Conferma)
+---------- EKRAN [onay-penceresi] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133149 Ass.cd  94.LTK.51                Conf.qty        60,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.0400           REP AD     275,000     200,000     200,000     60,000 A
+ 7|    5161411 SPRIN
+ 8|    10.300.0399                                                0,000    120,000 A
+ 9|    84559655 WASH     Data movimento     20   7  26
+10|    10.300.1513       Tipo costo         S      S/C/L/P/U/M    0,000    120,000 A
+11|    NUT LOCK M8X1     Costo                     661,574495
+12|    10.300.1514                                                0,000     60,000 A
+13|    BOLT,M8X50      F06=Conferma
+14|    10.300.1515                                                0,000     60,000 A
+15|    BOLT,M8X25                     War.cau. SPR Um     Rej.qty
+16|    10.300.0631           REP AD     200,000     200,000     200,000     60,000 A
+17|    84577227 BRACKET               War.cau. SPR Um     Rej.qty
+18|    10.DTC.1687           REP AD     275,000     200,000     200,000     60,000 A
+19|    VITE M6 L=10                   War.cau. SPR Um     Rej.qty
+20|    10.DTC.589            REP AD    1045,000     200,000     200,000     60,000 A
+21|    6,5*11,5*1,5 CR3 PUL           War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [F6-sonrasi] ----------
+----------
+OK: F6 Conferma islendi (ekran degisti)
+OK: Session B ana menude
+SONUC=OK

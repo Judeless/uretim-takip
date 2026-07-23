@@ -1,0 +1,12 @@
+TEYIT: launch 26-139445 / 94.LTK.766 / 47 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+HATA: Ana menuye ulasilamadi — B'yi elle ana menuye getirin
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Limits request
+ 7|  Order No. . . . . .        26  1442
+10|  Customer Cd. . . . .
+13|  Job No. . . . . . .
+16|  Closed orders . . .                  N   (S/N)
+23|  F03=Exit  F04=Decod.
+----------
+SONUC=IPTAL

@@ -80,6 +80,47 @@ def gunluk_arsiv_calistir():
         traceback.print_exc()
 
 
+def _aralikli_dongu(fn, etiket, aralik_fn):
+    """Bir thread olarak çalışır, her `aralik_fn()` saniyede bir fn() çağırır.
+    Aralık her turda config'ten okunur (poll_aralik_sn canlı değiştirilebilsin)."""
+    print(f'[SCHED] {etiket}: periyodik başlatıldı')
+    while True:
+        try:
+            fn()
+        except Exception as e:
+            print(f'[SCHED] {etiket} döngü hatası: {e}')
+        try:
+            time.sleep(max(5, int(aralik_fn())))
+        except Exception:
+            time.sleep(20)
+
+
+def test_cihaz_poll():
+    """Cofle test cihazlarının yeni başarılı testlerini yerel tabloya çeker."""
+    try:
+        import cofle_test
+        if cofle_test.etkin():
+            cofle_test.poll()
+    except Exception as e:
+        print(f'[SCHED] test_cihaz_poll hata: {e}')
+
+
+def gunluk_mail_calistir():
+    """Gönderim saatinde çalışır — o günün üretim raporunu Excel olarak alıcılara e-postalar.
+    SMTP config yoksa/etkin değilse sessizce atlar (özellik kapalı sayılır)."""
+    try:
+        import mail_raporu
+        if not mail_raporu.etkin():
+            return  # config yok/etkin değil — sessiz geç
+        sonuc = mail_raporu.gunluk_mail_gonder()
+        if not sonuc.get('basarili') and not sonuc.get('atlandi'):
+            print(f'[OTO-MAIL] Gönderilemedi: {sonuc.get("mesaj")}')
+    except Exception as e:
+        print(f'[OTO-MAIL] BEKLENMEDIK HATA: {e}')
+        import traceback
+        traceback.print_exc()
+
+
 def _planli_dongu(hour, minute, fn, etiket):
     """Bir thread olarak çalışır, her gün belirtilen saatte fn() çağırır."""
     print(f'[SCHED] {etiket}: her gün {hour:02d}:{minute:02d}\'da planlandı')
@@ -114,4 +155,34 @@ def start_scheduler():
         daemon=True, name='scheduler-arsiv'
     )
     t.start()
+
+    # Günlük üretim raporu e-postası — saat mail_config.json'dan (varsayılan 17:00).
+    # SMTP config yoksa thread yine kurulur ama gunluk_mail_calistir sessizce atlar
+    # (config sonradan doldurulunca ertesi gün otomatik devreye girer).
+    try:
+        import mail_raporu
+        _msaat, _mdk = mail_raporu.gonderim_saati()
+    except Exception:
+        _msaat, _mdk = 17, 0
+    tm = threading.Thread(
+        target=_planli_dongu, args=(_msaat, _mdk, gunluk_mail_calistir, 'Günlük Üretim Raporu Maili'),
+        daemon=True, name='scheduler-mail'
+    )
+    tm.start()
+
+    # Cofle test cihazı poller — sadece config etkinse thread aç
+    try:
+        import cofle_test
+        if cofle_test.etkin():
+            tt = threading.Thread(
+                target=_aralikli_dongu,
+                args=(test_cihaz_poll, 'Cofle Test Cihazı Sayaç', cofle_test.poll_aralik_sn),
+                daemon=True, name='scheduler-testcihaz'
+            )
+            tt.start()
+        else:
+            print('[SCHED] Cofle test cihazı entegrasyonu KAPALI (cofle_test_config.json yok/etkin değil)')
+    except Exception as e:
+        print(f'[SCHED] Test cihazı poller başlatılamadı: {e}')
+
     print('[SCHED] Scheduler başlatıldı')

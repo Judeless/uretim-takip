@@ -1,0 +1,65 @@
+TEYIT: launch 26-148310 / 10.300.4081W / 20 adet / bayrak A
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  148310  Ass. 10.300.4081W                   Ord.Qty        35,000
+ 4|  Job      26/0148310       KAYNAKLI KOL                   Rem.Qty        35,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 20 girildi, bayrak A: ' 1   100                 MT2   RPR                           AD            20 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  148310  Ass. 10.300.4081W                   Ord.Qty        35,000
+ 4|  Job      26/0148310       KAYNAKLI KOL                   Rem.Qty        35,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR                           AD            20 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 20
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  148310 Ass.cd  10.300.4081W             Conf.qty        20,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.4081A          REP AD      35,000      35,000      35,000     20,000 A
+ 7|    91747596 LEVER CONTROL REMOTE  War.cau. SPR Um     Rej.qty
+ 8|    10.300.3489C          REP AD      50,000      35,000      35,000     20,000 A
+ 9|    90363945 BUSHING               War.cau. SPR Um     Rej.qty
+10|    10.300.3489B          REP AD      50,000      35,000      35,000     20,000 A
+11|    PLATE                          War.cau. SPR Um     Rej.qty
+12|    10.300.3485B          REP AD      65,000      35,000      35,000     20,000 A
+13|    51594732 PIPE DISTRIBUTOR LEVE War.cau. SPR Um     Rej.qty
+14|    10.300.4081B          REP AD      35,000      35,000      35,000     20,000 A
+15|    PIPE WIRE HOLDING              War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  148310 Ass.cd  10.300.4081W             Conf.qty        20,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.4081A          REP AD      35,000      35,000      35,000     20,000 A
+ 7|    91747596 LEVE
+ 8|    10.300.3489C                                               5,000     20,000 A
+ 9|    90363945 BUSH     Data movimento     20   7  26
+10|    10.300.3489B      Tipo costo         S      S/C/L/P/U/M    5,000     20,000 A
+11|    PLATE             Costo                     130,159982
+12|    10.300.3485B                                               5,000     20,000 A
+13|    51594732 PIPE   F06=Conferma
+14|    10.300.4081B                                               5,000     20,000 A
+15|    PIPE WIRE HOLDING              War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

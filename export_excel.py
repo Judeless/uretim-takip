@@ -86,7 +86,7 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
     ws_v.row_dimensions[1].height = 22
 
     basliklar_v = [
-        'ID', 'Tarih', 'Vardiya Türü', 'Robot No', 'Operatör',
+        'ID', 'Tarih', 'Lokasyon', 'Vardiya Türü', 'Robot No', 'Operatör',
         'Başlangıç', 'Bitiş', 'Toplam Süre (dk)',
         'Planlı Duruş (dk)', 'Plansız Duruş (dk)',
         'Net Plan (dk)', 'Çalışma (dk)',
@@ -103,7 +103,8 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
     for row_num, v in enumerate(vardiyalar, start=2):
         oee_data = hesapla_oee(v['id']) or {}
         satir = [
-            v['id'], v['tarih'], v['vardiya_turu'], v['robot_no'], v['operator_adi'],
+            v['id'], v['tarih'], dict(v).get('lokasyon') or 'TK2',
+            v['vardiya_turu'], v['robot_no'], v['operator_adi'],
             v['baslangic_saati'], v['bitis_saati'], v['toplam_sure_dk'],
             oee_data.get('planli_durus_dk', ''),
             oee_data.get('plansiz_durus_dk', ''),
@@ -127,7 +128,7 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
     ws_u.row_dimensions[1].height = 22
 
     basliklar_u = [
-        'ID', 'Vardiya ID', 'Tarih', 'Robot', 'Operatör',
+        'ID', 'Vardiya ID', 'Tarih', 'Lokasyon', 'Robot', 'Operatör',
         'Referans Kodu', 'OK Adet', 'NOK Adet',
         'Toplam', 'Hedef Adet', 'Cycle Time (sn)',
         'İş Süresi (dk)', 'Kalite %'
@@ -135,7 +136,7 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
     _baslik_satiri(ws_u, basliklar_u, renk='16A34A')
 
     uretim = c.execute('''
-        SELECT u.*, v.tarih, v.robot_no, v.operator_adi
+        SELECT u.*, v.tarih, v.robot_no, v.operator_adi, COALESCE(v.lokasyon,'TK2') as v_lokasyon
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         ''' + ('WHERE v.' + tarih_sart[6:] if tarih_sart else '') + '''
@@ -148,7 +149,7 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
         is_dk = round(toplam * ct / 60, 1) if ct > 0 else ''
         kalite = round(u['ok_adet'] / toplam * 100, 1) if toplam > 0 else ''
         satir = [
-            u['id'], u['vardiya_id'], u['tarih'], u['robot_no'], u['operator_adi'],
+            u['id'], u['vardiya_id'], u['tarih'], u['v_lokasyon'], u['robot_no'], u['operator_adi'],
             u['referans_kodu'], u['ok_adet'], u['nok_adet'],
             toplam, u['hedef_adet'], ct,
             is_dk, kalite
@@ -163,14 +164,14 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
     ws_d.row_dimensions[1].height = 22
 
     basliklar_d = [
-        'ID', 'Vardiya ID', 'Tarih', 'Robot', 'Operatör',
+        'ID', 'Vardiya ID', 'Tarih', 'Lokasyon', 'Robot', 'Operatör',
         'Duruş Sebebi', 'Duruş Tipi', 'Süre (dk)',
         'Başlangıç Saati', 'Açıklama'
     ]
     _baslik_satiri(ws_d, basliklar_d, renk='DC2626')
 
     duruslar = c.execute('''
-        SELECT d.*, v.tarih, v.robot_no, v.operator_adi
+        SELECT d.*, v.tarih, v.robot_no, v.operator_adi, COALESCE(v.lokasyon,'TK2') as v_lokasyon
         FROM duruslar d
         JOIN vardiyalar v ON v.id = d.vardiya_id
         ''' + ('WHERE v.' + tarih_sart[6:] if tarih_sart else '') + '''
@@ -180,7 +181,7 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
     for row_num, d in enumerate(duruslar, start=2):
         dr = dict(d)  # sqlite3.Row -> dict
         satir = [
-            dr['id'], dr['vardiya_id'], dr['tarih'], dr['robot_no'], dr['operator_adi'],
+            dr['id'], dr['vardiya_id'], dr['tarih'], dr['v_lokasyon'], dr['robot_no'], dr['operator_adi'],
             dr['durus_sebebi'],
             'Planlı' if dr.get('durus_tipi') == 'planli' else 'Plansız',
             dr['sure_dk'], dr['baslangic_saati'], dr['aciklama']
@@ -195,13 +196,15 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
     ws_ref.row_dimensions[1].height = 22
 
     basliklar_ref = [
-        'Referans Kodu', 'Toplam Üretim', 'OK Adet', 'NOK Adet',
+        'Referans Kodu', 'Lokasyon', 'Toplam Üretim', 'OK Adet', 'NOK Adet',
         'Kalite %', 'Ort. Cycle Time (sn)'
     ]
     _baslik_satiri(ws_ref, basliklar_ref, renk='7C3AED')
 
+    # Lokasyon kırılımı: TK1/TK2 aynı kodlu üretimleri tek satırda TOPLAMASIN (ayrı fabrikalar)
     ref_ozet = c.execute('''
         SELECT u.referans_kodu,
+               COALESCE(v.lokasyon,'TK2') as v_lokasyon,
                SUM(u.ok_adet + u.nok_adet) as toplam,
                SUM(u.ok_adet) as ok,
                SUM(u.nok_adet) as nok,
@@ -209,7 +212,7 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         ''' + ('WHERE v.' + tarih_sart[6:] if tarih_sart else '') + '''
-        GROUP BY u.referans_kodu
+        GROUP BY u.referans_kodu, COALESCE(v.lokasyon,'TK2')
         ORDER BY toplam DESC
     ''', params_list).fetchall()
 
@@ -217,7 +220,7 @@ def export_arsiv(tarih_bas=None, tarih_bit=None):
         toplam = r['toplam'] or 0
         ok = r['ok'] or 0
         kalite = round(ok / toplam * 100, 1) if toplam > 0 else ''
-        satir = [r['referans_kodu'], toplam, ok, r['nok'] or 0, kalite, r['ort_ct'] or '']
+        satir = [r['referans_kodu'], r['v_lokasyon'], toplam, ok, r['nok'] or 0, kalite, r['ort_ct'] or '']
         for col_idx, deger in enumerate(satir, start=1):
             ws_ref.cell(row=row_num, column=col_idx, value=deger)
         _zebra(ws_ref, row_num, len(basliklar_ref))

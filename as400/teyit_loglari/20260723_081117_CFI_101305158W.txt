@@ -1,0 +1,77 @@
+CFI GIRIS: 10.130.5158W / 550 adet
+G0: zaten CFI giris ekraninda (2-Variation)
+---------- EKRAN [giris-ekrani] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        23/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|       500  01D 10.300.1363-S         LAZER KESIM CATAL         AD       100,000
+ 5|       600  01D 10.300.1842S          PEDANINA NOT BENDED       AD       922,000
+ 6|       700  01D 10.300.5292A          3040-1285 BASE BRACKET    AD       759,000
+ 7|       800  01D 10.300.5504-S         LAZER KESIM ISLEMSIZ      AD        15,000
+ 8|  2-Variation
+ 9|  Record no. .           26  250195       Actual row      900  Rec.dt   23  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+G1: alan haritasi â€” wh@10 ca@11 ar@12 qty@14 cp@18 kolon=25
+---------- EKRAN [giris-dolu] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        23/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|       500  01D 10.300.1363-S         LAZER KESIM CATAL         AD       100,000
+ 5|       600  01D 10.300.1842S          PEDANINA NOT BENDED       AD       922,000
+ 6|       700  01D 10.300.5292A          3040-1285 BASE BRACKET    AD       759,000
+ 7|       800  01D 10.300.5504-S         LAZER KESIM ISLEMSIZ      AD        15,000
+ 8|  2-Variation
+ 9|  Record no. .           26  250195       Actual row      900  Rec.dt   23  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .      10.130.5158W                             L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                              550 Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+OK: ust listede 10.130.5158W / 550 goruldu, giris alanlari bosaldi
+---------- EKRAN [basarili] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        23/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|       900  01D 10.130.5158W          ÝÞLENMEMÝÞ ALÜMÝNYUM PARÇ AD       550,000
+ 8|  2-Variation
+ 9|  Record no. .           26  250195       Actual row     1000  Rec.dt   23  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+SONUC=OK

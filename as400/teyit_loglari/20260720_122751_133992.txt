@@ -1,0 +1,61 @@
+TEYIT: launch 26-133992 / 10.130.5421GRW / 50 adet / bayrak A
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133992  Ass. 10.130.5421GRW                 Ord.Qty       899,000
+ 4|  Job                       VÝBRASYONLU DÝÞ ÇEKÝLMEMÝÞ PAR Rem.Qty        54,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0226363   MT2   RPR   3/07/26                 AD       332,000 A
+ 7|      200    26 0227904   MT2   RPR   6/07/26                 AD       213,000 A
+ 8|      300    26 0238834   MT2   RPR  14/07/26                 AD       300,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 3 â†’ F10 (yeni satir)
+OK: adet 50 girildi, bayrak A: ' 1   400                 MT2   RPR  14/07/26                 AD            50 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  133992  Ass. 10.130.5421GRW                 Ord.Qty       899,000
+ 4|  Job                       VÝBRASYONLU DÝÞ ÇEKÝLMEMÝÞ PAR Rem.Qty        54,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0226363   MT2   RPR   3/07/26                 AD       332,000 A
+ 7|      200    26 0227904   MT2   RPR   6/07/26                 AD       213,000 A
+ 8|      300    26 0238834   MT2   RPR  14/07/26                 AD       300,000 A
+ 9|  1   400                 MT2   RPR  14/07/26                 AD            50 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 50
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133992 Ass.cd  10.130.5421GRW           Conf.qty        50,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.5421A          REP AD      54,000     899,000      54,000     50,000 A
+ 7|    L209594 LEVA 30X361            War.cau. SPR Um     Rej.qty
+ 8|    10.130.5128           REP AD      54,000     899,000      54,000     50,000 A
+ 9|    BOCCOLA G=14 D=6 H=25          War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       20/07/26  COFLETKENG
+ 2|                               Summary materials
+ 3|  Order No  26  133992 Ass.cd  10.130.5421GRW           Conf.qty        50,000
+ 4|  Progress.        400
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.130.5421A          REP AD      54,000     899,000      54,000     50,000 A
+ 7|    L209594 LEVA
+ 8|    10.130.5128                                                4,000     50,000 A
+ 9|    BOCCOLA G=14      Data movimento     20   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      64,753795
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

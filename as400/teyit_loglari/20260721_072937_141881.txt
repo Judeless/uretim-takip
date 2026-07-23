@@ -1,0 +1,74 @@
+TEYIT: launch 26-141881 / 10.300.4725W / 40 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  141881  Ass. 10.300.4725W                   Ord.Qty        65,000
+ 4|  Job                       KAYNAKLI BOYASIZ PARCA         Rem.Qty        65,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  20/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 40 girildi, bayrak A: ' 1   100                 MT2   RPR  20/07/26                 AD            40 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  141881  Ass. 10.300.4725W                   Ord.Qty        65,000
+ 4|  Job                       KAYNAKLI BOYASIZ PARCA         Rem.Qty        65,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  20/07/26                 AD            40 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 40
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  141881 Ass.cd  10.300.4725W             Conf.qty        40,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1394B          REP AD     237,000      65,000      65,000     40,000 A
+ 7|    ISOLATOR LH BUSHING FOR LEVER  War.cau. SPR Um     Rej.qty
+ 8|    10.300.4725A          REP AD      65,000      65,000      65,000     40,000 A
+ 9|    715809 LEVER,VALVE             War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  141881 Ass.cd  10.300.4725W             Conf.qty        40,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1394B          REP AD     237,000      65,000      65,000     40,000 A
+ 7|    ISOLATOR LH B
+ 8|    10.300.4725A                                               5,000     40,000 A
+ 9|    715809 LEVER,     Data movimento     21   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      34,693461
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+HATA: F6 sonrasi ekran DEGISMEDI — teyit islenmedi
+---------- EKRAN [iptal-ani] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       21/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  141881 Ass.cd  10.300.4725W             Conf.qty        40,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1394B          REP AD     237,000      65,000      65,000     40,000 A
+ 7|    ISOLATOR LH B
+ 8|    10.300.4725A                                               5,000     40,000 A
+ 9|    715809 LEVER,     Data movimento     21   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                      34,693461
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+SONUC=IPTAL
