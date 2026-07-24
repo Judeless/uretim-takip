@@ -5813,7 +5813,7 @@ def _as400_launch_durum(yil, no):
         _sys.path.insert(0, _d)
     import keyring, pyodbc
     import as400_config as _cfg
-    pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+    pw = _cfg.sifre_al()
     cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=15, autocommit=True)
     try:
         r = cn.cursor().execute(
@@ -6104,7 +6104,7 @@ def _as400_cfi_bugun(article, causal='CFI'):
     import keyring, pyodbc
     import as400_config as _cfg
     bugun = date.today()
-    pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+    pw = _cfg.sifre_al()
     cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=20, autocommit=True)
     try:
         rows = cn.cursor().execute(
@@ -6383,7 +6383,7 @@ def as400_planlama():
     if not _re2.match(r'^[A-Za-z0-9./\-]{3,21}$', ref):
         return jsonify({'hata': f"Geçersiz referans: '{ref}' — yalnız harf/rakam/nokta/tire (Türkçe karakter olmadan)"}), 400
     try:
-        pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+        pw = _cfg.sifre_al()
         cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
     except Exception as e:
         return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
@@ -6483,7 +6483,7 @@ def as400_acik_transferler():
     import keyring, pyodbc
     import as400_config as _cfg
     try:
-        pw = keyring.get_password(_cfg.KEYRING_SERVICE, _cfg.DB_KULLANICI)
+        pw = _cfg.sifre_al()
         cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
     except Exception as e:
         return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502

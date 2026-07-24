@@ -60,3 +60,33 @@ def baglanti_dizesi(sifre):
         # Metin cevirisi: AS400 EBCDIC → Unicode (Turkce alanlar dogru gelsin)
         "CCSID=1208;TRANSLATE=1;"
     )
+
+
+# ── AS400 SIFRESINI AL (merkezi) ──
+# Onceligi: (1) keyring — laptop, ya da servis promanage hesabinda kosuyorsa.
+# (2) FALLBACK: teyit-agent (127.0.0.1:5010/sifre). Server'da cofle-app NSSM
+# servisi LocalSystem'da kosar → keyring (promanage kasasi) BOS gorunur; ama agent
+# RDP/promanage oturumunda kosar, keyring'i gorur ve sifreyi yalniz localhost'a verir.
+# Boylece servis hesabini degistirmeye (log-on-as-service tuzagi) gerek kalmaz.
+# Sifre keyring'de zaten sifreli durur (kaydet_sifre.py) — bu fonksiyon onu yalniz
+# bellekte tasir, hicbir yere yazmaz.
+AGENT_URL = 'http://127.0.0.1:5010'
+
+
+def sifre_al():
+    """AS400 sifresi: once keyring, olmazsa teyit-agent (localhost). None=bulunamadi."""
+    try:
+        import keyring
+        pw = keyring.get_password(KEYRING_SERVICE, DB_KULLANICI)
+        if pw:
+            return pw
+    except Exception:
+        pass
+    try:
+        import requests
+        r = requests.get(AGENT_URL + '/sifre', timeout=2)
+        if r.status_code == 200:
+            return (r.json() or {}).get('sifre') or None
+    except Exception:
+        pass
+    return None

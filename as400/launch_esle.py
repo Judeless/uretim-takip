@@ -153,7 +153,7 @@ def op_kurali_uygula(rows):
 
 def as400_launchlar():
     """AS400'den acik launch haritasi: kanonik(article) -> [launch kaydi]"""
-    pw = keyring.get_password(CFG.KEYRING_SERVICE, CFG.DB_KULLANICI)
+    pw = CFG.sifre_al()
     if not pw:
         raise RuntimeError('Sifre kasada yok: python as400/kaydet_sifre.py')
     cn = pyodbc.connect(CFG.baglanti_dizesi(pw), timeout=20, autocommit=True)
@@ -211,7 +211,7 @@ def teyit_hareketleri(articles):
                     if str(a or '').strip() and _guvenli.match(str(a).strip())})
     if not liste:
         return {}
-    pw = keyring.get_password(CFG.KEYRING_SERVICE, CFG.DB_KULLANICI)
+    pw = CFG.sifre_al()
     cn = pyodbc.connect(CFG.baglanti_dizesi(pw), timeout=60, autocommit=True)
     sonuc = collections.defaultdict(list)
     try:

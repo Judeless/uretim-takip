@@ -51,6 +51,21 @@ def durum():
     return jsonify({'agent': 'cofle-teyit', 'ok': True, 'pcomm': _pcomm_sayisi()})
 
 
+@app.route('/sifre')
+def sifre():
+    """AS400 keyring şifresini yerel app'e verir (YALNIZ 127.0.0.1). Server'da
+    cofle-app NSSM servisi LocalSystem'da koşar → promanage keyring'ini göremez;
+    bu agent promanage oturumunda olduğu için görür. Şifre keyring'de zaten
+    şifreli durur — burada yalnız bellekte, loopback üzerinden aktarılır."""
+    try:
+        import keyring
+        import as400_config as cfg
+        pw = keyring.get_password(cfg.KEYRING_SERVICE, cfg.DB_KULLANICI)
+        return jsonify({'sifre': pw or ''})
+    except Exception as e:
+        return jsonify({'sifre': '', 'hata': str(e)}), 500
+
+
 @app.route('/calistir', methods=['POST'])
 def calistir():
     """Robot cscript'ini bu oturumda çalıştır.

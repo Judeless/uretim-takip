@@ -43,15 +43,19 @@ pip install pyodbc keyring requests
 - **Açılış SIRASI önemli:** ilk açılan pencere = Session **A** (insan/izleme),
   ikinci = Session **B** (robotun sürdüğü). Robot `SetConnectionByName("B")` kullanır.
 
-### 5. AS400 şifresi (keyring) — HESAP KRİTİK
-- Keyring Windows hesabına özeldir. NSSM servisi ile RDP oturumu AYNI hesabı
-  kullanmalı ki ikisi de şifreyi görsün:
-```
-C:\cofle\nssm.exe set cofle-app ObjectName .\promanage <promanage-sifresi>
-C:\cofle\nssm.exe restart cofle-app
-```
-- Sonra promanage RDP oturumunda: `cd C:\cofle\uretim_takip\as400 && python kaydet_sifre.py`
-  (EMREDTK şifresi Credential Manager'a — hiçbir dosyaya düz metin yazılmaz).
+### 5. AS400 şifresi (keyring) — servisi DEĞİŞTİRME, agent köprüler
+> ⚠️ NSSM servis hesabını promanage'a ALMA. Denendi (2026-07-24) → "log on as a
+> service" tuzağı + logon-failure → dashboard düştü. cofle-app **LocalSystem'de
+> KALIR**. Keyring hesaba özeldir ama şifreyi **teyit-agent** (promanage oturumu)
+> okuyup servise localhost'tan verir (`as400_config.sifre_al()` → keyring, olmazsa
+> agent `/sifre`). Yani servisin keyring'i görmesine gerek yok.
+
+- promanage RDP oturumunda AS400 şifresini kaydet:
+  `cd C:\cofle\uretim_takip\as400 && python kaydet_sifre.py`
+  (EMREDTK şifresi Credential Manager'a — hiçbir dosyaya düz metin yazılmaz.)
+- Bu şifreyi agent (aynı oturum) görecek ve servise verecek. **Agent'ın çalışıyor
+  olması ŞART** — agent kapalıysa servis AS400'ü okuyamaz (zaten teyit için PCOMM
+  de gerekir, tutarlı).
 
 ### 6. Teyit-agent'ı otomatik başlat
 - promanage RDP oturumunda `Win+R` → `shell:startup` → içine

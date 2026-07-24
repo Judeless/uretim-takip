@@ -93,27 +93,20 @@ try:
 except Exception as e:
     hata(f'{e}')
 
-# 5) NSSM servis hesabi — keyring tuzagi
-basla('cofle-app servis hesabi (keyring gorunurlugu)')
+# 5) Teyit-agent /sifre — servis (LocalSystem) sifreyi buradan alir (Plan B)
+# Artik NSSM servis hesabini degistirmeye GEREK YOK: cofle-app LocalSystem'de kalir,
+# AS400 sifresini agent'tan (promanage oturumu, keyring gorunur) localhost ile alir.
+basla('Teyit-agent /sifre (servis sifre koprusu)')
 try:
-    out = subprocess.run(['sc', 'qc', 'cofle-app'], capture_output=True, timeout=10
-                         ).stdout.decode(errors='replace')
-    hesap = ''
-    for satir in out.splitlines():
-        if 'SERVICE_START_NAME' in satir:
-            hesap = satir.split(':', 1)[-1].strip()
-    if not hesap:
-        hata('cofle-app servisi bulunamadi (bu makine server degil mi?)')
-    elif hesap.lower() in ('localsystem', 'nt authority\\system'):
-        hata(f'servis {hesap} olarak kosuyor -> promanage kasasindaki sifreyi GOREMEZ. '
-             'Duzelt: C:\\cofle\\nssm.exe set cofle-app ObjectName .\\promanage <sifre> '
-             've C:\\cofle\\nssm.exe restart cofle-app')
-    elif 'promanage' in hesap.lower() or hesap.lower().startswith('.\\'):
-        ok(f'servis hesabi: {hesap}')
+    import requests
+    r = requests.get('http://127.0.0.1:5010/sifre', timeout=2)
+    if r.status_code == 200 and (r.json() or {}).get('sifre'):
+        ok('agent sifreyi veriyor — LocalSystem servisi bunu kullanabilir')
     else:
-        hata(f'servis hesabi: {hesap} — sifreyi kaydeden hesapla AYNI olmali')
-except Exception as e:
-    hata(f'sc qc calismadi: {e}')
+        hata('agent /sifre BOS dondu — bu (promanage) oturumda AS400 sifresi kayitli mi? '
+             '(kaydet_sifre.py bu oturumda calistirilmali)')
+except Exception:
+    hata('agent /sifre yanit vermedi — agent KAPALI (Teyit_Agent_Baslat.bat calistir)')
 
 # 6) Teyit-agent (PCOMM oturumu koprusu)
 basla('Teyit-agent (127.0.0.1:5010)')
