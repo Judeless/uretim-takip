@@ -35,25 +35,12 @@ app = Flask(__name__)
 _KILIT = threading.Lock()   # Session B tek — koşular sıralanır (app zaten sıralar; ek emniyet)
 
 
-def _pcomm_sayisi():
-    """Bu oturumda görünen pcsws.exe (PCOMM pencere) sayısı — YALNIZ tanı için
-    (robotu/sifreyi etkilemez). tasklist tam yolla + shell fallback ile denenir;
-    olmazsa -1 (sayilamadi — robot testi asil kanittir)."""
-    exe = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32', 'tasklist.exe')
-    for cagri, kw in (([exe, '/FI', 'IMAGENAME eq pcsws.exe', '/NH'], {}),
-                      ('tasklist /FI "IMAGENAME eq pcsws.exe" /NH', {'shell': True})):
-        try:
-            out = subprocess.run(cagri, capture_output=True, timeout=8, **kw).stdout
-            return (out or b'').decode('cp857', errors='replace').lower().count('pcsws.exe')
-        except Exception:
-            continue
-    return -1
-
-
 @app.route('/durum')
 def durum():
-    """Sağlık + tanı. app.py yönlendirme kararını buradan verir (agent=cofle-teyit)."""
-    return jsonify({'agent': 'cofle-teyit', 'ok': True, 'pcomm': _pcomm_sayisi()})
+    """Sağlık — app.py yönlendirme kararını buradan verir (agent=cofle-teyit).
+    HIÇBIR dış komut (tasklist vb.) ÇAĞIRMAZ — anında döner (bazı sunucularda
+    tasklist asılıp agent'ı startta kilitliyordu; PCOMM sayacı kaldırıldı)."""
+    return jsonify({'agent': 'cofle-teyit', 'ok': True})
 
 
 @app.route('/sifre')
@@ -130,6 +117,6 @@ if __name__ == '__main__':
     print('╔══════════════════════════════════════════════╗')
     print('║  COFLE TEYIT AGENT — PCOMM oturumu köprüsü   ║')
     print('╚══════════════════════════════════════════════╝')
-    print(f'Dinleme: 127.0.0.1:{PORT} (yalnız yerel) · PCOMM pencere: {_pcomm_sayisi()}')
+    print(f'Dinleme: 127.0.0.1:{PORT} (yalniz yerel) — agent HAZIR')
     print('Bu pencereyi KAPATMA — robot koşuları burada görünür.\n')
     app.run(host='127.0.0.1', port=PORT, threaded=True)

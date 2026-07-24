@@ -115,14 +115,7 @@ try:
     r = requests.get('http://127.0.0.1:5010/durum', timeout=2)
     d = r.json() or {}
     if d.get('agent') == 'cofle-teyit':
-        p = d.get('pcomm')
-        if isinstance(p, int) and p >= 2:
-            ok(f'agent ayakta · PCOMM pencere: {p} (A+B gorunuyor)')
-        elif p == -1:
-            ok('agent ayakta (PCOMM sayaci okunamadi — kozmetik; asil kanit robot testi)')
-        else:
-            ok(f'agent ayakta · PCOMM pencere: {p} — A+B acik oldugundan emin ol '
-               '(robot testinde dogrulanir)')
+        ok('agent ayakta ve dogru (robot + /sifre koprusu hazir)')
     else:
         hata('5010 yanit verdi ama teyit-agent degil (port cakismasi?)')
 except Exception:
