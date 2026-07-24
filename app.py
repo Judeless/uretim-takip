@@ -5755,6 +5755,54 @@ _AS400_KILIT = _threading.Lock()
 # kill edilmez (record-lock riski); mevcut launch biter, SONRAKİLERE geçilmez.
 _AS400_DURDUR = _threading.Event()
 
+# ── TEYIT-AGENT KÖPRÜSÜ (2026-07-24) ──
+# Server'da app NSSM SERVİSİ olarak Session 0'da koşar; PCOMM (pcsws.exe) ise RDP
+# kullanıcı oturumundadır. Session 0'dan başlatılan cscript PCOMM oturumlarını GÖREMEZ
+# (Windows oturum izolasyonu) → robot, RDP oturumunda koşan as400/teyit_agent.py'ye
+# HTTP ile devredilir (127.0.0.1:5010). Agent yoksa (laptop/interaktif) yerel subprocess
+# — config dosyası YOK, tespit otomatik (localhost probe; agent kapalıysa anında reddedilir).
+_TEYIT_AGENT_URL = 'http://127.0.0.1:5010'
+
+
+def _teyit_agent_var():
+    try:
+        import requests
+        r = requests.get(_TEYIT_AGENT_URL + '/durum', timeout=1.5)
+        return r.status_code == 200 and (r.json() or {}).get('agent') == 'cofle-teyit'
+    except Exception:
+        return False
+
+
+def _as400_robot_calistir(script_dosya, args, timeout_sn):
+    """Robot cscript'ini çalıştır (agent varsa onda, yoksa yerel).
+    Döner: (cikti:str, hata:str|None) — hata doluysa satır 'hata' olarak loglanmalı.
+    KRİTİK: agent'a istek GİTTİKTEN sonra bağlantı koparsa yerel TEKRAR DENENMEZ
+    (robot agent'ta hâlâ koşuyor olabilir → çift giriş riski)."""
+    args = [str(a) for a in args]
+    if _teyit_agent_var():
+        try:
+            import requests
+            r = requests.post(_TEYIT_AGENT_URL + '/calistir',
+                              json={'script': script_dosya, 'args': args, 'timeout': timeout_sn},
+                              timeout=(3, timeout_sn + 15))
+            if r.status_code == 200:
+                return (r.json() or {}).get('cikti', ''), None
+            if r.status_code == 504:
+                return '', f'Robot zaman aşımı ({timeout_sn} sn) — sıradakine geçildi'
+            return '', f'Teyit-agent hatası (HTTP {r.status_code}): {(r.json() or {}).get("hata", "")}'
+        except Exception as e:
+            return '', f'Teyit-agent bağlantısı koptu ({e}) — robot durumu belirsiz, Session B\'yi kontrol edin'
+    import subprocess
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', script_dosya)
+    try:
+        pr = subprocess.run([r'C:\Windows\SysWOW64\cscript.exe', '//nologo', script] + args,
+                            capture_output=True, timeout=timeout_sn)
+        return (pr.stdout or b'').decode('cp1254', errors='replace'), None
+    except subprocess.TimeoutExpired:
+        # Timeout → cscript KILL edilir → yarım transaction + record-lock riski;
+        # sonraki satıra devam edilir (sonraki robot G0'da record-lock'u kurtarır).
+        return '', f'Robot zaman aşımı ({timeout_sn} sn) — sıradakine geçildi'
+
 
 def _as400_launch_durum(yil, no):
     """BPROF0'dan launch'ın (teyitli Q0QTRI, durum Q0AVAN) — bağımsız doğrulama.
@@ -5803,15 +5851,12 @@ def as400_teyit_gonder():
         return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
     try:
         _AS400_DURDUR.clear()   # yeni gönderim → önceki "durdur" bayrağını sıfırla
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'teyit_gir.js')
-        cscript = r'C:\Windows\SysWOW64\cscript.exe'
         kullanici = g.panel_ku['kullanici_adi']
         conn = get_db()
         sonuclar = []
         # Her satır BAĞIMSIZ denenir — bir launch hata/iptal verirse SONRAKİ launch'lara
         # DEVAM edilir (kullanıcı 2026-07-20: hata alınca ilk sayfaya çıkıp sıradaki
         # launch'tan devam et). Robot her çağrıda G0'da B'yi temizler + record-lock kurtarır.
-        import subprocess
         for idx, s in enumerate(satirlar):
             # NAZIK DURDURMA: kullanıcı "Durdur"a bastıysa kalan satırlara GEÇME (çalışan
             # cscript öldürülMEZ; mevcut satır zaten bittiğinde bu kontrole geliriz).
@@ -5873,14 +5918,9 @@ def as400_teyit_gonder():
                 sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': f'Ön okuma hatası: {e}'})
                 continue
 
-            try:
-                pr = subprocess.run([cscript, '//nologo', script, yil, no, article, str(adet), bayrak],
-                                    capture_output=True, timeout=150)
-                cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
-            except subprocess.TimeoutExpired:
-                # Timeout → subprocess KILL edilir → yarım transaction + record-lock riski.
-                # Yine de sonraki satıra devam: sonraki robot G0'da record-lock'u kurtarır.
-                sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': 'Robot zaman aşımı (150 sn) — sıradakine geçildi', 'teyitli_once': once})
+            cikti, robot_hata = _as400_robot_calistir('teyit_gir.js', [yil, no, article, adet, bayrak], 150)
+            if robot_hata:
+                sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': robot_hata, 'teyitli_once': once})
                 continue
 
             robot_ok = 'SONUC=OK' in cikti
@@ -6096,12 +6136,9 @@ def as400_cfi_gonder():
         return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
     try:
         _AS400_DURDUR.clear()
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'cfi_gir.js')
-        cscript = r'C:\Windows\SysWOW64\cscript.exe'
         kullanici = g.panel_ku['kullanici_adi']
         conn = get_db()
         sonuclar = []
-        import subprocess
         import sys as _sys
         _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
         if _d not in _sys.path:
@@ -6150,12 +6187,9 @@ def as400_cfi_gonder():
                 sonuclar.append({**kayit, 'sonuc': 'atlandi',
                                  'mesaj': f"ERP'de karşılığı var: {h0.get('tarih','')} {h0.get('adet',0):g} adet ({h0.get('tur','')})"})
                 continue
-            try:
-                pr = subprocess.run([cscript, '//nologo', script, article, str(adet)],
-                                    capture_output=True, timeout=120)
-                cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
-            except subprocess.TimeoutExpired:
-                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Robot zaman aşımı (120 sn) — sıradakine geçildi'})
+            cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet], 120)
+            if robot_hata:
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
                 continue
             robot_ok = 'SONUC=OK' in cikti
             # Bağımsız doğrulama: bugünkü CFI hareketlerinde adet birebir var mı
@@ -6266,12 +6300,9 @@ def as400_cop_gonder():
         return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
     try:
         _AS400_DURDUR.clear()
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'cfi_gir.js')
-        cscript = r'C:\Windows\SysWOW64\cscript.exe'
         kullanici = g.panel_ku['kullanici_adi']
         conn = get_db()
         sonuclar = []
-        import subprocess
         for idx, s in enumerate(satirlar):
             if _AS400_DURDUR.is_set():
                 for kalan in satirlar[idx:]:
@@ -6299,12 +6330,9 @@ def as400_cop_gonder():
             if var:
                 sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
                 continue
-            try:
-                pr = subprocess.run([cscript, '//nologo', script, article, str(adet), 'COP'],
-                                    capture_output=True, timeout=120)
-                cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
-            except subprocess.TimeoutExpired:
-                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Robot zaman aşımı (120 sn) — sıradakine geçildi'})
+            cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet, 'COP'], 120)
+            if robot_hata:
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
                 continue
             robot_ok = 'SONUC=OK' in cikti
             try:
