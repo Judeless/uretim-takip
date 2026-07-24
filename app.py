@@ -5983,31 +5983,40 @@ def _is_emri_dus(conn, referans, adet):
 
 # ── LAPTOP→SERVER İŞ EMRİ DÜŞÜM KÖPRÜSÜ (2026-07-24) ──
 # Teyit LAPTOPTA koşuyor (PCOMM) ama iş takip verisi SERVER'da (canlı DB). Bu yüzden
-# laptop'un yerel düşümü kullanıcının gördüğü listeye ulaşmıyordu. server_sync.json
-# (gitignore) köprüsü: 'url' varsa BU MAKİNE client (laptop) → düşümü server'a HTTP ile
-# yollar; 'url' yoksa server/standalone → gelen sync'i 'token' ile doğrulayıp YEREL düşer.
-def _server_sync_config():
-    """server_sync.json → (url|None, token|None). Yoksa (None, None) = köprü kapalı."""
+# laptop'un yerel düşümü kullanıcının gördüğü listeye ulaşmıyordu. Köprü: LAPTOP'ta
+# server_sync.json ({"url":"http://<server>:5000"}) VARSA teyit sonrası düşüm SERVER'a
+# HTTP ile yollanır; server yoksa/ulaşılamazsa yerel düşüme düşülür. SERVER tarafında EK
+# CONFIG/TOKEN GEREKMEZ — endpoint yalnız İÇ AĞ'dan (LAN) kabul eder, dış (cloudflared) red.
+def _server_sync_url():
+    """Laptop client modu: server_sync.json içindeki url (yoksa None = yerel mod).
+    Bu dosya makineye özel (gitignore) — SADECE laptopta bulunur, server'da YOK."""
     try:
         p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server_sync.json')
         if not os.path.exists(p):
-            return None, None
+            return None
         with open(p, encoding='utf-8') as f:
-            cfg = json.load(f)
-        return (cfg.get('url') or None), (cfg.get('token') or None)
+            return (json.load(f).get('url') or None)
     except Exception as e:
         print(f'[server_sync] config okunamadı: {e}')
-        return None, None
+        return None
 
 
-def _is_emri_sunucuya_bildir(url, token, referans, adet):
+def _is_ic_ag_istegi():
+    """dus_sync makine-arası İÇ uç noktası: yalnız doğrudan LAN'dan (192.168.x) kabul;
+    Cloudflare tüneli (CF-Ray/CF-Connecting-IP header'lı DIŞ istek) reddedilir.
+    (App ProxyFix kullanmıyor → remote_addr gerçek TCP peer, spoof edilemez.)"""
+    if request.headers.get('CF-Ray') or request.headers.get('CF-Connecting-IP'):
+        return False
+    return (request.remote_addr or '').startswith('192.168.')
+
+
+def _is_emri_sunucuya_bildir(url, referans, adet):
     """Laptop: başarılı teyit sonrası server'ın iş takip düşümünü HTTP ile tetikler.
     Best-effort. Döner: (ok:bool, mesaj:str)."""
     try:
         import requests
         r = requests.post(url.rstrip('/') + '/api/is_emri/dus_sync',
-                          json={'referans': referans, 'adet': adet},
-                          headers={'X-Sync-Token': token or ''}, timeout=8)
+                          json={'referans': referans, 'adet': adet}, timeout=8)
         if r.status_code == 200:
             return True, ((r.json() or {}).get('mesaj', '') or '')
         return False, f" · ⚠ iş emri server düşümü başarısız (HTTP {r.status_code})"
@@ -6016,12 +6025,12 @@ def _is_emri_sunucuya_bildir(url, token, referans, adet):
 
 
 def _is_emri_dus_router(conn, referans, adet):
-    """server_sync 'url' varsa (laptop) düşümü SERVER'da yap (authoritative); server
-    ulaşılamazsa YEREL düşüme düş + uyarı (interim kayıp olmasın). 'url' yoksa yerel."""
-    url, token = _server_sync_config()
+    """server_sync url varsa (laptop) düşümü SERVER'da yap (authoritative); server
+    ulaşılamazsa YEREL düşüme düş + uyarı (interim kayıp olmasın). url yoksa yerel."""
+    url = _server_sync_url()
     if not url:
         return _is_emri_dus(conn, referans, adet)          # server/standalone
-    ok, mesaj = _is_emri_sunucuya_bildir(url, token, referans, adet)
+    ok, mesaj = _is_emri_sunucuya_bildir(url, referans, adet)
     if ok:
         return mesaj                                       # server authoritative (boş = eşleşme yok)
     return _is_emri_dus(conn, referans, adet) + mesaj + ' — elle kontrol'
@@ -6029,14 +6038,11 @@ def _is_emri_dus_router(conn, referans, adet):
 
 @app.route('/api/is_emri/dus_sync', methods=['POST'])
 def api_is_emri_dus_sync():
-    """Makine-arası iş emri düşümü (laptop→server). X-Sync-Token (server_sync.json token)
-    ile doğrulanır; server KENDİ referans_takip'inde _is_emri_dus çalıştırır. Panel
-    oturumu GEREKMEZ (token yeterli) — makine-arası çağrı için."""
-    _u, token_cfg = _server_sync_config()
-    if not token_cfg:
-        return jsonify({'hata': 'sync devre dışı (server_sync.json/token yok)'}), 403
-    if request.headers.get('X-Sync-Token', '') != token_cfg:
-        return jsonify({'hata': 'yetkisiz'}), 403
+    """Makine-arası iş emri düşümü (laptop→server). Yalnız İÇ AĞ'dan (LAN) kabul edilir
+    (dış/cloudflared reddedilir); panel oturumu/token GEREKMEZ. Server KENDİ
+    referans_takip'inde _is_emri_dus çalıştırır."""
+    if not _is_ic_ag_istegi():
+        return jsonify({'hata': 'yalnız iç ağ (LAN) erişimi'}), 403
     data = request.get_json(silent=True) or {}
     referans = (data.get('referans') or '').strip()
     try:
