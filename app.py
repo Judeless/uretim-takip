@@ -6546,4 +6546,9 @@ if __name__ == '__main__':
     print("="*55 + "\n")
     # GUVENLIK: internete acik sistemde debug=True = uzaktan kod calistirma (RCE).
     # Varsayilan KAPALI; yerel gelistirmede ortam degiskeni ile ac: COFLE_DEBUG=1
-    app.run(host='0.0.0.0', port=5000, debug=(os.environ.get('COFLE_DEBUG') == '1'))
+    # threaded=True ŞART: teyit gönderimi bir robot çağrısında 15-150sn bloklar;
+    # tek-thread'de bu sürede TÜM app donar (Durdur yoklaması, operatör mobil, andon
+    # cevap alamaz — "sistem durdu" belirtisi). Çok-thread'de web responsive kalır,
+    # robot yine _AS400_KILIT ile tek tek çalışır. (get_db flask.g request-scoped →
+    # her thread kendi bağlantısını açar, SQLite thread-güvenli; yazımlar busy-timeout.)
+    app.run(host='0.0.0.0', port=5000, threaded=True, debug=(os.environ.get('COFLE_DEBUG') == '1'))
