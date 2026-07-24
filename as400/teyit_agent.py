@@ -36,13 +36,18 @@ _KILIT = threading.Lock()   # Session B tek — koşular sıralanır (app zaten 
 
 
 def _pcomm_sayisi():
-    """Bu oturumda görünen pcsws.exe (PCOMM pencere) sayısı — tanı için."""
-    try:
-        out = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq pcsws.exe'],
-                             capture_output=True, timeout=5).stdout.decode(errors='replace')
-        return out.lower().count('pcsws.exe')
-    except Exception:
-        return -1
+    """Bu oturumda görünen pcsws.exe (PCOMM pencere) sayısı — YALNIZ tanı için
+    (robotu/sifreyi etkilemez). tasklist tam yolla + shell fallback ile denenir;
+    olmazsa -1 (sayilamadi — robot testi asil kanittir)."""
+    exe = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32', 'tasklist.exe')
+    for cagri, kw in (([exe, '/FI', 'IMAGENAME eq pcsws.exe', '/NH'], {}),
+                      ('tasklist /FI "IMAGENAME eq pcsws.exe" /NH', {'shell': True})):
+        try:
+            out = subprocess.run(cagri, capture_output=True, timeout=8, **kw).stdout
+            return (out or b'').decode('cp857', errors='replace').lower().count('pcsws.exe')
+        except Exception:
+            continue
+    return -1
 
 
 @app.route('/durum')
