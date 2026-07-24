@@ -5646,6 +5646,18 @@ def as400_teyit_listesi():
         "SELECT id, created_at, uretim_tarihi, yil, launch_no, referans, adet, sonuc, mesaj, olusturan "
         "FROM as400_teyit_log ORDER BY id DESC LIMIT 15").fetchall()]
 
+    # COP verilmiş hurdalar (2026-07-24): "♻ Hurda → COP" bölümü zaten COP'lanmış
+    # satırları TEKRAR göstermesin (sayfa yenilenince mükerrer görünüyordu). Anahtar =
+    # "uretim_tarihi|article" (article = COP log'daki launch_no). Dedup ile aynı mantık.
+    cop_verildi = {}
+    try:
+        for _cr in conn.execute(
+            "SELECT uretim_tarihi, launch_no, SUM(adet) tp FROM as400_teyit_log "
+            "WHERE yil='CO' AND sonuc='ok' GROUP BY uretim_tarihi, launch_no").fetchall():
+            cop_verildi[f"{_cr['uretim_tarihi']}|{_cr['launch_no']}"] = _cr['tp']
+    except Exception as _e:
+        print(f'[teyit_listesi] cop_verildi atlandı: {_e}')
+
     # İŞARETLER (2026-07-20): günlük 'kontrol edildi' + kalıcı 'gerek_yok'.
     # Backend kanonik eşleştirir → her satıra 'isaret'/'kalici_haric' enjekte edilir
     # (frontend'in normalize etmesine gerek kalmaz). Tablo yoksa (eski DB) sessiz geç.
@@ -5674,6 +5686,7 @@ def as400_teyit_listesi():
                     'ozet': {k: len(v) for k, v in coklu[t].items()},
                     'liste': coklu[t]} for t in tarihler],
         'son_gonderimler': son_gonderimler,
+        'cop_verildi': cop_verildi,
     })
 
 
@@ -5884,7 +5897,7 @@ def as400_teyit_gonder():
             if dogrulandi:
                 mesaj = f'Doğrulandı: teyitli {once:g} → {sonra:g}' + (
                     f' · launch KAPANDI (durum {sonra_durum})' if bayrak == 'S' else '')
-                mesaj += _is_emri_dus(conn, referans, adet)
+                mesaj += _is_emri_dus_router(conn, referans, adet)
                 # COP (hurda) BURADA GİRİLMEZ (kullanıcı 2026-07-23: robot Rientro↔07>01
                 # mekik dokuyordu) — hurda ayrı /cop_gonder fazında EN SONA girilir.
             elif robot_ok and teyit_ok and not kapanma_ok:
@@ -5966,6 +5979,73 @@ def _is_emri_dus(conn, referans, adet):
         return f" · iş emrinden düşüldü ({satir['bolum']}: kalan {kalan})"
     except Exception as e:
         return f" · iş emri düşümü yapılamadı: {e}"
+
+
+# ── LAPTOP→SERVER İŞ EMRİ DÜŞÜM KÖPRÜSÜ (2026-07-24) ──
+# Teyit LAPTOPTA koşuyor (PCOMM) ama iş takip verisi SERVER'da (canlı DB). Bu yüzden
+# laptop'un yerel düşümü kullanıcının gördüğü listeye ulaşmıyordu. server_sync.json
+# (gitignore) köprüsü: 'url' varsa BU MAKİNE client (laptop) → düşümü server'a HTTP ile
+# yollar; 'url' yoksa server/standalone → gelen sync'i 'token' ile doğrulayıp YEREL düşer.
+def _server_sync_config():
+    """server_sync.json → (url|None, token|None). Yoksa (None, None) = köprü kapalı."""
+    try:
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server_sync.json')
+        if not os.path.exists(p):
+            return None, None
+        with open(p, encoding='utf-8') as f:
+            cfg = json.load(f)
+        return (cfg.get('url') or None), (cfg.get('token') or None)
+    except Exception as e:
+        print(f'[server_sync] config okunamadı: {e}')
+        return None, None
+
+
+def _is_emri_sunucuya_bildir(url, token, referans, adet):
+    """Laptop: başarılı teyit sonrası server'ın iş takip düşümünü HTTP ile tetikler.
+    Best-effort. Döner: (ok:bool, mesaj:str)."""
+    try:
+        import requests
+        r = requests.post(url.rstrip('/') + '/api/is_emri/dus_sync',
+                          json={'referans': referans, 'adet': adet},
+                          headers={'X-Sync-Token': token or ''}, timeout=8)
+        if r.status_code == 200:
+            return True, ((r.json() or {}).get('mesaj', '') or '')
+        return False, f" · ⚠ iş emri server düşümü başarısız (HTTP {r.status_code})"
+    except Exception as e:
+        return False, f" · ⚠ iş emri server'a ULAŞILAMADI ({e})"
+
+
+def _is_emri_dus_router(conn, referans, adet):
+    """server_sync 'url' varsa (laptop) düşümü SERVER'da yap (authoritative); server
+    ulaşılamazsa YEREL düşüme düş + uyarı (interim kayıp olmasın). 'url' yoksa yerel."""
+    url, token = _server_sync_config()
+    if not url:
+        return _is_emri_dus(conn, referans, adet)          # server/standalone
+    ok, mesaj = _is_emri_sunucuya_bildir(url, token, referans, adet)
+    if ok:
+        return mesaj                                       # server authoritative (boş = eşleşme yok)
+    return _is_emri_dus(conn, referans, adet) + mesaj + ' — elle kontrol'
+
+
+@app.route('/api/is_emri/dus_sync', methods=['POST'])
+def api_is_emri_dus_sync():
+    """Makine-arası iş emri düşümü (laptop→server). X-Sync-Token (server_sync.json token)
+    ile doğrulanır; server KENDİ referans_takip'inde _is_emri_dus çalıştırır. Panel
+    oturumu GEREKMEZ (token yeterli) — makine-arası çağrı için."""
+    _u, token_cfg = _server_sync_config()
+    if not token_cfg:
+        return jsonify({'hata': 'sync devre dışı (server_sync.json/token yok)'}), 403
+    if request.headers.get('X-Sync-Token', '') != token_cfg:
+        return jsonify({'hata': 'yetkisiz'}), 403
+    data = request.get_json(silent=True) or {}
+    referans = (data.get('referans') or '').strip()
+    try:
+        adet = int(data.get('adet') or 0)
+    except (TypeError, ValueError):
+        adet = 0
+    conn = get_db()
+    mesaj = _is_emri_dus(conn, referans, adet)
+    return jsonify({'mesaj': mesaj, 'dustu': bool(mesaj)})
 
 
 def _as400_cfi_bugun(article, causal='CFI'):
@@ -6082,7 +6162,7 @@ def as400_cfi_gonder():
             sonuc = 'ok' if dogrulandi else 'hata'
             if dogrulandi:
                 mesaj = f'CFI girildi: {article} → {adet} adet' + ('' if dogru else ' (hareket sorgusu doğrulanamadı, robot OK)')
-                mesaj += _is_emri_dus(conn, referans, adet)
+                mesaj += _is_emri_dus_router(conn, referans, adet)
                 # COP (hurda) ayrı fazda EN SONA girilir (bkz. /api/as400/cop_gonder)
             elif robot_ok:
                 mesaj = f'Robot OK ama bugünkü CFI hareketlerinde {adet} bulunamadı — elle kontrol edin'

@@ -21,6 +21,7 @@ Tunel_Onar.bat
 *.env
 cofle_test_config.json
 mail_config.json
+server_sync.json
 .flask_secret
 
 # Log ve debug çıktıları

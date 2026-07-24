@@ -1,0 +1,79 @@
+TEYIT: launch 26-150875 / 94.LTK.526 / 49 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  150875  Ass. 94.LTK.526                     Ord.Qty       105,000
+ 4|  Job      AUT 81           51643098 LEVER ASSY, PTO COMMA Rem.Qty       105,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  16/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 â†’ ILK teyit, F10 YOK
+OK: adet 49 girildi, bayrak A: ' 1   100                 MT2   RPR  16/07/26                 AD            49 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  150875  Ass. 94.LTK.526                     Ord.Qty       105,000
+ 4|  Job      AUT 81           51643098 LEVER ASSY, PTO COMMA Rem.Qty       105,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  16/07/26                 AD            49 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 49
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  150875 Ass.cd  94.LTK.526               Conf.qty        49,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1156G          REP AD     185,000     105,000     105,000     49,000 A
+ 7|    47659354 PTO SUPPORT ASSY      War.cau. SPR Um     Rej.qty
+ 8|    94.LTK.524            REP AD     185,000     105,000     105,000     49,000 A
+ 9|    51601082 LEVER ASSY PTO CONTRO War.cau. SPR Um     Rej.qty
+10|    93.TK.709             REP AD     105,000     105,000     105,000     49,000 A
+11|    48171781 CAVO PTO SINCO        War.cau. SPR Um     Rej.qty
+12|    10.DTC.128            REP AD    1962,000     105,000     105,000     49,000 A
+13|    M6 FÝBERLÝ SOMUN               War.cau. SPR Um     Rej.qty
+14|    10.DTC.870A           REP AD     555,000     315,000     315,000    147,000 A
+15|    8*30 CIVATA                    War.cau. SPR Um     Rej.qty
+16|    10.001.247B           REP AD     555,000     315,000     315,000    147,000 A
+17|    M8x1,25 10,9 SOMUN             War.cau. SPR Um     Rej.qty
+18|    10.DTC.1154           REP AD     185,000     105,000     105,000     49,000 A
+19|    GRANO M4X0,7 H=8 ES=2          War.cau. SPR Um     Rej.qty
+20|    10.130.3190           REP AD     185,000     105,000     105,000     49,000 A
+21|    7259402/5194972 SARI TOPUZ     War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  150875 Ass.cd  94.LTK.526               Conf.qty        49,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.300.1156G          REP AD     185,000     105,000     105,000     49,000 A
+ 7|    47659354 PTO
+ 8|    94.LTK.524                                                 5,000     49,000 A
+ 9|    51601082 LEVE     Data movimento     24   7  26
+10|    93.TK.709         Tipo costo         S      S/C/L/P/U/M    5,000     49,000 A
+11|    48171781 CAVO     Costo                     877,580759
+12|    10.DTC.128                                                 5,000     49,000 A
+13|    M6 FÝBERLÝ SO   F06=Conferma
+14|    10.DTC.870A                                                5,000    147,000 A
+15|    8*30 CIVATA                    War.cau. SPR Um     Rej.qty
+16|    10.001.247B           REP AD     555,000     315,000     315,000    147,000 A
+17|    M8x1,25 10,9 SOMUN             War.cau. SPR Um     Rej.qty
+18|    10.DTC.1154           REP AD     185,000     105,000     105,000     49,000 A
+19|    GRANO M4X0,7 H=8 ES=2          War.cau. SPR Um     Rej.qty
+20|    10.130.3190           REP AD     185,000     105,000     105,000     49,000 A
+21|    7259402/5194972 SARI TOPUZ     War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

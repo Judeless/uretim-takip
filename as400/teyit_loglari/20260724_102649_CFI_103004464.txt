@@ -1,0 +1,77 @@
+CFI GIRIS: 10.300.4464 / 83 adet
+G0: zaten CFI giris ekraninda (2-Variation)
+---------- EKRAN [giris-ekrani] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        24/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|       100  01D 10.300.3213W          KAYNAKLI GOVDE            AD        43,000
+ 5|       200  01D 10.300.3852W          KAYNAKLI KOL              AD        38,000
+ 6|       300  01D 10.300.5292W          BOYASIZ KAYNAKLI PARÇA    AD        39,000
+ 7|       400  01D 10.300.1842S          PEDANINA NOT BENDED       AD       461,000
+ 8|  2-Variation
+ 9|  Record no. .           26  252472       Actual row      500  Rec.dt   24  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+G1: alan haritasi â€” wh@10 ca@11 ar@12 qty@14 cp@18 kolon=25
+---------- EKRAN [giris-dolu] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        24/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|       100  01D 10.300.3213W          KAYNAKLI GOVDE            AD        43,000
+ 5|       200  01D 10.300.3852W          KAYNAKLI KOL              AD        38,000
+ 6|       300  01D 10.300.5292W          BOYASIZ KAYNAKLI PARÇA    AD        39,000
+ 7|       400  01D 10.300.1842S          PEDANINA NOT BENDED       AD       461,000
+ 8|  2-Variation
+ 9|  Record no. .           26  252472       Actual row      500  Rec.dt   24  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .      10.300.4464                              L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                               83 Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+OK: ust listede 10.300.4464 / 83 goruldu, giris alanlari bosaldi
+---------- EKRAN [basarili] ----------
+ 1|  G.N.S. System News          MOVIMENTI DI MAGAZZINO        24/07/26  COFLETKENG
+ 2|                                    Manag.
+ 3|            Wr Article               Description                  Um  Quantity
+ 4|       500  01D 10.300.4464           ACX380170A SHOULDER SPACE AD        83,000
+ 8|  2-Variation
+ 9|  Record no. .           26  252472       Actual row      600  Rec.dt   24  7 26
+10|  Warehouse cd. . . .    01D    WH components ex DCI
+11|  Causal cd. . . . .     CFI    Load finished with expl.comp.
+12|  Article cd. . . .                                               L.Agg       T
+13|     Ty.Ar   Prov
+14|  Qty                                  Um         Location
+15|  Price or value . .                              Techn.spec.1
+16|  Custom/Supplier cd                                 Ü      Ü
+17|                                                                 Cost
+18|  Counterpart War.cd     01D    WH components ex DCI
+19|                         Del Note        Invoice             Job
+20|  Number . . . . .
+21|  Date . . . . . .             00                00      Lot
+23|  F01=Art.card   F03=Exit        F05=New rec.  F09=New row  F11=Review visione
+24|  F13=Wr.Bal. F18=Comments     F20=Print del.notes
+----------
+SONUC=OK

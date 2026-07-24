@@ -9530,6 +9530,7 @@ window.__I18N_SOZLUK__ = {
         // ═══════════════════════════════════════════════════════
         var _as4Bekleyen = [];    // gönderilebilir LAUNCH satırları (checkbox indeks sırası)
         var _as4CfiBekleyen = []; // launch'sız üretim → CFI kuyruğu (checkbox indeks sırası)
+        var _as4CopBekleyen = []; // hurda (nok_adet) → COP kuyruğu (2026-07-24; ANA teyidi onaylı satırlar da dahil)
         var _as4GonderiSuruyor = false;   // bu sekmede as4Gonder aktif mi
         var _as4DurumTimer = null;
 
@@ -9932,18 +9933,48 @@ window.__I18N_SOZLUK__ = {
                 (L.YOK || []).forEach(function (r) { cfiKuyruk(r, ''); });
                 (L.KAPALI || []).forEach(function (r) { dagit(r, digerList); });
             });
+
+            // ── ♻ HURDA → COP toplama (2026-07-24): hurda (nok_adet) girilen satırlar,
+            // ana teyidi ONAYLI olsa bile COP kuyruğuna girer (COP bağımsız bir depo
+            // hareketi — normal teyit kuyruğunda çıkmaz). HARIC (numune/kalıcı-işaret)
+            // ve ARAOP (ara-op) hariç. SUPHELI (varyant eşleşme) → ⚠ + varsayılan seçili
+            // DEĞİL (AS400 kodu doğrulanmalı). Mükerrer: cop_gonder dedup (yil='CO') korur.
+            _as4CopBekleyen = [];
+            var copVer = d.cop_verildi || {};   // "tarih|article" → zaten COP verilmiş adet
+            gunler.forEach(function (g) {
+                var L = g.liste || {};
+                Object.keys(L).forEach(function (kat) {
+                    if (kat === 'HARIC' || kat === 'ARAOP') return;
+                    (L[kat] || []).forEach(function (r) {
+                        var h = parseInt(r.hurda || 0) || 0;
+                        if (h <= 0) return;
+                        var ls = r.launchlar || [];
+                        // SUPHELI (varyant): launchlar article BAŞKA ürünün kodu olabilir (4672B→4672W
+                        // gibi) — COP hurdası ÜRETİLEN kodun kendisine (referans) yazılır. Alan editable.
+                        var art = (kat === 'SUPHELI') ? r.referans
+                                : ((ls[0] && ls[0].article) ? ls[0].article : r.referans);
+                        _as4CopBekleyen.push({
+                            tarih: g.tarih, referans: r.referans, article: art, adet: h,
+                            bolum: r.bolum || '', bugunMu: g.tarih === bugun,
+                            supheli: (kat === 'SUPHELI'), verildi: !!copVer[g.tarih + '|' + art]
+                        });
+                    });
+                });
+            });
             info.textContent = gunler.map(function (g) { return as4GunEtiket(g.tarih); }).join(' · ');
 
             function cip(renk, txt) {
                 return '<span style="border:1px solid ' + renk + '55;background:' + renk + '18;color:' + renk +
                     ';border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">' + txt + '</span>';
             }
+            var copBek = _as4CopBekleyen.filter(function (c) { return !c.verildi; });   // COP verilmemiş (pending) hurdalar
             var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px">' +
                 cip('#34d399', '📤 Launch bekleyen: ' + _as4Bekleyen.length) +
                 cip('#60a5fa', '📦 CFI bekleyen: ' + _as4CfiBekleyen.length) +
                 cip('#94a3b8', '✅ Teyitli: ' + teyitli.length) +
                 cip('#fbbf24', '⚠️ Dikkat: ' + dikkat.length) +
-                cip('#a78bfa', '🔗 Ara op: ' + araList.length) + '</div>';
+                cip('#a78bfa', '🔗 Ara op: ' + araList.length) +
+                (copBek.length ? cip('#f87171', '♻ Hurda COP: ' + copBek.length) : '') + '</div>';
 
             // ── 1) TEYIT BEKLEYENLER (launch + CFI aksiyon alanı) ──
             if (!_as4Bekleyen.length && !_as4CfiBekleyen.length) {
@@ -10031,6 +10062,42 @@ window.__I18N_SOZLUK__ = {
                     '<button class="btn" id="as4-durdur-btn" onclick="as4Durdur()" style="display:none;background:#dc2626;color:#fff;border-color:#dc2626">⏹ Durdur</button>' +
                     '<span style="font-size:.76rem;color:var(--muted)">Sıra: <b style="color:#34d399">LAUNCH</b> → <b style="color:#60a5fa">CFI</b> → en son <b style="color:#f87171">♻ HURDA (COP)</b>. <b style="color:#34d399">A</b> = launch açık kalır · <b style="color:#f87171">S</b> = KAPANIR (kalan ≈ gönderilecek satırlarda otomatik önerilir).</span></div>' +
                     '<div id="as4-gonder-sonuc"></div>';
+            }
+
+            // ── 1b) ♻ HURDA → COP (her zaman render — hurdalı satırlar onaylı üretimde
+            // olabilir, normal kuyrukta çıkmaz). Ayrı buton; /cop_gonder + dedup kullanır. ──
+            if (copBek.length) {
+                html += '<h4 style="margin:20px 0 8px;color:#f87171;font-size:.9rem">♻ Hurda → COP bekleyen (' + copBek.length + ')' +
+                    (_as4CopBekleyen.length > copBek.length ? ' <span style="color:#34d399;font-size:.74rem;font-weight:700">· ✅ ' + (_as4CopBekleyen.length - copBek.length) + ' zaten COP verilmiş</span>' : '') +
+                    ' <span style="font-weight:500;color:var(--muted);font-size:.74rem">— hurda (nok) adetleri COP olarak girilir; zaten girilmişler gönderimde atlanır (dedup)</span>' +
+                    ' <a onclick="as4CopTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
+                    ' <a onclick="as4CopTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
+                html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                    '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
+                    '<th>Article (COP hedefi)</th><th style="text-align:right;width:96px">Hurda</th></tr></thead><tbody>';
+                _as4CopBekleyen.forEach(function (c, i) {
+                    if (c.verildi) return;   // zaten COP verilmiş — pending listede gösterme (dedup kaydı var; index korunur, cb yok → gönderimde atlanır)
+                    var sec = !c.bugunMu;   // geçmiş gün seçili; article editable olduğu için varyant da seçilebilir
+                    var uyari = c.supheli ? ' <span style="color:#fbbf24;font-size:.7rem;font-weight:800" title="Varyant eşleşme — üretilen kod yazıldı; AS400 kodu farklıysa aşağıdaki alandan düzelt">⚠ kod?</span>' : '';
+                    var gunU = c.bugunMu ? ' <span style="color:#fbbf24" title="Gün bitmeden önerilmez">⚠</span>' : '';
+                    html += '<tr>' +
+                        '<td><input type="checkbox" id="as4-cop-cb-' + i + '"' + (sec ? ' checked' : '') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
+                        '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(c.tarih)) + gunU + '</td>' +
+                        '<td>' + esc(bolumAdi(c.bolum)) + '</td>' +
+                        '<td style="font-weight:700">' + esc(c.referans) + '</td>' +
+                        '<td><input type="text" id="as4-cop-art-' + i + '" value="' + esc(c.article) + '" class="rt-row-input" style="width:150px;font-size:.8rem' + (c.supheli ? ';border-color:#fbbf24' : '') + '">' + uyari + '</td>' +
+                        '<td style="text-align:right"><input type="number" id="as4-cop-adet-' + i + '" value="' + c.adet + '" min="1" class="rt-row-input" style="width:78px;text-align:right;color:#f87171;font-weight:800"></td>' +
+                        '</tr>';
+                });
+                html += '</tbody></table></div>';
+                html += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
+                    '<button class="btn" id="as4-cop-gonder-btn" onclick="as4CopGonder()" style="background:#dc2626;color:#fff;border-color:#dc2626">♻ Seçili hurdaları COP olarak gönder</button>' +
+                    '<button class="btn" id="as4-cop-durdur-btn" onclick="as4Durdur()" style="display:none;background:#7f1d1d;color:#fff;border-color:#7f1d1d">⏹ Durdur</button>' +
+                    '<span style="font-size:.76rem;color:var(--muted)">COP hareket tarihi = <b>bugün</b> (hurda ne zaman girilirse o gün defterlenir). Session B\'nin boşta olduğundan emin ol.</span></div>' +
+                    '<div id="as4-cop-sonuc"></div>';
+            } else if (_as4CopBekleyen.length) {
+                // Tüm hurdalar zaten COP verilmiş — pending yok; boş tablo yerine kısa bilgi.
+                html += '<div style="margin:18px 0 4px;color:#34d399;font-size:.86rem;font-weight:700">♻ ✅ Bu aralıktaki tüm hurdalar zaten COP verilmiş (' + _as4CopBekleyen.length + ' satır).</div>';
             }
 
             // ── 2) DIKKAT (robot dokunmaz) ──
@@ -10344,17 +10411,106 @@ window.__I18N_SOZLUK__ = {
         }
 
         function as4Durdur() {
-            var durBtn = document.getElementById('as4-durdur-btn');
-            if (durBtn) { durBtn.disabled = true; durBtn.textContent = '⏳ Durduruluyor…'; }
+            // Teyit VE COP durdur butonlarının ikisi de aynı sunucu bayrağını (teyit_durdur)
+            // set eder (_AS400_DURDUR paylaşımlı) — hangisi görünürse onu güncelle.
+            var durButonlar = [document.getElementById('as4-durdur-btn'),
+                               document.getElementById('as4-cop-durdur-btn')].filter(Boolean);
+            durButonlar.forEach(function (b) { b.disabled = true; b.textContent = '⏳ Durduruluyor…'; });
             panelFetch('/api/as400/teyit_durdur', { method: 'POST' })
               .then(function (r) { return r.json(); })
               .then(function (d) {
                 toast(d.mesaj || 'Durdurma istendi', d.durum === 'bos' ? 'error' : 'ok');
-                if (d.durum === 'bos' && durBtn) durBtn.style.display = 'none';
+                if (d.durum === 'bos') durButonlar.forEach(function (b) { b.style.display = 'none'; });
               }).catch(function () {
                 toast('Durdurma isteği gönderilemedi', 'error');
-                if (durBtn) { durBtn.disabled = false; durBtn.textContent = '⏹ Durdur'; }
+                durButonlar.forEach(function (b) { b.disabled = false; b.textContent = '⏹ Durdur'; });
               });
+        }
+
+        // ── ♻ HURDA → COP kuyruğu (2026-07-24) ──
+        function as4CopTumunuSec(sec) {
+            _as4CopBekleyen.forEach(function (c, i) {
+                var cb = document.getElementById('as4-cop-cb-' + i);
+                if (cb) cb.checked = !!sec;
+            });
+        }
+
+        async function as4CopGonder() {
+            var copSec = [];
+            _as4CopBekleyen.forEach(function (c, i) {
+                var cb = document.getElementById('as4-cop-cb-' + i);
+                if (!cb || !cb.checked) return;
+                var adet = parseInt((document.getElementById('as4-cop-adet-' + i) || {}).value) || 0;
+                if (adet <= 0) return;
+                var art = ((document.getElementById('as4-cop-art-' + i) || {}).value || c.article || '').trim();
+                if (!art) return;
+                copSec.push({ uretim_tarihi: c.tarih, referans: c.referans, article: art, adet: adet });
+            });
+            if (!copSec.length) { toast('Gönderilecek hurda seçilmedi', 'error'); return; }
+            var ozet = copSec.map(function (s) {
+                return '  ♻ [' + s.uretim_tarihi + '] ' + s.referans + ' → ' + s.article + ' → ' + s.adet + ' adet';
+            }).join('\n');
+            if (!confirm('AS400\'e COP (hurda) hareketi girilecek — hareket tarihi BUGÜN:\n\n' + ozet +
+                '\n\nSession B\'nin boşta olduğundan emin ol. Devam?')) return;
+
+            var btn = document.getElementById('as4-cop-gonder-btn');
+            var durBtn = document.getElementById('as4-cop-durdur-btn');
+            var sonucEl = document.getElementById('as4-cop-sonuc');
+            _as4GonderiSuruyor = true;
+            btn.disabled = true;
+            if (durBtn) { durBtn.style.display = ''; durBtn.disabled = false; durBtn.textContent = '⏹ Durdur'; }
+            // PARÇALI (4'erli) — tarayıcı fetch sınırı + o ana kadarki sonuçlar birikir.
+            var t = { ozet: { ok: 0, hata: 0, atlandi: 0 }, sonuclar: [], durduruldu: false, hata_mesaj: '' };
+            try {
+                for (var p = 0; p < copSec.length; p += 4) {
+                    var parca = copSec.slice(p, p + 4);
+                    var r = null, d = null, deneme = 0;
+                    while (true) {
+                        sonucEl.innerHTML = as4SonucSatirlari(t.sonuclar) +
+                            '<div class="yukleniyor" style="padding:14px 0">🤖 Hurda COP: ' + (p + 1) + '–' + Math.min(p + 4, copSec.length) + ' / ' + copSec.length + ' satır' +
+                            (deneme ? ' — bağlantı koptu, tekrar (' + deneme + '/2)' : '') + ' (satır başına ~15-40 sn, dokunma). <b>⏹ Durdur</b> ile durdurabilirsin.</div>';
+                        try {
+                            r = await panelFetch('/api/as400/cop_gonder', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ satirlar: parca })
+                            });
+                            d = await r.json();
+                            break;
+                        } catch (eF) {
+                            deneme++;
+                            if (deneme > 2) throw eF;
+                            await new Promise(function (rs) { setTimeout(rs, 2500 * deneme); });
+                        }
+                    }
+                    if (!r.ok) { t.hata_mesaj = (d && d.hata) || 'başarısız'; break; }
+                    var oz = d.ozet || {};
+                    t.ozet.ok += oz.ok || 0; t.ozet.hata += oz.hata || 0; t.ozet.atlandi += oz.atlandi || 0;
+                    t.sonuclar = t.sonuclar.concat(d.sonuclar || []);
+                    if (d.durduruldu) { t.durduruldu = true; break; }
+                }
+            } catch (e) {
+                t.hata_mesaj = 'Bağlantı hatası — o ana kadar işlenenler aşağıda; listeyi yenileyip kontrol et.';
+            }
+            _as4GonderiSuruyor = false;
+            btn.disabled = false;
+            if (durBtn) durBtn.style.display = 'none';
+            var ozetHtml = '<div style="margin:10px 0;font-weight:800">COP sonucu: ' +
+                '<span style="color:#34d399">' + t.ozet.ok + ' başarılı</span> · ' +
+                '<span style="color:#f87171">' + t.ozet.hata + ' hata</span> · ' +
+                '<span style="color:#94a3b8">' + t.ozet.atlandi + ' atlandı</span>' +
+                (t.durduruldu ? ' <span style="color:#fbbf24">· ⏹ durduruldu</span>' : '') + '</div>';
+            if (t.hata_mesaj) ozetHtml += '<div style="color:#fca5a5;font-weight:700;padding:6px 0">⚠ ' + esc(t.hata_mesaj) + '</div>';
+            sonucEl.innerHTML = ozetHtml + as4SonucSatirlari(t.sonuclar);
+            toast(t.ozet.ok + ' hurda COP işlendi', (t.ozet.hata ? 'error' : 'ok'));
+            // Listeyi tazele — COP sonucunu koru
+            setTimeout(function () {
+                var korunan = sonucEl.innerHTML;
+                as4Yukle();
+                setTimeout(function () {
+                    var yeniEl = document.getElementById('as4-cop-sonuc');
+                    if (yeniEl) yeniEl.innerHTML = korunan;
+                }, 3500);
+            }, 1200);
         }
 
         // ═══════════════════════════════════════════════════════

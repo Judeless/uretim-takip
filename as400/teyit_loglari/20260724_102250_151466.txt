@@ -1,0 +1,55 @@
+TEYIT: launch 26-151466 / 10.130.4675B / 650 adet / bayrak A
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  151466  Ass. 10.130.4675B                   Ord.Qty       676,000
+ 4|  Job                       SPALLA DX LEVA FRENO           Rem.Qty       676,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  23/07/26                 AD               A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 0 → ILK teyit, F10 YOK
+OK: adet 650 girildi, bayrak A: ' 1   100                 MT2   RPR  23/07/26                 AD           650 A'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  151466  Ass. 10.130.4675B                   Ord.Qty       676,000
+ 4|  Job                       SPALLA DX LEVA FRENO           Rem.Qty       676,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|  1   100                 MT2   RPR  23/07/26                 AD           650 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 650
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  151466 Ass.cd  10.130.4675B             Conf.qty       650,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.015-6112       REP KG     126,242      73,008      73,008     70,200 A
+ 7|    1,5 MM ERDERMIR 6112 1500*3000 War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim1] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  151466 Ass.cd  10.130.4675B             Conf.qty       650,000
+ 4|  Progress.        100
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.015-6112       REP KG     126,242      73,008      73,008     70,200 A
+ 7|    1,5 MM ERDERM
+ 9|                      Data movimento     24   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                       7,393340
+13|                    F06=Conferma
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x1), islem tamam
+SONUC=OK

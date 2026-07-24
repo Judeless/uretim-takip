@@ -1,0 +1,99 @@
+TEYIT: launch 26-139032 / 94.LFS.001 / 10 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+G0: Summary orders listesi (onceki teyit sonrasi) â†’ F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani â€” launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139032  Ass. 94.LFS.001                     Ord.Qty        30,000
+ 4|  Job      NEW              1946 HAND BRAKE ASSY.          Rem.Qty        10,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0240270   MT2   RPR  16/07/26                 AD        20,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 â†’ F10 (yeni satir)
+OK: adet 10 girildi, bayrak S: ' 1   200                 MT2   RPR  16/07/26                 AD            10 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139032  Ass. 94.LFS.001                     Ord.Qty        30,000
+ 4|  Job      NEW              1946 HAND BRAKE ASSY.          Rem.Qty        10,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0240270   MT2   RPR  16/07/26                 AD        20,000 A
+ 7|  1   200                 MT2   RPR  16/07/26                 AD            10 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE â†’ F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  139032  Ass. 94.LFS.001                     Ord.Qty        30,000
+ 4|  Job      NEW              1946 HAND BRAKE ASSY.          Rem.Qty        10,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0240270   MT2   RPR  16/07/26                 AD        20,000 A
+ 7|  1   200                 MT2   RPR  16/07/26                 AD            10 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                      30,000                 30,000
+16|            Qty in order
+17|                      30,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 10
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  139032 Ass.cd  94.LFS.001               Conf.qty        10,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.128            REP AD    1972,000      30,000      10,000     10,000 S
+ 7|    M6 FÝBERLÝ SOMUN               War.cau. SPR Um     Rej.qty
+ 8|    10.001.272            REP AD     582,000      30,000      10,000     10,000 S
+ 9|    8,5*17*1,5CR3 PUL              War.cau. SPR Um     Rej.qty
+10|    10.130.130            REP AD      10,000      30,000      10,000     10,000 S
+11|    RONDELA                        War.cau. SPR Um     Rej.qty
+12|    10.130.2320           REP AD     130,000      60,000      20,000     20,000 S
+13|    ACHA016 ANELLO ELASTICO DI SIC War.cau. SPR Um     Rej.qty
+14|    10.300.0002           REP AD      10,000      30,000      10,000     10,000 S
+15|    1946001803 LEVER               War.cau. SPR Um     Rej.qty
+16|    10.300.0003G          REP AD      10,000      30,000      10,000     10,000 S
+17|    19460018 BOTTOM SUPPORT BRACKE War.cau. SPR Um     Rej.qty
+18|    10.300.0004           REP AD      10,000      30,000      10,000     10,000 S
+19|    SAC                            War.cau. SPR Um     Rej.qty
+20|    10.300.0006           REP AD      10,000      30,000      10,000     10,000 S
+21|    CABLE CONNECTION PIN 18MM      War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  139032 Ass.cd  94.LFS.001               Conf.qty        10,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    10.DTC.128            REP AD    1972,000      30,000      10,000     10,000 S
+ 7|    M6 FÝBERLÝ SO
+ 8|    10.001.272                                                 0,000     10,000 S
+ 9|    8,5*17*1,5CR3     Data movimento     24   7  26
+10|    10.130.130        Tipo costo         S      S/C/L/P/U/M    0,000     10,000 S
+11|    RONDELA           Costo                     525,534302
+12|    10.130.2320                                                0,000     20,000 S
+13|    ACHA016 ANELL   F06=Conferma
+14|    10.300.0002                                                0,000     10,000 S
+15|    1946001803 LEVER               War.cau. SPR Um     Rej.qty
+16|    10.300.0003G          REP AD      10,000      30,000      10,000     10,000 S
+17|    19460018 BOTTOM SUPPORT BRACKE War.cau. SPR Um     Rej.qty
+18|    10.300.0004           REP AD      10,000      30,000      10,000     10,000 S
+19|    SAC                            War.cau. SPR Um     Rej.qty
+20|    10.300.0006           REP AD      10,000      30,000      10,000     10,000 S
+21|    CABLE CONNECTION PIN 18MM      War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK

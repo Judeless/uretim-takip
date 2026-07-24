@@ -1,0 +1,87 @@
+TEYIT: launch 26-152011 / 10.300.1848S / 714 adet / bayrak S  (!! LAUNCH KAPATILACAK)
+G0: Summary orders listesi (onceki teyit sonrasi) → F3 ile geri
+G0: Limits ekranina donuldu
+OK: ozet ekrani — launch + article dogrulandi, yarim satir yok
+---------- EKRAN [ozet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  152011  Ass. 10.300.1848S                   Ord.Qty      1328,000
+ 4|  Job                       LAZER KESIM BUKUMSUZ SAC       Rem.Qty       614,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0250126   MT2   RPR  23/07/26                 AD       714,000 A
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+Onceki teyit satiri: 1 → F10 (yeni satir)
+OK: adet 714 girildi, bayrak S: ' 1   200                 MT2   RPR  23/07/26                 AD           714 S'
+---------- EKRAN [adet] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  152011  Ass. 10.300.1848S                   Ord.Qty      1328,000
+ 4|  Job                       LAZER KESIM BUKUMSUZ SAC       Rem.Qty       614,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0250126   MT2   RPR  23/07/26                 AD       714,000 A
+ 7|  1   200                 MT2   RPR  23/07/26                 AD           714 S
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+CHECK QUADRATURE → F6 (Confirm)
+---------- EKRAN [check-quadrature-adim0] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                                Re-entry summary
+ 3|  Ord.No.  26  152011  Ass. 10.300.1848S                   Ord.Qty      1328,000
+ 4|  Job                       LAZER KESIM BUKUMSUZ SAC       Rem.Qty       614,000
+ 5|  S  Prg. War.Rec.No.   War.   Cau   Re-entry date          Um       Qty decl.
+ 6|      100    26 0250126   MT2   RPR  23/07/26                 AD       714,000 A
+ 7|  1   200                 MT2   RPR  23/07/26                 AD           714 S
+12|                                  CHECK QUADRATURE
+13|                                **F R O M  D E F I N I T I V E  D A T A **
+14|             Tot.confirmed          Tot.produced           Tot.rejected
+15|                   1.428,000              1.428,000
+16|            Qty in order
+17|                   1.328,000    Movements in warehouse to adjust   S/N:  S
+19|        F03=Exit    F06=Confirm
+22|  1=Managem.  4=Cancell.
+23|  F03=Exit   F05=Restore          F10=Other row   F14=Order        F24=Total
+----------
+OK: Conf.qty dogrulandi = 714
+---------- EKRAN [malzeme-ozeti] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  152011 Ass.cd  10.300.1848S             Conf.qty       714,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.015-6112       REP KG      56,042     115,138      53,234     61,904 S
+ 7|    1,5 MM ERDERMIR 6112 1500*3000 War.cau. SPR Um     Rej.qty
+22|  9=Warehouse
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+Stok yetersiz (ozet) → F23 (force, tek sefer)
+---------- EKRAN [f23-ozet-adim2] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  152011 Ass.cd  10.300.1848S             Conf.qty       714,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.015-6112       REP KG      56,042     115,138      53,234     61,904 S
+ 7|    1,5 MM ERDERMIR 6112 1500*3000 War.cau. SPR Um     Rej.qty
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+---------- EKRAN [onay-penceresi-adim3] ----------
+ 1|  G.N.S. System News        RIENTRO ORDINI PRODUZIONE       24/07/26  COFLETK
+ 2|                               Summary materials
+ 3|  Order No  26  152011 Ass.cd  10.300.1848S             Conf.qty       714,000
+ 4|  Progress.        200
+ 5|  Material               War U.m.  Stock   Launch.qty     Eng.qty   Picking qty
+ 6|    21.SAC.015-6112       REP KG      56,042     115,138      53,234     61,904 S
+ 7|    1,5 MM ERDERM
+ 9|                      Data movimento     24   7  26
+10|                      Tipo costo         S      S/C/L/P/U/M
+11|                      Costo                       5,760281
+13|                    F06=Conferma
+22|  Qty to collect is higher than the q.ty in stock - F23 to force
+23|  F05=Restore  F12=Return                    F20=Conf.prod.       F24=Recalc.
+----------
+OK: teyit islendi (F6 x2), islem tamam
+SONUC=OK
