@@ -4854,6 +4854,11 @@ window.__I18N_SOZLUK__ = {
 
                         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center">
                             <button class="btn btn-primary" onclick="mailSimdiGonder()">📤 Bugünün Raporunu Şimdi Gönder</button>
+                            <span style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">
+                                Geçmiş gün:
+                                <input type="date" id="mail-tarih" class="form-control" style="width:auto;padding:6px 9px">
+                                <button class="btn btn-ghost" onclick="mailGunGonder()">📅 Seçili günün raporunu gönder</button>
+                            </span>
                             <button class="btn btn-ghost" onclick="mailTestGonder()">✉️ Test Maili Gönder</button>
                             <span id="mail-yontem-not" style="font-size:.78rem; color:var(--muted)">Gönderim ayarı sunucudaki <b>mail_config.json</b> dosyasında tanımlıdır.</span>
                         </div>
@@ -9013,6 +9018,19 @@ window.__I18N_SOZLUK__ = {
             toast('Gönderiliyor…', 'info');
             fetch('/api/mail/gonder_simdi', {
                 method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+            }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
+                toast(res.body.mesaj || (res.ok ? 'Gönderildi' : 'Gönderilemedi'), res.ok ? 'success' : 'error');
+            }).catch(() => toast('Bağlantı hatası', 'error'));
+        }
+
+        function mailGunGonder() {
+            const t = (document.getElementById('mail-tarih') || {}).value;
+            if (!t) { toast('Önce bir tarih seç', 'error'); return; }
+            if (!confirm(t + ' tarihli üretim raporu ŞİMDİ oluşturulup aktif alıcılara e-posta ile gönderilecek. Devam edilsin mi?')) return;
+            toast('Gönderiliyor…', 'info');
+            fetch('/api/mail/gonder_simdi', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({tarih: t})
             }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
                 toast(res.body.mesaj || (res.ok ? 'Gönderildi' : 'Gönderilemedi'), res.ok ? 'success' : 'error');
             }).catch(() => toast('Bağlantı hatası', 'error'));
