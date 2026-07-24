@@ -110,7 +110,23 @@ def calistir():
             return jsonify({'hata': 'timeout'}), 504
 
 
+def _quickedit_kapat():
+    """Windows konsol QuickEdit/Mark modunu KAPAT — pencereye tiklaninca agent
+    DONMASIN (tiklama process'i durduruyor; kritik altyapi icin kabul edilemez)."""
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.GetStdHandle(-10)   # STD_INPUT_HANDLE
+        mode = ctypes.c_uint()
+        if k.GetConsoleMode(h, ctypes.byref(mode)):
+            ENABLE_QUICK_EDIT, ENABLE_EXTENDED_FLAGS = 0x0040, 0x0080
+            k.SetConsoleMode(h, (mode.value & ~ENABLE_QUICK_EDIT) | ENABLE_EXTENDED_FLAGS)
+    except Exception:
+        pass
+
+
 if __name__ == '__main__':
+    _quickedit_kapat()
     print('╔══════════════════════════════════════════════╗')
     print('║  COFLE TEYIT AGENT — PCOMM oturumu köprüsü   ║')
     print('╚══════════════════════════════════════════════╝')
