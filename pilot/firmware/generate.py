@@ -86,15 +86,21 @@ DEVICES = {
         ('PLASTIK-320T', '320T'),
         ('PLASTIK-407T', '407T'),
     ],
+    # Yapistirma — plastik enjeksiyon HATTININ makinesi (bolum='plastik', role KISA
+    # pulse — plastik enj. uzun sinyalinin AKSINE). Abkant deseni. Bkz yapistirma.ino.tpl
+    'yapistirma': [
+        ('PLASTIK-YAPISTIRMA', 'Yapistirma'),
+    ],
 }
 
 TEMPLATES = {
-    'kaynak':  'kaynak.ino.tpl',
-    'montaj':  'montaj.ino.tpl',
-    'metal':   'metal.ino.tpl',
-    'abkant':  'abkant.ino.tpl',
-    'pres':    'pres.ino.tpl',
-    'plastik': 'plastik.ino.tpl',
+    'kaynak':     'kaynak.ino.tpl',
+    'montaj':     'montaj.ino.tpl',
+    'metal':      'metal.ino.tpl',
+    'abkant':     'abkant.ino.tpl',
+    'pres':       'pres.ino.tpl',
+    'plastik':    'plastik.ino.tpl',
+    'yapistirma': 'yapistirma.ino.tpl',
 }
 
 
