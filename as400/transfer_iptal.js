@@ -103,6 +103,23 @@ function girisEkraniMi(e) {
 function anaListeMi(e) {
     return e.indexOf("MOVIMENTI DI MAGAZZINO") >= 0 && e.indexOf("2-Variation") < 0;
 }
+// Iptal/DRYRUN/dogrulama SONRASI 07>01'e VERIMLI don — ana menuye SURUNME
+// (kullanici 2026-07-27: "bazen daha da geri cikiyor, vakit kaybi"). Detay/onay
+// ekranindan birkac F3 ile 07>01'e don; kazara menuye cikilirsa 07>01'i yeniden ac.
+function ana0701Don(maks) {
+    for (var i = 0; i < (maks || 4); i++) {
+        var e = ekranStr();
+        if (anaListeMi(e)) return true;
+        if (e.indexOf("Risorsa richiesta") >= 0 || e.indexOf("Riprova") >= 0) {
+            ps.SendKeys("[reset]"); WScript.Sleep(400); ps.SendKeys("[enter]"); bekle(); continue;
+        }
+        if (e.indexOf("Menu S.I. CofleTk") >= 0) {
+            ps.SendKeys("07[enter]"); bekle(); ps.SendKeys("01[enter]"); bekle(); continue;
+        }
+        kilitCoz(); ps.SendKeys("[pf3]"); bekle();
+    }
+    return anaListeMi(ekranStr());
+}
 
 log("TRANSFER IPTAL: kayit " + KYIL + "-" + KNO + " satir " + SATIR + " / " + ARTICLE + " / " + ADET + " adet" + (DRYRUN ? " (DRYRUN)" : ""));
 
@@ -137,70 +154,138 @@ dump("ana-ekran");
 // ── G1: kayit (hareket) numarasini gir ──
 // Ekranda "Record" etiketli satir varsa imleci oraya koy; yoksa [home] ile ilk
 // giris alanina git. Iki alanli kalip (yil + no) teyit_gir Order No ile ayni:
-// yil yaz → imlec ilerlemediyse [fldext] → no yaz → [fldext] → Enter.
-var sat0 = ekran(), recSatir = -1;
-for (var ri = 0; ri < sat0.length; ri++)
-    if (/Record|Registr/i.test(sat0[ri])) { recSatir = ri + 1; break; }
-if (recSatir > 0) {
-    log("G1: 'Record' etiketi satir " + recSatir + " → imlec oraya");
-    ps.SetCursorPos(recSatir, 1); WScript.Sleep(200);
-    ps.SendKeys("[home]"); WScript.Sleep(250);
-} else {
-    log("G1: 'Record' etiketi yok → [home] ile ilk giris alani");
-    ps.SendKeys("[home]"); WScript.Sleep(250);
+// yil yaz → imlec ilerlemediyse [fldext] → no yaz → [fldext].
+// Yanki dogrulanamazsa false doner (cagiran F3 ile giris ekranina donup tekrar dener —
+// onceki iptalden kalan bir hareket LISTESINDE olabiliriz, giris ekraninda degil).
+function kayitNoGir() {
+    var sat0 = ekran(), recSatir = -1;
+    for (var ri = 0; ri < sat0.length; ri++)
+        if (/Record|Registr/i.test(sat0[ri])) { recSatir = ri + 1; break; }
+    if (recSatir > 0) {
+        ps.SetCursorPos(recSatir, 1); WScript.Sleep(200);
+        ps.SendKeys("[home]"); WScript.Sleep(250);
+    } else {
+        ps.SendKeys("[home]"); WScript.Sleep(250);
+    }
+    var r0 = ps.CursorPosRow, c0 = ps.CursorPosCol;
+    ps.SendKeys(KYIL); WScript.Sleep(250);
+    if (ps.CursorPosRow === r0 && (ps.CursorPosCol - c0) <= 2) { ps.SendKeys("[fldext]"); WScript.Sleep(250); }
+    ps.SendKeys(KNO); WScript.Sleep(250);
+    var yankiSat = ps.GetText(r0, 1, ps.NumCols);
+    if (yankiSat.indexOf(KYIL) < 0 || yankiSat.indexOf(KNO) < 0) {
+        log("G1: kayit no yankisi hatali: '" + yankiSat.replace(/\s+$/, "") + "'");
+        return false;
+    }
+    ps.SendKeys("[fldext]"); WScript.Sleep(300);
+    return true;
 }
-var r0 = ps.CursorPosRow, c0 = ps.CursorPosCol;
-ps.SendKeys(KYIL); WScript.Sleep(250);
-if (ps.CursorPosRow === r0 && (ps.CursorPosCol - c0) <= 2) { ps.SendKeys("[fldext]"); WScript.Sleep(250); }
-ps.SendKeys(KNO); WScript.Sleep(250);
-var yankiSat = ps.GetText(r0, 1, ps.NumCols);
-if (yankiSat.indexOf(KYIL) < 0 || yankiSat.indexOf(KNO) < 0)
-    iptal("Kayit no yankisi hatali: '" + yankiSat.replace(/\s+$/, "") + "' — 07>01 ekran duzeni beklenenden farkli");
-ps.SendKeys("[fldext]"); WScript.Sleep(300);
+
+if (!kayitNoGir()) {
+    // ANA MENUYE SURUNME (kullanici 2026-07-27: "bazen daha da geri cikiyor, vakit
+    // kaybi"). Once TEK F3 ile giris ekranina don + tekrar dene; olmazsa tam yol.
+    log("G1: yanki gelmedi → F3 ile giris ekranina donup tekrar dene");
+    kilitCoz(); ps.SendKeys("[pf3]"); bekle();
+    if (!kayitNoGir()) {
+        if (!anaListeMi(ekranStr())) {
+            geriCekil(4);
+            if (!anaMenuyeDon(8)) iptal("Ana menuye ulasilamadi (kayit girisi)");
+            ps.SendKeys("07[enter]"); bekle(); ps.SendKeys("01[enter]"); bekle();
+            if (!anaListeMi(ekranStr())) iptal("07>01 ekrani acilamadi (kayit girisi)");
+        }
+        if (!kayitNoGir()) iptal("Kayit no yazilamadi (2 deneme) — 07>01 ekran duzeni farkli");
+    }
+}
+var oncePreEnter = ekranStr();   // Enter oncesi — liste geldigini anlamak icin
 ps.SendKeys("[enter]");
 
-// Kaydin satirlari listelenene kadar bekle (article gorunmeli)
-var eL = "", listelendi = false;
-for (var pz = 0; pz < 10; pz++) {
-    WScript.Sleep(800);
-    eL = ekranStr();
-    if (eL.indexOf("Risorsa richiesta") >= 0 || eL.indexOf("Riprova") >= 0) {
+// ── G1b + G2: liste gele + hedef satiri SAYFA SAYFA ara ──
+// Kayit no + Enter → o islem numarasiyla yapilmis hareketler listelenir. Liste
+// TEK EKRANA sigmayabilir (kullanici 2026-07-27: "gerekli kodu goremezse hata
+// veriyordu, PAGE DOWN ile o islem numarasiyla yapilmis digerlerini gorebilir").
+// Cozum: [pagedn] ile sayfalar taranir; hedef satir bulununca O SAYFADA '2' yazilir.
+var reSatirNo = new RegExp("(^|\\s)" + SATIR + "(\\s|$)");
+function adetEslesir(t) {
+    var m = /([\d\.]+),(\d{1,3})/.exec(t);
+    if (!m) return false;
+    var v = parseFloat(m[1].replace(/\./g, "") + "." + m[2]);
+    return Math.abs(v - ADET_F) < 0.001;
+}
+function hedefBulSayfa(satlar) {
+    // 1) article + satir no (MGPRRE) ayni ekran satirinda
+    for (var a = 0; a < satlar.length; a++)
+        if (satlar[a].indexOf(ARTICLE) >= 0 && reSatirNo.test(satlar[a])) return a + 1;
+    // 2) article + adet (italyan bicim) ayni satirda
+    for (var b = 0; b < satlar.length; b++)
+        if (satlar[b].indexOf(ARTICLE) >= 0 && adetEslesir(satlar[b])) return b + 1;
+    return -1;
+}
+// PAGE DOWN mnemonigi (bu PCOMM secici: [fieldexit] red, [fldext] kabul olmustu —
+// mnemonik adini garanti etme, dene). Ilk kabul edileni hatirla. false = mnemonik
+// kabul edilmedi (sayfalama yapilamaz, tek sayfa taranir).
+var _pgdnMnem = null;
+function sayfaAsagi() {
+    if (_pgdnMnem) { ps.SendKeys(_pgdnMnem); return true; }
+    var adaylar = ["[pagedn]", "[pagedown]", "[rollup]", "[pgdn]"];
+    for (var i = 0; i < adaylar.length; i++) {
+        try { ps.SendKeys(adaylar[i]); _pgdnMnem = adaylar[i]; log("Page Down mnemonik: " + adaylar[i]); return true; }
+        catch (e) { /* gecersiz mnemonik → sonraki aday */ }
+    }
+    log("UYARI: Page Down mnemonigi kabul edilmedi — yalniz ilk sayfa taranacak");
+    return false;
+}
+
+// Once liste hazir olsun (ekran degisti + kilit/hata yok)
+var haz = false;
+for (var pz = 0; pz < 10 && !haz; pz++) {
+    WScript.Sleep(700);
+    var eW = ekranStr();
+    if (eW.indexOf("Risorsa richiesta") >= 0 || eW.indexOf("Riprova") >= 0 || eW.indexOf("fase di aggiornamento") >= 0) {
         kilitCoz(); ps.SendKeys("[enter]"); bekle(); continue;
     }
-    if (eL.indexOf(ARTICLE) >= 0) { listelendi = true; break; }
+    if (eW.toLowerCase().indexOf("errore") >= 0) { dump("kayit-hata"); iptal("Kayit no sonrasi hata mesaji"); }
+    if (eW !== oncePreEnter) haz = true;
 }
-if (!listelendi) {
-    dump("kayit-acilamadi");
-    iptal("Kayit " + KYIL + "-" + KNO + " acilamadi ya da '" + ARTICLE + "' listede yok (zaten iptal edilmis olabilir)");
-}
-log("G1: kayit acildi — '" + ARTICLE + "' listede gorunuyor");
-dump("kayit-listesi");
+if (!haz) { dump("liste-gelmedi"); iptal("Kayit " + KYIL + "-" + KNO + " listesi acilmadi (ekran degismedi)"); }
+dump("kayit-listesi-sayfa1");
 
-// ── G2: hedef satiri bul ──
-// Oncelik: hem satir no (MGPRRE, orn '200') hem article iceren ekran satiri.
-// Bulunamazsa yalniz article + adet esleyen satir (tek aday olmali).
-var satlar = ekran(), hedefRow = -1;
-var reSatirNo = new RegExp("(^|\\s)" + SATIR + "(\\s|$)");
-for (var i2 = 0; i2 < satlar.length; i2++) {
-    if (satlar[i2].indexOf(ARTICLE) >= 0 && reSatirNo.test(satlar[i2])) { hedefRow = i2 + 1; break; }
+var hedefRow = -1, MAX_SAYFA = 30, sayfa = 0, articleGoruldu = false, dongu = 0;
+while (hedefRow < 0 && sayfa < MAX_SAYFA && dongu < 60) {
+    dongu++;
+    var eS = ekranStr();
+    if (eS.indexOf("Risorsa richiesta") >= 0 || eS.indexOf("Riprova") >= 0 || eS.indexOf("fase di aggiornamento") >= 0) {
+        kilitCoz(); ps.SendKeys("[enter]"); bekle(); continue;
+    }
+    if (eS.indexOf(ARTICLE) >= 0) articleGoruldu = true;
+    hedefRow = hedefBulSayfa(ekran());
+    if (hedefRow >= 0) break;
+    // Bu sayfada yok → PAGE DOWN ile sonraki sayfaya bak
+    var sonMetin = eS;
+    kilitCoz();
+    if (!sayfaAsagi()) break;   // mnemonik kabul edilmedi → sayfalama yok
+    bekle(); WScript.Sleep(500);
+    sayfa++;
+    if (ekranStr() === sonMetin) break;   // sayfa degismedi = liste bitti
 }
 if (hedefRow < 0) {
-    var adaylar = [];
-    for (var i3 = 0; i3 < satlar.length; i3++)
-        if (satlar[i3].indexOf(ARTICLE) >= 0) adaylar.push(i3 + 1);
-    if (adaylar.length === 1) hedefRow = adaylar[0];
-    else iptal("Hedef satir tek basina bulunamadi (satirNo=" + SATIR + ", article aday sayisi=" + adaylar.length + ")");
+    dump("hedef-bulunamadi");
+    if (articleGoruldu)
+        iptal("'" + ARTICLE + "' listede var ama satir " + SATIR + " / adet " + ADET + " ile eslesen satir yok (" + (sayfa + 1) + " sayfa tarandi)");
+    else
+        iptal("'" + ARTICLE + "' kayit " + KYIL + "-" + KNO + " listesinde bulunamadi (" + (sayfa + 1) + " sayfa tarandi — zaten iptal edilmis olabilir)");
 }
-// Adet dogrulamasi: ayni ekran satirinda italyan bicimi adet ('53,000' / '1.234,000')
-var hedefTxt = satlar[hedefRow - 1];
+log("G2: hedef satir " + hedefRow + " bulundu (sayfa " + (sayfa + 1) + ")");
+dump("hedef-satir");
+
+// Adet dogrulamasi: secilen satirda italyan bicimi adet birebir eslesmeli
+var hedefTxt = ekran()[hedefRow - 1];
 var mAdet = /([\d\.]+),(\d{1,3})/.exec(hedefTxt);
 if (mAdet) {
     var ekAdet = parseFloat(mAdet[1].replace(/\./g, "") + "." + mAdet[2]);
     if (Math.abs(ekAdet - ADET_F) > 0.001)
         iptal("Satirdaki adet uyusmadi: ekran=" + ekAdet + " beklenen=" + ADET_F + " ('" + hedefTxt.replace(/\s+$/, "") + "')");
-    log("G2: hedef ekran satiri " + hedefRow + ", adet dogrulandi (" + ekAdet + ")");
+    log("G2: adet dogrulandi (" + ekAdet + ")");
 } else {
-    log("G2: hedef ekran satiri " + hedefRow + " (adet deseni okunamadi — article eslesti, devam)");
+    log("G2: hedef satir " + hedefRow + " (adet deseni okunamadi — article eslesti, devam)");
 }
 
 // ── G3: satir basina '2' yaz (secenek alani) + Enter ──
@@ -237,7 +322,7 @@ log("G4: detay ekrani dogrulandi (kayit " + KNO + ", satir " + (mAr ? mAr[1] : "
 
 if (DRYRUN) {
     log("DRYRUN: iptal edilecek hareket dogrulandi, Shift+F4'e BASILMADI.");
-    try { geriCekil(4); } catch (e) {}
+    try { ana0701Don(4); } catch (e) {}   // 07>01'e don (ana menuye surunme)
     log("SONUC=DRYRUN-OK"); logDosya.Close(); WScript.Quit(0);
 }
 
@@ -276,6 +361,9 @@ dump("f16-sonrasi");
 var eSon = ekranStr();
 if (eSon.indexOf(ARTICLE) >= 0 && anaListeMi(eSon) === false && girisEkraniMi(eSon) === false)
     log("BILGI: article hala ekranda gorunuyor — Python BMMAF0 dogrulamasi belirleyici olacak");
+// B'yi 07>01 ana ekraninda BIRAK — sonraki cagri kayit no'yu direkt girer, ana
+// menuye surunmez (kullanici 2026-07-27: ardisik iptallerde vakit kaybi olmasin).
+try { ana0701Don(4); } catch (e) {}
 log("OK: F16 basildi, ekran degisti — iptal buyuk olasilikla islendi");
 log("SONUC=OK");
 logDosya.Close();
