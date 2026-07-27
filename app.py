@@ -5,6 +5,7 @@ from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
+import re
 import secrets
 import traceback # For debugging
 
@@ -5697,6 +5698,8 @@ def as400_teyit_isaret():
     Body: {kapsam:'gun'|'kalici', durum?:'kontrol'|'gerek_yok', referans, bolum?,
            uretim_tarihi?, aciklama?, kaldir?}
     kapsam='kalici' → referans HER GÜN teyit dışı (HARIC). kapsam='gun' → o güne özel.
+    durum='teyit_ver' (2026-07-27, 4536B vakası): satır Dikkat/varyant/ara-op'a düşse
+    bile 'kod DOĞRU, teyit ver' demektir → CFI kuyruğuna zorlanır (robot + oto koşu).
     Referans launch_esle.kanonik ile normalize saklanır (eşleşme tutarlı)."""
     data = request.get_json(silent=True) or {}
     kapsam = (data.get('kapsam') or 'gun').strip()
@@ -5714,7 +5717,7 @@ def as400_teyit_isaret():
     else:
         if not u_tarih:
             return jsonify({'hata': 'günlük işaret için uretim_tarihi zorunlu'}), 400
-        if durum not in ('kontrol', 'gerek_yok'):
+        if durum not in ('kontrol', 'gerek_yok', 'teyit_ver'):
             durum = 'kontrol'
     try:
         import sys as _sys
@@ -5830,14 +5833,122 @@ def _as400_launch_durum(yil, no):
         cn.close()
 
 
+def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla=False):
+    """Launch teyit satırlarını robotla işler — endpoint VE 17:10 oto koşusu ortak
+    çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar listesi.
+    Her satır BAĞIMSIZ denenir — bir launch hata/iptal verirse SONRAKİ launch'lara
+    DEVAM edilir (kullanıcı 2026-07-20: hata alınca ilk sayfaya çıkıp sıradaki
+    launch'tan devam et). Robot her çağrıda G0'da B'yi temizler + record-lock kurtarır."""
+    sonuclar = []
+    for idx, s in enumerate(satirlar):
+        # NAZIK DURDURMA: kullanıcı "Durdur"a bastıysa kalan satırlara GEÇME (çalışan
+        # cscript öldürülMEZ; mevcut satır zaten bittiğinde bu kontrole geliriz).
+        if _AS400_DURDUR.is_set():
+            for kalan in satirlar[idx:]:
+                sonuclar.append({
+                    'yil': str(kalan.get('yil') or '').strip(),
+                    'no': str(kalan.get('no') or '').strip(),
+                    'article': str(kalan.get('article') or '').strip(),
+                    'referans': str(kalan.get('referans') or '').strip(),
+                    'adet': kalan.get('adet'), 'sonuc': 'atlandi',
+                    'mesaj': 'Kullanıcı durdurdu'})
+            break
+        yil = str(s.get('yil') or '').strip()
+        no = str(s.get('no') or '').strip()
+        article = str(s.get('article') or '').strip()
+        referans = str(s.get('referans') or '').strip()
+        # Üretim tarihi SATIR bazlı (kuyruk görünümü birden çok günü birlikte gönderir)
+        u_tarih = (str(s.get('uretim_tarihi') or '').strip() or varsayilan_tarih)
+        try:
+            adet = int(s.get('adet') or 0)
+        except (TypeError, ValueError):
+            adet = 0
+        kayit = {'yil': yil, 'no': no, 'article': article, 'referans': referans,
+                 'adet': adet, 'uretim_tarihi': u_tarih}
+
+        if not (yil.isdigit() and len(yil) == 2 and no.isdigit() and 0 < adet <= 99999 and article and u_tarih):
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+            continue
+        # Mükerrer koruması 1: kendi gönderim log'umuz
+        var = conn.execute(
+            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil=? AND launch_no=? AND sonuc='ok'",
+            (u_tarih, yil, no)).fetchone()
+        if var and not zorla:
+            sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                             'mesaj': f'Bu üretim günü için bu launch\'a zaten gönderilmiş (log #{var["id"]})'})
+            continue
+        # Mükerrer koruması 2 (ASIL): ERP'nin GERÇEK teyit hareketleri —
+        # operatörün ELLE girdiği teyitler de burada görünür. Frontend
+        # atlansa/eski liste gönderilse bile burada yakalanır.
+        if not zorla:
+            try:
+                import launch_esle as _le2
+                hrk = _le2.teyit_hareketleri([article]).get(_le2.kanonik(article), [])
+                zt, ilgili = _le2._zaten_teyitli(hrk, u_tarih, adet,
+                                                 _le2.ref_uretim_gecmisi(referans, u_tarih))
+            except Exception:
+                zt, ilgili = None, []
+            if zt == 'kesin':
+                det = ', '.join(f"{h['tarih']}: {h['adet']:g}" for h in ilgili)
+                sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                 'mesaj': f'ERP\'de bu üretim için zaten teyit var ({det}) — mükerrer olurdu'})
+                continue
+
+        bayrak = 'S' if str(s.get('bayrak') or 'A').upper() == 'S' else 'A'
+        try:
+            once, once_durum = _as400_launch_durum(yil, no)
+        except Exception as e:
+            sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': f'Ön okuma hatası: {e}'})
+            continue
+
+        cikti, robot_hata = _as400_robot_calistir('teyit_gir.js', [yil, no, article, adet, bayrak], 150)
+        if robot_hata:
+            sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': robot_hata, 'teyitli_once': once})
+            continue
+
+        robot_ok = 'SONUC=OK' in cikti
+        try:
+            sonra, sonra_durum = _as400_launch_durum(yil, no)
+        except Exception:
+            sonra, sonra_durum = None, None
+        # Doğrulama: teyitli tam +adet artmalı; S ise launch KAPANMIŞ (durum 70) olmalı.
+        teyit_ok = (once is not None and sonra is not None and abs(sonra - once - adet) < 0.001)
+        kapanma_ok = (bayrak == 'A') or (sonra_durum == 70)
+        dogrulandi = robot_ok and teyit_ok and kapanma_ok
+        son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-500:]
+        sonuc = 'ok' if dogrulandi else 'hata'
+        if dogrulandi:
+            mesaj = f'Doğrulandı: teyitli {once:g} → {sonra:g}' + (
+                f' · launch KAPANDI (durum {sonra_durum})' if bayrak == 'S' else '')
+            mesaj += _is_emri_dus_router(conn, referans, adet)
+            # COP (hurda) BURADA GİRİLMEZ (kullanıcı 2026-07-23: robot Rientro↔07>01
+            # mekik dokuyordu) — hurda ayrı /cop_gonder fazında EN SONA girilir.
+        elif robot_ok and teyit_ok and not kapanma_ok:
+            mesaj = f'Teyit işlendi ({once:g}→{sonra:g}) ama S ile KAPANMADI (durum {sonra_durum}) — kontrol edin'
+        elif robot_ok:
+            mesaj = f'Robot OK ama doğrulama tutmadı (önce {once} sonra {sonra}, durum {sonra_durum})'
+        else:
+            mesaj = f'Robot iptal: {son_satirlar}'
+        conn.execute(
+            "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, teyitli_once, teyitli_sonra, olusturan) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (u_tarih, yil, no, referans, article, adet, bayrak, sonuc, mesaj, once, sonra, kullanici))
+        conn.commit()
+        sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': sonuc, 'mesaj': mesaj,
+                         'teyitli_once': once, 'teyitli_sonra': sonra})
+        # Hata olsa bile SONRAKİ satıra devam (durdurma YOK).
+
+    return sonuclar
+
+
 @app.route('/api/as400/teyit_gonder', methods=['POST'])
 @panel_gerekli(izin='as400-teyit')
 def as400_teyit_gonder():
     """Seçili satırları AS400'e teyit olarak girer (Session B ekran robotu).
-    Body: {uretim_tarihi, satirlar: [{yil, no, article, referans, adet}], zorla}
-    KURALLAR: daima A bayrağı (launch kapatılMAZ — S insan işi); aynı üretim günü
-    + launch için ikinci gönderim reddedilir (zorla=true hariç); ilk hatada kalan
-    satırlar atlanır. Her satır sonrası BPROF0.Q0QTRI ile bağımsız doğrulama."""
+    Body: {uretim_tarihi, satirlar: [{yil, no, article, referans, adet, bayrak}], zorla}
+    Çekirdek _teyit_gonder_calistir'da (17:10 oto koşusuyla ORTAK). Aynı üretim
+    günü + launch için ikinci gönderim reddedilir (zorla=true hariç). Her satır
+    sonrası BPROF0.Q0QTRI ile bağımsız doğrulama."""
     data = request.get_json(silent=True) or {}
     varsayilan_tarih = (data.get('uretim_tarihi') or '').strip()
     satirlar = data.get('satirlar') or []
@@ -5846,118 +5957,14 @@ def as400_teyit_gonder():
         return jsonify({'hata': 'satirlar zorunlu'}), 400
     if len(satirlar) > 60:
         return jsonify({'hata': 'Tek seferde en fazla 60 satır'}), 400
-
     if not _AS400_KILIT.acquire(blocking=False):
         return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
     try:
         _AS400_DURDUR.clear()   # yeni gönderim → önceki "durdur" bayrağını sıfırla
-        kullanici = g.panel_ku['kullanici_adi']
-        conn = get_db()
-        sonuclar = []
-        # Her satır BAĞIMSIZ denenir — bir launch hata/iptal verirse SONRAKİ launch'lara
-        # DEVAM edilir (kullanıcı 2026-07-20: hata alınca ilk sayfaya çıkıp sıradaki
-        # launch'tan devam et). Robot her çağrıda G0'da B'yi temizler + record-lock kurtarır.
-        for idx, s in enumerate(satirlar):
-            # NAZIK DURDURMA: kullanıcı "Durdur"a bastıysa kalan satırlara GEÇME (çalışan
-            # cscript öldürülMEZ; mevcut satır zaten bittiğinde bu kontrole geliriz).
-            if _AS400_DURDUR.is_set():
-                for kalan in satirlar[idx:]:
-                    sonuclar.append({
-                        'yil': str(kalan.get('yil') or '').strip(),
-                        'no': str(kalan.get('no') or '').strip(),
-                        'article': str(kalan.get('article') or '').strip(),
-                        'referans': str(kalan.get('referans') or '').strip(),
-                        'adet': kalan.get('adet'), 'sonuc': 'atlandi',
-                        'mesaj': 'Kullanıcı durdurdu'})
-                break
-            yil = str(s.get('yil') or '').strip()
-            no = str(s.get('no') or '').strip()
-            article = str(s.get('article') or '').strip()
-            referans = str(s.get('referans') or '').strip()
-            # Üretim tarihi SATIR bazlı (kuyruk görünümü birden çok günü birlikte gönderir)
-            u_tarih = (str(s.get('uretim_tarihi') or '').strip() or varsayilan_tarih)
-            try:
-                adet = int(s.get('adet') or 0)
-            except (TypeError, ValueError):
-                adet = 0
-            kayit = {'yil': yil, 'no': no, 'article': article, 'referans': referans,
-                     'adet': adet, 'uretim_tarihi': u_tarih}
-
-            if not (yil.isdigit() and len(yil) == 2 and no.isdigit() and 0 < adet <= 99999 and article and u_tarih):
-                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
-                continue
-            # Mükerrer koruması 1: kendi gönderim log'umuz
-            var = conn.execute(
-                "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil=? AND launch_no=? AND sonuc='ok'",
-                (u_tarih, yil, no)).fetchone()
-            if var and not zorla:
-                sonuclar.append({**kayit, 'sonuc': 'atlandi',
-                                 'mesaj': f'Bu üretim günü için bu launch\'a zaten gönderilmiş (log #{var["id"]})'})
-                continue
-            # Mükerrer koruması 2 (ASIL): ERP'nin GERÇEK teyit hareketleri —
-            # operatörün ELLE girdiği teyitler de burada görünür. Frontend
-            # atlansa/eski liste gönderilse bile burada yakalanır.
-            if not zorla:
-                try:
-                    import launch_esle as _le2
-                    hrk = _le2.teyit_hareketleri([article]).get(_le2.kanonik(article), [])
-                    zt, ilgili = _le2._zaten_teyitli(hrk, u_tarih, adet,
-                                                     _le2.ref_uretim_gecmisi(referans, u_tarih))
-                except Exception:
-                    zt, ilgili = None, []
-                if zt == 'kesin':
-                    det = ', '.join(f"{h['tarih']}: {h['adet']:g}" for h in ilgili)
-                    sonuclar.append({**kayit, 'sonuc': 'atlandi',
-                                     'mesaj': f'ERP\'de bu üretim için zaten teyit var ({det}) — mükerrer olurdu'})
-                    continue
-
-            bayrak = 'S' if str(s.get('bayrak') or 'A').upper() == 'S' else 'A'
-            try:
-                once, once_durum = _as400_launch_durum(yil, no)
-            except Exception as e:
-                sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': f'Ön okuma hatası: {e}'})
-                continue
-
-            cikti, robot_hata = _as400_robot_calistir('teyit_gir.js', [yil, no, article, adet, bayrak], 150)
-            if robot_hata:
-                sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': robot_hata, 'teyitli_once': once})
-                continue
-
-            robot_ok = 'SONUC=OK' in cikti
-            try:
-                sonra, sonra_durum = _as400_launch_durum(yil, no)
-            except Exception:
-                sonra, sonra_durum = None, None
-            # Doğrulama: teyitli tam +adet artmalı; S ise launch KAPANMIŞ (durum 70) olmalı.
-            teyit_ok = (once is not None and sonra is not None and abs(sonra - once - adet) < 0.001)
-            kapanma_ok = (bayrak == 'A') or (sonra_durum == 70)
-            dogrulandi = robot_ok and teyit_ok and kapanma_ok
-            son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-500:]
-            sonuc = 'ok' if dogrulandi else 'hata'
-            if dogrulandi:
-                mesaj = f'Doğrulandı: teyitli {once:g} → {sonra:g}' + (
-                    f' · launch KAPANDI (durum {sonra_durum})' if bayrak == 'S' else '')
-                mesaj += _is_emri_dus_router(conn, referans, adet)
-                # COP (hurda) BURADA GİRİLMEZ (kullanıcı 2026-07-23: robot Rientro↔07>01
-                # mekik dokuyordu) — hurda ayrı /cop_gonder fazında EN SONA girilir.
-            elif robot_ok and teyit_ok and not kapanma_ok:
-                mesaj = f'Teyit işlendi ({once:g}→{sonra:g}) ama S ile KAPANMADI (durum {sonra_durum}) — kontrol edin'
-            elif robot_ok:
-                mesaj = f'Robot OK ama doğrulama tutmadı (önce {once} sonra {sonra}, durum {sonra_durum})'
-            else:
-                mesaj = f'Robot iptal: {son_satirlar}'
-            conn.execute(
-                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, teyitli_once, teyitli_sonra, olusturan) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (u_tarih, yil, no, referans, article, adet, bayrak, sonuc, mesaj, once, sonra, kullanici))
-            conn.commit()
-            sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': sonuc, 'mesaj': mesaj,
-                             'teyitli_once': once, 'teyitli_sonra': sonra})
-            # Hata olsa bile SONRAKİ satıra devam (durdurma YOK).
-
+        sonuclar = _teyit_gonder_calistir(get_db(), satirlar, g.panel_ku['kullanici_adi'],
+                                          varsayilan_tarih, zorla)
         ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
-        durduruldu = _AS400_DURDUR.is_set()
-        return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': durduruldu})
+        return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': _AS400_DURDUR.is_set()})
     finally:
         _AS400_DURDUR.clear()
         _AS400_KILIT.release()
@@ -6116,15 +6123,98 @@ def _as400_cfi_bugun(article, causal='CFI'):
         cn.close()
 
 
-@app.route('/api/as400/cfi_gonder', methods=['POST'])
-@panel_gerekli(izin='as400-teyit')
-def as400_cfi_gonder():
-    """Launch'sız üretim için CFI depo girişi (Session B robotu, 07>01>F1 ekranı).
-    Body: {satirlar: [{referans, article?, adet, uretim_tarihi}]}
+def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
+    """CFI depo girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
+    ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
     Kullanıcı akışı (2026-07-20): Warehouse=01D, Causal=CFI, Counterpart=01D,
     kod + adet + Enter. Mükerrer koruması: (1) as400_teyit_log (yil='CF'),
     (2) BMMAF0 RPR+CFI hareketleri (_zaten_teyitli). Doğrulama: bugünkü CFI
     hareketlerinde adet birebir aranır."""
+    sonuclar = []
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import launch_esle as _le
+    for idx, s in enumerate(satirlar):
+        if _AS400_DURDUR.is_set():
+            for kalan in satirlar[idx:]:
+                sonuclar.append({'referans': str(kalan.get('referans') or '').strip(),
+                                 'article': str(kalan.get('article') or '').strip(),
+                                 'adet': kalan.get('adet'), 'sonuc': 'atlandi',
+                                 'mesaj': 'Kullanıcı durdurdu'})
+            break
+        referans = str(s.get('referans') or '').strip()
+        article = (str(s.get('article') or '').strip() or referans)
+        u_tarih = str(s.get('uretim_tarihi') or '').strip()
+        try:
+            adet = int(s.get('adet') or 0)
+        except (TypeError, ValueError):
+            adet = 0
+        kayit = {'referans': referans, 'article': article, 'adet': adet, 'uretim_tarihi': u_tarih}
+        if not (article and 0 < adet <= 99999 and u_tarih):
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+            continue
+        # Mükerrer 1: kendi log'umuz (CFI kayıtları yil='CF', launch_no=article)
+        var = conn.execute(
+            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CF' AND launch_no=? AND sonuc='ok'",
+            (u_tarih, article)).fetchone()
+        if var and not zorla:
+            sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için CFI zaten gönderilmiş (log)'})
+            continue
+        # Mükerrer 2: ERP hareketleri (RPR+CFI) — HEM article HEM üretim referansı
+        # (2026-07-21 4082W dersi: launch teyidi gerçek article'a, CFI adayı çıplak
+        # koda bakıyordu → aynı üretim iki kez gitti). Aynı-gün + geçmiş-açıklama kurallı.
+        try:
+            hrk_map = _le.teyit_hareketleri([article, referans])
+            hrk = list(hrk_map.get(_le.kanonik(article), []))
+            if _le.kanonik(referans) != _le.kanonik(article):
+                hrk += hrk_map.get(_le.kanonik(referans), [])
+            zt, ilgili = _le._zaten_teyitli(hrk, u_tarih, adet,
+                                            _le.ref_uretim_gecmisi(referans, u_tarih))
+        except Exception:
+            zt, ilgili = None, []
+        if zt == 'kesin' and not zorla:
+            h0 = ilgili[0] if ilgili else {}
+            sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                             'mesaj': f"ERP'de karşılığı var: {h0.get('tarih','')} {h0.get('adet',0):g} adet ({h0.get('tur','')})"})
+            continue
+        cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet], 120)
+        if robot_hata:
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
+            continue
+        robot_ok = 'SONUC=OK' in cikti
+        # Bağımsız doğrulama: bugünkü CFI hareketlerinde adet birebir var mı
+        try:
+            dogru = any(abs(q - adet) < 0.001 for q in _as400_cfi_bugun(article))
+        except Exception:
+            dogru = None   # okunamadı — yalnız robot çıktısına güven
+        dogrulandi = robot_ok and (dogru is not False)
+        son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-400:]
+        sonuc = 'ok' if dogrulandi else 'hata'
+        if dogrulandi:
+            mesaj = f'CFI girildi: {article} → {adet} adet' + ('' if dogru else ' (hareket sorgusu doğrulanamadı, robot OK)')
+            mesaj += _is_emri_dus_router(conn, referans, adet)
+            # COP (hurda) ayrı fazda EN SONA girilir (bkz. /api/as400/cop_gonder)
+        elif robot_ok:
+            mesaj = f'Robot OK ama bugünkü CFI hareketlerinde {adet} bulunamadı — elle kontrol edin'
+        else:
+            mesaj = f'Robot iptal: {son_satirlar}'
+        conn.execute(
+            "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (u_tarih, 'CF', article, referans, article, adet, 'CFI', sonuc, mesaj, kullanici))
+        conn.commit()
+        sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+    return sonuclar
+
+
+@app.route('/api/as400/cfi_gonder', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_cfi_gonder():
+    """Launch'sız üretim için CFI depo girişi (Session B robotu, 07>01>F1 ekranı).
+    Body: {satirlar: [{referans, article?, adet, uretim_tarihi}], zorla}
+    Çekirdek _cfi_gonder_calistir'da (17:10 oto koşusuyla ORTAK)."""
     data = request.get_json(silent=True) or {}
     satirlar = data.get('satirlar') or []
     zorla = bool(data.get('zorla'))
@@ -6136,84 +6226,7 @@ def as400_cfi_gonder():
         return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
     try:
         _AS400_DURDUR.clear()
-        kullanici = g.panel_ku['kullanici_adi']
-        conn = get_db()
-        sonuclar = []
-        import sys as _sys
-        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
-        if _d not in _sys.path:
-            _sys.path.insert(0, _d)
-        import launch_esle as _le
-        for idx, s in enumerate(satirlar):
-            if _AS400_DURDUR.is_set():
-                for kalan in satirlar[idx:]:
-                    sonuclar.append({'referans': str(kalan.get('referans') or '').strip(),
-                                     'article': str(kalan.get('article') or '').strip(),
-                                     'adet': kalan.get('adet'), 'sonuc': 'atlandi',
-                                     'mesaj': 'Kullanıcı durdurdu'})
-                break
-            referans = str(s.get('referans') or '').strip()
-            article = (str(s.get('article') or '').strip() or referans)
-            u_tarih = str(s.get('uretim_tarihi') or '').strip()
-            try:
-                adet = int(s.get('adet') or 0)
-            except (TypeError, ValueError):
-                adet = 0
-            kayit = {'referans': referans, 'article': article, 'adet': adet, 'uretim_tarihi': u_tarih}
-            if not (article and 0 < adet <= 99999 and u_tarih):
-                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
-                continue
-            # Mükerrer 1: kendi log'umuz (CFI kayıtları yil='CF', launch_no=article)
-            var = conn.execute(
-                "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CF' AND launch_no=? AND sonuc='ok'",
-                (u_tarih, article)).fetchone()
-            if var and not zorla:
-                sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için CFI zaten gönderilmiş (log)'})
-                continue
-            # Mükerrer 2: ERP hareketleri (RPR+CFI) — HEM article HEM üretim referansı
-            # (2026-07-21 4082W dersi: launch teyidi gerçek article'a, CFI adayı çıplak
-            # koda bakıyordu → aynı üretim iki kez gitti). Aynı-gün + geçmiş-açıklama kurallı.
-            try:
-                hrk_map = _le.teyit_hareketleri([article, referans])
-                hrk = list(hrk_map.get(_le.kanonik(article), []))
-                if _le.kanonik(referans) != _le.kanonik(article):
-                    hrk += hrk_map.get(_le.kanonik(referans), [])
-                zt, ilgili = _le._zaten_teyitli(hrk, u_tarih, adet,
-                                                _le.ref_uretim_gecmisi(referans, u_tarih))
-            except Exception:
-                zt, ilgili = None, []
-            if zt == 'kesin' and not zorla:
-                h0 = ilgili[0] if ilgili else {}
-                sonuclar.append({**kayit, 'sonuc': 'atlandi',
-                                 'mesaj': f"ERP'de karşılığı var: {h0.get('tarih','')} {h0.get('adet',0):g} adet ({h0.get('tur','')})"})
-                continue
-            cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet], 120)
-            if robot_hata:
-                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
-                continue
-            robot_ok = 'SONUC=OK' in cikti
-            # Bağımsız doğrulama: bugünkü CFI hareketlerinde adet birebir var mı
-            try:
-                dogru = any(abs(q - adet) < 0.001 for q in _as400_cfi_bugun(article))
-            except Exception:
-                dogru = None   # okunamadı — yalnız robot çıktısına güven
-            dogrulandi = robot_ok and (dogru is not False)
-            son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-400:]
-            sonuc = 'ok' if dogrulandi else 'hata'
-            if dogrulandi:
-                mesaj = f'CFI girildi: {article} → {adet} adet' + ('' if dogru else ' (hareket sorgusu doğrulanamadı, robot OK)')
-                mesaj += _is_emri_dus_router(conn, referans, adet)
-                # COP (hurda) ayrı fazda EN SONA girilir (bkz. /api/as400/cop_gonder)
-            elif robot_ok:
-                mesaj = f'Robot OK ama bugünkü CFI hareketlerinde {adet} bulunamadı — elle kontrol edin'
-            else:
-                mesaj = f'Robot iptal: {son_satirlar}'
-            conn.execute(
-                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (u_tarih, 'CF', article, referans, article, adet, 'CFI', sonuc, mesaj, kullanici))
-            conn.commit()
-            sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+        sonuclar = _cfi_gonder_calistir(get_db(), satirlar, g.panel_ku['kullanici_adi'], zorla)
         ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
         return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': _AS400_DURDUR.is_set()})
     finally:
@@ -6283,13 +6296,73 @@ def _plan_siparisler(cn, articles):
     return sonuc
 
 
+def _cop_gonder_calistir(conn, satirlar, kullanici):
+    """HURDA (COP) girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
+    ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
+    COP'lar EN SON faz (kullanıcı 2026-07-23: launch/CFI fazlarına ARAYA GİRMESİN;
+    robot Rientro↔07>01 mekik dokuyordu). Tüm hurdalar ardışık girilir: B,
+    07>01>F1 ekranında kalır (alanlar kalıcı — hızlı)."""
+    sonuclar = []
+    for idx, s in enumerate(satirlar):
+        if _AS400_DURDUR.is_set():
+            for kalan in satirlar[idx:]:
+                sonuclar.append({'referans': str(kalan.get('referans') or '').strip(),
+                                 'article': str(kalan.get('article') or '').strip(),
+                                 'adet': kalan.get('adet'), 'bayrak': 'COP',
+                                 'sonuc': 'atlandi', 'mesaj': 'Kullanıcı durdurdu'})
+            break
+        referans = str(s.get('referans') or '').strip()
+        article = (str(s.get('article') or '').strip() or referans)
+        u_tarih = str(s.get('uretim_tarihi') or '').strip()
+        try:
+            adet = int(s.get('adet') or 0)
+        except (TypeError, ValueError):
+            adet = 0
+        kayit = {'referans': referans, 'article': article, 'adet': adet,
+                 'uretim_tarihi': u_tarih, 'bayrak': 'COP'}
+        if not (article and 0 < adet <= 99999 and u_tarih):
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+            continue
+        # Mükerrer: aynı üretim günü + article için COP zaten girildiyse atla
+        var = conn.execute(
+            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CO' AND launch_no=? AND sonuc='ok'",
+            (u_tarih, article)).fetchone()
+        if var:
+            sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
+            continue
+        cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet, 'COP'], 120)
+        if robot_hata:
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
+            continue
+        robot_ok = 'SONUC=OK' in cikti
+        try:
+            dogru = any(abs(q - adet) < 0.001 for q in _as400_cfi_bugun(article, causal='COP'))
+        except Exception:
+            dogru = None
+        dogrulandi = robot_ok and (dogru is not False)
+        sonuc = 'ok' if dogrulandi else 'hata'
+        if dogrulandi:
+            mesaj = f'♻ Hurda COP girildi: {article} → {adet} adet'
+        elif robot_ok:
+            mesaj = f'Robot OK ama bugünkü COP hareketlerinde {adet} bulunamadı — elle kontrol edin'
+        else:
+            son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-300:]
+            mesaj = f'Robot iptal: {son_satirlar}'
+        conn.execute(
+            "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (u_tarih, 'CO', article, referans, article, adet, 'COP', sonuc, mesaj, kullanici))
+        conn.commit()
+        sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+    return sonuclar
+
+
 @app.route('/api/as400/cop_gonder', methods=['POST'])
 @panel_gerekli(izin='as400-teyit')
 def as400_cop_gonder():
-    """HURDA (COP) girişleri — EN SON faz (kullanıcı 2026-07-23: COP'lar launch/CFI
-    fazlarına ARAYA GİRMESİN; robot Rientro↔07>01 mekik dokuyordu). Tüm hurdalar
-    ardışık girilir: B, 07>01>F1 ekranında kalır (alanlar kalıcı — hızlı).
-    Body: {satirlar: [{referans, article, adet(hurda), uretim_tarihi}]}"""
+    """HURDA (COP) girişleri — EN SON faz. Çekirdek _cop_gonder_calistir'da
+    (17:10 oto koşusuyla ORTAK). Body: {satirlar: [{referans, article, adet(hurda),
+    uretim_tarihi}]}"""
     data = request.get_json(silent=True) or {}
     satirlar = data.get('satirlar') or []
     if not satirlar:
@@ -6300,60 +6373,7 @@ def as400_cop_gonder():
         return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
     try:
         _AS400_DURDUR.clear()
-        kullanici = g.panel_ku['kullanici_adi']
-        conn = get_db()
-        sonuclar = []
-        for idx, s in enumerate(satirlar):
-            if _AS400_DURDUR.is_set():
-                for kalan in satirlar[idx:]:
-                    sonuclar.append({'referans': str(kalan.get('referans') or '').strip(),
-                                     'article': str(kalan.get('article') or '').strip(),
-                                     'adet': kalan.get('adet'), 'bayrak': 'COP',
-                                     'sonuc': 'atlandi', 'mesaj': 'Kullanıcı durdurdu'})
-                break
-            referans = str(s.get('referans') or '').strip()
-            article = (str(s.get('article') or '').strip() or referans)
-            u_tarih = str(s.get('uretim_tarihi') or '').strip()
-            try:
-                adet = int(s.get('adet') or 0)
-            except (TypeError, ValueError):
-                adet = 0
-            kayit = {'referans': referans, 'article': article, 'adet': adet,
-                     'uretim_tarihi': u_tarih, 'bayrak': 'COP'}
-            if not (article and 0 < adet <= 99999 and u_tarih):
-                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
-                continue
-            # Mükerrer: aynı üretim günü + article için COP zaten girildiyse atla
-            var = conn.execute(
-                "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CO' AND launch_no=? AND sonuc='ok'",
-                (u_tarih, article)).fetchone()
-            if var:
-                sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
-                continue
-            cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet, 'COP'], 120)
-            if robot_hata:
-                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
-                continue
-            robot_ok = 'SONUC=OK' in cikti
-            try:
-                dogru = any(abs(q - adet) < 0.001 for q in _as400_cfi_bugun(article, causal='COP'))
-            except Exception:
-                dogru = None
-            dogrulandi = robot_ok and (dogru is not False)
-            sonuc = 'ok' if dogrulandi else 'hata'
-            if dogrulandi:
-                mesaj = f'♻ Hurda COP girildi: {article} → {adet} adet'
-            elif robot_ok:
-                mesaj = f'Robot OK ama bugünkü COP hareketlerinde {adet} bulunamadı — elle kontrol edin'
-            else:
-                son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-300:]
-                mesaj = f'Robot iptal: {son_satirlar}'
-            conn.execute(
-                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (u_tarih, 'CO', article, referans, article, adet, 'COP', sonuc, mesaj, kullanici))
-            conn.commit()
-            sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+        sonuclar = _cop_gonder_calistir(get_db(), satirlar, g.panel_ku['kullanici_adi'])
         ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
         return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': _AS400_DURDUR.is_set()})
     finally:
@@ -6462,6 +6482,39 @@ def as400_planlama():
         cn.close()
 
 
+def _acik_transferler_sorgula(gunler=60):
+    """BMMAF0'daki iptal edilmemiş TA 02→01 transferlerini döndürür (liste).
+    GET endpoint'i VE 16:45 oto iptal koşusu ortak sorgusu. Hata → raise."""
+    bas = date.today() - timedelta(days=gunler)
+    esik = bas.year * 10000 + bas.month * 100 + bas.day   # YYYYMMDD karşılaştırma
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import keyring, pyodbc
+    import as400_config as _cfg
+    pw = _cfg.sifre_al()
+    cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
+    try:
+        rows = cn.cursor().execute(
+            "SELECT MGDSSO, MGDAAO, MGDMMO, MGDGGO, MGARCD, MGQTA, MGUTVA, MGANRE, MGNURE, MGPRRE "
+            "FROM tkc0301F.BMMAF0 "
+            "WHERE MGCACD='TA' AND MGMGCD='02' AND MGMCCD='01' "
+            "  AND (MGDSSO*1000000 + MGDAAO*10000 + MGDMMO*100 + MGDGGO) >= ? "
+            "ORDER BY (MGDSSO*1000000 + MGDAAO*10000 + MGDMMO*100 + MGDGGO) DESC, MGNURE DESC, MGPRRE",
+            (esik,)).fetchall()
+        return [{
+            'tarih': f'{int(r[0])}{int(r[1]):02d}-{int(r[2]):02d}-{int(r[3]):02d}',
+            'article': str(r[4]).strip(),
+            'adet': float(r[5] or 0),
+            'kullanici': str(r[6]).strip(),
+            'kayit': f'{int(r[7])}-{int(r[8])}',
+            'satir': int(r[9]),
+        } for r in rows]
+    finally:
+        cn.close()
+
+
 @app.route('/api/as400/acik_transferler', methods=['GET'])
 @panel_gerekli(izin='as400-teyit')
 def as400_acik_transferler():
@@ -6474,40 +6527,481 @@ def as400_acik_transferler():
         gunler = max(7, min(365, int(request.args.get('gunler') or 60)))
     except (TypeError, ValueError):
         gunler = 60
-    bas = date.today() - timedelta(days=gunler)
-    esik = bas.year * 10000 + bas.month * 100 + bas.day   # YYYYMMDD karşılaştırma
+    try:
+        transferler = _acik_transferler_sorgula(gunler)
+        return jsonify({'gunler': gunler, 'transferler': transferler})
+    except Exception as e:
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+
+
+def _transfer_kayit_duruyor_mu(kayit, satir):
+    """İptal DOĞRULAMASI: BMMAF0'da (MGANRE-MGNURE, MGPRRE) hâlâ var mı?
+    İptal (Shift+F4) kaydı FİZİKSEL siler → yoksa iptal kesinleşmiştir.
+    Döner: True (duruyor) | False (silinmiş) | None (okunamadı)."""
+    try:
+        yil, no = str(kayit).split('-', 1)
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import keyring, pyodbc
+        import as400_config as _cfg
+        pw = _cfg.sifre_al()
+        cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=15, autocommit=True)
+        try:
+            r = cn.cursor().execute(
+                "SELECT COUNT(*) FROM tkc0301F.BMMAF0 "
+                "WHERE MGCACD='TA' AND MGANRE=? AND MGNURE=? AND MGPRRE=?",
+                (int(yil), int(no), int(satir))).fetchone()
+            return bool(r and int(r[0]) > 0)
+        finally:
+            cn.close()
+    except Exception:
+        return None
+
+
+def _transfer_iptal_calistir(conn, satirlar, kullanici, dryrun=False):
+    """Transfer iptal satırlarını robotla işler (transfer_iptal.js) — manuel
+    endpoint VE 16:45 oto koşusu ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutmalı.
+    satirlar: [{kayit:'26-245458', satir:200, article, adet, tarih?}]
+    Doğrulama: robot SONUC=OK dese bile BMMAF0'da kayıt aranır — silinmişse 'ok'.
+    Her sonuç as400_transfer_log'a yazılır. Döner: sonuclar."""
+    sonuclar = []
+    for idx, s in enumerate(satirlar):
+        if _AS400_DURDUR.is_set():
+            for kalan in satirlar[idx:]:
+                sonuclar.append({'kayit': str(kalan.get('kayit') or ''), 'satir': kalan.get('satir'),
+                                 'article': str(kalan.get('article') or ''), 'adet': kalan.get('adet'),
+                                 'sonuc': 'atlandi', 'mesaj': 'Kullanıcı durdurdu'})
+            break
+        kayit = str(s.get('kayit') or '').strip()
+        article = str(s.get('article') or '').strip()
+        tarih = str(s.get('tarih') or '').strip()
+        try:
+            satir = int(s.get('satir') or 0)
+        except (TypeError, ValueError):
+            satir = 0
+        try:
+            adet = float(s.get('adet') or 0)
+        except (TypeError, ValueError):
+            adet = 0
+        kaydet = {'kayit': kayit, 'satir': satir, 'article': article, 'adet': adet, 'tarih': tarih}
+        m = re.match(r'^(\d{2})-(\d{1,7})$', kayit)
+        if not (m and satir > 0 and article and adet > 0):
+            sonuclar.append({**kaydet, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+            continue
+        # Mükerrer/bayat koruması: kayıt AS400'de hâlâ duruyor mu? (Başka biri
+        # elle iptal etmiş olabilir; robot boşuna ekrana girmesin.)
+        duruyor = _transfer_kayit_duruyor_mu(kayit, satir)
+        if duruyor is False:
+            sonuclar.append({**kaydet, 'sonuc': 'atlandi', 'mesaj': 'Kayıt AS400\'de zaten yok (iptal edilmiş)'})
+            _transfer_logla(conn, kaydet, 'atlandi', 'Zaten iptal edilmiş', kullanici)
+            continue
+        adet_arg = ('%g' % adet)
+        robot_args = [m.group(1), m.group(2), satir, article, adet_arg] + (['DRYRUN'] if dryrun else [])
+        cikti, robot_hata = _as400_robot_calistir('transfer_iptal.js', robot_args, 90)
+        if robot_hata:
+            sonuclar.append({**kaydet, 'sonuc': 'hata', 'mesaj': robot_hata})
+            _transfer_logla(conn, kaydet, 'hata', robot_hata, kullanici)
+            continue
+        robot_ok = ('SONUC=OK' in cikti) or (dryrun and 'SONUC=DRYRUN-OK' in cikti)
+        son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-400:]
+        if dryrun:
+            sonuc = 'ok' if robot_ok else 'hata'
+            mesaj = ('DRYRUN doğrulandı (Shift+F4 basılmadı)' if robot_ok
+                     else f'DRYRUN iptal: {son_satirlar}')
+        else:
+            # ASIL doğrulama: kayıt BMMAF0'dan silindi mi?
+            silindi = _transfer_kayit_duruyor_mu(kayit, satir)
+            if robot_ok and silindi is False:
+                sonuc, mesaj = 'ok', f'İptal doğrulandı: {kayit} satır {satir} ({article}, {adet:g}) BMMAF0\'dan silindi'
+            elif robot_ok and silindi is None:
+                sonuc, mesaj = 'ok', 'Robot OK; BMMAF0 doğrulaması okunamadı — sabah kontrol edin'
+            elif robot_ok:
+                sonuc, mesaj = 'hata', 'Robot OK dedi ama kayıt BMMAF0\'da HÂLÂ DURUYOR — elle kontrol edin'
+            else:
+                sonuc, mesaj = 'hata', f'Robot iptal: {son_satirlar}'
+        _transfer_logla(conn, kaydet, sonuc, mesaj, kullanici)
+        sonuclar.append({**kaydet, 'sonuc': sonuc, 'mesaj': mesaj})
+    return sonuclar
+
+
+def _transfer_logla(conn, k, sonuc, mesaj, kullanici):
+    try:
+        conn.execute(
+            "INSERT INTO as400_transfer_log (kayit, satir, article, adet, hareket_tarihi, sonuc, mesaj, olusturan) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (k['kayit'], k['satir'], k['article'], k['adet'], k.get('tarih') or '', sonuc, mesaj, kullanici))
+        conn.commit()
+    except Exception as e:
+        print(f'[transfer_iptal] log yazılamadı: {e}')
+
+
+@app.route('/api/as400/transfer_iptal', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_transfer_iptal():
+    """Seçili açık transferleri ROBOTLA iptal eder (07>01, satır başına 2 + Enter,
+    Shift+F4). Body: {satirlar: [{kayit, satir, article, adet, tarih?}], dryrun?}
+    dryrun=true → robot ekrana girer, satırı doğrular ama Shift+F4'e BASMAZ."""
+    data = request.get_json(silent=True) or {}
+    satirlar = data.get('satirlar') or []
+    dryrun = bool(data.get('dryrun'))
+    if not satirlar:
+        return jsonify({'hata': 'satirlar zorunlu'}), 400
+    if len(satirlar) > 80:
+        return jsonify({'hata': 'Tek seferde en fazla 80 satır'}), 400
+    if not _AS400_KILIT.acquire(blocking=False):
+        return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
+    try:
+        _AS400_DURDUR.clear()
+        sonuclar = _transfer_iptal_calistir(get_db(), satirlar, g.panel_ku['kullanici_adi'], dryrun)
+        ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
+        return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': _AS400_DURDUR.is_set()})
+    finally:
+        _AS400_DURDUR.clear()
+        _AS400_KILIT.release()
+
+
+# ─────────────────────────────────────────────────────────────
+# OTOMATİK AKŞAM KOŞULARI (kullanıcı 2026-07-27):
+#   16:45 — açık TA 02→01 transferlerinin TÜMÜ robotla iptal edilir (07>01,
+#           satır başına 2 + Enter, Shift+F4). Kullanıcı kararı: hepsi.
+#   17:10 — günün TÜM teyit kuyruğu: launch teyitleri (A / tamamlayana S) +
+#           CFI girişleri + hurda COP. Bugün dahil (gün 17:00'da bitmiş sayılır).
+# Emin olunamayan satırlar GÖNDERİLMEZ → as400_oto_kosu 'sabah_kontrol'
+# listesine yazılır; dashboard teyit sayfasındaki "Sabah Kontrol" paneli gösterir.
+# MAKİNE GUARD'I: yalnız teyit-agent'lı makinede koşar (server). Laptop'ta app
+# açık kalsa bile çifte koşu OLMAZ (agent 127.0.0.1:5010 yalnız server'da).
+# ─────────────────────────────────────────────────────────────
+_OTO_CONFIG_YOL = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'oto_config.json')
+_OTO_VARSAYILAN = {
+    'transfer_iptal': {'etkin': True, 'saat': '16:45', 'gunler': 60, 'dryrun': False},
+    'oto_teyit':      {'etkin': True, 'saat': '17:10', 'gunler': 3},
+}
+
+
+def _oto_config():
+    """oto_config.json + varsayılanlar. utf-8-sig: BOM toleransı (mail_config dersi)."""
+    cfg = json.loads(json.dumps(_OTO_VARSAYILAN))   # derin kopya
+    try:
+        with open(_OTO_CONFIG_YOL, encoding='utf-8-sig') as f:
+            dosya = json.load(f) or {}
+        for k, v in dosya.items():
+            if isinstance(v, dict) and k in cfg:
+                cfg[k].update(v)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f'[OTO] oto_config.json okunamadı ({e}) — varsayılanlar kullanılıyor')
+    return cfg
+
+
+def _oto_config_yaz(cfg):
+    with open(_OTO_CONFIG_YOL, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
+def _oto_kosu_kaydet(conn, tur, sonuclar, sabah_kontrol, ozet_metin):
+    """Koşu raporunu as400_oto_kosu'ya yazar (Sabah Kontrol paneli buradan okur)."""
+    try:
+        say = {k: sum(1 for r in sonuclar if r.get('sonuc') == k) for k in ('ok', 'hata', 'atlandi')}
+        conn.execute(
+            "INSERT INTO as400_oto_kosu (tur, ozet, detay, ok, hata, atlandi, kontrol) VALUES (?,?,?,?,?,?,?)",
+            (tur, ozet_metin, json.dumps({'sonuclar': sonuclar, 'sabah_kontrol': sabah_kontrol},
+                                         ensure_ascii=False, default=str),
+             say['ok'], say['hata'], say['atlandi'], len(sabah_kontrol)))
+        # Eski koşuları buda (son 120 kalsın)
+        conn.execute("DELETE FROM as400_oto_kosu WHERE id NOT IN "
+                     "(SELECT id FROM as400_oto_kosu ORDER BY id DESC LIMIT 120)")
+        conn.commit()
+        print(f'[OTO-{tur.upper()}] {ozet_metin}')
+    except Exception as e:
+        print(f'[OTO-{tur.upper()}] koşu raporu yazılamadı: {e}')
+
+
+def _kilit_bekleyerek_al(maks_sn, etiket):
+    """_AS400_KILIT'i sabırla alır (16:45 koşusu uzarsa 17:10 bekleyebilsin).
+    Döner: True (alındı) | False (süre doldu)."""
+    import time as _t
+    son = _t.time() + maks_sn
+    while _t.time() < son:
+        if _AS400_KILIT.acquire(blocking=False):
+            return True
+        print(f'[{etiket}] AS400 kilidi meşgul — 15 sn sonra tekrar denenecek')
+        _t.sleep(15)
+    return False
+
+
+def oto_transfer_iptal_job():
+    """16:45 — açık TA 02→01 transferlerinin TÜMÜNÜ robotla iptal eder."""
+    cfg = _oto_config()['transfer_iptal']
+    if not cfg.get('etkin'):
+        print('[OTO-TRANSFER] kapalı (oto_config) — atlandı')
+        return
+    if not _teyit_agent_var():
+        print('[OTO-TRANSFER] teyit-agent yok — bu makine robot koşusu için yapılandırılmamış, atlandı')
+        return
+    conn = db_connect()
+    try:
+        try:
+            transferler = _acik_transferler_sorgula(int(cfg.get('gunler') or 60))
+        except Exception as e:
+            _oto_kosu_kaydet(conn, 'transfer', [], [{'neden': f'AS400 sorgusu başarısız: {e}'}],
+                             f'HATA: açık transferler okunamadı ({e})')
+            return
+        if not transferler:
+            _oto_kosu_kaydet(conn, 'transfer', [], [], 'Açık transfer yok — iptal edilecek hareket bulunmadı')
+            return
+        # Aynı kayıt numarasının satırları ardışık işlensin (robot her çağrıda
+        # kayıt no'yu yeniden girer; sıralı gidince ekran akışı kısa kalır).
+        satirlar = sorted(transferler, key=lambda t: (t['kayit'], t['satir']))
+        if not _kilit_bekleyerek_al(20 * 60, 'OTO-TRANSFER'):
+            _oto_kosu_kaydet(conn, 'transfer', [], [{'neden': 'AS400 kilidi 20 dk boşalmadı — koşu yapılamadı'}],
+                             'HATA: kilit alınamadı')
+            return
+        try:
+            _AS400_DURDUR.clear()
+            dryrun = bool(cfg.get('dryrun'))
+            sonuclar = _transfer_iptal_calistir(conn, satirlar, 'oto-16:45', dryrun=dryrun)
+        finally:
+            _AS400_DURDUR.clear()
+            _AS400_KILIT.release()
+        sabah = [{'tip': 'transfer', 'neden': s.get('mesaj', ''), **{k: s.get(k) for k in ('kayit', 'satir', 'article', 'adet', 'tarih')}}
+                 for s in sonuclar if s.get('sonuc') != 'ok']
+        ok_n = sum(1 for s in sonuclar if s.get('sonuc') == 'ok')
+        _oto_kosu_kaydet(conn, 'transfer', sonuclar, sabah,
+                         f'{len(satirlar)} açık transfer: {ok_n} iptal edildi'
+                         + (f', {len(sabah)} sabah kontrole ayrıldı' if sabah else '')
+                         + (' [DRYRUN]' if dryrun else ''))
+    finally:
+        conn.close()
+
+
+def _oto_kuyruk_olustur(conn, tarihler):
+    """17:10 koşusu için kuyrukları kurar — dashboard as4Render bucket mantığının
+    Python karşılığı. Döner: (launchQ, cfiQ, copQ, sabah_kontrol).
+    KURALLAR (UI ile aynı): zaten_teyitli 'kesin' → dokunma; 'olasi'/zombi/varyant →
+    sabah kontrol; işaret 'kontrol' → elle ilgilenildi, dokunma; işaret 'teyit_ver' →
+    kod DOĞRU, CFI kuyruğuna zorla (4536B vakası). Bugün DAHİL (17:00'da gün bitti)."""
     import sys as _sys
     _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
     if _d not in _sys.path:
         _sys.path.insert(0, _d)
-    import keyring, pyodbc
-    import as400_config as _cfg
+    import launch_esle as _le
+    coklu = _le.esle_coklu(tarihler)
+    gun_isaret = {}
+    for t in tarihler:
+        gun_isaret[t] = {r['referans']: r['durum'] for r in conn.execute(
+            "SELECT referans, durum FROM as400_teyit_isaret WHERE kapsam='gun' AND uretim_tarihi=?",
+            (t,)).fetchall()}
+    cop_verildi = {f"{r['uretim_tarihi']}|{r['launch_no']}" for r in conn.execute(
+        "SELECT uretim_tarihi, launch_no FROM as400_teyit_log WHERE yil='CO' AND sonuc='ok'").fetchall()}
+
+    launchQ, cfiQ, copQ, sabah = [], [], [], []
+
+    def isr(t, r):
+        return gun_isaret.get(t, {}).get(_le.kanonik(r.get('referans', '')), '')
+
+    def sabaha(tip, t, r, neden, launch=''):
+        sabah.append({'tip': tip, 'tarih': t, 'bolum': r.get('bolum', ''),
+                      'referans': r.get('referans', ''), 'adet': r.get('adet', 0),
+                      'launch': launch, 'neden': neden})
+
+    def cfiye(t, r, article=''):
+        cfiQ.append({'referans': r['referans'], 'article': (article or r['referans']),
+                     'adet': int(round(float(r.get('adet') or 0))), 'uretim_tarihi': t,
+                     'bolum': r.get('bolum', '')})
+
+    for t in tarihler:
+        L = coklu.get(t) or {}
+        for r in L.get('ACIK', []):
+            ls = r.get('launchlar') or []
+            if any(l.get('zaten_teyitli') == 'kesin' for l in ls):
+                continue
+            im = isr(t, r)
+            if im == 'kontrol':
+                continue
+            temiz = [l for l in ls if not l.get('zombi')]
+            if not temiz:
+                sabaha('zombi', t, r, 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — elle S ile kapatın',
+                       (ls[0] or {}).get('launch', '') if ls else '')
+                continue
+            # 'olasi' şüphesi kullanıcı ➕ teyit ver işaretiyle EZİLEBİLİR (karar insanın)
+            if any(l.get('zaten_teyitli') == 'olasi' for l in ls) and im != 'teyit_ver':
+                sabaha('olasi', t, r, 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin',
+                       temiz[0].get('launch', ''))
+                continue
+            l0 = temiz[0]
+            adet = int(round(float(r.get('adet') or 0)))
+            if adet <= 0:
+                continue
+            bayrak = 'S' if adet >= float(l0.get('kalan') or 0) - 1 else 'A'
+            launchQ.append({'yil': l0['red2'], 'no': l0['renu'], 'article': l0['article'],
+                            'referans': r['referans'], 'adet': adet, 'uretim_tarihi': t,
+                            'bayrak': bayrak})
+        for r in L.get('SUPHELI', []):
+            ls = r.get('launchlar') or []
+            if any(l.get('zaten_teyitli') == 'kesin' for l in ls):
+                continue
+            im = isr(t, r)
+            if im == 'kontrol':
+                continue
+            if im == 'teyit_ver':
+                cfiye(t, r)   # kullanıcı 'kod doğru' dedi → kendi koduna CFI
+                continue
+            sabaha('varyant', t, r, 'Yazım/varyant farkı — panelden 🔁 düzelt ya da ➕ teyit ver',
+                   (ls[0] or {}).get('launch', '') if ls else '')
+        for kat in ('OPR10', 'YOK'):
+            for r in L.get(kat, []):
+                if r.get('zaten_teyitli') == 'kesin':
+                    continue
+                im = isr(t, r)
+                if im == 'kontrol':
+                    continue
+                if r.get('zaten_teyitli') == 'olasi' and im != 'teyit_ver':
+                    sabaha('olasi', t, r, 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin')
+                    continue
+                art = ''
+                if kat == 'OPR10':
+                    ls = r.get('launchlar') or []
+                    art = (ls[0] or {}).get('article', '') if ls else ''
+                cfiye(t, r, art)
+        for r in L.get('KAPALI', []):
+            im = isr(t, r)
+            if r.get('zaten_teyitli') == 'kesin' or im == 'kontrol':
+                continue
+            if im == 'teyit_ver':
+                cfiye(t, r)
+            # değilse: TK1 akışı (durum 45/50) — bilgi, sabah listesini şişirme
+        for r in L.get('ARAOP', []):
+            if isr(t, r) == 'teyit_ver':
+                cfiye(t, r)
+        # ── Hurda → COP (HARIC ve ARAOP hariç tüm kovalar) ──
+        for kat, rows in L.items():
+            if kat in ('HARIC', 'ARAOP'):
+                continue
+            for r in rows:
+                try:
+                    h = int(round(float(r.get('hurda') or 0)))
+                except (TypeError, ValueError):
+                    h = 0
+                if h <= 0:
+                    continue
+                ls = r.get('launchlar') or []
+                if kat == 'SUPHELI':
+                    sabaha('cop_supheli', t, r, f'Hurda {h} adet: varyant eşleşme — COP kodunu doğrulayıp elle gönderin')
+                    continue
+                art = ((ls[0] or {}).get('article') or r['referans']) if ls else r['referans']
+                if f'{t}|{art}' in cop_verildi:
+                    continue
+                copQ.append({'referans': r['referans'], 'article': art, 'adet': h,
+                             'uretim_tarihi': t, 'bolum': r.get('bolum', '')})
+    return launchQ, cfiQ, copQ, sabah
+
+
+def oto_teyit_job():
+    """17:10 — günün tüm teyit kuyruğu: launch (A/S) → CFI → COP."""
+    cfg = _oto_config()['oto_teyit']
+    if not cfg.get('etkin'):
+        print('[OTO-TEYIT] kapalı (oto_config) — atlandı')
+        return
+    if not _teyit_agent_var():
+        print('[OTO-TEYIT] teyit-agent yok — bu makine robot koşusu için yapılandırılmamış, atlandı')
+        return
+    gunler = max(1, min(7, int(cfg.get('gunler') or 3)))
+    tarihler = [date.today().isoformat()] + [(date.today() - timedelta(days=i)).isoformat()
+                                             for i in range(1, gunler + 1)]
+    conn = db_connect()
     try:
-        pw = _cfg.sifre_al()
-        cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
-    except Exception as e:
-        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
-    try:
-        rows = cn.cursor().execute(
-            "SELECT MGDSSO, MGDAAO, MGDMMO, MGDGGO, MGARCD, MGQTA, MGUTVA, MGANRE, MGNURE, MGPRRE "
-            "FROM tkc0301F.BMMAF0 "
-            "WHERE MGCACD='TA' AND MGMGCD='02' AND MGMCCD='01' "
-            "  AND (MGDSSO*1000000 + MGDAAO*10000 + MGDMMO*100 + MGDGGO) >= ? "
-            "ORDER BY (MGDSSO*1000000 + MGDAAO*10000 + MGDMMO*100 + MGDGGO) DESC, MGNURE DESC, MGPRRE",
-            (esik,)).fetchall()
-        transferler = [{
-            'tarih': f'{int(r[0])}{int(r[1]):02d}-{int(r[2]):02d}-{int(r[3]):02d}',
-            'article': str(r[4]).strip(),
-            'adet': float(r[5] or 0),
-            'kullanici': str(r[6]).strip(),
-            'kayit': f'{int(r[7])}-{int(r[8])}',
-            'satir': int(r[9]),
-        } for r in rows]
-        return jsonify({'gunler': gunler, 'transferler': transferler})
-    except Exception as e:
-        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+        if not _kilit_bekleyerek_al(45 * 60, 'OTO-TEYIT'):
+            _oto_kosu_kaydet(conn, 'teyit', [], [{'neden': 'AS400 kilidi 45 dk boşalmadı — koşu yapılamadı'}],
+                             'HATA: kilit alınamadı')
+            return
+        try:
+            _AS400_DURDUR.clear()
+            try:
+                launchQ, cfiQ, copQ, sabah = _oto_kuyruk_olustur(conn, tarihler)
+            except Exception as e:
+                _oto_kosu_kaydet(conn, 'teyit', [], [{'neden': f'Kuyruk oluşturulamadı: {e}'}],
+                                 f'HATA: AS400 eşleme başarısız ({e})')
+                return
+            sonuclar = []
+            for faz, kuyruk in (('launch', launchQ), ('cfi', cfiQ), ('cop', copQ)):
+                if _AS400_DURDUR.is_set():
+                    break
+                if not kuyruk:
+                    continue
+                if faz == 'launch':
+                    s = _teyit_gonder_calistir(conn, kuyruk, 'oto-17:10')
+                elif faz == 'cfi':
+                    s = _cfi_gonder_calistir(conn, kuyruk, 'oto-17:10')
+                else:
+                    s = _cop_gonder_calistir(conn, kuyruk, 'oto-17:10')
+                sonuclar += [{**r, 'faz': faz} for r in s]
+        finally:
+            _AS400_DURDUR.clear()
+            _AS400_KILIT.release()
+        # Hatalı gönderimler de sabah kontrolüne düşsün
+        for r in sonuclar:
+            if r.get('sonuc') == 'hata':
+                sabah.append({'tip': 'gonderim_hata', 'tarih': r.get('uretim_tarihi', ''),
+                              'bolum': r.get('bolum', ''), 'referans': r.get('referans', ''),
+                              'adet': r.get('adet', 0), 'launch': r.get('no', '') or r.get('article', ''),
+                              'neden': f"{r.get('faz', '')}: {r.get('mesaj', '')}"})
+        ok_n = sum(1 for r in sonuclar if r.get('sonuc') == 'ok')
+        atl_n = sum(1 for r in sonuclar if r.get('sonuc') == 'atlandi')
+        _oto_kosu_kaydet(conn, 'teyit', sonuclar, sabah,
+                         f'{len(launchQ)} launch + {len(cfiQ)} CFI + {len(copQ)} COP kuyruğa alındı: '
+                         f'{ok_n} ok, {atl_n} atlandı'
+                         + (f', {len(sabah)} satır sabah kontrole ayrıldı' if sabah else ''))
     finally:
-        cn.close()
+        conn.close()
+
+
+@app.route('/api/as400/oto_kosu', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_oto_kosu():
+    """Sabah Kontrol paneli: son otomatik koşular (16:45 transfer + 17:10 teyit)."""
+    try:
+        limit = max(1, min(30, int(request.args.get('limit') or 6)))
+    except (TypeError, ValueError):
+        limit = 6
+    conn = get_db()
+    kosular = []
+    try:
+        for r in conn.execute(
+                "SELECT id, tur, ozet, detay, ok, hata, atlandi, kontrol, created_at "
+                "FROM as400_oto_kosu ORDER BY id DESC LIMIT ?", (limit,)).fetchall():
+            d = dict(r)
+            try:
+                d['detay'] = json.loads(d.get('detay') or '{}')
+            except Exception:
+                d['detay'] = {}
+            kosular.append(d)
+    except Exception as e:
+        return jsonify({'hata': str(e)}), 500
+    return jsonify({'kosular': kosular, 'config': _oto_config(), 'agent': _teyit_agent_var()})
+
+
+@app.route('/api/as400/oto_config', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_oto_config_degistir():
+    """Oto koşu aç/kapat (+ transfer dryrun). Body: {tur, etkin?, dryrun?}.
+    Saat değişikliği DOSYADAN yapılır ve restart ister (thread saati startta okur)."""
+    data = request.get_json(silent=True) or {}
+    tur = (data.get('tur') or '').strip()
+    if tur not in _OTO_VARSAYILAN:
+        return jsonify({'hata': f'geçersiz tur: {tur}'}), 400
+    cfg = _oto_config()
+    if 'etkin' in data:
+        cfg[tur]['etkin'] = bool(data.get('etkin'))
+    if 'dryrun' in data and tur == 'transfer_iptal':
+        cfg[tur]['dryrun'] = bool(data.get('dryrun'))
+    try:
+        _oto_config_yaz(cfg)
+    except Exception as e:
+        return jsonify({'hata': f'config yazılamadı: {e}'}), 500
+    return jsonify({'basarili': True, 'config': cfg})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -6540,7 +7034,20 @@ if __name__ == '__main__':
     if not os.environ.get('FLASK_DEBUG') or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         try:
             from scheduler import start_scheduler
-            start_scheduler()
+            # AS400 oto koşuları (2026-07-27): saatler oto_config.json'dan.
+            # Jobs kendi içinde etkin/agent kontrolü yapar (kapatmak restart istemez;
+            # saat DEĞİŞİKLİĞİ restart ister — thread saati burada okur).
+            _ek = []
+            _ocfg = _oto_config()
+            for _tur, _fn, _et, _vs in (
+                    ('transfer_iptal', oto_transfer_iptal_job, 'AS400 Transfer İptali (02→01)', (16, 45)),
+                    ('oto_teyit', oto_teyit_job, 'AS400 Oto Teyit Kuyruğu', (17, 10))):
+                try:
+                    _h, _m = (int(x) for x in str(_ocfg[_tur].get('saat') or '').split(':'))
+                except (TypeError, ValueError):
+                    _h, _m = _vs
+                _ek.append((_h, _m, _fn, _et))
+            start_scheduler(ek_gorevler=_ek)
         except Exception as _e:
             print(f'[SCHED] başlatılamadı: {_e}')
 

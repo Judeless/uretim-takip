@@ -28,7 +28,7 @@ from flask import Flask, request, jsonify
 
 KOK      = os.path.dirname(os.path.abspath(__file__))     # .../as400
 CSCRIPT  = r'C:\Windows\SysWOW64\cscript.exe'             # 32-bit (PCOMM COM 32-bit)
-IZINLI   = ('teyit_gir.js', 'cfi_gir.js')                 # beyaz liste — başka script ÇALIŞMAZ
+IZINLI   = ('teyit_gir.js', 'cfi_gir.js', 'transfer_iptal.js')   # beyaz liste — başka script ÇALIŞMAZ
 PORT     = 5010
 
 app = Flask(__name__)

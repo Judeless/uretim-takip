@@ -142,12 +142,21 @@ def _planli_dongu(hour, minute, fn, etiket):
 _started = False  # Yalnızca tek thread spawn etmek için
 
 
-def start_scheduler():
-    """Flask başlangıcında çağrılır. Daemon thread'leri başlatır."""
+def start_scheduler(ek_gorevler=None):
+    """Flask başlangıcında çağrılır. Daemon thread'leri başlatır.
+    ek_gorevler: [(saat, dakika, fn, etiket), ...] — app.py'nin kendi planlı
+    işleri (örn. AS400 oto koşuları) buradan verilir; circular import olmaz."""
     global _started
     if _started:
         return
     _started = True
+
+    for i, (h, m, fn, etiket) in enumerate(ek_gorevler or []):
+        te = threading.Thread(
+            target=_planli_dongu, args=(h, m, fn, etiket),
+            daemon=True, name=f'scheduler-ek-{i}'
+        )
+        te.start()
 
     # 18:00 — Günlük arşiv
     t = threading.Thread(

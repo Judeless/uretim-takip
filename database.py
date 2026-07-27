@@ -872,6 +872,48 @@ def init_db():
         )
     ''')
 
+    # ─────────────────────────────────────────────────────────────
+    # AS400 TRANSFER İPTAL log'u (2026-07-27). TK1 hayali stok transferleri
+    # (TA 02→01) robotla iptal edilir (07>01 + satır başı 2 + Shift+F4).
+    # kayit = AS400 kayıt no (MGANRE-MGNURE, örn '26-245458'), satir = MGPRRE.
+    # sonuc: ok | hata | atlandi. Doğrulama: iptal sonrası BMMAF0'da kayıt
+    # aranır — silinmişse (fiziksel silme) 'ok'.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS as400_transfer_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kayit TEXT NOT NULL,
+            satir INTEGER DEFAULT 0,
+            article TEXT DEFAULT '',
+            adet REAL DEFAULT 0,
+            hareket_tarihi TEXT DEFAULT '',
+            sonuc TEXT NOT NULL,
+            mesaj TEXT DEFAULT '',
+            olusturan TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+
+    # ─────────────────────────────────────────────────────────────
+    # AS400 OTOMATİK KOŞU raporları (2026-07-27). Zamanlanmış işler:
+    #  16:45 transfer iptali (tur='transfer'), 17:10 tüm teyit kuyruğu (tur='teyit').
+    # detay = JSON: {'sonuclar': [...], 'sabah_kontrol': [...]} — dashboard
+    # "Sabah Kontrol" paneli buradan okur. ok/hata/atlandi/kontrol = hızlı sayaçlar.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS as400_oto_kosu (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tur TEXT NOT NULL,
+            ozet TEXT DEFAULT '',
+            detay TEXT DEFAULT '',
+            ok INTEGER DEFAULT 0,
+            hata INTEGER DEFAULT 0,
+            atlandi INTEGER DEFAULT 0,
+            kontrol INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+
     # Seed: ilk admin (emre.dogutekin). Geçici şifre 'cofle1234' — ilk girişte
     # değiştirilir. INSERT OR IGNORE: şifre/izin panelden değiştirilmişse ezilmez.
     try:

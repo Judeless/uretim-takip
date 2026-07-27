@@ -1,0 +1,13 @@
+{
+  "transfer_iptal": {
+    "etkin": true,
+    "saat": "16:45",
+    "gunler": 60,
+    "dryrun": false
+  },
+  "oto_teyit": {
+    "etkin": true,
+    "saat": "17:10",
+    "gunler": 3
+  }
+}

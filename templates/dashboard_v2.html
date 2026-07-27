@@ -1100,6 +1100,22 @@ window.__I18N_SOZLUK__ = {
     "en": "AS400 Operations",
     "it": "Operazioni AS400"
   },
+  "🌅 Sabah Kontrol — Otomatik Akşam Koşuları": {
+    "en": "🌅 Morning Check — Automatic Evening Runs",
+    "it": "🌅 Controllo Mattutino — Esecuzioni Serali Automatiche"
+  },
+  "16:45 transfer iptali · 17:10 teyit kuyruğu — emin olunamayanlar buraya ayrılır": {
+    "en": "16:45 transfer cancellation · 17:10 confirmation queue — uncertain items are set aside here",
+    "it": "16:45 annullo trasferimenti · 17:10 coda conferme — i dubbi vengono messi da parte qui"
+  },
+  "🤖 Seçilenleri Robotla İptal Et": {
+    "en": "🤖 Cancel Selected via Robot",
+    "it": "🤖 Annulla selezionati col robot"
+  },
+  "➕ teyit ver": {
+    "en": "➕ confirm",
+    "it": "➕ conferma"
+  },
   "Launch Kapama / Teyit": {
     "en": "Launch Close / Confirm",
     "it": "Chiusura lancio / Conferma"
@@ -4868,6 +4884,18 @@ window.__I18N_SOZLUK__ = {
 
             <!-- ══════ SAYFA: AS400 TEYIT (günün üretimi ↔ açık launch eşlemesi — canlı ERP okuması) ══════ -->
             <section class="page" id="page-as400-teyit">
+                <!-- 🌅 SABAH KONTROL (2026-07-27): 16:45 transfer iptali + 17:10 oto teyit
+                     koşularının raporu. Robotun emin olamadığı satırlar burada listelenir —
+                     kullanıcı sabah kontrol eder. Kaynak: /api/as400/oto_kosu -->
+                <div class="panel-card" style="margin-bottom:14px">
+                    <div class="panel-header">
+                        <h3>🌅 Sabah Kontrol — Otomatik Akşam Koşuları</h3>
+                        <span class="adet-info">16:45 transfer iptali · 17:10 teyit kuyruğu — emin olunamayanlar buraya ayrılır</span>
+                    </div>
+                    <div id="as4-sabah-icerik" style="padding:10px 20px 16px">
+                        <div class="yukleniyor" style="padding:8px 0">⏳ Son koşular yükleniyor…</div>
+                    </div>
+                </div>
                 <div class="panel-card">
                     <div class="panel-header">
                         <h3>🔁 Launch Kapama / Teyit Verme</h3>
@@ -9577,7 +9605,83 @@ window.__I18N_SOZLUK__ = {
         }
         var _as4Yuklendi = false;
 
-        function initAS400Teyit() { if (!_as4Yuklendi) as4Yukle(); }
+        function initAS400Teyit() { if (!_as4Yuklendi) as4Yukle(); as4SabahYukle(); }
+
+        // ── 🌅 SABAH KONTROL — otomatik akşam koşuları raporu (2026-07-27) ──
+        async function as4SabahYukle() {
+            var el = document.getElementById('as4-sabah-icerik');
+            if (!el) return;
+            try {
+                const r = await panelFetch('/api/as400/oto_kosu?limit=6');
+                const d = await r.json();
+                if (!r.ok) { el.innerHTML = '<div style="color:#fca5a5;font-size:.8rem">⚠ ' + esc(d.hata || 'Okunamadı') + '</div>'; return; }
+                var cfg = d.config || {};
+                var t = cfg.transfer_iptal || {}, y = cfg.oto_teyit || {};
+                var html = '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
+                    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (t.etkin ? 'checked' : '') +
+                        ' onchange="as4OtoToggle(\'transfer_iptal\', {etkin:this.checked})" style="width:15px;height:15px">🔄 Transfer iptali (' + esc(t.saat || '16:45') + ')</label>' +
+                    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Robot ekrana girer, satırı doğrular ama Shift+F4\'e BASMAZ"><input type="checkbox" ' + (t.dryrun ? 'checked' : '') +
+                        ' onchange="as4OtoToggle(\'transfer_iptal\', {dryrun:this.checked})" style="width:15px;height:15px">🧪 Transfer DRYRUN</label>' +
+                    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (y.etkin ? 'checked' : '') +
+                        ' onchange="as4OtoToggle(\'oto_teyit\', {etkin:this.checked})" style="width:15px;height:15px">📤 Teyit kuyruğu (' + esc(y.saat || '17:10') + ')</label>' +
+                    (d.agent ? '<span style="color:#34d399;font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
+                             : '<span style="color:#f87171;font-weight:700;font-size:.74rem">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>') +
+                    '</div>';
+                var kosular = d.kosular || [];
+                if (!kosular.length) {
+                    html += '<div style="color:var(--muted);font-size:.8rem">Henüz otomatik koşu yok — ilk koşu bu akşam ' + esc(t.saat || '16:45') + ' / ' + esc(y.saat || '17:10') + '.</div>';
+                }
+                kosular.forEach(function (k, ki) {
+                    var det = k.detay || {};
+                    var sabah = det.sabah_kontrol || [];
+                    var renk = (k.hata > 0) ? '#f87171' : (sabah.length ? '#fbbf24' : '#34d399');
+                    html += '<details' + (ki === 0 && (sabah.length || k.hata > 0) ? ' open' : '') + ' style="margin:6px 0">' +
+                        '<summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:' + renk + '">' +
+                        (k.tur === 'transfer' ? '🔄' : '📤') + ' ' + esc((k.created_at || '').slice(0, 16)) + ' · ' + esc(k.ozet || '') +
+                        (sabah.length ? ' · 🌅 ' + sabah.length + ' satır kontrol bekliyor' : '') + '</summary>';
+                    if (sabah.length) {
+                        html += '<div class="table-wrap" style="margin:6px 0"><table class="admin-table"><thead><tr>' +
+                            '<th>Tip</th><th>Gün</th><th>Referans/Kod</th><th style="text-align:right">Adet</th><th>Neden</th></tr></thead><tbody>';
+                        sabah.forEach(function (s) {
+                            html += '<tr><td style="font-size:.74rem">' + esc(s.tip || '') + '</td>' +
+                                '<td style="font-size:.74rem;white-space:nowrap">' + esc(s.tarih || '') + '</td>' +
+                                '<td style="font-weight:700;font-size:.8rem">' + esc(s.referans || s.article || '') +
+                                    (s.kayit ? ' <span style="color:var(--muted);font-weight:400">(' + esc(s.kayit + '/' + s.satir) + ')</span>' : '') + '</td>' +
+                                '<td style="text-align:right">' + fmt(s.adet || 0) + '</td>' +
+                                '<td style="font-size:.74rem;color:#fbbf24">' + esc(s.neden || '') + '</td></tr>';
+                        });
+                        html += '</tbody></table></div>';
+                    }
+                    var snc = det.sonuclar || [];
+                    if (snc.length) {
+                        html += '<details style="margin:4px 0 4px 14px"><summary style="cursor:pointer;font-size:.76rem;color:var(--muted)">Tüm sonuçlar (' + snc.length + ')</summary>';
+                        snc.forEach(function (s) {
+                            var c = s.sonuc === 'ok' ? '#34d399' : (s.sonuc === 'atlandi' ? '#94a3b8' : '#f87171');
+                            html += '<div style="font-size:.74rem;padding:1px 0;color:' + c + '">' +
+                                esc((s.faz ? s.faz + ' · ' : '') + (s.referans || s.article || s.kayit || '') + ' · ' + fmt(s.adet || 0)) +
+                                ' — ' + esc(s.mesaj || s.sonuc) + '</div>';
+                        });
+                        html += '</details>';
+                    }
+                    html += '</details>';
+                });
+                el.innerHTML = html;
+            } catch (e) {
+                el.innerHTML = '<div style="color:#fca5a5;font-size:.8rem">⚠ Bağlantı hatası</div>';
+            }
+        }
+        async function as4OtoToggle(tur, alanlar) {
+            try {
+                const r = await panelFetch('/api/as400/oto_config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Object.assign({ tur: tur }, alanlar))
+                });
+                const d = await r.json();
+                if (!r.ok) { toast(d.hata || 'Kaydedilemedi', 'err'); as4SabahYukle(); return; }
+                toast('Oto koşu ayarı kaydedildi', 'ok');
+                as4SabahYukle();
+            } catch (e) { toast('Bağlantı hatası', 'err'); }
+        }
 
         function as4GunEtiket(t) {
             var bugun = isoTarih(new Date());
@@ -9633,19 +9737,25 @@ window.__I18N_SOZLUK__ = {
                 const d = await r.json();
                 if (!r.ok) { toast(d.hata || 'İşaretlenemedi', 'err'); return; }
                 toast(kaldir ? 'İşaret kaldırıldı'
-                      : (kapsam === 'kalici' ? 'Kalıcı teyit-dışı işaretlendi' : 'Kontrol edildi işaretlendi'), 'ok');
+                      : (kapsam === 'kalici' ? 'Kalıcı teyit-dışı işaretlendi'
+                         : durum === 'teyit_ver' ? '➕ Teyit kuyruğuna eklendi — gönderim kuyruğunda görünecek'
+                         : 'Kontrol edildi işaretlendi'), 'ok');
                 as4Yukle();
             } catch (e) { toast('Bağlantı hatası', 'err'); }
         }
 
         // İşaret butonu HTML'i (data-* ile güvenli — kod/bölüm tırnak içermez varsayımı yok)
         function as4IsaretBtn(r, tarih, opsiyon) {
-            // opsiyon: 'gerek_yok' (kalıcı) | 'kontrol' (günlük)
+            // opsiyon: 'gerek_yok' (kalıcı) | 'kontrol' (günlük) | 'teyit_ver' (günlük — kod DOĞRU, kuyruğa zorla)
             var ref = esc(r.referans), bol = esc(r.bolum || ''), tar = esc(tarih || '');
             if (opsiyon === 'gerek_yok')
                 return '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
                     'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'kalici\',\'gerek_yok\')" ' +
                     'data-ref="' + ref + '" data-bol="' + bol + '" title="Bu referans teyit gerektirmez (kalıcı)">⊘ gerek yok</button>';
+            if (opsiyon === 'teyit_ver')
+                return '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px;color:#34d399;border-color:#34d39966" ' +
+                    'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'teyit_ver\',this.dataset.tar)" ' +
+                    'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" title="Bu kod DOĞRU — teyit gönderim kuyruğuna ekle (o güne özel; 17:10 oto koşusu da tanır)">➕ teyit ver</button>';
             return '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
                 'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'kontrol\',this.dataset.tar)" ' +
                 'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" title="Bu satırı kontrol ettim (o güne özel)">✓ kontrol</button>';
@@ -9684,28 +9794,82 @@ window.__I18N_SOZLUK__ = {
                 el.innerHTML = '<div style="color:#fca5a5;padding:10px 0">⚠ Bağlantı hatası</div>';
             }
         }
+        var _as4TrGoster = [];   // ekrandaki (filtreli) transferler — checkbox indeks sırası
         function as4TransferCiz() {
             if (_as4Transferler === null) return;
             var el = document.getElementById('as4-tr-icerik');
             var filt = (document.getElementById('as4-tr-kullanici') || {}).value || '';
             var liste = _as4Transferler.filter(function (t) { return !filt || t.kullanici.indexOf(filt) === 0; });
+            _as4TrGoster = liste;
             if (!liste.length) {
                 el.innerHTML = '<div class="empty" style="padding:22px 0"><span class="empty-icon">🎉</span>Açık transfer yok — hepsi iptal edilmiş.</div>';
                 return;
             }
             var html = '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                '<th style="width:34px"><input type="checkbox" onchange="as4TrTumunuSec(this.checked)" style="width:16px;height:16px;cursor:pointer" title="Tümünü seç/bırak"></th>' +
                 '<th>Tarih</th><th>Kullanıcı</th><th>Kod</th><th style="text-align:right">Adet</th><th>Kayıt No</th></tr></thead><tbody>';
-            liste.forEach(function (t) {
-                html += '<tr><td style="white-space:nowrap;font-size:.8rem">' + esc(t.tarih) + '</td>' +
+            liste.forEach(function (t, i) {
+                html += '<tr><td><input type="checkbox" id="as4-tr-cb-' + i + '" checked style="width:16px;height:16px;cursor:pointer"></td>' +
+                    '<td style="white-space:nowrap;font-size:.8rem">' + esc(t.tarih) + '</td>' +
                     '<td style="font-size:.8rem">' + esc(t.kullanici) + '</td>' +
                     '<td style="font-weight:700">' + esc(t.article) + '</td>' +
                     '<td style="text-align:right;font-weight:800;color:#fbbf24">' + fmt(t.adet) + '</td>' +
                     '<td style="font-size:.8rem;color:var(--muted)">' + esc(t.kayit) + ' / ' + t.satir + '</td></tr>';
             });
             html += '</tbody></table></div>';
+            html += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 4px">' +
+                '<button class="btn btn-primary" id="as4-tr-iptal-btn" onclick="as4TransferRobotIptal()">🤖 Seçilenleri Robotla İptal Et</button>' +
+                '<button class="btn" id="as4-tr-durdur-btn" onclick="as4Durdur()" style="display:none;background:#dc2626;color:#fff;border-color:#dc2626">⏹ Durdur</button>' +
+                '<span style="font-size:.74rem;color:var(--muted)">Robot: 07&gt;01 + kayıt no + satır başına <b>2</b> + Enter + <b>Shift+F4</b>. İptal kaydı SİLER — BMMAF0\'dan silindiği ayrıca doğrulanır. Her akşam <b>16:45</b>\'te hepsi otomatik iptal edilir.</span></div>' +
+                '<div id="as4-tr-sonuc"></div>';
             html += '<div style="font-size:.74rem;color:var(--muted);margin-top:8px">' + liste.length +
-                ' açık transfer — bunlar 02 stoğunu ekside tutuyor olabilir. Parçası gelenler AS400\'de iptal edilmeli: 07&gt;01 listesinde satır başına <b>2</b> + Enter → <b>Shift+F4</b>.</div>';
+                ' açık transfer — bunlar 02 stoğunu ekside tutuyor olabilir.</div>';
             el.innerHTML = html;
+        }
+        function as4TrTumunuSec(sec) {
+            _as4TrGoster.forEach(function (t, i) {
+                var cb = document.getElementById('as4-tr-cb-' + i);
+                if (cb) cb.checked = !!sec;
+            });
+        }
+        async function as4TransferRobotIptal() {
+            var secili = [];
+            _as4TrGoster.forEach(function (t, i) {
+                var cb = document.getElementById('as4-tr-cb-' + i);
+                if (cb && cb.checked) secili.push({ kayit: t.kayit, satir: t.satir, article: t.article, adet: t.adet, tarih: t.tarih });
+            });
+            if (!secili.length) { toast('Satır seçilmedi', 'err'); return; }
+            if (!confirm(secili.length + ' transfer ROBOTLA iptal edilecek (Shift+F4 — kayıt AS400\'den SİLİNİR, geri alınamaz).\nSession B\'nin boşta olduğundan emin misin?')) return;
+            var btn = document.getElementById('as4-tr-iptal-btn');
+            var durBtn = document.getElementById('as4-tr-durdur-btn');
+            var sonucEl = document.getElementById('as4-tr-sonuc');
+            btn.disabled = true; if (durBtn) durBtn.style.display = '';
+            sonucEl.innerHTML = '<div class="yukleniyor" style="padding:10px 0">🤖 Robot çalışıyor… (' + secili.length + ' satır — satır başına ~30-60 sn)</div>';
+            try {
+                const r = await panelFetch('/api/as400/transfer_iptal', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ satirlar: secili })
+                });
+                const d = await r.json();
+                btn.disabled = false; if (durBtn) durBtn.style.display = 'none';
+                if (!r.ok) { sonucEl.innerHTML = '<div style="color:#fca5a5;padding:8px 0">⚠ ' + esc(d.hata || 'İptal başarısız') + '</div>'; return; }
+                var o = d.ozet || {};
+                var html = '<div style="margin:8px 0;font-weight:700;font-size:.85rem">Sonuç: ' +
+                    '<span style="color:#34d399">' + (o.ok || 0) + ' iptal</span> · ' +
+                    '<span style="color:#f87171">' + (o.hata || 0) + ' hata</span> · ' +
+                    '<span style="color:#94a3b8">' + (o.atlandi || 0) + ' atlandı</span>' +
+                    (d.durduruldu ? ' · <span style="color:#fbbf24">durduruldu</span>' : '') + '</div>';
+                (d.sonuclar || []).forEach(function (s) {
+                    var renk = s.sonuc === 'ok' ? '#34d399' : (s.sonuc === 'atlandi' ? '#94a3b8' : '#f87171');
+                    html += '<div style="font-size:.76rem;padding:2px 0;color:' + renk + '">' +
+                        esc(s.kayit + '/' + s.satir + ' · ' + s.article + ' · ' + fmt(s.adet)) + ' — ' + esc(s.mesaj || s.sonuc) + '</div>';
+                });
+                html += '<div style="font-size:.74rem;color:var(--muted);margin-top:6px">📋 Listele\'ye basınca güncel liste gelir (iptal edilenler düşmüş olmalı).</div>';
+                sonucEl.innerHTML = html;   // otomatik yenileme YOK — sonuçlar ekranda kalsın
+            } catch (e) {
+                btn.disabled = false; if (durBtn) durBtn.style.display = 'none';
+                sonucEl.innerHTML = '<div style="color:#fca5a5;padding:8px 0">⚠ Bağlantı hatası — robot sürüyor olabilir, Session B\'yi kontrol edin</div>';
+            }
         }
 
         // ── PLANLAMA (stok + sipariş + BOM — 07>10>01 otomasyonu) ──
@@ -9914,18 +10078,24 @@ window.__I18N_SOZLUK__ = {
                         if (l.zaten_teyitli === 'olasi' && !olasi) olasi = l;
                     });
                     if (kesin) { teyitli.push({ tarih: g.tarih, r: r, l: kesin }); return; }
+                    var teyitVer = (r.isaret && r.isaret.durum === 'teyit_ver');
                     // '✓ kontrol' işaretli satır = elle ilgilenildi → robot kuyruğuna GİRMEZ
-                    if (r.isaret) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: [] } }); return; }
+                    // ('➕ teyit ver' işareti HARİÇ — o kuyruğa girmek İÇİN konur)
+                    if (r.isaret && !teyitVer) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: [] } }); return; }
                     var temiz = ls.filter(function (l) { return !l.zombi; });
                     if (!temiz.length) { dikkat.push({ tip: 'zombi', tarih: g.tarih, r: r, l: ls[0] }); return; }
-                    if (olasi) { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: olasi }); return; }
+                    // 'olasi' şüphesi ➕ teyit ver ile EZİLEBİLİR (karar insanın)
+                    if (olasi && !teyitVer) { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: olasi }); return; }
                     _as4Bekleyen.push({ tarih: g.tarih, r: r, launchlar: temiz, bugunMu: g.tarih === bugun });
                 });
                 (L.SUPHELI || []).forEach(function (r) {
                     var ls = r.launchlar || [], kesin = null;
                     ls.forEach(function (l) { if (l.zaten_teyitli === 'kesin' && !kesin) kesin = l; });
-                    if (kesin) teyitli.push({ tarih: g.tarih, r: r, l: kesin });
-                    else dikkat.push({ tip: 'varyant', tarih: g.tarih, r: r, l: ls[0] });
+                    if (kesin) { teyitli.push({ tarih: g.tarih, r: r, l: kesin }); return; }
+                    // ➕ teyit ver işaretli varyant = kullanıcı 'kod DOĞRU' dedi (4536B vakası)
+                    // → KENDİ koduna CFI kuyruğu (varyant launch'ına DEĞİL)
+                    if (r.isaret && r.isaret.durum === 'teyit_ver') { cfiKuyruk(r, ''); return; }
+                    dikkat.push({ tip: 'varyant', tarih: g.tarih, r: r, l: ls[0] });
                 });
                 // OPR10/YOK/KAPALI: launch S ile kapatildiysa XPRO90'dan duser ama teyit
                 // hareketi (RPR) durur — backend satira zaten_teyitli enjekte eder.
@@ -9940,16 +10110,25 @@ window.__I18N_SOZLUK__ = {
                 // LAUNCH'SIZ uretim (OPR10 + YOK, teyitsiz) → CFI KUYRUGU (kullanici
                 // 2026-07-20: launch olan launch teyidi, olmayan CFI; secilebilir tablo).
                 function cfiKuyruk(r, article) {
+                    var teyitVer = (r.isaret && r.isaret.durum === 'teyit_ver');
                     if (r.zaten_teyitli === 'kesin') { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
                     // '✓ kontrol' işaretli satır = elle ilgilenildi → robot kuyruğuna GİRMEZ
-                    if (r.isaret) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
-                    if (r.zaten_teyitli === 'olasi') { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
+                    // ('➕ teyit ver' HARİÇ — o kuyruğa girmek İÇİN konur)
+                    if (r.isaret && !teyitVer) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
+                    if (r.zaten_teyitli === 'olasi' && !teyitVer) { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
                     _as4CfiBekleyen.push({ tarih: g.tarih, r: r, article: article || '', bugunMu: g.tarih === bugun });
                 }
                 (L.OPR10 || []).forEach(function (r) { cfiKuyruk(r, ((r.launchlar || [])[0] || {}).article); });
-                (L.ARAOP || []).forEach(function (r) { araList.push({ tarih: g.tarih, r: r }); });
+                (L.ARAOP || []).forEach(function (r) {
+                    // ➕ teyit ver işaretli ara-op = kullanıcı 'bu satır teyit almalı' dedi → CFI
+                    if (r.isaret && r.isaret.durum === 'teyit_ver') { cfiKuyruk(r, ''); return; }
+                    araList.push({ tarih: g.tarih, r: r });
+                });
                 (L.YOK || []).forEach(function (r) { cfiKuyruk(r, ''); });
-                (L.KAPALI || []).forEach(function (r) { dagit(r, digerList); });
+                (L.KAPALI || []).forEach(function (r) {
+                    if (r.isaret && r.isaret.durum === 'teyit_ver') { cfiKuyruk(r, ''); return; }
+                    dagit(r, digerList);
+                });
             });
 
             // ── ♻ HURDA → COP toplama (2026-07-24): hurda (nok_adet) girilen satırlar,
@@ -10133,14 +10312,17 @@ window.__I18N_SOZLUK__ = {
                     var t = TIP[x.tip] || ['#94a3b8', x.tip];
                     var l = x.l || {};
                     var hrk = (l.zaten_hareket || []).map(function (h) { return h.tarih + ': ' + fmt(h.adet) + ' (L' + h.launch + ')'; }).join(', ');
+                    var isrD = x.r.isaret || {};
                     html += '<tr><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
-                            (x.r.isaret ? ' <span style="color:#34d399;font-size:.7rem;font-weight:800">✓ kontrol edildi</span>' : '') +
+                            (isrD.durum === 'kontrol' ? ' <span style="color:#34d399;font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
+                             : isrD.durum === 'teyit_ver' ? ' <span style="color:#34d399;font-size:.7rem;font-weight:800">➕ teyit verilecek</span>' : '') +
                             '<div style="margin-top:3px">' +
                             '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem" onclick="refRenameAc(this.dataset.kod)" data-kod="' + esc(x.r.orijinal_referans || x.r.referans) + '" title="Referans kodunu AS400 koduna göre düzelt (tüm sayfalarda)">🔁 düzelt</button>' +
                             as4IsaretBtn(x.r, x.tarih, 'gerek_yok') +
                             as4IsaretBtn(x.r, x.tarih, 'kontrol') +
+                            (x.tip !== 'zombi' ? as4IsaretBtn(x.r, x.tarih, 'teyit_ver') : '') +
                             '</div></td>' +
                         '<td style="text-align:right">' + fmt(x.r.adet) + '</td>' +
                         '<td style="font-size:.8rem">' + (l.article ? esc(l.article) + ' → ' + esc(l.launch || '') : '—') +
@@ -10182,12 +10364,12 @@ window.__I18N_SOZLUK__ = {
                 }
                 if (araList.length) {
                     html += '<div style="color:#a78bfa;font-weight:800;margin:10px 0 4px">🔗 Ara operasyon — teyit son op üretiminde verilir:</div>';
-                    araList.forEach(function (x) { html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet, son op: ' + (x.r.son_op || '?') + ')</div>'; });
+                    araList.forEach(function (x) { html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet, son op: ' + (x.r.son_op || '?') + ')' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>'; });
                 }
                 if (digerList.length) {
                     html += '<div style="color:var(--muted);font-weight:800;margin:10px 0 4px">Diğer (durum 45/50 — TK1 akışı):</div>';
                     digerList.forEach(function (x) {
-                        html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet)</div>';
+                        html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet)' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>';
                     });
                 }
                 html += '</div></details>';
