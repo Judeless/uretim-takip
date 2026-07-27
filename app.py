@@ -389,8 +389,10 @@ SAYAC_AUTO_CIHAZLAR = (
     | {'YF1', 'LF-LFP'}
     # 2026-07-23 yeni sayaç modülleri: abkant (röle) + eksantrik pres (iki-el AND) →
     # bölüm 'pres'; plastik enjeksiyon (320T/407T, metal mantığı) → bölüm 'plastik' (TK1).
+    # 2026-07-27 saha rollout: yapıştırma (kısa röle pulse, plastik hattının makinesi)
+    # → bölüm 'plastik' (TK1). robot_no ASCII 'Yapistirma' (firmware ile birebir).
     | {'Abkant 1', 'Abkant 2', 'Abkant 3'} | {f'Pres {i}' for i in range(1, 6)}
-    | {'320T', '407T'}
+    | {'320T', '407T', 'Yapistirma'}
 )
 # YF1: TK1 (yan tesis) montaj deneme modülü — MONTAJ-YF1 cihazı robot_no='YF1' ile flash'lı
 # (sahada zaten yüklü, yeniden flash YOK). pilot.db'de bolum=montaj/robot_no=YF1; saha_cihazlari
@@ -399,7 +401,8 @@ SAYAC_AUTO_CIHAZLAR = (
 # TK1 (yan tesis) cihazlarının robot_no'ları — pilot.db'de lokasyon kolonu olmadığı için
 # saha_cihazlari/sinyal_kalitesi'ni lokasyona göre filtrelerken robot_no ile eşleriz.
 # YF1 = sahadaki deneme modülü; diğerleri TK1 hatları (ileride cihaz takılırsa kapsanır).
-TK1_ROBOT_NOLARI = {'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP'}
+TK1_ROBOT_NOLARI = {'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
+                    '320T', '407T', 'Yapistirma'}   # 2026-07-27 plastik enj + yapıştırma (TK1)
 
 # Hat → sayaç cihazının robot_no eşlemesi: operatör hattı seçer (vardiya.robot_no='LF-LFP')
 # ama saha modülü pulse'ları robot_no='YF1' ile pilot.db'ye düşer. Sayım yapılırken hat
@@ -423,6 +426,7 @@ BOLUM_AD = {
     'isleme': 'İşleme',
     'lazer':  'Lazer Kesim',
     'pres':   'Pres Abkant',
+    'plastik': 'Plastik Enjeksiyon',
 }
 
 # Push bildirim alıcıları — bölüme yeni referans/launch eklendiğinde kimin
@@ -2656,7 +2660,8 @@ def robot_listesi():
             "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='plastik' "
             "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no").fetchall()
         conn.close()
-        taban = ['320T', '407T']
+        # 320T/407T = enjeksiyon; Yapistirma = yapıştırma makinesi (aynı bölüm, TK1).
+        taban = ['320T', '407T', 'Yapistirma']
         return jsonify(taban + [r['robot_no'] for r in rows if r['robot_no'] not in taban])
     if lokasyon == 'TK1':
         # TK1 (yan tesis) sabit hatları — montaj mantığı
@@ -2664,7 +2669,7 @@ def robot_listesi():
     # Sabit makine tabanı olan bölümler (liste her zaman tam görünür; DISTINCT ekstraları eklenir)
     SABIT_TABAN = {'pres': ['Abkant 1', 'Abkant 2', 'Abkant 3',
                             'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5'],
-                   'plastik': ['320T', '407T']}
+                   'plastik': ['320T', '407T', 'Yapistirma']}
     # Dinamik bölümlerde hiç vardiya yokken gösterilecek varsayılan makine/hat adı
     DINAMIK_VARSAYILAN = {'montaj': 'HAT 1', 'isleme': 'Tezgah 1'}
     if bolum == 'metal':
@@ -2910,12 +2915,14 @@ def saha_cihazlari():
     """Beklenen tüm saha cihazlarının durumu (kaynak/montaj/metal).
 
     Beklenen cihaz listesi sabit:
-      - 9 robot:    ABB1-IO ... ABB9-IO       (bolum: kaynak)
-      - 12 montaj:  MONTAJ-M1 ... MONTAJ-M12  (bolum: montaj)
-      - 3 metal:    300T-IO, 400T-IO, 550T-IO (bolum: metal)
+      - 9 robot:    ABB1-IO ... ABB9-IO       (bolum: kaynak, TK2)
+      - 12 montaj:  MONTAJ-M1 ... MONTAJ-M12  (bolum: montaj, TK2) + MONTAJ-YF1 (TK1)
+      - 3 metal:    300T-IO, 400T-IO, 550T-IO (bolum: metal, TK2)
+      - 3 abkant:   ABKANT-A1/A2/A3            (bolum: pres, TK2)
+      - 3 plastik:  PLASTIK-320T/407T/YAPISTIRMA (bolum: plastik, TK1)
 
     Her cihaz için pilot.db'deki cihaz_kayitlari ile eşleştirilir.
-    Eşleşme yoksa 'beklemede' (hiç bağlanmamış).
+    Eşleşme yoksa 'beklemede' (hiç bağlanmamış). ?lokasyon= ile tesise göre süzülür.
     """
     import os
     pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
@@ -2931,6 +2938,19 @@ def saha_cihazlari():
             {'cihaz_id': '300T-IO', 'robot_no': '300T'},
             {'cihaz_id': '400T-IO', 'robot_no': '400T'},
             {'cihaz_id': '550T-IO', 'robot_no': '550T'},
+        ],
+        # 2026-07-27 saha rollout — abkant (pres bölümü, TK2) + plastik enjeksiyon &
+        # yapıştırma (plastik bölümü, TK1). cihaz_id + robot_no firmware ile birebir
+        # (generate.py DEVICES). Eksantrik Pres (Pres 1-5) modülleri hazır olunca eklenir.
+        'pres':   [
+            {'cihaz_id': 'ABKANT-A1', 'robot_no': 'Abkant 1'},
+            {'cihaz_id': 'ABKANT-A2', 'robot_no': 'Abkant 2'},
+            {'cihaz_id': 'ABKANT-A3', 'robot_no': 'Abkant 3'},
+        ],
+        'plastik': [
+            {'cihaz_id': 'PLASTIK-320T',       'robot_no': '320T',       'lokasyon': 'TK1'},
+            {'cihaz_id': 'PLASTIK-407T',       'robot_no': '407T',       'lokasyon': 'TK1'},
+            {'cihaz_id': 'PLASTIK-YAPISTIRMA', 'robot_no': 'Yapistirma', 'lokasyon': 'TK1'},
         ],
     }
 

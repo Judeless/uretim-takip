@@ -1396,6 +1396,18 @@ window.__I18N_SOZLUK__ = {
     "en": "Press Brake",
     "it": "Pressa piegatrice"
   },
+  "Plastik Enjeksiyon": {
+    "en": "Plastic Injection",
+    "it": "Stampaggio plastica"
+  },
+  "Plastik Enjeksiyon & Yapıştırma (TK1)": {
+    "en": "Plastic Injection & Bonding (TK1)",
+    "it": "Stampaggio plastica e incollaggio (TK1)"
+  },
+  "Pres Abkant (3 makine)": {
+    "en": "Press Brake (3 machines)",
+    "it": "Pressa piegatrice (3 macchine)"
+  },
   "Andon ekranları": {
     "en": "Andon screens",
     "it": "Schermi Andon"
@@ -4547,7 +4559,7 @@ window.__I18N_SOZLUK__ = {
                     <div id="saha-aktif-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px"></div>
                 </div>
 
-                <div style="margin-bottom:24px">
+                <div id="saha-sec-kaynak" style="margin-bottom:24px">
                     <h3 class="saha-grup-baslik">
                         <span class="saha-rozet" style="background:rgba(59,130,246,0.15);color:#60a5fa">KAYNAK</span>
                         Robot Kaynak Hatları (9 robot)
@@ -4555,7 +4567,7 @@ window.__I18N_SOZLUK__ = {
                     <div id="saha-kaynak-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
                 </div>
 
-                <div style="margin-bottom:24px">
+                <div id="saha-sec-montaj" style="margin-bottom:24px">
                     <h3 class="saha-grup-baslik">
                         <span class="saha-rozet" style="background:rgba(16,185,129,0.15);color:#34d399">MONTAJ</span>
                         Montaj Hatları (12 hat)
@@ -4563,12 +4575,28 @@ window.__I18N_SOZLUK__ = {
                     <div id="saha-montaj-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
                 </div>
 
-                <div style="margin-bottom:24px">
+                <div id="saha-sec-metal" style="margin-bottom:24px">
                     <h3 class="saha-grup-baslik">
                         <span class="saha-rozet" style="background:rgba(245,158,11,0.15);color:#fbbf24">METAL</span>
                         Metal Enjeksiyon (3 makine)
                     </h3>
                     <div id="saha-metal-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+                </div>
+
+                <div id="saha-sec-pres" style="margin-bottom:24px;display:none">
+                    <h3 class="saha-grup-baslik">
+                        <span class="saha-rozet" style="background:rgba(236,72,153,0.15);color:#f472b6">ABKANT</span>
+                        Pres Abkant (3 makine)
+                    </h3>
+                    <div id="saha-pres-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+                </div>
+
+                <div id="saha-sec-plastik" style="margin-bottom:24px;display:none">
+                    <h3 class="saha-grup-baslik">
+                        <span class="saha-rozet" style="background:rgba(168,85,247,0.15);color:#c084fc">PLASTİK</span>
+                        Plastik Enjeksiyon &amp; Yapıştırma (TK1)
+                    </h3>
+                    <div id="saha-plastik-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
                 </div>
             </section>
 
@@ -5243,7 +5271,10 @@ window.__I18N_SOZLUK__ = {
             metal:  { ad: 'Metal Enjeksiyon', ikon: '🏭',  renk: '#f59e0b', parlak: '#fbbf24', mark: '#d97706', rgb: '245,158,11',  tekil: 'Makine' },
             isleme: { ad: 'İşleme',           ikon: '⚙️', renk: '#8b5cf6', parlak: '#a78bfa', mark: '#8b5cf6', rgb: '139,92,246',  tekil: 'Tezgah' },
             lazer:  { ad: 'Lazer Kesim',      ikon: '✂️', renk: '#06b6d4', parlak: '#22d3ee', mark: '#0891b2', rgb: '6,182,212',   tekil: 'Makine' },
-            pres:   { ad: 'Pres Abkant',      ikon: '🗜️', renk: '#ec4899', parlak: '#f472b6', mark: '#ec4899', rgb: '236,72,153',  tekil: 'Makine' }
+            pres:   { ad: 'Pres Abkant',      ikon: '🗜️', renk: '#ec4899', parlak: '#f472b6', mark: '#ec4899', rgb: '236,72,153',  tekil: 'Makine' },
+            // plastik = TK1 bölümü (BOLUM_SIRA'da YOK — o TK2 toggle listesi; plastik
+            // Saha Cihazları başlığı + rapor/etiket aramaları için burada tanımlı).
+            plastik: { ad: 'Plastik Enjeksiyon', ikon: '🧪', renk: '#a855f7', parlak: '#c084fc', mark: '#a855f7', rgb: '168,85,247', tekil: 'Makine' }
         };
         var BOLUM_SIRA = ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'];
 
@@ -8117,8 +8148,13 @@ window.__I18N_SOZLUK__ = {
 
                 let toplamOnline = 0, toplamOffline = 0, toplamBekleme = 0;
                 const aktifKartlar = [];
-                ['kaynak', 'montaj', 'metal'].forEach(bolum => {
+                // Lokasyon-farkında: backend zaten aktif tesise göre süzer (TK2 →
+                // kaynak/montaj/metal/pres; TK1 → montaj/plastik). O tesiste cihazı
+                // olmayan bölüm bölümü (bölüm başlığı) tamamen gizlenir.
+                ['kaynak', 'montaj', 'metal', 'pres', 'plastik'].forEach(bolum => {
                     const liste = d[bolum] || [];
+                    const sec = document.getElementById('saha-sec-' + bolum);
+                    if (sec) sec.style.display = liste.length ? '' : 'none';
                     liste.forEach(c => {
                         if (c.durum === 'online') toplamOnline++;
                         else if (c.durum === 'offline') toplamOffline++;
