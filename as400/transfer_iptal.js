@@ -204,11 +204,18 @@ ps.SendKeys("[enter]");
 // veriyordu, PAGE DOWN ile o islem numarasiyla yapilmis digerlerini gorebilir").
 // Cozum: [pagedn] ile sayfalar taranir; hedef satir bulununca O SAYFADA '2' yazilir.
 var reSatirNo = new RegExp("(^|\\s)" + SATIR + "(\\s|$)");
+// Satirin SON italyan-bicim sayisi = MIKTAR kolonu ('100,000'→100). Miktar daima
+// en sagda; aciklama icindeki virgullu sayilar ('M5X0,8 SOMUN'→0,8) ATLANIR — aksi
+// halde ilk eslesme (0,8) miktar sanilir (kullanici 2026-07-27: 188843 vakasi).
+function satirAdedi(t) {
+    var re = /(\d[\d\.]*),(\d{1,3})/g, m, son = null;
+    while ((m = re.exec(t)) !== null) son = m;
+    if (!son) return null;
+    return parseFloat(son[1].replace(/\./g, "") + "." + son[2]);
+}
 function adetEslesir(t) {
-    var m = /([\d\.]+),(\d{1,3})/.exec(t);
-    if (!m) return false;
-    var v = parseFloat(m[1].replace(/\./g, "") + "." + m[2]);
-    return Math.abs(v - ADET_F) < 0.001;
+    var v = satirAdedi(t);
+    return v !== null && Math.abs(v - ADET_F) < 0.001;
 }
 function hedefBulSayfa(satlar) {
     // 1) article + satir no (MGPRRE) ayni ekran satirinda
@@ -276,16 +283,15 @@ if (hedefRow < 0) {
 log("G2: hedef satir " + hedefRow + " bulundu (sayfa " + (sayfa + 1) + ")");
 dump("hedef-satir");
 
-// Adet dogrulamasi: secilen satirda italyan bicimi adet birebir eslesmeli
+// Adet dogrulamasi: secilen satirin MIKTAR kolonu (en sagdaki sayi) birebir eslesmeli
 var hedefTxt = ekran()[hedefRow - 1];
-var mAdet = /([\d\.]+),(\d{1,3})/.exec(hedefTxt);
-if (mAdet) {
-    var ekAdet = parseFloat(mAdet[1].replace(/\./g, "") + "." + mAdet[2]);
+var ekAdet = satirAdedi(hedefTxt);
+if (ekAdet !== null) {
     if (Math.abs(ekAdet - ADET_F) > 0.001)
         iptal("Satirdaki adet uyusmadi: ekran=" + ekAdet + " beklenen=" + ADET_F + " ('" + hedefTxt.replace(/\s+$/, "") + "')");
     log("G2: adet dogrulandi (" + ekAdet + ")");
 } else {
-    log("G2: hedef satir " + hedefRow + " (adet deseni okunamadi — article eslesti, devam)");
+    log("G2: hedef satir " + hedefRow + " (adet okunamadi — article eslesti, devam)");
 }
 
 // ── G3: satir basina '2' yaz (secenek alani) + Enter ──
@@ -302,23 +308,31 @@ for (var kol = 1; kol <= 8 && !yazildi; kol++) {
 if (!yazildi) iptal("Satir basina '2' yazilamadi (secenek alani bulunamadi — ekran duzeni farkli)");
 ps.SendKeys("[enter]"); bekle(); WScript.Sleep(1200);
 
-// ── G4: Variation/detay ekranini dogrula — CAUSAL TA SARTI ──
+// ── G4: Variation/detay ekranini dogrula — 02→01 TA TRANSFERI SARTI ──
+// Ekran duzeni (188843 dokumu, kullanici 2026-07-27):
+//   Warehouse cd. .  02  Finished products     ← 02 tarafi (SQL bu tarafi secer)
+//   Causal cd. . . . TA  Transfer to warehouse  ← TA sarti
+//   Counterpart War.cd  01  WH components        ← 01 karsi depo
+// NOT: 'Actual row' (orn 200) MGPRRE (satir=100) DEGILDIR — farkli alanlar; o
+// karsilastirma KALDIRILDI. Guvenlik artik Warehouse/Causal/Counterpart + kayit no.
 var eV = ekranStr();
 if (eV.toLowerCase().indexOf("errore") >= 0) iptal("'2' + Enter sonrasi hata mesaji");
 dump("detay-ekrani");
 if (eV.indexOf(ARTICLE) < 0) iptal("Detay ekraninda article gorunmedi");
-// Causal: 'Causal cd. . . .   TA   ...' satirindan oku
-var mCa = /Causal\s*cd[.\s]*\s([A-Z]{2,3})\s/.exec(eV);
+// Causal TA SARTI (yanlis hareket silinmesin)
+var mCa = /Causal\s*cd[.\s]*\s([A-Z]{2,3})\b/.exec(eV);
 if (!mCa) iptal("Detay ekraninda 'Causal cd' okunamadi — F16 BASILMAYACAK");
 if (mCa[1] !== "TA") iptal("Causal '" + mCa[1] + "' — TA degil! Bu hareket transfer degil, IPTAL EDILMEZ");
-log("G4: Causal TA dogrulandi");
-// Kayit no dogrulamasi (Record no. . 26 245458)
+// Warehouse=02 SARTI (02 tarafindaki transfer satiri olmali — SQL ile ayni)
+var mWh = /Warehouse\s*cd[.\s]*\s(\d{2})\b/.exec(eV);
+if (!mWh) iptal("Detay ekraninda 'Warehouse cd' okunamadi — F16 BASILMAYACAK");
+if (mWh[1] !== "02") iptal("Warehouse '" + mWh[1] + "' — 02 degil! 02→01 transferi degil, IPTAL EDILMEZ");
+// Counterpart=01 (varsa dogrula; yoksa Warehouse+Causal yeterli)
+var mCp = /Counterpart\s*War\.?\s*cd[.\s]*\s(\d{2})\b/.exec(eV);
+if (mCp && mCp[1] !== "01") iptal("Counterpart '" + mCp[1] + "' — 01 degil! IPTAL EDILMEZ");
+// Kayit no dogrulamasi (Record no. . 26 188843)
 if (eV.indexOf(KNO) < 0) iptal("Detay ekraninda kayit no " + KNO + " gorunmedi");
-// Actual row varsa satir no eslesmeli
-var mAr = /Actual\s+row\s+(\d+)/i.exec(eV);
-if (mAr && parseInt(mAr[1], 10) !== parseInt(SATIR, 10))
-    iptal("Actual row " + mAr[1] + " != beklenen satir " + SATIR + " — yanlis satir acilmis olabilir");
-log("G4: detay ekrani dogrulandi (kayit " + KNO + ", satir " + (mAr ? mAr[1] : "?") + ")");
+log("G4: dogrulandi — Causal TA, Warehouse 02" + (mCp ? "→01" : "") + ", kayit " + KNO);
 
 if (DRYRUN) {
     log("DRYRUN: iptal edilecek hareket dogrulandi, Shift+F4'e BASILMADI.");
