@@ -290,28 +290,53 @@ def _zaten_teyitli(hareketler, uretim_tarihi, adet, gecmis=None):
     return None, kalanlar
 
 
+# REWORK: operator uretim kaydinin 'aciklama' alanina rework yazdiysa o KAYIT teyit
+# DISI (kullanici 2026-07-27). Yazim degisken: rework/riwork/rowork/rivork... ->
+# regex 'r' + 0-2 harf + work|vork (network/framework gibi r-oneksiz kelimeleri
+# YAKALAMAZ). Kayit bazli: ayni referansin normal uretimi teyit edilir, rework
+# kismi elenir. Bu yuzden SQL-SUM yerine kayitlari cekip Python'da gruplariz.
+REWORK_RE = re.compile(r'r[a-z]{0,2}[wv]ork', re.I)
+
+
+def rework_mi(*metinler):
+    """Verilen metinlerden herhangi biri rework belirtiyor mu (aciklama VEYA referans)."""
+    return any(m and REWORK_RE.search(m) for m in metinler)
+
+
 def gun_uretimi(tarih):
-    """O gunun referans+adet listesi — yalniz launch'li bolumler + TK2."""
+    """O gunun referans+adet listesi — yalniz launch'li bolumler + TK2.
+    Rework kayitlari (aciklama/referans 'rework' varyanti) haric tutulur."""
     conn = sqlite3.connect(URETIM_DB)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(f"""
         SELECT COALESCE(v.lokasyon,'TK2') tesis, COALESCE(v.bolum,'kaynak') bolum,
-               u.referans_kodu referans, SUM(u.ok_adet) adet,
-               SUM(COALESCE(u.nok_adet,0)) hurda
+               u.referans_kodu referans, COALESCE(u.ok_adet,0) ok,
+               COALESCE(u.nok_adet,0) nok, COALESCE(u.aciklama,'') aciklama
         FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE v.tarih = ? AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
           AND COALESCE(v.lokasyon,'TK2') = ?
           AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})
-        GROUP BY tesis, bolum, u.referans_kodu
-        HAVING SUM(u.ok_adet) > 0
         ORDER BY tesis, bolum, u.referans_kodu""",
         (tarih, LOKASYON) + LAUNCH_BOLUMLERI).fetchall()
     conn.close()
-    # Bosluklu kod yazimini nokta bicimine cevir ('10 300 1393A' → '10.300.1393A');
-    # orijinal yazim UI'da gosterilmek uzere saklanir (2026-07-22).
-    sonuc = []
+    # Grupla — rework kayitlarini ATLA (kayit bazli; ayni referansin normal uretimi kalir)
+    grup = {}
     for r in rows:
-        d = dict(r)
+        if rework_mi(r['aciklama'], r['referans']):
+            continue
+        key = (r['tesis'], r['bolum'], r['referans'])
+        g = grup.get(key)
+        if g is None:
+            g = grup[key] = {'tesis': r['tesis'], 'bolum': r['bolum'],
+                             'referans': r['referans'], 'adet': 0, 'hurda': 0}
+        g['adet']  += r['ok']
+        g['hurda'] += r['nok']
+    # adet>0 filtre + bosluklu kod yazimini nokta bicimine cevir ('10 300 1393A' →
+    # '10.300.1393A'); orijinal yazim UI'da gosterilmek uzere saklanir (2026-07-22).
+    sonuc = []
+    for d in grup.values():
+        if d['adet'] <= 0:
+            continue
         duz = bosluk_nokta(d['referans'])
         if duz != d['referans']:
             d['orijinal_referans'] = d['referans']
@@ -324,22 +349,31 @@ def uretim_gecmisi(bas_tarih, son_tarih):
     """Kendi uretim kayitlarimizdan tarih bazli adet gecmisi (2026-07-20).
     Ayni-gun hareketlerin 'onceki gunun teyidi mi' sorusunu cevaplamak icin:
     hareket adedi onceki bir gunun uretim adetiyle birebir esliyorsa o gunundur.
-    Donis: {kanonik(referans): {tarih: {adetler}}} (raw referans_kodu bazinda)."""
+    Donis: {kanonik(referans): {tarih: {adetler}}} (raw referans_kodu bazinda).
+    REWORK kayitlari HARIC (gun_uretimi ile tutarli — rework teyit edilmez, hareket
+    aciklamasi olarak da sayilmamali)."""
     conn = sqlite3.connect(URETIM_DB)
-    g = collections.defaultdict(lambda: collections.defaultdict(set))
+    conn.row_factory = sqlite3.Row
+    ara = collections.defaultdict(float)   # (tarih, ref_raw) -> toplam ok (rework haric)
     try:
-        for t, ref, adet in conn.execute(f"""
-            SELECT v.tarih, u.referans_kodu, SUM(u.ok_adet)
+        for r in conn.execute(f"""
+            SELECT v.tarih tarih, u.referans_kodu ref, COALESCE(u.ok_adet,0) ok,
+                   COALESCE(u.aciklama,'') aciklama
             FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
             WHERE v.tarih >= ? AND v.tarih <= ?
               AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
               AND COALESCE(v.lokasyon,'TK2') = ?
-              AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})
-            GROUP BY v.tarih, u.referans_kodu HAVING SUM(u.ok_adet) > 0""",
+              AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})""",
                 (bas_tarih, son_tarih, LOKASYON) + LAUNCH_BOLUMLERI).fetchall():
-            g[kanonik(bosluk_nokta(ref))][t].add(float(adet))
+            if rework_mi(r['aciklama'], r['ref']):
+                continue
+            ara[(r['tarih'], r['ref'])] += r['ok']
     finally:
         conn.close()
+    g = collections.defaultdict(lambda: collections.defaultdict(set))
+    for (t, ref), toplam in ara.items():
+        if toplam > 0:
+            g[kanonik(bosluk_nokta(ref))][t].add(float(toplam))
     return g
 
 
