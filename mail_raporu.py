@@ -42,11 +42,13 @@ BOLUM_AD = {
 # CONFIG
 # ─────────────────────────────────────────────────────────────
 def config_yukle():
-    """mail_config.json'u okur. Yoksa/bozuksa None döner."""
+    """mail_config.json'u okur. Yoksa/bozuksa None döner.
+    encoding='utf-8-sig': Notepad (özellikle Server 2019) UTF-8 dosyaya BOM ekler;
+    utf-8-sig BOM'u otomatik yutar (BOM'suz dosyayı da sorunsuz okur)."""
     if not os.path.exists(CONFIG_YOL):
         return None
     try:
-        with open(CONFIG_YOL, encoding='utf-8') as f:
+        with open(CONFIG_YOL, encoding='utf-8-sig') as f:
             return json.load(f)
     except Exception as e:
         print(f'[MAIL] Config okunamadı: {e}')
