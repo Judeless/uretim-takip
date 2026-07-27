@@ -369,7 +369,7 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
     except Exception as e:
         return {'basarili': False, 'mesaj': f'Gönderim hatası: {e}', 'alici_sayisi': len(alicilar)}
 
-    print(f'[MAIL] {tarih} raporu gönderildi → {len(alicilar)} alıcı, {satir} satır, {toplam} adet')
+    print(f'[MAIL] {tarih} raporu gonderildi -> {len(alicilar)} alici, {satir} satir, {toplam} adet')
     return {
         'basarili': True,
         'mesaj': f'{len(alicilar)} alıcıya gönderildi ({satir} satır, {toplam} adet).',

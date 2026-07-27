@@ -6521,6 +6521,16 @@ init_db()
 
 
 if __name__ == '__main__':
+    # Windows konsolu (cp1254) Unicode sembolleri (→ • ✓ emoji) encode EDEMEZ →
+    # print() UnicodeEncodeError fırlatır; bu bir yanıt yolunda olursa (örn. mail
+    # başarı logu) BAŞARI, HATA gibi görünür. errors='replace' → print ASLA çökmesin.
+    try:
+        import sys as _sysio
+        _sysio.stdout.reconfigure(errors='replace')
+        _sysio.stderr.reconfigure(errors='replace')
+    except Exception:
+        pass
+
     # Flask debug modundayken (reloader) çift çalışmayı önlemek için kontrol
     if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
         init_db()
