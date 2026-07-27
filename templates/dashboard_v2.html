@@ -9819,6 +9819,8 @@ window.__I18N_SOZLUK__ = {
             html += '</tbody></table></div>';
             html += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 4px">' +
                 '<button class="btn btn-primary" id="as4-tr-iptal-btn" onclick="as4TransferRobotIptal()">🤖 Seçilenleri Robotla İptal Et</button>' +
+                '<label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:#fbbf24;cursor:pointer;font-weight:700" title="Robot ekrana girer, satırı bulur ve DOĞRULAR ama Shift+F4\'e BASMAZ — hiçbir kayıt silinmez. İlk denemede güvenle akışı görmek için.">' +
+                    '<input type="checkbox" id="as4-tr-dryrun" style="width:15px;height:15px;cursor:pointer">🧪 DRYRUN (deneme — silme yok)</label>' +
                 '<button class="btn" id="as4-tr-durdur-btn" onclick="as4Durdur()" style="display:none;background:#dc2626;color:#fff;border-color:#dc2626">⏹ Durdur</button>' +
                 '<span style="font-size:.74rem;color:var(--muted)">Robot: 07&gt;01 + kayıt no + satır başına <b>2</b> + Enter + <b>Shift+F4</b>. İptal kaydı SİLER — BMMAF0\'dan silindiği ayrıca doğrulanır. Her akşam <b>16:45</b>\'te hepsi otomatik iptal edilir.</span></div>' +
                 '<div id="as4-tr-sonuc"></div>';
@@ -9839,23 +9841,27 @@ window.__I18N_SOZLUK__ = {
                 if (cb && cb.checked) secili.push({ kayit: t.kayit, satir: t.satir, article: t.article, adet: t.adet, tarih: t.tarih });
             });
             if (!secili.length) { toast('Satır seçilmedi', 'err'); return; }
-            if (!confirm(secili.length + ' transfer ROBOTLA iptal edilecek (Shift+F4 — kayıt AS400\'den SİLİNİR, geri alınamaz).\nSession B\'nin boşta olduğundan emin misin?')) return;
+            var dryrun = !!(document.getElementById('as4-tr-dryrun') || {}).checked;
+            var onay = dryrun
+                ? secili.length + ' transfer DRYRUN ile denenecek (robot ekrana girer, satırı doğrular ama Shift+F4\'e BASMAZ — hiçbir şey silinmez).\nSession B\'nin boşta olduğundan emin misin?'
+                : secili.length + ' transfer ROBOTLA iptal edilecek (Shift+F4 — kayıt AS400\'den SİLİNİR, geri alınamaz).\nSession B\'nin boşta olduğundan emin misin?';
+            if (!confirm(onay)) return;
             var btn = document.getElementById('as4-tr-iptal-btn');
             var durBtn = document.getElementById('as4-tr-durdur-btn');
             var sonucEl = document.getElementById('as4-tr-sonuc');
             btn.disabled = true; if (durBtn) durBtn.style.display = '';
-            sonucEl.innerHTML = '<div class="yukleniyor" style="padding:10px 0">🤖 Robot çalışıyor… (' + secili.length + ' satır — satır başına ~30-60 sn)</div>';
+            sonucEl.innerHTML = '<div class="yukleniyor" style="padding:10px 0">🤖 Robot çalışıyor…' + (dryrun ? ' (🧪 DRYRUN)' : '') + ' (' + secili.length + ' satır — satır başına ~30-60 sn)</div>';
             try {
                 const r = await panelFetch('/api/as400/transfer_iptal', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ satirlar: secili })
+                    body: JSON.stringify({ satirlar: secili, dryrun: dryrun })
                 });
                 const d = await r.json();
                 btn.disabled = false; if (durBtn) durBtn.style.display = 'none';
                 if (!r.ok) { sonucEl.innerHTML = '<div style="color:#fca5a5;padding:8px 0">⚠ ' + esc(d.hata || 'İptal başarısız') + '</div>'; return; }
                 var o = d.ozet || {};
-                var html = '<div style="margin:8px 0;font-weight:700;font-size:.85rem">Sonuç: ' +
-                    '<span style="color:#34d399">' + (o.ok || 0) + ' iptal</span> · ' +
+                var html = '<div style="margin:8px 0;font-weight:700;font-size:.85rem">Sonuç' + (dryrun ? ' (🧪 DRYRUN — silme yapılmadı)' : '') + ': ' +
+                    '<span style="color:#34d399">' + (o.ok || 0) + (dryrun ? ' denendi' : ' iptal') + '</span> · ' +
                     '<span style="color:#f87171">' + (o.hata || 0) + ' hata</span> · ' +
                     '<span style="color:#94a3b8">' + (o.atlandi || 0) + ' atlandı</span>' +
                     (d.durduruldu ? ' · <span style="color:#fbbf24">durduruldu</span>' : '') + '</div>';
