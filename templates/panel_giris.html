@@ -253,12 +253,22 @@
                     return;
                 }
                 mesaj(T('basarili'), 'ok');
-                window.location.href = '/dashboard';
+                window.location.href = girisSonrasiHedef();
             }).catch(function () {
                 btnGiris.disabled = false; btnGiris.textContent = T('giris_btn');
                 mesaj(T('sunucu_hata'));
             });
         });
+
+        // Giriş sonrası GELDİĞİ sayfaya dön. Giriş ekranı, istenen rotanın kendi
+        // URL'inde render edilir (örn. /dashboard/onizleme) — sabit '/dashboard'a
+        // atmak kullanıcıyı canlı panele düşürüyordu (2026-07-28: "önizleme
+        // açılmıyor" şikâyetinin sebebi buydu). Yalnız /dashboard ile başlayan
+        // yollar kabul edilir (açık yönlendirme riski yok).
+        function girisSonrasiHedef() {
+            var p = window.location.pathname || '';
+            return /^\/dashboard(\/|$)/.test(p) ? p : '/dashboard';
+        }
 
         formSifre.addEventListener('submit', function (e) {
             e.preventDefault();
@@ -277,7 +287,7 @@
                 btnSifre.disabled = false; btnSifre.textContent = T('sifre_kaydet');
                 if (!res.ok) { mesaj(res.d.hata || T('sunucu_hata')); return; }
                 mesaj(T('basarili'), 'ok');
-                window.location.href = '/dashboard';
+                window.location.href = girisSonrasiHedef();
             }).catch(function () {
                 btnSifre.disabled = false; btnSifre.textContent = T('sifre_kaydet');
                 mesaj(T('sunucu_hata'));
