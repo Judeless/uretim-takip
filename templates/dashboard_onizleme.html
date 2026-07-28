@@ -3705,7 +3705,7 @@ window.__I18N_SOZLUK__ = {
         <!-- ══════════════════ SOL MENÜ ══════════════════ -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
-                <img src="/logo?tema=koyu" alt="Cofle Logo"
+                <img src="/logo" alt="Cofle Logo"
                     onerror="this.style.display='none';document.getElementById('sb-logo-txt').style.display='block'">
                 <div id="sb-logo-txt" style="display:none"><h2>Cofle Manage</h2></div>
                 <p>Yönetici Paneli</p>
@@ -5892,8 +5892,14 @@ window.__I18N_SOZLUK__ = {
         // Sidebar başlığı + pill + dropdown + tablo başlığını aktif bölüme göre tazele
         function bolumGorunum() {
             var bilgi = BOLUMLER[aktifBolum] || BOLUMLER.kaynak;
+            // YALNIZ etiket span'ini güncelle. Eskiden butonun textContent'i komple
+            // yazılıyordu → akordiyon etiketi + ok işareti siliniyordu (grup diğerlerinden
+            // farklı görünüyordu) ve localStorage anahtarı bozuluyordu.
+            // .toUpperCase() KALDIRILDI: büyük harfe çevirmeyi CSS (text-transform)
+            // yapıyor; JS'te de çevirmek diğer başlıklarla tutarsız görünüm veriyordu.
             var ngt = document.getElementById('ng-bolum-title');
-            ngt.textContent = bolumAdi(aktifBolum).toUpperCase();
+            var ngtEtiket = ngt && ngt.querySelector('span:not(.ok)');
+            if (ngtEtiket) ngtEtiket.textContent = bolumAdi(aktifBolum);
 
             var pill = document.getElementById('bolum-pill');
             pill.style.setProperty('--pill-renk', bilgi.renk);
