@@ -6721,6 +6721,21 @@ def _oto_config_yaz(cfg):
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
+def _oto_atlandi_kaydet(tur, ozet_metin, neden):
+    """Erken ÇIKIŞ (atlama) durumlarını da as400_oto_kosu'ya yazar — böylece Sabah
+    Kontrol paneli 'hiç çalışmadı mı yoksa atladı mı' ayırt edilebilir (2026-07-28
+    dersi: agent kapalı/bölüm kapalı olunca job sessizce dönüyordu → panelde iz yok,
+    'dün akşam neden verilmedi' cevaplanamıyordu). Kendi bağlantısını açar/kapatır."""
+    try:
+        _c = db_connect()
+        try:
+            _oto_kosu_kaydet(_c, tur, [], [{'tip': 'atlandi', 'neden': neden}], ozet_metin)
+        finally:
+            _c.close()
+    except Exception as e:
+        print(f'[OTO-{tur.upper()}] atlanma kaydı yazılamadı: {e}')
+
+
 def _oto_kosu_kaydet(conn, tur, sonuclar, sabah_kontrol, ozet_metin):
     """Koşu raporunu as400_oto_kosu'ya yazar (Sabah Kontrol paneli buradan okur)."""
     try:
@@ -6757,9 +6772,13 @@ def oto_transfer_iptal_job():
     cfg = _oto_config()['transfer_iptal']
     if not cfg.get('etkin'):
         print('[OTO-TRANSFER] kapalı (oto_config) — atlandı')
+        _oto_atlandi_kaydet('transfer', 'ATLANDI: oto transfer iptali KAPALI (oto_config)',
+                            'Ayar kapalı — Sabah Kontrol panelinden aç.')
         return
     if not _teyit_agent_var():
         print('[OTO-TRANSFER] teyit-agent yok — bu makine robot koşusu için yapılandırılmamış, atlandı')
+        _oto_atlandi_kaydet('transfer', 'ATLANDI: teyit-agent kapalı (PCOMM/Session B yok)',
+                            'teyit-agent 127.0.0.1:5010 yanıt vermedi — RDP oturumunda PCOMM+agent açık olmalı.')
         return
     conn = db_connect()
     try:
@@ -6924,9 +6943,13 @@ def oto_teyit_job():
     cfg = _oto_config()['oto_teyit']
     if not cfg.get('etkin'):
         print('[OTO-TEYIT] kapalı (oto_config) — atlandı')
+        _oto_atlandi_kaydet('teyit', 'ATLANDI: oto teyit KAPALI (oto_config)',
+                            'Ayar kapalı — Sabah Kontrol panelinden aç.')
         return
     if not _teyit_agent_var():
         print('[OTO-TEYIT] teyit-agent yok — bu makine robot koşusu için yapılandırılmamış, atlandı')
+        _oto_atlandi_kaydet('teyit', 'ATLANDI: teyit-agent kapalı (PCOMM/Session B yok)',
+                            'teyit-agent 127.0.0.1:5010 yanıt vermedi — RDP oturumunda PCOMM+agent açık olmalı.')
         return
     gunler = max(1, min(7, int(cfg.get('gunler') or 3)))
     tarihler = [date.today().isoformat()] + [(date.today() - timedelta(days=i)).isoformat()
