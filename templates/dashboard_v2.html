@@ -5278,6 +5278,21 @@ window.__I18N_SOZLUK__ = {
         };
         var BOLUM_SIRA = ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'];
 
+        // ── MAKİNE ADI: lazer + pres'te makine VARDİYADA DEĞİL ÜRETİM KAYDINDA seçilir ──
+        // (pres 2026-07-28: operatör gün içinde makine değiştiriyor). Bu bölümlerde
+        // vardiya.robot_no sabit hat adıdır ('Lazer' / 'Pres Abkant'); gerçek makine
+        // uretim_kayitlari.istasyon'dan gelir. istasyon 0 = eski kayıt → robot_no göster.
+        var PRES_MAKINELERI = ['Abkant 1', 'Abkant 2', 'Abkant 3',
+                               'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5'];
+        function makineAdi(bolum, istasyon, robotNo) {
+            var i = parseInt(istasyon || 0) || 0;
+            if (i > 0) {
+                if (bolum === 'lazer') return 'Lazer ' + i;
+                if (bolum === 'pres') return PRES_MAKINELERI[i - 1] || ('Makine ' + i);
+            }
+            return robotNo || '—';
+        }
+
         // ═══════════════════════════════════════════════════════
         // DURUM (localStorage: dbv2_*)
         // ═══════════════════════════════════════════════════════
@@ -6107,9 +6122,8 @@ window.__I18N_SOZLUK__ = {
             } else {
                 tbody.innerHTML = detay.map(function (u) {
                     var nok = Number(u.nok_adet) || 0;
-                    // Lazer: makine kaydın istasyonundan (robot_no hep 'Lazer' → 'Lazer N' göster)
-                    var makineAd = (aktifBolum === 'lazer' && (u.istasyon || 0) > 0)
-                        ? ('Lazer ' + u.istasyon) : (u.robot_no || '—');
+                    // Lazer/Pres: makine kaydın istasyonundan (robot_no sabit hat adıdır)
+                    var makineAd = makineAdi(aktifBolum, u.istasyon, u.robot_no);
                     return '<tr>' +
                         '<td><span class="badge badge-blue">' + esc(makineAd) + '</span></td>' +
                         '<td>' + esc(u.operator_adi || '—') + '</td>' +
@@ -6657,11 +6671,12 @@ window.__I18N_SOZLUK__ = {
 
                 if (detay.uretim.length) {
                     html += `<div class="detail-section"><h4>Üretim Kayıtları</h4>`;
-                    var _lazerVardiya = (v.bolum === 'lazer');
+                    // Lazer + Pres: makine üretim kaydında seçilir → satırda rozet göster
+                    var _makineKayitta = (v.bolum === 'lazer' || v.bolum === 'pres');
+                    var _makineIkon = (v.bolum === 'lazer') ? '🔦' : '🗜️';
                     detay.uretim.forEach(u => {
-                        // Lazer: kaydın hangi makinede (istasyon 1..6) kesildiğini göster
-                        var makineRozet = (_lazerVardiya && (u.istasyon || 0) > 0)
-                            ? `<span class="badge badge-blue" style="margin-left:6px;font-size:.62rem">🔦 Lazer ${u.istasyon}</span>` : '';
+                        var makineRozet = (_makineKayitta && (u.istasyon || 0) > 0)
+                            ? `<span class="badge badge-blue" style="margin-left:6px;font-size:.62rem">${_makineIkon} ${esc(makineAdi(v.bolum, u.istasyon, ''))}</span>` : '';
                         html += `<div class="detail-row"><span>📦 ${u.referans_kodu}${makineRozet}</span><span style="display:flex;align-items:center;gap:6px">
                             <span><b style="color:var(--success)">${u.ok_adet}</b> OK / <span style="color:var(--danger)">${u.nok_adet}</span> NOK (Hdf: ${u.hedef_adet})</span>
                             <button onclick="duzenleUretim(${u.id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet})" class="adm-btn duzenle" style="padding:2px 6px;font-size:0.65rem">✏️</button>

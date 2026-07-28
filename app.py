@@ -409,6 +409,62 @@ TK1_ROBOT_NOLARI = {'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
 # adı cihazın robot_no'suna çevrilir. (Yeniden flash gerektirmeden eşleştirme.)
 HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1'}
 
+# ── PRES (Pres Abkant) MAKİNE MODELİ (kullanıcı 2026-07-28) ──
+# Operatör gün içinde makine değiştirerek çalışıyor → makine VARDİYADA DEĞİL, her
+# ÜRETİM KAYDINDA seçilir (lazer modelinin aynısı). Vardiya hattı tek ve sabittir:
+# PRES_SABIT_HAT; makine, uretim_kayitlari.istasyon kolonunda 1..8 olarak durur.
+# Sıra ÖNEMLİ: istasyon no = bu listedeki sıra (1=Abkant 1 ... 8=Pres 5); makine
+# adları pilot.db cihaz robot_no'larıyla (firmware) BİREBİR aynı olmalı.
+PRES_SABIT_HAT  = 'Pres Abkant'
+PRES_MAKINELERI = ['Abkant 1', 'Abkant 2', 'Abkant 3',
+                   'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5']
+
+
+def pres_makine_ad(istasyon):
+    """istasyon no (1..8) → makine adı. Geçersiz/0 ise '' (makine seçilmemiş)."""
+    try:
+        i = int(istasyon or 0)
+    except (TypeError, ValueError):
+        return ''
+    return PRES_MAKINELERI[i - 1] if 1 <= i <= len(PRES_MAKINELERI) else ''
+
+
+def pres_ist_no(makine_ad):
+    """Makine adı → istasyon no (1..8). Listede yoksa 0."""
+    try:
+        return PRES_MAKINELERI.index(str(makine_ad or '').strip()) + 1
+    except ValueError:
+        return 0
+
+
+def _sayac_cihazi(bolum, robot_no, istasyon=0):
+    """Vardiya hattı + üretim kaydı istasyonundan pilot.db CIHAZ robot_no'sunu bulur.
+    - pres: hat sabit, MAKİNE istasyondan gelir (1=Abkant 1 ... 8=Pres 5).
+      istasyon 0 ise (eski kayıtlar: makine vardiyada seçiliyordu) hat adı aynen
+      kullanılır → geriye dönük uyum korunur.
+    - diğer bölümler: hat→cihaz eşlemesi (LF-LFP→YF1), yoksa hattın kendisi."""
+    if bolum == 'pres':
+        ad = pres_makine_ad(istasyon)
+        if ad:
+            return ad
+    return HAT_SAYAC_CIHAZI.get(robot_no, robot_no)
+
+
+def _sayac_destekli(bolum, robot_no, istasyon=0):
+    """KAYIT düzeyi: bu üretim kaydı için otomatik sensör sayımı var mı (allowlist)?
+    KATI — pres'te makine (istasyon) çözülemiyorsa False döner. Aksi halde makinesiz
+    kayıt 'auto' işaretlenir, sayım hep 0 okur ve gerçek ok_adet'i EZERDİ."""
+    return _sayac_cihazi(bolum, robot_no, istasyon) in SAYAC_AUTO_CIHAZLAR
+
+
+def _sayac_destekli_bolum(bolum, robot_no):
+    """VARDİYA düzeyi UI ipucu: bu vardiyada sensör sayımı mümkün mü? pres'te makine
+    üretim kaydında seçildiğinden bölümdeki herhangi bir sayaçlı makine yeterlidir
+    (mobil sensör rozeti/sıfırla butonu vardiya açılışında da görünsün)."""
+    if bolum == 'pres' and robot_no == PRES_SABIT_HAT:
+        return any(m in SAYAC_AUTO_CIHAZLAR for m in PRES_MAKINELERI)
+    return _sayac_destekli(bolum, robot_no, 0)
+
 # Yönetici kullanıcı — operatorler tablosunda 'Admin' (PIN varsayılan 9999, panelden
 # değiştirilebilir). Bu adla PIN girişi yapan TÜM vardiyalara erişir (sahiplik kontrolü
 # bypass, mobilde kart kilidi yok) ve başka operatör adına vardiya açabilir.
@@ -454,8 +510,14 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
     """Pilot DB'de (bolum, robot_no) için basla_ts ile biti_ts arasındaki pulse sayısı.
     istasyon > 0 ise o istasyona filtrele; 0/None ise tüm istasyonlar (montaj/metal
     tek istasyon, firmware istasyon=1 gönderir → filtre yok hepsini sayar)."""
-    # Hat → cihaz robot_no eşlemesi (ör. LF-LFP hattının sayacı YF1 modülü)
-    robot_no = HAT_SAYAC_CIHAZI.get(robot_no, robot_no)
+    # Hat → cihaz robot_no eşlemesi (LF-LFP→YF1; pres'te istasyon→makine)
+    cihaz = _sayac_cihazi(bolum, robot_no, istasyon)
+    # PRES: istasyon MAKİNE seçimidir, cihaz-içi istasyon değil — makineye çevrildiyse
+    # istasyon filtresi KALKAR (abkant/pres firmware'i montaj gibi istasyon=1 gönderir;
+    # filtre bırakılırsa istasyon=3 aranır ve hiç pulse bulunamazdı).
+    if bolum == 'pres' and pres_makine_ad(istasyon):
+        istasyon = 0
+    robot_no = cihaz
     pilot_db = _pilot_db_yolu()
     if not basla_ts:
         return 0
@@ -482,10 +544,11 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
         return None   # KILIT/HATA: 0 DONDURME — caller ok_adet'i sifirlamasin
 
 
-def _pilot_son_pulse_dk(bolum, robot_no, gun=None):
+def _pilot_son_pulse_dk(bolum, robot_no, gun=None, istasyon=0):
     """Bu cihazdan en son pulse'tan bu yana geçen dakika. Hiç pulse yoksa None.
-    10 dk duruş uyarısı için kullanılır."""
-    robot_no = HAT_SAYAC_CIHAZI.get(robot_no, robot_no)   # hat → cihaz eşlemesi (LF-LFP→YF1)
+    10 dk duruş uyarısı için kullanılır. pres'te istasyon = operatörün o an
+    çalıştığı makine (üretim kaydından gelir)."""
+    robot_no = _sayac_cihazi(bolum, robot_no, istasyon)   # LF-LFP→YF1; pres: istasyon→makine
     pilot_db = _pilot_db_yolu()
     if not os.path.exists(pilot_db):
         return None
@@ -597,8 +660,11 @@ def _uretim_sayac_senkron(conn, vardiya_id):
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vardiya_id,)
         ).fetchall()
-        robot_allow = bool(v['robot_no']) and v['robot_no'] in SAYAC_AUTO_CIHAZLAR
         for r in rows:
+            # Allowlist kontrolü SATIR bazlı: pres'te makine üretim kaydındadır
+            # (istasyon), dolayısıyla desteklenirlik satırdan satıra değişebilir.
+            robot_allow = bool(v['robot_no']) and _sayac_destekli(
+                v['bolum'], v['robot_no'], r['istasyon'] or 0)
             if r['test_cihaz_id']:
                 cnt = _test_basari_say(conn, r['test_cihaz_id'], r['referans_kodu'],
                                        r['sayac_baslangic_ts'])
@@ -1505,7 +1571,15 @@ def vardiya_detay(vid):
     # test cihazıyla çalışan hatta pulse düşmez, yalnız pilot'a bakmak YANLIŞ duruş sayar.
     # En yakın (en küçük dk) aktivite geçerli.
     vbolum = (vardiya['bolum'] if 'bolum' in vardiya.keys() else None) or 'kaynak'
-    son_pulse_dk = _pilot_son_pulse_dk(vbolum, vardiya['robot_no'])
+    # pres: makine üretim kaydında → o an çalışılan makineyi son auto kayıttan al
+    # (duruş uyarısı doğru cihazın pulse'ına bakmalı; makine yoksa 0 = hat adı).
+    _pres_ist = 0
+    if vbolum == 'pres':
+        _pr = c.execute(
+            "SELECT istasyon FROM uretim_kayitlari WHERE vardiya_id=? "
+            "AND sayac_baslangic_ts IS NOT NULL ORDER BY id DESC LIMIT 1", (vid,)).fetchone()
+        _pres_ist = int((_pr['istasyon'] if _pr else 0) or 0)
+    son_pulse_dk = _pilot_son_pulse_dk(vbolum, vardiya['robot_no'], istasyon=_pres_ist)
     test_dk = _test_son_aktivite_dk(conn, vid)
     if test_dk is not None:
         son_pulse_dk = test_dk if son_pulse_dk is None else min(son_pulse_dk, test_dk)
@@ -1518,7 +1592,7 @@ def vardiya_detay(vid):
         'son_pulse_dk': son_pulse_dk,
         # Bu cihazda sensör otomatik sayım destekli mi (allowlist) — mobil UI buna göre
         # sensör rozeti/ipucu/sıfırla butonu gösterir
-        'sayac_destekli': (vardiya['robot_no'] in SAYAC_AUTO_CIHAZLAR),
+        'sayac_destekli': _sayac_destekli_bolum(vbolum, vardiya['robot_no']),
     })
 
 
@@ -1920,8 +1994,10 @@ def uretim_ekle():
             # Sayaç otomatik mod: tek satır + OK girilmemiş (0) + (cihaz allowlist'te VEYA
             # test cihazı seçilmiş). Operatör referansa YENİ başlıyor → sayaç o andan sıfırlanır.
             # (Toplu/geçmiş giriş, OK elle yazılmış veya desteklenmeyen kaynak → manuel mod.)
+            # pres: allowlist kontrolü SATIRIN makinesine (istasyon) göre — makine
+            # seçilmemişse otomatik sayaç YOK (manuel giriş; 0-ezme tuzağını önler).
             auto = 1 if (tek_satir and ok_val == 0
-                         and (vardiya_robot in SAYAC_AUTO_CIHAZLAR or tc_id)) else 0
+                         and (_sayac_destekli(vardiya_bolum, vardiya_robot, ist_val) or tc_id)) else 0
 
             if auto and tc_id:
                 # Aynı test cihazında önceki auto kayıt(lar)ı dondur (referans değişti)
@@ -2647,7 +2723,10 @@ def robot_listesi():
     - metal: 300T, 400T, 550T, Şerit Testere (sabit)
     - lazer: tek sabit hat 'Lazer' — makine (Lazer 1..6) vardiyada DEĞİL üretim kaydında
       seçilir (istasyon kolonu 1..6; operatör aynı anda birden fazla makine çalıştırır)
-    - pres: sabit 4 makine (Abkant 1-3, Pres) + operatörün eklediği ekstralar
+    - pres: tek sabit hat 'Pres Abkant' (2026-07-28) — makine (Abkant 1-3 / Pres 1-5)
+      vardiyada DEĞİL üretim kaydında seçilir (istasyon 1..8); operatör gün içinde
+      makine değiştirebildiği için lazer modeline geçildi. Eski vardiyaların makine
+      adları (Abkant 2, Pres...) listede KALIR → dashboard geçmiş filtreleri çalışsın.
     - montaj/isleme: vardiyalardan distinct robot_no — operatörler girdikçe dinamik büyür
     """
     bolum = request.args.get('bolum', 'kaynak')
@@ -2667,15 +2746,23 @@ def robot_listesi():
         # TK1 (yan tesis) sabit hatları — montaj mantığı
         return jsonify(['Pull', 'Push-Pull', 'Iveco', 'LF-LFP'])
     # Sabit makine tabanı olan bölümler (liste her zaman tam görünür; DISTINCT ekstraları eklenir)
-    SABIT_TABAN = {'pres': ['Abkant 1', 'Abkant 2', 'Abkant 3',
-                            'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5'],
-                   'plastik': ['320T', '407T', 'Yapistirma']}
+    # pres BURADA DEĞİL: hattı sabit (aşağıda), makineleri üretim kaydında seçilir.
+    SABIT_TABAN = {'plastik': ['320T', '407T', 'Yapistirma']}
     # Dinamik bölümlerde hiç vardiya yokken gösterilecek varsayılan makine/hat adı
     DINAMIK_VARSAYILAN = {'montaj': 'HAT 1', 'isleme': 'Tezgah 1'}
     if bolum == 'metal':
         robotlar = ['300T', '400T', '550T', 'Şerit Testere']
     elif bolum == 'lazer':
         robotlar = ['Lazer']
+    elif bolum == 'pres':
+        # Sabit hat + GEÇMİŞ vardiyaların makine adları (eski model: makine vardiyadaydı).
+        # Mobil bu listeyi kullanmaz (hat gizli/sabit); dashboard geçmiş filtreleri kullanır.
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='pres' "
+            "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no").fetchall()
+        conn.close()
+        robotlar = [PRES_SABIT_HAT] + [r['robot_no'] for r in rows if r['robot_no'] != PRES_SABIT_HAT]
     elif bolum in SABIT_TABAN or bolum in DINAMIK_VARSAYILAN:
         conn = get_db()
         rows = conn.execute(
@@ -3085,8 +3172,18 @@ def saha_cihazlari():
                 continue   # bu tesisin cihazı değil — atla
             kayit = mevcut.get(cid)
 
+            # PRES (2026-07-28): makine artik VARDIYADA degil URETIM KAYDINDA secilir.
+            # Cihaz 'Abkant 2' → vardiya hatti PRES_SABIT_HAT, baseline istasyonu = 2.
+            # ESKI kayitlar (vardiya.robot_no='Abkant 2', istasyon=0) icin fallback var.
+            v_rno, pres_ist = rno, 0
+            if bolum == 'pres':
+                _pi = pres_ist_no(rno)
+                if _pi:
+                    v_rno, pres_ist = PRES_SABIT_HAT, _pi
+
             # Aktif vardiya baslangic ts (varsa) — sayac sifirlama referansi
-            vardiya_ts = aktif_vardiya_map.get((bolum, rno))
+            # (yeni model once; bulunamazsa eski makine-adli vardiyaya dus)
+            vardiya_ts = aktif_vardiya_map.get((bolum, v_rno)) or aktif_vardiya_map.get((bolum, rno))
             # Manuel reset ts'leri (varsa) — dashboard'dan butonla sifirlanmis
             reset_ist1 = reset_map.get((cid, 1))
             reset_ist2 = reset_map.get((cid, 2))
@@ -3144,6 +3241,13 @@ def saha_cihazlari():
                 op_bl_1 = op_baseline_map.get((bolum, rno, 1))
                 op_bl_2 = op_baseline_map.get((bolum, rno, 2))
                 op_bl_0 = op_baseline_map.get((bolum, rno, 0))
+                # PRES: baseline anahtarinda istasyon = MAKINE no (sabit hat + 1..8).
+                # Cihaz tek makinedir → tek sayac (op_bl_0 gibi davranir); eski
+                # makine-adli kayitlarin baseline'i (rno, 0) fallback olarak kalir.
+                if pres_ist:
+                    op_bl_0 = _en_son_ts(op_baseline_map.get((bolum, PRES_SABIT_HAT, pres_ist)),
+                                         op_bl_0)
+                    op_bl_1 = op_bl_2 = None
                 # ── URETIM KAPISI: AKTIF VARDIYA ──────────────────────────────
                 # Sayim ancak ACIK bir vardiya (veya o vardiyada acilmis operator
                 # uretim baseline'i) varsa yapilir. Aksi halde uretim baglami yoktur:

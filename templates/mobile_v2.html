@@ -2373,6 +2373,23 @@ window.__I18N_SOZLUK__ = {
             <option value="6">Lazer 6</option>
           </select>
         </div>
+        <!-- Pres Abkant: makine seçimi ÜRETİM KAYDI bazında (kullanıcı 2026-07-28 —
+             operatör gün içinde makine değiştirerek çalışıyor; vardiya hattı sabit
+             'Pres Abkant'). Seçim istasyon kolonuna yazılır: 1-3 Abkant, 4-8 Pres. -->
+        <div id="d-pres-makine-wrap" style="display:none; margin-top:14px">
+          <label>Makine</label>
+          <select id="d-pres-makine" onchange="presMakineSec(this.value)">
+            <option value="0">— Makine seçin —</option>
+            <option value="1">Abkant 1</option>
+            <option value="2">Abkant 2</option>
+            <option value="3">Abkant 3</option>
+            <option value="4">Pres 1</option>
+            <option value="5">Pres 2</option>
+            <option value="6">Pres 3</option>
+            <option value="7">Pres 4</option>
+            <option value="8">Pres 5</option>
+          </select>
+        </div>
         <input type="hidden" id="d-istasyon" value="0">
 
         <label style="margin-top:14px">Açıklama <span style="font-weight:400;text-transform:none;color:var(--muted)">(Opsiyonel)</span></label>
@@ -2970,9 +2987,10 @@ window.__I18N_SOZLUK__ = {
     // ── BOLUM SECIMI ──
     // Bolum kodlari: 'kaynak' | 'montaj' | 'metal' | 'isleme' | 'lazer' | 'pres'
     // Son secilen hat/makineyi on-sec: liste dolduktan SONRA cagrilir; kayitli
-    // deger listede mevcutsa 'Secin...' yerine o gelir. LAZER HARIC (hat sabit).
+    // deger listede mevcutsa 'Secin...' yerine o gelir.
+    // LAZER + PRES HARIC (hat sabit; makine uretim kaydinda secilir).
     function sonHatUygula(bolum) {
-      if (bolum === 'lazer') return;
+      if (bolum === 'lazer' || bolum === 'pres') return;
       var rsel = document.getElementById('b-robot');
       var op = aktifOperatorAdi();
       if (!rsel || !op) return;
@@ -3070,9 +3088,16 @@ window.__I18N_SOZLUK__ = {
         robotWrap.style.display = 'none';
         rsel.innerHTML = '<option value="Lazer" selected>Lazer</option>';
         rsel.onchange = null;
-      } else if (bolum === 'isleme' || bolum === 'pres' || bolum === 'plastik') {
+      } else if (bolum === 'pres') {
+        // PRES ABKANT (kullanıcı 2026-07-28): operatör gün içinde makine değiştirerek
+        // çalışıyor → makine VARDİYADA DEĞİL her ÜRETİM KAYDINDA seçilir (lazer modeli).
+        // Vardiya hattı tek ve sabit: 'Pres Abkant'; makine ekran D'de istasyon 1..8.
+        robotWrap.style.display = 'none';
+        rsel.innerHTML = '<option value="Pres Abkant" selected>Pres Abkant</option>';
+        rsel.onchange = null;
+      } else if (bolum === 'isleme' || bolum === 'plastik') {
         // Sabit makine tabanlı bölümler: dinamik liste (backend taban + vardiyalardan
-        // DISTINCT) + "yeni ekle". pres → Abkant 1-3; plastik (TK1) → 320T/407T/Yapistirma.
+        // DISTINCT) + "yeni ekle". plastik (TK1) → 320T/407T/Yapistirma.
         robotWrap.style.display = 'block';
         if (robotLabel) robotLabel.textContent = (bolum === 'isleme') ? 'Tezgah' : 'Makine';
         rsel.innerHTML = '<option value="">Seçin...</option>' +
@@ -3222,11 +3247,24 @@ window.__I18N_SOZLUK__ = {
       if (lzWrap) lzWrap.style.display = (secilenBolum === 'lazer') ? 'block' : 'none';
       var lzSel = document.getElementById('d-lazer-makine');
       if (lzSel) lzSel.value = '0';
+      // Pres Abkant: makine seçici (aynı kalıp — operatör gün içinde makine değiştirir).
+      // SON SEÇİLEN makine hatırlanır: operatör aynı makinede arka arkaya kayıt
+      // giriyorsa her seferinde seçmesin (değiştirdiğinde tek dokunuşla değişir).
+      var prWrap = document.getElementById('d-pres-makine-wrap');
+      if (prWrap) prWrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
+      var prSel = document.getElementById('d-pres-makine');
+      if (prSel) {
+        var _sonMak = '0';
+        try { _sonMak = localStorage.getItem('mobile_pres_son_makine') || '0'; } catch (e) {}
+        prSel.value = _sonMak;
+      }
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = 'none';  // yeni kayıtta sensör ipucu gizli
       var sifirla = document.getElementById('d-sayac-sifirla-wrap');
       if (sifirla) sifirla.style.display = 'none';  // yeni kayıtta reset butonu yok (henüz kayıt yok)
       istasyonSec(0);
+      // pres: istasyonSec(0) hidden alanı sıfırladı — hatırlanan makineyi geri yaz
+      if (secilenBolum === 'pres' && prSel) document.getElementById('d-istasyon').value = prSel.value;
       // Test cihazı seçimi — sıfırla + (entegrasyon açıksa) listeyi yükle/göster
       var ttog = document.getElementById('d-test-toggle');
       if (ttog) ttog.checked = false;
@@ -3245,6 +3283,15 @@ window.__I18N_SOZLUK__ = {
         if (!btn) return;
         btn.classList.toggle('ist-btn-active', i === ist);
       });
+    }
+
+    // Pres Abkant makine seçimi (istasyon 1-3 Abkant, 4-8 Pres). Seçim cihazda
+    // hatırlanır: operatör aynı makinede arka arkaya kayıt girerken tekrar seçmesin.
+    var PRES_MAKINE_ADI = { 1: 'Abkant 1', 2: 'Abkant 2', 3: 'Abkant 3',
+                            4: 'Pres 1', 5: 'Pres 2', 6: 'Pres 3', 7: 'Pres 4', 8: 'Pres 5' };
+    function presMakineSec(deger) {
+      document.getElementById('d-istasyon').value = deger;
+      try { localStorage.setItem('mobile_pres_son_makine', String(deger || '0')); } catch (e) {}
     }
 
     // ── Test cihazı sayaç kaynağı (Cofle/wicow) ──
@@ -3696,8 +3743,12 @@ window.__I18N_SOZLUK__ = {
             // Sayaç otomatik kaydı: OK adet sensörden besleniyor (canlı). Operatör
             // düzeltirse donar. 📡 rozeti operatöre bunun sayaçtan geldiğini gösterir.
             var sayacBadge = (u.sayac_otomatik == 1) ? ' <span style="color:#34d399;font-weight:700">📡 sayaç</span>' : '';
-            // Lazer: kaydın hangi makinede kesildiği (istasyon 1..6) satırda görünsün
-            var makineTxt = (secilenBolum === 'lazer' && (u.istasyon || 0) > 0) ? ('🔦 Lazer ' + u.istasyon + ' · ') : '';
+            // Lazer/Pres: kaydın hangi makinede yapıldığı (istasyon) satırda görünsün
+            var makineTxt = '';
+            if ((u.istasyon || 0) > 0) {
+              if (secilenBolum === 'lazer') makineTxt = '🔦 Lazer ' + u.istasyon + ' · ';
+              else if (secilenBolum === 'pres') makineTxt = '🗜️ ' + (PRES_MAKINE_ADI[u.istasyon] || ('Makine ' + u.istasyon)) + ' · ';
+            }
             var tamam = u.tamamlandi ? 1 : 0;
             var tamamCls = tamam ? 'ki-btn-tamam is-tamam' : 'ki-btn-tamam is-devam';
             var tamamBtnTxt = tamam ? '✓ Tamam' : 'Devam';
@@ -3960,6 +4011,11 @@ window.__I18N_SOZLUK__ = {
       if (lzWrap) lzWrap.style.display = (secilenBolum === 'lazer') ? 'block' : 'none';
       var lzSel = document.getElementById('d-lazer-makine');
       if (lzSel) lzSel.value = String(parseInt(istasyon || 0) || 0);
+      // Pres Abkant: makine seçici görünür, kayıttaki makine (istasyon 1..8) seçili gelir
+      var prWrap = document.getElementById('d-pres-makine-wrap');
+      if (prWrap) prWrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
+      var prSel = document.getElementById('d-pres-makine');
+      if (prSel) prSel.value = String(parseInt(istasyon || 0) || 0);
       istasyonSec(parseInt(istasyon || 0) || 0);
       // Düzenlemede kaynak seçimi gösterilmez (test_cihaz_id sunucuda korunur)
       var ttw = document.getElementById('d-test-wrap');
@@ -3975,8 +4031,10 @@ window.__I18N_SOZLUK__ = {
       if (!ref) { toast('Referans kodu giriniz', 'error'); return; }
       var uid = document.getElementById('d-uid').value;
       var istEl = document.getElementById('d-istasyon');
-      // Lazer: makine seçimi zorunlu (vardiyada makine yok — rapor kırılımı bu alandan gelir)
-      if (secilenBolum === 'lazer' && !(istEl && parseInt(istEl.value || 0) > 0)) {
+      // Lazer/Pres: makine seçimi ZORUNLU (vardiyada makine yok — rapor kırılımı ve
+      // sensör sayacı bu alandan gelir; makinesiz kayıtta otomatik sayaç çalışmaz)
+      if ((secilenBolum === 'lazer' || secilenBolum === 'pres')
+          && !(istEl && parseInt(istEl.value || 0) > 0)) {
         toast('Makine seçiniz', 'error'); return;
       }
       var launchEl = document.getElementById('d-launch');
