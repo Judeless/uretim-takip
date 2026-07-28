@@ -50,6 +50,9 @@ function ekran() { var t = []; for (var r = 1; r <= ps.NumRows; r++) t.push(ps.G
 function ekranStr() { return ekran().join("\n"); }
 function dump(et) {
     logDosya.WriteLine("---------- EKRAN [" + et + "] ----------");
+    // Kolon cetveli: "NN| " oneki 4 karakter → cikti pozisyonu 5 = ekran kolonu 1.
+    // Boylece opsiyon kutucuklarinin (1./2./3.) tam kolonu dokumden okunabilir.
+    logDosya.WriteLine("    1234567890123456789012345678901234567890123456789012345678901234567890");
     var e = ekran();
     for (var i = 0; i < e.length; i++)
         if (e[i].replace(/\s+/g, "").length) logDosya.WriteLine((i + 1 < 10 ? " " : "") + (i + 1) + "| " + e[i].replace(/\s+$/, ""));
@@ -294,18 +297,40 @@ if (ekAdet !== null) {
     log("G2: hedef satir " + hedefRow + " (adet okunamadi — article eslesti, devam)");
 }
 
-// ── G3: satir basina '2' yaz (secenek alani) + Enter ──
-// Secenek kolonunun yeri bilinmiyor → 1..8 arasi kolonlarda dene: yaz, yanki
-// gelirse tamam; gelmezse reset + sonraki kolon (korumali alanlara yazilamaz).
-var yazildi = false;
-for (var kol = 1; kol <= 8 && !yazildi; kol++) {
+// ── G3: hedef satirin OPSIYON alanina (2. KUTUCUK) '2' yaz + Enter ──
+// Kullanici 2026-07-28 (248632 dokumu): '2' satirin EN SOLUNA (1. kutucuk) DEGIL,
+// BIR SAGINA = 2. KUTUCUGA yazilir. 1. kutucuk hizli-article-ARAMA alani → oraya
+// '2' gidince Enter'da "Article code not defined in table" veriyordu. Eski 1..8
+// kolon probe'u ilk yazilabilir kolonu (cogu kez 1. kutucuk) kabul ediyordu.
+// Ilk testteki 16 basari muhtemelen 1. kutucugun KORUMALI oldugu kayitlardi (o
+// zaman '2' otomatik 2. kutucuga kayiyordu). Cozum: DOGRUDAN 2. kutucuk (kol 2);
+// korumaliysa 3. kutucuk fallback; hicbiri tutmazsa guvenli iptal.
+var OPT_KOL = 2, optYaz = false;
+for (var _k = 2; _k <= 3 && !optYaz; _k++) {
     kilitCoz();
-    ps.SetCursorPos(hedefRow, kol); WScript.Sleep(150);
-    ps.SendKeys("2"); WScript.Sleep(250);
-    var bas = ps.GetText(hedefRow, 1, 9);
-    if (bas.indexOf("2") >= 0 && bas.indexOf("2") < 8) { yazildi = true; log("G3: '2' kolon " + kol + " uzerinden yazildi ('" + bas.replace(/\s+$/, "") + "')"); }
+    ps.SetCursorPos(hedefRow, _k); WScript.Sleep(200);
+    ps.SendKeys("2"); WScript.Sleep(300);
+    if (ps.GetText(hedefRow, _k, 1) === "2") { OPT_KOL = _k; optYaz = true; }
+    else { kilitCoz(); }   // tutmadi → temizle, sonraki kutucugu dene
 }
-if (!yazildi) iptal("Satir basina '2' yazilamadi (secenek alani bulunamadi — ekran duzeni farkli)");
+if (!optYaz) { dump("opsiyon-yazilamadi"); iptal("Opsiyon '2' 2./3. kutucuga yazilamadi — ekran duzeni farkli"); }
+// KIRLENME GUVENLIGI: '2' yalniz hedef satirin opsiyon alaninda olmali; 'Article cd'
+// giris alanina kacmis olmamali (kacarsa Enter "not defined" verir, yanlis hareket
+// riski). Article cd satirindaki giris bolgesinde stray '2' varsa DUR.
+var artSatIdx = -1, _sat2 = ekran();
+for (var _a = 0; _a < _sat2.length; _a++) if (_sat2[_a].indexOf("Article cd") >= 0) { artSatIdx = _a; break; }
+if (artSatIdx >= 0) {
+    // Yalniz article GIRIS alani (etiketten sonraki ~21 karakter) — satirin sagindaki
+    // 'L.Agg  T' bolgesi kapsam DISI (yanlis pozitif olmasin).
+    var _m = /Article cd[.\s]*/.exec(_sat2[artSatIdx]);
+    var artGiris = _m ? _sat2[artSatIdx].substr(_m.index + _m[0].length, 21) : "";
+    if (artGiris.replace(/\s/g, "").indexOf("2") >= 0) {
+        dump("article-cd-kirlendi");
+        iptal("Opsiyon '2' 'Article cd' alanina kacmis ('" + artGiris.replace(/\s+$/, "") + "') — Enter BASILMADI");
+    }
+}
+log("G3: opsiyon '2' kolon " + OPT_KOL + " (2. kutucuk) yazildi");
+dump("opsiyon-2-yazildi");
 ps.SendKeys("[enter]"); bekle(); WScript.Sleep(1200);
 
 // ── G4: Variation/detay ekranini dogrula — 02→01 TA TRANSFERI SARTI ──
@@ -316,8 +341,12 @@ ps.SendKeys("[enter]"); bekle(); WScript.Sleep(1200);
 // NOT: 'Actual row' (orn 200) MGPRRE (satir=100) DEGILDIR — farkli alanlar; o
 // karsilastirma KALDIRILDI. Guvenlik artik Warehouse/Causal/Counterpart + kayit no.
 var eV = ekranStr();
-if (eV.toLowerCase().indexOf("errore") >= 0) iptal("'2' + Enter sonrasi hata mesaji");
 dump("detay-ekrani");
+if (eV.toLowerCase().indexOf("errore") >= 0) iptal("'2' + Enter sonrasi hata mesaji");
+// "Article code not defined in table" / "non definit" → opsiyon '2' yanlis alana
+// (article arama kutusu) gitmis demektir (kullanici 2026-07-28 248632 vakasi).
+if (eV.indexOf("not defined") >= 0 || eV.toLowerCase().indexOf("non definit") >= 0)
+    iptal("AS400 'article tanimsiz' dedi — opsiyon '2' yanlis kutucuga gitmis (2. kutucuk hedeflenmeli); Shift+F4 BASILMADI");
 if (eV.indexOf(ARTICLE) < 0) iptal("Detay ekraninda article gorunmedi");
 // Causal TA SARTI (yanlis hareket silinmesin)
 var mCa = /Causal\s*cd[.\s]*\s([A-Z]{2,3})\b/.exec(eV);
