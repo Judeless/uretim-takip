@@ -1014,6 +1014,25 @@ def dashboard_sayfasi():
     }, ensure_ascii=False))
 
 
+@app.route('/dashboard/onizleme')
+def dashboard_onizleme_sayfasi():
+    """AÇIK TEMA ÖNİZLEMESİ (2026-07-28) — canlı /dashboard'a DOKUNMAZ.
+    Kullanıcı tasarımı onaylayana kadar iki sürüm yan yana karşılaştırılabilir;
+    onaylanırsa dashboard_onizleme.html içeriği dashboard_v2.html'e taşınır.
+    Auth ve panel_ku enjeksiyonu canlı rotayla birebir aynıdır."""
+    ku = panel_kullanici()
+    if not ku:
+        return render_template('panel_giris.html')
+    return render_template('dashboard_onizleme.html', panel_ku=json.dumps({
+        'kullanici_adi': ku['kullanici_adi'],
+        'ad_soyad': ku['ad_soyad'],
+        'rol': ku['rol'],
+        'admin': ku['admin'],
+        'izinler': ku['izinler'],
+        'sifre_gecici': ku['sifre_gecici'],
+    }, ensure_ascii=False))
+
+
 @app.route('/dashboard_eski')
 def dashboard_eski_sayfasi():
     """Eski yönetim paneli (v2 canlıya alınınca yedek olarak saklanıyor).
