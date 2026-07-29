@@ -2,6 +2,11 @@
 <html lang="tr">
 
 <head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+<!-- WEBFONT YALNIZ ÖNİZLEMEDE: canlıya alınırsa woff2 dosyaları static/fonts/ altına
+     indirilir (fabrika ağı dışa istek atmaz). Yüklenemezse sistem fontuna düşer. -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cofle Forge — Yönetici Paneli (UI v3 Önizleme)</title>
@@ -1445,6 +1450,55 @@
         .panel-header h3 { font-size: .8rem; font-weight: 800; letter-spacing: .02em;
                            text-transform: uppercase; }
         .toast { border-radius: 8px; }
+
+        /* ── V3 2. GEÇİŞ: kimlik yüzeyleri (kullanıcı: 'mockup'tan çok farklı') ── */
+        :root { --sidebar-w: 232px;
+                --font-main: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+                --font-num: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+        .v3-lockup { display: flex; align-items: center; gap: 12px; padding-top: 4px; }
+        .v3-word { display: flex; align-items: baseline; gap: .18em; font-size: 15px; line-height: 1; color: var(--text); }
+        .v3-w8 { font-weight: 800; letter-spacing: -.014em; }
+        .v3-w4 { font-weight: 400; }
+        .v3-micro { font-family: var(--font-num); font-size: 8.5px; letter-spacing: .18em; color: var(--dim); margin-top: 4px; }
+        .nav-group-title { font-family: var(--font-num); font-size: .6rem; font-weight: 700;
+                           letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+        .nav-group-title .ok { font-size: .55rem; }
+        .nav-item { font-size: .8rem; font-weight: 600; }
+        /* topbar: marka gizli, breadcrumb = büyük sayfa başlığı + mono tarih */
+        .brand { display: none; }
+        .breadcrumb { border-left: 0; padding-left: 0; overflow: visible; }
+        .breadcrumb b { font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em; }
+        .v3-tarih { font-family: var(--font-num); font-size: .72rem; color: var(--muted); white-space: nowrap; }
+        /* Fabrika Özeti: hero şeridi -> 3 beyaz KPI kartı */
+        .fab-toplam { background: transparent; border: 0; padding: 0; box-shadow: none;
+                      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .ft-bas { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; margin: 0; }
+        .fab-toplam .ft-baslik { font-size: .6rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+        .fab-toplam .ft-tarih { font-family: var(--font-num); font-size: .7rem; color: var(--muted); }
+        .ft-hero { background: #fff; border: 1px solid #D7DAE2; border-radius: 8px; padding: 14px 16px 12px;
+                   display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 10px; margin: 0; }
+        .ft-hero .ft-deger { font-size: 1.85rem; letter-spacing: -.02em; background: none;
+                             -webkit-text-fill-color: var(--text); color: var(--text); }
+        .ft-etiket { font-size: .6rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+        @media (max-width: 700px) { .fab-toplam { grid-template-columns: 1fr; } }
+        /* OEE: 270° yay emekli -> yatay cetvelli gösterge */
+        .oee-gauge { display: none; }
+        .v3-oee-sayi { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 10px; }
+        .v3-oee-sayi #v3-oee-num { font-family: var(--font-num); font-size: 2.4rem; font-weight: 800;
+                                   letter-spacing: -.02em; line-height: 1; color: var(--text); }
+        .v3-oee-hedef { font-family: var(--font-num); font-size: .78rem; color: var(--dim); }
+        .v3-ruler { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+        .v3-ruler-track { position: relative; height: 12px; background: #E7E9EF; border-radius: 2px; }
+        #v3-oee-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--primary);
+                      border-radius: 2px 0 0 2px; transition: width .7s ease, background .4s ease; }
+        .v3-notch { position: absolute; left: 85%; top: -3px; bottom: -3px; width: 2px; background: #1E1B3A; }
+        .v3-ticks { height: 5px; background: repeating-linear-gradient(90deg, #C2C6D1 0, #C2C6D1 1px, transparent 1px, transparent 10%); }
+        .v3-scale { display: flex; justify-content: space-between; font-family: var(--font-num);
+                    font-size: 8px; color: var(--dim); }
+        .oee-gauge-satir { margin-top: 2px; }
+        /* filtre şeridi: mono tarih çipleri */
+        .tarih-grup input[type="date"] { font-family: var(--font-num); border-radius: 7px; }
+
     </style>
 </head>
 
@@ -4052,10 +4106,22 @@ window.__I18N_SOZLUK__ = {
         <!-- ══════════════════ SOL MENÜ ══════════════════ -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
-                <img src="/logo" alt="Cofle Logo"
-                    onerror="this.style.display='none';document.getElementById('sb-logo-txt').style.display='block'">
-                <div id="sb-logo-txt" style="display:none"><h2>Cofle Forge</h2></div>
-                <p>Yönetici Paneli</p>
+                <div class="v3-lockup">
+                    <svg viewBox="0 0 64 64" width="36" height="36" fill="none" aria-hidden="true">
+                        <defs><linearGradient id="cfi" gradientUnits="userSpaceOnUse" x1="14" y1="56" x2="50" y2="8">
+                            <stop offset="0" stop-color="#7c3aed"></stop><stop offset="1" stop-color="#a78bfa"></stop>
+                        </linearGradient></defs>
+                        <path d="M14 8 L44 8 L50 14 L50 19 L14 19 Z" fill="url(#cfi)"></path>
+                        <path d="M14 21 L25 21 L25 36 L14 36 Z" fill="url(#cfi)"></path>
+                        <path d="M14 38 L25 38 L25 50 L19 56 L14 56 Z" fill="url(#cfi)"></path>
+                        <path d="M24 31 L29 31 L32 24 L35 38 L38 31 L43 31" stroke="url(#cfi)" stroke-width="4.2" stroke-miterlimit="2"></path>
+                        <circle cx="48" cy="31" r="3.2" fill="#7c3aed"></circle>
+                    </svg>
+                    <div>
+                        <div class="v3-word"><span class="v3-w8">COFLE</span><span class="v3-w4">FORGE</span></div>
+                        <div class="v3-micro">ÜRETİM TAKİP</div>
+                    </div>
+                </div>
             </div>
 
             <div class="nav-group">
@@ -4152,10 +4218,10 @@ window.__I18N_SOZLUK__ = {
             <div class="sidebar-footer">
                 <div id="panel-kullanici-kutu" style="padding:10px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px;display:none">
                     <div style="display:flex;align-items:center;gap:9px">
-                        <span style="width:32px;height:32px;border-radius:50%;background:var(--grad-violet);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff" id="panel-ku-avatar">?</span>
+                        <span style="width:28px;height:28px;border-radius:6px;background:#1E1B3A;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.72rem;color:#fff;font-family:var(--font-num)" id="panel-ku-avatar">?</span>
                         <div style="min-width:0">
                             <div id="panel-ku-ad" style="font-size:.82rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
-                            <div id="panel-ku-rol" style="font-size:.7rem;color:var(--muted)">—</div>
+                            <div id="panel-ku-rol" style="font-family:var(--font-num);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)">—</div>
                         </div>
                     </div>
                     <div style="display:flex;gap:6px;margin-top:9px">
@@ -4178,6 +4244,7 @@ window.__I18N_SOZLUK__ = {
                     <button class="hamburger" onclick="sidebarAc()" aria-label="Menü">☰</button>
                     <span class="brand">Cofle Forge</span>
                     <span class="breadcrumb" id="breadcrumb"><b>Fabrika Özeti</b></span>
+                    <span class="v3-tarih" id="v3-tarih"></span>
                     <!-- ÜST BAR BÖLÜM SEÇİCİ (2026-07-28): eskiden yalnız "Üretim & OEE"
                          sayfasının içindeydi → Kayıtlar/Referanslar gibi sayfalarda bölüm
                          değiştirmek için oraya gidip geri dönmek gerekiyordu. Artık bölüme
@@ -4264,6 +4331,12 @@ window.__I18N_SOZLUK__ = {
                     </div>
                     <div class="kpi-card k-oee" id="kpi-oee-kart">
                         <div class="kpi-label">📊 Ortalama OEE</div>
+                        <div class="v3-oee-sayi"><span id="v3-oee-num">—</span><span class="v3-oee-hedef">/ %85 hedef</span></div>
+                        <div class="v3-ruler">
+                            <div class="v3-ruler-track"><div id="v3-oee-bar"></div><i class="v3-notch"></i></div>
+                            <div class="v3-ticks"></div>
+                            <div class="v3-scale"><span>0</span><span>50</span><span>100</span></div>
+                        </div>
                         <div class="oee-gauge-satir">
                             <div class="oee-gauge">
                                 <!-- 270° yay: r=36, yay uzunluğu ≈ 169.65 -->
@@ -5895,6 +5968,9 @@ window.__I18N_SOZLUK__ = {
                 yay.setAttribute('stroke-dasharray', '0 ' + OEE_YAY);
                 yay.style.visibility = 'hidden'; // 0-uzunluk dash + round cap nokta çizer — gizle
                 durum.textContent = '—';
+                var v3n0 = document.getElementById('v3-oee-num'), v3b0 = document.getElementById('v3-oee-bar');
+                if (v3n0) v3n0.textContent = '—';
+                if (v3b0) v3b0.style.width = '0';
                 return;
             }
             var v = Math.max(0, Math.min(100, Number(oee)));
@@ -5902,6 +5978,10 @@ window.__I18N_SOZLUK__ = {
             var dolu = (v / 100 * OEE_YAY).toFixed(1);
             yay.setAttribute('stroke', e.renk);
             yay.setAttribute('stroke-dasharray', dolu + ' ' + OEE_YAY);
+            // V3 cetvelli gösterge: hedefte/üstünde indigo, altında durum rengi (amber/kırmızı)
+            var v3n = document.getElementById('v3-oee-num'), v3b = document.getElementById('v3-oee-bar');
+            if (v3n) v3n.textContent = Math.round(v);
+            if (v3b) { v3b.style.width = v + '%'; v3b.style.background = (v >= 85) ? '#4F46E5' : e.renk; }
             yay.style.visibility = (parseFloat(dolu) > 0) ? '' : 'hidden'; // %0'da da hayalet nokta olmasın
             // Etiket: renk tek başına anlam taşımasın — 'İyi/Orta/Düşük' yazısı + nokta
             durum.textContent = '';
@@ -11701,8 +11781,12 @@ window.__I18N_SOZLUK__ = {
             isaretle(window.aktifBolum);
         } catch (e) { /* önizleme süsü — çökerse sayfa yine çalışır */ }
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kur);
-    else kur();
+    function tarihYaz() {
+        var el = document.getElementById('v3-tarih');
+        if (el) el.textContent = new Date().toLocaleDateString('tr-TR');
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { kur(); tarihYaz(); });
+    else { kur(); tarihYaz(); }
 })();
 </script>
 </body>

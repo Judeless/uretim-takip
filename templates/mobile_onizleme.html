@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+<!-- WEBFONT YALNIZ ÖNİZLEMEDE: canlıya alınırsa woff2 dosyaları static/fonts/ altına
+     indirilir (fabrika ağı dışa istek atmaz). Yüklenemezse sistem fontuna düşer. -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Cofle Forge — Operatör (UI v3 Önizleme)</title>
@@ -1315,6 +1320,25 @@
                         font-size: .62rem; letter-spacing: .18em; text-transform: uppercase; }
         /* stepper/sayı alanları mono */
         .ki-kod, .vk-detail, .cycle-badge { font-family: var(--font-mono); }
+
+    /* ── V3 2. GEÇİŞ: kimlik yüzeyleri ── */
+    :root { --font-sans: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+    .header { padding: 12px 16px 10px; }
+    .header-logo-wrap img { height: 28px; }
+    .header h1 { font-size: .9rem; font-weight: 800; }
+    .header p { border: 0; background: transparent; padding: 0; font-family: var(--font-mono);
+                font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    /* seçim kartları: beyaz + seçilide 2px ink (mockup masa kartı) */
+    .vp-btn { background: #fff; border: 1px solid #D7DAE2; border-radius: 10px; }
+    .vp-btn.selected { background: #fff; border: 2px solid #1E1B3A; color: var(--text); box-shadow: none; }
+    .ist-btn-active { background: #fff; border: 2px solid #1E1B3A; color: var(--text); box-shadow: none; }
+    .bolum-btn .bolum-title { font-weight: 800; }
+    .bolum-badge { font-family: var(--font-mono); font-size: .55rem; letter-spacing: .12em; }
+    .home-hero-title { font-weight: 800; }
+    .home-hero-sub { font-family: var(--font-mono); }
+    #pin-modal input { font-family: var(--font-mono); }
+
   </style>
 </head>
 <body>
