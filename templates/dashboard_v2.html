@@ -23,46 +23,52 @@
            ═══════════════════════════════════════════════════════ */
                 :root {
                     /* ═══════════════════════════════════════════════════════════════
-                       COFLE FORGE — "TEZGAH / SICAK NÖTR" AÇIK TEMA · 2026-07-28
-                       Marka kaynağı: static/logo.png = İKİ renk (#EC6736 + #030405).
-                       Mor (#B4470F) kimlik EMEKLİ. Turuncu SİNYALDİR, duvar kâğıdı değil:
-                       yalnız aktif nav, birincil eylem, odak halkası, seçili satır.
-                       KURAL 1: --brand METİN OLARAK KULLANILMAZ (beyazda 3.20:1).
-                                Metin/ikon turuncusu HER ZAMAN --primary.
+                       COFLE FORGE — "SERİN NÖTR" AÇIK TEMA · 2026-07-29
+                       Palet YENİ LOGODAN türetildi (design_handoff_cofle_forge_logo):
+                       gradyan #7C3AED → #A78BFA, açık tema wordmark #14122B.
+                       Önceki tezgah paleti eski turuncu logodan türetilmişti; logo
+                       değişince dayanağı kalmadı. TEZGAH'IN YAPISI KORUNDU (açık tema,
+                       yoğun tablo, süs katmanı yok, biçim kuralı, kontrast disiplini);
+                       değişen yalnız renk kimliği: ılık nötr + turuncu → serin nötr + mor.
+
+                       KURAL 1 DEĞİŞTİ: turuncu #EC6736 beyazda 3.20:1 olduğu için metin
+                                TAŞIYAMIYORDU. Mor #7C3AED beyazda 5.70:1 → --brand artık
+                                metin de taşıyabilir. Yine de birincil METİN/eylem rengi
+                                --primary (#6D28D9, 7.10:1); --brand şerit/ikon/odak için.
                        KURAL 2: BİÇİM = ANLAM. Durum → dolu yumuşak çip (radius 6px).
                                 Kimlik (bölüm) → outline pill / 3px sol çubuk (radius 999px).
                                 Bu kural montaj-yeşili ile OK-yeşilini, metal-amberi ile
                                 uyarı-amberini renkle değil BİÇİMLE ayırır.
                        ═══════════════════════════════════════════════════════════════ */
 
-                    /* ── YÜZEYLER (ılık nötr — turuncuyla aynı sıcaklık ailesi) ────── */
-                    --bg:            #ECEBE8;  /* zemin · beyaz kart ayrımı 1.19:1 (Atölye'nin 1.06'sından iyi) */
+                    /* ── YÜZEYLER (serin nötr — morla aynı sıcaklık ailesi) ────────── */
+                    --bg:            #ECECF1;  /* zemin · beyaz kart ayrımı 1.18:1 */
                     --card:          #FFFFFF;
                     --cam:           #FFFFFF;  /* ESKİ AD — açık temada cam efekti yok    */
-                    --cam-hover:     #FAFAF9;
-                    --surface-2:     #F4F3F1;  /* tablo başlığı, segment yuvası · --muted 6.88:1 */
-                    --card-border:   #E2E0DC;  /* beyazda 1.32:1 — kartı gölge değil ÇİZGİ ayırır */
-                    --border:        #D3D0CB;  /* beyazda 1.54:1 · yapısal ayraç         */
-                    --border-subtle: #EBE9E5;  /* tablo satır çizgisi                    */
-                    --border-input:  #8A857D;  /* beyazda 3.66:1 — form kenarlığı UI-AA ✓ */
+                    --cam-hover:     #FAFAFC;
+                    --surface-2:     #F3F3F8;  /* tablo başlığı, segment yuvası           */
+                    --card-border:   #E1E1EA;  /* kartı gölge değil ÇİZGİ ayırır          */
+                    --border:        #D1D1DE;  /* yapısal ayraç                           */
+                    --border-subtle: #EAEAF2;  /* tablo satır çizgisi                     */
+                    --border-input:  #85859A;  /* beyazda 3.61:1 — form kenarlığı UI-AA ✓ */
 
-                    /* ── METİN (ılık mürekkep; logonun #030405'inden türetildi) ────── */
-                    --text:  #1C1917;  /* beyaz 17.49:1 · zemin 14.67:1 */
-                    --muted: #57534E;  /* beyaz  7.63:1 · zemin  6.40:1 */
-                    --dim:   #6B655E;  /* beyaz  5.76:1 · zemin  4.83:1 — EN SOLUK METİN BİLE AA ✓ */
+                    /* ── METİN (serin mürekkep; logonun wordmark'ı #14122B) ────────── */
+                    --text:  #14122B;  /* beyaz 18.25:1 · zemin 15.50:1 */
+                    --muted: #4E4C63;  /* beyaz  8.28:1 · zemin  7.03:1 */
+                    --dim:   #63617A;  /* beyaz  5.97:1 · zemin  5.07:1 — EN SOLUK METİN BİLE AA ✓ */
 
                     /* ── MARKA / BİRİNCİL ─────────────────────────────────────────── */
-                    --brand:         #EC6736;  /* LOGONUN BİREBİR RENGİ · beyaz 3.20:1 → yalnız 3px şerit, ≥24px ikon, odak rayı, grafik. METİN DEĞİL. */
-                    --brand-rgb:     236, 103, 54;
-                    --primary:       #B4470F;  /* beyaz 5.46:1 · zemin 4.58:1 · hue 20.4° (logo 16.2°, danger 2.8°) */
-                    --primary-hover: #93380A;  /* beyaz 7.47:1 · zemin 6.27:1 */
-                    --primary-rgb:   180, 71, 15;
-                    --primary-soft:  #F7EAE3;  /* aktif nav/seçili satır zemini · üstünde --primary 4.63:1 ✓ */
-                    --primary-line:  #E9C6B2;  /* tint kenarlığı (metin değil)  */
-                    --violet:        #B4470F;  /* ESKİ AD — geriye uyum         */
-                    --c-violet:      #EC6736;  /* ESKİ AD — vurgu rolü markaya devredildi */
+                    --brand:         #7C3AED;  /* LOGO GRADYANININ BAŞI · beyaz 5.70:1 · zemin 4.84:1 — şerit, ikon, odak rayı, grafik */
+                    --brand-rgb:     124, 58, 237;
+                    --primary:       #6D28D9;  /* beyaz 7.10:1 · zemin 6.03:1 · hue 262° — metin/eylem moru */
+                    --primary-hover: #5B21B6;  /* beyaz 8.98:1 · zemin 7.63:1 */
+                    --primary-rgb:   109, 40, 217;
+                    --primary-soft:  #F1EAFD;  /* aktif nav/seçili satır zemini · üstünde --primary 6.06:1 ✓ */
+                    --primary-line:  #D6C4F7;  /* tint kenarlığı (metin değil)  */
+                    --violet:        #6D28D9;  /* ESKİ AD — artık gerçekten mor  */
+                    --c-violet:      #7C3AED;  /* ESKİ AD — marka rengi          */
                     --c-cyan:        #0E7490;  /* ESKİ AD — artık DURUM DEĞİL, yalnız grafik */
-                    --focus-ring:    0 0 0 3px rgba(236, 103, 54, 0.32);
+                    --focus-ring:    0 0 0 3px rgba(124, 58, 237, 0.32);
 
                     /* ── DURUM RENKLERİ · yalnız DOLU ÇİP içinde, daima metinle ───── */
                     --success: #157A3C;  /* beyaz 5.41:1 · zemin 4.54:1 · hue 143° (montaj 160° → 17° ayrık) */
@@ -80,26 +86,29 @@
                     --b-kaynak:  #1D4ED8;  /* mavi    · beyaz 6.70 · zemin 5.62 · hue 224° */
                     --b-montaj:  #07734F;  /* yeşil   · beyaz 5.88 · zemin 4.93 · hue 160° (eski #065f46 12px'te siyah okunuyordu) */
                     --b-metal:   #8F6100;  /* amber   · beyaz 5.42 · zemin 4.54 · hue  41° (eski #92400e kahveydi) */
-                    --b-isleme:  #6D28D9;  /* mor     · beyaz 7.10 · zemin 5.96 · hue 263° (birincil artık mor OLMADIĞI için çakışma bitti) */
+                    --b-isleme:  #3F6212;  /* zeytin  · beyaz 7.08 · zemin 6.01 · hue  85° — ÇAKIŞMA NEDENİYLE TAŞINDI:
+                                              işleme #6D28D9 (mor) idi, birincil de mor olunca ikisi
+                                              birebir aynı renge düşüyordu. Zeytin metal 41° ve montaj
+                                              160°'ye 44°/75° uzak; kontrastı eski değere denk. */
                     --b-lazer:   #0E7490;  /* cyan    · beyaz 5.36 · zemin 4.49 · hue 193° */
                     --b-pres:    #9D174D;  /* pembe   · beyaz 7.88 · zemin 6.61 · hue 336° */
                     --b-plastik: #A21CAF;  /* menekşe · beyaz 6.32 · zemin 5.30 · hue 295° (eski #7e22ce işleme moruyla eşitti) */
                     --rgb-kaynak: 29,78,216;  --rgb-montaj: 7,115,79;   --rgb-metal: 143,97,0;
-                    --rgb-isleme: 109,40,217; --rgb-lazer: 14,116,144;  --rgb-pres: 157,23,77;
+                    --rgb-isleme: 63,98,18; --rgb-lazer: 14,116,144;  --rgb-pres: 157,23,77;
                     --rgb-plastik: 162,28,175;
 
                     /* ── TABLO ────────────────────────────────────────────────────── */
-                    --table-header:   #F4F3F1;              /* üstünde --muted 6.88:1 ✓ */
-                    --table-hover:    rgba(28, 25, 23, 0.05);  /* NÖTR — turuncu "aktif" anlamını korusun */
-                    --table-zebra:    #FAFAF9;              /* üstünde --text 16.74:1   */
-                    --table-selected: #F7EAE3;
+                    --table-header:   #F3F3F8;              /* üstünde --muted 6.88:1 ✓ */
+                    --table-hover:    rgba(20, 18, 43, 0.05);  /* NÖTR — mor "aktif" anlamını korusun */
+                    --table-zebra:    #FAFAFC;              /* üstünde --text 16.74:1   */
+                    --table-selected: #F1EAFD;
 
                     /* ── DEGRADELER · eski adlar KORUNDU, içerik markaya bağlandı ──
                        .btn-primary / .lok-btn.active / .dil-btn.active / .ref-filtre-btn.active
-                       kurallarına HİÇ DOKUNMADAN turuncuya geçer. */
-                    --grad-violet: linear-gradient(180deg, #C24E10 0%, #A03C08 100%);  /* üstünde beyaz metin 4.78–6.68:1 ✓ */
-                    --grad-1:      linear-gradient(0deg, #1C1917, #1C1917);  /* .brand + .sidebar-logo h2 → DÜZ mürekkep (logo degrade değil) */
-                    --grad-text:   linear-gradient(180deg, #1C1917, #44403C); /* hero sayı — beyaz uç YOK, "görünmez sayı" hatası biter */
+                       kurallarına HİÇ DOKUNMADAN mora geçer. */
+                    --grad-violet: linear-gradient(180deg, #6D28D9 0%, #5B21B6 100%);  /* üstünde beyaz metin 4.78–6.68:1 ✓ */
+                    --grad-1:      linear-gradient(0deg, #14122B, #14122B);  /* .brand + .sidebar-logo h2 → DÜZ mürekkep (logo degrade değil) */
+                    --grad-text:   linear-gradient(180deg, #14122B, #3B3856); /* hero sayı — beyaz uç YOK, "görünmez sayı" hatası biter */
 
                     /* ── GEOMETRİ (12 keyfi radius → 4 basamak) ───────────────────── */
                     --radius:  10px;   /* kart, panel, filtre şeridi */
@@ -111,9 +120,9 @@
                     --nav-h:      34px;   /* sidebar satırı */
                     --sat-y:      32px;   /* tablo satırı  */
 
-                    /* ── GÖLGE: ılık; slate gölge turuncu yanında mavimsi durur ───── */
-                    --shadow:     0 1px 2px rgba(28, 25, 23, 0.06);
-                    --shadow-pop: 0 8px 24px rgba(28, 25, 23, 0.14);   /* yalnız modal/toast/detay */
+                    /* ── GÖLGE: serin; mor kimlikle aynı sıcaklık ailesi ──────────── */
+                    --shadow:     0 1px 2px rgba(20, 18, 43, 0.06);
+                    --shadow-pop: 0 8px 24px rgba(20, 18, 43, 0.14);   /* yalnız modal/toast/detay */
 
                     /* ── TİPOGRAFİ ────────────────────────────────────────────────
                        'Inter' adı SİLİNDİ: dosyada tek bir @font-face/link yok, gerçekte
@@ -176,7 +185,7 @@
         /* ── TASARIM ÖNİZLEME ROZETİ ── */
         .preview-badge {
             position: fixed; top: 10px; right: 12px; z-index: 500;
-            border: 1.5px solid var(--violet); color: #B4470F;
+            border: 1.5px solid var(--violet); color: #6D28D9;
             background: rgba(139, 92, 246, 0.12);
             font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em;
             padding: 5px 12px; border-radius: 20px; text-transform: uppercase;
@@ -233,14 +242,14 @@
             border-top-right-radius: 4px; border-bottom-right-radius: 4px;
             transform: scaleY(0); transition: transform 0.2s ease;
         }
-        .nav-item:hover { color: var(--text); background: rgba(236, 103, 54, 0.07); }
+        .nav-item:hover { color: var(--text); background: rgba(124, 58, 237, 0.07); }
         .nav-item.active {
-            color: #B4470F;
+            color: #6D28D9;
             background: linear-gradient(90deg, rgba(139, 92, 246, 0.18), rgba(139, 92, 246, 0.04));
         }
         .nav-item.active::before {
             transform: scaleY(1);
-            box-shadow: 0 0 18px rgba(236, 103, 54, 0.65); /* soldan mor glow çubuğu (andon dili) */
+            box-shadow: 0 0 18px rgba(124, 58, 237, 0.65); /* soldan mor glow çubuğu (andon dili) */
         }
         .nav-icon { font-size: 1.15rem; width: 22px; text-align: center; }
 
@@ -365,7 +374,7 @@
         }
         .fab-toplam::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(236, 103, 54, 0.45) 30%, rgba(14, 116, 144, 0.45) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.45) 30%, rgba(14, 116, 144, 0.45) 70%, transparent);
         }
         .fab-toplam .ft-bas { display: flex; flex-direction: column; gap: 3px; padding-right: 24px; }
         .fab-toplam .ft-baslik { font-size: 0.72rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
@@ -547,13 +556,13 @@
         /* Üst bardaki bölüm seçici — breadcrumb'ın yanında, hafif vurgulu */
         .bolum-sec-ust {
             background: #f4f2fd; color: var(--text);
-            border: 1px solid rgba(180, 71, 15, 0.30);
+            border: 1px solid rgba(109, 40, 217, 0.30);
             border-radius: 9px; padding: 6px 10px; margin-left: 4px;
             font-family: var(--font-main); font-size: 0.78rem; font-weight: 800;
             outline: none; cursor: pointer; min-height: 34px; max-width: 190px;
         }
         .bolum-sec-ust:hover { border-color: var(--primary); }
-        .bolum-sec-ust:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(180, 71, 15, 0.12); }
+        .bolum-sec-ust:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.12); }
         .geri-link {
             color: var(--muted); font-size: 0.82rem; font-weight: 700; cursor: pointer;
             text-decoration: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px;
@@ -604,7 +613,7 @@
         .panel-card::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(236, 103, 54, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .panel-header {
             padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
@@ -630,7 +639,7 @@
         }
         .badge-blue { background: rgba(59, 130, 246, 0.15); color: #1D4ED8; }
         .badge-orange { background: rgba(245, 158, 11, 0.15); color: #92400e; }
-        .badge-purple { background: rgba(139, 92, 246, 0.15); color: #B4470F; }
+        .badge-purple { background: rgba(139, 92, 246, 0.15); color: #6D28D9; }
         .badge-red { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
 
         /* Duruş listesi — mini bar */
@@ -734,7 +743,7 @@
             font-size: 0.9rem; font-weight: 700; z-index: 9999;
             opacity: 0; pointer-events: none;
             transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.14), 0 0 30px rgba(236, 103, 54, 0.18);
+            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.14), 0 0 30px rgba(124, 58, 237, 0.18);
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast.ok { background: var(--success); color: #fff; border-color: transparent; }
@@ -764,7 +773,7 @@
         .modal::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(236, 103, 54, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .modal h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 16px; color: var(--text); }
         .modal label {
@@ -778,7 +787,7 @@
             transition: border-color 0.2s, box-shadow 0.2s; font-weight: 500; color-scheme: dark;
         }
         .modal input:focus, .modal select:focus, .modal textarea:focus {
-            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(236, 103, 54, 0.18);
+            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18);
         }
         .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
         .modal-actions .btn { flex: 1; padding: 10px; min-height: 42px; border-radius: 10px; }
@@ -819,7 +828,7 @@
         .ky-filtre::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(236, 103, 54, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .ky-filtre .f-group { display: flex; flex-direction: column; gap: 5px; }
         .ky-filtre .f-group label {
@@ -845,10 +854,10 @@
             cursor: pointer; font-family: var(--font-main); min-height: 40px;
             transition: all 0.2s;
         }
-        .alt-sekme-btn:hover { color: var(--text); background: rgba(236, 103, 54, 0.07); }
+        .alt-sekme-btn:hover { color: var(--text); background: rgba(124, 58, 237, 0.07); }
         .alt-sekme-btn.active {
-            color: #B4470F; background: rgba(139, 92, 246, 0.14);
-            border-color: rgba(236, 103, 54, 0.40);
+            color: #6D28D9; background: rgba(139, 92, 246, 0.14);
+            border-color: rgba(124, 58, 237, 0.40);
         }
         .ky-pane { display: none; }
         .ky-pane.active { display: block; }
@@ -894,14 +903,14 @@
 
         /* ── REFERANSLAR SAYFASI (eski dashboard modülü, v2 kabuğunda) ── */
         .btn-outline { background: transparent; border: 1px solid rgba(15, 23, 42, 0.14); color: var(--muted); }
-        .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: rgba(236, 103, 54, 0.07); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: rgba(124, 58, 237, 0.07); }
         .ref-filtre-btn {
             padding: 6px 14px; border-radius: 8px; min-height: 32px;
             border: 1px solid var(--border); background: transparent;
             font-size: 0.72rem; font-weight: 700; color: var(--muted);
             cursor: pointer; transition: 0.2s; font-family: var(--font-main);
         }
-        .ref-filtre-btn:hover { background: rgba(236, 103, 54, 0.07); color: var(--text); }
+        .ref-filtre-btn:hover { background: rgba(124, 58, 237, 0.07); color: var(--text); }
         .ref-filtre-btn.active {
             background: var(--grad-violet); color: #fff; border-color: var(--primary);
             box-shadow: 0 2px 10px rgba(139, 92, 246, 0.4);
@@ -965,10 +974,10 @@
         #ref-takip-baslik {
             display: inline-flex; align-items: center; gap: 8px;
             margin: 12px 20px 4px; padding: 8px 14px; border-radius: 12px;
-            font-size: 1rem; font-weight: 800; color: #B4470F;
-            background: linear-gradient(135deg, rgba(236, 103, 54, 0.12), rgba(14, 116, 144, 0.06));
-            border: 1px solid rgba(236, 103, 54, 0.28);
-            box-shadow: 0 4px 16px rgba(236, 103, 54, 0.18);
+            font-size: 1rem; font-weight: 800; color: #6D28D9;
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(14, 116, 144, 0.06));
+            border: 1px solid rgba(124, 58, 237, 0.28);
+            box-shadow: 0 4px 16px rgba(124, 58, 237, 0.18);
         }
         /* Tablo satırı içindeki inline dropdown/input (İş Yönetimi) */
         .rt-row-select, .rt-row-input {
@@ -1060,7 +1069,7 @@
             background: var(--grad-violet); color: #fff;
             box-shadow: none;
         }
-        .btn-rapor-gunluk:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(236, 103, 54, 0.40); }
+        .btn-rapor-gunluk:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124, 58, 237, 0.40); }
 
         /* ── GÜNLÜK ÜRETİM RAPORU MODALI (eski dashboard kalıbı — v2 cam dili) ── */
         .report-modal-overlay {
@@ -1073,13 +1082,13 @@
             background: var(--card); border: 1px solid var(--card-border);
             padding: 30px; border-radius: var(--radius);
             max-width: 800px; width: 100%; max-height: 95vh; overflow-y: auto;
-            box-shadow: 0 30px 80px rgba(15, 23, 42, 0.14), 0 0 60px rgba(236, 103, 54, 0.14);
+            box-shadow: 0 30px 80px rgba(15, 23, 42, 0.14), 0 0 60px rgba(124, 58, 237, 0.14);
             position: relative;
         }
         /* İnce degrade üst çizgi (v2 modal ışık dili) */
         .report-modal-content::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(236, 103, 54, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .report-controls {
             display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;
@@ -1189,7 +1198,7 @@
         input, select, textarea { color-scheme: light !important; }  /* 5 CSS + 7 satır-içi dark bildirimini birden ezer */
         .toast { background: var(--text); color: #fff; border-color: transparent;
                  border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
-        .modal-overlay { background: rgba(28, 25, 23, 0.45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+        .modal-overlay { background: rgba(20, 18, 43, 0.45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 
         /* ── 3) YERLEŞİM: 236px sidebar + yapışkan üst bar ───────────────── */
         .sidebar { width: var(--sidebar-w); }
@@ -1206,10 +1215,10 @@
         .nav-group { margin-top: 12px; }
         .nav-group-title { padding: 8px 18px; font-size: 0.6875rem; font-weight: 600;
                            letter-spacing: 0.09em; color: var(--dim); border-radius: var(--r-sm); }
-        .nav-group-title:hover { background: rgba(28, 25, 23, 0.04); color: var(--text); }
+        .nav-group-title:hover { background: rgba(20, 18, 43, 0.04); color: var(--text); }
         .nav-item { min-height: var(--nav-h); padding: 6px 18px; font-size: 0.8125rem;
                     font-weight: 500; gap: 10px; }
-        .nav-item:hover { background: rgba(28, 25, 23, 0.05); color: var(--text); }
+        .nav-item:hover { background: rgba(20, 18, 43, 0.05); color: var(--text); }
         .nav-item.active { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
         .nav-item.active::before { width: 3px; background: var(--brand); box-shadow: none;
                                    border-radius: 0 2px 2px 0; }
@@ -1239,7 +1248,7 @@
         .kpi-card.k-ok::before    { background: var(--success); }
         .kpi-card.k-hedef::before { background: var(--b-kaynak); }
         .kpi-card.k-durus::before { background: var(--danger); }
-        .kpi-card.k-oee::before   { background: #44403C; }
+        .kpi-card.k-oee::before   { background: #3B3856; }
         .kpi-label { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 8px; }
         .kpi-value { font-size: 2.125rem; font-weight: 700; letter-spacing: -0.02em; }  /* BÜYÜK KALIR */
         .kpi-sub   { font-size: 0.75rem; font-weight: 500; }
@@ -1279,7 +1288,7 @@
                font-size: 0.8125rem; font-weight: 600; }
         .btn-primary { box-shadow: none; }
         .btn-primary:hover { filter: none; transform: none; background: var(--primary-hover); box-shadow: none; }
-        .btn-ghost { background: rgba(28, 25, 23, 0.05); border-color: var(--border); }
+        .btn-ghost { background: rgba(20, 18, 43, 0.05); border-color: var(--border); }
         .modal input, .modal select, .modal textarea,
         .bolum-sec, .ky-filtre select, .ky-filtre input {
             border: 1px solid var(--border-input); border-radius: var(--r-sm); font-weight: 400; }
@@ -1301,7 +1310,7 @@
         .badge-orange { background: var(--warn-soft);    color: var(--warn);    border-color: rgba(138,90,5,.22); }
         .badge-red    { background: var(--danger-soft);  color: var(--danger);  border-color: rgba(180,35,28,.22); }
         .badge-purple { background: var(--primary-soft); color: var(--primary); border-color: var(--primary-line); }
-        .badge-blue   { background: rgba(28,25,23,.06);  color: var(--muted);   border-color: var(--border); }
+        .badge-blue   { background: rgba(20,18,43,.06);  color: var(--muted);   border-color: var(--border); }
         .bolum-pill   { border-radius: var(--r-pill); border-width: 1px; font-size: 0.8125rem;
                         font-weight: 600; padding: 7px 16px; background: #fff; }
         .saha-rozet, .bk-op-fazla { border-radius: var(--r-sm); font-weight: 600; }
@@ -4703,7 +4712,7 @@ window.__I18N_SOZLUK__ = {
                         <h3>🎨 Görünüm Özelleştirme</h3>
                         <button type="button" onclick="andonGorunumSifirla()"
                             title="Renk + boyutu varsayılan andon temasına döndür"
-                            style="background:rgba(236, 103, 54,0.10);border:1px solid rgba(236, 103, 54,0.40);color:#B4470F;border-radius:8px;padding:6px 12px;font-size:.74rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
+                            style="background:rgba(124, 58, 237,0.10);border:1px solid rgba(124, 58, 237,0.40);color:#6D28D9;border-radius:8px;padding:6px 12px;font-size:.74rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
                             ↻ Varsayılana Sıfırla
                         </button>
                     </div>
@@ -4942,7 +4951,7 @@ window.__I18N_SOZLUK__ = {
                         <h3 style="font-size:.95rem;font-weight:800;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                             🛡️ Sinyal Kalitesi &amp; Sayım Kararları
                             <span style="font-size:.65rem;color:var(--muted);font-weight:500">— her cihaz: gerçek sayım · elenen gürültü · veri kaybı (doğruluk kanıtı)</span>
-                            <button onclick="yukleSinyalKalitesi()" style="margin-left:auto;padding:5px 12px;border:0;background:rgba(236, 103, 54,0.15);color:#B4470F;border-radius:8px;font-weight:700;font-size:.72rem;cursor:pointer;font-family:var(--font-main)">🔄 Yenile</button>
+                            <button onclick="yukleSinyalKalitesi()" style="margin-left:auto;padding:5px 12px;border:0;background:rgba(124, 58, 237,0.15);color:#6D28D9;border-radius:8px;font-weight:700;font-size:.72rem;cursor:pointer;font-family:var(--font-main)">🔄 Yenile</button>
                         </h3>
                         <div style="overflow-x:auto;margin-top:10px">
                             <table style="width:100%;border-collapse:collapse;font-size:.78rem">
@@ -4965,7 +4974,7 @@ window.__I18N_SOZLUK__ = {
                                 <div style="font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:6px">📡 Son Sayım Kararları (akış)</div>
                                 <div id="sk-akis" style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);max-height:170px;overflow-y:auto;line-height:1.7">Yükleniyor…</div>
                             </div>
-                            <div style="font-size:.66rem;color:var(--muted);max-width:300px;line-height:1.6;background:rgba(236, 103, 54,0.06);padding:10px 12px;border-radius:8px">
+                            <div style="font-size:.66rem;color:var(--muted);max-width:300px;line-height:1.6;background:rgba(124, 58, 237,0.06);padding:10px 12px;border-radius:8px">
                                 <b style="color:var(--text)">Nasıl okunur</b><br>
                                 <b style="color:#065f46">Sayıldı</b>: gerçek üretim<br>
                                 <b style="color:#92400e">Elenen Gürültü</b>: sistemin ayıkladığı parazit (sayılmadı)<br>
@@ -5025,7 +5034,7 @@ window.__I18N_SOZLUK__ = {
                     </div>
                     <div class="sa-stat">
                         <div class="sa-stat-etiket">📊 Mod</div>
-                        <div class="sa-stat-deger" id="sa-mod" style="color:#B4470F">—</div>
+                        <div class="sa-stat-deger" id="sa-mod" style="color:#6D28D9">—</div>
                         <div class="sa-stat-alt">en sık cycle süresi</div>
                     </div>
                     <div class="sa-stat">
@@ -5051,7 +5060,7 @@ window.__I18N_SOZLUK__ = {
                         <div style="position:relative;height:380px">
                             <canvas id="sa-chart"></canvas>
                             <!-- Zoom alanı istatistik kutusu — sol tık zoom yapıldığında belirir -->
-                            <div id="sa-zoom-stats" style="position:absolute;top:8px;right:12px;background:rgba(15,23,42,0.88);color:#fff;padding:8px 12px;border-radius:8px;font-size:.72rem;font-family:'JetBrains Mono',monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(236, 103, 54,0.35);box-shadow:0 4px 14px rgba(15, 23, 42, 0.14);display:none;z-index:5;line-height:1.5">
+                            <div id="sa-zoom-stats" style="position:absolute;top:8px;right:12px;background:rgba(15,23,42,0.88);color:#fff;padding:8px 12px;border-radius:8px;font-size:.72rem;font-family:'JetBrains Mono',monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(124, 58, 237,0.35);box-shadow:0 4px 14px rgba(15, 23, 42, 0.14);display:none;z-index:5;line-height:1.5">
                             </div>
                         </div>
                     </div>
@@ -5082,7 +5091,7 @@ window.__I18N_SOZLUK__ = {
                 </div>
 
                 <!-- İstatistik terimleri açıklaması — sayfanın en altında -->
-                <div style="background:rgba(236, 103, 54,0.06);border:1px solid rgba(236, 103, 54,0.22);padding:16px 20px;border-radius:var(--radius);margin-bottom:24px;font-size:.82rem;line-height:1.65">
+                <div style="background:rgba(124, 58, 237,0.06);border:1px solid rgba(124, 58, 237,0.22);padding:16px 20px;border-radius:var(--radius);margin-bottom:24px;font-size:.82rem;line-height:1.65">
                     <h3 style="font-size:.92rem;font-weight:800;margin:0 0 10px 0;display:flex;align-items:center;gap:8px;color:var(--text)">
                         <span style="font-size:1.1rem">📚</span> Sayım istatistiği terimleri
                     </h3>
@@ -5595,7 +5604,7 @@ window.__I18N_SOZLUK__ = {
             kaynak: { ad: 'Robot Kaynak',     ikon: '🔧',  renk: '#1D4ED8', parlak: '#1D4ED8', mark: '#1D4ED8', rgb: '29,78,216',  tekil: 'Robot'  },
             montaj: { ad: 'Montaj',           ikon: '🔩',  renk: '#07734F', parlak: '#07734F', mark: '#07734F', rgb: '7,115,79',  tekil: 'Hat'    },
             metal:  { ad: 'Metal Enjeksiyon', ikon: '🏭',  renk: '#8F6100', parlak: '#8F6100', mark: '#8F6100', rgb: '143,97,0',  tekil: 'Makine' },
-            isleme: { ad: 'İşleme',           ikon: '⚙️', renk: '#6D28D9', parlak: '#6D28D9', mark: '#6D28D9', rgb: '109,40,217',  tekil: 'Tezgah' },
+            isleme: { ad: 'İşleme',           ikon: '⚙️', renk: '#3F6212', parlak: '#3F6212', mark: '#3F6212', rgb: '63,98,18',  tekil: 'Tezgah' },
             lazer:  { ad: 'Lazer Kesim',      ikon: '✂️', renk: '#0E7490', parlak: '#0E7490', mark: '#0E7490', rgb: '14,116,144',   tekil: 'Makine' },
             pres:   { ad: 'Pres Abkant',      ikon: '🗜️', renk: '#9D174D', parlak: '#9D174D', mark: '#9D174D', rgb: '157,23,77',  tekil: 'Makine' },
             // plastik = TK1 bölümü (BOLUM_SIRA'da YOK — o TK2 toggle listesi; plastik
@@ -7376,7 +7385,7 @@ window.__I18N_SOZLUK__ = {
                 const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}, ${teyit ? 1 : 0}`;
                 const sureCells = isKaynak
                     ? `<td style="text-align:right;font-weight:700;color:#92400e">${k || '—'}</td>
-                       <td style="text-align:right;font-weight:700;color:#B4470F">${s || '—'}</td>`
+                       <td style="text-align:right;font-weight:700;color:#6D28D9">${s || '—'}</td>`
                     : '';
                 const teyitCell = isKaynak ? (`
                     <td style="text-align:center" onclick="event.stopPropagation()">
@@ -8434,7 +8443,7 @@ window.__I18N_SOZLUK__ = {
             // Tab buton aktif görünümünü güncelle
             document.querySelectorAll('.andon-bolum-tab').forEach(btn => {
                 const aktif = btn.dataset.bolum === bolum;
-                btn.style.background = aktif ? '#B4470F' : 'transparent';
+                btn.style.background = aktif ? '#6D28D9' : 'transparent';
                 btn.style.color      = aktif ? '#fff' : 'var(--text)';
                 btn.classList.toggle('active', aktif);
             });
@@ -8645,7 +8654,7 @@ window.__I18N_SOZLUK__ = {
             const renkler = {
                 'online':    { bg: 'var(--success-soft)', bd: 'rgba(21,122,60,0.28)',  ic: '#157A3C', text: 'ONLINE',    pulse: true },
                 'offline':   { bg: 'var(--danger-soft)',  bd: 'rgba(180,35,28,0.28)',  ic: '#B4231C', text: 'OFFLINE',   pulse: false },
-                'beklemede': { bg: 'var(--surface-2)',    bd: 'var(--line-strong, #D3D0CB)', ic: '#57534E', text: 'BEKLEMEDE', pulse: false },
+                'beklemede': { bg: 'var(--surface-2)',    bd: 'var(--line-strong, #D1D1DE)', ic: '#4E4C63', text: 'BEKLEMEDE', pulse: false },
             };
             const r = renkler[c.durum] || renkler.beklemede;
 
@@ -8693,7 +8702,7 @@ window.__I18N_SOZLUK__ = {
                 const cidEsc = (c.cihaz_id || '').replace(/'/g, "\\'");
                 return `<button onclick="event.stopPropagation();sahaSayacReset('${cidEsc}',${istasyon},'${label}')"
                     title="${label} sayacını sıfırla"
-                    style="background:var(--primary-soft);border:1px solid var(--primary-line);color:#B4470F;border-radius:6px;padding:1px 7px;font-size:.62rem;cursor:pointer;margin-left:6px;vertical-align:middle;font-weight:700">↻</button>`;
+                    style="background:var(--primary-soft);border:1px solid var(--primary-line);color:#6D28D9;border-radius:6px;padding:1px 7px;font-size:.62rem;cursor:pointer;margin-left:6px;vertical-align:middle;font-weight:700">↻</button>`;
             };
 
             // Kaynak ise ist1/ist2 ayrı göster; diğer bölümlerde tek toplam
@@ -8971,7 +8980,7 @@ window.__I18N_SOZLUK__ = {
             const bitiStr  = new Date(xMax).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
             const fmt = v => v < 60 ? v.toFixed(1) + ' sn' : Math.floor(v/60) + 'dk ' + Math.round(v%60) + 'sn';
             statsEl.innerHTML = `
-                <div style="font-weight:700;margin-bottom:4px;color:#B4470F;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase">📊 Zoom Alanı</div>
+                <div style="font-weight:700;margin-bottom:4px;color:#6D28D9;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase">📊 Zoom Alanı</div>
                 <div style="opacity:.7;font-size:.66rem;margin-bottom:4px">${baslaStr} – ${bitiStr}</div>
                 <div>📍 <b>${noktalar.length}</b> pulse</div>
                 <div>⌀ Ort: <b>${fmt(ort)}</b></div>
@@ -9088,8 +9097,8 @@ window.__I18N_SOZLUK__ = {
                 datasets.push({
                     label: 'Pulse',
                     data: [...scatter1, ...scatter2],
-                    backgroundColor: 'rgba(109, 40, 217,0.75)',
-                    borderColor:     'rgba(109, 40, 217,1)',
+                    backgroundColor: 'rgba(63, 98, 18,0.75)',
+                    borderColor:     'rgba(63, 98, 18,1)',
                     pointRadius: 4,
                 });
             }
@@ -9134,8 +9143,8 @@ window.__I18N_SOZLUK__ = {
                             zoom: {
                                 drag: {
                                     enabled: true,
-                                    backgroundColor: 'rgba(109, 40, 217,0.18)',
-                                    borderColor:     'rgba(109, 40, 217,0.65)',
+                                    backgroundColor: 'rgba(63, 98, 18,0.18)',
+                                    borderColor:     'rgba(63, 98, 18,0.65)',
                                     borderWidth: 1,
                                     threshold: 5,
                                 },
@@ -9240,11 +9249,11 @@ window.__I18N_SOZLUK__ = {
                 html += Object.values(acc).map(r => {
                     const s = istat(pulseGaps[r.kod] || []);
                     const istatHtml = s ? `
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;padding:6px 8px;background:rgba(236, 103, 54,0.06);border-radius:6px;font-size:.7rem">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;padding:6px 8px;background:rgba(124, 58, 237,0.06);border-radius:6px;font-size:.7rem">
                             <div><span style="color:var(--muted)">📍 Pulse:</span> <b style="font-family:'JetBrains Mono',monospace">${s.sayi}</b></div>
                             <div><span style="color:var(--muted)">⌀ Ort:</span> <b style="color:#065f46;font-family:'JetBrains Mono',monospace">${fmt(s.ort)}</b></div>
                             <div><span style="color:var(--muted)">≈ Medyan:</span> <b style="color:#0e7490;font-family:'JetBrains Mono',monospace">${fmt(s.medyan)}</b></div>
-                            <div><span style="color:var(--muted)">📊 Mod:</span> <b style="color:#B4470F;font-family:'JetBrains Mono',monospace">${s.mod} sn</b></div>
+                            <div><span style="color:var(--muted)">📊 Mod:</span> <b style="color:#6D28D9;font-family:'JetBrains Mono',monospace">${s.mod} sn</b></div>
                             <div><span style="color:var(--muted)">⏱ Min:</span> <b style="font-family:'JetBrains Mono',monospace">${fmt(s.en_kisa)}</b></div>
                             <div><span style="color:var(--muted)">⏱ Max:</span> <b style="font-family:'JetBrains Mono',monospace">${fmt(s.en_uzun)}</b></div>
                         </div>
@@ -9305,8 +9314,8 @@ window.__I18N_SOZLUK__ = {
                                     ${fmt(s.ort_gap_sn)}
                                 </td>
                                 <td style="padding:5px 8px">
-                                    <div style="background:rgba(236, 103, 54,0.12);border-radius:4px;height:8px;width:100%">
-                                        <div style="background:rgba(236, 103, 54,0.65);border-radius:4px;height:8px;width:${pct}%"></div>
+                                    <div style="background:rgba(124, 58, 237,0.12);border-radius:4px;height:8px;width:100%">
+                                        <div style="background:rgba(124, 58, 237,0.65);border-radius:4px;height:8px;width:${pct}%"></div>
                                     </div>
                                 </td>
                             </tr>`;
@@ -9334,7 +9343,7 @@ window.__I18N_SOZLUK__ = {
                     ? `onclick="durusTanimlaAc('${d.basla}','${d.biti}',${d.sure_dk})" title="Bu boşluğa duruş sebebi tanımla" style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px;cursor:pointer;border-radius:6px"`
                     : `style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px"`;
                 const ad = tanimsiz
-                    ? `<span style="color:#64748b;font-style:italic">Kaydedilmemiş</span> <span style="color:#B4470F;font-size:.7rem;font-weight:700">✏️ tanımla</span>`
+                    ? `<span style="color:#64748b;font-style:italic">Kaydedilmemiş</span> <span style="color:#6D28D9;font-size:.7rem;font-weight:700">✏️ tanımla</span>`
                     : d.sebep;
                 return `
                     <div ${clickAttr}>
@@ -9827,7 +9836,7 @@ window.__I18N_SOZLUK__ = {
                     [s.fiili_calisma_dk - s.performans_kaybi_dk - s.kalite_kaybi_dk, s.fiili_calisma_dk - s.performans_kaybi_dk],
                     [0, s.net_uretim_dk],
                 ];
-                const bgColors = ['#5c6675','#B4231C', '#1d4ed8','#B4231C', '#6366f1','#B4231C', '#B4470F','#B4231C', '#d946ef','#B4231C', '#22c55e'];
+                const bgColors = ['#5c6675','#B4231C', '#1d4ed8','#B4231C', '#6366f1','#B4231C', '#6D28D9','#B4231C', '#d946ef','#B4231C', '#22c55e'];
 
                 raporChartInst = new Chart(chartDiv, {
                     type: 'bar',
@@ -9879,7 +9888,7 @@ window.__I18N_SOZLUK__ = {
             const bilgi = BOLUMLER[aktifBolum] || BOLUMLER.kaynak;
             const renk = aktifBolum === 'montaj' ? ['rgba(16,185,129,.15)', '#157A3C']
                        : aktifBolum === 'metal'  ? ['rgba(245,158,11,.15)', '#8A5A05']
-                       : aktifBolum === 'isleme' ? ['rgba(139,92,246,.15)', '#B4470F']
+                       : aktifBolum === 'isleme' ? ['rgba(139,92,246,.15)', '#6D28D9']
                        : aktifBolum === 'lazer'  ? ['rgba(6,182,212,.15)',  '#0e7490']
                        : aktifBolum === 'pres'   ? ['rgba(236,72,153,.15)', '#9d174d']
                                                  : ['rgba(59,130,246,.15)',  '#2563eb'];
@@ -10400,13 +10409,13 @@ window.__I18N_SOZLUK__ = {
             // Özet şerit
             html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 16px">' +
                 '<span style="border:1px solid #157A3C55;background:#157A3C18;color:#065f46;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">📦 Kullanılabilir stok: ' + fmt(st.kullanilabilir) + '</span>' +
-                '<span style="border:1px solid #EC673655;background:#EC673618;color:#B4470F;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">🧾 Doğrudan açık sipariş: ' + fmt(ds.acik_toplam) + '</span>' +
+                '<span style="border:1px solid #7C3AED55;background:#7C3AED18;color:#6D28D9;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">🧾 Doğrudan açık sipariş: ' + fmt(ds.acik_toplam) + '</span>' +
                 '<span style="border:1px solid #0E749055;background:#0E749018;color:#0e7490;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">⬆ Üst kod açık siparişleri: ' + fmt(ustAcik) + '</span></div>';
             // 1) Stok
             html += '<h4 style="margin:6px 0 6px;color:#065f46;font-size:.88rem">📦 ' + esc(d.ref) + ' — depo stokları</h4>';
             html += '<div style="margin-bottom:6px">' + (Object.keys(st.depolar).length ? as4PlanDepoSatir(st.depolar) : '<span style="color:var(--muted);font-size:.8rem">Stok kaydı yok</span>') + '</div>';
             // 2) Doğrudan siparişler
-            html += '<h4 style="margin:16px 0 6px;color:#B4470F;font-size:.88rem">🧾 Doğrudan açık müşteri siparişleri</h4>';
+            html += '<h4 style="margin:16px 0 6px;color:#6D28D9;font-size:.88rem">🧾 Doğrudan açık müşteri siparişleri</h4>';
             if (!ds.satirlar.length) {
                 html += '<div style="color:var(--muted);font-size:.8rem">Yok — ihtiyaç üst kodlardan gelir (aşağıda).</div>';
             } else {
@@ -10485,7 +10494,7 @@ window.__I18N_SOZLUK__ = {
                     });
                     if (hepsiTamam) {
                         durum = 'uret';
-                        rozet = '<span style="color:#B4470F;font-weight:800">🔧 BU KADEMEDE ÜRETİLEBİLİR: ' + fmt(net) + ' adet</span>';
+                        rozet = '<span style="color:#6D28D9;font-weight:800">🔧 BU KADEMEDE ÜRETİLEBİLİR: ' + fmt(net) + ' adet</span>';
                         uretimler.push({ kod: node.kod, adet: net });
                     } else {
                         durum = 'kismi';
@@ -10513,7 +10522,7 @@ window.__I18N_SOZLUK__ = {
                 if (!uretimler.length && !tedarikler.length)
                     html += '<div style="color:#065f46;font-size:.82rem">✔ İhtiyaç mevcut stok + fasondakiyle karşılanıyor — üretim gerekmez.</div>';
                 if (uretimler.length)
-                    html += '<div style="color:#B4470F;font-size:.82rem">🔧 Üretilmeli (launch adayı): ' +
+                    html += '<div style="color:#6D28D9;font-size:.82rem">🔧 Üretilmeli (launch adayı): ' +
                         uretimler.map(function (u) { return '<b>' + esc(u.kod) + '</b> × ' + fmt(u.adet); }).join(' · ') + '</div>';
                 if (tedarikler.length)
                     html += '<div style="color:#b91c1c;font-size:.82rem;margin-top:4px">⛔ Eksik (alt kademesi yok): ' +
@@ -10647,7 +10656,7 @@ window.__I18N_SOZLUK__ = {
                 cip('#2563eb', '📦 CFI bekleyen: ' + _as4CfiBekleyen.length) +
                 cip('#5c6675', '✅ Teyitli: ' + teyitli.length) +
                 cip('#8A5A05', '⚠️ Dikkat: ' + dikkat.length) +
-                cip('#B4470F', '🔗 Ara op: ' + araList.length) +
+                cip('#6D28D9', '🔗 Ara op: ' + araList.length) +
                 (copBek.length ? cip('#B4231C', '♻ Hurda COP: ' + copBek.length) : '') + '</div>';
 
             // ── 1) TEYIT BEKLEYENLER (launch + CFI aksiyon alanı) ──
@@ -10674,7 +10683,7 @@ window.__I18N_SOZLUK__ = {
                         }).join('') + '</select>'
                         : esc(ls[0].article) + ' → <b>' + esc(ls[0].launch) + '</b>';
                     var orj = r.orijinal_referans
-                        ? '<div style="font-size:.7rem;color:#B4470F">↳ kayıttaki yazım: ' + esc(r.orijinal_referans) + '</div>' : '';
+                        ? '<div style="font-size:.7rem;color:#6D28D9">↳ kayıttaki yazım: ' + esc(r.orijinal_referans) + '</div>' : '';
                     if (r.hurda > 0)
                         orj += '<div style="font-size:.7rem;color:#b91c1c;font-weight:700">♻ hurda ' + fmt(r.hurda) + ' → COP girilecek</div>';
                     var l0 = ls[0];
@@ -10840,7 +10849,7 @@ window.__I18N_SOZLUK__ = {
                     });
                 }
                 if (araList.length) {
-                    html += '<div style="color:#B4470F;font-weight:800;margin:10px 0 4px">🔗 Ara operasyon — teyit son op üretiminde verilir:</div>';
+                    html += '<div style="color:#6D28D9;font-weight:800;margin:10px 0 4px">🔗 Ara operasyon — teyit son op üretiminde verilir:</div>';
                     araList.forEach(function (x) { html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet, son op: ' + (x.r.son_op || '?') + ')' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>'; });
                 }
                 if (digerList.length) {

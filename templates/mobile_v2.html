@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Cofle Forge — Operatör{% if lokasyon == 'TK1' %} (TK1){% endif %}</title>
-  <meta name="theme-color" content="#ECEBE8">
+  <meta name="theme-color" content="#ECECF1">
   <link rel="icon" type="image/png" href="/logo?tip=mark">
   <link rel="shortcut icon" href="/logo?tip=mark">
   <link rel="apple-touch-icon" href="/logo?tip=mark">
@@ -29,19 +29,19 @@
 
     :root {
       /* ═══════════════════════════════════════════════════════════════════
-         COFLE FORGE — "TEZGAH / SICAK NÖTR" · OPERATÖR EKRANI · 2026-07-29
-         Dashboard'la (dashboard_v2.html) AYNI palet. Koyu mor/cyan mesh tema
-         emekli: fabrika zemininde parlak ışık altında koyu ekran ayna gibi
-         yansıtıyor, ılık nötr açık zemin okunaklı kalıyor.
+         COFLE FORGE — "SERİN NÖTR" · OPERATÖR EKRANI · 2026-07-29
+         Dashboard'la (dashboard_v2.html) AYNI palet, yeni Cofle Forge logosundan
+         türetildi (gradyan #7C3AED → #A78BFA, wordmark #14122B). Koyu mor/cyan
+         mesh tema emekli: fabrika zemininde parlak ışık altında koyu ekran ayna
+         gibi yansıtıyor, açık zemin okunaklı kalıyor.
 
          DEĞİŞKEN ADLARI KORUNDU (--bg-0, --c-violet, --grad-1 …): 150 CSS
          kuralı ve 66 satır-içi style bu adları kullanıyor; adları değiştirmek
-         yerine DEĞERLERİ ışığa çevirmek yamayı küçük ve geri alınabilir tutar.
-         Bu yüzden bazı adlar artık anlamlarını taşımıyor (--c-violet turuncu,
-         --c-pink pembe-bordo); ad = ROL, değer = tema.
+         yerine DEĞERLERİ çevirmek yamayı küçük ve geri alınabilir tutar.
+         Ad = ROL, değer = tema (--c-pink artık pembe-bordo, --c-cyan grafik mavisi).
 
-         KURAL 1: --brand (#EC6736) METİN OLARAK KULLANILMAZ (beyazda 3.20:1).
-                  Metin/ikon turuncusu HER ZAMAN --primary (#B4470F).
+         KURAL 1: --brand (#7C3AED) beyazda 5.70:1 — metin taşıyabilir. Yine de
+                  birincil metin/eylem rengi --primary (#6D28D9, beyazda 7.10:1).
          KURAL 2: BİÇİM = ANLAM. Durum → dolu yumuşak çip (radius 6px).
                   Kimlik (bölüm) → outline pill (999px) / 3px sol çubuk.
          ═══════════════════════════════════════════════════════════════════ */
@@ -50,48 +50,48 @@
          DİKKAT: --bg-2/--bg-1 ikilisi "linear-gradient(160deg, var(--bg-2),
          var(--bg-1))" olarak modal/toast/autocomplete'te kullanılıyor →
          ikisi de AÇIK olmalı, yoksa beyaz metin beyaz zemine düşer. */
-      --bg-0:        #ECEBE8;  /* sayfa zemini · beyaz kartla ayrım 1.19:1 */
+      --bg-0:        #ECECF1;  /* sayfa zemini · beyaz kartla ayrım 1.19:1 */
       --bg-1:        #FFFFFF;
-      --bg-2:        #FAFAF9;
-      --bg-3:        #F4F3F1;
+      --bg-2:        #FAFAFC;
+      --bg-3:        #F3F3F8;
       --surface:     #FFFFFF;
-      --surface-2:   #F4F3F1;
-      --line:        #E2E0DC;  /* kart kenarlığı · beyazda 1.32:1 */
-      --line-strong: #D3D0CB;  /* yapısal ayraç · beyazda 1.54:1 */
-      --line-subtle: #EBE9E5;  /* liste satır çizgisi */
+      --surface-2:   #F3F3F8;
+      --line:        #E1E1EA;  /* kart kenarlığı · beyazda 1.32:1 */
+      --line-strong: #D1D1DE;  /* yapısal ayraç · beyazda 1.54:1 */
+      --line-subtle: #EAEAF2;  /* liste satır çizgisi */
       /* Eski adlar — JS/HTML uyumluluğu icin (alias) */
       --card:           #FFFFFF;
-      --bg:             #ECEBE8;
-      --border:         #D3D0CB;
-      --border-subtle:  #EBE9E5;
-      --surface2:       #F4F3F1;
-      --border-input:   #8A857D;  /* form kenarlığı · beyazda 3.66:1 (UI-AA) */
+      --bg:             #ECECF1;
+      --border:         #D1D1DE;
+      --border-subtle:  #EAEAF2;
+      --surface2:       #F3F3F8;
+      --border-input:   #85859A;  /* form kenarlığı · beyazda 3.66:1 (UI-AA) */
 
       /* Metin — ılık mürekkep (logonun #030405'inden türetildi) */
-      --text:    #1C1917;  /* beyaz 17.49:1 · zemin 14.67:1 */
-      --muted:   #57534E;  /* beyaz  7.63:1 · zemin  6.40:1 */
-      --dim:     #6B655E;  /* beyaz  5.76:1 · zemin  4.83:1 — en soluk metin bile AA */
+      --text:    #14122B;  /* beyaz 17.49:1 · zemin 14.67:1 */
+      --muted:   #4E4C63;  /* beyaz  7.63:1 · zemin  6.40:1 */
+      --dim:     #63617A;  /* beyaz  5.76:1 · zemin  4.83:1 — en soluk metin bile AA */
 
       /* Marka */
-      --brand:         #EC6736;  /* LOGONUN BİREBİR RENGİ — yalnız şerit/ikon/odak, METİN DEĞİL */
-      --brand-rgb:     236, 103, 54;
-      --primary-soft:  #F7EAE3;  /* seçili/aktif zemin · üstünde --primary 4.63:1 */
-      --primary-line:  #E9C6B2;
-      --focus-ring:    0 0 0 3px rgba(236, 103, 54, 0.32);
+      --brand:         #7C3AED;  /* LOGO GRADYANININ BAŞI — şerit/ikon/odak; beyazda 5.70:1 */
+      --brand-rgb:     124, 58, 237;
+      --primary-soft:  #F1EAFD;  /* seçili/aktif zemin · üstünde --primary 4.63:1 */
+      --primary-line:  #D6C4F7;
+      --focus-ring:    0 0 0 3px rgba(124, 58, 237, 0.32);
 
       /* Vurgu paleti — ADLAR eski, DEĞERLER tezgah paletinden.
          Hepsi beyazda ≥5.36:1 → etiket metni olarak da AA. */
       --c-cyan:    #0E7490;  /* lazer / bilgi */
-      --c-violet:  #B4470F;  /* ARTIK BİRİNCİL TURUNCU (mor kimlik emekli) */
+      --c-violet:  #6D28D9;  /* BİRİNCİL MOR — logo gradyanından */
       --c-pink:    #9D174D;  /* pres */
       --c-emerald: #157A3C;  /* başarı / açık vardiya */
       --c-amber:   #8A5A05;  /* uyarı */
       --c-red:     #B4231C;  /* hata / duruş */
       --c-blue:    #1D4ED8;  /* kaynak */
-      --c-orange:  #B4470F;  /* sıradaki iş — birincil ile aynı (çağrı rengi) */
+      --c-orange:  #6D28D9;  /* sıradaki iş — birincil ile aynı (çağrı rengi) */
       /* Eski adlar (alias) */
       --primary:      var(--c-violet);
-      --primary-dark: #93380A;
+      --primary-dark: #5B21B6;
       --success:      var(--c-emerald);
       --danger:       var(--c-red);
       --warning:      var(--c-amber);
@@ -104,8 +104,8 @@
 
       /* Degradeler — süs değil, yalnız BUTON dolgusu. Üstlerinde beyaz metin AA.
          Metne background-clip ile uygulanan yerler yamada düz mürekkebe çevrildi. */
-      --grad-1:       linear-gradient(180deg, #C24E10 0%, #A03C08 100%);
-      --grad-violet:  linear-gradient(180deg, #C24E10 0%, #A03C08 100%);
+      --grad-1:       linear-gradient(180deg, #6D28D9 0%, #5B21B6 100%);
+      --grad-violet:  linear-gradient(180deg, #6D28D9 0%, #5B21B6 100%);
       --grad-emerald: linear-gradient(180deg, #157A3C 0%, #12622F 100%);  /* üst durak #1A8945 idi → beyaz metin 4.46:1 (AA altı) */
       --grad-amber:   linear-gradient(180deg, #9C6606 0%, #6F4804 100%);
       --grad-danger:  linear-gradient(180deg, #C62822 0%, #941C17 100%);
@@ -122,8 +122,8 @@
       --r-lg: 12px;
       --r-pill: 999px;
 
-      --shadow:     0 1px 2px rgba(28, 25, 23, 0.06);
-      --shadow-pop: 0 8px 24px rgba(28, 25, 23, 0.14);
+      --shadow:     0 1px 2px rgba(20, 18, 43, 0.06);
+      --shadow-pop: 0 8px 24px rgba(20, 18, 43, 0.14);
     }
 
     html, body {
@@ -1115,7 +1115,7 @@
     .bolum-btn.kaynak  { border-left: 3px solid #1D4ED8; }
     .bolum-btn.montaj  { border-left: 3px solid #07734F; }
     .bolum-btn.metal   { border-left: 3px solid #8F6100; }
-    .bolum-btn.isleme  { border-left: 3px solid #6D28D9; }
+    .bolum-btn.isleme  { border-left: 3px solid #3F6212; }
     .bolum-btn.lazer   { border-left: 3px solid #0E7490; }
     .bolum-btn.pres    { border-left: 3px solid #9D174D; }
     .bolum-btn.plastik { border-left: 3px solid #A21CAF; }
@@ -1133,7 +1133,7 @@
     .bolum-badge.kaynak  { color: #1D4ED8; }
     .bolum-badge.montaj  { color: #07734F; }
     .bolum-badge.metal   { color: #8F6100; }
-    .bolum-badge.isleme  { color: #6D28D9; }
+    .bolum-badge.isleme  { color: #3F6212; }
     .bolum-badge.lazer   { color: #0E7490; }
     .bolum-badge.pres    { color: #9D174D; }
     .bolum-badge.plastik { color: #A21CAF; }
@@ -1227,7 +1227,7 @@
     }
 
     /* ── 11) MODAL / ALT NAV / TOAST ───────────────────────────────────────── */
-    .modal-overlay { background: rgba(28, 25, 23, 0.45); }
+    .modal-overlay { background: rgba(20, 18, 43, 0.45); }
     .modal-box {
       background: #fff; border: 1px solid var(--line-strong);
       border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
@@ -2403,8 +2403,8 @@ window.__I18N_SOZLUK__ = {
       </button>
 
       <!-- Rapor için bölüm seçim modali -->
-      <div id="rapor-bolum-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center;padding:20px">
-        <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:22px 20px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(28,25,23,0.45), 0 0 60px var(--primary-line)">
+      <div id="rapor-bolum-modal" style="display:none;position:fixed;inset:0;background:rgba(20,18,43,0.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center;padding:20px">
+        <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:22px 20px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(20,18,43,0.45), 0 0 60px var(--primary-line)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
             <div style="font-size:1rem;font-weight:800;color:var(--text)">📊 Hangi bölüm için rapor?</div>
             <button onclick="raporBolumKapat()" style="background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px 12px;border-radius:10px;line-height:1">✕</button>
@@ -2907,7 +2907,7 @@ window.__I18N_SOZLUK__ = {
   </div>
 
   <!-- SİNYAL GEÇMİŞİ MODAL — vardiyanın sayaç olay logu (sensör pulse + test cihazı) -->
-  <div id="sayac-log-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);z-index:9000;align-items:center;justify-content:center;padding:18px">
+  <div id="sayac-log-modal" style="display:none;position:fixed;inset:0;background:rgba(20,18,43,0.45);z-index:9000;align-items:center;justify-content:center;padding:18px">
     <div style="background:var(--card);border:1px solid rgba(29,78,216,0.30);border-radius:16px;max-width:440px;width:100%;max-height:78vh;display:flex;flex-direction:column;overflow:hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)">
         <div style="font-weight:800;font-size:.95rem">📡 Sinyal Geçmişi <span id="sayac-log-robot" style="color:var(--c-blue);font-weight:700"></span></div>
@@ -2923,8 +2923,8 @@ window.__I18N_SOZLUK__ = {
   <div class="toast" id="toast"></div>
 
   <!-- ═══ OPERATÖR PIN GİRİŞ MODAL ═══ -->
-  <div id="pin-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
-    <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 8px 24px rgba(28,25,23,0.14)">
+  <div id="pin-modal" style="display:none;position:fixed;inset:0;background:rgba(20,18,43,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 8px 24px rgba(20,18,43,0.14)">
       <div style="text-align:center;margin-bottom:18px">
         <div style="font-size:2rem;margin-bottom:6px">🔐</div>
         <div style="font-size:1.1rem;font-weight:800;color:var(--text)">Operatör Girişi</div>
@@ -2950,8 +2950,8 @@ window.__I18N_SOZLUK__ = {
   </div>
 
   <!-- ═══ MASA / HAT DEĞİŞTİR MODAL ═══ -->
-  <div id="hat-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
-    <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 8px 24px rgba(28,25,23,0.14)">
+  <div id="hat-modal" style="display:none;position:fixed;inset:0;background:rgba(20,18,43,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 8px 24px rgba(20,18,43,0.14)">
       <div style="text-align:center;margin-bottom:18px">
         <div style="font-size:2rem;margin-bottom:6px">🔀</div>
         <div style="font-size:1.1rem;font-weight:800;color:var(--text)">Masa / Hat Değiştir</div>
@@ -3829,7 +3829,7 @@ window.__I18N_SOZLUK__ = {
           kaynak: { title: '🔧 Kaynakhane', color: '#1D4ED8', bg: '#E7EDFB' },
           montaj: { title: '🔩 Montaj', color: '#07734F', bg: '#E4F0E8' },
           metal: { title: '⚙️ Metal Enjeksiyon', color: '#8F6100', bg: '#F2ECE2' },
-          isleme: { title: '🛠️ İşleme', color: '#6D28D9', bg: '#EDE7FB' },
+          isleme: { title: '🛠️ İşleme', color: '#3F6212', bg: '#EDE7FB' },
           lazer: { title: '🔦 Lazer Kesim', color: '#0E7490', bg: '#E3EEF6' },
           pres: { title: '🗜️ Pres Abkant', color: '#9D174D', bg: '#F8E4EC' }
         };
@@ -3858,7 +3858,7 @@ window.__I18N_SOZLUK__ = {
                 ? '<button onclick="event.stopPropagation();vardiyaSil(' + v.id + ')" class="btn-vardiya-sil" title="Yanlış açılan vardiyayı sil">🗑 Sil</button>'
                 : '';
               var _kartStyle = _kendisinin
-                ? 'border:2px solid rgba(21,122,60,0.30);background:var(--success-soft);box-shadow:0 1px 2px rgba(28,25,23,0.06)'
+                ? 'border:2px solid rgba(21,122,60,0.30);background:var(--success-soft);box-shadow:0 1px 2px rgba(20,18,43,0.06)'
                 : 'opacity:.55;cursor:not-allowed;filter:grayscale(0.3)';
               var _kendiRozet = _admin
                 ? ''

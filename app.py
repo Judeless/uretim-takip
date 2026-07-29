@@ -1502,8 +1502,8 @@ def web_manifest():
         # Açılış (splash) renkleri UYGULAMANIN GERÇEK zeminiyle eşleşmeli: eskiden
         # koyu mor (#060414/#1c1f3a) idi, operatör ekranı tezgah paletine geçince
         # koyu bir splash'tan açık bir uygulamaya düşüyordu (göz alıyordu).
-        "background_color": "#ECEBE8",
-        "theme_color": "#ECEBE8",
+        "background_color": "#ECECF1",
+        "theme_color": "#ECECF1",
         "lang": "tr",
         # PWA ikonu ayrı asset: /logo lockup'ı (1600×480) kare ikon yuvasına
         # sıkıştırılıyordu. pwa_icon.png 512×512 kare (handoff README, madde 6).
