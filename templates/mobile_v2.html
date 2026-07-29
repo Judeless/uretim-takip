@@ -1249,6 +1249,22 @@
     .toast.error   { border-color: transparent; box-shadow: var(--shadow-pop); background: #941C17; }
     ::-webkit-scrollbar-thumb { background: var(--line-strong); }
 
+    /* ── 11b) DİL SEÇİCİ (2026-07-29) ────────────────────────────────────────
+       #dil-secici bir <select> olduğu için yukarıdaki genel form kuralını
+       yiyordu: width:100% + (yamayla gelen) min-height:48px. Sonuç, header'ın
+       TAMAMINI kaplayan 48px'lik bir kutu ve genişliği 0'a ezilen "Cofle Manage"
+       başlığı. width:100% bu dosyada baştan beri vardı (koyu temada da seçici
+       1157px'ti, başlık 0'dı) — yama onu 33px'ten 48px'e çıkarıp görünür kıldı.
+       Burada form alanı değil, header'da küçük bir kontrol olarak ele alınıyor. */
+    #dil-secici {
+      width: auto;
+      flex: 0 0 auto;          /* esneme/büzülme yok — içeriği kadar yer kaplar */
+      min-height: 40px;        /* dokunma hedefi korunur, header'ı şişirmez */
+      align-self: center;
+      padding: 6px 8px;
+      border-radius: var(--r-sm);
+    }
+
     /* ── 12) ODAK GÖRÜNÜRLÜĞÜ (klavye / erişilebilirlik) ───────────────────── */
     :where(a, button, input, select, textarea, [tabindex]):focus-visible {
       outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm);
