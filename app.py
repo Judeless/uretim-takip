@@ -1033,6 +1033,25 @@ def dashboard_onizleme_sayfasi():
     }, ensure_ascii=False))
 
 
+@app.route('/dashboard/tezgah')
+def dashboard_tezgah_sayfasi():
+    """TASARIM ADAYI 2 — "Tezgah / Sıcak Nötr" (2026-07-28). Marka turuncusu
+    (logo #EC6736) birincil kimlik, ılık nötr zemin, yoğun tablo, süs katmanı yok.
+    /dashboard/onizleme (aday 1) ve /dashboard (canlı) ile yan yana karşılaştırılır.
+    Canlıya DOKUNMAZ."""
+    ku = panel_kullanici()
+    if not ku:
+        return render_template('panel_giris.html')
+    return render_template('dashboard_tezgah.html', panel_ku=json.dumps({
+        'kullanici_adi': ku['kullanici_adi'],
+        'ad_soyad': ku['ad_soyad'],
+        'rol': ku['rol'],
+        'admin': ku['admin'],
+        'izinler': ku['izinler'],
+        'sifre_gecici': ku['sifre_gecici'],
+    }, ensure_ascii=False))
+
+
 @app.route('/dashboard_eski')
 def dashboard_eski_sayfasi():
     """Eski yönetim paneli (v2 canlıya alınınca yedek olarak saklanıyor).
