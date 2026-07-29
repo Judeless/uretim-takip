@@ -5247,13 +5247,14 @@ window.__I18N_SOZLUK__ = {
 
             <!-- ══════ SAYFA: AS400 TEYIT (günün üretimi ↔ açık launch eşlemesi — canlı ERP okuması) ══════ -->
             <section class="page" id="page-as400-teyit">
-                <!-- 🌅 SABAH KONTROL (2026-07-27): 16:45 transfer iptali + 17:10 oto teyit
-                     koşularının raporu. Robotun emin olamadığı satırlar burada listelenir —
-                     kullanıcı sabah kontrol eder. Kaynak: /api/as400/oto_kosu -->
+                <!-- 🌅 SABAH KONTROL (2026-07-27): oto TEYİT koşularının raporu.
+                     2026-07-29: transfer iptali koşuları buradan çıkarılıp "02'den
+                     Aktarım" sayfasına taşındı (iki farklı iş aynı panelde iç içeydi).
+                     Kaynak: /api/as400/oto_kosu -->
                 <div class="panel-card" style="margin-bottom:14px">
                     <div class="panel-header">
-                        <h3>🌅 Sabah Kontrol — Otomatik Akşam Koşuları</h3>
-                        <span class="adet-info">16:45 transfer iptali · 17:10 teyit kuyruğu — emin olunamayanlar buraya ayrılır</span>
+                        <h3>🌅 Sabah Kontrol — Otomatik Teyit Koşuları</h3>
+                        <span class="adet-info">Her akşam çalışır — robotun emin olamadığı satırlar buraya ayrılır</span>
                     </div>
                     <div id="as4-sabah-icerik" style="padding:10px 20px 16px">
                         <div class="yukleniyor" style="padding:8px 0">⏳ Son koşular yükleniyor…</div>
@@ -5286,6 +5287,20 @@ window.__I18N_SOZLUK__ = {
 
             <!-- ══════ SAYFA: AS400 — 02'DEN AKTARIM KONTROL (TK1 hayali stok transferleri) ══════ -->
             <section class="page" id="page-as400-transfer">
+                <!-- OTOMATİK TRANSFER KOŞULARI (2026-07-29): eskiden Launch Kapama
+                     sayfasındaki "Sabah Kontrol" panelinde teyit koşularıyla İÇ İÇE
+                     duruyordu — kullanıcı: "02 aktarım loglarını 02'den aktarım
+                     sayfasına taşıyalım". Artık transfer koşuları BURADA, teyit
+                     koşuları kendi sayfasında. Kaynak aynı: /api/as400/oto_kosu -->
+                <div class="panel-card" style="margin-bottom:14px">
+                    <div class="panel-header">
+                        <h3>🌅 Otomatik Transfer İptali Koşuları</h3>
+                        <span class="adet-info">Her akşam çalışır — robotun emin olamadığı satırlar buraya ayrılır</span>
+                    </div>
+                    <div id="as4-tr-oto-icerik" style="padding:10px 20px 16px">
+                        <div class="yukleniyor" style="padding:8px 0">⏳ Son koşular yükleniyor…</div>
+                    </div>
+                </div>
                 <!-- Shift+F4 iptali kaydı SİLER → BMMAF0'da hâlâ duran TA 02→01 = iptal edilmemiş. -->
                 <div class="panel-card">
                     <div class="panel-header">
@@ -6060,6 +6075,9 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();
             if (sayfa === 'raporlar') initRaporlar();
             if (sayfa === 'as400-teyit') initAS400Teyit();
+            // Transfer sayfası da oto koşu panelini yükler (2026-07-29: transfer
+            // logları buraya taşındı; teyit sayfası açılmadan da güncel olmalı)
+            if (sayfa === 'as400-transfer') as4SabahYukle();
             if (sayfa === 'kullanicilar') yukleKullanicilar();
             window.scrollTo(0, 0);
         }
@@ -10088,66 +10106,109 @@ window.__I18N_SOZLUK__ = {
         function initAS400Teyit() { if (!_as4Yuklendi) as4Yukle(); as4SabahYukle(); }
 
         // ── 🌅 SABAH KONTROL — otomatik akşam koşuları raporu (2026-07-27) ──
+        // KAPALI AYAR UYARISI (2026-07-29) — 2026-07-28 akşamı oto teyit sessizce
+        // atlandı çünkü ayar kapalıydı; panelde bunun tek izi İŞARETSİZ BİR KUTUYDU
+        // ve gözden kaçtı, o günün launch'ları kapanmadı. Artık kapalıysa büyük,
+        // kırmızı ve tek tıkla açılabilir bir bant çıkıyor.
+        function as4KapaliBant(tur, ad, saat) {
+            return '<div style="display:flex;gap:12px;align-items:center;margin:0 0 12px;padding:12px 14px;' +
+                'background:var(--danger-soft);border:1px solid rgba(180,35,28,.3);border-left:3px solid var(--danger);border-radius:10px">' +
+                '<span style="font-size:1.25rem">⛔</span><div style="flex:1">' +
+                '<div style="font-weight:700;color:var(--danger);font-size:.9rem">' + ad + ' KAPALI</div>' +
+                '<div style="font-size:.79rem;color:var(--muted);margin-top:2px">Bu akşam ' + esc(saat) +
+                ' koşusu ÇALIŞMAYACAK. Kapalı kaldığı her gün elle yapman gerekir.</div></div>' +
+                '<button class="btn btn-primary" style="padding:7px 14px;font-size:.8rem" ' +
+                'onclick="as4OtoToggle(\'' + tur + '\', {etkin:true})">Şimdi aç</button></div>';
+        }
+
+        // Oto koşu panelleri — TEK istek, İKİ hedef:
+        //   teyit koşuları  → Launch Kapama sayfası (#as4-sabah-icerik)
+        //   transfer koşuları → 02'den Aktarım sayfası (#as4-tr-oto-icerik)
         async function as4SabahYukle() {
-            var el = document.getElementById('as4-sabah-icerik');
-            if (!el) return;
+            var el   = document.getElementById('as4-sabah-icerik');
+            var elTr = document.getElementById('as4-tr-oto-icerik');
+            if (!el && !elTr) return;
             try {
-                const r = await panelFetch('/api/as400/oto_kosu?limit=6');
+                const r = await panelFetch('/api/as400/oto_kosu?limit=12');
                 const d = await r.json();
-                if (!r.ok) { el.innerHTML = '<div style="color:#b91c1c;font-size:.8rem">⚠ ' + esc(d.hata || 'Okunamadı') + '</div>'; return; }
+                if (!r.ok) {
+                    var hm = '<div style="color:var(--danger);font-size:.8rem">⚠ ' + esc(d.hata || 'Okunamadı') + '</div>';
+                    if (el) el.innerHTML = hm;
+                    if (elTr) elTr.innerHTML = hm;
+                    return;
+                }
                 var cfg = d.config || {};
                 var t = cfg.transfer_iptal || {}, y = cfg.oto_teyit || {};
-                var html = '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
+                var ajanRozet = d.agent
+                    ? '<span style="color:var(--success);font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
+                    : '<span style="color:var(--danger);font-weight:700;font-size:.74rem">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>';
+
+                // ── TEYİT paneli (Launch Kapama sayfası) ──
+                var html = (y.etkin ? '' : as4KapaliBant('oto_teyit', 'Otomatik teyit', y.saat || '17:10')) +
+                    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
+                    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (y.etkin ? 'checked' : '') +
+                        ' onchange="as4OtoToggle(\'oto_teyit\', {etkin:this.checked})" style="width:15px;height:15px">📤 Teyit kuyruğu (' + esc(y.saat || '17:10') + ')</label>' +
+                    ajanRozet + '</div>';
+                // ── TRANSFER paneli (02'den Aktarım sayfası) ──
+                var htmlTr = (t.etkin ? '' : as4KapaliBant('transfer_iptal', 'Otomatik transfer iptali', t.saat || '16:45')) +
+                    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
                     '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (t.etkin ? 'checked' : '') +
                         ' onchange="as4OtoToggle(\'transfer_iptal\', {etkin:this.checked})" style="width:15px;height:15px">🔄 Transfer iptali (' + esc(t.saat || '16:45') + ')</label>' +
                     '<label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Robot ekrana girer, satırı doğrular ama Shift+F4\'e BASMAZ"><input type="checkbox" ' + (t.dryrun ? 'checked' : '') +
-                        ' onchange="as4OtoToggle(\'transfer_iptal\', {dryrun:this.checked})" style="width:15px;height:15px">🧪 Transfer DRYRUN</label>' +
-                    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (y.etkin ? 'checked' : '') +
-                        ' onchange="as4OtoToggle(\'oto_teyit\', {etkin:this.checked})" style="width:15px;height:15px">📤 Teyit kuyruğu (' + esc(y.saat || '17:10') + ')</label>' +
-                    (d.agent ? '<span style="color:#065f46;font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
-                             : '<span style="color:#b91c1c;font-weight:700;font-size:.74rem">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>') +
-                    '</div>';
+                        ' onchange="as4OtoToggle(\'transfer_iptal\', {dryrun:this.checked})" style="width:15px;height:15px">🧪 DRYRUN (deneme — silme yok)</label>' +
+                    ajanRozet + '</div>';
+
                 var kosular = d.kosular || [];
-                if (!kosular.length) {
-                    html += '<div style="color:var(--muted);font-size:.8rem">Henüz otomatik koşu yok — ilk koşu bu akşam ' + esc(t.saat || '16:45') + ' / ' + esc(y.saat || '17:10') + '.</div>';
-                }
-                kosular.forEach(function (k, ki) {
+                var nT = kosular.filter(function (k) { return k.tur !== 'transfer'; }).length;
+                var nR = kosular.filter(function (k) { return k.tur === 'transfer'; }).length;
+                if (!nT) html   += '<div style="color:var(--muted);font-size:.8rem">Henüz otomatik teyit koşusu yok — ilki bu akşam ' + esc(y.saat || '17:10') + '.</div>';
+                if (!nR) htmlTr += '<div style="color:var(--muted);font-size:.8rem">Henüz otomatik transfer koşusu yok — ilki bu akşam ' + esc(t.saat || '16:45') + '.</div>';
+
+                var iT = 0, iR = 0;   // her panelde 'ilk koşu' ayrı sayılır (açık gelme kararı)
+                kosular.forEach(function (k) {
+                    var trMi = (k.tur === 'transfer');
+                    var ki = trMi ? iR++ : iT++;
+                    var blok = '';
                     var det = k.detay || {};
                     var sabah = det.sabah_kontrol || [];
                     var renk = (k.hata > 0) ? '#B4231C' : (sabah.length ? '#8A5A05' : '#157A3C');
-                    html += '<details' + (ki === 0 && (sabah.length || k.hata > 0) ? ' open' : '') + ' style="margin:6px 0">' +
+                    blok += '<details' + (ki === 0 && (sabah.length || k.hata > 0) ? ' open' : '') + ' style="margin:6px 0">' +
                         '<summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:' + renk + '">' +
                         (k.tur === 'transfer' ? '🔄' : '📤') + ' ' + esc((k.created_at || '').slice(0, 16)) + ' · ' + esc(k.ozet || '') +
                         (sabah.length ? ' · 🌅 ' + sabah.length + ' satır kontrol bekliyor' : '') + '</summary>';
                     if (sabah.length) {
-                        html += '<div class="table-wrap" style="margin:6px 0"><table class="admin-table"><thead><tr>' +
+                        blok += '<div class="table-wrap" style="margin:6px 0"><table class="admin-table"><thead><tr>' +
                             '<th>Tip</th><th>Gün</th><th>Referans/Kod</th><th style="text-align:right">Adet</th><th>Neden</th></tr></thead><tbody>';
                         sabah.forEach(function (s) {
-                            html += '<tr><td style="font-size:.74rem">' + esc(s.tip || '') + '</td>' +
+                            blok += '<tr><td style="font-size:.74rem">' + esc(s.tip || '') + '</td>' +
                                 '<td style="font-size:.74rem;white-space:nowrap">' + esc(s.tarih || '') + '</td>' +
                                 '<td style="font-weight:700;font-size:.8rem">' + esc(s.referans || s.article || '') +
                                     (s.kayit ? ' <span style="color:var(--muted);font-weight:400">(' + esc(s.kayit + '/' + s.satir) + ')</span>' : '') + '</td>' +
                                 '<td style="text-align:right">' + fmt(s.adet || 0) + '</td>' +
                                 '<td style="font-size:.74rem;color:#92400e">' + esc(s.neden || '') + '</td></tr>';
                         });
-                        html += '</tbody></table></div>';
+                        blok += '</tbody></table></div>';
                     }
                     var snc = det.sonuclar || [];
                     if (snc.length) {
-                        html += '<details style="margin:4px 0 4px 14px"><summary style="cursor:pointer;font-size:.76rem;color:var(--muted)">Tüm sonuçlar (' + snc.length + ')</summary>';
+                        blok += '<details style="margin:4px 0 4px 14px"><summary style="cursor:pointer;font-size:.76rem;color:var(--muted)">Tüm sonuçlar (' + snc.length + ')</summary>';
                         snc.forEach(function (s) {
                             var c = s.sonuc === 'ok' ? '#157A3C' : (s.sonuc === 'atlandi' ? '#5c6675' : '#B4231C');
-                            html += '<div style="font-size:.74rem;padding:1px 0;color:' + c + '">' +
+                            blok += '<div style="font-size:.74rem;padding:1px 0;color:' + c + '">' +
                                 esc((s.faz ? s.faz + ' · ' : '') + (s.referans || s.article || s.kayit || '') + ' · ' + fmt(s.adet || 0)) +
                                 ' — ' + esc(s.mesaj || s.sonuc) + '</div>';
                         });
-                        html += '</details>';
+                        blok += '</details>';
                     }
-                    html += '</details>';
+                    blok += '</details>';
+                    if (trMi) htmlTr += blok; else html += blok;
                 });
-                el.innerHTML = html;
+                if (el)   el.innerHTML = html;
+                if (elTr) elTr.innerHTML = htmlTr;
             } catch (e) {
-                el.innerHTML = '<div style="color:#b91c1c;font-size:.8rem">⚠ Bağlantı hatası</div>';
+                var hm = '<div style="color:var(--danger);font-size:.8rem">⚠ Bağlantı hatası</div>';
+                if (el) el.innerHTML = hm;
+                if (elTr) elTr.innerHTML = hm;
             }
         }
         async function as4OtoToggle(tur, alanlar) {
@@ -10646,29 +10707,66 @@ window.__I18N_SOZLUK__ = {
             });
             info.textContent = gunler.map(function (g) { return as4GunEtiket(g.tarih); }).join(' · ');
 
-            function cip(renk, txt) {
-                return '<span style="border:1px solid ' + renk + '55;background:' + renk + '18;color:' + renk +
-                    ';border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">' + txt + '</span>';
+            function cip(renk, txt, sonuk) {
+                return '<span style="border:1px solid ' + renk + '55;background:' + renk + (sonuk ? '10' : '18') + ';color:' + renk +
+                    ';border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:' + (sonuk ? '600' : '800') +
+                    (sonuk ? ';opacity:.75' : '') + '">' + txt + '</span>';
             }
             var copBek = _as4CopBekleyen.filter(function (c) { return !c.verildi; });   // COP verilmemiş (pending) hurdalar
-            var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px">' +
-                cip('#157A3C', '📤 Launch bekleyen: ' + _as4Bekleyen.length) +
-                cip('#2563eb', '📦 CFI bekleyen: ' + _as4CfiBekleyen.length) +
-                cip('#5c6675', '✅ Teyitli: ' + teyitli.length) +
-                cip('#8A5A05', '⚠️ Dikkat: ' + dikkat.length) +
-                cip('#6D28D9', '🔗 Ara op: ' + araList.length) +
-                (copBek.length ? cip('#B4231C', '♻ Hurda COP: ' + copBek.length) : '') + '</div>';
+
+            // ── SAYFA YENİDEN DÜZENLENDİ (2026-07-29) ────────────────────────────
+            // Eskiden bloklar üretim sırasına göre diziliyordu: önce kuyruk, sonra
+            // hurda, sonra "dikkat", en sonda tamamlananlar. Kuyruk boşken sayfa
+            // koca bir "🎉 kuyruk temiz" ile açılıyor, SENDEN karar bekleyen satırlar
+            // onun ALTINDA kalıyordu — kullanıcı: "karışık ve anlaması zor".
+            // Artık AKSİYON ÖNCELİKLİ: üstte tek cümlelik "şimdi ne yapmalıyım",
+            // hemen altında senden karar bekleyenler, sonra robot kuyruğu, en altta
+            // tamamlanmış/bilgi amaçlı katlanır bloklar.
+            // Bölümler kendi biriktiricilerinde toplanır (sDikkat, sKuyruk, …) ve
+            // aşağıda yeniden dizilir — üretilen HTML ve iş mantığı DEĞİŞMEDİ.
+            var sKuyruk = '', sCop = '', sDikkat = '', sTeyitli = '', sBilgi = '', sGonderim = '';
+            var bekToplam = _as4Bekleyen.length + _as4CfiBekleyen.length;
+
+            function serit(renk, zemin, ikon, baslik, alt) {
+                return '<div style="display:flex;gap:12px;align-items:flex-start;margin:12px 0 10px;padding:14px 16px;' +
+                    'background:' + zemin + ';border:1px solid ' + renk + '44;border-left:3px solid ' + renk + ';border-radius:10px">' +
+                    '<span style="font-size:1.3rem;line-height:1.1">' + ikon + '</span><div>' +
+                    '<div style="font-weight:700;font-size:.95rem;color:' + renk + '">' + baslik + '</div>' +
+                    '<div style="font-size:.8rem;color:var(--muted);margin-top:2px">' + alt + '</div></div></div>';
+            }
+            var ustSerit;
+            if (dikkat.length) {
+                ustSerit = serit('#8A5A05', 'var(--warn-soft)', '⚠️',
+                    dikkat.length + ' satır senden karar bekliyor',
+                    'Robot bunlara dokunmaz — referans kodu AS400 ile uyuşmuyor ya da teyit durumu belirsiz. Aşağıdaki tabloda düzelt veya işaretle.');
+            } else if (bekToplam || copBek.length) {
+                ustSerit = serit('#6D28D9', 'var(--primary-soft)', '📤',
+                    'Robota gönderilmeye hazır: ' + bekToplam + ' teyit' + (copBek.length ? ' + ' + copBek.length + ' hurda (COP)' : ''),
+                    'Satırları seçip gönder. Akşam 17:10 otomatik koşusu da bu kuyruğu işler.');
+            } else {
+                ustSerit = serit('#157A3C', 'var(--success-soft)', '✅',
+                    'Kuyruk temiz — yapılacak bir şey yok',
+                    'Bu aralıktaki üretimlerin teyidi verilmiş. Ayrıntı için aşağıdaki katlanır bölümlere bakabilirsin.');
+            }
+
+            // Özet çipleri: aksiyon gerektirenler ÖNDE ve dolu, tamamlananlar soluk
+            var cipler = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 6px">' +
+                (dikkat.length  ? cip('#8A5A05', '⚠️ Karar bekleyen: ' + dikkat.length) : '') +
+                (_as4Bekleyen.length    ? cip('#157A3C', '📤 Launch bekleyen: ' + _as4Bekleyen.length) : '') +
+                (_as4CfiBekleyen.length ? cip('#1D4ED8', '📦 CFI bekleyen: ' + _as4CfiBekleyen.length) : '') +
+                (copBek.length  ? cip('#B4231C', '♻ Hurda COP: ' + copBek.length) : '') +
+                cip('#4E4C63', '✅ Teyitli: ' + teyitli.length, true) +
+                (araList.length ? cip('#4E4C63', '🔗 Ara op: ' + araList.length, true) : '') + '</div>';
 
             // ── 1) TEYIT BEKLEYENLER (launch + CFI aksiyon alanı) ──
             if (!_as4Bekleyen.length && !_as4CfiBekleyen.length) {
-                html += '<div class="empty" style="padding:22px 0"><span class="empty-icon">🎉</span>Teyit bekleyen üretim yok — kuyruk temiz.</div>' +
-                    '<div id="as4-gonder-sonuc"></div>';
+                sKuyruk += '<div id="as4-gonder-sonuc"></div>';
             } else {
                 if (_as4Bekleyen.length) {
-                html += '<h4 style="margin:16px 0 8px;color:#065f46;font-size:.9rem">📤 Launch teyidi bekleyenler (' + _as4Bekleyen.length + ')' +
+                sKuyruk += '<h4 style="margin:16px 0 8px;color:#065f46;font-size:.9rem">📤 Launch teyidi bekleyenler (' + _as4Bekleyen.length + ')' +
                     ' <a onclick="as4TumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                     ' <a onclick="as4TumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
-                html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                sKuyruk += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                     '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
                     '<th style="text-align:right">Üretilen</th><th>AS400 → Launch</th>' +
                     '<th style="text-align:right">Launch Adedi</th><th style="text-align:right">Teyitli</th>' +
@@ -10690,7 +10788,7 @@ window.__I18N_SOZLUK__ = {
                     var gunU = b.bugunMu ? ' <span style="color:#92400e" title="Gün bitmeden teyit önerilmez">⚠</span>' : '';
                     // ÖNERİ: bu teyit launch'ı tamamlıyor mu? (gönderilecek >= kalan-1) → S öner
                     var onerS = (r.adet >= l0.kalan - 1);
-                    html += '<tr>' +
+                    sKuyruk += '<tr>' +
                         '<td><input type="checkbox" id="as4-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(r.bolum)) + '</td>' +
@@ -10706,22 +10804,22 @@ window.__I18N_SOZLUK__ = {
                             '<option value="S"' + (onerS ? ' selected' : '') + '>S · KAPAT</option></select></td>' +
                         '</tr>';
                 });
-                html += '</tbody></table></div>';
+                sKuyruk += '</tbody></table></div>';
                 }
 
                 // 📦 CFI bekleyenler — launch'sız üretim, seçilebilir tablo (kullanıcı 2026-07-20)
                 if (_as4CfiBekleyen.length) {
-                    html += '<h4 style="margin:16px 0 8px;color:#1D4ED8;font-size:.9rem">📦 CFI bekleyenler — launch\'sız üretim (' + _as4CfiBekleyen.length + ')' +
+                    sKuyruk += '<h4 style="margin:16px 0 8px;color:#1D4ED8;font-size:.9rem">📦 CFI bekleyenler — launch\'sız üretim (' + _as4CfiBekleyen.length + ')' +
                         ' <a onclick="as4CfiTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                         ' <a onclick="as4CfiTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
-                    html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                    sKuyruk += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                         '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
                         '<th style="text-align:right">Üretilen</th><th>AS400 Kodu (CFI hedefi)</th>' +
                         '<th style="text-align:right;width:96px">Gönderilecek</th></tr></thead><tbody>';
                     _as4CfiBekleyen.forEach(function (b, i) {
                         var r = b.r;
                         var gunU = b.bugunMu ? ' <span style="color:#92400e" title="Gün bitmeden teyit önerilmez">⚠</span>' : '';
-                        html += '<tr>' +
+                        sKuyruk += '<tr>' +
                             '<td><input type="checkbox" id="as4-cfi-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                             '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
                             '<td>' + esc(bolumAdi(r.bolum)) + '</td>' +
@@ -10737,10 +10835,10 @@ window.__I18N_SOZLUK__ = {
                             '<td style="text-align:right"><input type="number" id="as4-cfi-adet-' + i + '" value="' + r.adet + '" min="1" class="rt-row-input" style="width:80px;text-align:right"></td>' +
                             '</tr>';
                     });
-                    html += '</tbody></table></div>';
+                    sKuyruk += '</tbody></table></div>';
                 }
 
-                html += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
+                sKuyruk += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
                     '<button class="btn btn-primary" id="as4-gonder-btn" onclick="as4Gonder()">📤 Seçilenleri AS400\'e Gönder</button>' +
                     '<button class="btn" id="as4-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--danger);color:#fff;border-color:var(--danger)">⏹ Durdur</button>' +
                     '<span style="font-size:.76rem;color:var(--muted)">Sıra: <b style="color:#065f46">LAUNCH</b> → <b style="color:#1D4ED8">CFI</b> → en son <b style="color:#b91c1c">♻ HURDA (COP)</b>. <b style="color:#065f46">A</b> = launch açık kalır · <b style="color:#b91c1c">S</b> = KAPANIR (kalan ≈ gönderilecek satırlarda otomatik önerilir).</span></div>' +
@@ -10750,12 +10848,12 @@ window.__I18N_SOZLUK__ = {
             // ── 1b) ♻ HURDA → COP (her zaman render — hurdalı satırlar onaylı üretimde
             // olabilir, normal kuyrukta çıkmaz). Ayrı buton; /cop_gonder + dedup kullanır. ──
             if (copBek.length) {
-                html += '<h4 style="margin:20px 0 8px;color:#b91c1c;font-size:.9rem">♻ Hurda → COP bekleyen (' + copBek.length + ')' +
+                sCop += '<h4 style="margin:20px 0 8px;color:#b91c1c;font-size:.9rem">♻ Hurda → COP bekleyen (' + copBek.length + ')' +
                     (_as4CopBekleyen.length > copBek.length ? ' <span style="color:#065f46;font-size:.74rem;font-weight:700">· ✅ ' + (_as4CopBekleyen.length - copBek.length) + ' zaten COP verilmiş</span>' : '') +
                     ' <span style="font-weight:500;color:var(--muted);font-size:.74rem">— hurda (nok) adetleri COP olarak girilir; zaten girilmişler gönderimde atlanır (dedup)</span>' +
                     ' <a onclick="as4CopTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                     ' <a onclick="as4CopTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
-                html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                sCop += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                     '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
                     '<th>Article (COP hedefi)</th><th style="text-align:right;width:96px">Hurda</th></tr></thead><tbody>';
                 _as4CopBekleyen.forEach(function (c, i) {
@@ -10763,7 +10861,7 @@ window.__I18N_SOZLUK__ = {
                     var sec = !c.bugunMu;   // geçmiş gün seçili; article editable olduğu için varyant da seçilebilir
                     var uyari = c.supheli ? ' <span style="color:#92400e;font-size:.7rem;font-weight:800" title="Varyant eşleşme — üretilen kod yazıldı; AS400 kodu farklıysa aşağıdaki alandan düzelt">⚠ kod?</span>' : '';
                     var gunU = c.bugunMu ? ' <span style="color:#92400e" title="Gün bitmeden önerilmez">⚠</span>' : '';
-                    html += '<tr>' +
+                    sCop += '<tr>' +
                         '<td><input type="checkbox" id="as4-cop-cb-' + i + '"' + (sec ? ' checked' : '') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(c.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(c.bolum)) + '</td>' +
@@ -10772,15 +10870,15 @@ window.__I18N_SOZLUK__ = {
                         '<td style="text-align:right"><input type="number" id="as4-cop-adet-' + i + '" value="' + c.adet + '" min="1" class="rt-row-input" style="width:78px;text-align:right;color:#b91c1c;font-weight:800"></td>' +
                         '</tr>';
                 });
-                html += '</tbody></table></div>';
-                html += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
+                sCop += '</tbody></table></div>';
+                sCop += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
                     '<button class="btn" id="as4-cop-gonder-btn" onclick="as4CopGonder()" style="background:var(--danger);color:#fff;border-color:var(--danger)">♻ Seçili hurdaları COP olarak gönder</button>' +
                     '<button class="btn" id="as4-cop-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--primary-hover);color:#fff;border-color:var(--primary-hover)">⏹ Durdur</button>' +
                     '<span style="font-size:.76rem;color:var(--muted)">COP hareket tarihi = <b>bugün</b> (hurda ne zaman girilirse o gün defterlenir). Session B\'nin boşta olduğundan emin ol.</span></div>' +
                     '<div id="as4-cop-sonuc"></div>';
             } else if (_as4CopBekleyen.length) {
                 // Tüm hurdalar zaten COP verilmiş — pending yok; boş tablo yerine kısa bilgi.
-                html += '<div style="margin:18px 0 4px;color:#065f46;font-size:.86rem;font-weight:700">♻ ✅ Bu aralıktaki tüm hurdalar zaten COP verilmiş (' + _as4CopBekleyen.length + ' satır).</div>';
+                sCop += '<div style="margin:18px 0 4px;color:#065f46;font-size:.86rem;font-weight:700">♻ ✅ Bu aralıktaki tüm hurdalar zaten COP verilmiş (' + _as4CopBekleyen.length + ' satır).</div>';
             }
 
             // ── 2) DIKKAT (robot dokunmaz) ──
@@ -10790,8 +10888,8 @@ window.__I18N_SOZLUK__ = {
                     zombi:   ['#B4231C', 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — S ile kapatın; üretim sürecekse yeni launch alınmalı'],
                     olasi:   ['#8A5A05', 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin']
                 };
-                html += '<h4 style="margin:18px 0 8px;color:#92400e;font-size:.9rem">⚠️ Dikkat gerektirir (' + dikkat.length + ') — robot bunlara dokunmaz</h4>';
-                html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                sDikkat += '<h4 style="margin:18px 0 8px;color:#92400e;font-size:.9rem">⚠️ Dikkat gerektirir (' + dikkat.length + ') — robot bunlara dokunmaz</h4>';
+                sDikkat += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                     '<th>Gün</th><th>Bölüm</th><th>Referans</th><th style="text-align:right">Üretilen</th>' +
                     '<th>AS400 → Launch</th><th>Neden</th></tr></thead><tbody>';
                 dikkat.forEach(function (x) {
@@ -10799,7 +10897,7 @@ window.__I18N_SOZLUK__ = {
                     var l = x.l || {};
                     var hrk = (l.zaten_hareket || []).map(function (h) { return h.tarih + ': ' + fmt(h.adet) + ' (L' + h.launch + ')'; }).join(', ');
                     var isrD = x.r.isaret || {};
-                    html += '<tr><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
+                    sDikkat += '<tr><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
                             (isrD.durum === 'kontrol' ? ' <span style="color:#065f46;font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
@@ -10815,17 +10913,17 @@ window.__I18N_SOZLUK__ = {
                         (hrk ? '<div style="font-size:.7rem;color:var(--dim)">' + esc(hrk) + '</div>' : '') + '</td>' +
                         '<td style="font-size:.76rem;color:' + t[0] + ';font-weight:700">' + esc(t[1]) + '</td></tr>';
                 });
-                html += '</tbody></table></div>';
+                sDikkat += '</tbody></table></div>';
             }
 
             // ── 3) TEYIDI VERILMIS (denetim, katlanır) ──
             if (teyitli.length) {
-                html += '<details style="margin-top:16px"><summary style="cursor:pointer;color:#64748b;font-weight:800;font-size:.9rem">✅ Teyidi verilmiş (' + teyitli.length + ') — denetim için aç</summary>';
-                html += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
+                sTeyitli += '<details style="margin-top:16px"><summary style="cursor:pointer;color:#64748b;font-weight:800;font-size:.9rem">✅ Teyidi verilmiş (' + teyitli.length + ') — denetim için aç</summary>';
+                sTeyitli += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
                     '<th>Gün</th><th>Bölüm</th><th>Referans</th><th style="text-align:right">Üretilen</th><th>ERP teyit hareketi</th></tr></thead><tbody>';
                 teyitli.forEach(function (x) {
                     var hrk = (x.l.zaten_hareket || []).map(function (h) { return h.tarih + ' → ' + fmt(h.adet) + ' adet (L' + h.launch + ')'; }).join('<br>');
-                    html += '<tr style="opacity:.85"><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
+                    sTeyitli += '<tr style="opacity:.85"><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
                             (x.r.isaret ? ' <span style="color:#065f46;font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
@@ -10833,51 +10931,56 @@ window.__I18N_SOZLUK__ = {
                         '<td style="text-align:right">' + fmt(x.r.adet) + '</td>' +
                         '<td style="font-size:.78rem;color:#64748b">' + hrk + '</td></tr>';
                 });
-                html += '</tbody></table></div></details>';
+                sTeyitli += '</tbody></table></div></details>';
             }
 
             // ── 4) BILGI (katlanır) — launch'sız üretimler artık CFI kuyruğunda ──
             if (araList.length || digerList.length || haricList.length) {
-                html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:#1D4ED8;font-weight:800;font-size:.9rem">ℹ️ Bilgi: ara operasyon (' + araList.length + ') · teyit gerekmez (' + haricList.length + ') · diğer (' + digerList.length + ')</summary><div style="margin-top:8px;font-size:.82rem">';
+                sBilgi += '<details style="margin-top:12px"><summary style="cursor:pointer;color:#1D4ED8;font-weight:800;font-size:.9rem">ℹ️ Bilgi: ara operasyon (' + araList.length + ') · teyit gerekmez (' + haricList.length + ') · diğer (' + digerList.length + ')</summary><div style="margin-top:8px;font-size:.82rem">';
                 if (haricList.length) {
-                    html += '<div style="color:#64748b;font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez (kalıcı işaret) — robot dokunmaz:</div>';
+                    sBilgi += '<div style="color:#64748b;font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez (kalıcı işaret) — robot dokunmaz:</div>';
                     haricList.forEach(function (x) {
-                        html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
+                        sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
                             '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
                             'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'kalici\',\'gerek_yok\',\'\',true)" ' +
                             'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" title="Kalıcı işareti kaldır, tekrar teyit listesine gelsin">↩ geri al</button></div>';
                     });
                 }
                 if (araList.length) {
-                    html += '<div style="color:#6D28D9;font-weight:800;margin:10px 0 4px">🔗 Ara operasyon — teyit son op üretiminde verilir:</div>';
-                    araList.forEach(function (x) { html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet, son op: ' + (x.r.son_op || '?') + ')' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>'; });
+                    sBilgi += '<div style="color:#6D28D9;font-weight:800;margin:10px 0 4px">🔗 Ara operasyon — teyit son op üretiminde verilir:</div>';
+                    araList.forEach(function (x) { sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet, son op: ' + (x.r.son_op || '?') + ')' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>'; });
                 }
                 if (digerList.length) {
-                    html += '<div style="color:var(--muted);font-weight:800;margin:10px 0 4px">Diğer (durum 45/50 — TK1 akışı):</div>';
+                    sBilgi += '<div style="color:var(--muted);font-weight:800;margin:10px 0 4px">Diğer (durum 45/50 — TK1 akışı):</div>';
                     digerList.forEach(function (x) {
-                        html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet)' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>';
+                        sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet)' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>';
                     });
                 }
-                html += '</div></details>';
+                sBilgi += '</div></details>';
             }
 
             // ── 5) SON ROBOT GONDERIMLERI ──
             var sg = d.son_gonderimler || [];
             if (sg.length) {
-                html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">🗒 Son robot gönderimleri (' + sg.length + ')</summary>';
-                html += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
+                sGonderim += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">🗒 Son robot gönderimleri (' + sg.length + ')</summary>';
+                sGonderim += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
                     '<th>Zaman</th><th>Üretim günü</th><th>Referans</th><th>Launch</th><th style="text-align:right">Adet</th><th>Sonuç</th><th>Kim</th></tr></thead><tbody>';
                 sg.forEach(function (s) {
                     var renk = s.sonuc === 'ok' ? '#157A3C' : (s.sonuc === 'atlandi' ? '#5c6675' : '#B4231C');
-                    html += '<tr><td style="font-size:.75rem;white-space:nowrap">' + esc((s.created_at || '').slice(5, 16)) + '</td>' +
+                    sGonderim += '<tr><td style="font-size:.75rem;white-space:nowrap">' + esc((s.created_at || '').slice(5, 16)) + '</td>' +
                         '<td style="font-size:.78rem">' + esc(s.uretim_tarihi) + '</td><td>' + esc(s.referans) + '</td>' +
                         '<td>' + esc(s.yil + '-' + s.launch_no) + '</td><td style="text-align:right">' + fmt(s.adet) + '</td>' +
                         '<td style="color:' + renk + ';font-weight:700">' + esc(s.sonuc) + '</td>' +
                         '<td style="font-size:.78rem">' + esc(s.olusturan || '') + '</td></tr>';
                 });
-                html += '</tbody></table></div></details>';
+                sGonderim += '</tbody></table></div></details>';
             }
-            icerik.innerHTML = html;
+            // ── DİZİLİM: aksiyon önce, tamamlananlar sonra ──
+            // sDikkat  : senden karar bekleyenler (robot dokunmaz)
+            // sKuyruk  : robota gönderilecek launch + CFI  (as4-gonder-sonuc burada)
+            // sCop     : hurda → COP kuyruğu
+            // sTeyitli / sBilgi / sGonderim : katlanır, denetim amaçlı
+            icerik.innerHTML = ustSerit + cipler + sDikkat + sKuyruk + sCop + sTeyitli + sBilgi + sGonderim;
             as4DurumKontrol();   // devam eden gönderim varsa Durdur'u göster
         }
 

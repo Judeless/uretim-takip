@@ -121,9 +121,32 @@ def gunluk_mail_calistir():
         traceback.print_exc()
 
 
-def _planli_dongu(hour, minute, fn, etiket):
-    """Bir thread olarak çalışır, her gün belirtilen saatte fn() çağırır."""
-    print(f'[SCHED] {etiket}: her gün {hour:02d}:{minute:02d}\'da planlandı')
+def _planli_dongu(hour, minute, fn, etiket, kacirildi_mi=None):
+    """Bir thread olarak çalışır, her gün belirtilen saatte fn() çağırır.
+
+    TELAFİ (2026-07-29): eskiden bu döngü, planlı saat GEÇMİŞSE doğrudan ertesi
+    günü bekliyordu. Uygulama o saatte ayakta değilse (restart, çökme, sunucu
+    bakımı) o günün koşusu SESSİZCE kayboluyordu — üstelik iş hiç çalışmadığı
+    için panele atlama kaydı bile düşmüyordu, yani "dün akşam neden olmadı"
+    sorusunun izi kalmıyordu.
+
+    kacirildi_mi: parametresiz, True/False dönen bir fonksiyon. Yalnız
+    "bugünün planlı saati geçmiş" durumunda çağrılır ve "bu iş bugün HİÇ
+    koşmadı mı?" sorusunu yanıtlar. True dönerse iş bir kez ÇALIŞTIRILIR.
+    Verilmezse telafi YAPILMAZ (eski davranış) — bu bilinçli: her iş idempotent
+    değil (örn. günlük rapor maili iki kez gönderilmemeli)."""
+    print(f'[SCHED] {etiket}: her gün {hour:02d}:{minute:02d}\'da planlandı'
+          + (' (telafili)' if kacirildi_mi else ''))
+    # ── Açılışta tek seferlik telafi kontrolü ──
+    if kacirildi_mi:
+        try:
+            now = datetime.now()
+            if now.replace(hour=hour, minute=minute, second=0, microsecond=0) <= now and kacirildi_mi():
+                print(f'[SCHED] {etiket}: bugünkü {hour:02d}:{minute:02d} KAÇIRILMIŞ '
+                      f'(uygulama o saatte ayakta değildi) → telafi çalıştırılıyor')
+                fn()
+        except Exception as e:
+            print(f'[SCHED] {etiket} telafi hatası: {e}')
     while True:
         try:
             now = datetime.now()
@@ -144,16 +167,20 @@ _started = False  # Yalnızca tek thread spawn etmek için
 
 def start_scheduler(ek_gorevler=None):
     """Flask başlangıcında çağrılır. Daemon thread'leri başlatır.
-    ek_gorevler: [(saat, dakika, fn, etiket), ...] — app.py'nin kendi planlı
-    işleri (örn. AS400 oto koşuları) buradan verilir; circular import olmaz."""
+    ek_gorevler: [(saat, dakika, fn, etiket), ...] veya
+                 [(saat, dakika, fn, etiket, kacirildi_mi), ...] — app.py'nin kendi
+    planlı işleri (örn. AS400 oto koşuları) buradan verilir; circular import olmaz.
+    5. eleman verilirse o iş için açılışta TELAFİ yapılır (bkz. _planli_dongu)."""
     global _started
     if _started:
         return
     _started = True
 
-    for i, (h, m, fn, etiket) in enumerate(ek_gorevler or []):
+    for i, gorev in enumerate(ek_gorevler or []):
+        h, m, fn, etiket = gorev[:4]
+        kacirildi_mi = gorev[4] if len(gorev) > 4 else None
         te = threading.Thread(
-            target=_planli_dongu, args=(h, m, fn, etiket),
+            target=_planli_dongu, args=(h, m, fn, etiket, kacirildi_mi),
             daemon=True, name=f'scheduler-ek-{i}'
         )
         te.start()

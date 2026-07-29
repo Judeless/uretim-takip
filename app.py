@@ -7020,6 +7020,32 @@ def _oto_config_yaz(cfg):
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
+def _oto_telafi_gerek_mi(kosu_turu):
+    """scheduler'a verilecek 'bugün kaçırıldı mı?' yordamını üretir (closure).
+
+    True döner ⇔ as400_oto_kosu'da BUGÜNE ait o türden HİÇ kayıt yok. Yani iş ne
+    çalıştı ne de atlandı → uygulama planlı saatte ayakta değildi.
+    Atlama da kayıt bıraktığı için (_oto_atlandi_kaydet), "ayar kapalıydı" durumu
+    telafi TETİKLEMEZ — kapalı iş zaten tekrar atlanacaktı, boşuna koşmasın."""
+    def _kontrol():
+        try:
+            _c = db_connect()
+            try:
+                r = _c.execute(
+                    "SELECT 1 FROM as400_oto_kosu WHERE tur=? "
+                    "AND date(created_at) = date('now','localtime') LIMIT 1",
+                    (kosu_turu,)
+                ).fetchone()
+                return r is None
+            finally:
+                _c.close()
+        except Exception as e:
+            # Okuyamadıysak telafi ETME — belirsizken robot koşturmak yanlış yön
+            print(f'[SCHED] telafi kontrolü okunamadı ({kosu_turu}): {e}')
+            return False
+    return _kontrol
+
+
 def _oto_atlandi_kaydet(tur, ozet_metin, neden):
     """Erken ÇIKIŞ (atlama) durumlarını da as400_oto_kosu'ya yazar — böylece Sabah
     Kontrol paneli 'hiç çalışmadı mı yoksa atladı mı' ayırt edilebilir (2026-07-28
@@ -7381,14 +7407,19 @@ if __name__ == '__main__':
             # saat DEĞİŞİKLİĞİ restart ister — thread saati burada okur).
             _ek = []
             _ocfg = _oto_config()
-            for _tur, _fn, _et, _vs in (
-                    ('transfer_iptal', oto_transfer_iptal_job, 'AS400 Transfer İptali (02→01)', (16, 45)),
-                    ('oto_teyit', oto_teyit_job, 'AS400 Oto Teyit Kuyruğu', (17, 10))):
+            # kosu_turu: as400_oto_kosu.tur — telafi kontrolü bu kayda bakar
+            for _tur, _fn, _et, _vs, _kt in (
+                    ('transfer_iptal', oto_transfer_iptal_job, 'AS400 Transfer İptali (02→01)', (16, 45), 'transfer'),
+                    ('oto_teyit', oto_teyit_job, 'AS400 Oto Teyit Kuyruğu', (17, 10), 'teyit')):
                 try:
                     _h, _m = (int(x) for x in str(_ocfg[_tur].get('saat') or '').split(':'))
                 except (TypeError, ValueError):
                     _h, _m = _vs
-                _ek.append((_h, _m, _fn, _et))
+                # TELAFİ: uygulama planlı saatte ayakta değilse (restart/çökme) o gün
+                # sessizce kaybolurdu. Açılışta "bugün hiç koşmadıysa bir kez çalıştır".
+                # Güvenli: her iki iş de kendi içinde mükerrer korumalı (as400_teyit_log
+                # 'ok' kaydı olan launch tekrar gönderilmez), ayrıca kapalıysa zaten atlar.
+                _ek.append((_h, _m, _fn, _et, _oto_telafi_gerek_mi(_kt)))
             start_scheduler(ek_gorevler=_ek)
         except Exception as _e:
             print(f'[SCHED] başlatılamadı: {_e}')
