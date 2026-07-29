@@ -1423,13 +1423,27 @@ def panel_kullanici_sil(uid):
 
 @app.route('/logo')
 def logo_serve():
-    """Şirket logosu (Cofle Control Systems) — tercih sırası:
-    1) static/logo.png (resmi logo; 2026-07-21 kullanıcı isteğiyle kondu)
-    2) Masaüstündeki override PNG (varsa dosya değişimiyle güncellenebilir)
-    3) static/logo.svg (eski fallback)
-    ?tema=koyu → static/logo_koyu.png ('CONTROL SYSTEMS' yazısı BEYAZ —
-    koyu arkaplanlı ekranlar için; dashboard/andon/mobil bu varyantı kullanır)."""
+    """Marka logosu (COFLE FORGE — 2026-07-29 kimlik yenilemesi).
+
+    ?tema=koyu → static/logo_koyu.png   (wordmark BEYAZ; koyu zeminli ekranlar:
+                                         andon panoları, giriş ekranı)
+    ?tip=mark  → static/logo_mark.png   (SEMBOL tek başına, 512×512 kare)
+                 Sekme ikonu/PWA için: 1600×480 lockup 16×16'ya sıkışınca
+                 okunamayan bir çizgiye dönüşüyordu.
+    varsayılan → static/logo.png        (açık tema lockup)
+
+    Tercih sırası: istenen varyant → static/logo.png → masaüstü override →
+    static/logo.svg. static/logo.png BAŞTA: masaüstündeki eski 'LOGO_COFLE ONLY.png'
+    varsa bile repodaki resmi logo kazanır (handoff README'si tersini söylüyor,
+    o bilgi static/logo.svg'deki bayat yoruma dayanıyor — kod hep böyleydi)."""
     proje_dir = os.path.dirname(os.path.abspath(__file__))
+    if (request.args.get('tip') or '').strip() == 'mark':
+        mark = os.path.join(proje_dir, 'static', 'logo_mark.png')
+        if os.path.exists(mark):
+            return send_file(mark, mimetype='image/png')
+        mark_svg = os.path.join(proje_dir, 'static', 'logo_mark.svg')
+        if os.path.exists(mark_svg):
+            return send_file(mark_svg, mimetype='image/svg+xml')
     if (request.args.get('tema') or '').strip() == 'koyu':
         koyu = os.path.join(proje_dir, 'static', 'logo_koyu.png')
         if os.path.exists(koyu):
@@ -1453,7 +1467,15 @@ def logo_serve():
 @app.route('/apple-touch-icon.png')
 @app.route('/apple-touch-icon-precomposed.png')
 def favicon_serve():
-    """Tüm tarayıcı/iOS/Android ikon istekleri /logo'ya yönlendirilir."""
+    """Tüm tarayıcı/iOS/Android ikon istekleri SEMBOLE yönlendirilir.
+
+    Eskiden lockup (1600×480) dönülüyordu: 16×16 sekme ikonuna küçülünce
+    okunamayan bir çizgi oluyordu. logo_mark.png kare (512×512) ve tek başına
+    okunur. Kaynak: handoff README, madde 5."""
+    proje_dir = os.path.dirname(os.path.abspath(__file__))
+    mark = os.path.join(proje_dir, 'static', 'logo_mark.png')
+    if os.path.exists(mark):
+        return send_file(mark, mimetype='image/png')
     return logo_serve()
 
 
@@ -1470,20 +1492,25 @@ def web_manifest():
     tk1 = (lokasyon == 'TK1')
     return jsonify({
         "id": "/tk1" if tk1 else "/",
-        "name": "Cofle Manage TK1" if tk1 else "Cofle Manage",
+        "name": "Cofle Forge TK1" if tk1 else "Cofle Forge",
         "short_name": "Cofle TK1" if tk1 else "Cofle",
-        "description": "Cofle Manage Üretim Takip Sistemi" + (" — TK1" if tk1 else ""),
+        "description": "Cofle Forge Üretim Takip Sistemi" + (" — TK1" if tk1 else ""),
         "start_url": "/tk1" if tk1 else "/",
         "scope": "/",
         "display": "standalone",
         "orientation": "any",
-        "background_color": "#060414",
-        "theme_color": "#1c1f3a",
+        # Açılış (splash) renkleri UYGULAMANIN GERÇEK zeminiyle eşleşmeli: eskiden
+        # koyu mor (#060414/#1c1f3a) idi, operatör ekranı tezgah paletine geçince
+        # koyu bir splash'tan açık bir uygulamaya düşüyordu (göz alıyordu).
+        "background_color": "#ECEBE8",
+        "theme_color": "#ECEBE8",
         "lang": "tr",
+        # PWA ikonu ayrı asset: /logo lockup'ı (1600×480) kare ikon yuvasına
+        # sıkıştırılıyordu. pwa_icon.png 512×512 kare (handoff README, madde 6).
         "icons": [
-            {"src": "/logo", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-            {"src": "/logo", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-            {"src": "/logo", "sizes": "180x180", "type": "image/png", "purpose": "maskable"}
+            {"src": "/static/pwa_icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/pwa_icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/static/pwa_icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
         ]
     })
 

@@ -12,8 +12,8 @@ self.addEventListener('push', function (e) {
   catch (err) { d = { title: 'Cofle Manage', body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.title || 'Cofle Manage', {
     body: d.body || '',
-    icon: '/logo',
-    badge: '/logo',
+    icon: '/logo?tip=mark',
+    badge: '/logo?tip=mark',
     data: { url: d.url || '/' },
     vibrate: [180, 80, 180]
   }));

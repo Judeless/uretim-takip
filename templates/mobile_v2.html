@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Cofle Manage — Operatör{% if lokasyon == 'TK1' %} (TK1){% endif %}</title>
+  <title>Cofle Forge — Operatör{% if lokasyon == 'TK1' %} (TK1){% endif %}</title>
   <meta name="theme-color" content="#ECEBE8">
-  <link rel="icon" type="image/png" href="/logo">
-  <link rel="shortcut icon" href="/logo">
-  <link rel="apple-touch-icon" href="/logo">
+  <link rel="icon" type="image/png" href="/logo?tip=mark">
+  <link rel="shortcut icon" href="/logo?tip=mark">
+  <link rel="apple-touch-icon" href="/logo?tip=mark">
   <!-- Manifest lokasyona özel: TK1 sayfasından "ana ekrana ekle" → start_url /tk1
        (aksi halde kısayol / açar, lokasyon TK2'ye döner, TK2 operatörleri listelenir) -->
   <link rel="manifest" href="/manifest.json?lokasyon={{ lokasyon|default('TK2') }}">
@@ -1252,7 +1252,7 @@
     /* ── 11b) DİL SEÇİCİ (2026-07-29) ────────────────────────────────────────
        #dil-secici bir <select> olduğu için yukarıdaki genel form kuralını
        yiyordu: width:100% + (yamayla gelen) min-height:48px. Sonuç, header'ın
-       TAMAMINI kaplayan 48px'lik bir kutu ve genişliği 0'a ezilen "Cofle Manage"
+       TAMAMINI kaplayan 48px'lik bir kutu ve genişliği 0'a ezilen "Cofle Forge"
        başlığı. width:100% bu dosyada baştan beri vardı (koyu temada da seçici
        1157px'ti, başlık 0'dı) — yama onu 33px'ten 48px'e çıkarıp görünür kıldı.
        Burada form alanı değil, header'da küçük bir kontrol olarak ele alınıyor. */
@@ -2373,7 +2373,7 @@ window.__I18N_SOZLUK__ = {
       <img src="/logo" alt="Logo" onerror="this.style.display='none'">
     </div>
     <div>
-      <h1>Cofle Manage</h1>
+      <h1>Cofle Forge</h1>
       <p><span class="live-dot"></span><span id="tarih-goster">Yükleniyor...</span></p>
     </div>
     <select id="dil-secici" aria-label="Dil / Language" onchange="dilDegistir(this.value)"
@@ -2390,7 +2390,7 @@ window.__I18N_SOZLUK__ = {
     <div class="screen active" id="screen-A">
       <div class="home-hero">
         <div class="home-hero-icon">🏭</div>
-        <div class="home-hero-title">Cofle Manage</div>
+        <div class="home-hero-title">Cofle Forge</div>
         <div class="home-hero-sub">Üretim Takip Sistemi</div>
       </div>
 

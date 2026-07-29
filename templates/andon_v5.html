@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cofle Manage · {{ bolum_ad|default('Robot Kaynak') }} · Andon</title>
-  <link rel="icon" type="image/png" href="/logo">
-  <link rel="shortcut icon" href="/logo">
-  <link rel="apple-touch-icon" href="/logo">
+  <title>Cofle Forge · {{ bolum_ad|default('Robot Kaynak') }} · Andon</title>
+  <link rel="icon" type="image/png" href="/logo?tip=mark">
+  <link rel="shortcut icon" href="/logo?tip=mark">
+  <link rel="apple-touch-icon" href="/logo?tip=mark">
   <link rel="manifest" href="/manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -881,9 +881,9 @@ window.__I18N_SOZLUK__ = {
     "en": "Loading...",
     "it": "Caricamento..."
   },
-  "Cofle Manage Üretim Takip Sistemi aktif.": {
-    "en": "Cofle Manage Production Tracking System active.",
-    "it": "Sistema di monitoraggio produzione Cofle Manage attivo."
+  "Cofle Forge Üretim Takip Sistemi aktif.": {
+    "en": "Cofle Forge Production Tracking System active.",
+    "it": "Sistema di monitoraggio produzione Cofle Forge attivo."
   },
   "Andon Duyuru Mesajı": {
     "en": "Andon Announcement Message",
@@ -1206,7 +1206,7 @@ window.__I18N_SOZLUK__ = {
     <footer class="ticker">
       <span class="ticker-tag">Duyuru</span>
       <div class="ticker-marquee">
-        <div class="ticker-text paused" id="ticker-text">Cofle Manage Üretim Takip Sistemi aktif.</div>
+        <div class="ticker-text paused" id="ticker-text">Cofle Forge Üretim Takip Sistemi aktif.</div>
       </div>
       <span class="ticker-ts" id="ticker-ts">--:--:--</span>
     </footer>
@@ -1483,7 +1483,7 @@ window.__I18N_SOZLUK__ = {
   function setTicker(text) {
     const el = document.getElementById('ticker-text');
     el.classList.remove('paused');
-    el.textContent = text || 'Cofle Manage Üretim Takip Sistemi aktif.';
+    el.textContent = text || 'Cofle Forge Üretim Takip Sistemi aktif.';
   }
 
   // ── Robot/Hat/Makine listesi — 3 bolum icin de dashboard'daki sirali liste kullanilir

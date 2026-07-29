@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <defs>
+    <linearGradient id="cf-mark-grad" gradientUnits="userSpaceOnUse" x1="14" y1="56" x2="50" y2="8">
+      <stop offset="0" stop-color="#7c3aed"></stop>
+      <stop offset="1" stop-color="#a78bfa"></stop>
+    </linearGradient>
+  </defs>
+  <path d="M14 8 L44 8 L50 14 L50 19 L14 19 Z" fill="url(#cf-mark-grad)"></path>
+  <path d="M14 21 L25 21 L25 36 L14 36 Z" fill="url(#cf-mark-grad)"></path>
+  <path d="M14 38 L25 38 L25 50 L19 56 L14 56 Z" fill="url(#cf-mark-grad)"></path>
+  <path d="M24 31 L29 31 L32 24 L35 38 L38 31 L43 31" stroke="url(#cf-mark-grad)" stroke-width="4.2" stroke-miterlimit="2"></path>
+  <circle cx="48" cy="31" r="3.2" fill="#a78bfa"></circle>
+</svg>

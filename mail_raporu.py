@@ -282,7 +282,7 @@ def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol):
     """Tek SMTP oturumunda maili kurar ve gönderir. Hata fırlatır (çağıran yakalar)."""
     msg = MIMEMultipart()
     gonderen = cfg['gonderen']
-    msg['From'] = formataddr((cfg.get('gonderen_ad', 'Cofle Manage'), gonderen))
+    msg['From'] = formataddr((cfg.get('gonderen_ad', 'Cofle Forge'), gonderen))
     msg['To'] = ', '.join(alicilar)
     msg['Subject'] = konu
     msg.attach(MIMEText(govde, 'plain', 'utf-8'))
@@ -342,7 +342,7 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
         return {'basarili': False, 'mesaj': f'Excel oluşturulamadı: {e}'}
 
     tarih_tr = _tarih_tr(tarih)
-    konu = f'Cofle Manage — Günlük Üretim Raporu ({tarih_tr})'
+    konu = f'Cofle Forge — Günlük Üretim Raporu ({tarih_tr})'
     if satir:
         govde = (
             f'Merhaba,\n\n'
@@ -351,13 +351,13 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
             f'  • Kayıt satırı : {satir}\n'
             f'  • Toplam üretim: {toplam:,} adet\n\n'
             f'Detaylar ekteki Excel dosyasındadır.\n\n'
-            f'Bu e-posta Cofle Manage tarafından otomatik gönderilmiştir.'
+            f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
         ).replace(',', '.')
     else:
         govde = (
             f'Merhaba,\n\n'
             f'{tarih_tr} tarihinde sisteme kayıtlı üretim bulunmamaktadır.\n\n'
-            f'Bu e-posta Cofle Manage tarafından otomatik gönderilmiştir.'
+            f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
         )
 
     try:
