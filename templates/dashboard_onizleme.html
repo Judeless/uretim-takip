@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cofle Forge — Yönetici Paneli (v2 Önizleme)</title>
+    <title>Cofle Forge — Yönetici Paneli (UI v3 Önizleme)</title>
     <link rel="icon" type="image/png" href="/logo?tip=mark">
     <meta name="theme-color" content="#0f172a">
     <!-- Sinyal Analizi grafiği — eski paneldeki çizim kodu Chart.js + eklentilerini
@@ -21,46 +21,116 @@
            Işık dili andon_v5.html'den: radyal ışık küreleri, nokta
            doku, degrade vurgular, renkli glow şeritleri (kısık ton).
            ═══════════════════════════════════════════════════════ */
-        :root {
-            /* AÇIK TEMA (2026-07-28, kullanıcı: "endüstriyel programlar daha açık
-               temalı olmalı"). Endüstriyel yazılım dili: nötr açık gri zemin, BEYAZ
-               kartlar, koyu lacivert metin, mor birincil kimlik korunur. Vurgu
-               renkleri (başarı/uyarı/hata) beyaz üstünde okunacak KOYU tonlardır —
-               koyu temadaki pastel tonlar açık zeminde kaybolur.
-               Bölüm renkleri (BOLUMLER sabiti) SEMANTİKTİR, değişmedi. */
-            --bg: #eef1f6;               /* nötr açık gri-mavi zemin (göz yormaz) */
-            --card: #ffffff;             /* beyaz panel — endüstriyel netlik */
-            --card-border: rgba(15, 23, 42, 0.10);
-            --text: #0f172a;             /* koyu lacivert metin */
-            --muted: #475569;            /* ikincil metin — beyaz üstünde 7:1 */
-            --dim: #5c6675;              /* en soluk metin — yine de 5:1 */
-            --border: rgba(15, 23, 42, 0.12);
-            --border-subtle: rgba(15, 23, 42, 0.07);
-            --primary: #7c3aed;          /* mor kimlik — açık zemin için koyulaştırıldı */
-            --primary-hover: #6d28d9;
-            --success: #059669;
-            --danger: #dc2626;
-            --violet: #7c3aed;
-            --table-hover: rgba(124, 58, 237, 0.06);
-            --table-header: #f1f3f9;
-            --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.07);
-            --radius: 14px;
-            --font-main: 'Inter', 'Segoe UI', system-ui, sans-serif;
-            /* Vurgu renkleri (açık zeminde kontrastlı) */
-            --c-cyan: #0e7490;
-            --c-violet: #7c3aed;
-            --grad-1: linear-gradient(135deg, #0891b2 0%, #7c3aed 50%, #db2777 100%);
-            --grad-text: linear-gradient(180deg, #0f172a, #475569); /* koyu sayı degradesi */
-            /* Kart zemini: cam yerine DÜZ BEYAZ (açık temada cam efekti kirli görünür) */
-            --cam: #ffffff;
-            --cam-hover: #f8fafc;
-            --grad-violet: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
-            /* Bölüm ana renkleri — yalnız sidebar andon noktaları kullanır.
-               Tam renk sistemi (ana/parlak/mark tonları) JS'teki BOLUMLER sabitinde. */
-            --b-kaynak: #1d4ed8;
-            --b-montaj: #065f46;
-            --b-metal: #92400e;
-        }
+                :root {
+                    /* ═══════════════════════════════════════════════════════════════
+                       COFLE FORGE — "SERİN NÖTR" AÇIK TEMA · 2026-07-29
+                       Palet YENİ LOGODAN türetildi (design_handoff_cofle_forge_logo):
+                       gradyan #4F46E5 → #A78BFA, açık tema wordmark #1E1B3A.
+                       Önceki tezgah paleti eski turuncu logodan türetilmişti; logo
+                       değişince dayanağı kalmadı. TEZGAH'IN YAPISI KORUNDU (açık tema,
+                       yoğun tablo, süs katmanı yok, biçim kuralı, kontrast disiplini);
+                       değişen yalnız renk kimliği: ılık nötr + turuncu → serin nötr + mor.
+
+                       KURAL 1 DEĞİŞTİ: turuncu #EC6736 beyazda 3.20:1 olduğu için metin
+                                TAŞIYAMIYORDU. Mor #4F46E5 beyazda 5.70:1 → --brand artık
+                                metin de taşıyabilir. Yine de birincil METİN/eylem rengi
+                                --primary (#4F46E5, 7.10:1); --brand şerit/ikon/odak için.
+                       KURAL 2: BİÇİM = ANLAM. Durum → dolu yumuşak çip (radius 6px).
+                                Kimlik (bölüm) → outline pill / 3px sol çubuk (radius 999px).
+                                Bu kural montaj-yeşili ile OK-yeşilini, metal-amberi ile
+                                uyarı-amberini renkle değil BİÇİMLE ayırır.
+                       ═══════════════════════════════════════════════════════════════ */
+
+                    /* ── YÜZEYLER (serin nötr — morla aynı sıcaklık ailesi) ────────── */
+                    --bg:            #E9EBEF;  /* zemin · beyaz kart ayrımı 1.18:1 */
+                    --card:          #FFFFFF;
+                    --cam:           #FFFFFF;  /* ESKİ AD — açık temada cam efekti yok    */
+                    --cam-hover:     #FAFAFC;
+                    --surface-2:     #F4F5F7;  /* tablo başlığı, segment yuvası           */
+                    --card-border:   #D7DAE2;  /* kartı gölge değil ÇİZGİ ayırır          */
+                    --border:        #D7DAE2;  /* yapısal ayraç                           */
+                    --border-subtle: #ECEEF2;  /* tablo satır çizgisi                     */
+                    --border-input:  #8A8FA3;  /* beyazda 3.61:1 — form kenarlığı UI-AA ✓ */
+
+                    /* ── METİN (serin mürekkep; logonun wordmark'ı #1E1B3A) ────────── */
+                    --text:  #1E1B3A;  /* beyaz 18.25:1 · zemin 15.50:1 */
+                    --muted: #595E71;  /* beyaz  8.28:1 · zemin  7.03:1 */
+                    --dim:   #6A6F83;  /* beyaz  5.97:1 · zemin  5.07:1 — EN SOLUK METİN BİLE AA ✓ */
+
+                    /* ── MARKA / BİRİNCİL ─────────────────────────────────────────── */
+                    --brand:         #4F46E5;  /* LOGO GRADYANININ BAŞI · beyaz 5.70:1 · zemin 4.84:1 — şerit, ikon, odak rayı, grafik */
+                    --brand-rgb:     79, 70, 229;
+                    --primary:       #4F46E5;  /* beyaz 7.10:1 · zemin 6.03:1 · hue 262° — metin/eylem moru */
+                    --primary-hover: #4338CA;  /* beyaz 8.98:1 · zemin 7.63:1 */
+                    --primary-rgb:   79, 70, 229;
+                    --primary-soft:  #EEF0F6;  /* aktif nav/seçili satır zemini · üstünde --primary 6.06:1 ✓ */
+                    --primary-line:  #C7CBEA;  /* tint kenarlığı (metin değil)  */
+                    --violet:        #4F46E5;  /* ESKİ AD — artık gerçekten mor  */
+                    --c-violet:      #4F46E5;  /* ESKİ AD — marka rengi          */
+                    --c-cyan:        #0E7490;  /* ESKİ AD — artık DURUM DEĞİL, yalnız grafik */
+                    --focus-ring:    0 0 0 3px rgba(79, 70, 229, 0.32);
+
+                    /* ── DURUM RENKLERİ · yalnız DOLU ÇİP içinde, daima metinle ───── */
+                    --success: #15803D;  /* beyaz 5.41:1 · zemin 4.54:1 · hue 143° (montaj 160° → 17° ayrık) */
+                    --warn:    #A54D08;  /* beyaz 5.92:1 · zemin 4.97:1 · hue  38° */
+                    --danger:  #B91C1C;  /* beyaz 6.57:1 · zemin 5.51:1 · hue   3° */
+                    --success-soft: #EEF8F1;  /* üstünde --success 4.62:1 ✓ */
+                    --warn-soft:    #FDF6EA;  /* üstünde --warn    5.04:1 ✓ */
+                    --danger-soft:  #FDEFEF;  /* üstünde --danger  5.44:1 ✓ */
+                    /* NOT: --info YOK. Eski "cyan info" rolü lazer bölüm rengiyle birebir
+                       çakışıyordu → nötr çipe çevrildi (bkz. .badge-blue, .adm-btn.duzenle). */
+
+                    /* ── BÖLÜM RENKLERİ — SEMANTİK, hue KORUNDU, yalnız ton uyarlandı.
+                       Hepsi beyazda ≥5.36:1, zeminde ≥4.49:1 (etiket metni olarak da AA).
+                       JS'teki BOLUMLER sabiti bunlarla EŞİTLENMELİ (yapısal madde #3). ── */
+                    --b-kaynak:  #1D4ED8;  /* mavi    · beyaz 6.70 · zemin 5.62 · hue 224° */
+                    --b-montaj:  #07734F;  /* yeşil   · beyaz 5.88 · zemin 4.93 · hue 160° (eski #065f46 12px'te siyah okunuyordu) */
+                    --b-metal:   #8F6100;  /* amber   · beyaz 5.42 · zemin 4.54 · hue  41° (eski #92400e kahveydi) */
+                    --b-isleme:  #3F6212;  /* zeytin  · beyaz 7.08 · zemin 6.01 · hue  85° — ÇAKIŞMA NEDENİYLE TAŞINDI:
+                                              işleme #4F46E5 (mor) idi, birincil de mor olunca ikisi
+                                              birebir aynı renge düşüyordu. Zeytin metal 41° ve montaj
+                                              160°'ye 44°/75° uzak; kontrastı eski değere denk. */
+                    --b-lazer:   #0E7490;  /* cyan    · beyaz 5.36 · zemin 4.49 · hue 193° */
+                    --b-pres:    #9D174D;  /* pembe   · beyaz 7.88 · zemin 6.61 · hue 336° */
+                    --b-plastik: #A21CAF;  /* menekşe · beyaz 6.32 · zemin 5.30 · hue 295° (eski #7e22ce işleme moruyla eşitti) */
+                    --rgb-kaynak: 29,78,216;  --rgb-montaj: 7,115,79;   --rgb-metal: 143,97,0;
+                    --rgb-isleme: 63,98,18; --rgb-lazer: 14,116,144;  --rgb-pres: 157,23,77;
+                    --rgb-plastik: 162,28,175;
+
+                    /* ── TABLO ────────────────────────────────────────────────────── */
+                    --table-header:   #F4F5F7;              /* üstünde --muted 6.88:1 ✓ */
+                    --table-hover:    rgba(30, 27, 58, 0.05);  /* NÖTR — mor "aktif" anlamını korusun */
+                    --table-zebra:    #FAFAFC;              /* üstünde --text 16.74:1   */
+                    --table-selected: #EEF0F6;
+
+                    /* ── DEGRADELER · eski adlar KORUNDU, içerik markaya bağlandı ──
+                       .btn-primary / .lok-btn.active / .dil-btn.active / .ref-filtre-btn.active
+                       kurallarına HİÇ DOKUNMADAN mora geçer. */
+                    --grad-violet: linear-gradient(180deg, #4F46E5 0%, #4338CA 100%);  /* üstünde beyaz metin 4.78–6.68:1 ✓ */
+                    --grad-1:      linear-gradient(0deg, #1E1B3A, #1E1B3A);  /* .brand + .sidebar-logo h2 → DÜZ mürekkep (logo degrade değil) */
+                    --grad-text:   linear-gradient(180deg, #1E1B3A, #44415E); /* hero sayı — beyaz uç YOK, "görünmez sayı" hatası biter */
+
+                    /* ── GEOMETRİ (12 keyfi radius → 4 basamak) ───────────────────── */
+                    --radius:  10px;   /* kart, panel, filtre şeridi */
+                    --r-sm:     6px;   /* buton, input, rozet, segment */
+                    --r-lg:    12px;   /* modal, toast */
+                    --r-pill: 999px;   /* YALNIZ kimlik pill'i */
+                    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+                    --sidebar-w: 236px;
+                    --nav-h:      34px;   /* sidebar satırı */
+                    --sat-y:      32px;   /* tablo satırı  */
+
+                    /* ── GÖLGE: serin; mor kimlikle aynı sıcaklık ailesi ──────────── */
+                    --shadow:     0 1px 2px rgba(30, 27, 58, 0.06);
+                    --shadow-pop: 0 8px 24px rgba(30, 27, 58, 0.14);   /* yalnız modal/toast/detay */
+
+                    /* ── TİPOGRAFİ ────────────────────────────────────────────────
+                       'Inter' adı SİLİNDİ: dosyada tek bir @font-face/link yok, gerçekte
+                       Segoe UI render ediliyordu ve Inter için ayarlanmış -0.02/-0.03em
+                       tracking harfleri sıkıştırıyordu. Webfont EKLENMİYOR (fabrika ağı). */
+                    --font-main: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+                    --font-num:  var(--font-main);   /* tabular-nums ile birlikte kullanılır */
+                }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -115,7 +185,7 @@
         /* ── TASARIM ÖNİZLEME ROZETİ ── */
         .preview-badge {
             position: fixed; top: 10px; right: 12px; z-index: 500;
-            border: 1.5px solid var(--violet); color: #6d28d9;
+            border: 1.5px solid var(--violet); color: #4F46E5;
             background: rgba(139, 92, 246, 0.12);
             font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em;
             padding: 5px 12px; border-radius: 20px; text-transform: uppercase;
@@ -172,14 +242,14 @@
             border-top-right-radius: 4px; border-bottom-right-radius: 4px;
             transform: scaleY(0); transition: transform 0.2s ease;
         }
-        .nav-item:hover { color: var(--text); background: rgba(167, 139, 250, 0.07); }
+        .nav-item:hover { color: var(--text); background: rgba(79, 70, 229, 0.07); }
         .nav-item.active {
-            color: #6d28d9;
+            color: #4F46E5;
             background: linear-gradient(90deg, rgba(139, 92, 246, 0.18), rgba(139, 92, 246, 0.04));
         }
         .nav-item.active::before {
             transform: scaleY(1);
-            box-shadow: 0 0 18px rgba(167, 139, 250, 0.65); /* soldan mor glow çubuğu (andon dili) */
+            box-shadow: 0 0 18px rgba(79, 70, 229, 0.65); /* soldan mor glow çubuğu (andon dili) */
         }
         .nav-icon { font-size: 1.15rem; width: 22px; text-align: center; }
 
@@ -304,7 +374,7 @@
         }
         .fab-toplam::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.45) 30%, rgba(34, 211, 238, 0.45) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.45) 30%, rgba(14, 116, 144, 0.45) 70%, transparent);
         }
         .fab-toplam .ft-bas { display: flex; flex-direction: column; gap: 3px; padding-right: 24px; }
         .fab-toplam .ft-baslik { font-size: 0.72rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
@@ -486,13 +556,13 @@
         /* Üst bardaki bölüm seçici — breadcrumb'ın yanında, hafif vurgulu */
         .bolum-sec-ust {
             background: #f4f2fd; color: var(--text);
-            border: 1px solid rgba(124, 58, 237, 0.30);
+            border: 1px solid rgba(79, 70, 229, 0.30);
             border-radius: 9px; padding: 6px 10px; margin-left: 4px;
             font-family: var(--font-main); font-size: 0.78rem; font-weight: 800;
             outline: none; cursor: pointer; min-height: 34px; max-width: 190px;
         }
         .bolum-sec-ust:hover { border-color: var(--primary); }
-        .bolum-sec-ust:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12); }
+        .bolum-sec-ust:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12); }
         .geri-link {
             color: var(--muted); font-size: 0.82rem; font-weight: 700; cursor: pointer;
             text-decoration: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px;
@@ -519,10 +589,10 @@
         .kpi-card.k-hedef { --kpi-rgb: 96, 165, 250; }
         .kpi-card.k-durus { --kpi-rgb: 248, 113, 113; }
         .kpi-card.k-oee { --kpi-rgb: 34, 211, 238; }
-        .kpi-card.k-ok::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .kpi-card.k-ok::before { background: linear-gradient(90deg, #10b981, #15803D); }
         .kpi-card.k-hedef::before { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
         .kpi-card.k-durus::before { background: linear-gradient(90deg, #ef4444, #f87171); }
-        .kpi-card.k-oee::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+        .kpi-card.k-oee::before { background: linear-gradient(90deg, #06b6d4, #0E7490); }
         .kpi-label {
             font-size: 0.72rem; font-weight: 800; color: var(--muted);
             text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;
@@ -543,7 +613,7 @@
         .panel-card::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.35) 30%, rgba(34, 211, 238, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .panel-header {
             padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
@@ -567,9 +637,9 @@
             display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
             font-size: 0.72rem; font-weight: 700; white-space: nowrap;
         }
-        .badge-blue { background: rgba(59, 130, 246, 0.15); color: #2563eb; }
+        .badge-blue { background: rgba(59, 130, 246, 0.15); color: #1D4ED8; }
         .badge-orange { background: rgba(245, 158, 11, 0.15); color: #92400e; }
-        .badge-purple { background: rgba(139, 92, 246, 0.15); color: #7c3aed; }
+        .badge-purple { background: rgba(139, 92, 246, 0.15); color: #4F46E5; }
         .badge-red { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
 
         /* Duruş listesi — mini bar */
@@ -673,7 +743,7 @@
             font-size: 0.9rem; font-weight: 700; z-index: 9999;
             opacity: 0; pointer-events: none;
             transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.14), 0 0 30px rgba(167, 139, 250, 0.18);
+            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.14), 0 0 30px rgba(79, 70, 229, 0.18);
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast.ok { background: var(--success); color: #fff; border-color: transparent; }
@@ -703,7 +773,7 @@
         .modal::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.35) 30%, rgba(34, 211, 238, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .modal h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 16px; color: var(--text); }
         .modal label {
@@ -717,7 +787,7 @@
             transition: border-color 0.2s, box-shadow 0.2s; font-weight: 500; color-scheme: dark;
         }
         .modal input:focus, .modal select:focus, .modal textarea:focus {
-            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.18);
+            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
         }
         .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
         .modal-actions .btn { flex: 1; padding: 10px; min-height: 42px; border-radius: 10px; }
@@ -734,10 +804,10 @@
         .admin-table .adm-btn.duzenle, .detail-panel .adm-btn.duzenle {
             padding: 5px 9px; font-size: 0.76rem; font-weight: 700; border-radius: 8px;
             cursor: pointer; font-family: var(--font-main); white-space: nowrap;
-            background: rgba(34, 211, 238, 0.10); color: var(--c-cyan);
-            border: 1px solid rgba(34, 211, 238, 0.35);
+            background: rgba(14, 116, 144, 0.10); color: var(--c-cyan);
+            border: 1px solid rgba(14, 116, 144, 0.35);
         }
-        .admin-table .adm-btn.duzenle:hover, .detail-panel .adm-btn.duzenle:hover { background: rgba(34, 211, 238, 0.22); }
+        .admin-table .adm-btn.duzenle:hover, .detail-panel .adm-btn.duzenle:hover { background: rgba(14, 116, 144, 0.22); }
         .admin-table .adm-btn.sil {
             background: rgba(239, 68, 68, 0.10); color: #b91c1c;
             border: 1px solid rgba(239, 68, 68, 0.35);
@@ -758,7 +828,7 @@
         .ky-filtre::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.35) 30%, rgba(34, 211, 238, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .ky-filtre .f-group { display: flex; flex-direction: column; gap: 5px; }
         .ky-filtre .f-group label {
@@ -784,10 +854,10 @@
             cursor: pointer; font-family: var(--font-main); min-height: 40px;
             transition: all 0.2s;
         }
-        .alt-sekme-btn:hover { color: var(--text); background: rgba(167, 139, 250, 0.07); }
+        .alt-sekme-btn:hover { color: var(--text); background: rgba(79, 70, 229, 0.07); }
         .alt-sekme-btn.active {
-            color: #6d28d9; background: rgba(139, 92, 246, 0.14);
-            border-color: rgba(167, 139, 250, 0.40);
+            color: #4F46E5; background: rgba(139, 92, 246, 0.14);
+            border-color: rgba(79, 70, 229, 0.40);
         }
         .ky-pane { display: none; }
         .ky-pane.active { display: block; }
@@ -833,14 +903,14 @@
 
         /* ── REFERANSLAR SAYFASI (eski dashboard modülü, v2 kabuğunda) ── */
         .btn-outline { background: transparent; border: 1px solid rgba(15, 23, 42, 0.14); color: var(--muted); }
-        .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: rgba(167, 139, 250, 0.07); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: rgba(79, 70, 229, 0.07); }
         .ref-filtre-btn {
             padding: 6px 14px; border-radius: 8px; min-height: 32px;
             border: 1px solid var(--border); background: transparent;
             font-size: 0.72rem; font-weight: 700; color: var(--muted);
             cursor: pointer; transition: 0.2s; font-family: var(--font-main);
         }
-        .ref-filtre-btn:hover { background: rgba(167, 139, 250, 0.07); color: var(--text); }
+        .ref-filtre-btn:hover { background: rgba(79, 70, 229, 0.07); color: var(--text); }
         .ref-filtre-btn.active {
             background: var(--grad-violet); color: #fff; border-color: var(--primary);
             box-shadow: 0 2px 10px rgba(139, 92, 246, 0.4);
@@ -904,10 +974,10 @@
         #ref-takip-baslik {
             display: inline-flex; align-items: center; gap: 8px;
             margin: 12px 20px 4px; padding: 8px 14px; border-radius: 12px;
-            font-size: 1rem; font-weight: 800; color: #6d28d9;
-            background: linear-gradient(135deg, rgba(167, 139, 250, 0.12), rgba(34, 211, 238, 0.06));
-            border: 1px solid rgba(167, 139, 250, 0.28);
-            box-shadow: 0 4px 16px rgba(167, 139, 250, 0.18);
+            font-size: 1rem; font-weight: 800; color: #4F46E5;
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(14, 116, 144, 0.06));
+            border: 1px solid rgba(79, 70, 229, 0.28);
+            box-shadow: 0 4px 16px rgba(79, 70, 229, 0.18);
         }
         /* Tablo satırı içindeki inline dropdown/input (İş Yönetimi) */
         .rt-row-select, .rt-row-input {
@@ -920,7 +990,7 @@
         .rt-row-input { width: 60px; text-align: center; }
         .rt-row-select:focus, .rt-row-input:focus {
             outline: none; border-color: var(--c-cyan);
-            box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.20);
+            box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.20);
         }
         /* Durum pill butonları (inline stiller JS'te — RT_DURUMLAR) */
         #ref-takip-tbody button[onclick^="refDurumGuncelle"] {
@@ -996,10 +1066,10 @@
         #page-raporlar .form-control:focus { border-color: var(--primary); }
         /* Günlük Üretim Raporu butonu — v2 vurgu dili (violet→cyan degrade) */
         .btn-rapor-gunluk {
-            background: linear-gradient(135deg, #a78bfa, #22d3ee); color: #fff;
-            box-shadow: 0 4px 14px rgba(167, 139, 250, 0.30);
+            background: var(--grad-violet); color: #fff;
+            box-shadow: none;
         }
-        .btn-rapor-gunluk:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(167, 139, 250, 0.40); }
+        .btn-rapor-gunluk:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79, 70, 229, 0.40); }
 
         /* ── GÜNLÜK ÜRETİM RAPORU MODALI (eski dashboard kalıbı — v2 cam dili) ── */
         .report-modal-overlay {
@@ -1012,13 +1082,13 @@
             background: var(--card); border: 1px solid var(--card-border);
             padding: 30px; border-radius: var(--radius);
             max-width: 800px; width: 100%; max-height: 95vh; overflow-y: auto;
-            box-shadow: 0 30px 80px rgba(15, 23, 42, 0.14), 0 0 60px rgba(167, 139, 250, 0.14);
+            box-shadow: 0 30px 80px rgba(15, 23, 42, 0.14), 0 0 60px rgba(79, 70, 229, 0.14);
             position: relative;
         }
         /* İnce degrade üst çizgi (v2 modal ışık dili) */
         .report-modal-content::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; pointer-events: none;
-            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.35) 30%, rgba(34, 211, 238, 0.35) 70%, transparent);
+            background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.35) 30%, rgba(14, 116, 144, 0.35) 70%, transparent);
         }
         .report-controls {
             display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;
@@ -1102,6 +1172,279 @@
         @media (max-width: 480px) {
             .kpi-grid { grid-template-columns: 1fr; }
         }
+        /* ══════════════════════════════════════════════════════════════════
+           TEZGAH YAMASI — 2026-07-28. Bu blok stil etiketinin KAPANIŞINDAN HEMEN
+           ÖNCE olmalı (DİKKAT: bu yoruma kapanış etiketini METİN olarak yazma —
+           HTML ayrıştırıcısı stil bloğunu orada bitirir, yamanın tamamı düşer);
+           yukarı taşınırsa aynı özgüllükteki orijinal kurallar kazanır.
+           933 satır-içi style'a ULAŞMAZ (bkz. yapısal madde #4).
+           ══════════════════════════════════════════════════════════════════ */
+
+        /* ── 1) SÜS KATMANI: 5 katmanın 5'i kapalı ───────────────────────── */
+        body::before, body::after, .bg-noise { display: none !important; }
+        .panel-card::before, .modal::before, .ky-filtre::before,
+        .fab-toplam::before, .ft-hero::before,
+        .kpi-card::after, .bolum-kart::after { display: none; }
+        .bolum-kart::before { top: 0; bottom: 0; width: 3px; border-radius: 0; box-shadow: none; }
+        .bolum-kart:hover::before { box-shadow: none; }
+        .bolum-kart:hover { transform: none; box-shadow: var(--shadow); border-color: var(--border); }
+        #oee-arc { filter: none; }
+
+        /* ── 2) KOYU TEMA ARTIKLARI = GERÇEK AA HATALARI ─────────────────── */
+        .gfx-deger  { fill: var(--text); }    /* #f1f5f9 idi → beyaz kartta 1.1:1, GÖRÜNMEZ */
+        .gfx-etiket { fill: var(--dim); }     /* #94a3b8 idi → 2.6:1 */
+        #oee-txt-grad stop { stop-color: var(--text) !important; }  /* beyaz→#94a3c4 degrade, beyaz kartın üstünde */
+        select option, select optgroup { background-color: #fff; color: var(--text); }
+        input, select, textarea { color-scheme: light !important; }  /* 5 CSS + 7 satır-içi dark bildirimini birden ezer */
+        .toast { background: var(--text); color: #fff; border-color: transparent;
+                 border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
+        .modal-overlay { background: rgba(30, 27, 58, 0.45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+
+        /* ── 3) YERLEŞİM: 236px sidebar + yapışkan üst bar ───────────────── */
+        .sidebar { width: var(--sidebar-w); }
+        .main    { margin-left: var(--sidebar-w); }
+        .topbar  { position: sticky; top: 0; z-index: 80; padding-right: 0;
+                   background: var(--bg); border-bottom: 1px solid var(--border);
+                   margin: -24px -32px 16px; padding: 10px 32px; }
+
+        /* ── 4) SIDEBAR ──────────────────────────────────────────────────── */
+        .sidebar-logo { padding: 0 18px 14px; border-bottom: 2px solid var(--brand); }
+        .sidebar-logo img { height: 48px; margin-bottom: 8px; }
+        .sidebar-logo p { font-size: 0.6875rem; font-weight: 600; color: var(--dim);
+                          text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+        .nav-group { margin-top: 12px; }
+        .nav-group-title { padding: 8px 18px; font-size: 0.6875rem; font-weight: 600;
+                           letter-spacing: 0.09em; color: var(--dim); border-radius: var(--r-sm); }
+        .nav-group-title:hover { background: rgba(30, 27, 58, 0.04); color: var(--text); }
+        .nav-item { min-height: var(--nav-h); padding: 6px 18px; font-size: 0.8125rem;
+                    font-weight: 500; gap: 10px; }
+        .nav-item:hover { background: rgba(30, 27, 58, 0.05); color: var(--text); }
+        .nav-item.active { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+        .nav-item.active::before { width: 3px; background: var(--brand); box-shadow: none;
+                                   border-radius: 0 2px 2px 0; }
+        .nav-icon { font-size: 1rem; width: 20px; }
+        .sidebar-footer a { min-height: 36px; font-size: 0.8125rem; font-weight: 600; }
+
+        /* ── 5) ÜST BAR KONTROLLERİ ──────────────────────────────────────── */
+        .brand { font-size: 1rem; font-weight: 700; letter-spacing: 0; color: var(--text); }
+        .bolum-sec-ust { background: var(--surface-2); border: 1px solid var(--border-input);
+                         border-radius: var(--r-sm); font-size: 0.8125rem; font-weight: 600; }
+        .bolum-sec-ust:focus { border-color: var(--primary); box-shadow: var(--focus-ring); }
+        .lok-segment, .dil-grup, .tarih-grup { border-radius: var(--radius); box-shadow: none;
+                                               background: var(--card); }
+        .lok-btn { font-weight: 700; border-radius: var(--r-sm); }
+        .dil-grup .dil-btn { font-weight: 700; border-radius: var(--r-sm); }
+        .lok-btn.active, .dil-grup .dil-btn.active { box-shadow: none; }
+        .hizli-btn { font-weight: 600; border-radius: var(--r-sm); }
+        .tarih-grup input[type="date"] { border: 1px solid var(--border-input); border-radius: var(--r-sm); }
+
+        /* ── 6) KART / PANEL / KPI ───────────────────────────────────────── */
+        .panel-card, .kpi-card, .bolum-kart, .ky-filtre, .fab-toplam { border-radius: var(--radius); }
+        .panel-header { padding: 12px var(--sp-4); }
+        .panel-header h3 { font-size: 0.9375rem; font-weight: 600; }
+        .panel-header .adet-info { font-weight: 600; }
+        .kpi-card { padding: 16px 18px; }
+        .kpi-card::before { height: 3px; opacity: 1; }
+        .kpi-card.k-ok::before    { background: var(--success); }
+        .kpi-card.k-hedef::before { background: var(--b-kaynak); }
+        .kpi-card.k-durus::before { background: var(--danger); }
+        .kpi-card.k-oee::before   { background: #44415E; }
+        .kpi-label { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 8px; }
+        .kpi-value { font-size: 2.125rem; font-weight: 700; letter-spacing: -0.02em; }  /* BÜYÜK KALIR */
+        .kpi-sub   { font-size: 0.75rem; font-weight: 500; }
+        .fab-toplam .ft-deger  { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.02em; }
+        .fab-toplam .ft-baslik { font-weight: 700; }
+        .fab-toplam .ft-tarih  { font-weight: 700; }
+        .bk-ikon { width: 36px; height: 36px; border-radius: 8px; font-size: 1.15rem; box-shadow: none;
+                   background: color-mix(in srgb, var(--kart-renk, var(--primary)) 10%, #fff);
+                   color: var(--kart-renk, var(--primary));
+                   border: 1px solid color-mix(in srgb, var(--kart-renk, var(--primary)) 28%, transparent); }
+        .bk-ad      { font-size: 1rem; font-weight: 600; letter-spacing: 0; }
+        .bk-m-deger { font-size: 1.375rem; font-weight: 700; }
+        .bk-m-etiket{ font-weight: 600; }
+        .bk-op-avatar { color: var(--kart-renk, var(--text)); font-weight: 700; }
+        .bk-op { font-weight: 600; }
+
+        /* ── 7) TABLO: 44px → 32px satır, 400 gövde, zebra, nötr hover ───── */
+        table { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+        th { padding: 7px 14px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.05em; }
+        td { padding: 7px 14px; font-size: 0.8125rem; font-weight: 400; }
+        tbody tr:nth-child(even) td { background: var(--table-zebra); }
+        tbody tr:hover td { background: var(--table-hover); }
+        tr.secili td { background: var(--table-selected); }
+
+        /* ── 8) TİPOGRAFİ: 400 gövde geri geliyor, 800/900 emekli ────────── */
+        .kpi-value, .ft-deger, .bk-m-deger, .d-dk, .v-oee, .gfx-deger,
+        .sa-stat-deger, .meter-val {
+            font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; letter-spacing: -0.01em; }
+        .durus-ust .d-dk, .vardiya-satir .v-oee { font-weight: 700; }
+        .durus-ust, .vardiya-satir { font-weight: 500; }
+        .empty, .yukleniyor { font-weight: 500; }
+        .modal h3 { font-size: 1rem; font-weight: 600; }
+        .modal label { font-weight: 600; }
+
+        /* ── 9) BUTON / GİRİŞ ────────────────────────────────────────────── */
+        .btn { padding: 10px 18px; min-height: 38px; border-radius: var(--r-sm);
+               font-size: 0.8125rem; font-weight: 600; }
+        .btn-primary { box-shadow: none; }
+        .btn-primary:hover { filter: none; transform: none; background: var(--primary-hover); box-shadow: none; }
+        .btn-ghost { background: rgba(30, 27, 58, 0.05); border-color: var(--border); }
+        .modal input, .modal select, .modal textarea,
+        .bolum-sec, .ky-filtre select, .ky-filtre input {
+            border: 1px solid var(--border-input); border-radius: var(--r-sm); font-weight: 400; }
+        .modal input:focus, .modal select:focus, .modal textarea:focus {
+            border-color: var(--primary); box-shadow: var(--focus-ring); }
+        .admin-table .adm-btn, .detail-panel .adm-btn { border-radius: var(--r-sm); font-weight: 600; }
+        .admin-table .adm-btn.duzenle, .detail-panel .adm-btn.duzenle {
+            background: #fff; color: var(--muted); border: 1px solid var(--border); }
+        .admin-table .adm-btn.duzenle:hover, .detail-panel .adm-btn.duzenle:hover {
+            background: var(--surface-2); color: var(--primary); border-color: var(--primary); }
+        .admin-table .adm-btn.sil { background: var(--danger-soft); color: var(--danger);
+                                    border: 1px solid rgba(185, 28, 28, 0.28); }
+        .admin-table .adm-btn.sil:hover { background: #F2D8D5; }
+
+        /* ── 10) BİÇİM KURALI: durum = DOLU ÇİP · kimlik = OUTLINE PILL ──── */
+        .badge { border-radius: var(--r-sm); font-size: 0.75rem; font-weight: 600;
+                 padding: 3px 9px; border: 1px solid transparent; }
+        .badge-green  { background: var(--success-soft); color: var(--success); border-color: rgba(22,163,74,.22); }
+        .badge-orange { background: var(--warn-soft);    color: var(--warn);    border-color: rgba(165,77,8,.22); }
+        .badge-red    { background: var(--danger-soft);  color: var(--danger);  border-color: rgba(185,28,28,.22); }
+        .badge-purple { background: var(--primary-soft); color: var(--primary); border-color: var(--primary-line); }
+        .badge-blue   { background: rgba(30,27,58,.06);  color: var(--muted);   border-color: var(--border); }
+        .bolum-pill   { border-radius: var(--r-pill); border-width: 1px; font-size: 0.8125rem;
+                        font-weight: 600; padding: 7px 16px; background: #fff; }
+        .saha-rozet, .bk-op-fazla { border-radius: var(--r-sm); font-weight: 600; }
+
+        /* Sayfa ici bolum secici gizlenir; ust bardaki #bolum-sec-ust tek secici.
+           DOM'dan SILINMEZ: lokasyonGorunum() korumasiz getElementById kullaniyor. */
+        #page-bolum .bolum-sec { display: none; }
+
+        /* ── 10b) FİLTRE ŞERİDİ (2026-07-29) ─────────────────────────────
+           Tarih aralığı üst bardan indi. Şerit KART, içindeki .tarih-grup
+           DÜZ olur (kart-içinde-kart olmasın) — .tarih-grup'un genel kuralı
+           (bkz. madde 5) daha düşük özgüllükte olduğu için burada ezilir. */
+        .filtre-serit {
+            display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+            background: var(--card); border: 1px solid var(--card-border);
+            border-radius: var(--radius); padding: 8px var(--sp-3);
+            margin-bottom: var(--sp-4);
+        }
+        .filtre-serit .fs-etiket {
+            font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em;
+            text-transform: uppercase; color: var(--dim); white-space: nowrap;
+            padding-right: var(--sp-3); border-right: 1px solid var(--border-subtle);
+        }
+        .filtre-serit .tarih-grup {
+            background: transparent; border: 0; padding: 0; box-shadow: none;
+            border-radius: 0; gap: var(--sp-2);
+        }
+
+        /* ── 10c) KOYU TEMA ARTIKLARI — 2. TUR (2026-07-29) ────────────────
+           4511 metin/SVG düğümü tarandı; aşağıdakiler beyaz kartta AA altındaydı.
+           SVG fill'leri satır-içi ÖZNİTELİK olarak yazılmış (fill="#f1f5f9"),
+           bu yüzden ilk yamanın satır-içi süpürmesine takılmamışlardı — CSS
+           sunum özniteliğini EZER, o yüzden burada kural olarak veriliyor. */
+
+        /* Fabrika Özeti bölüm kartlarındaki OEE halkası — KULLANICI BİLDİRİMİ:
+           "oee sayıları görünmüyor". Sayı fill="#f1f5f9" (beyaz kartta 1.10:1),
+           veri yokken gösterilen "—" fill="#94a3b8" (2.56:1). */
+        .bk-oee-halka text            { fill: var(--text); }
+        .bk-oee-halka.halka-bos text  { fill: var(--dim); }
+
+        /* Bölüm kartı metrik sayıları: -webkit-text-fill-color soğuk slate
+           (#334155) kalmıştı — okunuyordu ama palet dışıydı (ılık mürekkep). */
+        .bk-m-deger { -webkit-text-fill-color: var(--text); color: var(--text);
+                      background: none; }
+
+        /* ── 11) ODAK GÖRÜNÜRLÜĞÜ (klavye) ──────────────────────────────── */
+        :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+            outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm); }
+
+        /* ── 12) MOBİL GERİ-ALMA — @media 900px kuralları bu bloktan ÖNCE
+               geldiği için burada yeniden bildirilmezse yapışkan üst bar ve
+               236px margin mobilde de uygulanır. ──────────────────────────── */
+        @media (max-width: 900px) {
+            .main   { margin-left: 0; padding: 16px 14px 50px; }
+            .topbar { position: static; margin: 34px 0 16px; padding: 0 0 12px; }
+            /* Etiket kendi satırına: sarınca dikey ayraç çizgisi öksüz kalıyordu */
+            .filtre-serit .fs-etiket { width: 100%; border-right: 0; padding-right: 0; }
+        }
+        @media print {
+            .topbar { position: static; margin: 0 0 12px; border-bottom: 0; }
+            .table-wrap { overflow: visible; max-height: none; }
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           UI V3 "ENDÜSTRİYEL" ÖNİZLEME YAMASI · 2026-07-29
+           Kaynak: design_handoff_ui_v3 (nötr gri + indigo + ink chrome,
+           düz yüzeyler, gölgesiz, mono rakam, tek animasyon cfBlink).
+           Bu dosya ÖNİZLEMEDİR — canlı şablona dokunmaz; beğenilirse taşınır.
+           ══════════════════════════════════════════════════════════════════ */
+        :root {
+            --radius: 8px; --r-lg: 10px;
+            --shadow: none; --shadow-pop: none;
+            --font-num: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+        }
+        @keyframes cfBlink { 0%, 100% { opacity: 1 } 50% { opacity: 0.3 } }
+
+        /* yüzeyler: düz kart, gölgesiz */
+        .panel-card, .kpi-card, .bolum-kart, .ky-filtre, .fab-toplam,
+        .filtre-serit, .modal { box-shadow: none; border-radius: 8px; }
+        .modal { border: 1px solid #C2C6D1; }
+        /* sidebar */
+        .sidebar { background: #FBFBFC; }
+        .sidebar-logo { border-bottom: 1px solid var(--border); }
+        .nav-icon { display: none; }
+        .nav-item.active { background: #EEF0F6; color: var(--text); }
+        .nav-item.active::before { background: var(--primary); }
+        /* bölüm seçimi sidebar'a taşındı (v3 madde: topbar toggle kalkar) */
+        .bolum-sec-ust { display: none !important; }
+        #page-bolum .bolum-sec { display: none; }
+        .v3-bolum-item { padding: 7px 18px 7px 30px !important; font-size: .78rem !important;
+                         font-weight: 500 !important; color: var(--dim); cursor: pointer; }
+        .v3-bolum-item.v3-aktif { color: var(--text); background: #EEF0F6; font-weight: 700 !important; }
+        .v3-dot { width: 7px; height: 7px; display: inline-block; margin-right: 9px; flex: none; }
+        /* chrome: birincil = ink dolgu; segmentler köşeli + iç ayraç */
+        .btn-primary { background: #1E1B3A; border-radius: 7px; box-shadow: none; }
+        .btn-primary:hover { background: #2E2A52; filter: none; transform: none; }
+        .btn-ghost { background: #fff; border-color: #C2C6D1; }
+        .lok-segment, .dil-grup { border-radius: 7px; padding: 0; overflow: hidden;
+                                  border: 1px solid #C2C6D1; background: #fff; gap: 0; }
+        .lok-btn, .dil-grup .dil-btn { border-radius: 0; border-left: 1px solid var(--border); }
+        .lok-btn:first-child, .dil-grup .dil-btn:first-child { border-left: 0; }
+        .lok-btn.active, .dil-grup .dil-btn.active { background: #EEF0F6; color: var(--text); box-shadow: none; }
+        .hizli-btn, .ref-filtre-btn { border-radius: 7px; }
+        .ref-filtre-btn.active { background: #1E1B3A; color: #fff; }
+        /* KPI reçetesi: şerit yok, mono değer */
+        .kpi-card::before { display: none; }
+        .kpi-label { font-size: .6rem; font-weight: 800; letter-spacing: .12em;
+                     text-transform: uppercase; color: var(--muted); }
+        .kpi-value, .ft-deger, .bk-m-deger, .d-dk, .v-oee, .gfx-deger,
+        .sa-stat-deger, .meter-val { font-family: var(--font-num); font-weight: 800; }
+        .ft-etiket, .bk-m-etiket { font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; }
+        /* barlar: 12px, düz dolgu, %85 hedef çentiği */
+        .oee-bar-bg { height: 12px; border-radius: 2px; position: relative; overflow: visible; }
+        .oee-bar { border-radius: 2px; }
+        .oee-bar-bg::after { content: ''; position: absolute; left: 85%; top: -3px; bottom: -3px;
+                             width: 2px; background: #1E1B3A; }
+        /* tablo: 2px ink başlık çizgisi, zebra yok, hairline */
+        th { border-bottom: 2px solid #1E1B3A; }
+        tbody tr:nth-child(even) td { background: transparent; }
+        tbody tr:hover td { background: rgba(30, 27, 58, 0.04); }
+        /* rozet -> köşeli mono tag */
+        .badge { border-radius: 3px; background: #fff; font-family: var(--font-num);
+                 font-size: .68rem; font-weight: 700; letter-spacing: .03em; padding: 2px 8px; }
+        .badge-green  { border-color: #B7DCC3; }
+        .badge-orange { border-color: #ECD4AE; }
+        .badge-red    { border-color: #E5B3B3; }
+        .badge-purple { border-color: #C7CBEA; }
+        .badge-blue   { border-color: #C2C6D1; }
+        .bolum-pill { border-radius: 3px; }
+        /* panel başlıkları: uppercase mikro-başlık */
+        .panel-header { border-bottom: 1px solid #ECEEF2; }
+        .panel-header h3 { font-size: .8rem; font-weight: 800; letter-spacing: .02em;
+                           text-transform: uppercase; }
+        .toast { border-radius: 8px; }
     </style>
 </head>
 
@@ -1217,6 +1560,10 @@ window.__I18N_SOZLUK__ = {
   "Bu Hafta": {
     "en": "This Week",
     "it": "Questa settimana"
+  },
+  "Tarih Aralığı": {
+    "en": "Date Range",
+    "it": "Intervallo date"
   },
   "Menü": {
     "en": "Menu",
@@ -3805,7 +4152,7 @@ window.__I18N_SOZLUK__ = {
             <div class="sidebar-footer">
                 <div id="panel-kullanici-kutu" style="padding:10px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px;display:none">
                     <div style="display:flex;align-items:center;gap:9px">
-                        <span style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#6366f1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff" id="panel-ku-avatar">?</span>
+                        <span style="width:32px;height:32px;border-radius:50%;background:var(--grad-violet);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff" id="panel-ku-avatar">?</span>
                         <div style="min-width:0">
                             <div id="panel-ku-ad" style="font-size:.82rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
                             <div id="panel-ku-rol" style="font-size:.7rem;color:var(--muted)">—</div>
@@ -3839,14 +4186,6 @@ window.__I18N_SOZLUK__ = {
                             title="Bölüm değiştir" aria-label="Bölüm seçimi"></select>
                 </div>
                 <div class="topbar-right">
-                    <div class="tarih-grup" aria-label="Tarih aralığı">
-                        <input type="date" id="f-bas" onchange="tarihDegisti()">
-                        <span class="tire">–</span>
-                        <input type="date" id="f-bit" onchange="tarihDegisti()">
-                        <button class="hizli-btn" onclick="hizliTarih('bugun')">Bugün</button>
-                        <button class="hizli-btn" onclick="hizliTarih('dun')">Dün</button>
-                        <button class="hizli-btn" onclick="hizliTarih('hafta')">Bu Hafta</button>
-                    </div>
                     <div class="lok-segment" role="tablist" aria-label="Lokasyon seçimi">
                         <button class="lok-btn active" id="lok-tk2" onclick="lokasyonDegistir('TK2')" title="TK2 — mevcut fabrika">TK2</button>
                         <button class="lok-btn" id="lok-tk1" onclick="lokasyonDegistir('TK1')" title="TK1 — yan tesis (montaj)">TK1</button>
@@ -3862,6 +4201,26 @@ window.__I18N_SOZLUK__ = {
                             <svg viewBox="0 0 18 12" aria-hidden="true"><rect width="18" height="12" rx="1.5" fill="#fff"/><rect width="6" height="12" fill="#009246"/><rect x="12" width="6" height="12" fill="#ce2b37"/></svg>
                             <span>IT</span></button>
                     </div>
+                </div>
+            </div>
+
+            <!-- ── FİLTRE ŞERİDİ (2026-07-29) ──────────────────────────────────
+                 Tarih aralığı eskiden üst barın sağında, TK1/TK2 ve dil bayrağının
+                 yanındaydı: onlar OTURUM ayarı, tarih ise VERİ kapsamı kontrolü —
+                 alakasız iki şey aynı grupta duruyordu. Artık içeriğin hemen
+                 üstünde, kendi şeridinde ve YALNIZ onu okuyan sayfalarda görünür
+                 (bkz. TARIH_BAGLI_SAYFALAR). id'ler KORUNDU: f-bas/f-bit'i okuyan
+                 tüm çağıranlar (apiOzetUrl, yukleKayitlar, yukleRaporlar…) aynen
+                 çalışır. ──────────────────────────────────────────────────────── -->
+            <div class="filtre-serit" id="filtre-serit">
+                <span class="fs-etiket">Tarih Aralığı</span>
+                <div class="tarih-grup" aria-label="Tarih aralığı">
+                    <input type="date" id="f-bas" onchange="tarihDegisti()">
+                    <span class="tire">–</span>
+                    <input type="date" id="f-bit" onchange="tarihDegisti()">
+                    <button class="hizli-btn" onclick="hizliTarih('bugun')">Bugün</button>
+                    <button class="hizli-btn" onclick="hizliTarih('dun')">Dün</button>
+                    <button class="hizli-btn" onclick="hizliTarih('hafta')">Bu Hafta</button>
                 </div>
             </div>
 
@@ -3918,7 +4277,7 @@ window.__I18N_SOZLUK__ = {
                                     <path d="M19.54 70.46 A36 36 0 1 1 70.46 70.46" fill="none"
                                         stroke="rgba(15, 23, 42, 0.08)" stroke-width="8" stroke-linecap="round"></path>
                                     <path id="oee-arc" d="M19.54 70.46 A36 36 0 1 1 70.46 70.46" fill="none"
-                                        stroke="#34d399" stroke-width="8" stroke-linecap="round"
+                                        stroke="#15803D" stroke-width="8" stroke-linecap="round"
                                         stroke-dasharray="0 169.65"></path>
                                     <text id="kpi-oee" x="45" y="52" text-anchor="middle"
                                         fill="url(#oee-txt-grad)" font-size="19" font-weight="900">—</text>
@@ -4164,7 +4523,7 @@ window.__I18N_SOZLUK__ = {
                     <input type="text" id="ref-ara-input" onkeyup="refAraDebounced()" placeholder="Referans ara...">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
                         <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:rgba(52,211,153,0.5);color:#065f46" title="Excel → Program: sayfadaki referans/operatör listesini programa yükler">📥 Excel'den İçe Aktar</button>
-                        <button class="btn btn-outline" id="ref-excel-guncelle-btn" onclick="referansExcelGuncelle()" style="border-color:rgba(96,165,250,0.5);color:#2563eb" title="Program → Excel: tanımlı süreleri Excel sayfasına yazar">📤 Excel'e Yaz</button>
+                        <button class="btn btn-outline" id="ref-excel-guncelle-btn" onclick="referansExcelGuncelle()" style="border-color:rgba(96,165,250,0.5);color:#1D4ED8" title="Program → Excel: tanımlı süreleri Excel sayfasına yazar">📤 Excel'e Yaz</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
                 </div>
@@ -4209,7 +4568,7 @@ window.__I18N_SOZLUK__ = {
                         <span style="font-size:1.2rem">⚠️</span>
                         <h3 style="font-size:.9rem;font-weight:800;color:#b91c1c;margin:0">Süre Tanımı Bekleyen Referanslar (Son 30 Gün)</h3>
                     </div>
-                    <p style="font-size:.78rem;color:rgba(254,202,202,0.75);margin-bottom:12px">Aşağıdaki referanslar operatörler tarafından girilmiş ancak sistemde çevrim süreleri tanımlanmamıştır. Lütfen süre tanımlayın.</p>
+                    <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Aşağıdaki referanslar operatörler tarafından girilmiş ancak sistemde çevrim süreleri tanımlanmamıştır. Lütfen süre tanımlayın.</p>
                     <div id="eksik-ref-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
                 </div>
 
@@ -4425,7 +4784,7 @@ window.__I18N_SOZLUK__ = {
                         <h3>🎨 Görünüm Özelleştirme</h3>
                         <button type="button" onclick="andonGorunumSifirla()"
                             title="Renk + boyutu varsayılan andon temasına döndür"
-                            style="background:rgba(167,139,250,0.10);border:1px solid rgba(167,139,250,0.40);color:#7c3aed;border-radius:8px;padding:6px 12px;font-size:.74rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
+                            style="background:rgba(79, 70, 229,0.10);border:1px solid rgba(79, 70, 229,0.40);color:#4F46E5;border-radius:8px;padding:6px 12px;font-size:.74rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
                             ↻ Varsayılana Sıfırla
                         </button>
                     </div>
@@ -4512,7 +4871,7 @@ window.__I18N_SOZLUK__ = {
                         <div id="andon-bolum-tabs" style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:10px;border:1px solid var(--border)">
                             <button type="button" data-bolum="kaynak" onclick="andonBolumDegistir('kaynak')"
                                 class="andon-bolum-tab active"
-                                style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);background:#a78bfa;color:#fff">
+                                style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);background:var(--grad-violet);color:#fff">
                                 🔧 Kaynak
                             </button>
                             <button type="button" data-bolum="montaj" onclick="andonBolumDegistir('montaj')"
@@ -4609,7 +4968,7 @@ window.__I18N_SOZLUK__ = {
 
                 <div id="saha-sec-kaynak" style="margin-bottom:24px">
                     <h3 class="saha-grup-baslik">
-                        <span class="saha-rozet" style="background:rgba(59,130,246,0.15);color:#2563eb">KAYNAK</span>
+                        <span class="saha-rozet" style="background:rgba(59,130,246,0.15);color:#1D4ED8">KAYNAK</span>
                         Robot Kaynak Hatları (9 robot)
                     </h3>
                     <div id="saha-kaynak-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
@@ -4633,7 +4992,7 @@ window.__I18N_SOZLUK__ = {
 
                 <div id="saha-sec-pres" style="margin-bottom:24px;display:none">
                     <h3 class="saha-grup-baslik">
-                        <span class="saha-rozet" style="background:rgba(236,72,153,0.15);color:#db2777">ABKANT</span>
+                        <span class="saha-rozet" style="background:rgba(236,72,153,0.15);color:#9D174D">ABKANT</span>
                         Pres Abkant (3 makine)
                     </h3>
                     <div id="saha-pres-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
@@ -4664,7 +5023,7 @@ window.__I18N_SOZLUK__ = {
                         <h3 style="font-size:.95rem;font-weight:800;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                             🛡️ Sinyal Kalitesi &amp; Sayım Kararları
                             <span style="font-size:.65rem;color:var(--muted);font-weight:500">— her cihaz: gerçek sayım · elenen gürültü · veri kaybı (doğruluk kanıtı)</span>
-                            <button onclick="yukleSinyalKalitesi()" style="margin-left:auto;padding:5px 12px;border:0;background:rgba(167,139,250,0.15);color:#7c3aed;border-radius:8px;font-weight:700;font-size:.72rem;cursor:pointer;font-family:var(--font-main)">🔄 Yenile</button>
+                            <button onclick="yukleSinyalKalitesi()" style="margin-left:auto;padding:5px 12px;border:0;background:rgba(79, 70, 229,0.15);color:#4F46E5;border-radius:8px;font-weight:700;font-size:.72rem;cursor:pointer;font-family:var(--font-main)">🔄 Yenile</button>
                         </h3>
                         <div style="overflow-x:auto;margin-top:10px">
                             <table style="width:100%;border-collapse:collapse;font-size:.78rem">
@@ -4687,7 +5046,7 @@ window.__I18N_SOZLUK__ = {
                                 <div style="font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:6px">📡 Son Sayım Kararları (akış)</div>
                                 <div id="sk-akis" style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);max-height:170px;overflow-y:auto;line-height:1.7">Yükleniyor…</div>
                             </div>
-                            <div style="font-size:.66rem;color:var(--muted);max-width:300px;line-height:1.6;background:rgba(167,139,250,0.06);padding:10px 12px;border-radius:8px">
+                            <div style="font-size:.66rem;color:var(--muted);max-width:300px;line-height:1.6;background:rgba(79, 70, 229,0.06);padding:10px 12px;border-radius:8px">
                                 <b style="color:var(--text)">Nasıl okunur</b><br>
                                 <b style="color:#065f46">Sayıldı</b>: gerçek üretim<br>
                                 <b style="color:#92400e">Elenen Gürültü</b>: sistemin ayıkladığı parazit (sayılmadı)<br>
@@ -4723,7 +5082,7 @@ window.__I18N_SOZLUK__ = {
                         <label>Tarih</label>
                         <input type="date" id="sa-tarih">
                     </div>
-                    <button onclick="yukleSinyalAnaliz()" style="padding:9px 18px;min-height:40px;border:0;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
+                    <button onclick="yukleSinyalAnaliz()" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
                         🔄 Analizi Yükle
                     </button>
                     <div id="sa-status" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
@@ -4747,7 +5106,7 @@ window.__I18N_SOZLUK__ = {
                     </div>
                     <div class="sa-stat">
                         <div class="sa-stat-etiket">📊 Mod</div>
-                        <div class="sa-stat-deger" id="sa-mod" style="color:#7c3aed">—</div>
+                        <div class="sa-stat-deger" id="sa-mod" style="color:#4F46E5">—</div>
                         <div class="sa-stat-alt">en sık cycle süresi</div>
                     </div>
                     <div class="sa-stat">
@@ -4773,7 +5132,7 @@ window.__I18N_SOZLUK__ = {
                         <div style="position:relative;height:380px">
                             <canvas id="sa-chart"></canvas>
                             <!-- Zoom alanı istatistik kutusu — sol tık zoom yapıldığında belirir -->
-                            <div id="sa-zoom-stats" style="position:absolute;top:8px;right:12px;background:rgba(15,23,42,0.88);color:#fff;padding:8px 12px;border-radius:8px;font-size:.72rem;font-family:'JetBrains Mono',monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(167,139,250,0.35);box-shadow:0 4px 14px rgba(15, 23, 42, 0.14);display:none;z-index:5;line-height:1.5">
+                            <div id="sa-zoom-stats" style="position:absolute;top:8px;right:12px;background:rgba(15,23,42,0.88);color:#fff;padding:8px 12px;border-radius:8px;font-size:.72rem;font-family:'JetBrains Mono',monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(79, 70, 229,0.35);box-shadow:0 4px 14px rgba(15, 23, 42, 0.14);display:none;z-index:5;line-height:1.5">
                             </div>
                         </div>
                     </div>
@@ -4804,7 +5163,7 @@ window.__I18N_SOZLUK__ = {
                 </div>
 
                 <!-- İstatistik terimleri açıklaması — sayfanın en altında -->
-                <div style="background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.22);padding:16px 20px;border-radius:var(--radius);margin-bottom:24px;font-size:.82rem;line-height:1.65">
+                <div style="background:rgba(79, 70, 229,0.06);border:1px solid rgba(79, 70, 229,0.22);padding:16px 20px;border-radius:var(--radius);margin-bottom:24px;font-size:.82rem;line-height:1.65">
                     <h3 style="font-size:.92rem;font-weight:800;margin:0 0 10px 0;display:flex;align-items:center;gap:8px;color:var(--text)">
                         <span style="font-size:1.1rem">📚</span> Sayım istatistiği terimleri
                     </h3>
@@ -4818,7 +5177,7 @@ window.__I18N_SOZLUK__ = {
                             </div>
                         </div>
                         <div>
-                            <div style="font-weight:700;color:#0e7490;margin-bottom:4px">≈ Medyan</div>
+                            <div style="font-weight:700;color:var(--text);margin-bottom:4px">≈ Medyan</div>
                             <div style="color:var(--muted);font-size:.78rem">
                                 Pulse'lar küçükten büyüğe sıralanıp <b>tam ortadaki değer</b>.
                                 Aşırı değerlerden (mola, parça bekleme) etkilenmez — gerçek üretim ritmini
@@ -4827,7 +5186,7 @@ window.__I18N_SOZLUK__ = {
                             </div>
                         </div>
                         <div>
-                            <div style="font-weight:700;color:#7c3aed;margin-bottom:4px">📊 Mod</div>
+                            <div style="font-weight:700;color:var(--text);margin-bottom:4px">📊 Mod</div>
                             <div style="color:var(--muted);font-size:.78rem">
                                 <b>En sık tekrar eden gap</b> (1 sn yuvarlanmış). Robotun veya makinenin
                                 "alıştığı" cycle süresi. Hedef cycle ile karşılaştırılır:
@@ -4844,7 +5203,7 @@ window.__I18N_SOZLUK__ = {
                             </div>
                         </div>
                     </div>
-                    <div style="margin-top:12px;padding:8px 12px;background:rgba(110,231,183,0.08);border-left:3px solid #34d399;border-radius:6px;font-size:.78rem;color:var(--text)">
+                    <div style="margin-top:12px;padding:8px 12px;background:rgba(110,231,183,0.08);border-left:3px solid #15803D;border-radius:6px;font-size:.78rem;color:var(--text)">
                         <b style="color:#065f46">💡 Pratik kullanım:</b>
                         Üretim hızını <b>Mod</b> ile ölç, <b>Medyan</b> ile doğrula. İkisi de hedefe yakınsa
                         üretim sağlıklı. <b>Ortalama</b>'nın Mod ve Medyan'dan çok yüksek olması duruş
@@ -4912,7 +5271,7 @@ window.__I18N_SOZLUK__ = {
                 <div class="panel-card">
                     <div class="panel-header">
                         <h3>📧 Otomatik Günlük Üretim Raporu E-postası</h3>
-                        <span id="mail-durum-rozet" style="font-size:.78rem; font-weight:700; padding:4px 12px; border-radius:999px; background:#334155; color:#64748b">Yükleniyor…</span>
+                        <span id="mail-durum-rozet" style="font-size:.78rem; font-weight:700; padding:4px 12px; border-radius:999px; background:var(--surface-2); color:var(--muted)">Yükleniyor…</span>
                     </div>
                     <div style="padding:16px 20px">
                         <div id="mail-durum-aciklama" style="font-size:.82rem; color:var(--muted); margin-bottom:16px">
@@ -4960,13 +5319,14 @@ window.__I18N_SOZLUK__ = {
 
             <!-- ══════ SAYFA: AS400 TEYIT (günün üretimi ↔ açık launch eşlemesi — canlı ERP okuması) ══════ -->
             <section class="page" id="page-as400-teyit">
-                <!-- 🌅 SABAH KONTROL (2026-07-27): 16:45 transfer iptali + 17:10 oto teyit
-                     koşularının raporu. Robotun emin olamadığı satırlar burada listelenir —
-                     kullanıcı sabah kontrol eder. Kaynak: /api/as400/oto_kosu -->
+                <!-- 🌅 SABAH KONTROL (2026-07-27): oto TEYİT koşularının raporu.
+                     2026-07-29: transfer iptali koşuları buradan çıkarılıp "02'den
+                     Aktarım" sayfasına taşındı (iki farklı iş aynı panelde iç içeydi).
+                     Kaynak: /api/as400/oto_kosu -->
                 <div class="panel-card" style="margin-bottom:14px">
                     <div class="panel-header">
-                        <h3>🌅 Sabah Kontrol — Otomatik Akşam Koşuları</h3>
-                        <span class="adet-info">16:45 transfer iptali · 17:10 teyit kuyruğu — emin olunamayanlar buraya ayrılır</span>
+                        <h3>🌅 Sabah Kontrol — Otomatik Teyit Koşuları</h3>
+                        <span class="adet-info">Her akşam çalışır — robotun emin olamadığı satırlar buraya ayrılır</span>
                     </div>
                     <div id="as4-sabah-icerik" style="padding:10px 20px 16px">
                         <div class="yukleniyor" style="padding:8px 0">⏳ Son koşular yükleniyor…</div>
@@ -4999,6 +5359,20 @@ window.__I18N_SOZLUK__ = {
 
             <!-- ══════ SAYFA: AS400 — 02'DEN AKTARIM KONTROL (TK1 hayali stok transferleri) ══════ -->
             <section class="page" id="page-as400-transfer">
+                <!-- OTOMATİK TRANSFER KOŞULARI (2026-07-29): eskiden Launch Kapama
+                     sayfasındaki "Sabah Kontrol" panelinde teyit koşularıyla İÇ İÇE
+                     duruyordu — kullanıcı: "02 aktarım loglarını 02'den aktarım
+                     sayfasına taşıyalım". Artık transfer koşuları BURADA, teyit
+                     koşuları kendi sayfasında. Kaynak aynı: /api/as400/oto_kosu -->
+                <div class="panel-card" style="margin-bottom:14px">
+                    <div class="panel-header">
+                        <h3>🌅 Otomatik Transfer İptali Koşuları</h3>
+                        <span class="adet-info">Her akşam çalışır — robotun emin olamadığı satırlar buraya ayrılır</span>
+                    </div>
+                    <div id="as4-tr-oto-icerik" style="padding:10px 20px 16px">
+                        <div class="yukleniyor" style="padding:8px 0">⏳ Son koşular yükleniyor…</div>
+                    </div>
+                </div>
                 <!-- Shift+F4 iptali kaydı SİLER → BMMAF0'da hâlâ duran TA 02→01 = iptal edilmemiş. -->
                 <div class="panel-card">
                     <div class="panel-header">
@@ -5314,15 +5688,15 @@ window.__I18N_SOZLUK__ = {
         //   rgb    = ana rengin r,g,b'si (glow rgba'ları için)
         // ═══════════════════════════════════════════════════════
         var BOLUMLER = {
-            kaynak: { ad: 'Robot Kaynak',     ikon: '🔧',  renk: '#1d4ed8', parlak: '#2563eb', mark: '#1d4ed8', rgb: '59,130,246',  tekil: 'Robot'  },
-            montaj: { ad: 'Montaj',           ikon: '🔩',  renk: '#065f46', parlak: '#065f46', mark: '#059669', rgb: '16,185,129',  tekil: 'Hat'    },
-            metal:  { ad: 'Metal Enjeksiyon', ikon: '🏭',  renk: '#92400e', parlak: '#92400e', mark: '#d97706', rgb: '245,158,11',  tekil: 'Makine' },
-            isleme: { ad: 'İşleme',           ikon: '⚙️', renk: '#6d28d9', parlak: '#7c3aed', mark: '#6d28d9', rgb: '139,92,246',  tekil: 'Tezgah' },
-            lazer:  { ad: 'Lazer Kesim',      ikon: '✂️', renk: '#0e7490', parlak: '#0e7490', mark: '#0891b2', rgb: '6,182,212',   tekil: 'Makine' },
-            pres:   { ad: 'Pres Abkant',      ikon: '🗜️', renk: '#9d174d', parlak: '#9d174d', mark: '#9d174d', rgb: '236,72,153',  tekil: 'Makine' },
+            kaynak: { ad: 'Robot Kaynak',     ikon: '🔧',  renk: '#1D4ED8', parlak: '#1D4ED8', mark: '#1D4ED8', rgb: '29,78,216',  tekil: 'Robot'  },
+            montaj: { ad: 'Montaj',           ikon: '🔩',  renk: '#07734F', parlak: '#07734F', mark: '#07734F', rgb: '7,115,79',  tekil: 'Hat'    },
+            metal:  { ad: 'Metal Enjeksiyon', ikon: '🏭',  renk: '#8F6100', parlak: '#8F6100', mark: '#8F6100', rgb: '143,97,0',  tekil: 'Makine' },
+            isleme: { ad: 'İşleme',           ikon: '⚙️', renk: '#3F6212', parlak: '#3F6212', mark: '#3F6212', rgb: '63,98,18',  tekil: 'Tezgah' },
+            lazer:  { ad: 'Lazer Kesim',      ikon: '✂️', renk: '#0E7490', parlak: '#0E7490', mark: '#0E7490', rgb: '14,116,144',   tekil: 'Makine' },
+            pres:   { ad: 'Pres Abkant',      ikon: '🗜️', renk: '#9D174D', parlak: '#9D174D', mark: '#9D174D', rgb: '157,23,77',  tekil: 'Makine' },
             // plastik = TK1 bölümü (BOLUM_SIRA'da YOK — o TK2 toggle listesi; plastik
             // Saha Cihazları başlığı + rapor/etiket aramaları için burada tanımlı).
-            plastik: { ad: 'Plastik Enjeksiyon', ikon: '🧪', renk: '#7e22ce', parlak: '#c084fc', mark: '#7e22ce', rgb: '168,85,247', tekil: 'Makine' }
+            plastik: { ad: 'Plastik Enjeksiyon', ikon: '🧪', renk: '#A21CAF', parlak: '#A21CAF', mark: '#A21CAF', rgb: '162,28,175', tekil: 'Makine' }
         };
         var BOLUM_SIRA = ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'];
 
@@ -5400,9 +5774,9 @@ window.__I18N_SOZLUK__ = {
         // OEE eşik sistemi: >=75 iyi (emerald), 50-75 orta (amber), <50 düşük (kırmızı)
         function esikBilgi(oee) {
             var v = Number(oee);
-            if (v >= 75) return { renk: '#065f46', ad: 'İyi' };
-            if (v >= 50) return { renk: '#92400e', ad: 'Orta' };
-            return { renk: '#b91c1c', ad: 'Düşük' };
+            if (v >= 75) return { renk: '#15803D', ad: 'İyi' };
+            if (v >= 50) return { renk: '#A54D08', ad: 'Orta' };
+            return { renk: '#B91C1C', ad: 'Düşük' };
         }
 
         function kisalt(s, n) {
@@ -5581,10 +5955,10 @@ window.__I18N_SOZLUK__ = {
                     etiket: (planli ? '⏸ ' : '⚠ ') + kisalt(sebep, 14),
                     deger: sure,
                     degerYazi: fmt(sure) + ' dk',
-                    renk: planli ? '#64748b' : '#b91c1c',
+                    renk: planli ? '#64748b' : '#B91C1C',
                     tipEtiket: sebep,
                     tipDeger: fmt(sure) + ' dk · ' + (planli ? 'Planlı' : 'Plansız'),
-                    tipRenk: planli ? '#5c6675' : '#b91c1c'
+                    tipRenk: planli ? '#5c6675' : '#B91C1C'
                 };
             });
             kutu.innerHTML = yatayBarSvg(satirlar, { genislik: 380, solPad: 126 });
@@ -5659,6 +6033,20 @@ window.__I18N_SOZLUK__ = {
             if (goster) el.value = aktifBolum;
         }
 
+        // ── FİLTRE ŞERİDİ (2026-07-29) ──────────────────────────────────────
+        // Tarih aralığı üst bardan sayfa içine indi. Yalnız f-bas/f-bit'i GERÇEKTEN
+        // okuyan sayfalarda görünür (bkz. tarihDegisti). Kendi tarihi olan sayfalar
+        // (sinyal analizi, AS400, mail raporu) ya da tarihten bağımsız olanlar
+        // (referanslar, operatörler, saha cihazları…) yanlış bir filtre izlenimi
+        // vermesin. GİZLEME YALNIZ GÖRÜNÜRLÜKTÜR: inputlar DOM'da kalır, değerleri
+        // her sayfadan okunmaya devam eder.
+        var TARIH_BAGLI_SAYFALAR = ['ozet', 'bolum', 'kayitlar', 'raporlar'];
+        function tarihSeritGuncelle() {
+            var el = document.getElementById('filtre-serit');
+            if (!el) return;
+            el.style.display = (TARIH_BAGLI_SAYFALAR.indexOf(aktifSayfa) !== -1) ? '' : 'none';
+        }
+
         // ── SIDEBAR AKORDİYON (2026-07-28) ──────────────────────────────────
         // 8 grup × ~2-4 madde uzun bir liste oluşturuyordu. Gruplar artık tıklanınca
         // açılıp kapanıyor; durum cihazda hatırlanıyor, aktif sayfanın grubu daima açık.
@@ -5682,7 +6070,7 @@ window.__I18N_SOZLUK__ = {
             document.querySelectorAll('.sidebar .nav-group').forEach(function (grup) {
                 var durum = null;
                 try { durum = localStorage.getItem(navGrupAnahtar(grup)); } catch (e) {}
-                navGrupUygula(grup, durum === 'kapali');
+                navGrupUygula(grup, durum ? (durum === 'kapali') : true);   // ilk ziyaret: kapali
             });
         }
         // Aktif sayfanın grubu kapalıysa aç — kullanıcı nerede olduğunu görsün
@@ -5725,6 +6113,7 @@ window.__I18N_SOZLUK__ = {
             });
             navAktifGrubuAc();      // aktif sayfanın grubu kapalıysa aç
             bolumSecGuncelle();     // üst bar bölüm seçicisi bu sayfada anlamlı mı?
+            tarihSeritGuncelle();   // tarih şeridi bu sayfada anlamlı mı?
             breadcrumbGuncelle();
             sidebarAc(false);
             if (sayfa === 'ozet') yukleOzet();
@@ -5758,6 +6147,9 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();
             if (sayfa === 'raporlar') initRaporlar();
             if (sayfa === 'as400-teyit') initAS400Teyit();
+            // Transfer sayfası da oto koşu panelini yükler (2026-07-29: transfer
+            // logları buraya taşındı; teyit sayfası açılmadan da güncel olmalı)
+            if (sayfa === 'as400-transfer') as4SabahYukle();
             if (sayfa === 'kullanicilar') yukleKullanicilar();
             window.scrollTo(0, 0);
         }
@@ -5892,14 +6284,13 @@ window.__I18N_SOZLUK__ = {
         // Sidebar başlığı + pill + dropdown + tablo başlığını aktif bölüme göre tazele
         function bolumGorunum() {
             var bilgi = BOLUMLER[aktifBolum] || BOLUMLER.kaynak;
-            // YALNIZ etiket span'ini güncelle. Eskiden butonun textContent'i komple
-            // yazılıyordu → akordiyon etiketi + ok işareti siliniyordu (grup diğerlerinden
-            // farklı görünüyordu) ve localStorage anahtarı bozuluyordu.
-            // .toUpperCase() KALDIRILDI: büyük harfe çevirmeyi CSS (text-transform)
-            // yapıyor; JS'te de çevirmek diğer başlıklarla tutarsız görünüm veriyordu.
-            var ngt = document.getElementById('ng-bolum-title');
-            var ngtEtiket = ngt && ngt.querySelector('span:not(.ok)');
-            if (ngtEtiket) ngtEtiket.textContent = bolumAdi(aktifBolum);
+            // SIDEBAR GRUP BAŞLIĞI ARTIK SABİT (2026-07-29) — eskiden burada
+            // #ng-bolum-title'ın etiketi bolumAdi(aktifBolum) ile eziliyordu, yani
+            // grubun başlığı seçilen bölümün adı oluyordu ("Robot Kaynak", "Montaj"…).
+            // Bu yanlıştı: başlık grubun NE OLDUĞUNU söylemeli, hangi bölümde
+            // olduğumuzu değil. Statik "Aktif Bölüm" etiketi markup'ta duruyor ve
+            // i18n sözlüğünde çevirisi var; aktif bölüm bilgisi zaten üst bardaki
+            // #bolum-sec-ust seçicisinde ve sayfa içindeki #bolum-pill'de görünüyor.
 
             var pill = document.getElementById('bolum-pill');
             pill.style.setProperty('--pill-renk', bilgi.renk);
@@ -6473,7 +6864,7 @@ window.__I18N_SOZLUK__ = {
                 return;
             }
             tbody.innerHTML = varList.map(v => {
-                const oeeColor = v.oee >= 80 ? '#065f46' : v.oee >= 60 ? '#92400e' : '#b91c1c';
+                const oeeColor = v.oee >= 80 ? '#15803D' : v.oee >= 60 ? '#A54D08' : '#B91C1C';
                 const vBadge = v.vardiya === 'Sabah' ? 'badge-blue' : v.vardiya === 'Öğle' ? 'badge-orange' : 'badge-purple';
                 return `<tr style="cursor:pointer" onclick="panelAc(${getVardiyaId(v)})">
       <td><b>${v.tarih}</b></td>
@@ -6663,7 +7054,7 @@ window.__I18N_SOZLUK__ = {
             ozetEl.innerHTML = tipiOzet.map(t => {
                 const pct = toplam > 0 ? ((t.toplam_sure / toplam) * 100).toFixed(1) : 0;
                 const isPlanlı = t.durus_tipi === 'planli';
-                const renk = isPlanlı ? '#065f46' : '#b91c1c';
+                const renk = isPlanlı ? '#15803D' : '#B91C1C';
                 const ikon = isPlanlı ? '✅' : '⚠️';
                 return `<div style="margin-bottom:16px">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -6698,7 +7089,7 @@ window.__I18N_SOZLUK__ = {
                 const ok = r.toplam_ok || 0;
                 const kalite = toplam > 0 ? ((ok / toplam) * 100).toFixed(1) : '—';
                 const kaliteColor = toplam > 0
-                    ? (ok / toplam >= 0.95 ? '#065f46' : ok / toplam >= 0.80 ? '#92400e' : '#b91c1c')
+                    ? (ok / toplam >= 0.95 ? '#15803D' : ok / toplam >= 0.80 ? '#A54D08' : '#B91C1C')
                     : '#64748b';
                 return `<tr style="${isNew ? 'border-top:2px solid var(--border)' : ''}">
                     <td style="font-weight:${isNew ? '800' : '400'};color:${isNew ? 'var(--primary)' : 'transparent'}">
@@ -6757,7 +7148,7 @@ window.__I18N_SOZLUK__ = {
                 const oee = await oeeRes.json();
                 const v = detay.vardiya;
 
-                const oeeColor = oee.oee >= 80 ? '#065f46' : oee.oee >= 60 ? '#92400e' : '#b91c1c';
+                const oeeColor = oee.oee >= 80 ? '#15803D' : oee.oee >= 60 ? '#A54D08' : '#B91C1C';
 
                 let html = `
       <div class="oee-meter">
@@ -6971,7 +7362,12 @@ window.__I18N_SOZLUK__ = {
             refBolumBaglamiGuncelle();
             tbody.innerHTML = '<tr><td colspan="4"><div class="yukleniyor"><span class="spinner"></span></div></td></tr>';
             try {
-                const res = await fetch('/api/referanslar?q=&bolum=' + encodeURIComponent(aktifBolum));
+                // LOKASYON ZORUNLU (2026-07-29): parametresiz istekte backend lokasyon
+                // filtresi UYGULAMIYOR (bkz. referans_listesi) → montaj listesi TK1+TK2
+                // satırlarını birlikte döndürüyordu. TK1'in 2288 kodunun hiçbirinde
+                // cycle time olmadığı için TK2 montajda hepsi "süresiz" görünüyordu.
+                const res = await fetch('/api/referanslar?q=&bolum=' + encodeURIComponent(aktifBolum) +
+                                        '&lokasyon=' + encodeURIComponent(aktifLokasyon));
                 tumReferanslar = await res.json();
                 _refTumunuGoster = false;  // yeni listede ilk 200'e dön
                 renderReferanslar(tumReferanslar);
@@ -7079,7 +7475,7 @@ window.__I18N_SOZLUK__ = {
                 const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}, ${teyit ? 1 : 0}`;
                 const sureCells = isKaynak
                     ? `<td style="text-align:right;font-weight:700;color:#92400e">${k || '—'}</td>
-                       <td style="text-align:right;font-weight:700;color:#7c3aed">${s || '—'}</td>`
+                       <td style="text-align:right;font-weight:700;color:#4F46E5">${s || '—'}</td>`
                     : '';
                 const teyitCell = isKaynak ? (`
                     <td style="text-align:center" onclick="event.stopPropagation()">
@@ -7169,7 +7565,10 @@ window.__I18N_SOZLUK__ = {
             // "süre tanımı bekleyen" uyarı panelini hiç gösterme.
             if (aktifLokasyon === 'TK1') { if (panel) panel.style.display = 'none'; return; }
             try {
-                const res = await fetch('/api/referanslar/eksik?bolum=' + encodeURIComponent(aktifBolum));
+                // LOKASYON ZORUNLU — yukleReferanslar'daki ile aynı sızıntı: parametresiz
+                // istekte TK1'in süresiz kodları TK2 montajın "süre bekleyen" paneline düşüyordu.
+                const res = await fetch('/api/referanslar/eksik?bolum=' + encodeURIComponent(aktifBolum) +
+                                        '&lokasyon=' + encodeURIComponent(aktifLokasyon));
                 if (!res.ok) throw new Error('API hatası');
                 const list = await res.json();
                 const listEl = document.getElementById('eksik-ref-list');
@@ -7179,11 +7578,11 @@ window.__I18N_SOZLUK__ = {
                     listEl.innerHTML = list.map(ref => `
                         <div style="display:inline-flex; border:1px solid rgba(248,113,113,0.45); border-radius:10px; overflow:hidden; box-shadow:0 2px 4px rgba(15, 23, 42, 0.14)">
                             <button onclick="refDuzenle('${ref}', '', 0)" title="Süre Tanımla"
-                                    style="background:rgba(248,113,113,0.12); border:none; padding:6px 10px; font-size:.78rem; font-weight:700; color:#b91c1c; cursor:pointer; transition:.2s">
+                                    style="background:var(--danger-soft); border:none; padding:6px 10px; font-size:.78rem; font-weight:700; color:var(--danger); cursor:pointer; transition:.2s">
                                 ${ref} +
                             </button>
                             <button onclick="referansSil('${ref}')" title="Bu referansı sil"
-                                    style="background:rgba(248,113,113,0.10); border:none; border-left:1px solid rgba(248,113,113,0.4); padding:6px 8px; font-size:.78rem; font-weight:700; color:#b91c1c; cursor:pointer; transition:.2s">
+                                    style="background:var(--danger-soft); border:none; border-left:1px solid rgba(185,28,28,0.28); padding:6px 8px; font-size:.78rem; font-weight:700; color:var(--danger); cursor:pointer; transition:.2s">
                                 ✖
                             </button>
                         </div>
@@ -7333,7 +7732,10 @@ window.__I18N_SOZLUK__ = {
                         referans_kodu: kod,
                         aciklama: document.getElementById('ref-aciklama').value,
                         hedef_cycle_time_sn: cyc,
-                        bolum: aktifBolum
+                        bolum: aktifBolum,
+                        // LOKASYON ZORUNLU (2026-07-29): backend lokasyon yoksa TK2 varsayıyor →
+                        // TK1'deyken kaydedilen referans TK2 satırının üstüne yazıyordu.
+                        lokasyon: aktifLokasyon
                     })
                 });
                 if (!res.ok) {
@@ -7373,7 +7775,10 @@ window.__I18N_SOZLUK__ = {
         async function referansSil(kod) {
             if (!confirm(`'${kod}' referansını listeden silmek istiyor musunuz?`)) return;
             try {
-                const res = await fetch(`/api/referanslar/${kod}?bolum=${encodeURIComponent(aktifBolum)}`, { method: 'DELETE' });
+                // LOKASYON ZORUNLU (2026-07-29): backend lokasyon yoksa TK2 varsayıyor →
+                // TK1'de "sil" denince TK2'deki aynı kodlu satır siliniyordu.
+                const res = await fetch(`/api/referanslar/${kod}?bolum=${encodeURIComponent(aktifBolum)}` +
+                                        `&lokasyon=${encodeURIComponent(aktifLokasyon)}`, { method: 'DELETE' });
                 if (res.ok) {
                     toast('Referans silindi', 'ok');
                     yukleReferanslar();
@@ -7456,9 +7861,9 @@ window.__I18N_SOZLUK__ = {
         //  API çağrıları, payload'lar ve iş mantığı değişmedi)
         // ═══════════════════════════════════════════════════════
         const RT_DURUMLAR = [
-            { key: 'launch_alinacak', label: 'Launch Alınacak', bg: '#7f1d1d', color: '#b91c1c' },
-            { key: 'launch_alindi',   label: 'Launch Alındı',   bg: '#172554', color: '#2563eb' },
-            { key: 'launch_hazir',    label: 'Launch Hazır',    bg: '#14532d', color: '#86efac' }
+            { key: 'launch_alinacak', label: 'Launch Alınacak', bg: '#FDEFEF', color: '#B91C1C' },
+            { key: 'launch_alindi',   label: 'Launch Alındı',   bg: '#E7EDFB', color: '#1D4ED8' },
+            { key: 'launch_hazir',    label: 'Launch Hazır',    bg: '#EEF8F1', color: '#15803D' }
         ];
 
         // Iş Yönetimi panelindeki secilebilecek robot/hat/makine listesini bolume gore getir
@@ -7996,7 +8401,7 @@ window.__I18N_SOZLUK__ = {
                             <td style="font-weight:700">${g.ad}</td>
                             <td>${rozetler}</td>
                             <td style="font-family:'JetBrains Mono',monospace;font-weight:700;
-                                       color:${varsayilan ? '#b91c1c' : 'var(--text)'}">
+                                       color:${varsayilan ? '#B91C1C' : 'var(--text)'}">
                                 ${pinDeger}${varsayilan ? ' ⚠️' : ''}
                             </td>
                             <td>
@@ -8006,7 +8411,7 @@ window.__I18N_SOZLUK__ = {
                             </td>
                             <td>
                                 <button onclick="opPinDegistir(${g.id},'${g.ad.replace(/'/g,"\\'")}')"
-                                    style="background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
+                                    style="background:var(--grad-violet);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
                                     Güncelle
                                 </button>
                             </td>
@@ -8128,7 +8533,7 @@ window.__I18N_SOZLUK__ = {
             // Tab buton aktif görünümünü güncelle
             document.querySelectorAll('.andon-bolum-tab').forEach(btn => {
                 const aktif = btn.dataset.bolum === bolum;
-                btn.style.background = aktif ? '#7c3aed' : 'transparent';
+                btn.style.background = aktif ? '#4F46E5' : 'transparent';
                 btn.style.color      = aktif ? '#fff' : 'var(--text)';
                 btn.classList.toggle('active', aktif);
             });
@@ -8337,9 +8742,9 @@ window.__I18N_SOZLUK__ = {
         function renderSahaKart(c) {
             // Durum bazlı renkler + ikonlar
             const renkler = {
-                'online':    { bg: 'rgba(16,185,129,0.10)',  bd: 'rgba(16,185,129,0.40)',  ic: '#166534', text: 'ONLINE',    pulse: true },
-                'offline':   { bg: 'rgba(248,113,113,0.10)', bd: 'rgba(248,113,113,0.40)', ic: '#b91c1c', text: 'OFFLINE',   pulse: false },
-                'beklemede': { bg: 'rgba(156,163,175,0.08)', bd: 'rgba(156,163,175,0.30)', ic: '#5c6675', text: 'BEKLEMEDE', pulse: false },
+                'online':    { bg: 'var(--success-soft)', bd: 'rgba(22,163,74,0.28)',  ic: '#15803D', text: 'ONLINE',    pulse: true },
+                'offline':   { bg: 'var(--danger-soft)',  bd: 'rgba(185,28,28,0.28)',  ic: '#B91C1C', text: 'OFFLINE',   pulse: false },
+                'beklemede': { bg: 'var(--surface-2)',    bd: 'var(--line-strong, #D7DAE2)', ic: '#595E71', text: 'BEKLEMEDE', pulse: false },
             };
             const r = renkler[c.durum] || renkler.beklemede;
 
@@ -8350,7 +8755,7 @@ window.__I18N_SOZLUK__ = {
                 return `
                     <div style="align-self:start;background:${r.bg};border:1px solid ${r.bd};border-radius:10px;padding:6px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.7">
                         <span style="font-size:.82rem;font-weight:700;color:var(--text)">${c.robot_no}</span>
-                        <span style="background:${r.bd};color:${r.ic};padding:1px 7px;border-radius:999px;font-size:.5rem;font-weight:800;letter-spacing:.05em;flex-shrink:0">BEKLEMEDE</span>
+                        <span style="background:${r.bg};color:${r.ic};border:1px solid ${r.bd};padding:1px 7px;border-radius:999px;font-size:.5rem;font-weight:800;letter-spacing:.05em;flex-shrink:0">BEKLEMEDE</span>
                     </div>
                 `;
             }
@@ -8360,8 +8765,8 @@ window.__I18N_SOZLUK__ = {
             let rssiRenk = '#5c6675';
             if (rssi < 0) {
                 if (rssi >= -65) rssiRenk = '#166534';
-                else if (rssi >= -75) rssiRenk = '#92400e';
-                else rssiRenk = '#b91c1c';
+                else if (rssi >= -75) rssiRenk = '#A54D08';
+                else rssiRenk = '#B91C1C';
             }
 
             // Heartbeat ne zaman?
@@ -8387,7 +8792,7 @@ window.__I18N_SOZLUK__ = {
                 const cidEsc = (c.cihaz_id || '').replace(/'/g, "\\'");
                 return `<button onclick="event.stopPropagation();sahaSayacReset('${cidEsc}',${istasyon},'${label}')"
                     title="${label} sayacını sıfırla"
-                    style="background:rgba(167,139,250,0.10);border:1px solid rgba(167,139,250,0.32);color:#7c3aed;border-radius:6px;padding:1px 7px;font-size:.62rem;cursor:pointer;margin-left:6px;vertical-align:middle;font-weight:700">↻</button>`;
+                    style="background:var(--primary-soft);border:1px solid var(--primary-line);color:#4F46E5;border-radius:6px;padding:1px 7px;font-size:.62rem;cursor:pointer;margin-left:6px;vertical-align:middle;font-weight:700">↻</button>`;
             };
 
             // Kaynak ise ist1/ist2 ayrı göster; diğer bölümlerde tek toplam
@@ -8426,7 +8831,7 @@ window.__I18N_SOZLUK__ = {
             if (c.durum === 'offline' && c.kayitli) {
                 const offlineDk = c.son_heartbeat_dk;
                 let uyariMsg = '';
-                let uyariRenk = '#92400e';
+                let uyariRenk = '#A54D08';
                 let uyariBg   = 'rgba(245,158,11,0.10)';
                 if (offlineDk != null && offlineDk > 5) {
                     if (offlineDk < 30) {
@@ -8435,8 +8840,8 @@ window.__I18N_SOZLUK__ = {
                         uyariMsg = `⚠️ ${Math.floor(offlineDk)} dk offline — EN reset veya güç döngüsü dene`;
                     } else {
                         uyariMsg = `🔴 ${Math.floor(offlineDk/60)} sa ${Math.floor(offlineDk%60)} dk offline — USB ile firmware yükle`;
-                        uyariRenk = '#b91c1c';
-                        uyariBg   = 'rgba(220,38,38,0.10)';
+                        uyariRenk = '#B91C1C';
+                        uyariBg   = 'var(--danger-soft)';
                     }
                     offlineBand = `<div style="margin-top:8px;padding:5px 8px;border-radius:6px;background:${uyariBg};border:1px solid ${uyariRenk}55;color:${uyariRenk};font-size:.68rem;font-weight:700">${uyariMsg}</div>`;
                 }
@@ -8467,7 +8872,7 @@ window.__I18N_SOZLUK__ = {
                             <div style="font-size:1.05rem;font-weight:800;color:var(--text)">${c.robot_no}</div>
                             <div style="font-size:.66rem;color:var(--muted);font-family:monospace;margin-top:2px">${c.cihaz_id}</div>
                         </div>
-                        <span style="background:${r.bd};color:${r.ic};padding:3px 10px;border-radius:999px;font-size:.62rem;font-weight:800;letter-spacing:.06em;flex-shrink:0">
+                        <span style="background:${r.bg};color:${r.ic};border:1px solid ${r.bd};padding:3px 10px;border-radius:999px;font-size:.62rem;font-weight:800;letter-spacing:.06em;flex-shrink:0">
                             ${r.text}
                         </span>
                     </div>
@@ -8502,9 +8907,9 @@ window.__I18N_SOZLUK__ = {
                     tb.innerHTML = cihazlar.map(c => {
                         const rssi = c.wifi_rssi || 0;
                         let rssiRenk = '#5c6675';
-                        if (rssi < 0) rssiRenk = rssi >= -65 ? '#166534' : (rssi >= -75 ? '#92400e' : '#b91c1c');
-                        const kayipRenk = c.kayip > 0 ? '#b91c1c' : '#166534';
-                        const gurRenk = c.elenen_gurultu > 0 ? '#92400e' : 'var(--muted)';
+                        if (rssi < 0) rssiRenk = rssi >= -65 ? '#166534' : (rssi >= -75 ? '#A54D08' : '#B91C1C');
+                        const kayipRenk = c.kayip > 0 ? '#B91C1C' : '#166534';
+                        const gurRenk = c.elenen_gurultu > 0 ? '#A54D08' : 'var(--muted)';
                         return `<tr style="border-top:1px solid var(--border)">
                             <td style="padding:6px 8px;font-weight:700;color:var(--text)">${c.robot_no}${c.online ? '' : ' <span style="color:#64748b;font-size:.6rem">(offline)</span>'}</td>
                             <td style="padding:6px 8px;color:var(--muted)">${c.bolum}</td>
@@ -8520,7 +8925,7 @@ window.__I18N_SOZLUK__ = {
                 if (!kararlar.length) {
                     akis.textContent = 'Henüz karar kaydı yok.';
                 } else {
-                    const tipRenk = { 'SAYILDI': '#065f46', 'ERKEN': '#92400e', 'PARAZIT': '#b91c1c' };
+                    const tipRenk = { 'SAYILDI': '#15803D', 'ERKEN': '#A54D08', 'PARAZIT': '#B91C1C' };
                     akis.innerHTML = kararlar.map(k => {
                         const saat = (k.ts || '').slice(11, 19);
                         const renk = tipRenk[k.tip] || 'var(--muted)';
@@ -8665,7 +9070,7 @@ window.__I18N_SOZLUK__ = {
             const bitiStr  = new Date(xMax).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
             const fmt = v => v < 60 ? v.toFixed(1) + ' sn' : Math.floor(v/60) + 'dk ' + Math.round(v%60) + 'sn';
             statsEl.innerHTML = `
-                <div style="font-weight:700;margin-bottom:4px;color:#7c3aed;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase">📊 Zoom Alanı</div>
+                <div style="font-weight:700;margin-bottom:4px;color:#4F46E5;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase">📊 Zoom Alanı</div>
                 <div style="opacity:.7;font-size:.66rem;margin-bottom:4px">${baslaStr} – ${bitiStr}</div>
                 <div>📍 <b>${noktalar.length}</b> pulse</div>
                 <div>⌀ Ort: <b>${fmt(ort)}</b></div>
@@ -8730,7 +9135,7 @@ window.__I18N_SOZLUK__ = {
                         position: 'start',
                         yAdjust: (i % 3) * 22,   // yakın duruşlar üst üste binmesin — 3 farklı yükseklik
                         font: { size: 10, weight: 'bold' },
-                        color: isPlanli ? '#92400e' : '#b91c1c',
+                        color: isPlanli ? '#A54D08' : '#B91C1C',
                         backgroundColor: 'rgba(255,255,255,0.85)',
                         padding: 3,
                     }
@@ -8752,7 +9157,7 @@ window.__I18N_SOZLUK__ = {
                         display: true,
                         position: 'end',
                         font: { size: 10, weight: 'bold' },
-                        color: '#065f46',
+                        color: '#15803D',
                         backgroundColor: 'rgba(52,211,153,0.92)',
                         padding: 4,
                         borderRadius: 4,
@@ -8773,8 +9178,8 @@ window.__I18N_SOZLUK__ = {
                 datasets.push({
                     label: 'İstasyon 2',
                     data: scatter2,
-                    backgroundColor: 'rgba(34,211,238,0.75)',
-                    borderColor:     'rgba(34,211,238,1)',
+                    backgroundColor: 'rgba(14, 116, 144,0.75)',
+                    borderColor:     'rgba(14, 116, 144,1)',
                     pointRadius: 4,
                 });
             } else {
@@ -8782,8 +9187,8 @@ window.__I18N_SOZLUK__ = {
                 datasets.push({
                     label: 'Pulse',
                     data: [...scatter1, ...scatter2],
-                    backgroundColor: 'rgba(167,139,250,0.75)',
-                    borderColor:     'rgba(167,139,250,1)',
+                    backgroundColor: 'rgba(63, 98, 18,0.75)',
+                    borderColor:     'rgba(63, 98, 18,1)',
                     pointRadius: 4,
                 });
             }
@@ -8828,8 +9233,8 @@ window.__I18N_SOZLUK__ = {
                             zoom: {
                                 drag: {
                                     enabled: true,
-                                    backgroundColor: 'rgba(167,139,250,0.18)',
-                                    borderColor:     'rgba(167,139,250,0.65)',
+                                    backgroundColor: 'rgba(63, 98, 18,0.18)',
+                                    borderColor:     'rgba(63, 98, 18,0.65)',
                                     borderWidth: 1,
                                     threshold: 5,
                                 },
@@ -8934,11 +9339,11 @@ window.__I18N_SOZLUK__ = {
                 html += Object.values(acc).map(r => {
                     const s = istat(pulseGaps[r.kod] || []);
                     const istatHtml = s ? `
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;padding:6px 8px;background:rgba(167,139,250,0.06);border-radius:6px;font-size:.7rem">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;padding:6px 8px;background:rgba(79, 70, 229,0.06);border-radius:6px;font-size:.7rem">
                             <div><span style="color:var(--muted)">📍 Pulse:</span> <b style="font-family:'JetBrains Mono',monospace">${s.sayi}</b></div>
                             <div><span style="color:var(--muted)">⌀ Ort:</span> <b style="color:#065f46;font-family:'JetBrains Mono',monospace">${fmt(s.ort)}</b></div>
                             <div><span style="color:var(--muted)">≈ Medyan:</span> <b style="color:#0e7490;font-family:'JetBrains Mono',monospace">${fmt(s.medyan)}</b></div>
-                            <div><span style="color:var(--muted)">📊 Mod:</span> <b style="color:#7c3aed;font-family:'JetBrains Mono',monospace">${s.mod} sn</b></div>
+                            <div><span style="color:var(--muted)">📊 Mod:</span> <b style="color:#4F46E5;font-family:'JetBrains Mono',monospace">${s.mod} sn</b></div>
                             <div><span style="color:var(--muted)">⏱ Min:</span> <b style="font-family:'JetBrains Mono',monospace">${fmt(s.en_kisa)}</b></div>
                             <div><span style="color:var(--muted)">⏱ Max:</span> <b style="font-family:'JetBrains Mono',monospace">${fmt(s.en_uzun)}</b></div>
                         </div>
@@ -8968,10 +9373,10 @@ window.__I18N_SOZLUK__ = {
             // Renk: ort_gap küçükse yeşil (hızlı üretim), büyükse sarı/turuncu
             const gapRenk = (gap) => {
                 if (!gap) return 'var(--muted)';
-                if (gap < 60)  return '#065f46';   // < 1dk: yeşil
+                if (gap < 60)  return '#15803D';   // < 1dk: yeşil
                 if (gap < 120) return '#86efac';   // 1-2dk: açık yeşil
-                if (gap < 300) return '#92400e';   // 2-5dk: sarı
-                return '#b91c1c';                  // > 5dk: kırmızı (yavaş/duruş ağırlıklı)
+                if (gap < 300) return '#A54D08';   // 2-5dk: sarı
+                return '#B91C1C';                  // > 5dk: kırmızı (yavaş/duruş ağırlıklı)
             };
             const html = `
                 <div style="overflow-x:auto">
@@ -8999,8 +9404,8 @@ window.__I18N_SOZLUK__ = {
                                     ${fmt(s.ort_gap_sn)}
                                 </td>
                                 <td style="padding:5px 8px">
-                                    <div style="background:rgba(167,139,250,0.12);border-radius:4px;height:8px;width:100%">
-                                        <div style="background:rgba(167,139,250,0.65);border-radius:4px;height:8px;width:${pct}%"></div>
+                                    <div style="background:rgba(79, 70, 229,0.12);border-radius:4px;height:8px;width:100%">
+                                        <div style="background:rgba(79, 70, 229,0.65);border-radius:4px;height:8px;width:${pct}%"></div>
                                     </div>
                                 </td>
                             </tr>`;
@@ -9020,7 +9425,7 @@ window.__I18N_SOZLUK__ = {
             }
             el.innerHTML = duruslar.map(d => {
                 const isPlanli = d.tip === 'planli';
-                const renk = isPlanli ? '#92400e' : '#b91c1c';
+                const renk = isPlanli ? '#A54D08' : '#B91C1C';
                 const tip  = isPlanli ? 'Planlı' : 'Plansız';
                 const saat = new Date(d.basla).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
                 const tanimsiz = (d.sebep === 'Kaydedilmemiş');
@@ -9028,7 +9433,7 @@ window.__I18N_SOZLUK__ = {
                     ? `onclick="durusTanimlaAc('${d.basla}','${d.biti}',${d.sure_dk})" title="Bu boşluğa duruş sebebi tanımla" style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px;cursor:pointer;border-radius:6px"`
                     : `style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);gap:8px"`;
                 const ad = tanimsiz
-                    ? `<span style="color:#64748b;font-style:italic">Kaydedilmemiş</span> <span style="color:#7c3aed;font-size:.7rem;font-weight:700">✏️ tanımla</span>`
+                    ? `<span style="color:#64748b;font-style:italic">Kaydedilmemiş</span> <span style="color:#4F46E5;font-size:.7rem;font-weight:700">✏️ tanımla</span>`
                     : d.sebep;
                 return `
                     <div ${clickAttr}>
@@ -9082,7 +9487,7 @@ window.__I18N_SOZLUK__ = {
                     </select>
                     <div style="display:flex;gap:8px;justify-content:flex-end">
                         <button onclick="document.getElementById('durus-tanim-modal').remove()" style="padding:8px 16px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:var(--font-main)">İptal</button>
-                        <button id="dt-kaydet" style="padding:8px 18px;border:0;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:var(--font-main)">Kaydet</button>
+                        <button id="dt-kaydet" style="padding:8px 18px;border:0;background:var(--grad-violet);color:#fff;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:var(--font-main)">Kaydet</button>
                     </div>
                 </div>`;
             document.body.appendChild(ov);
@@ -9139,13 +9544,13 @@ window.__I18N_SOZLUK__ = {
                 if (!rozet) return;
                 if (d.etkin) {
                     rozet.textContent = '● Aktif · ' + (d.gonderim_saati || '17:00');
-                    rozet.style.background = 'rgba(52,211,153,.15)'; rozet.style.color = '#065f46';
+                    rozet.style.background = 'rgba(52,211,153,.15)'; rozet.style.color = '#15803D';
                 } else if (d.config_var) {
                     rozet.textContent = '● Yapılandırıldı · kapalı';
-                    rozet.style.background = 'rgba(251,191,36,.15)'; rozet.style.color = '#92400e';
+                    rozet.style.background = 'rgba(251,191,36,.15)'; rozet.style.color = '#A54D08';
                 } else {
                     rozet.textContent = '● SMTP tanımlı değil';
-                    rozet.style.background = 'rgba(248,113,113,.15)'; rozet.style.color = '#b91c1c';
+                    rozet.style.background = 'rgba(248,113,113,.15)'; rozet.style.color = '#B91C1C';
                 }
             }).catch(() => {});
             // Alıcı listesi
@@ -9159,8 +9564,8 @@ window.__I18N_SOZLUK__ = {
                 tb.innerHTML = list.map(a => {
                     const aktif = a.aktif == 1;
                     const durumBtn = aktif
-                        ? `<button onclick="mailAliciDurum(${a.id},0)" title="Duraklat" style="background:rgba(52,211,153,.15);color:#065f46;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">● Aktif</button>`
-                        : `<button onclick="mailAliciDurum(${a.id},1)" title="Etkinleştir" style="background:#334155;color:#64748b;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">○ Pasif</button>`;
+                        ? `<button onclick="mailAliciDurum(${a.id},0)" title="Duraklat" style="background:var(--success-soft);color:var(--success);border:1px solid rgba(22,163,74,0.22);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">● Aktif</button>`
+                        : `<button onclick="mailAliciDurum(${a.id},1)" title="Etkinleştir" style="background:var(--surface-2);color:var(--muted);border:1px solid var(--line-strong);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">○ Pasif</button>`;
                     return `<tr>
                         <td style="text-align:left">${mailEsc(a.email)}</td>
                         <td style="text-align:left; color:var(--muted)">${mailEsc(a.ad || '—')}</td>
@@ -9448,8 +9853,8 @@ window.__I18N_SOZLUK__ = {
                                 type: 'line',
                                 label: 'Kalite %',
                                 data: kalite_c,
-                                borderColor: 'rgba(34, 211, 238, 1)',
-                                backgroundColor: 'rgba(34, 211, 238, 0)',
+                                borderColor: 'rgba(14, 116, 144, 1)',
+                                backgroundColor: 'rgba(14, 116, 144, 0)',
                                 borderWidth: 2,
                                 yAxisID: 'y1'
                             }
@@ -9521,7 +9926,7 @@ window.__I18N_SOZLUK__ = {
                     [s.fiili_calisma_dk - s.performans_kaybi_dk - s.kalite_kaybi_dk, s.fiili_calisma_dk - s.performans_kaybi_dk],
                     [0, s.net_uretim_dk],
                 ];
-                const bgColors = ['#5c6675','#b91c1c', '#1d4ed8','#b91c1c', '#6366f1','#b91c1c', '#6d28d9','#b91c1c', '#d946ef','#b91c1c', '#22c55e'];
+                const bgColors = ['#5c6675','#B91C1C', '#1d4ed8','#B91C1C', '#6366f1','#B91C1C', '#4F46E5','#B91C1C', '#d946ef','#B91C1C', '#22c55e'];
 
                 raporChartInst = new Chart(chartDiv, {
                     type: 'bar',
@@ -9571,9 +9976,9 @@ window.__I18N_SOZLUK__ = {
             // Bolum rozeti
             const pill = document.getElementById('tav-rep-bolum-pill');
             const bilgi = BOLUMLER[aktifBolum] || BOLUMLER.kaynak;
-            const renk = aktifBolum === 'montaj' ? ['rgba(16,185,129,.15)', '#065f46']
-                       : aktifBolum === 'metal'  ? ['rgba(245,158,11,.15)', '#92400e']
-                       : aktifBolum === 'isleme' ? ['rgba(139,92,246,.15)', '#6d28d9']
+            const renk = aktifBolum === 'montaj' ? ['rgba(16,185,129,.15)', '#15803D']
+                       : aktifBolum === 'metal'  ? ['rgba(245,158,11,.15)', '#A54D08']
+                       : aktifBolum === 'isleme' ? ['rgba(139,92,246,.15)', '#4F46E5']
                        : aktifBolum === 'lazer'  ? ['rgba(6,182,212,.15)',  '#0e7490']
                        : aktifBolum === 'pres'   ? ['rgba(236,72,153,.15)', '#9d174d']
                                                  : ['rgba(59,130,246,.15)',  '#2563eb'];
@@ -9773,66 +10178,109 @@ window.__I18N_SOZLUK__ = {
         function initAS400Teyit() { if (!_as4Yuklendi) as4Yukle(); as4SabahYukle(); }
 
         // ── 🌅 SABAH KONTROL — otomatik akşam koşuları raporu (2026-07-27) ──
+        // KAPALI AYAR UYARISI (2026-07-29) — 2026-07-28 akşamı oto teyit sessizce
+        // atlandı çünkü ayar kapalıydı; panelde bunun tek izi İŞARETSİZ BİR KUTUYDU
+        // ve gözden kaçtı, o günün launch'ları kapanmadı. Artık kapalıysa büyük,
+        // kırmızı ve tek tıkla açılabilir bir bant çıkıyor.
+        function as4KapaliBant(tur, ad, saat) {
+            return '<div style="display:flex;gap:12px;align-items:center;margin:0 0 12px;padding:12px 14px;' +
+                'background:var(--danger-soft);border:1px solid rgba(185,28,28,.3);border-left:3px solid var(--danger);border-radius:10px">' +
+                '<span style="font-size:1.25rem">⛔</span><div style="flex:1">' +
+                '<div style="font-weight:700;color:var(--danger);font-size:.9rem">' + ad + ' KAPALI</div>' +
+                '<div style="font-size:.79rem;color:var(--muted);margin-top:2px">Bu akşam ' + esc(saat) +
+                ' koşusu ÇALIŞMAYACAK. Kapalı kaldığı her gün elle yapman gerekir.</div></div>' +
+                '<button class="btn btn-primary" style="padding:7px 14px;font-size:.8rem" ' +
+                'onclick="as4OtoToggle(\'' + tur + '\', {etkin:true})">Şimdi aç</button></div>';
+        }
+
+        // Oto koşu panelleri — TEK istek, İKİ hedef:
+        //   teyit koşuları  → Launch Kapama sayfası (#as4-sabah-icerik)
+        //   transfer koşuları → 02'den Aktarım sayfası (#as4-tr-oto-icerik)
         async function as4SabahYukle() {
-            var el = document.getElementById('as4-sabah-icerik');
-            if (!el) return;
+            var el   = document.getElementById('as4-sabah-icerik');
+            var elTr = document.getElementById('as4-tr-oto-icerik');
+            if (!el && !elTr) return;
             try {
-                const r = await panelFetch('/api/as400/oto_kosu?limit=6');
+                const r = await panelFetch('/api/as400/oto_kosu?limit=12');
                 const d = await r.json();
-                if (!r.ok) { el.innerHTML = '<div style="color:#b91c1c;font-size:.8rem">⚠ ' + esc(d.hata || 'Okunamadı') + '</div>'; return; }
+                if (!r.ok) {
+                    var hm = '<div style="color:var(--danger);font-size:.8rem">⚠ ' + esc(d.hata || 'Okunamadı') + '</div>';
+                    if (el) el.innerHTML = hm;
+                    if (elTr) elTr.innerHTML = hm;
+                    return;
+                }
                 var cfg = d.config || {};
                 var t = cfg.transfer_iptal || {}, y = cfg.oto_teyit || {};
-                var html = '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
+                var ajanRozet = d.agent
+                    ? '<span style="color:var(--success);font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
+                    : '<span style="color:var(--danger);font-weight:700;font-size:.74rem">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>';
+
+                // ── TEYİT paneli (Launch Kapama sayfası) ──
+                var html = (y.etkin ? '' : as4KapaliBant('oto_teyit', 'Otomatik teyit', y.saat || '17:10')) +
+                    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
+                    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (y.etkin ? 'checked' : '') +
+                        ' onchange="as4OtoToggle(\'oto_teyit\', {etkin:this.checked})" style="width:15px;height:15px">📤 Teyit kuyruğu (' + esc(y.saat || '17:10') + ')</label>' +
+                    ajanRozet + '</div>';
+                // ── TRANSFER paneli (02'den Aktarım sayfası) ──
+                var htmlTr = (t.etkin ? '' : as4KapaliBant('transfer_iptal', 'Otomatik transfer iptali', t.saat || '16:45')) +
+                    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
                     '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (t.etkin ? 'checked' : '') +
                         ' onchange="as4OtoToggle(\'transfer_iptal\', {etkin:this.checked})" style="width:15px;height:15px">🔄 Transfer iptali (' + esc(t.saat || '16:45') + ')</label>' +
                     '<label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Robot ekrana girer, satırı doğrular ama Shift+F4\'e BASMAZ"><input type="checkbox" ' + (t.dryrun ? 'checked' : '') +
-                        ' onchange="as4OtoToggle(\'transfer_iptal\', {dryrun:this.checked})" style="width:15px;height:15px">🧪 Transfer DRYRUN</label>' +
-                    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (y.etkin ? 'checked' : '') +
-                        ' onchange="as4OtoToggle(\'oto_teyit\', {etkin:this.checked})" style="width:15px;height:15px">📤 Teyit kuyruğu (' + esc(y.saat || '17:10') + ')</label>' +
-                    (d.agent ? '<span style="color:#065f46;font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
-                             : '<span style="color:#b91c1c;font-weight:700;font-size:.74rem">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>') +
-                    '</div>';
+                        ' onchange="as4OtoToggle(\'transfer_iptal\', {dryrun:this.checked})" style="width:15px;height:15px">🧪 DRYRUN (deneme — silme yok)</label>' +
+                    ajanRozet + '</div>';
+
                 var kosular = d.kosular || [];
-                if (!kosular.length) {
-                    html += '<div style="color:var(--muted);font-size:.8rem">Henüz otomatik koşu yok — ilk koşu bu akşam ' + esc(t.saat || '16:45') + ' / ' + esc(y.saat || '17:10') + '.</div>';
-                }
-                kosular.forEach(function (k, ki) {
+                var nT = kosular.filter(function (k) { return k.tur !== 'transfer'; }).length;
+                var nR = kosular.filter(function (k) { return k.tur === 'transfer'; }).length;
+                if (!nT) html   += '<div style="color:var(--muted);font-size:.8rem">Henüz otomatik teyit koşusu yok — ilki bu akşam ' + esc(y.saat || '17:10') + '.</div>';
+                if (!nR) htmlTr += '<div style="color:var(--muted);font-size:.8rem">Henüz otomatik transfer koşusu yok — ilki bu akşam ' + esc(t.saat || '16:45') + '.</div>';
+
+                var iT = 0, iR = 0;   // her panelde 'ilk koşu' ayrı sayılır (açık gelme kararı)
+                kosular.forEach(function (k) {
+                    var trMi = (k.tur === 'transfer');
+                    var ki = trMi ? iR++ : iT++;
+                    var blok = '';
                     var det = k.detay || {};
                     var sabah = det.sabah_kontrol || [];
-                    var renk = (k.hata > 0) ? '#b91c1c' : (sabah.length ? '#92400e' : '#065f46');
-                    html += '<details' + (ki === 0 && (sabah.length || k.hata > 0) ? ' open' : '') + ' style="margin:6px 0">' +
+                    var renk = (k.hata > 0) ? '#B91C1C' : (sabah.length ? '#A54D08' : '#15803D');
+                    blok += '<details' + (ki === 0 && (sabah.length || k.hata > 0) ? ' open' : '') + ' style="margin:6px 0">' +
                         '<summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:' + renk + '">' +
                         (k.tur === 'transfer' ? '🔄' : '📤') + ' ' + esc((k.created_at || '').slice(0, 16)) + ' · ' + esc(k.ozet || '') +
                         (sabah.length ? ' · 🌅 ' + sabah.length + ' satır kontrol bekliyor' : '') + '</summary>';
                     if (sabah.length) {
-                        html += '<div class="table-wrap" style="margin:6px 0"><table class="admin-table"><thead><tr>' +
+                        blok += '<div class="table-wrap" style="margin:6px 0"><table class="admin-table"><thead><tr>' +
                             '<th>Tip</th><th>Gün</th><th>Referans/Kod</th><th style="text-align:right">Adet</th><th>Neden</th></tr></thead><tbody>';
                         sabah.forEach(function (s) {
-                            html += '<tr><td style="font-size:.74rem">' + esc(s.tip || '') + '</td>' +
+                            blok += '<tr><td style="font-size:.74rem">' + esc(s.tip || '') + '</td>' +
                                 '<td style="font-size:.74rem;white-space:nowrap">' + esc(s.tarih || '') + '</td>' +
                                 '<td style="font-weight:700;font-size:.8rem">' + esc(s.referans || s.article || '') +
                                     (s.kayit ? ' <span style="color:var(--muted);font-weight:400">(' + esc(s.kayit + '/' + s.satir) + ')</span>' : '') + '</td>' +
                                 '<td style="text-align:right">' + fmt(s.adet || 0) + '</td>' +
                                 '<td style="font-size:.74rem;color:#92400e">' + esc(s.neden || '') + '</td></tr>';
                         });
-                        html += '</tbody></table></div>';
+                        blok += '</tbody></table></div>';
                     }
                     var snc = det.sonuclar || [];
                     if (snc.length) {
-                        html += '<details style="margin:4px 0 4px 14px"><summary style="cursor:pointer;font-size:.76rem;color:var(--muted)">Tüm sonuçlar (' + snc.length + ')</summary>';
+                        blok += '<details style="margin:4px 0 4px 14px"><summary style="cursor:pointer;font-size:.76rem;color:var(--muted)">Tüm sonuçlar (' + snc.length + ')</summary>';
                         snc.forEach(function (s) {
-                            var c = s.sonuc === 'ok' ? '#065f46' : (s.sonuc === 'atlandi' ? '#5c6675' : '#b91c1c');
-                            html += '<div style="font-size:.74rem;padding:1px 0;color:' + c + '">' +
+                            var c = s.sonuc === 'ok' ? '#15803D' : (s.sonuc === 'atlandi' ? '#5c6675' : '#B91C1C');
+                            blok += '<div style="font-size:.74rem;padding:1px 0;color:' + c + '">' +
                                 esc((s.faz ? s.faz + ' · ' : '') + (s.referans || s.article || s.kayit || '') + ' · ' + fmt(s.adet || 0)) +
                                 ' — ' + esc(s.mesaj || s.sonuc) + '</div>';
                         });
-                        html += '</details>';
+                        blok += '</details>';
                     }
-                    html += '</details>';
+                    blok += '</details>';
+                    if (trMi) htmlTr += blok; else html += blok;
                 });
-                el.innerHTML = html;
+                if (el)   el.innerHTML = html;
+                if (elTr) elTr.innerHTML = htmlTr;
             } catch (e) {
-                el.innerHTML = '<div style="color:#b91c1c;font-size:.8rem">⚠ Bağlantı hatası</div>';
+                var hm = '<div style="color:var(--danger);font-size:.8rem">⚠ Bağlantı hatası</div>';
+                if (el) el.innerHTML = hm;
+                if (elTr) elTr.innerHTML = hm;
             }
         }
         async function as4OtoToggle(tur, alanlar) {
@@ -9871,7 +10319,7 @@ window.__I18N_SOZLUK__ = {
                 btn.disabled = false;
                 if (!res.ok) {
                     icerik.innerHTML = '';
-                    bar.style.display = 'block'; bar.style.color = '#b91c1c';
+                    bar.style.display = 'block'; bar.style.color = '#B91C1C';
                     bar.textContent = '⚠ ' + (res.d.hata || 'AS400 sorgusu başarısız');
                     return;
                 }
@@ -9880,7 +10328,7 @@ window.__I18N_SOZLUK__ = {
             }).catch(function () {
                 btn.disabled = false;
                 icerik.innerHTML = '';
-                bar.style.display = 'block'; bar.style.color = '#b91c1c';
+                bar.style.display = 'block'; bar.style.color = '#B91C1C';
                 bar.textContent = '⚠ Bağlantı hatası';
             });
         }
@@ -9986,7 +10434,7 @@ window.__I18N_SOZLUK__ = {
                 '<button class="btn btn-primary" id="as4-tr-iptal-btn" onclick="as4TransferRobotIptal()">🤖 Seçilenleri Robotla İptal Et</button>' +
                 '<label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:#92400e;cursor:pointer;font-weight:700" title="Robot ekrana girer, satırı bulur ve DOĞRULAR ama Shift+F4\'e BASMAZ — hiçbir kayıt silinmez. İlk denemede güvenle akışı görmek için.">' +
                     '<input type="checkbox" id="as4-tr-dryrun" style="width:15px;height:15px;cursor:pointer">🧪 DRYRUN (deneme — silme yok)</label>' +
-                '<button class="btn" id="as4-tr-durdur-btn" onclick="as4Durdur()" style="display:none;background:#dc2626;color:#fff;border-color:#b91c1c">⏹ Durdur</button>' +
+                '<button class="btn" id="as4-tr-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--danger);color:#fff;border-color:var(--danger)">⏹ Durdur</button>' +
                 '<span style="font-size:.74rem;color:var(--muted)">Robot: 07&gt;01 + kayıt no + satır başına <b>2</b> + Enter + <b>Shift+F4</b>. İptal kaydı SİLER — BMMAF0\'dan silindiği ayrıca doğrulanır. Her akşam <b>16:45</b>\'te hepsi otomatik iptal edilir.</span></div>' +
                 '<div id="as4-tr-sonuc"></div>';
             html += '<div style="font-size:.74rem;color:var(--muted);margin-top:8px">' + liste.length +
@@ -10031,7 +10479,7 @@ window.__I18N_SOZLUK__ = {
                     '<span style="color:#64748b">' + (o.atlandi || 0) + ' atlandı</span>' +
                     (d.durduruldu ? ' · <span style="color:#92400e">durduruldu</span>' : '') + '</div>';
                 (d.sonuclar || []).forEach(function (s) {
-                    var renk = s.sonuc === 'ok' ? '#065f46' : (s.sonuc === 'atlandi' ? '#5c6675' : '#b91c1c');
+                    var renk = s.sonuc === 'ok' ? '#15803D' : (s.sonuc === 'atlandi' ? '#5c6675' : '#B91C1C');
                     html += '<div style="font-size:.76rem;padding:2px 0;color:' + renk + '">' +
                         esc(s.kayit + '/' + s.satir + ' · ' + s.article + ' · ' + fmt(s.adet)) + ' — ' + esc(s.mesaj || s.sonuc) + '</div>';
                 });
@@ -10074,7 +10522,7 @@ window.__I18N_SOZLUK__ = {
             return adlar.map(function (dp) {
                 var v = depolar[dp];
                 var vurgu = oncelik.indexOf(dp) >= 0;
-                var renk = v.stok < 0 ? '#b91c1c' : (vurgu ? '#065f46' : 'var(--muted)');
+                var renk = v.stok < 0 ? '#B91C1C' : (vurgu ? '#15803D' : 'var(--muted)');
                 return '<span style="display:inline-block;margin:2px 6px 2px 0;padding:3px 9px;border-radius:8px;border:1px solid ' +
                     (vurgu ? 'rgba(52,211,153,0.35)' : 'var(--border)') + ';font-size:.76rem">' +
                     '<b>' + esc(dp) + '</b>: <span style="color:' + renk + ';font-weight:800">' + fmt(v.stok) + '</span></span>';
@@ -10093,14 +10541,14 @@ window.__I18N_SOZLUK__ = {
             var ustAcik = (d.ustler || []).reduce(function (t, u) { return t + ((u.siparis || {}).acik_toplam || 0); }, 0);
             // Özet şerit
             html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 16px">' +
-                '<span style="border:1px solid #34d39955;background:#34d39918;color:#065f46;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">📦 Kullanılabilir stok: ' + fmt(st.kullanilabilir) + '</span>' +
-                '<span style="border:1px solid #a78bfa55;background:#a78bfa18;color:#6d28d9;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">🧾 Doğrudan açık sipariş: ' + fmt(ds.acik_toplam) + '</span>' +
-                '<span style="border:1px solid #22d3ee55;background:#22d3ee18;color:#0e7490;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">⬆ Üst kod açık siparişleri: ' + fmt(ustAcik) + '</span></div>';
+                '<span style="border:1px solid #15803D55;background:#15803D18;color:#065f46;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">📦 Kullanılabilir stok: ' + fmt(st.kullanilabilir) + '</span>' +
+                '<span style="border:1px solid #4F46E555;background:#4F46E518;color:#4F46E5;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">🧾 Doğrudan açık sipariş: ' + fmt(ds.acik_toplam) + '</span>' +
+                '<span style="border:1px solid #0E749055;background:#0E749018;color:#0e7490;border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">⬆ Üst kod açık siparişleri: ' + fmt(ustAcik) + '</span></div>';
             // 1) Stok
             html += '<h4 style="margin:6px 0 6px;color:#065f46;font-size:.88rem">📦 ' + esc(d.ref) + ' — depo stokları</h4>';
             html += '<div style="margin-bottom:6px">' + (Object.keys(st.depolar).length ? as4PlanDepoSatir(st.depolar) : '<span style="color:var(--muted);font-size:.8rem">Stok kaydı yok</span>') + '</div>';
             // 2) Doğrudan siparişler
-            html += '<h4 style="margin:16px 0 6px;color:#6d28d9;font-size:.88rem">🧾 Doğrudan açık müşteri siparişleri</h4>';
+            html += '<h4 style="margin:16px 0 6px;color:#4F46E5;font-size:.88rem">🧾 Doğrudan açık müşteri siparişleri</h4>';
             if (!ds.satirlar.length) {
                 html += '<div style="color:var(--muted);font-size:.8rem">Yok — ihtiyaç üst kodlardan gelir (aşağıda).</div>';
             } else {
@@ -10125,7 +10573,7 @@ window.__I18N_SOZLUK__ = {
                         '<td><span style="color:var(--dim)">' + '▸'.repeat(u.seviye) + '</span> ' + u.seviye + '</td>' +
                         '<td style="font-weight:700">' + esc(u.kod) + '</td>' +
                         '<td style="text-align:right">' + fmt(stk.kullanilabilir) + '</td>' +
-                        '<td style="text-align:right;font-weight:800;color:' + (sp.acik_toplam > 0 ? '#92400e' : 'var(--muted)') + '">' + fmt(sp.acik_toplam) + '</td>' +
+                        '<td style="text-align:right;font-weight:800;color:' + (sp.acik_toplam > 0 ? '#A54D08' : 'var(--muted)') + '">' + fmt(sp.acik_toplam) + '</td>' +
                         '<td style="font-size:.74rem">' + (as4PlanSiparisMini(sp) || '<span style="color:var(--dim)">—</span>') + '</td></tr>';
                 });
                 html += '</tbody></table></div>';
@@ -10179,7 +10627,7 @@ window.__I18N_SOZLUK__ = {
                     });
                     if (hepsiTamam) {
                         durum = 'uret';
-                        rozet = '<span style="color:#7c3aed;font-weight:800">🔧 BU KADEMEDE ÜRETİLEBİLİR: ' + fmt(net) + ' adet</span>';
+                        rozet = '<span style="color:#4F46E5;font-weight:800">🔧 BU KADEMEDE ÜRETİLEBİLİR: ' + fmt(net) + ' adet</span>';
                         uretimler.push({ kod: node.kod, adet: net });
                     } else {
                         durum = 'kismi';
@@ -10191,7 +10639,7 @@ window.__I18N_SOZLUK__ = {
                         (seviye ? '<span style="color:var(--dim)">└─</span> ' : '') + esc(node.kod) +
                         (node.birim && node.birim !== 1 ? ' <span style="color:var(--dim);font-size:.7rem">×' + fmt(node.birim) + '</span>' : '') + '</td>' +
                     '<td style="text-align:right">' + fmt(gereken) + '</td>' +
-                    '<td style="text-align:right;color:' + (kullan < 0 ? '#b91c1c' : 'var(--text)') + '">' + fmt(kullan) + '</td>' +
+                    '<td style="text-align:right;color:' + (kullan < 0 ? '#B91C1C' : 'var(--text)') + '">' + fmt(kullan) + '</td>' +
                     '<td style="text-align:right;color:' + (fason ? '#0e7490' : 'var(--dim)') + '">' + (fason ? fmt(fason) : '—') + '</td>' +
                     '<td>' + rozet + '</td></tr>';
                 return durum;
@@ -10207,7 +10655,7 @@ window.__I18N_SOZLUK__ = {
                 if (!uretimler.length && !tedarikler.length)
                     html += '<div style="color:#065f46;font-size:.82rem">✔ İhtiyaç mevcut stok + fasondakiyle karşılanıyor — üretim gerekmez.</div>';
                 if (uretimler.length)
-                    html += '<div style="color:#6d28d9;font-size:.82rem">🔧 Üretilmeli (launch adayı): ' +
+                    html += '<div style="color:#4F46E5;font-size:.82rem">🔧 Üretilmeli (launch adayı): ' +
                         uretimler.map(function (u) { return '<b>' + esc(u.kod) + '</b> × ' + fmt(u.adet); }).join(' · ') + '</div>';
                 if (tedarikler.length)
                     html += '<div style="color:#b91c1c;font-size:.82rem;margin-top:4px">⛔ Eksik (alt kademesi yok): ' +
@@ -10331,29 +10779,66 @@ window.__I18N_SOZLUK__ = {
             });
             info.textContent = gunler.map(function (g) { return as4GunEtiket(g.tarih); }).join(' · ');
 
-            function cip(renk, txt) {
-                return '<span style="border:1px solid ' + renk + '55;background:' + renk + '18;color:' + renk +
-                    ';border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:800">' + txt + '</span>';
+            function cip(renk, txt, sonuk) {
+                return '<span style="border:1px solid ' + renk + '55;background:' + renk + (sonuk ? '10' : '18') + ';color:' + renk +
+                    ';border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:' + (sonuk ? '600' : '800') +
+                    (sonuk ? ';opacity:.75' : '') + '">' + txt + '</span>';
             }
             var copBek = _as4CopBekleyen.filter(function (c) { return !c.verildi; });   // COP verilmemiş (pending) hurdalar
-            var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px">' +
-                cip('#065f46', '📤 Launch bekleyen: ' + _as4Bekleyen.length) +
-                cip('#2563eb', '📦 CFI bekleyen: ' + _as4CfiBekleyen.length) +
-                cip('#5c6675', '✅ Teyitli: ' + teyitli.length) +
-                cip('#92400e', '⚠️ Dikkat: ' + dikkat.length) +
-                cip('#7c3aed', '🔗 Ara op: ' + araList.length) +
-                (copBek.length ? cip('#b91c1c', '♻ Hurda COP: ' + copBek.length) : '') + '</div>';
+
+            // ── SAYFA YENİDEN DÜZENLENDİ (2026-07-29) ────────────────────────────
+            // Eskiden bloklar üretim sırasına göre diziliyordu: önce kuyruk, sonra
+            // hurda, sonra "dikkat", en sonda tamamlananlar. Kuyruk boşken sayfa
+            // koca bir "🎉 kuyruk temiz" ile açılıyor, SENDEN karar bekleyen satırlar
+            // onun ALTINDA kalıyordu — kullanıcı: "karışık ve anlaması zor".
+            // Artık AKSİYON ÖNCELİKLİ: üstte tek cümlelik "şimdi ne yapmalıyım",
+            // hemen altında senden karar bekleyenler, sonra robot kuyruğu, en altta
+            // tamamlanmış/bilgi amaçlı katlanır bloklar.
+            // Bölümler kendi biriktiricilerinde toplanır (sDikkat, sKuyruk, …) ve
+            // aşağıda yeniden dizilir — üretilen HTML ve iş mantığı DEĞİŞMEDİ.
+            var sKuyruk = '', sCop = '', sDikkat = '', sTeyitli = '', sBilgi = '', sGonderim = '';
+            var bekToplam = _as4Bekleyen.length + _as4CfiBekleyen.length;
+
+            function serit(renk, zemin, ikon, baslik, alt) {
+                return '<div style="display:flex;gap:12px;align-items:flex-start;margin:12px 0 10px;padding:14px 16px;' +
+                    'background:' + zemin + ';border:1px solid ' + renk + '44;border-left:3px solid ' + renk + ';border-radius:10px">' +
+                    '<span style="font-size:1.3rem;line-height:1.1">' + ikon + '</span><div>' +
+                    '<div style="font-weight:700;font-size:.95rem;color:' + renk + '">' + baslik + '</div>' +
+                    '<div style="font-size:.8rem;color:var(--muted);margin-top:2px">' + alt + '</div></div></div>';
+            }
+            var ustSerit;
+            if (dikkat.length) {
+                ustSerit = serit('#A54D08', 'var(--warn-soft)', '⚠️',
+                    dikkat.length + ' satır senden karar bekliyor',
+                    'Robot bunlara dokunmaz — referans kodu AS400 ile uyuşmuyor ya da teyit durumu belirsiz. Aşağıdaki tabloda düzelt veya işaretle.');
+            } else if (bekToplam || copBek.length) {
+                ustSerit = serit('#4F46E5', 'var(--primary-soft)', '📤',
+                    'Robota gönderilmeye hazır: ' + bekToplam + ' teyit' + (copBek.length ? ' + ' + copBek.length + ' hurda (COP)' : ''),
+                    'Satırları seçip gönder. Akşam 17:10 otomatik koşusu da bu kuyruğu işler.');
+            } else {
+                ustSerit = serit('#15803D', 'var(--success-soft)', '✅',
+                    'Kuyruk temiz — yapılacak bir şey yok',
+                    'Bu aralıktaki üretimlerin teyidi verilmiş. Ayrıntı için aşağıdaki katlanır bölümlere bakabilirsin.');
+            }
+
+            // Özet çipleri: aksiyon gerektirenler ÖNDE ve dolu, tamamlananlar soluk
+            var cipler = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 6px">' +
+                (dikkat.length  ? cip('#A54D08', '⚠️ Karar bekleyen: ' + dikkat.length) : '') +
+                (_as4Bekleyen.length    ? cip('#15803D', '📤 Launch bekleyen: ' + _as4Bekleyen.length) : '') +
+                (_as4CfiBekleyen.length ? cip('#1D4ED8', '📦 CFI bekleyen: ' + _as4CfiBekleyen.length) : '') +
+                (copBek.length  ? cip('#B91C1C', '♻ Hurda COP: ' + copBek.length) : '') +
+                cip('#595E71', '✅ Teyitli: ' + teyitli.length, true) +
+                (araList.length ? cip('#595E71', '🔗 Ara op: ' + araList.length, true) : '') + '</div>';
 
             // ── 1) TEYIT BEKLEYENLER (launch + CFI aksiyon alanı) ──
             if (!_as4Bekleyen.length && !_as4CfiBekleyen.length) {
-                html += '<div class="empty" style="padding:22px 0"><span class="empty-icon">🎉</span>Teyit bekleyen üretim yok — kuyruk temiz.</div>' +
-                    '<div id="as4-gonder-sonuc"></div>';
+                sKuyruk += '<div id="as4-gonder-sonuc"></div>';
             } else {
                 if (_as4Bekleyen.length) {
-                html += '<h4 style="margin:16px 0 8px;color:#065f46;font-size:.9rem">📤 Launch teyidi bekleyenler (' + _as4Bekleyen.length + ')' +
+                sKuyruk += '<h4 style="margin:16px 0 8px;color:#065f46;font-size:.9rem">📤 Launch teyidi bekleyenler (' + _as4Bekleyen.length + ')' +
                     ' <a onclick="as4TumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                     ' <a onclick="as4TumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
-                html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                sKuyruk += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                     '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
                     '<th style="text-align:right">Üretilen</th><th>AS400 → Launch</th>' +
                     '<th style="text-align:right">Launch Adedi</th><th style="text-align:right">Teyitli</th>' +
@@ -10368,14 +10853,14 @@ window.__I18N_SOZLUK__ = {
                         }).join('') + '</select>'
                         : esc(ls[0].article) + ' → <b>' + esc(ls[0].launch) + '</b>';
                     var orj = r.orijinal_referans
-                        ? '<div style="font-size:.7rem;color:#7c3aed">↳ kayıttaki yazım: ' + esc(r.orijinal_referans) + '</div>' : '';
+                        ? '<div style="font-size:.7rem;color:#4F46E5">↳ kayıttaki yazım: ' + esc(r.orijinal_referans) + '</div>' : '';
                     if (r.hurda > 0)
                         orj += '<div style="font-size:.7rem;color:#b91c1c;font-weight:700">♻ hurda ' + fmt(r.hurda) + ' → COP girilecek</div>';
                     var l0 = ls[0];
                     var gunU = b.bugunMu ? ' <span style="color:#92400e" title="Gün bitmeden teyit önerilmez">⚠</span>' : '';
                     // ÖNERİ: bu teyit launch'ı tamamlıyor mu? (gönderilecek >= kalan-1) → S öner
                     var onerS = (r.adet >= l0.kalan - 1);
-                    html += '<tr>' +
+                    sKuyruk += '<tr>' +
                         '<td><input type="checkbox" id="as4-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(r.bolum)) + '</td>' +
@@ -10391,22 +10876,22 @@ window.__I18N_SOZLUK__ = {
                             '<option value="S"' + (onerS ? ' selected' : '') + '>S · KAPAT</option></select></td>' +
                         '</tr>';
                 });
-                html += '</tbody></table></div>';
+                sKuyruk += '</tbody></table></div>';
                 }
 
                 // 📦 CFI bekleyenler — launch'sız üretim, seçilebilir tablo (kullanıcı 2026-07-20)
                 if (_as4CfiBekleyen.length) {
-                    html += '<h4 style="margin:16px 0 8px;color:#2563eb;font-size:.9rem">📦 CFI bekleyenler — launch\'sız üretim (' + _as4CfiBekleyen.length + ')' +
+                    sKuyruk += '<h4 style="margin:16px 0 8px;color:#1D4ED8;font-size:.9rem">📦 CFI bekleyenler — launch\'sız üretim (' + _as4CfiBekleyen.length + ')' +
                         ' <a onclick="as4CfiTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                         ' <a onclick="as4CfiTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
-                    html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                    sKuyruk += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                         '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
                         '<th style="text-align:right">Üretilen</th><th>AS400 Kodu (CFI hedefi)</th>' +
                         '<th style="text-align:right;width:96px">Gönderilecek</th></tr></thead><tbody>';
                     _as4CfiBekleyen.forEach(function (b, i) {
                         var r = b.r;
                         var gunU = b.bugunMu ? ' <span style="color:#92400e" title="Gün bitmeden teyit önerilmez">⚠</span>' : '';
-                        html += '<tr>' +
+                        sKuyruk += '<tr>' +
                             '<td><input type="checkbox" id="as4-cfi-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                             '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
                             '<td>' + esc(bolumAdi(r.bolum)) + '</td>' +
@@ -10418,29 +10903,29 @@ window.__I18N_SOZLUK__ = {
                                 '</div></td>' +
                             '<td style="text-align:right;font-weight:800;color:var(--success)">' + fmt(r.adet) + '</td>' +
                             '<td style="font-size:.8rem">' + esc(b.article || r.referans) +
-                                (b.article ? ' <span style="font-size:.7rem;color:#2563eb">(OPR açık)</span>' : '') + '</td>' +
+                                (b.article ? ' <span style="font-size:.7rem;color:#1D4ED8">(OPR açık)</span>' : '') + '</td>' +
                             '<td style="text-align:right"><input type="number" id="as4-cfi-adet-' + i + '" value="' + r.adet + '" min="1" class="rt-row-input" style="width:80px;text-align:right"></td>' +
                             '</tr>';
                     });
-                    html += '</tbody></table></div>';
+                    sKuyruk += '</tbody></table></div>';
                 }
 
-                html += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
+                sKuyruk += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
                     '<button class="btn btn-primary" id="as4-gonder-btn" onclick="as4Gonder()">📤 Seçilenleri AS400\'e Gönder</button>' +
-                    '<button class="btn" id="as4-durdur-btn" onclick="as4Durdur()" style="display:none;background:#dc2626;color:#fff;border-color:#b91c1c">⏹ Durdur</button>' +
-                    '<span style="font-size:.76rem;color:var(--muted)">Sıra: <b style="color:#065f46">LAUNCH</b> → <b style="color:#2563eb">CFI</b> → en son <b style="color:#b91c1c">♻ HURDA (COP)</b>. <b style="color:#065f46">A</b> = launch açık kalır · <b style="color:#b91c1c">S</b> = KAPANIR (kalan ≈ gönderilecek satırlarda otomatik önerilir).</span></div>' +
+                    '<button class="btn" id="as4-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--danger);color:#fff;border-color:var(--danger)">⏹ Durdur</button>' +
+                    '<span style="font-size:.76rem;color:var(--muted)">Sıra: <b style="color:#065f46">LAUNCH</b> → <b style="color:#1D4ED8">CFI</b> → en son <b style="color:#b91c1c">♻ HURDA (COP)</b>. <b style="color:#065f46">A</b> = launch açık kalır · <b style="color:#b91c1c">S</b> = KAPANIR (kalan ≈ gönderilecek satırlarda otomatik önerilir).</span></div>' +
                     '<div id="as4-gonder-sonuc"></div>';
             }
 
             // ── 1b) ♻ HURDA → COP (her zaman render — hurdalı satırlar onaylı üretimde
             // olabilir, normal kuyrukta çıkmaz). Ayrı buton; /cop_gonder + dedup kullanır. ──
             if (copBek.length) {
-                html += '<h4 style="margin:20px 0 8px;color:#b91c1c;font-size:.9rem">♻ Hurda → COP bekleyen (' + copBek.length + ')' +
+                sCop += '<h4 style="margin:20px 0 8px;color:#b91c1c;font-size:.9rem">♻ Hurda → COP bekleyen (' + copBek.length + ')' +
                     (_as4CopBekleyen.length > copBek.length ? ' <span style="color:#065f46;font-size:.74rem;font-weight:700">· ✅ ' + (_as4CopBekleyen.length - copBek.length) + ' zaten COP verilmiş</span>' : '') +
                     ' <span style="font-weight:500;color:var(--muted);font-size:.74rem">— hurda (nok) adetleri COP olarak girilir; zaten girilmişler gönderimde atlanır (dedup)</span>' +
                     ' <a onclick="as4CopTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                     ' <a onclick="as4CopTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
-                html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                sCop += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                     '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
                     '<th>Article (COP hedefi)</th><th style="text-align:right;width:96px">Hurda</th></tr></thead><tbody>';
                 _as4CopBekleyen.forEach(function (c, i) {
@@ -10448,7 +10933,7 @@ window.__I18N_SOZLUK__ = {
                     var sec = !c.bugunMu;   // geçmiş gün seçili; article editable olduğu için varyant da seçilebilir
                     var uyari = c.supheli ? ' <span style="color:#92400e;font-size:.7rem;font-weight:800" title="Varyant eşleşme — üretilen kod yazıldı; AS400 kodu farklıysa aşağıdaki alandan düzelt">⚠ kod?</span>' : '';
                     var gunU = c.bugunMu ? ' <span style="color:#92400e" title="Gün bitmeden önerilmez">⚠</span>' : '';
-                    html += '<tr>' +
+                    sCop += '<tr>' +
                         '<td><input type="checkbox" id="as4-cop-cb-' + i + '"' + (sec ? ' checked' : '') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(c.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(c.bolum)) + '</td>' +
@@ -10457,26 +10942,26 @@ window.__I18N_SOZLUK__ = {
                         '<td style="text-align:right"><input type="number" id="as4-cop-adet-' + i + '" value="' + c.adet + '" min="1" class="rt-row-input" style="width:78px;text-align:right;color:#b91c1c;font-weight:800"></td>' +
                         '</tr>';
                 });
-                html += '</tbody></table></div>';
-                html += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
-                    '<button class="btn" id="as4-cop-gonder-btn" onclick="as4CopGonder()" style="background:#dc2626;color:#fff;border-color:#b91c1c">♻ Seçili hurdaları COP olarak gönder</button>' +
-                    '<button class="btn" id="as4-cop-durdur-btn" onclick="as4Durdur()" style="display:none;background:#7f1d1d;color:#fff;border-color:#7f1d1d">⏹ Durdur</button>' +
+                sCop += '</tbody></table></div>';
+                sCop += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
+                    '<button class="btn" id="as4-cop-gonder-btn" onclick="as4CopGonder()" style="background:var(--danger);color:#fff;border-color:var(--danger)">♻ Seçili hurdaları COP olarak gönder</button>' +
+                    '<button class="btn" id="as4-cop-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--primary-hover);color:#fff;border-color:var(--primary-hover)">⏹ Durdur</button>' +
                     '<span style="font-size:.76rem;color:var(--muted)">COP hareket tarihi = <b>bugün</b> (hurda ne zaman girilirse o gün defterlenir). Session B\'nin boşta olduğundan emin ol.</span></div>' +
                     '<div id="as4-cop-sonuc"></div>';
             } else if (_as4CopBekleyen.length) {
                 // Tüm hurdalar zaten COP verilmiş — pending yok; boş tablo yerine kısa bilgi.
-                html += '<div style="margin:18px 0 4px;color:#065f46;font-size:.86rem;font-weight:700">♻ ✅ Bu aralıktaki tüm hurdalar zaten COP verilmiş (' + _as4CopBekleyen.length + ' satır).</div>';
+                sCop += '<div style="margin:18px 0 4px;color:#065f46;font-size:.86rem;font-weight:700">♻ ✅ Bu aralıktaki tüm hurdalar zaten COP verilmiş (' + _as4CopBekleyen.length + ' satır).</div>';
             }
 
             // ── 2) DIKKAT (robot dokunmaz) ──
             if (dikkat.length) {
                 var TIP = {
-                    varyant: ['#92400e', 'Yazım/varyant farkı — referans kodunu AS400 koduna göre düzelt'],
-                    zombi:   ['#b91c1c', 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — S ile kapatın; üretim sürecekse yeni launch alınmalı'],
-                    olasi:   ['#92400e', 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin']
+                    varyant: ['#A54D08', 'Yazım/varyant farkı — referans kodunu AS400 koduna göre düzelt'],
+                    zombi:   ['#B91C1C', 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — S ile kapatın; üretim sürecekse yeni launch alınmalı'],
+                    olasi:   ['#A54D08', 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin']
                 };
-                html += '<h4 style="margin:18px 0 8px;color:#92400e;font-size:.9rem">⚠️ Dikkat gerektirir (' + dikkat.length + ') — robot bunlara dokunmaz</h4>';
-                html += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                sDikkat += '<h4 style="margin:18px 0 8px;color:#92400e;font-size:.9rem">⚠️ Dikkat gerektirir (' + dikkat.length + ') — robot bunlara dokunmaz</h4>';
+                sDikkat += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                     '<th>Gün</th><th>Bölüm</th><th>Referans</th><th style="text-align:right">Üretilen</th>' +
                     '<th>AS400 → Launch</th><th>Neden</th></tr></thead><tbody>';
                 dikkat.forEach(function (x) {
@@ -10484,7 +10969,7 @@ window.__I18N_SOZLUK__ = {
                     var l = x.l || {};
                     var hrk = (l.zaten_hareket || []).map(function (h) { return h.tarih + ': ' + fmt(h.adet) + ' (L' + h.launch + ')'; }).join(', ');
                     var isrD = x.r.isaret || {};
-                    html += '<tr><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
+                    sDikkat += '<tr><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
                             (isrD.durum === 'kontrol' ? ' <span style="color:#065f46;font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
@@ -10500,17 +10985,17 @@ window.__I18N_SOZLUK__ = {
                         (hrk ? '<div style="font-size:.7rem;color:var(--dim)">' + esc(hrk) + '</div>' : '') + '</td>' +
                         '<td style="font-size:.76rem;color:' + t[0] + ';font-weight:700">' + esc(t[1]) + '</td></tr>';
                 });
-                html += '</tbody></table></div>';
+                sDikkat += '</tbody></table></div>';
             }
 
             // ── 3) TEYIDI VERILMIS (denetim, katlanır) ──
             if (teyitli.length) {
-                html += '<details style="margin-top:16px"><summary style="cursor:pointer;color:#64748b;font-weight:800;font-size:.9rem">✅ Teyidi verilmiş (' + teyitli.length + ') — denetim için aç</summary>';
-                html += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
+                sTeyitli += '<details style="margin-top:16px"><summary style="cursor:pointer;color:#64748b;font-weight:800;font-size:.9rem">✅ Teyidi verilmiş (' + teyitli.length + ') — denetim için aç</summary>';
+                sTeyitli += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
                     '<th>Gün</th><th>Bölüm</th><th>Referans</th><th style="text-align:right">Üretilen</th><th>ERP teyit hareketi</th></tr></thead><tbody>';
                 teyitli.forEach(function (x) {
                     var hrk = (x.l.zaten_hareket || []).map(function (h) { return h.tarih + ' → ' + fmt(h.adet) + ' adet (L' + h.launch + ')'; }).join('<br>');
-                    html += '<tr style="opacity:.85"><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
+                    sTeyitli += '<tr style="opacity:.85"><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
                             (x.r.isaret ? ' <span style="color:#065f46;font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
@@ -10518,51 +11003,56 @@ window.__I18N_SOZLUK__ = {
                         '<td style="text-align:right">' + fmt(x.r.adet) + '</td>' +
                         '<td style="font-size:.78rem;color:#64748b">' + hrk + '</td></tr>';
                 });
-                html += '</tbody></table></div></details>';
+                sTeyitli += '</tbody></table></div></details>';
             }
 
             // ── 4) BILGI (katlanır) — launch'sız üretimler artık CFI kuyruğunda ──
             if (araList.length || digerList.length || haricList.length) {
-                html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:#2563eb;font-weight:800;font-size:.9rem">ℹ️ Bilgi: ara operasyon (' + araList.length + ') · teyit gerekmez (' + haricList.length + ') · diğer (' + digerList.length + ')</summary><div style="margin-top:8px;font-size:.82rem">';
+                sBilgi += '<details style="margin-top:12px"><summary style="cursor:pointer;color:#1D4ED8;font-weight:800;font-size:.9rem">ℹ️ Bilgi: ara operasyon (' + araList.length + ') · teyit gerekmez (' + haricList.length + ') · diğer (' + digerList.length + ')</summary><div style="margin-top:8px;font-size:.82rem">';
                 if (haricList.length) {
-                    html += '<div style="color:#64748b;font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez (kalıcı işaret) — robot dokunmaz:</div>';
+                    sBilgi += '<div style="color:#64748b;font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez (kalıcı işaret) — robot dokunmaz:</div>';
                     haricList.forEach(function (x) {
-                        html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
+                        sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
                             '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
                             'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'kalici\',\'gerek_yok\',\'\',true)" ' +
                             'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" title="Kalıcı işareti kaldır, tekrar teyit listesine gelsin">↩ geri al</button></div>';
                     });
                 }
                 if (araList.length) {
-                    html += '<div style="color:#7c3aed;font-weight:800;margin:10px 0 4px">🔗 Ara operasyon — teyit son op üretiminde verilir:</div>';
-                    araList.forEach(function (x) { html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet, son op: ' + (x.r.son_op || '?') + ')' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>'; });
+                    sBilgi += '<div style="color:#4F46E5;font-weight:800;margin:10px 0 4px">🔗 Ara operasyon — teyit son op üretiminde verilir:</div>';
+                    araList.forEach(function (x) { sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet, son op: ' + (x.r.son_op || '?') + ')' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>'; });
                 }
                 if (digerList.length) {
-                    html += '<div style="color:var(--muted);font-weight:800;margin:10px 0 4px">Diğer (durum 45/50 — TK1 akışı):</div>';
+                    sBilgi += '<div style="color:var(--muted);font-weight:800;margin:10px 0 4px">Diğer (durum 45/50 — TK1 akışı):</div>';
                     digerList.forEach(function (x) {
-                        html += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet)' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>';
+                        sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet)' + as4IsaretBtn(x.r, x.tarih, 'teyit_ver') + '</div>';
                     });
                 }
-                html += '</div></details>';
+                sBilgi += '</div></details>';
             }
 
             // ── 5) SON ROBOT GONDERIMLERI ──
             var sg = d.son_gonderimler || [];
             if (sg.length) {
-                html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">🗒 Son robot gönderimleri (' + sg.length + ')</summary>';
-                html += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
+                sGonderim += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">🗒 Son robot gönderimleri (' + sg.length + ')</summary>';
+                sGonderim += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
                     '<th>Zaman</th><th>Üretim günü</th><th>Referans</th><th>Launch</th><th style="text-align:right">Adet</th><th>Sonuç</th><th>Kim</th></tr></thead><tbody>';
                 sg.forEach(function (s) {
-                    var renk = s.sonuc === 'ok' ? '#065f46' : (s.sonuc === 'atlandi' ? '#5c6675' : '#b91c1c');
-                    html += '<tr><td style="font-size:.75rem;white-space:nowrap">' + esc((s.created_at || '').slice(5, 16)) + '</td>' +
+                    var renk = s.sonuc === 'ok' ? '#15803D' : (s.sonuc === 'atlandi' ? '#5c6675' : '#B91C1C');
+                    sGonderim += '<tr><td style="font-size:.75rem;white-space:nowrap">' + esc((s.created_at || '').slice(5, 16)) + '</td>' +
                         '<td style="font-size:.78rem">' + esc(s.uretim_tarihi) + '</td><td>' + esc(s.referans) + '</td>' +
                         '<td>' + esc(s.yil + '-' + s.launch_no) + '</td><td style="text-align:right">' + fmt(s.adet) + '</td>' +
                         '<td style="color:' + renk + ';font-weight:700">' + esc(s.sonuc) + '</td>' +
                         '<td style="font-size:.78rem">' + esc(s.olusturan || '') + '</td></tr>';
                 });
-                html += '</tbody></table></div></details>';
+                sGonderim += '</tbody></table></div></details>';
             }
-            icerik.innerHTML = html;
+            // ── DİZİLİM: aksiyon önce, tamamlananlar sonra ──
+            // sDikkat  : senden karar bekleyenler (robot dokunmaz)
+            // sKuyruk  : robota gönderilecek launch + CFI  (as4-gonder-sonuc burada)
+            // sCop     : hurda → COP kuyruğu
+            // sTeyitli / sBilgi / sGonderim : katlanır, denetim amaçlı
+            icerik.innerHTML = ustSerit + cipler + sDikkat + sKuyruk + sCop + sTeyitli + sBilgi + sGonderim;
             as4DurumKontrol();   // devam eden gönderim varsa Durdur'u göster
         }
 
@@ -10597,14 +11087,14 @@ window.__I18N_SOZLUK__ = {
         function as4BayrakStil(i) {
             var sel = document.getElementById('as4-bayrak-' + i); if (!sel) return;
             var s = (sel.value === 'S');
-            sel.style.color = s ? '#b91c1c' : '#065f46';
+            sel.style.color = s ? '#B91C1C' : '#15803D';
             sel.style.borderColor = s ? '#f8717188' : '';
         }
 
         // Ortak sonuç satırı çizici — launch satırı: yıl-no; CFI satırı: article
         function as4SonucSatirlari(sonuclar) {
             return (sonuclar || []).map(function (s) {
-                var renk = s.sonuc === 'ok' ? '#065f46' : (s.sonuc === 'atlandi' ? '#5c6675' : '#b91c1c');
+                var renk = s.sonuc === 'ok' ? '#15803D' : (s.sonuc === 'atlandi' ? '#5c6675' : '#B91C1C');
                 var ikon = s.sonuc === 'ok' ? '✔' : (s.sonuc === 'atlandi' ? '⏭' : '✖');
                 var by = s.bayrak === 'S' ? ' <b style="color:#b91c1c">[S-KAPAT]</b>' : '';
                 var hedef = s.no ? (s.yil + '-' + s.no)
@@ -10992,7 +11482,7 @@ window.__I18N_SOZLUK__ = {
             function goster(t, ok) {
                 msj.style.display = 'block';
                 msj.style.background = ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
-                msj.style.color = ok ? '#86efac' : '#b91c1c';
+                msj.style.color = ok ? '#86efac' : '#B91C1C';
                 msj.style.border = '1px solid ' + (ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)');
                 msj.textContent = t;
             }
@@ -11021,7 +11511,7 @@ window.__I18N_SOZLUK__ = {
                     var izinRozet = k.rol === 'admin'
                         ? '<span style="color:#4f46e5;font-weight:700">Tüm sayfalar</span>'
                         : (k.izinler.length
-                            ? k.izinler.map(function (s) { return '<span style="display:inline-block;background:rgba(59,130,246,0.14);color:#2563eb;border-radius:6px;padding:2px 7px;margin:2px;font-size:.72rem">' + esc(PANEL_SAYFA_ETIKET[s] || s) + '</span>'; }).join('')
+                            ? k.izinler.map(function (s) { return '<span style="display:inline-block;background:rgba(59,130,246,0.14);color:#1D4ED8;border-radius:6px;padding:2px 7px;margin:2px;font-size:.72rem">' + esc(PANEL_SAYFA_ETIKET[s] || s) + '</span>'; }).join('')
                             : '<span style="color:var(--dim)">— (sayfa yok)</span>');
                     var rolRozet = k.rol === 'admin'
                         ? '<span style="background:rgba(99,102,241,0.18);color:#4f46e5;border-radius:6px;padding:3px 9px;font-size:.74rem;font-weight:700">Yönetici</span>'
@@ -11173,6 +11663,48 @@ window.__I18N_SOZLUK__ = {
             }
         })();
     </script>
+
+<script>
+/* V3 ÖNİZLEME — Bölümler sidebar alt sekmeleri (design_handoff_ui_v3 madde 3+5).
+   Topbar bölüm seçicisi gizlendi; BOLUM_SIRA'dan dinamik liste "Aktif Bölüm"
+   grubunun başına enjekte edilir. Tıklama mevcut bolumDegistir()'e bağlanır —
+   iş mantığı değişmez. Tasarımda 3 bölüm vardı; bizde liste dinamiktir. */
+(function () {
+    function isaretle(b) {
+        document.querySelectorAll('.v3-bolum-item').forEach(function (x) {
+            x.classList.toggle('v3-aktif', x.dataset.bolum === b);
+        });
+    }
+    function kur() {
+        try {
+            var ngt = document.getElementById('ng-bolum-title');
+            if (!ngt || !window.BOLUMLER || !window.bolumDegistir) return;
+            var etiket = ngt.querySelector('span:not(.ok)');
+            if (etiket) etiket.textContent = 'Bölümler';
+            var govde = ngt.parentElement.querySelector('.nav-group-govde');
+            if (!govde || document.getElementById('v3-bolum-nav')) return;
+            var kutu = document.createElement('div');
+            kutu.id = 'v3-bolum-nav';
+            (window.BOLUM_SIRA || []).forEach(function (b) {
+                var a = document.createElement('a');
+                a.className = 'nav-item v3-bolum-item';
+                a.dataset.bolum = b;
+                var dot = document.createElement('span');
+                dot.className = 'v3-dot';
+                dot.style.background = (BOLUMLER[b] && BOLUMLER[b].renk) || '#9AA0AD';
+                a.appendChild(dot);
+                a.appendChild(document.createTextNode((BOLUMLER[b] && BOLUMLER[b].ad) || b));
+                a.onclick = function () { bolumDegistir(b); isaretle(b); };
+                kutu.appendChild(a);
+            });
+            govde.insertBefore(kutu, govde.firstChild);
+            isaretle(window.aktifBolum);
+        } catch (e) { /* önizleme süsü — çökerse sayfa yine çalışır */ }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kur);
+    else kur();
+})();
+</script>
 </body>
 
 </html>

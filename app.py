@@ -1090,6 +1090,15 @@ def operator_tk1_sayfasi():
     return render_template('mobile_v2.html', lokasyon='TK1')
 
 
+@app.route('/onizleme')
+def operator_onizleme_sayfasi():
+    """UI v3 "ENDÜSTRİYEL" ÖNİZLEMESİ (2026-07-29, design_handoff_ui_v3) —
+    operatör ekranı adayı; canlı / ve /tk1'e DOKUNMAZ. OK/OEE sayaç halkası +
+    ink/amber/kırmızı-sınır CTA reçetesi. Beğenilirse mobile_onizleme.html
+    içeriği mobile_v2.html'e taşınır."""
+    return render_template('mobile_onizleme.html', lokasyon='TK2')
+
+
 @app.route('/mobile_legacy')
 def operator_legacy_sayfasi():
     """Eski operatör tasarımı (geri dönüş için saklanıyor)."""
@@ -1116,10 +1125,10 @@ def dashboard_sayfasi():
 
 @app.route('/dashboard/onizleme')
 def dashboard_onizleme_sayfasi():
-    """AÇIK TEMA ÖNİZLEMESİ (2026-07-28) — canlı /dashboard'a DOKUNMAZ.
-    Kullanıcı tasarımı onaylayana kadar iki sürüm yan yana karşılaştırılabilir;
-    onaylanırsa dashboard_onizleme.html içeriği dashboard_v2.html'e taşınır.
-    Auth ve panel_ku enjeksiyonu canlı rotayla birebir aynıdır."""
+    """UI v3 "ENDÜSTRİYEL" ÖNİZLEMESİ (2026-07-29, design_handoff_ui_v3) —
+    canlı /dashboard'a DOKUNMAZ. Nötr gri + indigo + ink chrome; düz yüzeyler,
+    gölgesiz, mono rakam. Beğenilirse dashboard_onizleme.html içeriği
+    dashboard_v2.html'e taşınır. Auth/panel_ku canlı rotayla birebir aynı."""
     ku = panel_kullanici()
     if not ku:
         return render_template('panel_giris.html')
