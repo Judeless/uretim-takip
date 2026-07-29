@@ -2655,6 +2655,21 @@ window.__I18N_SOZLUK__ = {
         </div>
         <div id="d-cycle-lbl" class="cycle-badge" style="display:none">⏱ —</div>
 
+        <!-- PRES ABKANT — BÜKÜM OPERASYON SAYISI (2026-07-29)
+             Bükümde bir parçaya SIRAYLA tüm büküm operasyonları uygulanır, sonra
+             sıradaki parçaya geçilir. 3 operasyonlu bir referansta abkant 3 sinyal
+             üretir ama ortaya 1 parça çıkar → sayaç her 3. sinyali 1 adet sayar.
+             Değer referansa kaydedilir (Excel'de D kolonu), sonraki üretimlerde
+             hazır gelir, operatör değiştirebilir. Yalnız pres bölümünde görünür. -->
+        <div id="d-bukum-wrap" style="display:none;margin-top:12px">
+          <label>Büküm Operasyon Sayısı</label>
+          <input type="number" id="d-bukum" value="1" min="1" max="99"
+                 inputmode="numeric" pattern="[0-9]*" onchange="bukumDegisti()">
+          <div id="d-bukum-ipucu" style="font-size:.74rem;color:var(--muted);font-weight:500;margin-top:6px">
+            Bir parçaya kaç büküm uygulanıyor? Sayaç her <b id="d-bukum-n">1</b>. sinyali 1 adet sayar.
+          </div>
+        </div>
+
         <!-- Test cihazı sayaç kaynağı (Cofle/wicow) — yalnızca entegrasyon açıksa görünür.
              Seçiliyse ADET, test cihazının başarılı testlerinden otomatik sayılır. -->
         <div id="d-test-wrap" style="display:none;margin-top:12px;padding:10px 12px;border:1px solid rgba(29,78,216,0.30);border-radius:12px;background:var(--info-soft)">
@@ -3604,6 +3619,9 @@ window.__I18N_SOZLUK__ = {
         try { _sonMak = localStorage.getItem('mobile_pres_son_makine') || '0'; } catch (e) {}
         prSel.value = _sonMak;
       }
+      // Büküm operasyon sayısı: yeni kayıt 1'den başlar, referans seçilince
+      // referansın hatırlanan değeriyle dolar (bkz. secRef).
+      bukumGoster(1);
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = 'none';  // yeni kayıtta sensör ipucu gizli
       var sifirla = document.getElementById('d-sayac-sifirla-wrap');
@@ -4301,7 +4319,7 @@ window.__I18N_SOZLUK__ = {
       var type = btn.dataset.type;
       if (type === 'u-edit') {
         var u = cacheUretim.find(function (x) { return x.id === id; });
-        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0, u.aciklama || '', u.istasyon || 0, u.launch_adet || 0, u.sayac_otomatik || 0);
+        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0, u.aciklama || '', u.istasyon || 0, u.launch_adet || 0, u.sayac_otomatik || 0, u.bukum_operasyon || 1);
       } else if (type === 'u-tamam') {
         var mevcutTamam = parseInt(btn.dataset.tamam || '0');
         fetch('/api/uretim_kayit/' + id + '/tamamlandi', {
@@ -4325,7 +4343,7 @@ window.__I18N_SOZLUK__ = {
     });
 
     // ── EKRAN D: ÜRETİM ──
-    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir, aciklama, istasyon, launch, sayacOtomatik) {
+    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir, aciklama, istasyon, launch, sayacOtomatik, bukumOp) {
       document.getElementById('d-uid').value = id;
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = (sayacOtomatik == 1) ? 'block' : 'none';
@@ -4362,6 +4380,9 @@ window.__I18N_SOZLUK__ = {
       if (prWrap) prWrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
       var prSel = document.getElementById('d-pres-makine');
       if (prSel) prSel.value = String(parseInt(istasyon || 0) || 0);
+      // Büküm operasyon sayısı: KAYDIN kendi değeri (referansın güncel varsayılanı
+      // değil) — geçmiş kaydın adedi hangi bölenle hesaplandıysa o görünsün.
+      bukumGoster(bukumOp || 1);
       istasyonSec(parseInt(istasyon || 0) || 0);
       // Düzenlemede kaynak seçimi gösterilmez (test_cihaz_id sunucuda korunur)
       var ttw = document.getElementById('d-test-wrap');
@@ -4395,7 +4416,10 @@ window.__I18N_SOZLUK__ = {
         cycle_time_sn: parseFloat(document.getElementById('d-ref').dataset.cycle || 0),
         istasyon: istEl ? parseInt(istEl.value || 0) : 0,
         launch_adet: launchEl ? parseInt(launchEl.value || 0) : 0,
-        aciklama: acEl ? (acEl.value || '').trim() : ''
+        aciklama: acEl ? (acEl.value || '').trim() : '',
+        // Büküm operasyon sayısı — pres dışında her zaman 1 (sunucu da pres dışını 1'e sabitler).
+        // Sunucu bu değeri hem kayda yazar hem referansın varsayılanı olarak hatırlar.
+        bukum_operasyon: bukumDeger()
       };
       // Auto sayaç kaydında operatör OK alanını değiştirdiyse sayacı dondur (manuel düzeltme)
       if (window._dOkAcilis != null && String(okDeger) !== window._dOkAcilis) {
@@ -4563,6 +4587,10 @@ window.__I18N_SOZLUK__ = {
       _refACTimer = setTimeout(function () {
         var seq = ++_refACSeq;
         var bolumParam = secilenBolum ? '&bolum=' + secilenBolum : '';
+        // LOKASYON ZORUNLU (2026-07-29): parametresiz istekte backend lokasyon
+        // filtresi UYGULAMIYOR → TK1 operatörünün autocomplete'inde TK2 kodları
+        // da çıkıyordu (dashboard'daki aynı sızıntı).
+        bolumParam += '&lokasyon=' + encodeURIComponent(LOKASYON);
         fetch('/api/referanslar?q=' + encodeURIComponent(q) + bolumParam)
           .then(function (r) { return r.json(); })
           .then(function (items) {
@@ -4578,7 +4606,7 @@ window.__I18N_SOZLUK__ = {
               div.innerHTML = '<b style="color:var(--c-blue)">' + r.referans_kodu + '</b>' +
                 (r.hedef_cycle_time_sn ? '<span style="float:right;font-size:.72rem;color:var(--dim)">' + Math.round(r.hedef_cycle_time_sn) + 'sn</span>' : '') +
                 acikSatir;
-              div.onclick = function () { secRef(r.referans_kodu, r.hedef_cycle_time_sn || 0, r.aciklama || ''); };
+              div.onclick = function () { secRef(r.referans_kodu, r.hedef_cycle_time_sn || 0, r.aciklama || '', r.bukum_operasyon || 1); };
               list.appendChild(div);
             });
             list.style.display = 'block';
@@ -4586,13 +4614,46 @@ window.__I18N_SOZLUK__ = {
       }, 180);
     }
 
-    function secRef(kod, ct, aciklama) {
+    // ── BÜKÜM OPERASYON SAYISI (pres) ─────────────────────────────────────
+    // Alanı yalnız pres bölümünde gösterir ve ipucundaki N'i günceller.
+    // Diğer bölümlerde alan gizli kalır ve değeri 1'dir → sayaç bölünmez.
+    function bukumGoster(n) {
+      var wrap = document.getElementById('d-bukum-wrap');
+      var inp = document.getElementById('d-bukum');
+      if (!wrap || !inp) return;
+      wrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
+      var v = parseInt(n, 10);
+      if (!(v >= 1)) v = 1;
+      if (v > 99) v = 99;
+      inp.value = v;
+      bukumDegisti();
+    }
+    function bukumDegisti() {
+      var inp = document.getElementById('d-bukum');
+      var et = document.getElementById('d-bukum-n');
+      if (!inp) return;
+      var v = parseInt(inp.value, 10);
+      if (!(v >= 1)) v = 1;
+      if (v > 99) v = 99;
+      inp.value = v;
+      if (et) et.textContent = v;
+    }
+    function bukumDeger() {
+      if (secilenBolum !== 'pres') return 1;
+      var inp = document.getElementById('d-bukum');
+      var v = inp ? parseInt(inp.value, 10) : 1;
+      return (v >= 1 && v <= 99) ? v : 1;
+    }
+
+    function secRef(kod, ct, aciklama, bukumOp) {
       var inp = document.getElementById('d-ref');
       inp.value = kod;
       inp.dataset.cycle = ct;
       var lbl = document.getElementById('d-cycle-lbl');
       if (ct > 0) { lbl.textContent = '⏱ ' + Math.round(ct) + ' sn/parça'; lbl.style.display = 'inline-flex'; }
       else { lbl.style.display = 'none'; }
+      // Referansın hatırlanan büküm operasyon sayısı hazır gelsin (operatör değiştirebilir)
+      if (secilenBolum === 'pres') bukumGoster(bukumOp || 1);
       // Pres: referansın Excel açıklaması alttaki Açıklama alanına gelir (operatör görsün).
       // Operatörün kendi yazdığı notu EZME — yalnız alan boşken ya da önceki otomatik
       // doldurma duruyorken yaz (başka referans seçilince güncellenir).
@@ -4616,6 +4677,10 @@ window.__I18N_SOZLUK__ = {
       _mfRefACTimer = setTimeout(function () {
         var seq = ++_mfRefACSeq;
         var bolumParam = secilenBolum ? '&bolum=' + secilenBolum : '';
+        // LOKASYON ZORUNLU (2026-07-29): parametresiz istekte backend lokasyon
+        // filtresi UYGULAMIYOR → TK1 operatörünün autocomplete'inde TK2 kodları
+        // da çıkıyordu (dashboard'daki aynı sızıntı).
+        bolumParam += '&lokasyon=' + encodeURIComponent(LOKASYON);
         fetch('/api/referanslar?q=' + encodeURIComponent(q) + bolumParam)
           .then(function (r) { return r.json(); })
           .then(function (items) {

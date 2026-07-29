@@ -641,6 +641,104 @@ def _test_son_aktivite_dk(conn, vardiya_id):
         return None
 
 
+def _bukum_bol(pulse, bukum_op):
+    """Ham pulse sayısını ÜRETİLEN PARÇAYA çevirir (Pres Abkant büküm modeli).
+
+    Bükümde bir parçaya sırayla tüm büküm operasyonları uygulanır, sonra sıradaki
+    parçaya geçilir. 3 operasyonlu bir referansta abkant 3 kez sinyal üretir ama
+    ortaya 1 parça çıkar → üretim teyidi 3. sinyaldir.
+
+    TABAN BÖLME bilinçli: 7 pulse / 3 op = 2 parça (7. pulse üçüncü parçanın ilk
+    bükümü, parça henüz BİTMEDİ). Kalan, kayıt açık kaldığı sürece bir sonraki
+    senkronda tamamlanır — ok_adet her seferinde ham pulse'tan yeniden hesaplandığı
+    için kayıp olmaz.
+
+    pulse None (pilot.db okunamadı) ise None döner: çağıran ok_adet'i EZMEZ.
+    bukum_op ≤ 1 ise dokunmaz — tüm eski kayıtlar ve diğer bölümler etkilenmez."""
+    if pulse is None:
+        return None
+    try:
+        n = int(bukum_op or 1)
+    except (TypeError, ValueError):
+        n = 1
+    if n <= 1:
+        return pulse
+    return pulse // n
+
+
+def _bukum_excel_yaz(ref, adet):
+    """Büküm operasyon sayısını 'Pres Abkant Referans' sayfasına yazar (D kolonu).
+    Sayfa 3 kolonluydu (Kod | Açıklama | Süre) → D yeni. Başlık yoksa açılır.
+    EN İYİ ÇABA: Excel biri tarafından açıksa PermissionError gelir, üretim kaydı
+    bundan ETKİLENMEZ — hata yalnız loglanır (bkz. referans/sureler aynı kalıp)."""
+    try:
+        from import_excel import EXCEL_YOL, BOLUM_SAYFA
+        import openpyxl, os
+        if not os.path.exists(EXCEL_YOL):
+            return
+        wb = openpyxl.load_workbook(EXCEL_YOL)
+        sayfa_adi = BOLUM_SAYFA['pres']['ref']
+        if sayfa_adi not in wb.sheetnames:
+            return
+        ws = wb[sayfa_adi]
+        if not ws.cell(row=1, column=4).value:
+            ws.cell(row=1, column=4, value='Büküm Op.')
+        hedef = str(ref).upper().replace(' ', '')
+        for r in range(2, ws.max_row + 1):
+            hucre = ws.cell(row=r, column=1).value
+            if hucre and str(hucre).upper().replace(' ', '') == hedef:
+                ws.cell(row=r, column=4, value=int(adet))
+                break
+        wb.save(EXCEL_YOL)
+    except Exception as e:
+        print(f'[bukum] Excel sync hatasi ({ref}): {e}')
+
+
+def _bukum_op_coz(c, gelen, ref, bolum, lokasyon):
+    """Üretim kaydına yazılacak büküm operasyon sayısını belirler.
+
+    - pres DIŞINDAKİ bölümlerde her zaman 1 → özellik kapalı, hiçbir şey değişmez.
+    - İstemci değer gönderdiyse: referansa da YAZILIR (bir sonraki üretimde hazır
+      gelsin) ve Excel'e senkronlanır — ama YALNIZ değer gerçekten değiştiyse,
+      yoksa her üretim kaydında 700 satırlık Excel açılıp kaydedilirdi.
+    - Göndermediyse: referansın hatırlanan değeri kullanılır (yoksa 1)."""
+    if (bolum or '') != 'pres':
+        return 1
+    kayitli = 1
+    try:
+        row = c.execute(
+            "SELECT COALESCE(bukum_operasyon,1) AS b FROM referans_listesi "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? LIMIT 1",
+            (ref, bolum, lokasyon)
+        ).fetchone()
+        if row:
+            kayitli = int(row['b'] or 1)
+    except Exception:
+        kayitli = 1
+
+    if gelen in (None, '', 0, '0'):
+        return max(1, kayitli)
+    try:
+        yeni = int(gelen)
+    except (TypeError, ValueError):
+        return max(1, kayitli)
+    yeni = max(1, min(99, yeni))   # 1..99 — sıfır/negatif bölme çöktürür, 99 üstü hatalı giriş
+
+    if yeni != kayitli:
+        try:
+            c.execute(
+                "UPDATE referans_listesi SET bukum_operasyon=? "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=?",
+                (yeni, ref, bolum, lokasyon)
+            )
+        except Exception as e:
+            print(f'[bukum] referans guncellenemedi ({ref}): {e}')
+        _bukum_excel_yaz(ref, yeni)
+    return yeni
+
+
 def _uretim_sayac_senkron(conn, vardiya_id):
     """Auto modlu (sayac_otomatik=1) üretim kayıtlarının ok_adet'ini sensör sayımıyla
     günceller. GET /api/vardiya ve OEE okumadan önce çağrılır, böylece liste/rapor/OEE
@@ -655,7 +753,8 @@ def _uretim_sayac_senkron(conn, vardiya_id):
         if not v:
             return
         rows = conn.execute(
-            "SELECT id, istasyon, sayac_baslangic_ts, test_cihaz_id, referans_kodu "
+            "SELECT id, istasyon, sayac_baslangic_ts, test_cihaz_id, referans_kodu, "
+            "       COALESCE(bukum_operasyon, 1) AS bukum_operasyon "
             "FROM uretim_kayitlari "
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vardiya_id,)
@@ -671,6 +770,7 @@ def _uretim_sayac_senkron(conn, vardiya_id):
             elif robot_allow:
                 cnt = _pilot_pulse_say(v['bolum'], v['robot_no'], r['istasyon'] or 0,
                                        r['sayac_baslangic_ts'])
+                cnt = _bukum_bol(cnt, r['bukum_operasyon'])
             else:
                 cnt = None
             if cnt is not None:   # kaynak okunamadıysa ok_adet'i SIFIRLAMA (gerçek üretimi ezme)
@@ -1877,13 +1977,16 @@ def vardiya_hat_degistir(vid):
         # uretim_ekle'deki referans-değişimi dondurma mantığıyla aynı.
         simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         aktif = c.execute(
-            "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
+            "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon "
+            "FROM uretim_kayitlari "
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vid,)
         ).fetchall()
         for o in aktif:
             fcnt = _pilot_pulse_say(v['bolum'], eski_robot, o['istasyon'] or 0,
                                     o['sayac_baslangic_ts'], biti_ts=simdi)
+            # Dondurma da bölünmeli — yoksa kayıt kapanınca adet ham pulse'a fırlar
+            fcnt = _bukum_bol(fcnt, o['bukum_operasyon'])
             if fcnt is not None:
                 c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
                           (fcnt, o['id']))
@@ -2055,13 +2158,16 @@ def uretim_ekle():
             elif auto:
                 # Aynı vardiya+istasyon önceki ESP32 auto kayıt(lar)ı dondur (test-cihazı hariç)
                 onceki = c.execute(
-                    "SELECT id, istasyon, sayac_baslangic_ts FROM uretim_kayitlari "
+                    "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon "
+                    "FROM uretim_kayitlari "
                     "WHERE vardiya_id=? AND istasyon=? AND sayac_otomatik=1 AND test_cihaz_id IS NULL",
                     (data['vardiya_id'], ist_val)
                 ).fetchall()
                 for o in onceki:
                     fcnt = _pilot_pulse_say(vardiya_bolum, vardiya_robot, ist_val,
                                             o['sayac_baslangic_ts'], biti_ts=simdi)
+                    # Dondurma da bölünmeli (bkz. _bukum_bol)
+                    fcnt = _bukum_bol(fcnt, o['bukum_operasyon'])
                     if fcnt is not None:
                         c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
                                   (fcnt, o['id']))
@@ -2069,9 +2175,37 @@ def uretim_ekle():
                         # pilot.db okunamadi — ok_adet'i SIFIRLAMA; mevcut degerle dondur (manuel'e al)
                         c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE id=?", (o['id'],))
 
+            # Referansı listeye otomatik ekle — VARDIYANIN bölümü VE lokasyonuyla etiketle
+            # (montaj operatörü tanımsız bir kod girince montaj'a düşsün, kaynak'a değil;
+            #  TK1 operatörünün girdiği kod TK1'e düşsün, TK2'ye karışmasın)
+            # NORMALIZE kontrol: UNIQUE ham kod üzerinde — operatör '94. LTK. 341/10' gibi
+            # boşluklu/farklı yazarsa INSERT OR IGNORE yeni VARYANT satır açıyordu; bu
+            # duplike satırlar JOIN'lerde iş emirlerini çoğaltıyordu (fan-out). Normalize
+            # eş (aynı lokasyonda) varsa yeni satır AÇMA.
+            # SIRA: bu blok üretim INSERT'inden ÖNCE olmalı — _bukum_op_coz büküm
+            # sayısını referans satırına yazıyor, satır henüz yoksa değer kaybolurdu.
+            ref_var = c.execute(
+                "SELECT 1 FROM referans_listesi "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND COALESCE(lokasyon,'TK2')=? LIMIT 1",
+                (ref, vardiya_lokasyon)
+            ).fetchone()
+            if not ref_var:
+                c.execute(
+                    'INSERT OR IGNORE INTO referans_listesi (referans_kodu, bolum, lokasyon) VALUES (?, ?, ?)',
+                    (ref, vardiya_bolum, vardiya_lokasyon)
+                )
+
+            # BÜKÜM OPERASYON SAYISI — yalnız pres (abkant) için anlamlı.
+            # İstemci göndermediyse referansın hatırlanan değerine düşer; o da yoksa 1
+            # (bölme yok = eski davranış). Kayda KOPYALANIR: referansın varsayılanı
+            # sonradan değişse bile bu kaydın adedi retroaktif kaymasın.
+            bop = _bukum_op_coz(c, satir.get('bukum_operasyon', data.get('bukum_operasyon')),
+                                ref, vardiya_bolum, vardiya_lokasyon)
+
             c.execute('''
-                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id, bukum_operasyon)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['vardiya_id'],
                 ref,
@@ -2085,26 +2219,9 @@ def uretim_ekle():
                 (satir.get('aciklama') or data.get('aciklama') or '').strip(),
                 simdi if auto else None,
                 auto,
-                tc_id
+                tc_id,
+                bop
             ))
-            # Referansı listeye otomatik ekle — VARDIYANIN bölümü VE lokasyonuyla etiketle
-            # (montaj operatörü tanımsız bir kod girince montaj'a düşsün, kaynak'a değil;
-            #  TK1 operatörünün girdiği kod TK1'e düşsün, TK2'ye karışmasın)
-            # NORMALIZE kontrol: UNIQUE ham kod üzerinde — operatör '94. LTK. 341/10' gibi
-            # boşluklu/farklı yazarsa INSERT OR IGNORE yeni VARYANT satır açıyordu; bu
-            # duplike satırlar JOIN'lerde iş emirlerini çoğaltıyordu (fan-out). Normalize
-            # eş (aynı lokasyonda) varsa yeni satır AÇMA.
-            ref_var = c.execute(
-                "SELECT 1 FROM referans_listesi "
-                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
-                "AND COALESCE(lokasyon,'TK2')=? LIMIT 1",
-                (ref, vardiya_lokasyon)
-            ).fetchone()
-            if not ref_var:
-                c.execute(
-                    'INSERT OR IGNORE INTO referans_listesi (referans_kodu, bolum, lokasyon) VALUES (?, ?, ?)',
-                    (ref, vardiya_bolum, vardiya_lokasyon)
-                )
             eklenen += 1
 
         conn.commit()
@@ -2208,9 +2325,19 @@ def uretim_guncelle(uid):
         if data.get('ok_elle_degisti'):
             yeni_otomatik = 0
 
+        # BÜKÜM OPERASYON SAYISI — operatör kaydı düzenlerken de değiştirebilir.
+        # Vardiyanın bölüm/lokasyonuyla çözülür; pres dışında her zaman 1 döner.
+        v_bl = c.execute(
+            "SELECT COALESCE(bolum,'kaynak') AS bolum, COALESCE(lokasyon,'TK2') AS lokasyon "
+            "FROM vardiyalar WHERE id=?", (mevcut['vardiya_id'],)
+        ).fetchone()
+        bop = _bukum_op_coz(c, data.get('bukum_operasyon'), ref,
+                            v_bl['bolum'] if v_bl else 'kaynak',
+                            v_bl['lokasyon'] if v_bl else 'TK2')
+
         c.execute('''
             UPDATE uretim_kayitlari
-            SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?, sayac_otomatik=?
+            SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?, sayac_otomatik=?, bukum_operasyon=?
             WHERE id=?
         ''', (
             ref,
@@ -2223,6 +2350,7 @@ def uretim_guncelle(uid):
             int(data.get('launch_adet', 0) or 0),
             (data.get('aciklama') or '').strip(),
             yeni_otomatik,
+            bop,
             uid
         ))
         conn.commit()
@@ -2472,7 +2600,9 @@ def referans_listesi():
     bolum = request.args.get('bolum', '')
     lokasyon = request.args.get('lokasyon', '')
     conn = get_db()
-    base = "SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, sure_teyit, sure_teyit_tarihi FROM referans_listesi"
+    base = ("SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, "
+            "sure_teyit, sure_teyit_tarihi, COALESCE(bukum_operasyon,1) AS bukum_operasyon "
+            "FROM referans_listesi")
     sql = base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '')"
     params = [f'%{q}%']
     if bolum:

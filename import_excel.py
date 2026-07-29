@@ -154,6 +154,7 @@ def _bolum_import(conn, wb, bolum):
         soktak_sn = 0.0
         cycle = 0.0
         aciklama = ''
+        bukum_op = 1   # yalnız pres modunda D kolonundan okunur; diğerlerinde 1 = bölme yok
         if kaynak_modu:
             # B = Kaynak Süresi, C = Söktak Süresi, D = Toplam (formül)
             try:
@@ -166,12 +167,20 @@ def _bolum_import(conn, wb, bolum):
                 soktak_sn = 0.0
             cycle = round(kaynak_sn + soktak_sn, 2)
         elif pres_modu:
-            # B = Açıklama (metin), C = Süre
+            # B = Açıklama (metin), C = Süre, D = Büküm Op. (2026-07-29)
             aciklama = str(row[1]).strip() if (len(row) > 1 and row[1] is not None) else ''
             try:
                 cycle = float(row[2]) if (len(row) > 2 and row[2] is not None) else 0.0
             except (ValueError, TypeError):
                 cycle = 0.0
+            # Büküm operasyon sayısı: bir parçaya sırayla uygulanan büküm adedi.
+            # Sayaç bölücüsü olarak kullanılır (3 op → 3. sinyal = 1 parça).
+            # Boş/bozuk = 1 (bölme yok). D kolonu eski dosyalarda hiç yok → len kontrolü şart.
+            try:
+                bukum_op = int(row[3]) if (len(row) > 3 and row[3] is not None) else 1
+            except (ValueError, TypeError):
+                bukum_op = 1
+            bukum_op = max(1, min(99, bukum_op))
         else:
             # Montaj/Metal/diğerleri — tek değer
             try:
@@ -202,10 +211,12 @@ def _bolum_import(conn, wb, bolum):
 
         if mevcut:
             if pres_modu:
-                # Pres'te açıklama Excel'den yönetilir — import her seferinde günceller
+                # Pres'te açıklama VE büküm operasyon sayısı Excel'den yönetilir —
+                # import her seferinde günceller (operatörün mobilden girdiği değer de
+                # zaten Excel'e yazılıyor, iki yön aynı hücreye bakar).
                 c.execute(
-                    'UPDATE referans_listesi SET hedef_cycle_time_sn = ?, kaynak_suresi_sn = ?, soktak_suresi_sn = ?, referans_kodu = ?, aciklama = ? WHERE id = ?',
-                    (cycle, kaynak_sn, soktak_sn, kod, aciklama, mevcut[0])
+                    'UPDATE referans_listesi SET hedef_cycle_time_sn = ?, kaynak_suresi_sn = ?, soktak_suresi_sn = ?, referans_kodu = ?, aciklama = ?, bukum_operasyon = ? WHERE id = ?',
+                    (cycle, kaynak_sn, soktak_sn, kod, aciklama, bukum_op, mevcut[0])
                 )
             else:
                 # Diğer bölümlerde aciklama'ya DOKUNMA (dashboard'dan girilmiş olabilir)
@@ -223,8 +234,8 @@ def _bolum_import(conn, wb, bolum):
             ref_guncellenen += 1
         else:
             c.execute(
-                "INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, aciklama, bolum, lokasyon) VALUES (?, ?, ?, ?, ?, ?, 'TK2')",
-                (kod, cycle, kaynak_sn, soktak_sn, aciklama, bolum)
+                "INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, aciklama, bolum, lokasyon, bukum_operasyon) VALUES (?, ?, ?, ?, ?, ?, 'TK2', ?)",
+                (kod, cycle, kaynak_sn, soktak_sn, aciklama, bolum, bukum_op)
             )
             if cycle > 0:
                 c.execute(
@@ -637,7 +648,8 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
         # Süre tanımlanınca (ct>0) bir sonraki sync'te Excel'e girer.
         db_rows = conn.execute(
             "SELECT referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, "
-            "COALESCE(sure_teyit,0) as sure_teyit, COALESCE(aciklama,'') as aciklama FROM referans_listesi "
+            "COALESCE(sure_teyit,0) as sure_teyit, COALESCE(aciklama,'') as aciklama, "
+            "COALESCE(bukum_operasyon,1) as bukum_operasyon FROM referans_listesi "
             "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')='TK2' "
             "AND COALESCE(hedef_cycle_time_sn,0) > 0 ORDER BY referans_kodu",
             (b,)
@@ -648,6 +660,9 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
         #  kolonunu eziyordu. Montaj/metal 2 kolonlu: Kod | Cycle(B) — o davranış doğru.)
         if kaynak_modu and (ws.cell(row=1, column=5).value or '') == '':
             ws.cell(row=1, column=5, value='Süre Teyit')
+        # Pres sayfası 3 kolonluydu — D başlığı yoksa aç (2026-07-29 büküm operasyonu)
+        if b == 'pres' and (ws.cell(row=1, column=4).value or '') == '':
+            ws.cell(row=1, column=4, value='Büküm Op.')
 
         yazilan = 0
         # Aynı koda normalize olan birden fazla DB satırı (eski yazım varyantları:
@@ -673,9 +688,11 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
                 ws.cell(row=ri, column=4, value=f'=B{ri}+C{ri}')
                 ws.cell(row=ri, column=5, value='EVET' if r['sure_teyit'] else '')
             elif b == 'pres':
-                # Pres 3 kolonlu: B=Açıklama, C=Süre — süreyi B'ye yazmak açıklamayı ezerdi
+                # Pres 4 kolonlu: B=Açıklama, C=Süre, D=Büküm Op.
+                # (süreyi B'ye yazmak açıklamayı ezerdi)
                 ws.cell(row=ri, column=2, value=r['aciklama'] or '')
                 ws.cell(row=ri, column=3, value=r['hedef_cycle_time_sn'] or 0)
+                ws.cell(row=ri, column=4, value=int(r['bukum_operasyon'] or 1))
             else:
                 ws.cell(row=ri, column=2, value=r['hedef_cycle_time_sn'] or 0)
             yazilan_norm[norm] = True

@@ -271,6 +271,35 @@ def init_db():
     except Exception:
         pass
 
+    # BÜKÜM OPERASYON SAYISI (2026-07-29) — Pres Abkant'a özel sayaç bölücüsü.
+    # Bükümde bir parçaya SIRAYLA tüm büküm operasyonları uygulanır, sonra sıradaki
+    # parçaya geçilir. Yani 3 operasyonlu bir referansta abkant 3 kez sinyal üretir
+    # ama ortaya 1 parça çıkar → üretim teyidi 3. sinyaldir (ok_adet = pulse // 3).
+    #
+    # İKİ YERDE tutulur ve bu BİLİNÇLİDİR:
+    #   referans_listesi.bukum_operasyon → referansın HATIRLANAN varsayılanı; Excel'e
+    #     yazılır, sonraki üretimlerde operatöre hazır gelir, operatör değiştirebilir.
+    #   uretim_kayitlari.bukum_operasyon → O KAYIT için fiilen kullanılan değer.
+    #     Referansın varsayılanı sonradan değişirse geçmiş kayıtların adedi
+    #     retroaktif olarak kaymasın diye kayda kopyalanır.
+    # Varsayılan 1 = bölme yok = mevcut davranış (tüm eski kayıtlar/bölümler etkilenmez).
+    try:
+        c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN bukum_operasyon INTEGER DEFAULT 1")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE referans_listesi ADD COLUMN bukum_operasyon INTEGER DEFAULT 1")
+    except Exception:
+        pass
+    # NULL'ları 1'e çek (ALTER ile eklenen kolon eski satırlarda NULL kalabilir;
+    # bölme işlemi NULL görürse sayım çöker).
+    for _t in ('uretim_kayitlari', 'referans_listesi'):
+        try:
+            c.execute(f"UPDATE {_t} SET bukum_operasyon=1 "
+                      f"WHERE bukum_operasyon IS NULL OR bukum_operasyon < 1")
+        except Exception:
+            pass
+
     # bolum kolonu - vardiyalar tablosu (montaj/metal enjeksiyon desteği)
     try:
         c.execute("ALTER TABLE vardiyalar ADD COLUMN bolum TEXT DEFAULT 'kaynak'")
