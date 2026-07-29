@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Cofle Manage — Operatör{% if lokasyon == 'TK1' %} (TK1){% endif %}</title>
-  <meta name="theme-color" content="#060414">
+  <meta name="theme-color" content="#ECEBE8">
   <link rel="icon" type="image/png" href="/logo">
   <link rel="shortcut icon" href="/logo">
   <link rel="apple-touch-icon" href="/logo">
@@ -14,9 +14,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="{% if lokasyon == 'TK1' %}Cofle TK1{% else %}Cofle Operatör{% endif %}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <!-- WEBFONT KALDIRILDI (2026-07-29): burada Google Fonts'tan Inter (6 ağırlık)
+       + JetBrains Mono (3 ağırlık) çekiliyordu. Fabrika telefonları bu isteği
+       çoğu zaman geç tamamlıyor ya da hiç tamamlamıyordu; sonuç zaten sistem
+       fontuydu ama Inter için ayarlanmış tracking değerleri harfleri sıkıştırıyordu.
+       Tipografi artık --font-sans / --font-mono üzerinden sistem fontu. -->
+  <meta name="color-scheme" content="light">
   <style>
     /* ╔══════════════════════════════════════════════════════════════╗
        ║  COFLE MANAGE — OPERATÖR (v2)                              ║
@@ -25,55 +28,102 @@
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
     :root {
-      /* Zemin & yüzeyler */
-      --bg-0:        #060414;
-      --bg-1:        #0a0820;
-      --bg-2:        #110e2e;
-      --bg-3:        #1a1545;
-      --surface:     rgba(255,255,255,0.04);
-      --surface-2:   rgba(255,255,255,0.025);
-      --line:        rgba(255,255,255,0.08);
-      --line-strong: rgba(255,255,255,0.14);
-      --line-subtle: rgba(255,255,255,0.05);
+      /* ═══════════════════════════════════════════════════════════════════
+         COFLE FORGE — "TEZGAH / SICAK NÖTR" · OPERATÖR EKRANI · 2026-07-29
+         Dashboard'la (dashboard_v2.html) AYNI palet. Koyu mor/cyan mesh tema
+         emekli: fabrika zemininde parlak ışık altında koyu ekran ayna gibi
+         yansıtıyor, ılık nötr açık zemin okunaklı kalıyor.
+
+         DEĞİŞKEN ADLARI KORUNDU (--bg-0, --c-violet, --grad-1 …): 150 CSS
+         kuralı ve 66 satır-içi style bu adları kullanıyor; adları değiştirmek
+         yerine DEĞERLERİ ışığa çevirmek yamayı küçük ve geri alınabilir tutar.
+         Bu yüzden bazı adlar artık anlamlarını taşımıyor (--c-violet turuncu,
+         --c-pink pembe-bordo); ad = ROL, değer = tema.
+
+         KURAL 1: --brand (#EC6736) METİN OLARAK KULLANILMAZ (beyazda 3.20:1).
+                  Metin/ikon turuncusu HER ZAMAN --primary (#B4470F).
+         KURAL 2: BİÇİM = ANLAM. Durum → dolu yumuşak çip (radius 6px).
+                  Kimlik (bölüm) → outline pill (999px) / 3px sol çubuk.
+         ═══════════════════════════════════════════════════════════════════ */
+
+      /* Zemin & yüzeyler — koyu katman sırası ışığa çevrildi.
+         DİKKAT: --bg-2/--bg-1 ikilisi "linear-gradient(160deg, var(--bg-2),
+         var(--bg-1))" olarak modal/toast/autocomplete'te kullanılıyor →
+         ikisi de AÇIK olmalı, yoksa beyaz metin beyaz zemine düşer. */
+      --bg-0:        #ECEBE8;  /* sayfa zemini · beyaz kartla ayrım 1.19:1 */
+      --bg-1:        #FFFFFF;
+      --bg-2:        #FAFAF9;
+      --bg-3:        #F4F3F1;
+      --surface:     #FFFFFF;
+      --surface-2:   #F4F3F1;
+      --line:        #E2E0DC;  /* kart kenarlığı · beyazda 1.32:1 */
+      --line-strong: #D3D0CB;  /* yapısal ayraç · beyazda 1.54:1 */
+      --line-subtle: #EBE9E5;  /* liste satır çizgisi */
       /* Eski adlar — JS/HTML uyumluluğu icin (alias) */
-      --card:           rgba(255,255,255,0.04);
-      --bg:             #060414;
-      --border:         rgba(255,255,255,0.08);
-      --border-subtle:  rgba(255,255,255,0.05);
-      --surface2:       rgba(255,255,255,0.025);
+      --card:           #FFFFFF;
+      --bg:             #ECEBE8;
+      --border:         #D3D0CB;
+      --border-subtle:  #EBE9E5;
+      --surface2:       #F4F3F1;
+      --border-input:   #8A857D;  /* form kenarlığı · beyazda 3.66:1 (UI-AA) */
 
-      --text:    #eef2ff;
-      --muted:   #94a3c4;
-      --dim:     #5b6896;
+      /* Metin — ılık mürekkep (logonun #030405'inden türetildi) */
+      --text:    #1C1917;  /* beyaz 17.49:1 · zemin 14.67:1 */
+      --muted:   #57534E;  /* beyaz  7.63:1 · zemin  6.40:1 */
+      --dim:     #6B655E;  /* beyaz  5.76:1 · zemin  4.83:1 — en soluk metin bile AA */
 
-      /* Vurgu paleti (andon v5) */
-      --c-cyan:    #22d3ee;
-      --c-violet:  #a78bfa;
-      --c-pink:    #f472b6;
-      --c-emerald: #34d399;
-      --c-amber:   #fbbf24;
-      --c-red:     #f87171;
-      --c-blue:    #60a5fa;
-      --c-orange:  #fb923c;
+      /* Marka */
+      --brand:         #EC6736;  /* LOGONUN BİREBİR RENGİ — yalnız şerit/ikon/odak, METİN DEĞİL */
+      --brand-rgb:     236, 103, 54;
+      --primary-soft:  #F7EAE3;  /* seçili/aktif zemin · üstünde --primary 4.63:1 */
+      --primary-line:  #E9C6B2;
+      --focus-ring:    0 0 0 3px rgba(236, 103, 54, 0.32);
+
+      /* Vurgu paleti — ADLAR eski, DEĞERLER tezgah paletinden.
+         Hepsi beyazda ≥5.36:1 → etiket metni olarak da AA. */
+      --c-cyan:    #0E7490;  /* lazer / bilgi */
+      --c-violet:  #B4470F;  /* ARTIK BİRİNCİL TURUNCU (mor kimlik emekli) */
+      --c-pink:    #9D174D;  /* pres */
+      --c-emerald: #157A3C;  /* başarı / açık vardiya */
+      --c-amber:   #8A5A05;  /* uyarı */
+      --c-red:     #B4231C;  /* hata / duruş */
+      --c-blue:    #1D4ED8;  /* kaynak */
+      --c-orange:  #B4470F;  /* sıradaki iş — birincil ile aynı (çağrı rengi) */
       /* Eski adlar (alias) */
       --primary:      var(--c-violet);
-      --primary-dark: #8b5cf6;
+      --primary-dark: #93380A;
       --success:      var(--c-emerald);
       --danger:       var(--c-red);
       --warning:      var(--c-amber);
 
-      --grad-1: linear-gradient(135deg, #22d3ee 0%, #a78bfa 50%, #f472b6 100%);
-      --grad-emerald: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
-      --grad-amber:   linear-gradient(135deg, #fbbf24 0%, #f472b6 100%);
-      --grad-danger:  linear-gradient(135deg, #f87171 0%, #fb923c 100%);
-      --grad-violet:  linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
+      /* Yumuşak çip zeminleri (durum çipi = dolu çip kuralı) */
+      --success-soft: #E4F0E8;  /* üstünde --success 4.62:1 */
+      --warn-soft:    #F2ECE2;  /* üstünde --warn    5.04:1 */
+      --danger-soft:  #F7E6E4;  /* üstünde --danger  5.44:1 */
+      --info-soft:    #E3EEF6;  /* üstünde --c-cyan  4.55:1 */
 
-      --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+      /* Degradeler — süs değil, yalnız BUTON dolgusu. Üstlerinde beyaz metin AA.
+         Metne background-clip ile uygulanan yerler yamada düz mürekkebe çevrildi. */
+      --grad-1:       linear-gradient(180deg, #C24E10 0%, #A03C08 100%);
+      --grad-violet:  linear-gradient(180deg, #C24E10 0%, #A03C08 100%);
+      --grad-emerald: linear-gradient(180deg, #157A3C 0%, #12622F 100%);  /* üst durak #1A8945 idi → beyaz metin 4.46:1 (AA altı) */
+      --grad-amber:   linear-gradient(180deg, #9C6606 0%, #6F4804 100%);
+      --grad-danger:  linear-gradient(180deg, #C62822 0%, #941C17 100%);
 
-      --r-sm: 10px;
-      --r-md: 14px;
-      --r-lg: 18px;
+      /* TİPOGRAFİ: webfont KALDIRILDI. Dosya Google Fonts'tan Inter +
+         JetBrains Mono çekiyordu; fabrika telefonları o isteği çoğu zaman
+         geç ya da hiç tamamlamıyor (dashboard'da da aynı karar verildi). */
+      --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+      --font-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, 'Roboto Mono', monospace;
+
+      /* Geometri — dashboard'la aynı 4 basamak */
+      --r-sm:  8px;
+      --r-md: 10px;
+      --r-lg: 12px;
+      --r-pill: 999px;
+
+      --shadow:     0 1px 2px rgba(28, 25, 23, 0.06);
+      --shadow-pop: 0 8px 24px rgba(28, 25, 23, 0.14);
     }
 
     html, body {
@@ -909,6 +959,300 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.25); border-radius: 3px; }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       TEZGAH YAMASI — OPERATÖR · 2026-07-29
+       Bu blok stil etiketinin KAPANIŞINDAN HEMEN ÖNCE olmalı; yukarı taşınırsa
+       aynı özgüllükteki orijinal kurallar kazanır ve yama düşer.
+       DİKKAT: bu yorumun içine kapanış etiketini METİN olarak yazma — HTML
+       ayrıştırıcısı stil bloğunu orada bitirir (dashboard yamasında yaşandı).
+
+       Yukarıdaki :root ışığa çevrildi; burada yalnız SABİT KODLANMIŞ koyu-tema
+       literalleri (rgba beyaz film, mor glow, mesh) düzeltiliyor.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    /* ── 1) SÜS KATMANI: mesh blob, glassmorphism, neon glow → KAPALI ────────
+       Beyaz film (rgba(255,255,255,.04)) açık zeminde GÖRÜNMEZ, blur(110px)
+       animasyon orta segment telefonlarda sürekli GPU yakıyordu. */
+    body::before, body::after { display: none !important; }
+    .card, .modal-overlay, .nav-bar, .bottom-menu {
+      backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    }
+    .header-logo-wrap img { filter: none; }
+    .home-hero-icon { filter: none; }
+    .live-dot { box-shadow: none; }
+    .bm-tab.active .bm-icon { filter: none; }
+    .card-accent { box-shadow: var(--shadow); }
+
+    /* ── 2) ZEMİN / HEADER ─────────────────────────────────────────────────── */
+    html, body { background: var(--bg-0); color: var(--text); }
+    .header {
+      background: var(--card);
+      border-bottom: 2px solid var(--brand);   /* markanın tek "dolu renk" görünümü */
+    }
+    .header h1 { font-weight: 700; letter-spacing: 0; }
+    .header p {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      color: var(--muted); font-weight: 600;
+    }
+
+    /* ── 3) KART / HERO / VARDİYA BANNER ───────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+    }
+    .card-title { font-size: 0.9375rem; font-weight: 600; letter-spacing: 0; }
+    .home-hero {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+    }
+    /* Degrade metin → DÜZ MÜREKKEP. background-clip:text açık zeminde beyaz uçlu
+       degradeyi "görünmez sayı" hâline getiriyordu. */
+    .home-hero-title {
+      background: none; -webkit-background-clip: border-box; background-clip: border-box;
+      color: var(--text); font-weight: 700; letter-spacing: -0.02em;
+    }
+    .home-hero-sub { color: var(--dim); font-weight: 600; letter-spacing: 0.10em; }
+    .vardiya-banner {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--brand);     /* kimlik = sol çubuk (BİÇİM KURALI) */
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+    }
+    .vb-title  { font-weight: 700; letter-spacing: 0; }
+    .vb-detail { color: var(--muted); }
+    .vb-oee {
+      background: none; -webkit-background-clip: border-box; background-clip: border-box;
+      color: var(--success); font-weight: 700;
+      font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1;
+    }
+    .vb-oee-label { color: var(--dim); letter-spacing: 0.12em; }
+
+    /* ── 4) BUTONLAR — dolgu üstünde BEYAZ metin (koyu metin 1.5:1'e düşüyordu) */
+    .btn { border-radius: var(--r-md); font-weight: 600; font-size: 0.9375rem;
+           letter-spacing: 0; min-height: 48px; }   /* dokunma hedefi korunuyor */
+    .btn:active:not(:disabled) { transform: scale(0.98); }
+    .btn-primary { background: var(--grad-violet);  color: #fff; box-shadow: none; }
+    .btn-success { background: var(--grad-emerald); color: #fff; box-shadow: none; }
+    .btn-danger  { background: var(--grad-danger);  color: #fff; box-shadow: none; }
+    .btn-danger-outline {
+      background: var(--danger-soft); color: var(--danger);
+      border: 1px solid rgba(180, 35, 28, 0.28) !important;
+    }
+    .btn-geri {
+      background: var(--surface-2); color: var(--muted);
+      border: 1px solid var(--line-strong) !important;
+    }
+    .btn-geri:hover { color: var(--text); }
+    .btn-new-shift {
+      background: var(--grad-violet); color: #fff;
+      border-radius: var(--r-lg);
+      font-weight: 700; font-size: 1rem; letter-spacing: 0;
+      box-shadow: none; min-height: 56px;
+    }
+    .btn-new-shift > span:first-child {
+      background: rgba(255,255,255,0.18); border-radius: var(--r-sm); font-weight: 700;
+    }
+    .btn-rapor {
+      background: var(--surface-2); color: var(--muted);
+      border: 1px solid var(--line-strong); border-radius: var(--r-md);
+      font-weight: 600; min-height: 48px;
+    }
+
+    /* ── 5) FORM ELEMANLARI ────────────────────────────────────────────────── */
+    label { color: var(--dim); font-weight: 700; letter-spacing: 0.08em; font-size: 0.6875rem; }
+    input[type="text"], input[type="number"], input[type="password"],
+    input[type="time"], input[type="date"], select, textarea, .search-box {
+      background: #fff; color: var(--text);
+      border: 1px solid var(--border-input); border-radius: var(--r-md);
+      font-weight: 400; min-height: 48px;
+    }
+    input:focus, select:focus, textarea:focus, .search-box:focus {
+      border-color: var(--primary); box-shadow: var(--focus-ring);
+    }
+    input::placeholder, textarea::placeholder, .search-box::placeholder { color: var(--dim); }
+    /* 'dark' color-scheme bildirimlerini (CSS + satır içi) tek kuralda ez —
+       aksi halde tarih/saat seçici siyah panel açıyordu. */
+    input, select, textarea { color-scheme: light !important; }
+    select option, select optgroup { background-color: #fff; color: var(--text); }
+
+    /* ── 6) SEÇİM DURUMLARI — hepsi tek dilde: primary-soft dolgu + primary metin */
+    .vp-btn, .ist-btn, .durus-cat {
+      background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text);
+    }
+    .vp-btn  { border-radius: var(--r-md); font-weight: 600; min-height: 52px; }
+    .ist-btn { border-radius: var(--r-sm); font-weight: 600; color: var(--muted); min-height: 44px; }
+    .durus-cat { border-radius: var(--r-pill); font-weight: 600; min-height: 40px; }
+    .vp-btn.selected, .ist-btn-active, .durus-cat.selected {
+      background: var(--primary-soft); border-color: var(--primary-line);
+      color: var(--primary); box-shadow: none;
+    }
+    .cycle-badge {
+      color: var(--c-amber); background: var(--warn-soft);
+      border: 1px solid rgba(138, 90, 5, 0.22); border-radius: var(--r-sm);
+      font-weight: 600;
+    }
+
+    /* ── 7) BÖLÜM KARTLARI — renkler dashboard'un --b-* değerleriyle EŞİT.
+           Kimlik = 3px sol çubuk + outline pill; durum çipiyle karışmasın. */
+    .bolum-btn {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--r-lg); box-shadow: var(--shadow);
+      color: var(--text); min-height: 76px;
+    }
+    .bolum-btn .bolum-icon {
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: var(--r-md);
+    }
+    .bolum-btn .bolum-title { font-weight: 600; letter-spacing: 0; }
+    .bolum-btn .bolum-desc  { color: var(--muted); }
+    .bolum-btn.kaynak  { border-left: 3px solid #1D4ED8; }
+    .bolum-btn.montaj  { border-left: 3px solid #07734F; }
+    .bolum-btn.metal   { border-left: 3px solid #8F6100; }
+    .bolum-btn.isleme  { border-left: 3px solid #6D28D9; }
+    .bolum-btn.lazer   { border-left: 3px solid #0E7490; }
+    .bolum-btn.pres    { border-left: 3px solid #9D174D; }
+    .bolum-btn.plastik { border-left: 3px solid #A21CAF; }
+    .bolum-btn.kaynak:hover, .bolum-btn.montaj:hover, .bolum-btn.metal:hover,
+    .bolum-btn.isleme:hover, .bolum-btn.lazer:hover, .bolum-btn.pres:hover,
+    .bolum-btn.plastik:hover {
+      background: var(--surface-2); box-shadow: var(--shadow); border-color: var(--line);
+    }
+    /* Bölüm rozeti = KİMLİK → outline pill, dolu değil */
+    .bolum-badge {
+      background: #fff; border-radius: var(--r-pill);
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em;
+      border: 1px solid currentColor;
+    }
+    .bolum-badge.kaynak  { color: #1D4ED8; }
+    .bolum-badge.montaj  { color: #07734F; }
+    .bolum-badge.metal   { color: #8F6100; }
+    .bolum-badge.isleme  { color: #6D28D9; }
+    .bolum-badge.lazer   { color: #0E7490; }
+    .bolum-badge.pres    { color: #9D174D; }
+    .bolum-badge.plastik { color: #A21CAF; }
+
+    /* ── 8) VARDİYA KARTLARI + DURUM ROZETLERİ (durum = DOLU ÇİP, 6px) ─────── */
+    .vardiya-kart {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--r-md); box-shadow: var(--shadow);
+    }
+    .vardiya-kart:hover { border-color: var(--line-strong); }
+    .vk-title  { font-weight: 600; letter-spacing: 0; }
+    .vk-detail { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .vk-badge  { border-radius: var(--r-sm); font-size: 0.625rem; font-weight: 700;
+                 letter-spacing: 0.06em; }
+    .badge-acik   { background: var(--success-soft); color: var(--success);
+                    border: 1px solid rgba(21, 122, 60, 0.22); }
+    .badge-kapali { background: var(--surface-2); color: var(--muted);
+                    border: 1px solid var(--line-strong); }
+    .btn-geri-ac {
+      background: var(--info-soft); border: 1px solid rgba(14, 116, 144, 0.25);
+      color: var(--c-cyan); border-radius: var(--r-sm); font-weight: 700;
+    }
+    .btn-vardiya-sil {
+      background: var(--danger-soft); border: 1px solid rgba(180, 35, 28, 0.28);
+      color: var(--danger); border-radius: var(--r-sm); font-weight: 600;
+      min-height: 40px;
+    }
+    .btn-vardiya-sil:hover { background: #F2D8D5; }
+
+    /* ── 9) BAŞLIK / AYRAÇ / KAYIT LİSTESİ ─────────────────────────────────── */
+    .section-hd h3 { font-weight: 600; letter-spacing: 0; }
+    .section-add-btn {
+      background: var(--grad-violet); color: #fff;
+      border-radius: var(--r-sm); font-weight: 600; box-shadow: none;
+    }
+    .divider { background: var(--line); }
+    .kayit-item {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--r-md); box-shadow: var(--shadow);
+    }
+    .kayit-item:hover { border-color: var(--line-strong); }
+    .ki-kod { color: var(--text); font-weight: 700;
+              font-variant-numeric: tabular-nums; }
+    .ki-detail { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .ki-btn {
+      background: var(--surface-2); border: 1px solid var(--line-strong);
+      color: var(--muted); border-radius: var(--r-sm);
+    }
+    .ki-btn-edit { color: var(--c-cyan); border-color: rgba(14, 116, 144, 0.28);
+                   background: var(--info-soft); }
+    .ki-btn-del  { color: var(--danger); border-color: rgba(180, 35, 28, 0.28);
+                   background: var(--danger-soft); }
+    .ki-btn-tamam { border-radius: var(--r-sm); font-weight: 600; min-height: 40px; }
+    .ki-btn-tamam.is-tamam {
+      background: var(--success-soft); color: var(--success);
+      border: 1px solid rgba(21, 122, 60, 0.22); box-shadow: none;
+    }
+    .ki-btn-tamam.is-devam {
+      background: var(--surface-2); color: var(--muted);
+      border: 1px solid var(--line-strong);
+    }
+    .ki-btn-tamam.is-devam:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── 10) AÇILIR LİSTE / SIRADAKİ İŞLER / FİKSTÜR / BOŞ DURUM ───────────── */
+    .autocomplete-list {
+      background: #fff; border: 1px solid var(--line-strong);
+      border-radius: var(--r-md); box-shadow: var(--shadow-pop);
+    }
+    .autocomplete-item { color: var(--text); border-bottom: 1px solid var(--line-subtle); }
+    .autocomplete-item:hover { background: var(--primary-soft); }
+    .next-jobs-wrap {
+      background: var(--primary-soft); border: 1px solid var(--primary-line);
+      border-radius: var(--r-lg);
+    }
+    .nj-title { color: var(--primary); font-weight: 700; letter-spacing: 0.04em; }
+    .nj-item  { background: #fff; border: 1px solid var(--line);
+                border-radius: var(--r-md); }
+    .nj-kod   { color: var(--text); font-weight: 700; }
+    .nj-detay { color: var(--muted); }
+    .fr-raf-grup { background: var(--card); border: 1px solid var(--line);
+                   border-radius: var(--r-md); box-shadow: var(--shadow); }
+    .fr-raf-baslik { color: var(--primary); font-weight: 700;
+                     border-bottom: 1px solid var(--line-subtle); }
+    .fr-item { background: var(--surface-2); border: 1px solid var(--line-subtle);
+               border-radius: var(--r-sm); }
+    .fr-ref  { color: var(--text); font-weight: 700; }
+    .fr-not  { color: var(--muted); }
+    .empty-msg {
+      background: var(--surface-2); border: 1px dashed var(--line-strong);
+      border-radius: var(--r-md); color: var(--muted); font-weight: 500;
+    }
+
+    /* ── 11) MODAL / ALT NAV / TOAST ───────────────────────────────────────── */
+    .modal-overlay { background: rgba(28, 25, 23, 0.45); }
+    .modal-box {
+      background: #fff; border: 1px solid var(--line-strong);
+      border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
+    }
+    .nav-bar, .bottom-menu {
+      background: var(--card);
+      border-top: 1px solid var(--line-strong);
+    }
+    .bm-tab { color: var(--dim); font-weight: 600; border-radius: var(--r-sm); }
+    .bm-tab.active { color: var(--primary); background: var(--primary-soft); }
+    .bm-tab.active::before { background: var(--brand); box-shadow: none; height: 3px; }
+    /* Toast: ters kontrast (koyu mürekkep üstünde beyaz) — açık zeminde en okunaklısı */
+    .toast {
+      background: var(--text); color: #fff;
+      border: 1px solid transparent; border-radius: var(--r-lg);
+      box-shadow: var(--shadow-pop); font-weight: 600;
+    }
+    .toast.success { border-color: transparent; box-shadow: var(--shadow-pop); background: #12622F; }
+    .toast.error   { border-color: transparent; box-shadow: var(--shadow-pop); background: #941C17; }
+    ::-webkit-scrollbar-thumb { background: var(--line-strong); }
+
+    /* ── 12) ODAK GÖRÜNÜRLÜĞÜ (klavye / erişilebilirlik) ───────────────────── */
+    :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+      outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm);
+    }
   </style>
 </head>
 <body>
@@ -2008,14 +2352,16 @@ window.__I18N_SOZLUK__ = {
   <!-- HEADER -->
   <div class="header">
     <div class="header-logo-wrap">
-      <img src="/logo?tema=koyu" alt="Logo" onerror="this.style.display='none'">
+      <!-- AÇIK TEMA LOGOSU (2026-07-29): ?tema=koyu beyaz alt yazılı sürümü verir,
+           ılık nötr zeminde alt yazı kayboluyordu → varsayılan (koyu yazılı) logo. -->
+      <img src="/logo" alt="Logo" onerror="this.style.display='none'">
     </div>
     <div>
       <h1>Cofle Manage</h1>
       <p><span class="live-dot"></span><span id="tarih-goster">Yükleniyor...</span></p>
     </div>
     <select id="dil-secici" aria-label="Dil / Language" onchange="dilDegistir(this.value)"
-      style="margin-left:auto;align-self:flex-start;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid var(--line-strong);border-radius:10px;padding:7px 8px;font-size:0.82rem;font-weight:700;cursor:pointer">
+      style="margin-left:auto;align-self:flex-start;background:var(--surface-2);color:var(--text);border:1px solid var(--line-strong);border-radius:10px;padding:7px 8px;font-size:0.82rem;font-weight:700;cursor:pointer">
       <option value="tr">🇹🇷 TR</option>
       <option value="en">🇬🇧 EN</option>
       <option value="it">🇮🇹 IT</option>
@@ -2041,11 +2387,11 @@ window.__I18N_SOZLUK__ = {
       </button>
 
       <!-- Rapor için bölüm seçim modali -->
-      <div id="rapor-bolum-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center;padding:20px">
-        <div style="background:linear-gradient(160deg, var(--bg-2), var(--bg-1));border:1px solid var(--line-strong);border-radius:18px;padding:22px 20px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(0,0,0,0.55), 0 0 60px rgba(167,139,250,0.14)">
+      <div id="rapor-bolum-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center;padding:20px">
+        <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:22px 20px;width:100%;max-width:400px;box-shadow:0 30px 80px rgba(28,25,23,0.45), 0 0 60px var(--primary-line)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
             <div style="font-size:1rem;font-weight:800;color:var(--text)">📊 Hangi bölüm için rapor?</div>
-            <button onclick="raporBolumKapat()" style="background:rgba(255,255,255,0.04);border:1px solid var(--line);color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px 12px;border-radius:10px;line-height:1">✕</button>
+            <button onclick="raporBolumKapat()" style="background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px 12px;border-radius:10px;line-height:1">✕</button>
           </div>
           <div style="display:grid;grid-template-columns:1fr;gap:10px">
             <button class="bolum-btn kaynak rapor-tk2-only" type="button" onclick="raporAc('kaynak')">
@@ -2238,28 +2584,28 @@ window.__I18N_SOZLUK__ = {
       <div class="vardiya-banner">
         <div class="vb-title" id="c-baslik">Vardiya</div>
         <div class="vb-detail" id="c-detay"></div>
-        <button id="c-hat-degistir-btn" onclick="hatDegistirAc()" style="display:none;margin-top:10px;background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.5);color:#93c5fd;border-radius:10px;padding:7px 14px;font-weight:700;font-size:.8rem;cursor:pointer">🔀 Masa / Hat Değiştir</button>
+        <button id="c-hat-degistir-btn" onclick="hatDegistirAc()" style="display:none;margin-top:10px;background:var(--info-soft);border:1px solid rgba(29,78,216,0.30);color:var(--c-blue);border-radius:10px;padding:7px 14px;font-weight:700;font-size:.8rem;cursor:pointer">🔀 Masa / Hat Değiştir</button>
         <div class="vb-oee" id="c-oee">—</div>
         <div class="vb-oee-label">Anlık OEE</div>
       </div>
 
       <!-- 10dk sinyal yok uyarı bandı — makine duruşu tespit edilince operatörü duruş tanımlamaya yönlendirir -->
-      <div id="c-durus-uyari" style="display:none;margin:12px 0;padding:14px 16px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.45);border-radius:14px">
+      <div id="c-durus-uyari" style="display:none;margin:12px 0;padding:14px 16px;background:var(--danger-soft);border:1px solid rgba(180,35,28,0.28);border-radius:14px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:1.4rem">⚠️</span>
           <div style="flex:1;min-width:140px">
-            <div style="font-weight:800;color:#fca5a5;font-size:.92rem" id="c-durus-uyari-baslik">Makineden sinyal yok</div>
-            <div style="font-size:.76rem;color:var(--c-muted,#94a3c4);margin-top:2px" id="c-durus-uyari-detay">Bu süre için bir duruş tanımlayın.</div>
+            <div style="font-weight:800;color:var(--danger);font-size:.92rem" id="c-durus-uyari-baslik">Makineden sinyal yok</div>
+            <div style="font-size:.76rem;color:var(--muted);margin-top:2px" id="c-durus-uyari-detay">Bu süre için bir duruş tanımlayın.</div>
           </div>
-          <button onclick="durusUyaridanTanimla()" style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">⏸️ Duruş Tanımla</button>
+          <button onclick="durusUyaridanTanimla()" style="background:var(--danger);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">⏸️ Duruş Tanımla</button>
         </div>
       </div>
 
       <!-- Robotla Çalışıyor toggle (sadece metal'de görünür) -->
-      <div id="c-auto-toggle" style="display:none;margin:12px 0;padding:14px 18px;background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.28);border-radius:14px">
+      <div id="c-auto-toggle" style="display:none;margin:12px 0;padding:14px 18px;background:var(--primary-soft);border:1px solid var(--primary-line);border-radius:14px">
         <label style="display:flex;align-items:center;gap:14px;cursor:pointer;font-weight:700;font-size:.9rem;margin:0">
           <input type="checkbox" id="c-auto-cb" onchange="toggleRobotlaCalisma()" style="display:none">
-          <span id="c-auto-slider" style="width:48px;height:26px;background:#475569;border-radius:13px;position:relative;transition:.3s;flex-shrink:0">
+          <span id="c-auto-slider" style="width:48px;height:26px;background:var(--line-strong);border-radius:13px;position:relative;transition:.3s;flex-shrink:0">
             <span id="c-auto-knob" style="position:absolute;width:20px;height:20px;background:white;border-radius:50%;top:3px;left:3px;transition:.3s"></span>
           </span>
           <span>🤖 <span id="c-auto-text">Robotla Çalışıyor (Tam Otomasyon)</span></span>
@@ -2276,7 +2622,7 @@ window.__I18N_SOZLUK__ = {
         <h3>📦 Üretim Kayıtları</h3>
         <div style="display:flex;gap:8px">
           <button class="section-add-btn" id="c-sayac-log-btn" onclick="sayacLogAc()"
-            style="background:rgba(96,165,250,0.10);border-color:rgba(96,165,250,0.4);color:#93c5fd">📡 Sinyal Geçmişi</button>
+            style="background:var(--info-soft);border-color:rgba(29,78,216,0.30);color:var(--c-blue)">📡 Sinyal Geçmişi</button>
           <button class="section-add-btn" onclick="yeniUretimEkle()">+ Ekle</button>
         </div>
       </div>
@@ -2311,7 +2657,7 @@ window.__I18N_SOZLUK__ = {
 
         <!-- Test cihazı sayaç kaynağı (Cofle/wicow) — yalnızca entegrasyon açıksa görünür.
              Seçiliyse ADET, test cihazının başarılı testlerinden otomatik sayılır. -->
-        <div id="d-test-wrap" style="display:none;margin-top:12px;padding:10px 12px;border:1px solid rgba(96,165,250,.35);border-radius:12px;background:rgba(96,165,250,.06)">
+        <div id="d-test-wrap" style="display:none;margin-top:12px;padding:10px 12px;border:1px solid rgba(29,78,216,0.30);border-radius:12px;background:var(--info-soft)">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
             <input type="checkbox" id="d-test-toggle" onchange="testCihazToggle()" style="width:18px;height:18px;flex:0 0 auto">
             <span style="font-weight:700;font-size:.85rem">🔬 Test cihazı ile çalışıyorum</span>
@@ -2319,7 +2665,7 @@ window.__I18N_SOZLUK__ = {
           <div id="d-test-sel-wrap" style="display:none;margin-top:10px">
             <label>Test Cihazı</label>
             <select id="d-test-cihaz" onchange="testCihazSecildi()"><option value="">— Cihaz seçin —</option></select>
-            <div style="font-size:.72rem;color:#60a5fa;font-weight:600;margin-top:6px">
+            <div style="font-size:.72rem;color:var(--c-blue);font-weight:600;margin-top:6px">
               Adet, seçtiğin test cihazının başarılı testlerinden otomatik sayılır — ADET'i boş bırak.
             </div>
           </div>
@@ -2331,7 +2677,7 @@ window.__I18N_SOZLUK__ = {
             <input type="number" id="d-ok" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
           </div>
           <!-- d-ok yanına sığmaz; sensör ipucu alanı aşağıda tam genişlik -->
-          <div id="d-sayac-ipucu" style="display:none;grid-column:1/-1;margin-top:2px;font-size:.74rem;color:#34d399;font-weight:600">
+          <div id="d-sayac-ipucu" style="display:none;grid-column:1/-1;margin-top:2px;font-size:.74rem;color:var(--success);font-weight:600">
             📡 Bu adet sensörden otomatik geliyor (canlı). Değiştirirsen sabitlenir, sayaç durur.
           </div>
           <div>
@@ -2397,12 +2743,12 @@ window.__I18N_SOZLUK__ = {
 
         <!-- Sayacı Sıfırla — emniyet butonu (deneme/test sinyalleri karışıklık yaratırsa).
              Sadece kayıtlı (mevcut) kayıtta görünür. Sayacı şu andan 0'lar. -->
-        <div id="d-sayac-sifirla-wrap" style="display:none;margin-top:16px;padding-top:14px;border-top:1px dashed var(--border,rgba(255,255,255,.12))">
+        <div id="d-sayac-sifirla-wrap" style="display:none;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)">
           <button type="button" onclick="sayacSifirla()"
-            style="width:100%;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:12px;padding:12px;font-weight:800;font-size:.86rem;cursor:pointer">
+            style="width:100%;background:var(--warn-soft);border:1px solid rgba(138,90,5,0.28);color:var(--c-amber);border-radius:12px;padding:12px;font-weight:800;font-size:.86rem;cursor:pointer">
             ↻ Sayacı Sıfırla
           </button>
-          <div style="font-size:.72rem;color:var(--muted,#94a3c4);margin-top:6px;text-align:center">
+          <div style="font-size:.72rem;color:var(--muted);margin-top:6px;text-align:center">
             Bu referansın sayacı 0'lanır, şu andan itibaren yeniden sayılır. (Deneme sinyallerini temizlemek için)
           </div>
         </div>
@@ -2530,15 +2876,15 @@ window.__I18N_SOZLUK__ = {
   </div>
 
   <!-- SİNYAL GEÇMİŞİ MODAL — vardiyanın sayaç olay logu (sensör pulse + test cihazı) -->
-  <div id="sayac-log-modal" style="display:none;position:fixed;inset:0;background:rgba(3,6,23,0.82);z-index:9000;align-items:center;justify-content:center;padding:18px">
-    <div style="background:var(--card,#0d1230);border:1px solid rgba(96,165,250,0.35);border-radius:16px;max-width:440px;width:100%;max-height:78vh;display:flex;flex-direction:column;overflow:hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08)">
-        <div style="font-weight:800;font-size:.95rem">📡 Sinyal Geçmişi <span id="sayac-log-robot" style="color:#93c5fd;font-weight:700"></span></div>
+  <div id="sayac-log-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);z-index:9000;align-items:center;justify-content:center;padding:18px">
+    <div style="background:var(--card);border:1px solid rgba(29,78,216,0.30);border-radius:16px;max-width:440px;width:100%;max-height:78vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)">
+        <div style="font-weight:800;font-size:.95rem">📡 Sinyal Geçmişi <span id="sayac-log-robot" style="color:var(--c-blue);font-weight:700"></span></div>
         <button onclick="document.getElementById('sayac-log-modal').style.display='none'"
-          style="background:transparent;border:1px solid rgba(255,255,255,0.18);color:var(--text,#e2e8f0);border-radius:8px;padding:4px 12px;font-size:.85rem;cursor:pointer">Kapat</button>
+          style="background:transparent;border:1px solid var(--line-strong);color:var(--text);border-radius:8px;padding:4px 12px;font-size:.85rem;cursor:pointer">Kapat</button>
       </div>
       <div id="sayac-log-list" style="overflow-y:auto;padding:10px 14px;font-size:.8rem;line-height:1.5">
-        <div style="color:var(--muted,#94a3c4);padding:12px">Yükleniyor...</div>
+        <div style="color:var(--muted);padding:12px">Yükleniyor...</div>
       </div>
     </div>
   </div>
@@ -2546,25 +2892,25 @@ window.__I18N_SOZLUK__ = {
   <div class="toast" id="toast"></div>
 
   <!-- ═══ OPERATÖR PIN GİRİŞ MODAL ═══ -->
-  <div id="pin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
-    <div style="background:linear-gradient(160deg, var(--bg-2), var(--bg-1));border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(167,139,250,0.16)">
+  <div id="pin-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 8px 24px rgba(28,25,23,0.14)">
       <div style="text-align:center;margin-bottom:18px">
         <div style="font-size:2rem;margin-bottom:6px">🔐</div>
         <div style="font-size:1.1rem;font-weight:800;color:var(--text)">Operatör Girişi</div>
         <div style="font-size:.78rem;color:var(--muted);margin-top:4px">Vardiya işlemleri için kimlik doğrulaması</div>
       </div>
       <label style="font-size:.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px">Operatör</label>
-      <select id="pin-modal-op" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line-strong);background:rgba(255,255,255,0.04);color:var(--text);font-size:.95rem;margin-bottom:12px">
+      <select id="pin-modal-op" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);font-size:.95rem;margin-bottom:12px">
         <option value="">— Seçin —</option>
       </select>
       <label style="font-size:.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px">PIN (4 haneli)</label>
       <input id="pin-modal-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"
              placeholder="••••"
-             style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:rgba(255,255,255,0.04);color:var(--text);font-size:1.3rem;letter-spacing:.6em;text-align:center;font-family:'JetBrains Mono',monospace;margin-bottom:14px"
+             style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);font-size:1.3rem;letter-spacing:.6em;text-align:center;font-family:'JetBrains Mono',monospace;margin-bottom:14px"
              onkeydown="if(event.key==='Enter') pinModalGiris()">
       <div style="display:flex;gap:10px">
-        <button onclick="pinModalKapat()" style="flex:1;padding:11px;border:1px solid var(--line);background:rgba(255,255,255,0.04);color:var(--muted);border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer">İptal</button>
-        <button onclick="pinModalGiris()" style="flex:2;padding:11px;border:0;background:linear-gradient(135deg,#a78bfa,#22d3ee);color:#fff;border-radius:10px;font-weight:800;font-size:.95rem;cursor:pointer">Giriş</button>
+        <button onclick="pinModalKapat()" style="flex:1;padding:11px;border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer">İptal</button>
+        <button onclick="pinModalGiris()" style="flex:2;padding:11px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:800;font-size:.95rem;cursor:pointer">Giriş</button>
       </div>
       <div style="font-size:.66rem;color:var(--muted);margin-top:12px;text-align:center;font-style:italic">
         PIN'inizi bilmiyorsanız vardiya amirinize danışın
@@ -2573,31 +2919,31 @@ window.__I18N_SOZLUK__ = {
   </div>
 
   <!-- ═══ MASA / HAT DEĞİŞTİR MODAL ═══ -->
-  <div id="hat-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
-    <div style="background:linear-gradient(160deg, var(--bg-2), var(--bg-1));border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(96,165,250,0.16)">
+  <div id="hat-modal" style="display:none;position:fixed;inset:0;background:rgba(28,25,23,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border:1px solid var(--line-strong);border-radius:18px;padding:24px 22px;width:100%;max-width:380px;box-shadow:0 8px 24px rgba(28,25,23,0.14)">
       <div style="text-align:center;margin-bottom:18px">
         <div style="font-size:2rem;margin-bottom:6px">🔀</div>
         <div style="font-size:1.1rem;font-weight:800;color:var(--text)">Masa / Hat Değiştir</div>
         <div style="font-size:.78rem;color:var(--muted);margin-top:4px">Vardiyayı kapatmadan geçtiğiniz masanın sayacına bağlanın</div>
       </div>
       <label style="font-size:.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px">Yeni Hat</label>
-      <select id="hat-modal-sel" onchange="hatModalSecimDegisti()" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line-strong);background:rgba(255,255,255,0.04);color:var(--text);font-size:.95rem;margin-bottom:12px"></select>
-      <div style="font-size:.7rem;color:var(--c-amber,#fbbf24);background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:9px 11px;margin-bottom:14px;line-height:1.4">
+      <select id="hat-modal-sel" onchange="hatModalSecimDegisti()" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);font-size:.95rem;margin-bottom:12px"></select>
+      <div style="font-size:.7rem;color:var(--c-amber);background:var(--warn-soft);border:1px solid rgba(138,90,5,0.22);border-radius:10px;padding:9px 11px;margin-bottom:14px;line-height:1.4">
         ⚠️ Mevcut masadaki sayaç kayıtlarınız o ana kadarki değerde <b>dondurulur</b>. Yeni masada üretimi <b>+ Ekle</b> ile başlatın.
       </div>
       <div style="display:flex;gap:10px">
-        <button onclick="hatDegistirKapat()" style="flex:1;padding:11px;border:1px solid var(--line);background:rgba(255,255,255,0.04);color:var(--muted);border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer">İptal</button>
-        <button onclick="hatDegistirOnayla()" style="flex:2;padding:11px;border:0;background:linear-gradient(135deg,#60a5fa,#22d3ee);color:#fff;border-radius:10px;font-weight:800;font-size:.95rem;cursor:pointer">Geç</button>
+        <button onclick="hatDegistirKapat()" style="flex:1;padding:11px;border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer">İptal</button>
+        <button onclick="hatDegistirOnayla()" style="flex:2;padding:11px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:800;font-size:.95rem;cursor:pointer">Geç</button>
       </div>
     </div>
   </div>
 
   <!-- ═══ AKTİF OPERATÖR STATUS BAR ═══ -->
-  <div id="operator-bar" style="display:none;position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg, rgba(52,211,153,0.16), rgba(34,211,238,0.10));border-bottom:1px solid rgba(52,211,153,0.32);padding:6px 12px;z-index:9000;align-items:center;justify-content:space-between;gap:10px;font-size:.78rem;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+  <div id="operator-bar" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--success-soft);border-bottom:1px solid rgba(21,122,60,0.30);padding:6px 12px;z-index:9000;align-items:center;justify-content:space-between;gap:10px;font-size:.78rem;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
     <div style="color:var(--text);font-weight:700">
       <span style="opacity:.7">👤</span> <span id="operator-bar-ad">—</span>
     </div>
-    <button onclick="operatorCikis()" style="background:rgba(248,113,113,0.14);border:1px solid rgba(248,113,113,0.35);color:#fca5a5;padding:3px 10px;border-radius:8px;font-size:.7rem;font-weight:700;cursor:pointer">Çıkış</button>
+    <button onclick="operatorCikis()" style="background:var(--danger-soft);border:1px solid rgba(180,35,28,0.28);color:var(--danger);padding:3px 10px;border-radius:8px;font-size:.7rem;font-weight:700;cursor:pointer">Çıkış</button>
   </div>
 
   <script>
@@ -2875,7 +3221,7 @@ window.__I18N_SOZLUK__ = {
         d.className = 'durus-cat';
         d.textContent = k;
         d.dataset.tipi = tipi;
-        if (tipi === 'planli') d.style.borderColor = 'rgba(34,197,94,0.4)';
+        if (tipi === 'planli') d.style.borderColor = 'rgba(21,122,60,0.30)';
         d.onclick = function () {
           document.querySelectorAll('#e-cats .durus-cat').forEach(function (x) { x.classList.remove('selected'); });
           d.classList.add('selected');
@@ -2892,7 +3238,7 @@ window.__I18N_SOZLUK__ = {
       window.durusKategorileriniYukle = function (bolum) {
         bolum = bolum || secilenBolum || 'kaynak';
         // Fetch sonuçlanana kadar placeholder — boş alan kafa karıştırmasın
-        catsEl.innerHTML = '<div style="width:100%;font-size:.78rem;color:var(--muted,#94a3c4);padding:8px 2px">Yükleniyor…</div>';
+        catsEl.innerHTML = '<div style="width:100%;font-size:.78rem;color:var(--muted);padding:8px 2px">Yükleniyor…</div>';
         // Cache-bust: Excel'de yapılan değişikliklerin anında yansıması için
         var _ts = Date.now();
 
@@ -2905,11 +3251,11 @@ window.__I18N_SOZLUK__ = {
           DURUS_GRUPLARI.plansiz = plansiz.map(function (x) { return x.sebep; });
 
           if (planli.length) {
-            ekleGrupEtiketi('✅ Planlı Duruşlar', '#4ade80');
+            ekleGrupEtiketi('✅ Planlı Duruşlar', 'var(--success)');
             planli.forEach(function (x) { ekleKategori(x.sebep, 'planli'); });
           }
           if (plansiz.length) {
-            ekleGrupEtiketi('⚠️ Plansız Duruşlar', '#f87171');
+            ekleGrupEtiketi('⚠️ Plansız Duruşlar', 'var(--danger)');
             plansiz.forEach(function (x) { ekleKategori(x.sebep, 'plansiz'); });
           }
         }
@@ -3446,12 +3792,12 @@ window.__I18N_SOZLUK__ = {
 
         var html = '';
         var bLabels = {
-          kaynak: { title: '🔧 Kaynakhane', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-          montaj: { title: '🔩 Montaj', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-          metal: { title: '⚙️ Metal Enjeksiyon', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-          isleme: { title: '🛠️ İşleme', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-          lazer: { title: '🔦 Lazer Kesim', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
-          pres: { title: '🗜️ Pres Abkant', color: '#ec4899', bg: 'rgba(236,72,153,0.1)' }
+          kaynak: { title: '🔧 Kaynakhane', color: '#1D4ED8', bg: '#E7EDFB' },
+          montaj: { title: '🔩 Montaj', color: '#07734F', bg: '#E4F0E8' },
+          metal: { title: '⚙️ Metal Enjeksiyon', color: '#8F6100', bg: '#F2ECE2' },
+          isleme: { title: '🛠️ İşleme', color: '#6D28D9', bg: '#EDE7FB' },
+          lazer: { title: '🔦 Lazer Kesim', color: '#0E7490', bg: '#E3EEF6' },
+          pres: { title: '🗜️ Pres Abkant', color: '#9D174D', bg: '#F8E4EC' }
         };
 
         ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'].forEach(function(bKey) {
@@ -3478,12 +3824,12 @@ window.__I18N_SOZLUK__ = {
                 ? '<button onclick="event.stopPropagation();vardiyaSil(' + v.id + ')" class="btn-vardiya-sil" title="Yanlış açılan vardiyayı sil">🗑 Sil</button>'
                 : '';
               var _kartStyle = _kendisinin
-                ? 'border:2px solid rgba(52,211,153,0.45);background:linear-gradient(135deg,rgba(52,211,153,0.10),rgba(34,211,238,0.04));box-shadow:0 0 0 1px rgba(52,211,153,0.10),0 4px 14px rgba(0,0,0,0.18)'
+                ? 'border:2px solid rgba(21,122,60,0.30);background:var(--success-soft);box-shadow:0 1px 2px rgba(28,25,23,0.06)'
                 : 'opacity:.55;cursor:not-allowed;filter:grayscale(0.3)';
               var _kendiRozet = _admin
                 ? ''
                 : (_kendisinin
-                ? '<span style="background:rgba(52,211,153,0.18);color:#6ee7b7;padding:2px 8px;border-radius:6px;font-size:.62rem;font-weight:800;letter-spacing:.04em;margin-left:6px;vertical-align:middle">SİZİN</span>'
+                ? '<span style="background:var(--success-soft);color:var(--success);padding:2px 8px;border-radius:6px;font-size:.62rem;font-weight:800;letter-spacing:.04em;margin-left:6px;vertical-align:middle">SİZİN</span>'
                 : '<span title="Baska operatore ait" style="opacity:.85;font-size:.9rem;margin-left:4px">🔒</span>');
               var kartHtml = '<div class="vardiya-kart" style="position:relative;' + _kartStyle + '" onclick="vardiyaSec(' + v.id + ')">' +
                 '<div class="ki-head"><div style="flex:1;min-width:0">' +
@@ -3503,7 +3849,7 @@ window.__I18N_SOZLUK__ = {
         el.innerHTML = html;
       }).catch(function () {
         document.getElementById('bugun-vardiyalar').innerHTML =
-          '<div style="color:#f87171;padding:12px;font-size:.85rem">\u26a0 Ba\u011flant\u0131 hatas\u0131</div>';
+          '<div style="color:var(--danger);padding:12px;font-size:.85rem">\u26a0 Ba\u011flant\u0131 hatas\u0131</div>';
       });
     }
 
@@ -3718,7 +4064,7 @@ window.__I18N_SOZLUK__ = {
           document.getElementById('c-auto-cb').checked = isOn;
           var slider = document.getElementById('c-auto-slider');
           var knob = document.getElementById('c-auto-knob');
-          slider.style.background = isOn ? '#34d399' : '#475569';
+          slider.style.background = isOn ? 'var(--success)' : 'var(--line-strong)';
           knob.style.left = isOn ? '25px' : '3px';
           document.getElementById('c-auto-text').textContent =
             isOn ? 'Robotla Çalışıyor: AKTİF (Tam Otomasyon)' : 'Robotla Çalışıyor (Tam Otomasyon)';
@@ -3742,7 +4088,7 @@ window.__I18N_SOZLUK__ = {
             var nokTxt = u.nok_adet > 0 ? ' · NOK: ' + u.nok_adet : '';
             // Sayaç otomatik kaydı: OK adet sensörden besleniyor (canlı). Operatör
             // düzeltirse donar. 📡 rozeti operatöre bunun sayaçtan geldiğini gösterir.
-            var sayacBadge = (u.sayac_otomatik == 1) ? ' <span style="color:#34d399;font-weight:700">📡 sayaç</span>' : '';
+            var sayacBadge = (u.sayac_otomatik == 1) ? ' <span style="color:var(--success);font-weight:700">📡 sayaç</span>' : '';
             // Lazer/Pres: kaydın hangi makinede yapıldığı (istasyon) satırda görünsün
             var makineTxt = '';
             if ((u.istasyon || 0) > 0) {
@@ -3841,7 +4187,7 @@ window.__I18N_SOZLUK__ = {
       // Önce UI'ı anında güncelle (optik responsiveness)
       var slider = document.getElementById('c-auto-slider');
       var knob = document.getElementById('c-auto-knob');
-      slider.style.background = cb.checked ? '#34d399' : '#475569';
+      slider.style.background = cb.checked ? 'var(--success)' : 'var(--line-strong)';
       knob.style.left = cb.checked ? '25px' : '3px';
       document.getElementById('c-auto-text').textContent =
         cb.checked ? 'Robotla Çalışıyor: AKTİF (Tam Otomasyon)' : 'Robotla Çalışıyor (Tam Otomasyon)';
@@ -4092,14 +4438,14 @@ window.__I18N_SOZLUK__ = {
       var modal = document.getElementById('sayac-log-modal');
       var list = document.getElementById('sayac-log-list');
       modal.style.display = 'flex';
-      list.innerHTML = '<div style="color:var(--muted,#94a3c4);padding:12px">Yükleniyor...</div>';
+      list.innerHTML = '<div style="color:var(--muted);padding:12px">Yükleniyor...</div>';
       fetch('/api/vardiya/' + aktifVardiyaId + '/sayac_log')
         .then(function (r) { return r.json(); })
         .then(function (d) {
           document.getElementById('sayac-log-robot').textContent = d.robot_no ? ('— ' + d.robot_no) : '';
           var logs = d.loglar || [];
           if (!logs.length) {
-            list.innerHTML = '<div style="color:var(--muted,#94a3c4);padding:12px">Bu vardiyada henüz sinyal kaydı yok.</div>';
+            list.innerHTML = '<div style="color:var(--muted);padding:12px">Bu vardiyada henüz sinyal kaydı yok.</div>';
             return;
           }
           list.innerHTML = logs.map(function (l, i) {
@@ -4108,20 +4454,20 @@ window.__I18N_SOZLUK__ = {
             if (l.kaynak === 'test') {
               var ok = (l.basarili == 1);
               etiket = '🔬 ' + (l.detay || (ok ? 'BAŞARILI' : 'BAŞARISIZ'));
-              renk = ok ? '#6ee7b7' : '#fca5a5';
+              renk = ok ? 'var(--success)' : 'var(--danger)';
             } else {
               etiket = '📶 ' + (l.detay || 'Sayım');
-              renk = '#93c5fd';
+              renk = 'var(--c-blue)';
             }
             return '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 4px;' +
-                   (i % 2 ? 'background:rgba(255,255,255,0.03);' : '') + 'border-radius:6px">' +
-                   '<span style="font-family:var(--font-mono,monospace);color:var(--text,#e2e8f0)">' + saat + '</span>' +
+                   (i % 2 ? 'background:var(--surface-2);' : '') + 'border-radius:6px">' +
+                   '<span style="font-family:var(--font-mono);color:var(--text)">' + saat + '</span>' +
                    '<span style="color:' + renk + ';font-weight:700;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etiket + '</span>' +
                    '</div>';
           }).join('');
         })
         .catch(function () {
-          list.innerHTML = '<div style="color:#f87171;padding:12px">Sinyal geçmişi yüklenemedi.</div>';
+          list.innerHTML = '<div style="color:var(--danger);padding:12px">Sinyal geçmişi yüklenemedi.</div>';
         });
     }
 
@@ -4228,9 +4574,9 @@ window.__I18N_SOZLUK__ = {
               div.className = 'autocomplete-item';
               // Pres: Excel'den gelen referans açıklaması (örn. 'BUKUMLU SAC') listede görünsün
               var acikSatir = (secilenBolum === 'pres' && r.aciklama)
-                ? '<div style="font-size:.7rem;color:#94a3b8;margin-top:1px">' + String(r.aciklama).replace(/</g, '&lt;') + '</div>' : '';
-              div.innerHTML = '<b style="color:#93c5fd">' + r.referans_kodu + '</b>' +
-                (r.hedef_cycle_time_sn ? '<span style="float:right;font-size:.72rem;color:#64748b">' + Math.round(r.hedef_cycle_time_sn) + 'sn</span>' : '') +
+                ? '<div style="font-size:.7rem;color:var(--muted);margin-top:1px">' + String(r.aciklama).replace(/</g, '&lt;') + '</div>' : '';
+              div.innerHTML = '<b style="color:var(--c-blue)">' + r.referans_kodu + '</b>' +
+                (r.hedef_cycle_time_sn ? '<span style="float:right;font-size:.72rem;color:var(--dim)">' + Math.round(r.hedef_cycle_time_sn) + 'sn</span>' : '') +
                 acikSatir;
               div.onclick = function () { secRef(r.referans_kodu, r.hedef_cycle_time_sn || 0, r.aciklama || ''); };
               list.appendChild(div);
@@ -4279,7 +4625,7 @@ window.__I18N_SOZLUK__ = {
             items.forEach(function (r) {
               var div = document.createElement('div');
               div.className = 'autocomplete-item';
-              div.innerHTML = '<b style="color:#93c5fd">' + r.referans_kodu + '</b>';
+              div.innerHTML = '<b style="color:var(--c-blue)">' + r.referans_kodu + '</b>';
               div.onclick = function () { document.getElementById('mf-ref').value = r.referans_kodu; list.style.display = 'none'; };
               list.appendChild(div);
             });
@@ -4420,7 +4766,7 @@ window.__I18N_SOZLUK__ = {
           <div>
             <div style="font-weight:800;font-size:.9rem;color:var(--text)">${item.referans_kodu}</div>
             <div style="font-size:.7rem;color:var(--muted);margin-top:3px">
-              🤖 ${item.robot_no} <span style="margin-left:8px;border-left:1px solid #334155;padding-left:8px">📍 İst. ${item.istasyon}</span>
+              🤖 ${item.robot_no} <span style="margin-left:8px;border-left:1px solid var(--line-strong);padding-left:8px">📍 İst. ${item.istasyon}</span>
             </div>
           </div>
           <button onclick="uyumSilM(${item.id})" style="background:none;border:none;color:var(--danger);font-size:1.1rem;padding:8px;cursor:pointer;">✕</button>
