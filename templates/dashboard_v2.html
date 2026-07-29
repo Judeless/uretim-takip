@@ -1057,8 +1057,8 @@
         #page-raporlar .form-control:focus { border-color: var(--primary); }
         /* Günlük Üretim Raporu butonu — v2 vurgu dili (violet→cyan degrade) */
         .btn-rapor-gunluk {
-            background: linear-gradient(135deg, #EC6736, #0E7490); color: #fff;
-            box-shadow: 0 4px 14px rgba(236, 103, 54, 0.30);
+            background: var(--grad-violet); color: #fff;
+            box-shadow: none;
         }
         .btn-rapor-gunluk:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(236, 103, 54, 0.40); }
 
@@ -1329,6 +1329,23 @@
             background: transparent; border: 0; padding: 0; box-shadow: none;
             border-radius: 0; gap: var(--sp-2);
         }
+
+        /* ── 10c) KOYU TEMA ARTIKLARI — 2. TUR (2026-07-29) ────────────────
+           4511 metin/SVG düğümü tarandı; aşağıdakiler beyaz kartta AA altındaydı.
+           SVG fill'leri satır-içi ÖZNİTELİK olarak yazılmış (fill="#f1f5f9"),
+           bu yüzden ilk yamanın satır-içi süpürmesine takılmamışlardı — CSS
+           sunum özniteliğini EZER, o yüzden burada kural olarak veriliyor. */
+
+        /* Fabrika Özeti bölüm kartlarındaki OEE halkası — KULLANICI BİLDİRİMİ:
+           "oee sayıları görünmüyor". Sayı fill="#f1f5f9" (beyaz kartta 1.10:1),
+           veri yokken gösterilen "—" fill="#94a3b8" (2.56:1). */
+        .bk-oee-halka text            { fill: var(--text); }
+        .bk-oee-halka.halka-bos text  { fill: var(--dim); }
+
+        /* Bölüm kartı metrik sayıları: -webkit-text-fill-color soğuk slate
+           (#334155) kalmıştı — okunuyordu ama palet dışıydı (ılık mürekkep). */
+        .bk-m-deger { -webkit-text-fill-color: var(--text); color: var(--text);
+                      background: none; }
 
         /* ── 11) ODAK GÖRÜNÜRLÜĞÜ (klavye) ──────────────────────────────── */
         :where(a, button, input, select, textarea, [tabindex]):focus-visible {
@@ -4054,7 +4071,7 @@ window.__I18N_SOZLUK__ = {
             <div class="sidebar-footer">
                 <div id="panel-kullanici-kutu" style="padding:10px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px;display:none">
                     <div style="display:flex;align-items:center;gap:9px">
-                        <span style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#6366f1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff" id="panel-ku-avatar">?</span>
+                        <span style="width:32px;height:32px;border-radius:50%;background:var(--grad-violet);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff" id="panel-ku-avatar">?</span>
                         <div style="min-width:0">
                             <div id="panel-ku-ad" style="font-size:.82rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
                             <div id="panel-ku-rol" style="font-size:.7rem;color:var(--muted)">—</div>
@@ -4470,7 +4487,7 @@ window.__I18N_SOZLUK__ = {
                         <span style="font-size:1.2rem">⚠️</span>
                         <h3 style="font-size:.9rem;font-weight:800;color:#b91c1c;margin:0">Süre Tanımı Bekleyen Referanslar (Son 30 Gün)</h3>
                     </div>
-                    <p style="font-size:.78rem;color:rgba(254,202,202,0.75);margin-bottom:12px">Aşağıdaki referanslar operatörler tarafından girilmiş ancak sistemde çevrim süreleri tanımlanmamıştır. Lütfen süre tanımlayın.</p>
+                    <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Aşağıdaki referanslar operatörler tarafından girilmiş ancak sistemde çevrim süreleri tanımlanmamıştır. Lütfen süre tanımlayın.</p>
                     <div id="eksik-ref-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
                 </div>
 
@@ -4773,7 +4790,7 @@ window.__I18N_SOZLUK__ = {
                         <div id="andon-bolum-tabs" style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:10px;border:1px solid var(--border)">
                             <button type="button" data-bolum="kaynak" onclick="andonBolumDegistir('kaynak')"
                                 class="andon-bolum-tab active"
-                                style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);background:#EC6736;color:#fff">
+                                style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);background:var(--grad-violet);color:#fff">
                                 🔧 Kaynak
                             </button>
                             <button type="button" data-bolum="montaj" onclick="andonBolumDegistir('montaj')"
@@ -4984,7 +5001,7 @@ window.__I18N_SOZLUK__ = {
                         <label>Tarih</label>
                         <input type="date" id="sa-tarih">
                     </div>
-                    <button onclick="yukleSinyalAnaliz()" style="padding:9px 18px;min-height:40px;border:0;background:linear-gradient(135deg,#EC6736,#0E7490);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
+                    <button onclick="yukleSinyalAnaliz()" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
                         🔄 Analizi Yükle
                     </button>
                     <div id="sa-status" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
@@ -5079,7 +5096,7 @@ window.__I18N_SOZLUK__ = {
                             </div>
                         </div>
                         <div>
-                            <div style="font-weight:700;color:#0e7490;margin-bottom:4px">≈ Medyan</div>
+                            <div style="font-weight:700;color:var(--text);margin-bottom:4px">≈ Medyan</div>
                             <div style="color:var(--muted);font-size:.78rem">
                                 Pulse'lar küçükten büyüğe sıralanıp <b>tam ortadaki değer</b>.
                                 Aşırı değerlerden (mola, parça bekleme) etkilenmez — gerçek üretim ritmini
@@ -5088,7 +5105,7 @@ window.__I18N_SOZLUK__ = {
                             </div>
                         </div>
                         <div>
-                            <div style="font-weight:700;color:#B4470F;margin-bottom:4px">📊 Mod</div>
+                            <div style="font-weight:700;color:var(--text);margin-bottom:4px">📊 Mod</div>
                             <div style="color:var(--muted);font-size:.78rem">
                                 <b>En sık tekrar eden gap</b> (1 sn yuvarlanmış). Robotun veya makinenin
                                 "alıştığı" cycle süresi. Hedef cycle ile karşılaştırılır:
@@ -5173,7 +5190,7 @@ window.__I18N_SOZLUK__ = {
                 <div class="panel-card">
                     <div class="panel-header">
                         <h3>📧 Otomatik Günlük Üretim Raporu E-postası</h3>
-                        <span id="mail-durum-rozet" style="font-size:.78rem; font-weight:700; padding:4px 12px; border-radius:999px; background:#334155; color:#64748b">Yükleniyor…</span>
+                        <span id="mail-durum-rozet" style="font-size:.78rem; font-weight:700; padding:4px 12px; border-radius:999px; background:var(--surface-2); color:var(--muted)">Yükleniyor…</span>
                     </div>
                     <div style="padding:16px 20px">
                         <div id="mail-durum-aciklama" style="font-size:.82rem; color:var(--muted); margin-bottom:16px">
@@ -7462,11 +7479,11 @@ window.__I18N_SOZLUK__ = {
                     listEl.innerHTML = list.map(ref => `
                         <div style="display:inline-flex; border:1px solid rgba(248,113,113,0.45); border-radius:10px; overflow:hidden; box-shadow:0 2px 4px rgba(15, 23, 42, 0.14)">
                             <button onclick="refDuzenle('${ref}', '', 0)" title="Süre Tanımla"
-                                    style="background:rgba(248,113,113,0.12); border:none; padding:6px 10px; font-size:.78rem; font-weight:700; color:#b91c1c; cursor:pointer; transition:.2s">
+                                    style="background:var(--danger-soft); border:none; padding:6px 10px; font-size:.78rem; font-weight:700; color:var(--danger); cursor:pointer; transition:.2s">
                                 ${ref} +
                             </button>
                             <button onclick="referansSil('${ref}')" title="Bu referansı sil"
-                                    style="background:rgba(248,113,113,0.10); border:none; border-left:1px solid rgba(248,113,113,0.4); padding:6px 8px; font-size:.78rem; font-weight:700; color:#b91c1c; cursor:pointer; transition:.2s">
+                                    style="background:var(--danger-soft); border:none; border-left:1px solid rgba(180,35,28,0.28); padding:6px 8px; font-size:.78rem; font-weight:700; color:var(--danger); cursor:pointer; transition:.2s">
                                 ✖
                             </button>
                         </div>
@@ -7745,9 +7762,9 @@ window.__I18N_SOZLUK__ = {
         //  API çağrıları, payload'lar ve iş mantığı değişmedi)
         // ═══════════════════════════════════════════════════════
         const RT_DURUMLAR = [
-            { key: 'launch_alinacak', label: 'Launch Alınacak', bg: '#7f1d1d', color: '#B4231C' },
-            { key: 'launch_alindi',   label: 'Launch Alındı',   bg: '#172554', color: '#2563eb' },
-            { key: 'launch_hazir',    label: 'Launch Hazır',    bg: '#14532d', color: '#86efac' }
+            { key: 'launch_alinacak', label: 'Launch Alınacak', bg: '#F7E6E4', color: '#B4231C' },
+            { key: 'launch_alindi',   label: 'Launch Alındı',   bg: '#E7EDFB', color: '#1D4ED8' },
+            { key: 'launch_hazir',    label: 'Launch Hazır',    bg: '#E4F0E8', color: '#157A3C' }
         ];
 
         // Iş Yönetimi panelindeki secilebilecek robot/hat/makine listesini bolume gore getir
@@ -8295,7 +8312,7 @@ window.__I18N_SOZLUK__ = {
                             </td>
                             <td>
                                 <button onclick="opPinDegistir(${g.id},'${g.ad.replace(/'/g,"\\'")}')"
-                                    style="background:linear-gradient(135deg,#EC6736,#0E7490);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
+                                    style="background:var(--grad-violet);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
                                     Güncelle
                                 </button>
                             </td>
@@ -8626,9 +8643,9 @@ window.__I18N_SOZLUK__ = {
         function renderSahaKart(c) {
             // Durum bazlı renkler + ikonlar
             const renkler = {
-                'online':    { bg: 'rgba(16,185,129,0.10)',  bd: 'rgba(16,185,129,0.40)',  ic: '#166534', text: 'ONLINE',    pulse: true },
-                'offline':   { bg: 'rgba(248,113,113,0.10)', bd: 'rgba(248,113,113,0.40)', ic: '#B4231C', text: 'OFFLINE',   pulse: false },
-                'beklemede': { bg: 'rgba(156,163,175,0.08)', bd: 'rgba(156,163,175,0.30)', ic: '#5c6675', text: 'BEKLEMEDE', pulse: false },
+                'online':    { bg: 'var(--success-soft)', bd: 'rgba(21,122,60,0.28)',  ic: '#157A3C', text: 'ONLINE',    pulse: true },
+                'offline':   { bg: 'var(--danger-soft)',  bd: 'rgba(180,35,28,0.28)',  ic: '#B4231C', text: 'OFFLINE',   pulse: false },
+                'beklemede': { bg: 'var(--surface-2)',    bd: 'var(--line-strong, #D3D0CB)', ic: '#57534E', text: 'BEKLEMEDE', pulse: false },
             };
             const r = renkler[c.durum] || renkler.beklemede;
 
@@ -8639,7 +8656,7 @@ window.__I18N_SOZLUK__ = {
                 return `
                     <div style="align-self:start;background:${r.bg};border:1px solid ${r.bd};border-radius:10px;padding:6px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.7">
                         <span style="font-size:.82rem;font-weight:700;color:var(--text)">${c.robot_no}</span>
-                        <span style="background:${r.bd};color:${r.ic};padding:1px 7px;border-radius:999px;font-size:.5rem;font-weight:800;letter-spacing:.05em;flex-shrink:0">BEKLEMEDE</span>
+                        <span style="background:${r.bg};color:${r.ic};border:1px solid ${r.bd};padding:1px 7px;border-radius:999px;font-size:.5rem;font-weight:800;letter-spacing:.05em;flex-shrink:0">BEKLEMEDE</span>
                     </div>
                 `;
             }
@@ -8676,7 +8693,7 @@ window.__I18N_SOZLUK__ = {
                 const cidEsc = (c.cihaz_id || '').replace(/'/g, "\\'");
                 return `<button onclick="event.stopPropagation();sahaSayacReset('${cidEsc}',${istasyon},'${label}')"
                     title="${label} sayacını sıfırla"
-                    style="background:rgba(236, 103, 54,0.10);border:1px solid rgba(236, 103, 54,0.32);color:#B4470F;border-radius:6px;padding:1px 7px;font-size:.62rem;cursor:pointer;margin-left:6px;vertical-align:middle;font-weight:700">↻</button>`;
+                    style="background:var(--primary-soft);border:1px solid var(--primary-line);color:#B4470F;border-radius:6px;padding:1px 7px;font-size:.62rem;cursor:pointer;margin-left:6px;vertical-align:middle;font-weight:700">↻</button>`;
             };
 
             // Kaynak ise ist1/ist2 ayrı göster; diğer bölümlerde tek toplam
@@ -8725,7 +8742,7 @@ window.__I18N_SOZLUK__ = {
                     } else {
                         uyariMsg = `🔴 ${Math.floor(offlineDk/60)} sa ${Math.floor(offlineDk%60)} dk offline — USB ile firmware yükle`;
                         uyariRenk = '#B4231C';
-                        uyariBg   = 'rgba(220,38,38,0.10)';
+                        uyariBg   = 'var(--danger-soft)';
                     }
                     offlineBand = `<div style="margin-top:8px;padding:5px 8px;border-radius:6px;background:${uyariBg};border:1px solid ${uyariRenk}55;color:${uyariRenk};font-size:.68rem;font-weight:700">${uyariMsg}</div>`;
                 }
@@ -8756,7 +8773,7 @@ window.__I18N_SOZLUK__ = {
                             <div style="font-size:1.05rem;font-weight:800;color:var(--text)">${c.robot_no}</div>
                             <div style="font-size:.66rem;color:var(--muted);font-family:monospace;margin-top:2px">${c.cihaz_id}</div>
                         </div>
-                        <span style="background:${r.bd};color:${r.ic};padding:3px 10px;border-radius:999px;font-size:.62rem;font-weight:800;letter-spacing:.06em;flex-shrink:0">
+                        <span style="background:${r.bg};color:${r.ic};border:1px solid ${r.bd};padding:3px 10px;border-radius:999px;font-size:.62rem;font-weight:800;letter-spacing:.06em;flex-shrink:0">
                             ${r.text}
                         </span>
                     </div>
@@ -9371,7 +9388,7 @@ window.__I18N_SOZLUK__ = {
                     </select>
                     <div style="display:flex;gap:8px;justify-content:flex-end">
                         <button onclick="document.getElementById('durus-tanim-modal').remove()" style="padding:8px 16px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:var(--font-main)">İptal</button>
-                        <button id="dt-kaydet" style="padding:8px 18px;border:0;background:linear-gradient(135deg,#EC6736,#0E7490);color:#fff;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:var(--font-main)">Kaydet</button>
+                        <button id="dt-kaydet" style="padding:8px 18px;border:0;background:var(--grad-violet);color:#fff;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:var(--font-main)">Kaydet</button>
                     </div>
                 </div>`;
             document.body.appendChild(ov);
@@ -9448,8 +9465,8 @@ window.__I18N_SOZLUK__ = {
                 tb.innerHTML = list.map(a => {
                     const aktif = a.aktif == 1;
                     const durumBtn = aktif
-                        ? `<button onclick="mailAliciDurum(${a.id},0)" title="Duraklat" style="background:rgba(52,211,153,.15);color:#065f46;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">● Aktif</button>`
-                        : `<button onclick="mailAliciDurum(${a.id},1)" title="Etkinleştir" style="background:#334155;color:#64748b;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">○ Pasif</button>`;
+                        ? `<button onclick="mailAliciDurum(${a.id},0)" title="Duraklat" style="background:var(--success-soft);color:var(--success);border:1px solid rgba(21,122,60,0.22);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">● Aktif</button>`
+                        : `<button onclick="mailAliciDurum(${a.id},1)" title="Etkinleştir" style="background:var(--surface-2);color:var(--muted);border:1px solid var(--line-strong);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">○ Pasif</button>`;
                     return `<tr>
                         <td style="text-align:left">${mailEsc(a.email)}</td>
                         <td style="text-align:left; color:var(--muted)">${mailEsc(a.ad || '—')}</td>
@@ -10275,7 +10292,7 @@ window.__I18N_SOZLUK__ = {
                 '<button class="btn btn-primary" id="as4-tr-iptal-btn" onclick="as4TransferRobotIptal()">🤖 Seçilenleri Robotla İptal Et</button>' +
                 '<label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:#92400e;cursor:pointer;font-weight:700" title="Robot ekrana girer, satırı bulur ve DOĞRULAR ama Shift+F4\'e BASMAZ — hiçbir kayıt silinmez. İlk denemede güvenle akışı görmek için.">' +
                     '<input type="checkbox" id="as4-tr-dryrun" style="width:15px;height:15px;cursor:pointer">🧪 DRYRUN (deneme — silme yok)</label>' +
-                '<button class="btn" id="as4-tr-durdur-btn" onclick="as4Durdur()" style="display:none;background:#dc2626;color:#fff;border-color:#b91c1c">⏹ Durdur</button>' +
+                '<button class="btn" id="as4-tr-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--danger);color:#fff;border-color:var(--danger)">⏹ Durdur</button>' +
                 '<span style="font-size:.74rem;color:var(--muted)">Robot: 07&gt;01 + kayıt no + satır başına <b>2</b> + Enter + <b>Shift+F4</b>. İptal kaydı SİLER — BMMAF0\'dan silindiği ayrıca doğrulanır. Her akşam <b>16:45</b>\'te hepsi otomatik iptal edilir.</span></div>' +
                 '<div id="as4-tr-sonuc"></div>';
             html += '<div style="font-size:.74rem;color:var(--muted);margin-top:8px">' + liste.length +
@@ -10716,7 +10733,7 @@ window.__I18N_SOZLUK__ = {
 
                 html += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
                     '<button class="btn btn-primary" id="as4-gonder-btn" onclick="as4Gonder()">📤 Seçilenleri AS400\'e Gönder</button>' +
-                    '<button class="btn" id="as4-durdur-btn" onclick="as4Durdur()" style="display:none;background:#dc2626;color:#fff;border-color:#b91c1c">⏹ Durdur</button>' +
+                    '<button class="btn" id="as4-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--danger);color:#fff;border-color:var(--danger)">⏹ Durdur</button>' +
                     '<span style="font-size:.76rem;color:var(--muted)">Sıra: <b style="color:#065f46">LAUNCH</b> → <b style="color:#1D4ED8">CFI</b> → en son <b style="color:#b91c1c">♻ HURDA (COP)</b>. <b style="color:#065f46">A</b> = launch açık kalır · <b style="color:#b91c1c">S</b> = KAPANIR (kalan ≈ gönderilecek satırlarda otomatik önerilir).</span></div>' +
                     '<div id="as4-gonder-sonuc"></div>';
             }
@@ -10748,8 +10765,8 @@ window.__I18N_SOZLUK__ = {
                 });
                 html += '</tbody></table></div>';
                 html += '<div style="display:flex;gap:10px;align-items:center;margin:10px 0 4px">' +
-                    '<button class="btn" id="as4-cop-gonder-btn" onclick="as4CopGonder()" style="background:#dc2626;color:#fff;border-color:#b91c1c">♻ Seçili hurdaları COP olarak gönder</button>' +
-                    '<button class="btn" id="as4-cop-durdur-btn" onclick="as4Durdur()" style="display:none;background:#7f1d1d;color:#fff;border-color:#7f1d1d">⏹ Durdur</button>' +
+                    '<button class="btn" id="as4-cop-gonder-btn" onclick="as4CopGonder()" style="background:var(--danger);color:#fff;border-color:var(--danger)">♻ Seçili hurdaları COP olarak gönder</button>' +
+                    '<button class="btn" id="as4-cop-durdur-btn" onclick="as4Durdur()" style="display:none;background:var(--primary-hover);color:#fff;border-color:var(--primary-hover)">⏹ Durdur</button>' +
                     '<span style="font-size:.76rem;color:var(--muted)">COP hareket tarihi = <b>bugün</b> (hurda ne zaman girilirse o gün defterlenir). Session B\'nin boşta olduğundan emin ol.</span></div>' +
                     '<div id="as4-cop-sonuc"></div>';
             } else if (_as4CopBekleyen.length) {
