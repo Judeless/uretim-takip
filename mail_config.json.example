@@ -1,0 +1,19 @@
+{
+  "_aciklama": "Gunluk uretim raporu maili. Bu dosya gitignore'dadir; her makinede ayri tutulur.",
+
+  "etkin": true,
+  "yontem": "smtp",
+
+  "_sadece_host": "ONEMLI — gonderimi TEK makineye kilitler. Sistem hem laptopta hem canli sunucuda ayaktaysa alicilara IKI mail gider ve bayat veritabanli olan 'uretim bulunmamaktadir' der (2026-07-29'da yasandi). Buraya canli sunucunun makine adini yazin; ogrenmek icin: hostname. Alan bos/yoksa kilit calismaz.",
+  "sadece_host": "PROMANAGE",
+
+  "gonderim_saati": "17:00",
+  "kapsam_lokasyon": "HEPSI",
+  "gonderen_ad": "Cofle Forge",
+
+  "_smtp": "yontem=smtp ise zorunlu. yontem=outlook ise (acik Outlook masaustu) hicbiri gerekmez.",
+  "smtp_host": "smtp.ornek.com",
+  "smtp_port": 587,
+  "gonderen": "rapor@cofletk.com.tr",
+  "sifre": ""
+}

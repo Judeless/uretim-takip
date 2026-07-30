@@ -61,10 +61,33 @@ def yontem_al(c=None):
     return str(c.get('yontem', 'smtp')).lower()
 
 
+def host_uygun(c=None):
+    """config'te 'sadece_host' varsa, sadece o makinede gönderim yapılır.
+
+    2026-07-29: sistem hem laptopta hem canlı sunucuda (ProManage) ayakta olduğu
+    için alıcılara İKİ mail gitti. Laptopun veritabanı bayat olduğundan onunki
+    "üretim bulunmamaktadır" diyordu — yani yanlış makinenin gönderdiği mail
+    doğrusuyla çelişiyor. Kopya kurulumda config de kopyalandığı için 'etkin'
+    bayrağı tek başına yetmiyor; makine kimliği gerekiyor.
+    Alan yoksa davranış değişmez (geriye uyumlu)."""
+    c = c if c is not None else (config_yukle() or {})
+    beklenen = (c.get('sadece_host') or '').strip()
+    if not beklenen:
+        return True
+    try:
+        import socket
+        return socket.gethostname().strip().upper() == beklenen.upper()
+    except Exception:
+        return True          # host okunamadı → engelleme (güvenli yön: mevcut davranış)
+
+
 def etkin():
-    """Mail entegrasyonu kullanıma hazır mı? (config var + etkin + yönteme göre zorunlu alanlar)"""
+    """Mail entegrasyonu kullanıma hazır mı? (config var + etkin + doğru makine
+    + yönteme göre zorunlu alanlar)"""
     c = config_yukle()
     if not c or not c.get('etkin'):
+        return False
+    if not host_uygun(c):
         return False
     if yontem_al(c) == 'outlook':
         return True  # Outlook masaüstü — ek bilgi gerekmez (açık ve girişli olmalı)
@@ -87,9 +110,19 @@ def durum_ozeti():
     c = config_yukle()
     if not c:
         return {'config_var': False, 'etkin': False}
+    import socket
+    try:
+        bu_host = socket.gethostname()
+    except Exception:
+        bu_host = ''
     return {
         'config_var': True,
         'etkin': bool(etkin()),
+        # Host kilidi gönderimi SESSIZCE durdurabilir (config'te sadece_host yanlış
+        # yazılırsa). Panelde nedeni görünsün diye dönüyoruz.
+        'sadece_host': (c.get('sadece_host') or ''),
+        'bu_host': bu_host,
+        'host_engeli': bool(c.get('etkin')) and not host_uygun(c),
         'yontem': yontem_al(c),
         'smtp_host': c.get('smtp_host', ''),
         'smtp_port': c.get('smtp_port', ''),

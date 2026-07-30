@@ -9473,6 +9473,13 @@ window.__I18N_SOZLUK__ = {
                 if (d.etkin) {
                     rozet.textContent = '● Aktif · ' + (d.gonderim_saati || '17:00');
                     rozet.style.background = 'rgba(52,211,153,.15)'; rozet.style.color = '#157A3C';
+                } else if (d.host_engeli) {
+                    // config'te etkin ama makine kilidi tutmuyor — sessiz durmasın
+                    rozet.textContent = '● Bu makinede kapalı (yalnızca ' + d.sadece_host + ')';
+                    rozet.title = 'mail_config.json → "sadece_host": "' + d.sadece_host +
+                                  '"\nBu makine: ' + d.bu_host +
+                                  '\nGünlük rapor mailini yalnızca canlı sunucu gönderir.';
+                    rozet.style.background = 'rgba(251,191,36,.15)'; rozet.style.color = '#8A5A05';
                 } else if (d.config_var) {
                     rozet.textContent = '● Yapılandırıldı · kapalı';
                     rozet.style.background = 'rgba(251,191,36,.15)'; rozet.style.color = '#8A5A05';
