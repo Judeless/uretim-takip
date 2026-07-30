@@ -6301,6 +6301,25 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
             sonuclar.append({**kayit, 'sonuc': 'atlandi',
                              'mesaj': f'Bu üretim günü için bu launch\'a zaten gönderilmiş (log #{var["id"]})'})
             continue
+        # Mükerrer koruması 1b — REFERANS+GÜN (2026-07-30, 94.LTK.487/10 olayı):
+        # yukarıdaki kontrol launch numarasına bağlı; ilk launch kapanıp YENİ launch
+        # açılınca (26-150830 → 26-153549) anahtar değişiyor ve aynı üretim günü
+        # İKİNCİ KEZ teyit alabiliyordu. Aynı gün + aynı referans için başarılı bir
+        # launch teyidi varsa dur. Meşru bölünmüş teyit için 'zorla' ile aşılabilir.
+        if not zorla:
+            var2 = conn.execute(
+                "SELECT id, launch_no, adet FROM as400_teyit_log "
+                "WHERE uretim_tarihi=? AND sonuc='ok' AND yil NOT IN ('CF','CO') "
+                "AND UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ','')) LIMIT 1",
+                (u_tarih, referans)).fetchone()
+            if var2:
+                sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                 'mesaj': f'Bu üretim günü ({u_tarih}) için bu referansa zaten teyit '
+                                          f'verilmiş: launch {var2["launch_no"]}, {var2["adet"]} adet '
+                                          f'(log #{var2["id"]}). Launch numarası farklı olsa bile aynı '
+                                          f'üretim iki kez teyit edilmemeli — gerçekten bölünmüş teyit '
+                                          f'gerekiyorsa "zorla" ile gönderin.'})
+                continue
         # Mükerrer koruması 2 (ASIL): ERP'nin GERÇEK teyit hareketleri —
         # operatörün ELLE girdiği teyitler de burada görünür. Frontend
         # atlansa/eski liste gönderilse bile burada yakalanır.

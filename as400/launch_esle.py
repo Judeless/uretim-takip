@@ -304,9 +304,22 @@ def _zaten_teyitli(hareketler, uretim_tarihi, adet, gecmis=None):
         """Hareket BASKA bir gunun uretimiyle aciklaniyor mu? (kullanici 2026-07-20:
         'onceki gun uretimlerini kontrol ederek hangi uretimin teyidi verilmis
         anlayabiliriz'). Adet, bizim gun DISINDA bir uretim gununun adetiyle
-        birebir esliyorsa (ve o gun hareketten once/ayni gunse) → o gunun teyidi."""
+        birebir esliyorsa (ve o gun hareketten once/ayni gunse) → o gunun teyidi.
+
+        BIR GUN BIR KEZ KARSILANIR (2026-07-30 duzeltmesi): o gecmis gunun adedini
+        karsilayan DAHA ERKEN bir hareket zaten varsa o gun KAPANMISTIR; eldeki
+        hareket ona ait olamaz, baska (muhtemelen BIZIM) uretime aittir.
+        Gercek olay 94.LTK.487/10: 24.07 uretimi 30 adet -> 07-27'de RPR 30 ile
+        teyit edilmis. 29.07 uretimi de 30 adet; 07-29'daki RPR 30 kanit olmasi
+        gerekirken '24.07'nin teyidi' sayilip yok sayildi, satir teyitsiz gorundu
+        ve 30.07'de IKINCI KEZ teyit gitti -> ERP'ye 30 adet FAZLA."""
         for t, adl in gecmis.items():
             if t != uretim_tarihi and t <= h['tarih'] and any(abs(a - h['adet']) < 0.001 for a in adl):
+                zaten = [x for x in hareketler
+                         if x is not h and t <= x['tarih'] < h['tarih']
+                         and any(abs(a - x['adet']) < 0.001 for a in adl)]
+                if zaten:
+                    continue          # o gun zaten karsilandi → baska gun ara
                 return True
         return False
 
