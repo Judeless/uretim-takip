@@ -14,5 +14,5 @@
     <path d="M24 31 L29 31 L32 24 L35 38 L38 31 L43 31" fill="none" stroke="url(#cf-grad)" stroke-width="4.2" stroke-miterlimit="2"></path>
     <circle cx="48" cy="31" r="3.2" fill="#a78bfa"></circle>
   </g>
-  <text x="58" y="37" font-family="Archivo, &#39;Segoe UI&#39;, system-ui, sans-serif" font-size="20" fill="#14122B"><tspan font-weight="700" letter-spacing="-0.3">COFLE</tspan><tspan dx="5" font-weight="300">FORGE</tspan></text>
+  <text x="58" y="37" font-family="Archivo, &#39;Segoe UI&#39;, system-ui, sans-serif" font-size="20" fill="#f7f7fb"><tspan font-weight="700" letter-spacing="-0.3">COFLE</tspan><tspan dx="5" font-weight="300">FORGE</tspan></text>
 </svg>

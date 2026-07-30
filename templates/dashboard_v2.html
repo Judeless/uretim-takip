@@ -4120,6 +4120,14 @@ window.__I18N_SOZLUK__ = {
         document.documentElement.setAttribute('data-tema', t);
         var b = document.getElementById('tema-anahtar');
         if (b) b.textContent = (t === 'koyu') ? '☀' : '🌙';
+        // Logo iki sürümlü: wordmark açık temada koyu mürekkep, koyu temada
+        // beyaz. Tema değişince kaynağı da değiştir — yoksa koyu kenar çubuğunda
+        // koyu yazı (ya da tersi) görünmez olur. (2026-07-30: logo artık SVG.)
+        try {
+          document.querySelectorAll('img[data-logo]').forEach(function (im) {
+            im.src = (t === 'koyu') ? '/logo?tema=koyu' : '/logo';
+          });
+        } catch (e) {}
         // Bölüm renkleri JS sabitinde (BOLUMLER) duruyor; grafik/rozet oradan
         // okuyor. Tema değişince CSS değişkenlerinden TAZELE, yoksa koyu zeminde
         // açık temanın koyu renkleri okunmaz kalır.
@@ -4172,7 +4180,7 @@ window.__I18N_SOZLUK__ = {
         <!-- ══════════════════ SOL MENÜ ══════════════════ -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
-                <img src="/logo" alt="Cofle Logo"
+                <img src="/logo" alt="Cofle Logo" data-logo
                     onerror="this.style.display='none';document.getElementById('sb-logo-txt').style.display='block'">
                 <div id="sb-logo-txt" style="display:none"><h2>Cofle Forge</h2></div>
                 <p>Yönetici Paneli</p>

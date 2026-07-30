@@ -1453,15 +1453,22 @@ def logo_serve():
         mark_svg = os.path.join(proje_dir, 'static', 'logo_mark.svg')
         if os.path.exists(mark_svg):
             return send_file(mark_svg, mimetype='image/svg+xml')
+    # LOCKUP'TA SVG ÖNCELİKLİ (2026-07-30): logo.png / logo_koyu.png dosyalarının
+    # SAĞ KENARI KIRPIK — wordmark'ın son harfi ("FORGE"un E'si) kesiliyor. Ölçüm:
+    # 1600×480 dosyada solda 109px boşluk var, sağda 0px ve son 14 sütun boyunca
+    # dolu piksel sayısı sabit (35) — yani harf kenarda kesilmiş, boşluk bitmemiş.
+    # Kullanıcı bunu iki kez bildirdi; CSS ile düzelmez, kaynak dosya kırpık.
+    # SVG vektörel ve metni viewBox'a sığıyor → her ölçekte tam görünür.
     if (request.args.get('tema') or '').strip() == 'koyu':
-        koyu = os.path.join(proje_dir, 'static', 'logo_koyu.png')
-        if os.path.exists(koyu):
-            return send_file(koyu, mimetype='image/png')
+        for ad, mime in (('logo_koyu.svg', 'image/svg+xml'), ('logo_koyu.png', 'image/png')):
+            yol = os.path.join(proje_dir, 'static', ad)
+            if os.path.exists(yol):
+                return send_file(yol, mimetype=mime)
     logo_yollar = [
+        (os.path.join(proje_dir, 'static', 'logo.svg'), 'image/svg+xml'),
         (os.path.join(proje_dir, 'static', 'logo.png'), 'image/png'),
         (os.path.join(os.path.expanduser('~'), 'OneDrive', 'Masaüstü', 'LOGO_COFLE ONLY.png'), 'image/png'),
         (os.path.join(os.path.expanduser('~'), 'Desktop', 'LOGO_COFLE ONLY.png'), 'image/png'),
-        (os.path.join(proje_dir, 'static', 'logo.svg'), 'image/svg+xml'),
     ]
     for yol, mime in logo_yollar:
         if os.path.exists(yol):
