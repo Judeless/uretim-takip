@@ -11232,21 +11232,47 @@ window.__I18N_SOZLUK__ = {
                 // AŞAMA 3 (EN SON): HURDA (COP) girişleri — kullanıcı 2026-07-23:
                 // COP'lar araya girmesin, robot ekranlar arasında mekik dokumasın.
                 // Yalnız ana teyidi BAŞARILI olan satırların hurdaları girilir.
-                if (!durduruldu && !genelHata) {
+                // HURDASI OLAN seçili satırlar — COP'u atlananları RAPORLAMAK için
+                // (2026-07-30 kullanıcı: "cop bekleyen kısmı neden cop yapılmadı").
+                // COP üç yerde SESSİZCE atlanıyordu: durdurma, genel hata ve ana
+                // teyidin başarısız olması. Artık her biri ekranda gerekçesiyle yazılır.
+                var hurdaliSecim = launchSec.concat(cfiSec).filter(function (s) { return (s.hurda || 0) > 0; });
+                if (durduruldu || genelHata) {
+                    if (hurdaliSecim.length) {
+                        html += '<div style="margin:10px 0;padding:12px 14px;background:var(--danger-soft);' +
+                            'border:1px solid rgba(180,35,28,.3);border-left:3px solid var(--danger);border-radius:8px">' +
+                            '<b style="color:var(--danger)">♻ HURDA (COP) GÖNDERİLMEDİ — ' + hurdaliSecim.length + ' satır</b>' +
+                            '<div style="font-size:.8rem;color:var(--muted);margin-top:3px">Sebep: ' +
+                            (durduruldu ? 'gönderimi sen durdurdun' : 'önceki aşama hata verdi') +
+                            '. Hurdalar hâlâ bekliyor — listeyi yenileyip aşağıdaki <b>♻ Seçili hurdaları COP olarak gönder</b> ' +
+                            'butonuyla ayrıca gönderebilirsin.</div></div>';
+                    }
+                } else {
                     var okSet = {};
                     tumSonuclar.forEach(function (s) {
                         if (s.sonuc === 'ok' && s.bayrak !== 'COP')
                             okSet[(s.uretim_tarihi || '') + '|' + (s.referans || '')] = 1;
                     });
-                    var hurdaSec = launchSec.concat(cfiSec).filter(function (s) {
-                        return (s.hurda || 0) > 0 && okSet[(s.uretim_tarihi || '') + '|' + (s.referans || '')];
-                    }).map(function (s) {
-                        return { referans: s.referans, article: s.article, adet: s.hurda, uretim_tarihi: s.uretim_tarihi };
-                    });
+                    function anahtar(s) { return (s.uretim_tarihi || '') + '|' + (s.referans || ''); }
+                    var hurdaSec = hurdaliSecim.filter(function (s) { return okSet[anahtar(s)]; })
+                        .map(function (s) {
+                            return { referans: s.referans, article: s.article, adet: s.hurda, uretim_tarihi: s.uretim_tarihi };
+                        });
+                    // Ana teyidi başarısız olduğu için hurdası GİRİLMEYEN satırlar
+                    var atlananHurda = hurdaliSecim.filter(function (s) { return !okSet[anahtar(s)]; });
                     if (hurdaSec.length) {
                         const d3 = await parti('/api/as400/cop_gonder', hurdaSec, 'Son faz: Hurda (COP)');
                         ekle(d3, '♻ Hurda (COP) girişleri — en son');
                         if (d3.hata_mesaj) html += '<div style="color:#b91c1c;font-weight:700;padding:8px 0">⚠ Hurda aşaması: ' + esc(d3.hata_mesaj) + '</div>';
+                    }
+                    if (atlananHurda.length) {
+                        html += '<div style="margin:10px 0;padding:12px 14px;background:var(--warn-soft);' +
+                            'border:1px solid rgba(138,90,5,.3);border-left:3px solid var(--warn);border-radius:8px">' +
+                            '<b style="color:var(--warn)">♻ ' + atlananHurda.length + ' satırın hurdası (COP) GİRİLMEDİ</b>' +
+                            '<div style="font-size:.8rem;color:var(--muted);margin-top:3px">Ana teyit başarılı olmadığı için ' +
+                            'hurda da girilmedi (yanlış ürüne hurda yazılmasın): ' +
+                            esc(atlananHurda.map(function (s) { return s.referans + ' (' + s.hurda + ')'; }).join(', ')) +
+                            '. Teyidi düzeltip tekrar gönderin.</div></div>';
                     }
                 }
             } catch (e) {
