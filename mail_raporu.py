@@ -35,6 +35,7 @@ BOLUM_AD = {
     'isleme': 'İşleme',
     'lazer':  'Lazer Kesim',
     'pres':   'Pres Abkant',
+    'plastik': 'Plastik Yapıştırma',
 }
 
 
@@ -213,6 +214,113 @@ def gunluk_veri(tarih=None, lokasyon=None):
         conn.close()
 
 
+# Bölüm kimlik renkleri — dashboard paletiyle (--b-*) AYNI değerler.
+_BOLUM_RENK = {'kaynak': '#1D4ED8', 'montaj': '#07734F', 'metal': '#8F6100',
+               'isleme': '#3F6212', 'lazer': '#0E7490', 'pres': '#9D174D',
+               'plastik': '#A21CAF'}
+
+
+def _bolum_kirilimi(tarih, lokasyon=None):
+    """Tesis+bölüm bazlı özet: [{tesis, bolum, satir, adet}] — adede göre azalan.
+    Mail gövdesindeki "nerede ne üretildi" tablosu için (2026-07-30)."""
+    ozet = {}
+    for r in gunluk_veri(tarih, lokasyon):
+        a = dict(r) if not isinstance(r, dict) else r
+        k = (a['tesis'], a['bolum'])
+        d = ozet.setdefault(k, {'tesis': a['tesis'], 'bolum': a['bolum'], 'satir': 0, 'adet': 0})
+        d['satir'] += 1
+        d['adet'] += int(a['adet'] or 0)
+    return sorted(ozet.values(), key=lambda x: -x['adet'])
+
+
+def _html_govde(tarih_tr, satir, toplam, kirilim):
+    """Mailin HTML gövdesi — Cofle Forge paleti (2026-07-30 kullanıcı isteği:
+    "gunluk uretim raporu tasarimi ... yeni tasarimimiza gore").
+
+    E-posta istemcisi kısıtları: <style> bloğu ve harici font YOK (Outlook
+    masaüstü çoğunu atar) → her kural INLINE, yerleşim TABLO ile. Genişlik 640px
+    ve hücreler yüzdeli — dar ekranda da okunur. Düz metin sürümü de gönderilir
+    (multipart/alternative), HTML kapalı istemciler onu görür."""
+    mor, koyu, gri, cizgi = '#6D28D9', '#14122B', '#4E4C63', '#E1E1EA'
+
+    def hucre(baslik, deger, renk):
+        return (f'<td width="50%" style="padding:0 6px" valign="top">'
+                f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+                f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px"><tr>'
+                f'<td style="padding:14px 16px;font-family:Segoe UI,Arial,sans-serif">'
+                f'<div style="font-size:11px;font-weight:700;color:{gri};'
+                f'text-transform:uppercase;letter-spacing:.4px">{baslik}</div>'
+                f'<div style="font-size:26px;font-weight:800;color:{renk};padding-top:4px">'
+                f'{deger}</div></td></tr></table></td>')
+
+    if satir:
+        kartlar = ('<tr>' + hucre('Toplam üretim', f'{toplam:,}'.replace(',', '.'), mor)
+                   + hucre('Kayıt satırı', f'{satir}', koyu) + '</tr>')
+        satirlar = ''
+        for k in kirilim:
+            ad = BOLUM_AD.get(k['bolum'], k['bolum'])
+            renk = _BOLUM_RENK.get(k['bolum'], mor)
+            satirlar += (
+                f'<tr>'
+                f'<td style="padding:10px 14px;border-bottom:1px solid {cizgi};'
+                f'font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:{koyu}">'
+                f'<span style="display:inline-block;width:3px;height:13px;background:{renk};'
+                f'vertical-align:-2px;margin-right:9px"></span>'
+                f'<b>{ad}</b> <span style="color:{gri}">· {k["tesis"]}</span></td>'
+                f'<td align="right" style="padding:10px 14px;border-bottom:1px solid {cizgi};'
+                f'font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:{gri}">'
+                f'{k["satir"]} satır</td>'
+                f'<td align="right" style="padding:10px 14px;border-bottom:1px solid {cizgi};'
+                f'font-family:Segoe UI,Arial,sans-serif;font-size:14px;font-weight:800;color:{koyu}">'
+                f'{k["adet"]:,}'.replace(',', '.') + '</td></tr>')
+        tablo = ('' if not kirilim else
+                 f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+                 f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px;'
+                 f'margin-top:18px"><tr><td colspan="3" style="padding:13px 14px;'
+                 f'border-bottom:1px solid {cizgi};font-family:Segoe UI,Arial,sans-serif;'
+                 f'font-size:11px;font-weight:700;color:{gri};text-transform:uppercase;'
+                 f'letter-spacing:.4px">Bölüm bazında</td></tr>{satirlar}</table>')
+        icerik = (
+            f'<p style="margin:0 0 16px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
+            f'color:{koyu}">Merhaba,<br><b>{tarih_tr}</b> tarihli günlük üretim raporu ektedir.</p>'
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            f'style="margin:0 -6px">{kartlar}</table>{tablo}'
+            f'<p style="margin:18px 0 0;font-family:Segoe UI,Arial,sans-serif;font-size:13px;'
+            f'color:{gri}">Operatör ve referans kırılımı ekteki Excel dosyasındadır.</p>')
+    else:
+        icerik = (
+            f'<p style="margin:0 0 14px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
+            f'color:{koyu}">Merhaba,</p>'
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px"><tr>'
+            f'<td style="padding:18px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
+            f'color:{koyu};text-align:center">'
+            f'<b>{tarih_tr}</b> tarihinde sisteme kayıtlı üretim bulunmamaktadır.</td>'
+            f'</tr></table>')
+
+    return (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8">'
+        f'<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        f'<body style="margin:0;padding:0;background:#ECECF1">'
+        f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:#ECECF1;padding:24px 12px"><tr><td align="center">'
+        f'<table width="640" cellpadding="0" cellspacing="0" border="0" '
+        f'style="width:100%;max-width:640px">'
+        # başlık şeridi — logo gradyanı (#7C3AED → #A78BFA); gradyan desteklemeyen
+        # istemcide düz mor kalır, metin beyaz olduğu için kontrast korunur
+        f'<tr><td style="background:{mor};background-image:linear-gradient(90deg,#7C3AED,#A78BFA);'
+        f'border-radius:12px 12px 0 0;padding:20px 22px">'
+        f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:19px;font-weight:800;'
+        f'color:#FFFFFF;letter-spacing:.5px">COFLE FORGE</div>'
+        f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#EDE4FE;'
+        f'padding-top:3px">Günlük Üretim Raporu · {tarih_tr}</div></td></tr>'
+        f'<tr><td style="background:#ECECF1;padding:20px 4px 4px">{icerik}</td></tr>'
+        f'<tr><td style="padding:16px 4px 0;font-family:Segoe UI,Arial,sans-serif;'
+        f'font-size:11px;color:{gri};border-top:1px solid {cizgi};margin-top:10px">'
+        f'Bu e-posta Cofle Forge üretim takip sistemi tarafından otomatik gönderilmiştir.'
+        f'</td></tr></table></td></tr></table></body></html>')
+
+
 def excel_olustur(tarih=None, lokasyon=None):
     """Günlük üretim Excel'i üretir. (dosya_yolu, satir_sayisi, toplam_adet) döner."""
     import openpyxl
@@ -310,7 +418,7 @@ def _tarih_tr(iso):
 # ─────────────────────────────────────────────────────────────
 # GÖNDERİM
 # ─────────────────────────────────────────────────────────────
-def _outlook_gonder(alicilar, konu, govde, ek_yol):
+def _outlook_gonder(alicilar, konu, govde, ek_yol, html=None):
     """Açık Outlook masaüstü uygulaması üzerinden gönderir (win32com COM) — ŞİFRE GEREKMEZ.
     Şart: Outlook aynı Windows oturumunda çalışıyor ve giriş yapılmış olmalı.
     Not: COM çağrısı arka planda çalıştığından pythoncom.CoInitialize() zorunlu."""
@@ -322,7 +430,10 @@ def _outlook_gonder(alicilar, konu, govde, ek_yol):
         mail = ol.CreateItem(0)  # 0 = olMailItem
         mail.To = '; '.join(alicilar)
         mail.Subject = konu
-        mail.Body = govde
+        if html:
+            mail.HTMLBody = html   # Outlook HTMLBody atanınca Body'yi yok sayar
+        else:
+            mail.Body = govde
         if ek_yol and os.path.exists(ek_yol):
             mail.Attachments.Add(os.path.abspath(ek_yol))
         mail.Send()
@@ -330,14 +441,22 @@ def _outlook_gonder(alicilar, konu, govde, ek_yol):
         pythoncom.CoUninitialize()
 
 
-def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol):
+def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
     """Tek SMTP oturumunda maili kurar ve gönderir. Hata fırlatır (çağıran yakalar)."""
     msg = MIMEMultipart()
     gonderen = cfg['gonderen']
     msg['From'] = formataddr((cfg.get('gonderen_ad', 'Cofle Forge'), gonderen))
     msg['To'] = ', '.join(alicilar)
     msg['Subject'] = konu
-    msg.attach(MIMEText(govde, 'plain', 'utf-8'))
+    # multipart/alternative: HTML gosteremeyen istemci duz metni gorur.
+    # Ek VARSA dis kabuk multipart/mixed kalmali, alternatif ic ice girer.
+    if html:
+        alt = MIMEMultipart('alternative')
+        alt.attach(MIMEText(govde, 'plain', 'utf-8'))
+        alt.attach(MIMEText(html, 'html', 'utf-8'))
+        msg.attach(alt)
+    else:
+        msg.attach(MIMEText(govde, 'plain', 'utf-8'))
 
     if ek_yol and os.path.exists(ek_yol):
         with open(ek_yol, 'rb') as f:
@@ -395,6 +514,7 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
 
     tarih_tr = _tarih_tr(tarih)
     konu = f'Cofle Forge — Günlük Üretim Raporu ({tarih_tr})'
+    kirilim = _bolum_kirilimi(tarih, lokasyon) if satir else []
     if satir:
         govde = (
             f'Merhaba,\n\n'
@@ -402,7 +522,9 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
             f'Özet:\n'
             f'  • Kayıt satırı : {satir}\n'
             f'  • Toplam üretim: {toplam:,} adet\n\n'
-            f'Detaylar ekteki Excel dosyasındadır.\n\n'
+            + (''.join(f'  • {k["tesis"]} · {BOLUM_AD.get(k["bolum"], k["bolum"])}: '
+                       f'{k["adet"]:,} adet\n' for k in kirilim) + '\n' if kirilim else '')
+            + f'Detaylar ekteki Excel dosyasındadır.\n\n'
             f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
         ).replace(',', '.')
     else:
@@ -411,13 +533,14 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
             f'{tarih_tr} tarihinde sisteme kayıtlı üretim bulunmamaktadır.\n\n'
             f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
         )
+    html = _html_govde(tarih_tr, satir, toplam, kirilim)
 
     try:
         ek = dosya if satir else None
         if yontem == 'outlook':
-            _outlook_gonder(alicilar, konu, govde, ek)
+            _outlook_gonder(alicilar, konu, govde, ek, html)
         else:
-            _smtp_gonder(cfg, alicilar, konu, govde, ek)
+            _smtp_gonder(cfg, alicilar, konu, govde, ek, html)
     except Exception as e:
         return {'basarili': False, 'mesaj': f'Gönderim hatası: {e}', 'alici_sayisi': len(alicilar)}
 
