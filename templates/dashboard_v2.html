@@ -10616,6 +10616,23 @@ window.__I18N_SOZLUK__ = {
 
             gunler.forEach(function (g) {
                 var L = g.liste || {};
+                // ── KAPASİTE AŞIMI (2026-07-30) ────────────────────────────────
+                // Cycle time'ı tanımlı referansta, vardiya süresinde fiziken
+                // üretilemeyecek adet → ERP'ye hayali stok girmesin. Satır HİÇBİR
+                // kuyruğa (launch/CFI/COP) girmeden Dikkat'e ayrılır; kategori
+                // döngülerinden ÖNCE eleniyor ki hiçbir yolda sızmasın.
+                // '➕ teyit ver' işareti kullanıcının "adet doğru" onayıdır → geçer.
+                ['ACIK', 'SUPHELI', 'OPR10', 'YOK', 'KAPALI'].forEach(function (kat) {
+                    if (!L[kat] || !L[kat].length) return;
+                    L[kat] = L[kat].filter(function (r) {
+                        if (r.kapasite_asim && !(r.isaret && r.isaret.durum === 'teyit_ver')) {
+                            dikkat.push({ tip: 'kapasite', tarih: g.tarih, r: r,
+                                          l: (r.launchlar || [])[0] || {} });
+                            return false;
+                        }
+                        return true;
+                    });
+                });
                 (L.HARIC || []).forEach(function (r) { haricList.push({ tarih: g.tarih, r: r }); });
                 (L.ACIK || []).forEach(function (r) {
                     var ls = r.launchlar || [];
@@ -10639,9 +10656,23 @@ window.__I18N_SOZLUK__ = {
                     var ls = r.launchlar || [], kesin = null;
                     ls.forEach(function (l) { if (l.zaten_teyitli === 'kesin' && !kesin) kesin = l; });
                     if (kesin) { teyitli.push({ tarih: g.tarih, r: r, l: kesin }); return; }
+                    // SATIR düzeyi teyit (2026-07-30): varyant eşleşmede teyit KENDİ
+                    // koduna CFI ile verilmiş olabilir; launch article'ında görünmez.
+                    // Backend artık r.zaten_teyitli'yi de dolduruyor.
+                    if (r.zaten_teyitli === 'kesin') {
+                        teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } });
+                        return;
+                    }
+                    var teyitVerS = (r.isaret && r.isaret.durum === 'teyit_ver');
+                    // '✓ kontrol' / '⊘ gerek yok' işaretli satır elle ilgilenilmiş →
+                    // ACIK kolunda olduğu gibi Dikkat'ten çıkar (tutarlılık, 2026-07-30)
+                    if (r.isaret && !teyitVerS) {
+                        teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } });
+                        return;
+                    }
                     // ➕ teyit ver işaretli varyant = kullanıcı 'kod DOĞRU' dedi (4536B vakası)
                     // → KENDİ koduna CFI kuyruğu (varyant launch'ına DEĞİL)
-                    if (r.isaret && r.isaret.durum === 'teyit_ver') { cfiKuyruk(r, ''); return; }
+                    if (teyitVerS) { cfiKuyruk(r, ''); return; }
                     dikkat.push({ tip: 'varyant', tarih: g.tarih, r: r, l: ls[0] });
                 });
                 // OPR10/YOK/KAPALI: launch S ile kapatildiysa XPRO90'dan duser ama teyit
@@ -10735,7 +10766,16 @@ window.__I18N_SOZLUK__ = {
                     '<div style="font-size:.8rem;color:var(--muted);margin-top:2px">' + alt + '</div></div></div>';
             }
             var ustSerit;
-            if (dikkat.length) {
+            var kapSayi = dikkat.filter(function (x) { return x.tip === 'kapasite'; }).length;
+            if (kapSayi) {
+                // Kapasite aşımı diğer "dikkat" türlerinden AYRI vurgulanır: bu bir
+                // eşleşme belirsizliği değil, ERP'ye hayali stok girme riski.
+                ustSerit = serit('#B4231C', 'var(--danger-soft)', '🛑',
+                    kapSayi + ' satırda ADET ŞÜPHELİ — teyit engellendi',
+                    'Girilen adet, vardiya süresinde fiziken üretilemeyecek kadar yüksek (cycle time\'a göre). ' +
+                    'Robot bu satırlara dokunmaz. Operatör kaydını düzeltin; adet gerçekten doğruysa "➕ teyit ver" ile onaylayın.' +
+                    (dikkat.length > kapSayi ? ' Ayrıca ' + (dikkat.length - kapSayi) + ' satır başka nedenle karar bekliyor.' : ''));
+            } else if (dikkat.length) {
                 ustSerit = serit('#8A5A05', 'var(--warn-soft)', '⚠️',
                     dikkat.length + ' satır senden karar bekliyor',
                     'Robot bunlara dokunmaz — referans kodu AS400 ile uyuşmuyor ya da teyit durumu belirsiz. Aşağıdaki tabloda düzelt veya işaretle.');
@@ -10886,8 +10926,21 @@ window.__I18N_SOZLUK__ = {
                 var TIP = {
                     varyant: ['#8A5A05', 'Yazım/varyant farkı — referans kodunu AS400 koduna göre düzelt'],
                     zombi:   ['#B4231C', 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — S ile kapatın; üretim sürecekse yeni launch alınmalı'],
-                    olasi:   ['#8A5A05', 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin']
+                    olasi:   ['#8A5A05', 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin'],
+                    kapasite:['#B4231C', 'ADET ŞÜPHELİ — vardiya süresinde bu kadar üretilemez']
                 };
+                // Kapasite aşımının gerekçesi satır bazlı (adet/cycle/saat) — sabit
+                // metin yerine hesabı göster ki kullanıcı 410 mu 4410 mü olduğunu görsün.
+                function kapasiteMetni(r) {
+                    var k = r.kapasite_asim || {};
+                    var s = 'ADET ŞÜPHELİ: ' + fmt(k.adet) + ' adet × ' + (k.ct || 0) + ' sn = ' +
+                            (k.gerekli_saat || 0) + ' saat gerekir';
+                    s += ' · vardiya ' + Math.round((k.sure_dk || 0) / 6) / 10 + ' saat' +
+                         (k.sure_varsayilan ? ' (süre bilinmiyor, 24 sa varsayıldı)' : '');
+                    s += ' → makul üst sınır ~' + fmt(k.azami) + ' adet';
+                    if (k.kat) s += ' (' + k.kat + '× fazla)';
+                    return s + '. Operatör kaydını düzeltin; doğruysa "➕ teyit ver" ile onaylayın.';
+                }
                 sDikkat += '<h4 style="margin:18px 0 8px;color:#92400e;font-size:.9rem">⚠️ Dikkat gerektirir (' + dikkat.length + ') — robot bunlara dokunmaz</h4>';
                 sDikkat += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                     '<th>Gün</th><th>Bölüm</th><th>Referans</th><th style="text-align:right">Üretilen</th>' +
@@ -10911,7 +10964,8 @@ window.__I18N_SOZLUK__ = {
                         '<td style="text-align:right">' + fmt(x.r.adet) + '</td>' +
                         '<td style="font-size:.8rem">' + (l.article ? esc(l.article) + ' → ' + esc(l.launch || '') : '—') +
                         (hrk ? '<div style="font-size:.7rem;color:var(--dim)">' + esc(hrk) + '</div>' : '') + '</td>' +
-                        '<td style="font-size:.76rem;color:' + t[0] + ';font-weight:700">' + esc(t[1]) + '</td></tr>';
+                        '<td style="font-size:.76rem;color:' + t[0] + ';font-weight:700">' +
+                            esc(x.tip === 'kapasite' ? kapasiteMetni(x.r) : t[1]) + '</td></tr>';
                 });
                 sDikkat += '</tbody></table></div>';
             }

@@ -303,16 +303,102 @@ def rework_mi(*metinler):
     return any(m and REWORK_RE.search(m) for m in metinler)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# KAPASITE MAKULLUK KONTROLU (2026-07-30)
+# ─────────────────────────────────────────────────────────────────────────────
+# OLAY: operator 10.130.3778 (metal, cycle 65 sn) icin 410 yerine 4410 yazdi.
+# 4410 x 65 sn = 79.6 SAAT — tek vardiyada fiziken imkansiz. Teyit verilseydi
+# ERP'ye ~4000 adetlik hayali stok girecekti (kullanici adedi elle duzeltti).
+#
+# KURAL: referansin cycle time'i TANIMLI ise, o gun o referansi ureten
+# vardiyalarin toplam suresinden teorik azami adet hesaplanir; girilen adet
+# bunun TOLERANS katini asiyorsa satir "kapasite asimi" olarak isaretlenir ve
+# robot ona DOKUNMAZ (Dikkat kovasi + oto kosuda atlanir + gonderimde reddedilir).
+# Cycle time TANIMSIZ ise (0/NULL) kontrol YAPILMAZ — kullanici boyle istedi.
+#
+# TOLERANS neden 2.0: hedef cycle muhafazakar konur, operator hedefin uzerine
+# cikabilir (%50-100 fazla uretim gorulur). 2 kat pay gercek uretimi ASLA
+# bloklamaz ama 10 kat parmak hatasini (410 -> 4410) kesin yakalar.
+KAPASITE_TOLERANS = 2.0
+# Vardiya suresi hic bilinemezse fiziksel gun siniri: tek makine gunde en fazla
+# 24 saat doner. Hic kontrol etmemektense bu tavan kullanilir.
+KAPASITE_VARSAYILAN_DK = 24 * 60
+
+
+def _vardiya_suresi_dk(sure_dk, bas_saat, bit_saat):
+    """Vardiyanin CALISMA suresi (dk). Once toplam_sure_dk; yoksa baslangic-bitis
+    saatlerinden hesaplanir (acik vardiyada bitis bos olabilir -> 0 doner ve
+    cagiran varsayilan tavana duser)."""
+    try:
+        s = float(sure_dk or 0)
+    except (TypeError, ValueError):
+        s = 0.0
+    if s > 0:
+        return s
+    try:
+        b = str(bas_saat or '').strip()[:5]
+        e = str(bit_saat or '').strip()[:5]
+        if len(b) == 5 and len(e) == 5:
+            bh, bm = int(b[:2]), int(b[3:5])
+            eh, em = int(e[:2]), int(e[3:5])
+            dk = (eh * 60 + em) - (bh * 60 + bm)
+            if dk < 0:          # gece vardiyasi (23:00 -> 07:00)
+                dk += 24 * 60
+            if dk > 0:
+                return float(dk)
+    except (TypeError, ValueError):
+        pass
+    return 0.0
+
+
+def _kapasite_isle(d):
+    """Grup sozlugune kapasite alanlarini yazar; asim varsa d['kapasite_asim'].
+    _vardiyalar yardimci alani JSON'a sismesin diye temizlenir."""
+    sureler = d.pop('_vardiyalar', {}) or {}
+    sure_dk = sum(v for v in sureler.values() if v and v > 0)
+    ct = d.get('ct') or 0
+    d['kapasite_sure_dk'] = round(sure_dk, 1)
+    if not ct or ct <= 0:
+        d['ct'] = None            # tanimsiz -> kontrol yok (UI de boyle anlar)
+        return
+    # Sure hic bilinmiyorsa fiziksel gun tavani
+    etkin_dk = sure_dk if sure_dk > 0 else KAPASITE_VARSAYILAN_DK
+    teorik = (etkin_dk * 60.0) / float(ct)
+    azami = teorik * KAPASITE_TOLERANS
+    d['kapasite_teorik'] = int(teorik)
+    d['kapasite_azami'] = int(azami)
+    if d['adet'] > azami:
+        gerek_sa = (d['adet'] * float(ct)) / 3600.0
+        d['kapasite_asim'] = {
+            'adet': d['adet'], 'ct': float(ct),
+            'teorik': int(teorik), 'azami': int(azami),
+            'sure_dk': round(etkin_dk, 1),
+            'sure_varsayilan': sure_dk <= 0,
+            'gerekli_saat': round(gerek_sa, 1),
+            'kat': round(d['adet'] / teorik, 1) if teorik > 0 else None,
+        }
+
+
 def gun_uretimi(tarih):
     """O gunun referans+adet listesi — yalniz launch'li bolumler + TK2.
     Rework kayitlari (aciklama/referans 'rework' varyanti) haric tutulur."""
     conn = sqlite3.connect(URETIM_DB)
     conn.row_factory = sqlite3.Row
+    # KAPASITE ALANLARI (2026-07-30): cycle time + vardiya suresi de cekilir ki
+    # "8 saatte fiziken uretilemeyecek adet" teyit oncesi yakalanabilsin.
+    # LEFT JOIN: referans tanimli DEGILSE ct NULL kalir -> kontrol YAPILMAZ.
     rows = conn.execute(f"""
         SELECT COALESCE(v.lokasyon,'TK2') tesis, COALESCE(v.bolum,'kaynak') bolum,
                u.referans_kodu referans, COALESCE(u.ok_adet,0) ok,
-               COALESCE(u.nok_adet,0) nok, COALESCE(u.aciklama,'') aciklama
+               COALESCE(u.nok_adet,0) nok, COALESCE(u.aciklama,'') aciklama,
+               rl.hedef_cycle_time_sn ct,
+               v.id vardiya_id, COALESCE(v.toplam_sure_dk,0) sure_dk,
+               COALESCE(v.baslangic_saati,'') bas_saat, COALESCE(v.bitis_saati,'') bit_saat
         FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
+        LEFT JOIN referans_listesi rl
+               ON UPPER(REPLACE(rl.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
+              AND COALESCE(rl.bolum,'kaynak')   = COALESCE(v.bolum,'kaynak')
+              AND COALESCE(rl.lokasyon,'TK2')   = COALESCE(v.lokasyon,'TK2')
         WHERE v.tarih = ? AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
           AND COALESCE(v.lokasyon,'TK2') = ?
           AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})
@@ -328,9 +414,21 @@ def gun_uretimi(tarih):
         g = grup.get(key)
         if g is None:
             g = grup[key] = {'tesis': r['tesis'], 'bolum': r['bolum'],
-                             'referans': r['referans'], 'adet': 0, 'hurda': 0}
+                             'referans': r['referans'], 'adet': 0, 'hurda': 0,
+                             'ct': None, '_vardiyalar': {}}
         g['adet']  += r['ok']
         g['hurda'] += r['nok']
+        # Cycle time: ilk dolu deger (ayni referans+bolum tek satir olmali)
+        try:
+            _ct = float(r['ct']) if r['ct'] is not None else 0.0
+        except (TypeError, ValueError):
+            _ct = 0.0
+        if _ct > 0 and not g['ct']:
+            g['ct'] = _ct
+        # Vardiya suresi: AYNI vardiya birden cok uretim kaydinda gecer ->
+        # id'ye gore tekille, yoksa sure kat kat sisip kontrolu ise yaramaz kilar.
+        g['_vardiyalar'][r['vardiya_id']] = _vardiya_suresi_dk(
+            r['sure_dk'], r['bas_saat'], r['bit_saat'])
     # adet>0 filtre + bosluklu kod yazimini nokta bicimine cevir ('10 300 1393A' →
     # '10.300.1393A'); orijinal yazim UI'da gosterilmek uzere saklanir (2026-07-22).
     sonuc = []
@@ -341,6 +439,7 @@ def gun_uretimi(tarih):
         if duz != d['referans']:
             d['orijinal_referans'] = d['referans']
             d['referans'] = duz
+        _kapasite_isle(d)
         sonuc.append(d)
     return sonuc
 
@@ -504,6 +603,20 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
                                                gecmis_map.get(kanonik(r['referans'])))
                 l['zaten_teyitli'] = durum          # None | 'kesin' | 'olasi'
                 l['zaten_hareket'] = ilgili[:5]     # yalniz ilgili olanlar (JSON sismesin)
+            # SATIR duzeyi kontrol — KENDI referans kodunun hareketleri (2026-07-30).
+            # ACIK/SUPHELI'de yalnizca launch'in ARTICLE'ina bakiliyordu; varyant
+            # eslesmede (10.300.6175B -> launch article 10.300.6175W) teyit KENDI
+            # koduna CFI olarak verilirse 6175W hareketlerinde GORUNMUYOR ve satir
+            # sonsuza kadar "Dikkat gerektirir"de kaliyordu (kullanici 2026-07-30:
+            # "6175B icin teyit vermisiz neden dikkatte cikmis").
+            # Veri hazirdi: esle_coklu articles setine uretim referansini DA ekliyor
+            # (2026-07-21 4082W dersi) — yalnizca burada kullanilmiyordu.
+            _ref_hrk = hrk.get(kanonik(r['referans']), [])
+            if _ref_hrk:
+                _d, _i = _zaten_teyitli(_ref_hrk, tarih, r['adet'],
+                                        gecmis_map.get(kanonik(r['referans'])))
+                r['zaten_teyitli'] = _d             # None | 'kesin' | 'olasi'
+                r['zaten_hareket'] = _i[:5]
 
     # ── OPR10/KAPALI/YOK icin de SATIR duzeyinde hareket kontrolu (2026-07-20) ──
     # Sabah S ile kapatilan launch XPRO90'dan duser; ayni referansin YENI siparisi

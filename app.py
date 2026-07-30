@@ -6161,6 +6161,71 @@ def _as400_launch_durum(yil, no):
         cn.close()
 
 
+def _kapasite_reddi(conn, referans, uretim_tarihi, adet):
+    """SON SAVUNMA (2026-07-30) — robot çalıştırmadan hemen önce, DB'den BAĞIMSIZ
+    kapasite kontrolü. Döner: None (sorun yok) | reddetme mesajı (str).
+
+    NEDEN AYRI HESAP: frontend listesi bayat olabilir, kuyruk elle POST edilebilir,
+    /api/as400/teyit_gonder doğrudan çağrılabilir. Hayali stok girişini ENGELLEYEN
+    asıl yer burasıdır; UI'daki Dikkat kovası yalnızca erken uyarıdır.
+
+    Cycle time tanımsız (0/NULL) → None döner, kontrol YOK (kullanıcı kararı).
+    'teyit_ver' işareti kullanıcının açık onayı → kontrol atlanır.
+    Hesap hata verirse None döner: belirsizken meşru teyidi bloklamak yanlış yön
+    (asıl fren zaten operatör kaydının kendisi, bu ek bir emniyet katmanı)."""
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _lk
+        kanon = _lk.kanonik(referans)
+        # Kullanıcı bu satırı açıkça onayladıysa geç
+        onay = conn.execute(
+            "SELECT 1 FROM as400_teyit_isaret WHERE kapsam='gun' AND uretim_tarihi=? "
+            "AND referans=? AND durum='teyit_ver' LIMIT 1", (uretim_tarihi, kanon)).fetchone()
+        if onay:
+            return None
+        # O gün o referansı üreten vardiyalar + cycle time (bölüm/lokasyon eşleşmeli)
+        rows = conn.execute("""
+            SELECT rl.hedef_cycle_time_sn ct, v.id vid,
+                   COALESCE(v.toplam_sure_dk,0) sure_dk,
+                   COALESCE(v.baslangic_saati,'') b, COALESCE(v.bitis_saati,'') e
+            FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
+            LEFT JOIN referans_listesi rl
+                   ON UPPER(REPLACE(rl.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
+                  AND COALESCE(rl.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
+                  AND COALESCE(rl.lokasyon,'TK2') = COALESCE(v.lokasyon,'TK2')
+            WHERE v.tarih = ?
+              AND UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(?,' ',''))
+        """, (uretim_tarihi, referans)).fetchall()
+        if not rows:
+            return None
+        ct = 0.0
+        sureler = {}
+        for r in rows:
+            try:
+                c = float(r['ct'] or 0)
+            except (TypeError, ValueError):
+                c = 0.0
+            if c > 0 and ct <= 0:
+                ct = c
+            sureler[r['vid']] = _lk._vardiya_suresi_dk(r['sure_dk'], r['b'], r['e'])
+        if ct <= 0:
+            return None                       # referans tanımsız → kontrol yok
+        sure_dk = sum(v for v in sureler.values() if v and v > 0) or _lk.KAPASITE_VARSAYILAN_DK
+        teorik = (sure_dk * 60.0) / ct
+        azami = teorik * _lk.KAPASITE_TOLERANS
+        if adet > azami:
+            gerek = (adet * ct) / 3600.0
+            return (f'KAPASİTE AŞIMI — {adet} adet × {ct:g} sn = {gerek:.1f} saat gerekir, '
+                    f'vardiya {sure_dk / 60.0:.1f} saat (makul üst sınır ~{int(azami)} adet). '
+                    f'Operatör kaydı hatalı olabilir; doğruysa panelden "➕ teyit ver" ile onaylayın.')
+    except Exception as e:
+        print(f'[kapasite] kontrol yapılamadı ({referans} {uretim_tarihi}): {e}')
+    return None
+
+
 def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla=False):
     """Launch teyit satırlarını robotla işler — endpoint VE 17:10 oto koşusu ortak
     çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar listesi.
@@ -6220,6 +6285,11 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
                 det = ', '.join(f"{h['tarih']}: {h['adet']:g}" for h in ilgili)
                 sonuclar.append({**kayit, 'sonuc': 'atlandi',
                                  'mesaj': f'ERP\'de bu üretim için zaten teyit var ({det}) — mükerrer olurdu'})
+                continue
+            # Mükerrer koruması 3: KAPASİTE (2026-07-30) — hayali stok girişini engeller
+            kap = _kapasite_reddi(conn, referans, u_tarih, adet)
+            if kap:
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': kap})
                 continue
 
         bayrak = 'S' if str(s.get('bayrak') or 'A').upper() == 'S' else 'A'
@@ -6507,6 +6577,12 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
             sonuclar.append({**kayit, 'sonuc': 'atlandi',
                              'mesaj': f"ERP'de karşılığı var: {h0.get('tarih','')} {h0.get('adet',0):g} adet ({h0.get('tur','')})"})
             continue
+        # Mükerrer 3: KAPASİTE (2026-07-30) — CFI de depoya stok yazar, aynı fren
+        if not zorla:
+            kap = _kapasite_reddi(conn, referans, u_tarih, adet)
+            if kap:
+                sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': kap})
+                continue
         cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet], 120)
         if robot_hata:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
@@ -7185,11 +7261,28 @@ def _oto_kuyruk_olustur(conn, tarihler):
                      'adet': int(round(float(r.get('adet') or 0))), 'uretim_tarihi': t,
                      'bolum': r.get('bolum', '')})
 
+    def kapasite_asti(t, r):
+        """Kapasite aşımı → oto koşuda HİÇBİR kuyruğa girmez, sabah kontrole düşer.
+        UI ile aynı kural (2026-07-30): cycle time tanımlı + vardiya süresinde
+        fiziken üretilemeyecek adet. '➕ teyit ver' işareti kullanıcı onayıdır."""
+        k = r.get('kapasite_asim')
+        if not k or isr(t, r) == 'teyit_ver':
+            return False
+        sabaha('kapasite', t, r,
+               f"ADET ŞÜPHELİ: {k.get('adet')} adet × {k.get('ct')} sn = "
+               f"{k.get('gerekli_saat')} saat gerekir, vardiya "
+               f"{round((k.get('sure_dk') or 0) / 60.0, 1)} saat — makul üst sınır "
+               f"~{k.get('azami')} adet. Operatör kaydını düzeltin ya da ➕ teyit ver ile onaylayın.",
+               (( r.get('launchlar') or [{}])[0] or {}).get('launch', ''))
+        return True
+
     for t in tarihler:
         L = coklu.get(t) or {}
         for r in L.get('ACIK', []):
             ls = r.get('launchlar') or []
             if any(l.get('zaten_teyitli') == 'kesin' for l in ls):
+                continue
+            if kapasite_asti(t, r):
                 continue
             im = isr(t, r)
             if im == 'kontrol':
@@ -7216,6 +7309,12 @@ def _oto_kuyruk_olustur(conn, tarihler):
             ls = r.get('launchlar') or []
             if any(l.get('zaten_teyitli') == 'kesin' for l in ls):
                 continue
+            # SATIR düzeyi teyit: varyantta teyit KENDİ koduna CFI ile verilmiş
+            # olabilir (2026-07-30, 6175B) — launch article'ında görünmez.
+            if r.get('zaten_teyitli') == 'kesin':
+                continue
+            if kapasite_asti(t, r):
+                continue
             im = isr(t, r)
             if im == 'kontrol':
                 continue
@@ -7227,6 +7326,8 @@ def _oto_kuyruk_olustur(conn, tarihler):
         for kat in ('OPR10', 'YOK'):
             for r in L.get(kat, []):
                 if r.get('zaten_teyitli') == 'kesin':
+                    continue
+                if kapasite_asti(t, r):
                     continue
                 im = isr(t, r)
                 if im == 'kontrol':
@@ -7242,6 +7343,8 @@ def _oto_kuyruk_olustur(conn, tarihler):
         for r in L.get('KAPALI', []):
             im = isr(t, r)
             if r.get('zaten_teyitli') == 'kesin' or im == 'kontrol':
+                continue
+            if kapasite_asti(t, r):
                 continue
             if im == 'teyit_ver':
                 cfiye(t, r)
