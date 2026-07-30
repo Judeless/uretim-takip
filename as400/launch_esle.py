@@ -394,6 +394,45 @@ def _vardiya_suresi_dk(sure_dk, bas_saat, bit_saat):
     return 0.0
 
 
+def ayni_isi_birlestir(satirlar):
+    """AYNI ISIN farkli satirlarini TEK teyit satirinda toplar (2026-07-30).
+
+    NEDEN: gun_uretimi HAM YAZIMLA gruplar, op_kurali_uygula ise SONRA son-op
+    satirinin referansini BASE koda cevirir. Bu sirada ayni base koda inen
+    satirlar AYRI kaliyordu:
+      '10.300.4415W 2. op' (30 adet) -> base '10.300.4415W'
+      '10.300.4415W'       ( 5 adet) -> zaten base
+    Sonuc: panelde ayni referanstan IKI satir; biri teyit edilip digeri
+    unutuluyordu (kullanici 2026-07-30: "birden fazla operator ayni isi
+    yaptiysa sadece 1 ini degil, adeti toplayip tek seferde teyit verelim").
+
+    Anahtar kanonik base kod: buyuk/kucuk harf ve bosluk farklari da yutulur
+    ('10.300.6175a' + '10.300.6175A' tek satir olur).
+    adet ve hurda TOPLANIR; vardiya sureleri birlesir (kapasite hesabi
+    birlesik adet + birlesik sure uzerinden yapilmali, yoksa toplanan adet
+    tek vardiyanin suresine bolunup yanlis 'asim' verir)."""
+    grup = {}
+    for r in satirlar:
+        anahtar = (r.get('tesis'), r.get('bolum'), kanonik(r.get('referans')))
+        g = grup.get(anahtar)
+        if g is None:
+            grup[anahtar] = dict(r)
+            continue
+        g['adet'] += r.get('adet', 0)
+        g['hurda'] = g.get('hurda', 0) + r.get('hurda', 0)
+        # vardiya sureleri: id bazli tekille (ayni vardiya iki satirda gecebilir)
+        gv = g.setdefault('_vardiyalar', {})
+        gv.update(r.get('_vardiyalar') or {})
+        # cycle time: ilk dolu deger
+        if not g.get('ct') and r.get('ct'):
+            g['ct'] = r['ct']
+        # hangi yazimlarin birlestigi UI'da gorunsun (denetim izi)
+        yazimlar = g.setdefault('birlesen_yazimlar',
+                                [g.get('orijinal_referans') or g.get('referans')])
+        yazimlar.append(r.get('orijinal_referans') or r.get('referans'))
+    return list(grup.values())
+
+
 def _kapasite_isle(d):
     """Grup sozlugune kapasite alanlarini yazar; asim varsa d['kapasite_asim'].
     _vardiyalar yardimci alani JSON'a sismesin diye temizlenir."""
@@ -482,7 +521,10 @@ def gun_uretimi(tarih):
         if duz != d['referans']:
             d['orijinal_referans'] = d['referans']
             d['referans'] = duz
-        _kapasite_isle(d)
+        # KAPASITE burada HESAPLANMAZ: op kurali sonrasi ayni base koda inen
+        # satirlar birlestirilecek (ayni_isi_birlestir) ve adet/sure DEGISECEK.
+        # Hesap birlesmeden once yapilirsa toplanan adet tek satirin suresine
+        # bolunur ve yanlis 'kapasite asimi' uretir. Cagiran sirayi kurar.
         sonuc.append(d)
     return sonuc
 
@@ -557,6 +599,11 @@ def esle_coklu(tarihler):
     articles = set()
     for t in tarihler:
         satirlar, ara = op_kurali_uygula(gun_uretimi(t))
+        # Op kurali base koda cevirdi -> ayni ise dusen satirlari TEK satira topla,
+        # sonra kapasiteyi BIRLESIK adet+sure uzerinden hesapla (sira kritik).
+        satirlar = ayni_isi_birlestir(satirlar)
+        for _s in satirlar:
+            _kapasite_isle(_s)
         hazir[t] = (satirlar, ara)
         for u in satirlar:
             ad = (tam.get(kanonik(u['referans'])) or gev.get(gevsek(u['referans']))
