@@ -6872,6 +6872,72 @@ def as400_cop_gonder():
         _AS400_KILIT.release()
 
 
+@app.route('/api/as400/teyit_gecmisi', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_teyit_gecmisi():
+    """Geçmişe dönük teyit kaydı (2026-07-30, kullanıcı isteği: "hangi gün ne
+    teyit verildiğini görebileceğimiz bir filtre bölümü olsun").
+
+    Sayfadaki listeler yalnızca SON birkaç günü ve robotun SON 15 gönderimini
+    gösteriyordu; "geçen hafta şu koda teyit verdik mi" sorusunun cevabı yoktu.
+    Kaynak as400_teyit_log — yani BİZİM gönderdiklerimiz (ERP'nin tamamı değil).
+
+    Parametreler: bas, bit (YYYY-MM-DD) · alan=uretim|gonderim (hangi tarihe göre
+    filtrelenecek) · tip=hepsi|launch|cfi|cop · sonuc=hepsi|ok|hata|atlandi ·
+    ref (kod parçası, opsiyonel)."""
+    bas = (request.args.get('bas') or '').strip()
+    bit = (request.args.get('bit') or '').strip()
+    if not (bas and bit):
+        bit = date.today().isoformat()
+        bas = (date.today() - timedelta(days=7)).isoformat()
+    alan = 'gonderim' if (request.args.get('alan') == 'gonderim') else 'uretim'
+    tip = (request.args.get('tip') or 'hepsi').lower()
+    sonuc_f = (request.args.get('sonuc') or 'hepsi').lower()
+    ref = (request.args.get('ref') or '').strip()
+
+    # gonderim tarihi created_at'in gun kismi; uretim tarihi zaten YYYY-MM-DD
+    tarih_ifade = "DATE(created_at)" if alan == 'gonderim' else "uretim_tarihi"
+    kosul = [f"{tarih_ifade} BETWEEN ? AND ?"]
+    par = [bas, bit]
+    if tip == 'launch':
+        kosul.append("yil NOT IN ('CF','CO')")
+    elif tip == 'cfi':
+        kosul.append("yil='CF'")
+    elif tip == 'cop':
+        kosul.append("yil='CO'")
+    if sonuc_f in ('ok', 'hata', 'atlandi'):
+        kosul.append("sonuc=?"); par.append(sonuc_f)
+    if ref:
+        kosul.append("UPPER(REPLACE(referans,' ','')) LIKE ?")
+        par.append('%' + ref.upper().replace(' ', '') + '%')
+
+    conn = get_db()
+    satirlar = [dict(r) for r in conn.execute(
+        "SELECT id, created_at, uretim_tarihi, yil, launch_no, referans, article, adet, "
+        "bayrak, sonuc, mesaj, olusturan FROM as400_teyit_log "
+        f"WHERE {' AND '.join(kosul)} ORDER BY id DESC LIMIT 500", par).fetchall()]
+    for s in satirlar:
+        s['tip'] = 'COP' if s['yil'] == 'CO' else ('CFI' if s['yil'] == 'CF' else 'LAUNCH')
+
+    ozet = {'satir': len(satirlar), 'ok': 0, 'hata': 0, 'atlandi': 0,
+            'LAUNCH': 0, 'CFI': 0, 'COP': 0, 'adet_ok': 0.0}
+    gunler = {}
+    for s in satirlar:
+        ozet[s['sonuc']] = ozet.get(s['sonuc'], 0) + 1
+        ozet[s['tip']] += 1
+        g = (s['created_at'] or '')[:10] if alan == 'gonderim' else s['uretim_tarihi']
+        d = gunler.setdefault(g, {'tarih': g, 'ok': 0, 'hata': 0, 'atlandi': 0, 'adet': 0.0})
+        d[s['sonuc']] = d.get(s['sonuc'], 0) + 1
+        if s['sonuc'] == 'ok':
+            ozet['adet_ok'] += float(s['adet'] or 0)
+            d['adet'] += float(s['adet'] or 0)
+    return jsonify({'satirlar': satirlar, 'ozet': ozet,
+                    'gunler': sorted(gunler.values(), key=lambda x: x['tarih'] or '', reverse=True),
+                    'filtre': {'bas': bas, 'bit': bit, 'alan': alan, 'tip': tip,
+                               'sonuc': sonuc_f, 'ref': ref},
+                    'limit_asildi': len(satirlar) >= 500})
+
+
 @app.route('/api/as400/planlama', methods=['GET'])
 @panel_gerekli(izin='as400-teyit')
 def as400_planlama():

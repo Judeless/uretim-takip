@@ -1101,6 +1101,16 @@
             font-size: 0.84rem; font-weight: 600; outline: none; min-height: 40px; color-scheme: dark;
         }
         .report-controls input[type="date"]:focus, .report-controls select:focus { border-color: var(--primary); }
+        /* AS400 geçmiş teyit arama filtresi (2026-07-30) — date/select/text ortak.
+           Renkler değişkenden: koyu tema eklendiğinde ayrıca elden geçmesin. */
+        .as4g-inp {
+            background: var(--card); color: var(--text); border: 1px solid var(--border-input);
+            border-radius: 8px; padding: 8px 11px; font-family: var(--font-main);
+            font-size: 0.84rem; font-weight: 600; outline: none; min-height: 38px;
+        }
+        .as4g-inp:focus { border-color: var(--primary); box-shadow: var(--focus-ring); }
+        .as4g-etiket { font-size: .72rem; font-weight: 800; color: var(--dim);
+            text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
         /* Hata kutusu (eski panel sınıf adı korunur) */
         .alert.alert-danger {
             background: rgba(239, 68, 68, 0.10); border: 1px solid rgba(239, 68, 68, 0.35);
@@ -10094,6 +10104,94 @@ window.__I18N_SOZLUK__ = {
 
         // Sunucuda devam eden gönderim var mı? (sayfa yenilense/başka sekmeden
         // başlatılsa bile Durdur butonu doğru görünsün — kullanıcı 2026-07-21)
+        // ── GEÇMİŞ TEYİT ARAMA (2026-07-30) ────────────────────────────────
+        // Sayfanın üst blokları yalnız seçili günleri ve son 15 robot gönderimini
+        // gösteriyor. Burası as400_teyit_log'un TAMAMINA bakar: "geçen salı bu
+        // koda teyit verdik mi?" sorusunun cevabı.
+        function as4GecmisAlan(etiket, alan) {
+            return '<div><div class="as4g-etiket">' + etiket + '</div>' + alan + '</div>';
+        }
+        var _as4GecmisYuklendi = false;
+        function as4GecmisIlkYukle() {
+            if (_as4GecmisYuklendi) return;      // her açılışta yeniden sorgulama
+            _as4GecmisYuklendi = true;
+            var bit = new Date(), bas = new Date(bit.getTime() - 13 * 86400000);
+            var g = function (d) { return d.toISOString().slice(0, 10); };
+            var eb = document.getElementById('as4g-bas'), ei = document.getElementById('as4g-bit');
+            if (eb && !eb.value) eb.value = g(bas);
+            if (ei && !ei.value) ei.value = g(bit);
+            as4GecmisYukle();
+        }
+        function as4GecmisYukle() {
+            var kutu = document.getElementById('as4g-sonuclar');
+            if (!kutu) return;
+            var v = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
+            var q = 'bas=' + encodeURIComponent(v('as4g-bas')) + '&bit=' + encodeURIComponent(v('as4g-bit')) +
+                '&alan=' + v('as4g-alan') + '&tip=' + v('as4g-tip') + '&sonuc=' + v('as4g-sonuc') +
+                '&ref=' + encodeURIComponent(v('as4g-ref'));
+            kutu.innerHTML = '<div style="color:var(--muted);font-size:.85rem">Aranıyor…</div>';
+            fetch('/api/as400/teyit_gecmisi?' + q).then(function (r) { return r.json(); }).then(function (d) {
+                if (d.hata) { kutu.innerHTML = '<div style="color:var(--danger)">' + esc(d.hata) + '</div>'; return; }
+                var o = d.ozet || {};
+                if (!o.satir) {
+                    kutu.innerHTML = '<div style="color:var(--muted);font-size:.88rem">' +
+                        'Bu ölçütlerle kayıt yok. (Kaynak: bizim gönderim kaydımız — ' +
+                        'ERP\'ye başka yoldan girilen teyitler burada görünmez.)</div>';
+                    return;
+                }
+                var h = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+                    as4GecmisCip('var(--success)', o.ok + ' başarılı') +
+                    (o.hata ? as4GecmisCip('var(--danger)', o.hata + ' hata') : '') +
+                    (o.atlandi ? as4GecmisCip('var(--muted)', o.atlandi + ' atlandı') : '') +
+                    as4GecmisCip('var(--primary)', 'Launch ' + o.LAUNCH + ' · CFI ' + o.CFI + ' · COP ' + o.COP) +
+                    as4GecmisCip('var(--brand)', 'teyit edilen ' + fmt(o.adet_ok) + ' adet') + '</div>';
+                if (d.limit_asildi) {
+                    h += '<div style="color:var(--warn);font-size:.8rem;font-weight:700;margin-bottom:8px">' +
+                        '⚠ 500 satır sınırına ulaşıldı — aralığı daraltın, liste kesilmiş olabilir.</div>';
+                }
+                // gün kırılımı: "hangi gün ne verildi" sorusunun doğrudan cevabı
+                h += '<div class="table-wrap"><table class="admin-table"><thead><tr><th>' +
+                    (d.filtre.alan === 'gonderim' ? 'Gönderim günü' : 'Üretim günü') +
+                    '</th><th style="text-align:right">Başarılı</th><th style="text-align:right">Hata</th>' +
+                    '<th style="text-align:right">Atlandı</th><th style="text-align:right">Adet</th></tr></thead><tbody>';
+                (d.gunler || []).forEach(function (g) {
+                    h += '<tr><td style="font-weight:700">' + esc(g.tarih || '—') + '</td>' +
+                        '<td style="text-align:right;color:var(--success);font-weight:700">' + g.ok + '</td>' +
+                        '<td style="text-align:right;color:' + (g.hata ? 'var(--danger)' : 'var(--dim)') + '">' + g.hata + '</td>' +
+                        '<td style="text-align:right;color:var(--dim)">' + g.atlandi + '</td>' +
+                        '<td style="text-align:right;font-weight:700">' + fmt(g.adet) + '</td></tr>';
+                });
+                h += '</tbody></table></div>';
+                h += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);' +
+                    'font-weight:800;font-size:.86rem">Satır satır dök (' + o.satir + ')</summary>' +
+                    '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
+                    '<th>Gönderim</th><th>Üretim günü</th><th>Referans</th><th>Tür</th><th>Launch/Article</th>' +
+                    '<th style="text-align:right">Adet</th><th>Sonuç</th><th>Kim</th></tr></thead><tbody>';
+                (d.satirlar || []).forEach(function (s) {
+                    var renk = s.sonuc === 'ok' ? 'var(--success)' : (s.sonuc === 'atlandi' ? 'var(--dim)' : 'var(--danger)');
+                    h += '<tr title="' + esc(s.mesaj || '') + '">' +
+                        '<td style="font-size:.75rem;white-space:nowrap">' + esc((s.created_at || '').slice(5, 16)) + '</td>' +
+                        '<td style="font-size:.78rem">' + esc(s.uretim_tarihi || '') + '</td>' +
+                        '<td>' + esc(s.referans || '') + '</td>' +
+                        '<td style="font-size:.75rem;font-weight:700">' + esc(s.tip) + '</td>' +
+                        '<td style="font-size:.78rem">' + esc(s.tip === 'LAUNCH' ? (s.yil + '-' + s.launch_no) : (s.article || '')) + '</td>' +
+                        '<td style="text-align:right">' + fmt(s.adet) + '</td>' +
+                        '<td style="color:' + renk + ';font-weight:700">' + esc(s.sonuc) + '</td>' +
+                        '<td style="font-size:.78rem">' + esc(s.olusturan || '') + '</td></tr>';
+                });
+                h += '</tbody></table></div></details>';
+                kutu.innerHTML = h;
+            }).catch(function (e) {
+                kutu.innerHTML = '<div style="color:var(--danger)">Arama başarısız: ' + esc(String(e)) + '</div>';
+            });
+        }
+        function as4GecmisCip(renk, txt) {
+            // renk bir CSS DEĞİŞKENİ (var(--x)) — hex gibi '55' alfa eki alamaz.
+            // Zemin/kenarlık nötr yüzey değişkenlerinden; koyu temada da geçerli.
+            return '<span style="border:1px solid var(--card-border);background:var(--card);color:' + renk +
+                ';border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:800">' + txt + '</span>';
+        }
+
         function as4DurumKontrol() {
             panelFetch('/api/as400/teyit_durum').then(function (r) { return r.json(); }).then(function (d) {
                 var btn = document.getElementById('as4-gonder-btn');
@@ -11064,12 +11162,42 @@ window.__I18N_SOZLUK__ = {
                 });
                 sGonderim += '</tbody></table></div></details>';
             }
-            // ── DİZİLİM: aksiyon önce, tamamlananlar sonra ──
+            // ── GEÇMİŞ TEYİT ARAMA (2026-07-30, kullanıcı: "hangi gün ne teyit
+            // verildiğini görebileceğimiz bir filtre bölümü olsun, geçmişe dönük
+            // bakabilelim"). Sayfanın geri kalanı yalnız son birkaç günü gösterir;
+            // burası as400_teyit_log'un tamamına tarih/tip/sonuç/kod ile bakar.
+            // Kapalı açılır — açılınca yüklenir (her sayfa render'ında sorgu yok).
+            var sGecmis = '<details id="as4-gecmis-blok" style="margin-top:12px" ontoggle="if(this.open)as4GecmisIlkYukle()">' +
+                '<summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">' +
+                '🔍 Geçmiş teyit arama — hangi gün neye teyit verildi?</summary>' +
+                '<div style="margin-top:10px;padding:14px 16px;background:var(--surface-2);' +
+                'border:1px solid var(--card-border);border-radius:10px">' +
+                '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' +
+                as4GecmisAlan('Başlangıç', '<input type="date" id="as4g-bas" class="as4g-inp" style="min-width:150px">') +
+                as4GecmisAlan('Bitiş', '<input type="date" id="as4g-bit" class="as4g-inp" style="min-width:150px">') +
+                as4GecmisAlan('Tarih ölçütü',
+                    '<select id="as4g-alan" class="as4g-inp"><option value="uretim">Üretim günü</option>' +
+                    '<option value="gonderim">Gönderim günü</option></select>') +
+                as4GecmisAlan('Tür',
+                    '<select id="as4g-tip" class="as4g-inp"><option value="hepsi">Hepsi</option>' +
+                    '<option value="launch">Launch teyidi</option><option value="cfi">CFI</option>' +
+                    '<option value="cop">COP (hurda)</option></select>') +
+                as4GecmisAlan('Sonuç',
+                    '<select id="as4g-sonuc" class="as4g-inp"><option value="hepsi">Hepsi</option>' +
+                    '<option value="ok">Başarılı</option><option value="hata">Hata</option>' +
+                    '<option value="atlandi">Atlandı</option></select>') +
+                as4GecmisAlan('Referans', '<input type="text" id="as4g-ref" class="as4g-inp" placeholder="kod parçası" style="min-width:150px">') +
+                '<button class="btn-primary" style="height:38px" onclick="as4GecmisYukle()">Ara</button>' +
+                '</div><div id="as4g-sonuclar" style="margin-top:14px"></div></div></details>';
+
+            // ── DİZİLİM (2026-07-30 kullanıcı isteği: "teyit verilecek referanslar
+            // yukarıda olsun, loglar alt kısımda olsun") ──
+            // sKuyruk  : robota gönderilecek launch + CFI — ASIL İŞ, en üstte
+            // sCop     : hurda → COP kuyruğu (o da gönderilecek satırlar)
             // sDikkat  : senden karar bekleyenler (robot dokunmaz)
-            // sKuyruk  : robota gönderilecek launch + CFI  (as4-gonder-sonuc burada)
-            // sCop     : hurda → COP kuyruğu
-            // sTeyitli / sBilgi / sGonderim : katlanır, denetim amaçlı
-            icerik.innerHTML = ustSerit + cipler + sDikkat + sKuyruk + sCop + sTeyitli + sBilgi + sGonderim;
+            // sTeyitli / sBilgi : katlanır, denetim amaçlı
+            // sGecmis / sGonderim : geçmiş kayıt ve loglar — en altta
+            icerik.innerHTML = ustSerit + cipler + sKuyruk + sCop + sDikkat + sTeyitli + sBilgi + sGecmis + sGonderim;
             as4DurumKontrol();   // devam eden gönderim varsa Durdur'u göster
         }
 
