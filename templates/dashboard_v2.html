@@ -1212,6 +1212,36 @@
             font-size: 0.84rem; font-weight: 600; outline: none; min-height: 40px; color-scheme: dark;
         }
         .report-controls input[type="date"]:focus, .report-controls select:focus { border-color: var(--primary); }
+        /* AS400 "bu sayfa ne yapar" kutusu (2026-07-30) — akış + terim sözlüğü.
+           İlk ziyarette açık gelir, bir kez açılınca localStorage'a yazılır ve
+           sonraki girişlerde kapalı başlar. */
+        .as4-nasil {
+            background: var(--surface-2); border: 1px solid var(--card-border);
+            border-radius: 10px; margin: 0 0 14px; overflow: hidden;
+        }
+        .as4-nasil > summary {
+            cursor: pointer; padding: 11px 15px; font-weight: 800; font-size: .88rem;
+            color: var(--primary); list-style: none;
+        }
+        .as4-nasil > summary::-webkit-details-marker { display: none; }
+        .as4-nasil > summary:hover { background: var(--cam-hover); }
+        .as4-nasil-ic { padding: 4px 15px 15px; }
+        .as4-adimlar { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+        .as4-adim { display: flex; gap: 10px; align-items: flex-start; }
+        .as4-adim-no {
+            flex: 0 0 24px; height: 24px; border-radius: 50%;
+            background: var(--primary); color: #fff; font-weight: 800; font-size: .78rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .as4-adim-baslik { font-weight: 800; font-size: .84rem; color: var(--text); }
+        .as4-adim-metin  { font-size: .78rem; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+        .as4-sozluk {
+            margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--card-border);
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 7px 18px;
+        }
+        .as4-terim { font-size: .78rem; color: var(--muted); line-height: 1.45; }
+        .as4-terim b { color: var(--text); margin-right: 6px; }
+
         /* AS400 geçmiş teyit arama filtresi (2026-07-30) — date/select/text ortak.
            Renkler değişkenden: koyu tema eklendiğinde ayrıca elden geçmesin. */
         .as4g-inp {
@@ -10272,6 +10302,14 @@ window.__I18N_SOZLUK__ = {
         // Sayfanın üst blokları yalnız seçili günleri ve son 15 robot gönderimini
         // gösteriyor. Burası as400_teyit_log'un TAMAMINA bakar: "geçen salı bu
         // koda teyit verdik mi?" sorusunun cevabı.
+        function as4Adim(no, baslik, aciklama) {
+            return '<div class="as4-adim"><div class="as4-adim-no">' + no + '</div><div>' +
+                '<div class="as4-adim-baslik">' + baslik + '</div>' +
+                '<div class="as4-adim-metin">' + aciklama + '</div></div></div>';
+        }
+        function as4Terim(terim, aciklama) {
+            return '<div class="as4-terim"><b>' + terim + '</b><span>' + aciklama + '</span></div>';
+        }
         function as4GecmisAlan(etiket, alan) {
             return '<div><div class="as4g-etiket">' + etiket + '</div>' + alan + '</div>';
         }
@@ -11119,7 +11157,7 @@ window.__I18N_SOZLUK__ = {
                 sKuyruk += '<div id="as4-gonder-sonuc"></div>';
             } else {
                 if (_as4Bekleyen.length) {
-                sKuyruk += '<h4 style="margin:16px 0 8px;color:var(--lg-green);font-size:.9rem">📤 Launch teyidi bekleyenler (' + _as4Bekleyen.length + ')' +
+                sKuyruk += '<h4 style="margin:16px 0 8px;color:var(--lg-green);font-size:.9rem">📤 1 · İş emrine teyit — gönderilecek (' + _as4Bekleyen.length + ')' +
                     ' <a onclick="as4TumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                     ' <a onclick="as4TumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
                 sKuyruk += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
@@ -11165,7 +11203,7 @@ window.__I18N_SOZLUK__ = {
 
                 // 📦 CFI bekleyenler — launch'sız üretim, seçilebilir tablo (kullanıcı 2026-07-20)
                 if (_as4CfiBekleyen.length) {
-                    sKuyruk += '<h4 style="margin:16px 0 8px;color:var(--b-kaynak);font-size:.9rem">📦 CFI bekleyenler — launch\'sız üretim (' + _as4CfiBekleyen.length + ')' +
+                    sKuyruk += '<h4 style="margin:16px 0 8px;color:var(--b-kaynak);font-size:.9rem">📦 1b · Depo girişi (CFI) — launch\'sız üretim (' + _as4CfiBekleyen.length + ')' +
                         ' <a onclick="as4CfiTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                         ' <a onclick="as4CfiTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
                     sKuyruk += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
@@ -11204,9 +11242,9 @@ window.__I18N_SOZLUK__ = {
             // ── 1b) ♻ HURDA → COP (her zaman render — hurdalı satırlar onaylı üretimde
             // olabilir, normal kuyrukta çıkmaz). Ayrı buton; /cop_gonder + dedup kullanır. ──
             if (copBek.length) {
-                sCop += '<h4 style="margin:20px 0 8px;color:var(--lg-red);font-size:.9rem">♻ Hurda → COP bekleyen (' + copBek.length + ')' +
+                sCop += '<h4 style="margin:20px 0 8px;color:var(--lg-red);font-size:.9rem">♻ 2 · Hurda düşümü — ERP stoğundan düşülecek (' + copBek.length + ')' +
                     (_as4CopBekleyen.length > copBek.length ? ' <span style="color:var(--lg-green);font-size:.74rem;font-weight:700">· ✅ ' + (_as4CopBekleyen.length - copBek.length) + ' zaten COP verilmiş</span>' : '') +
-                    ' <span style="font-weight:500;color:var(--muted);font-size:.74rem">— hurda (nok) adetleri COP olarak girilir; zaten girilmişler gönderimde atlanır (dedup)</span>' +
+                    ' <span style="font-weight:500;color:var(--muted);font-size:.74rem">— operatörün NOK olarak girdiği adetler ERP stoğundan düşülür · daha önce düşülenler tekrar gönderilmez</span>' +
                     ' <a onclick="as4CopTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                     ' <a onclick="as4CopTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
                 sCop += '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
@@ -11288,7 +11326,7 @@ window.__I18N_SOZLUK__ = {
 
             // ── 3) TEYIDI VERILMIS (denetim, katlanır) ──
             if (teyitli.length) {
-                sTeyitli += '<details style="margin-top:16px"><summary style="cursor:pointer;color:var(--lg-slate);font-weight:800;font-size:.9rem">✅ Teyidi verilmiş (' + teyitli.length + ') — denetim için aç</summary>';
+                sTeyitli += '<details style="margin-top:16px"><summary style="cursor:pointer;color:var(--lg-slate);font-weight:800;font-size:.9rem">✅ Tamamlandı — teyidi verilmiş (' + teyitli.length + ')</summary>';
                 sTeyitli += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
                     '<th>Gün</th><th>Bölüm</th><th>Referans</th><th style="text-align:right">Üretilen</th><th>ERP teyit hareketi</th></tr></thead><tbody>';
                 teyitli.forEach(function (x) {
@@ -11306,7 +11344,7 @@ window.__I18N_SOZLUK__ = {
 
             // ── 4) BILGI (katlanır) — launch'sız üretimler artık CFI kuyruğunda ──
             if (araList.length || digerList.length || haricList.length) {
-                sBilgi += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--b-kaynak);font-weight:800;font-size:.9rem">ℹ️ Bilgi: ara operasyon (' + araList.length + ') · teyit gerekmez (' + haricList.length + ') · diğer (' + digerList.length + ')</summary><div style="margin-top:8px;font-size:.82rem">';
+                sBilgi += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--b-kaynak);font-weight:800;font-size:.9rem">ℹ️ Bilgi amaçlı — bunlara teyit verilmez: ara operasyon (' + araList.length + ') · teyit gerekmez (' + haricList.length + ') · diğer (' + digerList.length + ')</summary><div style="margin-top:8px;font-size:.82rem">';
                 if (haricList.length) {
                     sBilgi += '<div style="color:var(--lg-slate);font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez (kalıcı işaret) — robot dokunmaz:</div>';
                     haricList.forEach(function (x) {
@@ -11332,7 +11370,7 @@ window.__I18N_SOZLUK__ = {
             // ── 5) SON ROBOT GONDERIMLERI ──
             var sg = d.son_gonderimler || [];
             if (sg.length) {
-                sGonderim += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">🗒 Son robot gönderimleri (' + sg.length + ')</summary>';
+                sGonderim += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">🗒 Robot ne yaptı? — son gönderimler (' + sg.length + ')</summary>';
                 sGonderim += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
                     '<th>Zaman</th><th>Üretim günü</th><th>Referans</th><th>Launch</th><th style="text-align:right">Adet</th><th>Sonuç</th><th>Kim</th></tr></thead><tbody>';
                 sg.forEach(function (s) {
@@ -11352,7 +11390,7 @@ window.__I18N_SOZLUK__ = {
             // Kapalı açılır — açılınca yüklenir (her sayfa render'ında sorgu yok).
             var sGecmis = '<details id="as4-gecmis-blok" style="margin-top:12px" ontoggle="if(this.open)as4GecmisIlkYukle()">' +
                 '<summary style="cursor:pointer;color:var(--muted);font-weight:800;font-size:.9rem">' +
-                '🔍 Geçmiş teyit arama — hangi gün neye teyit verildi?</summary>' +
+                '🔍 Geçmişe bak — hangi gün hangi koda teyit verilmiş?</summary>' +
                 '<div style="margin-top:10px;padding:14px 16px;background:var(--surface-2);' +
                 'border:1px solid var(--card-border);border-radius:10px">' +
                 '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' +
@@ -11380,7 +11418,47 @@ window.__I18N_SOZLUK__ = {
             // sDikkat  : senden karar bekleyenler (robot dokunmaz)
             // sTeyitli / sBilgi : katlanır, denetim amaçlı
             // sGecmis / sGonderim : geçmiş kayıt ve loglar — en altta
-            icerik.innerHTML = ustSerit + cipler + sKuyruk + sCop + sDikkat + sTeyitli + sBilgi + sGecmis + sGonderim;
+            // ── NE YAPTIĞINI ANLATAN GİRİŞ (2026-07-30, kullanıcı: "sayfa çok
+            // karışık, bilmeyen birisi için anlaması zor") ────────────────────
+            // Sayfa AS400 terimleriyle konuşuyordu (launch, CFI, COP, RPR, varyant,
+            // ara-op) ve hiçbiri açıklanmıyordu. Akış + sözlük katlanır bir kutuda;
+            // bilen için kapalı kalır, bilmeyen bir kez açıp öğrenir.
+            // NOT: metinler ÇİFT tırnaklı JS dizeleri — Türkçe kesme işareti
+            // (ERP'ye, launch'a) kaçış gerektirmesin diye. HTML özniteliklerinde
+            // tek tırnak kullanılıyor; ikisi çakışmıyor.
+            var sNasil =
+                '<details class="as4-nasil" id="as4-nasil"' +
+                (localStorage.getItem('as4_nasil_gorildi') ? '' : ' open') + '>' +
+                "<summary>❓ Bu sayfa ne yapar? — akış ve terimler</summary>" +
+                '<div class="as4-nasil-ic">' +
+                  '<div class="as4-adimlar">' +
+                    as4Adim('1', "Sistem hazırlar",
+                            "Operatörlerin girdiği üretim, ERP'deki açık iş emirleriyle eşleştirilir. " +
+                            "Her akşam 17:10'da kendiliğinden çalışır.") +
+                    as4Adim('2', "Sen kontrol edersin",
+                            "Sistemin emin olamadığı satırlar sana sorulur: kod uyuşmuyor, adet şüpheli " +
+                            "ya da zaten teyitli olabilir. Gerisi hazır kuyrukta bekler.") +
+                    as4Adim('3', "Robot ERP'ye yazar",
+                            "“Gönder” dediğinde robot AS400 ekranını açıp kayıtları girer ve her satırı " +
+                            "ERP'den geri okuyarak doğrular.") +
+                  '</div>' +
+                  '<div class="as4-sozluk">' +
+                    as4Terim("Launch teyidi", "Açık bir iş emrine üretim bildirimi. ERP'de <b>RPR</b> hareketi oluşur.") +
+                    as4Terim("CFI", "İş emri olmayan üretimin doğrudan depoya girişi. Kod açık bir iş emrine bağlanamadığında kullanılır.") +
+                    as4Terim("COP", "Hurda (NOK) adetlerinin ERP stoğundan düşülmesi. Teyitlerden <b>sonra</b> gönderilir.") +
+                    as4Terim("Ara operasyon", "Çok operasyonlu parçanın ilk adımları. Teyit yalnız <b>son</b> operasyonda verilir.") +
+                    as4Terim("Varyant", "Girilen kod ERP'deki yazımla birebir tutmuyor — robot kendiliğinden göndermez, sana sorar.") +
+                  '</div>' +
+                '</div></details>';
+            icerik.innerHTML = sNasil + ustSerit + cipler + sKuyruk + sCop + sDikkat + sTeyitli + sBilgi + sGecmis + sGonderim;
+            // "Bu sayfa ne yapar" kutusu ilk ziyarette açık gelir; bir kez
+            // açıldıktan sonra kapalı başlasın diye tercihi saklıyoruz.
+            var _nasil = document.getElementById('as4-nasil');
+            if (_nasil) {
+                _nasil.addEventListener('toggle', function () {
+                    if (_nasil.open) { try { localStorage.setItem('as4_nasil_gorildi', '1'); } catch (e) {} }
+                });
+            }
             as4DurumKontrol();   // devam eden gönderim varsa Durdur'u göster
         }
 
