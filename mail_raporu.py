@@ -55,6 +55,23 @@ def config_yukle():
         return None
 
 
+def config_hatasi():
+    """Dosya VAR ama JSON'u bozuksa hata metni, sorun yoksa ''.
+
+    2026-07-30: config elle duzenlenirken bir satirin sonunda virgul unutuldu;
+    dosya okunamaz oldu ve panel "SMTP tanimli degil" dedi. Mesaj yaniltiyordu
+    (dosya oradaydi) ve o gun rapor maili hic gitmeyecekti. Gercek sebebi ve
+    hatanin satirini panele tasiyoruz."""
+    if not os.path.exists(CONFIG_YOL):
+        return ''
+    try:
+        with open(CONFIG_YOL, encoding='utf-8-sig') as f:
+            json.load(f)
+        return ''
+    except Exception as e:
+        return str(e)
+
+
 def yontem_al(c=None):
     """Gönderim yöntemi: 'outlook' (açık Outlook masaüstü — şifre gerekmez) | 'smtp'."""
     c = c or config_yukle() or {}
@@ -109,7 +126,9 @@ def durum_ozeti():
     """Dashboard göstergesi için maskelenmiş durum (şifre ASLA dönmez)."""
     c = config_yukle()
     if not c:
-        return {'config_var': False, 'etkin': False}
+        h = config_hatasi()
+        # dosya var ama bozuk -> "tanimli degil" demek yaniltici olur
+        return {'config_var': bool(h), 'etkin': False, 'config_hatasi': h}
     import socket
     try:
         bu_host = socket.gethostname()

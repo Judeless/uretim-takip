@@ -9473,6 +9473,13 @@ window.__I18N_SOZLUK__ = {
                 if (d.etkin) {
                     rozet.textContent = '● Aktif · ' + (d.gonderim_saati || '17:00');
                     rozet.style.background = 'rgba(52,211,153,.15)'; rozet.style.color = '#157A3C';
+                } else if (d.config_hatasi) {
+                    // dosya var ama JSON bozuk — "tanımlı değil" demek yanıltır
+                    rozet.textContent = '● Ayar dosyası bozuk · mail gitmez';
+                    rozet.title = 'mail_config.json okunamıyor:\n' + d.config_hatasi +
+                                  '\n\nJSON söz dizimi hatası — genellikle bir satır sonunda ' +
+                                  'eksik veya fazla virgül. Düzeltip kaydedin; restart gerekmez.';
+                    rozet.style.background = 'rgba(248,113,113,.15)'; rozet.style.color = '#B4231C';
                 } else if (d.host_engeli) {
                     // config'te etkin ama makine kilidi tutmuyor — sessiz durmasın
                     rozet.textContent = '● Bu makinede kapalı (yalnızca ' + d.sadece_host + ')';
