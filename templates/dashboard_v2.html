@@ -10642,10 +10642,25 @@ window.__I18N_SOZLUK__ = {
                         if (l.zaten_teyitli === 'olasi' && !olasi) olasi = l;
                     });
                     if (kesin) { teyitli.push({ tarih: g.tarih, r: r, l: kesin }); return; }
+                    // SATIR düzeyi teyit (2026-07-30): teyit KENDİ referans koduna
+                    // CFI olarak verilmiş olabilir — launch'ın article'ında GÖRÜNMEZ.
+                    // (10.300.6175B vakası: 27.07 üretimi 96 adet, 28.07'de 6175B'ye
+                    //  96 CFI girilmiş; launch article'ı 6175W olduğu için kanıt
+                    //  görülmüyor ve satır launch kuyruğuna düşüyordu.)
+                    if (r.zaten_teyitli === 'kesin') {
+                        teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } });
+                        return;
+                    }
                     var teyitVer = (r.isaret && r.isaret.durum === 'teyit_ver');
                     // '✓ kontrol' işaretli satır = elle ilgilenildi → robot kuyruğuna GİRMEZ
                     // ('➕ teyit ver' işareti HARİÇ — o kuyruğa girmek İÇİN konur)
                     if (r.isaret && !teyitVer) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: [] } }); return; }
+                    // Satır düzeyi 'olasi' da şüphe: kısmi teyit olabilir → elle kontrol
+                    if (r.zaten_teyitli === 'olasi' && !teyitVer) {
+                        dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r,
+                                      l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } });
+                        return;
+                    }
                     var temiz = ls.filter(function (l) { return !l.zombi; });
                     if (!temiz.length) { dikkat.push({ tip: 'zombi', tarih: g.tarih, r: r, l: ls[0] }); return; }
                     // 'olasi' şüphesi ➕ teyit ver ile EZİLEBİLİR (karar insanın)
@@ -10668,6 +10683,12 @@ window.__I18N_SOZLUK__ = {
                     // ACIK kolunda olduğu gibi Dikkat'ten çıkar (tutarlılık, 2026-07-30)
                     if (r.isaret && !teyitVerS) {
                         teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } });
+                        return;
+                    }
+                    // Kısmi/uyuşmayan teyit → elle kontrol (ACIK ile aynı kural)
+                    if (r.zaten_teyitli === 'olasi' && !teyitVerS) {
+                        dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r,
+                                      l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } });
                         return;
                     }
                     // ➕ teyit ver işaretli varyant = kullanıcı 'kod DOĞRU' dedi (4536B vakası)

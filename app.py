@@ -7282,6 +7282,10 @@ def _oto_kuyruk_olustur(conn, tarihler):
             ls = r.get('launchlar') or []
             if any(l.get('zaten_teyitli') == 'kesin' for l in ls):
                 continue
+            # SATIR düzeyi teyit: teyit KENDİ koduna CFI ile verilmiş olabilir —
+            # launch'ın article'ında görünmez (2026-07-30, 6175B vakası).
+            if r.get('zaten_teyitli') == 'kesin':
+                continue
             if kapasite_asti(t, r):
                 continue
             im = isr(t, r)
@@ -7293,7 +7297,9 @@ def _oto_kuyruk_olustur(conn, tarihler):
                        (ls[0] or {}).get('launch', '') if ls else '')
                 continue
             # 'olasi' şüphesi kullanıcı ➕ teyit ver işaretiyle EZİLEBİLİR (karar insanın)
-            if any(l.get('zaten_teyitli') == 'olasi' for l in ls) and im != 'teyit_ver':
+            # Launch article'ı VEYA satırın kendi kodu 'olasi' ise elle kontrol.
+            if ((any(l.get('zaten_teyitli') == 'olasi' for l in ls)
+                 or r.get('zaten_teyitli') == 'olasi') and im != 'teyit_ver'):
                 sabaha('olasi', t, r, 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin',
                        temiz[0].get('launch', ''))
                 continue
@@ -7317,6 +7323,10 @@ def _oto_kuyruk_olustur(conn, tarihler):
                 continue
             im = isr(t, r)
             if im == 'kontrol':
+                continue
+            if r.get('zaten_teyitli') == 'olasi' and im != 'teyit_ver':
+                sabaha('olasi', t, r, 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin',
+                       (ls[0] or {}).get('launch', '') if ls else '')
                 continue
             if im == 'teyit_ver':
                 cfiye(t, r)   # kullanıcı 'kod doğru' dedi → kendi koduna CFI
