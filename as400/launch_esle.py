@@ -469,18 +469,26 @@ def gun_uretimi(tarih):
     # KAPASITE ALANLARI (2026-07-30): cycle time + vardiya suresi de cekilir ki
     # "8 saatte fiziken uretilemeyecek adet" teyit oncesi yakalanabilsin.
     # LEFT JOIN: referans tanimli DEGILSE ct NULL kalir -> kontrol YAPILMAZ.
+    # ⚠ CYCLE TIME SKALAR ALT-SORGUYLA ALINIR, **LEFT JOIN İLE DEĞİL** (2026-07-30).
+    # LEFT JOIN kullanıldığında (ilk yazım) referans_listesi'nde normalize olarak
+    # AYNI koda düşen BİRDEN FAZLA satır varsa üretim kaydı O KADAR KEZ dönüyordu
+    # ve g['adet'] += ok döngüsü adedi KATLIYORDU. Gerçek olay: '94.LTK.340' ve
+    # '94.ltk.340' iki ayrı satır → 42 adetlik üretim 84 olarak teyit edildi ve
+    # ERP'ye 42 adet FAZLA stok girdi. Montaj/TK2'de böyle 29 çift yazım var.
+    # UNIQUE(referans_kodu,bolum,lokasyon) bu duplikeyi ENGELLEMEZ: kısıt HAM kodda,
+    # eşleşme ise normalize (UPPER+REPLACE) yapılıyor.
+    # Skalar alt-sorgu satır ÇOĞALTMAZ; tam-eş yazım öncelikli, sonra dolu ct.
     rows = conn.execute(f"""
         SELECT COALESCE(v.lokasyon,'TK2') tesis, COALESCE(v.bolum,'kaynak') bolum,
                u.referans_kodu referans, COALESCE(u.ok_adet,0) ok,
                COALESCE(u.nok_adet,0) nok, COALESCE(u.aciklama,'') aciklama,
-               rl.hedef_cycle_time_sn ct,
+               (SELECT MAX(rl.hedef_cycle_time_sn) FROM referans_listesi rl
+                 WHERE UPPER(REPLACE(rl.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
+                   AND COALESCE(rl.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
+                   AND COALESCE(rl.lokasyon,'TK2') = COALESCE(v.lokasyon,'TK2')) ct,
                v.id vardiya_id, COALESCE(v.toplam_sure_dk,0) sure_dk,
                COALESCE(v.baslangic_saati,'') bas_saat, COALESCE(v.bitis_saati,'') bit_saat
         FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
-        LEFT JOIN referans_listesi rl
-               ON UPPER(REPLACE(rl.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
-              AND COALESCE(rl.bolum,'kaynak')   = COALESCE(v.bolum,'kaynak')
-              AND COALESCE(rl.lokasyon,'TK2')   = COALESCE(v.lokasyon,'TK2')
         WHERE v.tarih = ? AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
           AND COALESCE(v.lokasyon,'TK2') = ?
           AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})

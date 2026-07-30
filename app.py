@@ -6214,15 +6214,19 @@ def _kapasite_reddi(conn, referans, uretim_tarihi, adet):
         if onay:
             return None
         # O gün o referansı üreten vardiyalar + cycle time (bölüm/lokasyon eşleşmeli)
+        # ct SKALAR alt-sorgu (LEFT JOIN DEĞİL): normalize aynı koda düşen birden
+        # fazla referans satırı varsa JOIN satır çoğaltır (bkz. launch_esle
+        # gun_uretimi'ndeki 94.LTK.340 vakası). Burada adet toplanmadığı için
+        # zararı sınırlıydı ama aynı tuzağı bırakmıyoruz.
         rows = conn.execute("""
-            SELECT rl.hedef_cycle_time_sn ct, v.id vid,
+            SELECT (SELECT MAX(rl.hedef_cycle_time_sn) FROM referans_listesi rl
+                     WHERE UPPER(REPLACE(rl.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
+                       AND COALESCE(rl.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
+                       AND COALESCE(rl.lokasyon,'TK2') = COALESCE(v.lokasyon,'TK2')) ct,
+                   v.id vid,
                    COALESCE(v.toplam_sure_dk,0) sure_dk,
                    COALESCE(v.baslangic_saati,'') b, COALESCE(v.bitis_saati,'') e
             FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
-            LEFT JOIN referans_listesi rl
-                   ON UPPER(REPLACE(rl.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
-                  AND COALESCE(rl.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
-                  AND COALESCE(rl.lokasyon,'TK2') = COALESCE(v.lokasyon,'TK2')
             WHERE v.tarih = ?
               AND UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(?,' ',''))
         """, (uretim_tarihi, referans)).fetchall()
