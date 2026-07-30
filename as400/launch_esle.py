@@ -192,6 +192,49 @@ LAUNCH_BOLUMLERI = ('kaynak', 'metal', 'montaj', 'lazer', 'pres')
 LOKASYON = 'TK2'
 
 
+def article_tanimli(kodlar):
+    """ERP article master'inda (BARTF0.A0ARTI) TANIMLI olan kodlarin kumesi.
+
+    NEDEN (2026-07-30): operator uretim kaydina '10.300.1992A.OP.1' yazdi —
+    kod alanina OPERASYON bilgisi karistirmis ('1. OP' yerine 'OP.1'). Robot bu
+    kodu 07>01>F1 ekranina yazmaya calisinca alan tasti, ekran 'article alani
+    dolu' hatasinda kilitlendi ve AYNI KOSUDAKI DIGER REFERANSLARIN teyidi de
+    verilemedi. Tek bozuk kod butun kuyrugu durduruyor.
+
+    Uzunluk kriteri ISE YARAMAZ: ERP'de 17 karakterlik MESRU kodlar var
+    ('92.10.4312      B' gibi bosluk dolgulu). Dogru kriter kodun master'da
+    TANIMLI olup olmadigi. Donis: {kanonik(kod)} kumesi.
+    Sorgu patlarsa BOS KUME degil None doner — cagiran 'bilinmiyor' ile
+    'tanimsiz'i ayirt etsin (bilinmiyorken gonderimi bloklamak yanlis yon)."""
+    if not kodlar:
+        return set()
+    _guvenli = re.compile(r'^[A-Za-z0-9./\- ]{1,21}$')
+    liste = sorted({str(k).strip() for k in kodlar
+                    if str(k or '').strip() and _guvenli.match(str(k).strip())})
+    if not liste:
+        return set()
+    try:
+        cn = pyodbc.connect(CFG.baglanti_dizesi(CFG.sifre_al()), timeout=60, autocommit=True)
+    except Exception as e:
+        print(f'[launch_esle] article master baglanti HATASI: {e}')
+        return None
+    var = set()
+    try:
+        cu = cn.cursor()
+        for i in range(0, len(liste), 60):
+            grup = liste[i:i + 60]
+            sql = ("SELECT A0ARTI FROM tkc0301F.BARTF0 WHERE A0ARTI IN (%s)"
+                   % ','.join('?' * len(grup)))
+            for r in cu.execute(sql, grup):
+                var.add(kanonik(r[0]))
+    except Exception as e:
+        print(f'[launch_esle] article master sorgu HATASI: {e}')
+        return None
+    finally:
+        cn.close()
+    return var
+
+
 def teyit_hareketleri(articles):
     """Verilen ARTICLE'larin RPR (uretim teyidi) hareketlerini dondurur —
     LAUNCH'TAN BAGIMSIZ. Cunku operator ayni urunu baska bir launch'a girip

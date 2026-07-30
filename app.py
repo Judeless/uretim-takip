@@ -6161,6 +6161,33 @@ def _as400_launch_durum(yil, no):
         cn.close()
 
 
+def _article_gecersiz_mi(article):
+    """ERP article master kontrolü — robot ekrana yazmadan ÖNCE (2026-07-30).
+    Döner: None (kod geçerli / doğrulanamadı) | reddetme mesajı (str).
+
+    Master OKUNAMAZSA None döner: bilinmiyorken meşru teyidi bloklamak yanlış
+    yön. Bu bir "bozuk kodu erken yakala" katmanı, tek fren değil."""
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _la
+        var = _la.article_tanimli([article])
+        if var is None:          # sorgu/bağlantı hatası — karar verme
+            return None
+        if _la.kanonik(article) in var:
+            return None
+        return (f'ERP\'de böyle bir article YOK: "{article}" — operatör kodu yanlış '
+                f'yazmış olabilir (örn. kod alanına operasyon bilgisi karışmış). '
+                f'Robota gönderilmedi; üretim kaydındaki referans kodunu düzeltin. '
+                f'NOT: bu satır gönderilseydi ekran kilitlenip AYNI KOŞUDAKİ diğer '
+                f'referansların teyidi de verilemezdi.')
+    except Exception as e:
+        print(f'[article] kontrol yapılamadı ({article}): {e}')
+    return None
+
+
 def _kapasite_reddi(conn, referans, uretim_tarihi, adet):
     """SON SAVUNMA (2026-07-30) — robot çalıştırmadan hemen önce, DB'den BAĞIMSIZ
     kapasite kontrolü. Döner: None (sorun yok) | reddetme mesajı (str).
@@ -6583,6 +6610,14 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
             if kap:
                 sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': kap})
                 continue
+        # KOD DOĞRULAMA (2026-07-30): article ERP master'ında yoksa robota GÖNDERME.
+        # '10.300.1992A.OP.1' vakası: operatör kod alanına operasyon bilgisi yazmış;
+        # robot ekrana yazamayınca alan taştı ve AYNI KOŞUDAKİ DİĞER satırlar da
+        # gönderilemedi. Tek bozuk kod tüm kuyruğu durduruyordu.
+        gecersiz = _article_gecersiz_mi(article)
+        if gecersiz:
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
+            continue
         cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet], 120)
         if robot_hata:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
@@ -6733,6 +6768,11 @@ def _cop_gonder_calistir(conn, satirlar, kullanici):
             (u_tarih, article)).fetchone()
         if var:
             sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
+            continue
+        # COP da aynı ekranı (07>01>F1) kullanır — bozuk kod burada da kuyruğu kilitler
+        gecersiz = _article_gecersiz_mi(article)
+        if gecersiz:
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
             continue
         cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet, 'COP'], 120)
         if robot_hata:
