@@ -6758,7 +6758,7 @@ def _plan_siparisler(cn, articles):
     return sonuc
 
 
-def _cop_gonder_calistir(conn, satirlar, kullanici):
+def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False):
     """HURDA (COP) girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
     ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
     COP'lar EN SON faz (kullanıcı 2026-07-23: launch/CFI fazlarına ARAYA GİRMESİN;
@@ -6792,6 +6792,29 @@ def _cop_gonder_calistir(conn, satirlar, kullanici):
         if var:
             sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
             continue
+        # Mükerrer koruması 2 — ERP'NİN KENDİSİ (2026-07-30, 10.300.4180A olayı):
+        # yukarıdaki kontrol yalnızca KENDİ log'umuza bakar. Robot COP'u ERP'ye
+        # yazdığı hâlde 'SONUC=OK' dönmezse (ekran akışı beklenmedik bitti,
+        # bağlantı koptu) log'a 'hata' düşer; satır COP bekleyenlerde kalır ve
+        # tekrar gönderilirse ERP'ye İKİNCİ kez COP girilir. 4180A'da ERP'de COP
+        # 18 vardı ama panel hâlâ bekliyor gösteriyordu. ERP'de bugün bu adet
+        # zaten varsa gönderme; log'a 'ok' yaz ki panel de düzelsin.
+        if not zorla:
+            try:
+                _mevcut = _as400_cfi_bugun(article, causal='COP')
+            except Exception:
+                _mevcut = None          # ERP okunamadı → engelleme (güvenli yön)
+            if _mevcut and any(abs(q - adet) < 0.001 for q in _mevcut):
+                _msg = (f'ERP\'de bugün {article} için {adet:g} adetlik COP hareketi ZATEN var '
+                        f'(robot daha önce yazmış ama log\'a "ok" düşmemiş). Mükerrer COP '
+                        f'girilmedi; kayıt eşitlendi.')
+                conn.execute(
+                    "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, "
+                    "adet, bayrak, sonuc, mesaj, olusturan) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (u_tarih, 'CO', article, referans, article, adet, 'COP', 'ok', _msg, kullanici))
+                conn.commit()
+                sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _msg})
+                continue
         # COP da aynı ekranı (07>01>F1) kullanır — bozuk kod burada da kuyruğu kilitler
         gecersiz = _article_gecersiz_mi(article)
         if gecersiz:
@@ -6840,7 +6863,8 @@ def as400_cop_gonder():
         return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
     try:
         _AS400_DURDUR.clear()
-        sonuclar = _cop_gonder_calistir(get_db(), satirlar, g.panel_ku['kullanici_adi'])
+        sonuclar = _cop_gonder_calistir(get_db(), satirlar, g.panel_ku['kullanici_adi'],
+                                        zorla=bool(data.get('zorla')))
         ozet = {k: sum(1 for r in sonuclar if r['sonuc'] == k) for k in ('ok', 'hata', 'atlandi')}
         return jsonify({'ozet': ozet, 'sonuclar': sonuclar, 'durduruldu': _AS400_DURDUR.is_set()})
     finally:

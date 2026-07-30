@@ -208,7 +208,14 @@ def article_tanimli(kodlar):
     'tanimsiz'i ayirt etsin (bilinmiyorken gonderimi bloklamak yanlis yon)."""
     if not kodlar:
         return set()
-    _guvenli = re.compile(r'^[A-Za-z0-9./\- ]{1,21}$')
+    # Beyaz liste DEGIL, gercek riskler (2026-07-30 duzeltmesi): sorguyu
+    # patlatan tek sey 21+ karakter (CWB0111 truncation) ve ASCII disi karakter
+    # (CWBNL0107 donusum). Karakter beyaz listesi ('.', '/', '-' disini ele)
+    # 318 GERCEK article'i yanlislikla eliyordu — icinde 10.300.1992A_LK gibi
+    # alt cizgili kodlar da vardi ve "ERP'de yok" sanilip teyitleri atlaniyordu.
+    # Her ozel karakter (_ , & ( ) $ * " \x1a) gercek ERP sorgusuyla tek tek VE
+    # toplu test edildi: parametreli sorgu oldugu icin hicbiri patlatmiyor.
+    _guvenli = re.compile(r'^[\x00-\x7F]{1,21}$')
     liste = sorted({str(k).strip() for k in kodlar
                     if str(k or '').strip() and _guvenli.match(str(k).strip())})
     if not liste:
@@ -249,7 +256,14 @@ def teyit_hareketleri(articles):
     #  - ASCII disi (Turkce I/Ü/Ö...) → CWBNL0107 donusum hatasi (2026-07-23
     #    '150 MM-ALUMİNYUM' vakasi). Gercek MGARCD yalniz ASCII kod icerir →
     #    guvenli desene uymayanlar zaten eslesemez, sessizce ele.
-    _guvenli = re.compile(r'^[A-Za-z0-9./\- ]{1,21}$')
+    # Beyaz liste DEGIL, gercek riskler (2026-07-30 duzeltmesi): sorguyu
+    # patlatan tek sey 21+ karakter (CWB0111 truncation) ve ASCII disi karakter
+    # (CWBNL0107 donusum). Karakter beyaz listesi ('.', '/', '-' disini ele)
+    # 318 GERCEK article'i yanlislikla eliyordu — icinde 10.300.1992A_LK gibi
+    # alt cizgili kodlar da vardi ve "ERP'de yok" sanilip teyitleri atlaniyordu.
+    # Her ozel karakter (_ , & ( ) $ * " \x1a) gercek ERP sorgusuyla tek tek VE
+    # toplu test edildi: parametreli sorgu oldugu icin hicbiri patlatmiyor.
+    _guvenli = re.compile(r'^[\x00-\x7F]{1,21}$')
     liste = sorted({str(a).strip() for a in articles
                     if str(a or '').strip() and _guvenli.match(str(a).strip())})
     if not liste:
