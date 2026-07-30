@@ -6,26 +6,52 @@
     <title>Cofle Forge — Giriş</title>
     <link rel="icon" href="/logo?tip=mark">
     <style>
+        /* ═══════════════════════════════════════════════════════════════
+           COFLE FORGE giriş — dashboard paletiyle eşitlendi (2026-07-30).
+           Önceki hâli eski "komuta merkezi" koyu paletindeydi (#060414 zemin,
+           #8b5cf6 mor); dashboard 07-29'da serin nötr AÇIK temaya geçince giriş
+           ekranı tek başına farklı bir üründen gibi duruyordu.
+           Değerler dashboard_v2 :root ile BİREBİR aynı — ikisi ayrışmasın.
+           Koyu tema: dashboard'la ORTAK anahtar (localStorage app_tema).
+           ═══════════════════════════════════════════════════════════════ */
         :root {
-            --bg: #060414;
-            --bg2: #0d0b24;
-            --card: #14122e;
-            --border: #2a2850;
-            --text: #f1f5f9;
-            --muted: #94a3b8;
-            --dim: #64748b;
-            --primary: #8b5cf6;   /* dashboard komuta-merkezi moruyla uyumlu (2026-07-21) */
-            --primary-2: #a78bfa;
-            --danger: #ef4444;
-            --ok: #22c55e;
+            --bg:           #ECECF1;
+            --card:         #FFFFFF;
+            --border:       #D1D1DE;
+            --border-input: #85859A;
+            --text:         #14122B;
+            --muted:        #4E4C63;
+            --dim:          #63617A;
+            --brand:        #7C3AED;   /* logo gradyanının başı */
+            --primary:      #6D28D9;   /* beyazda 7.10:1 */
+            --primary-2:    #A78BFA;   /* gradyan sonu */
+            --danger:       #B4231C;
+            --danger-soft:  #F7E6E4;
+            --ok:           #157A3C;
+            --ok-soft:      #E4F0E8;
+            --golge:        0 18px 44px rgba(20, 18, 43, 0.12);
+        }
+        :root[data-tema="koyu"] {
+            --bg:           #0F0E1E;
+            --card:         #1A1830;
+            --border:       #3A3660;
+            --border-input: #4E4A78;
+            --text:         #F0EFF7;   /* kart üstünde 15.11:1 */
+            --muted:        #B4B0C8;   /*               8.20:1 */
+            --dim:          #918DA8;   /*               5.41:1 */
+            --brand:        #A78BFA;
+            --primary:      #A78BFA;   /* koyuda mor açılır: 6.34:1 */
+            --primary-2:    #C4B5FD;
+            --danger:       #F87171;
+            --danger-soft:  #2A1A1E;
+            --ok:           #4ADE80;
+            --ok-soft:      #14261C;
+            --golge:        0 18px 44px rgba(0, 0, 0, 0.55);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background:
-                radial-gradient(1200px 600px at 20% -10%, rgba(99,102,241,0.18), transparent 60%),
-                radial-gradient(900px 500px at 100% 110%, rgba(59,130,246,0.16), transparent 55%),
-                var(--bg);
+            background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             display: flex;
@@ -36,19 +62,32 @@
         .giris-kart {
             width: 100%;
             max-width: 400px;
-            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), var(--card);
+            background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 20px;
+            border-radius: 16px;
             padding: 38px 32px 30px;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+            box-shadow: var(--golge);
             position: relative;
         }
+        /* marka şeridi — logo gradyanı, kartın üst kenarında */
+        .giris-kart::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(90deg, var(--brand), var(--primary-2));
+            border-radius: 16px 16px 0 0;
+        }
+        .tema-btn {
+            position: absolute; top: 16px; left: 16px;
+            background: transparent; border: 1px solid var(--border);
+            color: var(--muted); border-radius: 8px; padding: 5px 8px;
+            font-size: 0.9rem; cursor: pointer; line-height: 1;
+        }
+        .tema-btn:hover { color: var(--text); border-color: var(--primary); }
         .dil-bar {
             position: absolute; top: 16px; right: 16px;
             display: flex; gap: 4px;
         }
         .dil-btn {
-            background: rgba(255,255,255,0.05);
+            background: transparent;
             border: 1px solid var(--border);
             color: var(--muted);
             border-radius: 8px;
@@ -60,7 +99,7 @@
             display: flex; align-items: center; gap: 4px;
         }
         .dil-btn:hover { color: var(--text); border-color: var(--primary); }
-        .dil-btn.active { background: rgba(59,130,246,0.18); color: var(--text); border-color: var(--primary); }
+        .dil-btn.active { background: var(--primary); color: #FFFFFF; border-color: var(--primary); }
         .dil-bayrak { display: inline-flex; align-items: center; }
         .logo-alan { text-align: center; margin-bottom: 26px; }
         .logo-alan img { height: 46px; width: auto; object-fit: contain; }
@@ -73,8 +112,8 @@
         }
         .alan input {
             width: 100%;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid var(--border);
+            background: var(--card);
+            border: 1px solid var(--border-input);
             border-radius: 11px;
             padding: 13px 14px;
             color: var(--text);
@@ -82,11 +121,11 @@
             outline: none;
             transition: border-color .15s, box-shadow .15s;
         }
-        .alan input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+        .alan input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28); }
         .btn-giris {
             width: 100%;
             margin-top: 8px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            background: linear-gradient(135deg, var(--brand), var(--primary-2));
             color: #fff;
             border: none;
             border-radius: 11px;
@@ -103,14 +142,15 @@
             margin-top: 16px; padding: 11px 13px; border-radius: 10px;
             font-size: 0.86rem; font-weight: 600; display: none; text-align: center;
         }
-        .mesaj.hata { display: block; background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
-        .mesaj.ok { display: block; background: rgba(34,197,94,0.12); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+        .mesaj.hata { display: block; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); }
+        .mesaj.ok { display: block; background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok); }
         .alt-bilgi { text-align: center; margin-top: 22px; color: var(--dim); font-size: 0.75rem; }
         .gizli { display: none !important; }
     </style>
 </head>
 <body>
     <div class="giris-kart">
+        <button class="tema-btn" id="tema-btn" title="Açık / koyu tema">🌙</button>
         <div class="dil-bar" id="dil-bar">
             <!-- Windows bayrak emojisi gostermez → gercek SVG bayraklar (2026-07-21) -->
             <button class="dil-btn" data-dil="tr"><span class="dil-bayrak"><svg viewBox="0 0 18 12" width="18" height="12" style="border-radius:2px;display:block" aria-hidden="true"><rect width="18" height="12" rx="1.5" fill="#e30a17"/><circle cx="7" cy="6" r="3" fill="#fff"/><circle cx="7.9" cy="6" r="2.4" fill="#e30a17"/><polygon points="11.6,4.6 12.02,5.52 13.02,5.57 12.26,6.24 12.5,7.2 11.6,6.68 10.7,7.2 10.94,6.24 10.18,5.57 11.18,5.52" fill="#fff"/></svg></span>TR</button>
@@ -119,7 +159,7 @@
         </div>
 
         <div class="logo-alan">
-            <img src="/logo?tema=koyu" alt="Cofle" onerror="this.style.display='none'">
+            <img id="giris-logo" src="/logo" alt="Cofle" onerror="this.style.display='none'">
             <h1>Cofle Forge</h1>
             <p data-i18n="altbaslik">Yönetici Paneli</p>
         </div>
@@ -195,6 +235,29 @@
                 sunucu_hata: 'Errore del server, riprova'
             }
         };
+        // ── TEMA (2026-07-30) — dashboard ile ORTAK anahtar: app_tema.
+        // Burada seçilen tema panele geçince de geçerli olsun; iki ekran arasında
+        // tema atlaması olmasın. Tercih yoksa işletim sistemi tercihine bakılır.
+        var TEMA = localStorage.getItem('app_tema');
+        if (TEMA !== 'koyu' && TEMA !== 'acik') {
+            TEMA = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+                ? 'koyu' : 'acik';
+        }
+        function temaUygula() {
+            document.documentElement.setAttribute('data-tema', TEMA);
+            var b = document.getElementById('tema-btn');
+            if (b) b.textContent = (TEMA === 'koyu') ? '☀' : '🌙';
+            // Logo iki sürümlü: koyu zeminde beyaz alt yazılı olan okunur.
+            var l = document.getElementById('giris-logo');
+            if (l) l.src = (TEMA === 'koyu') ? '/logo?tema=koyu' : '/logo';
+        }
+        document.getElementById('tema-btn').addEventListener('click', function () {
+            TEMA = (TEMA === 'koyu') ? 'acik' : 'koyu';
+            localStorage.setItem('app_tema', TEMA);
+            temaUygula();
+        });
+        temaUygula();
+
         var DIL = localStorage.getItem('app_dil') || 'tr';
         if (!SOZLUK[DIL]) DIL = 'tr';
 
