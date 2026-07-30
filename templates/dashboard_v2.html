@@ -295,7 +295,7 @@
         /* ── SIDEBAR ── */
         .sidebar {
             width: 250px;
-            background: #ffffff;                 /* açık tema: beyaz kenar çubuğu */
+            background: var(--card);                 /* tema değişkeninden — koyu temada koyu kenar çubuğu */
             border-right: 1px solid var(--border);
             display: flex; flex-direction: column;
             position: fixed; top: 0; left: 0; height: 100vh; z-index: 100;
@@ -792,7 +792,7 @@
         /* Ortak grafik tooltip'i */
         .gfx-tooltip {
             position: fixed; z-index: 600; display: none; pointer-events: none;
-            background: #ffffff; border: 1px solid rgba(15, 23, 42, 0.12);
+            background: var(--card); border: 1px solid rgba(15, 23, 42, 0.12);
             border-radius: 10px; padding: 8px 12px; max-width: 280px;
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
         }
@@ -870,7 +870,7 @@
         .modal-overlay.open { opacity: 1; pointer-events: all; }
         .modal {
             /* Cam --card modalda fazla seffaf kalir → opak mor-lacivert taban + cam parlama */
-            background: #ffffff;
+            background: var(--card);
             border: 1px solid var(--card-border);
             border-radius: var(--radius); padding: 24px;
             width: 100%; max-width: 380px; position: relative;
@@ -979,7 +979,7 @@
         .detail-panel {
             position: fixed; top: 0; right: -520px; width: 500px; max-width: 100vw;
             height: 100vh; z-index: 900; padding: 28px; overflow-y: auto;
-            background: #ffffff;
+            background: var(--card);
             border-left: 1px solid var(--card-border);
             box-shadow: -18px 0 50px rgba(15, 23, 42, 0.14);
             transition: right 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -1096,7 +1096,7 @@
             color: var(--text); font-family: var(--font-main);
         }
         .rt-row-select { cursor: pointer; }
-        .rt-row-select option { background: #ffffff; color: var(--text); }
+        .rt-row-select option { background: var(--card); color: var(--text); }
         .rt-row-input { width: 60px; text-align: center; }
         .rt-row-select:focus, .rt-row-input:focus {
             outline: none; border-color: var(--c-cyan);
@@ -10443,12 +10443,21 @@ window.__I18N_SOZLUK__ = {
                     var ki = trMi ? iR++ : iT++;
                     var blok = '';
                     var det = k.detay || {};
-                    var sabah = det.sabah_kontrol || [];
-                    var renk = (k.hata > 0) ? 'var(--danger)' : (sabah.length ? 'var(--warn)' : 'var(--success)');
-                    blok += '<details' + (ki === 0 && (sabah.length || k.hata > 0) ? ' open' : '') + ' style="margin:6px 0">' +
+                    // ÇÖZÜLENLER GİZLENİR (2026-07-30, kullanıcı: "kontrol kısmında
+                    // düzeltilen şeyleri göstermeyelim"). Backend her satırı canlı
+                    // durumla karşılaştırıp cozuldu işaretliyor: sonradan teyit
+                    // verilmiş / kalıcı "gerek yok" / panelden işaretlenmiş.
+                    // Kaç tanesinin gizlendiği yazılır — sessizce yutulmaz.
+                    var sabahHepsi = det.sabah_kontrol || [];
+                    var sabah = sabahHepsi.filter(function (x) { return !x.cozuldu; });
+                    var cozulen = sabahHepsi.length - sabah.length;
+                    var renk = (k.hata > 0 && sabah.length) ? 'var(--danger)' : (sabah.length ? 'var(--warn)' : 'var(--success)');
+                    blok += '<details' + (ki === 0 && sabah.length ? ' open' : '') + ' style="margin:6px 0">' +
                         '<summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:' + renk + '">' +
                         (k.tur === 'transfer' ? '🔄' : '📤') + ' ' + esc((k.created_at || '').slice(0, 16)) + ' · ' + esc(k.ozet || '') +
-                        (sabah.length ? ' · 🌅 ' + sabah.length + ' satır kontrol bekliyor' : '') + '</summary>';
+                        (sabah.length ? ' · 🌅 ' + sabah.length + ' satır kontrol bekliyor' : '') +
+                        (cozulen ? ' <span style="color:var(--success);font-weight:600">· ✅ ' + cozulen + ' satır çözülmüş (gizlendi)</span>' : '') +
+                        (!sabah.length && !cozulen ? '' : '') + '</summary>';
                     if (sabah.length) {
                         blok += '<div class="table-wrap" style="margin:6px 0"><table class="admin-table"><thead><tr>' +
                             '<th>Tip</th><th>Gün</th><th>Referans/Kod</th><th style="text-align:right">Adet</th><th>Neden</th></tr></thead><tbody>';

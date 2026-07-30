@@ -7623,6 +7623,59 @@ def as400_oto_kosu():
             kosular.append(d)
     except Exception as e:
         return jsonify({'hata': str(e)}), 500
+
+    # ── ÇÖZÜLMÜŞ SATIRLARI İŞARETLE (2026-07-30, kullanıcı: "kontrol kısmında
+    # düzeltilen şeyleri göstermeyelim") ─────────────────────────────────────
+    # Sabah kontrol listesi koşu ANINDA donuyor: o gün emin olunamayan satırlar
+    # JSON'a yazılıyor ve bir daha güncellenmiyordu. Sonradan teyit verilse veya
+    # kullanıcı "gerek yok"/"kontrol edildi" işaretlese bile satır listede
+    # kalıyor, panel çözülmüş işleri bekliyormuş gibi gösteriyordu.
+    # Burada her satır CANLI durumla karşılaştırılır; çözülmüşler cozuldu=True
+    # alır ve panelde gizlenir (sayısı ayrıca bildirilir — sessiz kesme yok).
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+
+        # (üretim günü, kanonik kod) → o güne o koda BAŞARILI gönderim yapılmış
+        basarili = set()
+        for r in conn.execute(
+                "SELECT uretim_tarihi, referans, article FROM as400_teyit_log WHERE sonuc='ok'").fetchall():
+            for kod in (r['referans'], r['article']):
+                if kod:
+                    basarili.add((r['uretim_tarihi'] or '', _le.kanonik(kod)))
+        # kullanıcı işaretleri: kalıcı 'gerek_yok' + o güne özel her işaret
+        kalici = _le.kalici_haric_set()
+        gunluk = set()
+        for r in conn.execute(
+                "SELECT uretim_tarihi, referans FROM as400_teyit_isaret WHERE kapsam='gun'").fetchall():
+            gunluk.add((r['uretim_tarihi'] or '', _le.kanonik(r['referans'] or '')))
+
+        for k in kosular:
+            sabah = (k.get('detay') or {}).get('sabah_kontrol') or []
+            acik = 0
+            for s in sabah:
+                kn = _le.kanonik(s.get('referans') or s.get('article') or '')
+                t = s.get('tarih') or ''
+                if not kn:
+                    acik += 1
+                    continue
+                if kn in kalici:
+                    s['cozuldu'], s['cozum'] = True, 'kalıcı olarak "teyit gerekmez" işaretli'
+                elif (t, kn) in basarili:
+                    s['cozuldu'], s['cozum'] = True, 'bu üretim günü için teyit sonradan verilmiş'
+                elif (t, kn) in gunluk:
+                    s['cozuldu'], s['cozum'] = True, 'panelden elle işaretlenmiş'
+                else:
+                    acik += 1
+            k['acik_kontrol'] = acik
+            k['cozulen_kontrol'] = len(sabah) - acik
+    except Exception as e:
+        # Tespit edilemezse hiçbir satır gizlenmez (güvenli yön: eksik gösterme)
+        print(f'[oto_kosu] cozuldu tespiti atlandi: {e}')
+
     return jsonify({'kosular': kosular, 'config': _oto_config(), 'agent': _teyit_agent_var()})
 
 

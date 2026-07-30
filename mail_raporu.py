@@ -247,10 +247,10 @@ def _html_govde(tarih_tr, satir, toplam, kirilim):
         return (f'<td width="50%" style="padding:0 6px" valign="top">'
                 f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
                 f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px"><tr>'
-                f'<td style="padding:14px 16px;font-family:Segoe UI,Arial,sans-serif">'
-                f'<div style="font-size:11px;font-weight:700;color:{gri};'
+                f'<td style="padding:11px 13px;font-family:Segoe UI,Arial,sans-serif">'
+                f'<div style="font-size:10px;font-weight:700;color:{gri};'
                 f'text-transform:uppercase;letter-spacing:.4px">{baslik}</div>'
-                f'<div style="font-size:26px;font-weight:800;color:{renk};padding-top:4px">'
+                f'<div style="font-size:20px;font-weight:800;color:{renk};padding-top:3px">'
                 f'{deger}</div></td></tr></table></td>')
 
     if satir:
@@ -262,45 +262,47 @@ def _html_govde(tarih_tr, satir, toplam, kirilim):
             renk = _BOLUM_RENK.get(k['bolum'], mor)
             satirlar += (
                 f'<tr>'
-                f'<td style="padding:10px 14px;border-bottom:1px solid {cizgi};'
-                f'font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:{koyu}">'
+                f'<td style="padding:8px 13px;border-bottom:1px solid {cizgi};'
+                f'font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:{koyu}">'
                 f'<span style="display:inline-block;width:3px;height:13px;background:{renk};'
                 f'vertical-align:-2px;margin-right:9px"></span>'
                 f'<b>{ad}</b> <span style="color:{gri}">· {k["tesis"]}</span></td>'
                 f'<td align="right" style="padding:10px 14px;border-bottom:1px solid {cizgi};'
-                f'font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:{gri}">'
+                f'font-family:Segoe UI,Arial,sans-serif;font-size:11px;color:{gri}">'
                 f'{k["satir"]} satır</td>'
                 f'<td align="right" style="padding:10px 14px;border-bottom:1px solid {cizgi};'
-                f'font-family:Segoe UI,Arial,sans-serif;font-size:14px;font-weight:800;color:{koyu}">'
+                f'font-family:Segoe UI,Arial,sans-serif;font-size:13px;font-weight:800;color:{koyu}">'
                 f'{k["adet"]:,}'.replace(',', '.') + '</td></tr>')
         tablo = ('' if not kirilim else
                  f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
                  f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px;'
                  f'margin-top:18px"><tr><td colspan="3" style="padding:13px 14px;'
                  f'border-bottom:1px solid {cizgi};font-family:Segoe UI,Arial,sans-serif;'
-                 f'font-size:11px;font-weight:700;color:{gri};text-transform:uppercase;'
+                 f'font-size:10px;font-weight:700;color:{gri};text-transform:uppercase;'
                  f'letter-spacing:.4px">Bölüm bazında</td></tr>{satirlar}</table>')
         icerik = (
-            f'<p style="margin:0 0 16px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
+            f'<p style="margin:0 0 14px;font-family:Segoe UI,Arial,sans-serif;font-size:13px;'
             f'color:{koyu}">Merhaba,<br><b>{tarih_tr}</b> tarihli günlük üretim raporu ektedir.</p>'
             f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             f'style="margin:0 -6px">{kartlar}</table>{tablo}'
-            f'<p style="margin:18px 0 0;font-family:Segoe UI,Arial,sans-serif;font-size:13px;'
+            f'<p style="margin:16px 0 0;font-family:Segoe UI,Arial,sans-serif;font-size:12px;'
             f'color:{gri}">Operatör ve referans kırılımı ekteki Excel dosyasındadır.</p>')
     else:
         icerik = (
-            f'<p style="margin:0 0 14px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
+            f'<p style="margin:0 0 12px;font-family:Segoe UI,Arial,sans-serif;font-size:13px;'
             f'color:{koyu}">Merhaba,</p>'
             f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px"><tr>'
             f'<td style="padding:18px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
-            f'color:{koyu};text-align:center">'
+            f'color:{koyu};text-align:center;font-size:13px">'
             f'<b>{tarih_tr}</b> tarihinde sisteme kayıtlı üretim bulunmamaktadır.</td>'
             f'</tr></table>')
 
     return (
         f'<!DOCTYPE html><html><head><meta charset="utf-8">'
-        f'<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<meta name="color-scheme" content="light only">'
+        f'<meta name="supported-color-schemes" content="light"></head>'
         f'<body style="margin:0;padding:0;background:#ECECF1">'
         f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
         f'style="background:#ECECF1;padding:24px 12px"><tr><td align="center">'
@@ -309,14 +311,14 @@ def _html_govde(tarih_tr, satir, toplam, kirilim):
         # başlık şeridi — logo gradyanı (#7C3AED → #A78BFA); gradyan desteklemeyen
         # istemcide düz mor kalır, metin beyaz olduğu için kontrast korunur
         f'<tr><td style="background:{mor};background-image:linear-gradient(90deg,#7C3AED,#A78BFA);'
-        f'border-radius:12px 12px 0 0;padding:20px 22px">'
-        f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:19px;font-weight:800;'
+        f'border-radius:12px 12px 0 0;padding:15px 18px">'
+        f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:800;'
         f'color:#FFFFFF;letter-spacing:.5px">COFLE FORGE</div>'
-        f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#EDE4FE;'
+        f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:11px;color:#EDE4FE;'
         f'padding-top:3px">Günlük Üretim Raporu · {tarih_tr}</div></td></tr>'
         f'<tr><td style="background:#ECECF1;padding:20px 4px 4px">{icerik}</td></tr>'
         f'<tr><td style="padding:16px 4px 0;font-family:Segoe UI,Arial,sans-serif;'
-        f'font-size:11px;color:{gri};border-top:1px solid {cizgi};margin-top:10px">'
+        f'font-size:10px;color:{gri};border-top:1px solid {cizgi};margin-top:10px">'
         f'Bu e-posta Cofle Forge üretim takip sistemi tarafından otomatik gönderilmiştir.'
         f'</td></tr></table></td></tr></table></body></html>')
 
