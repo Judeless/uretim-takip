@@ -118,14 +118,18 @@
       padding: 0 6px 6px;
       border-bottom: 1px solid var(--line);
     }
-    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; overflow: visible; }
     .brand-logo {
-      height: 42px; width: auto; object-fit: contain;
+      /* 2026-07-30: 42px'te wordmark kucuk kaliyordu ve dar ekranda sagi
+         kirpilabiliyordu. Yukseklik buyutuldu, flex-shrink:0 ile daralma
+         engellendi, max-width serbest birakildi (oran korunur). */
+      height: 56px; width: auto; max-width: none; flex-shrink: 0;
+      object-fit: contain; object-position: left center;
       filter: drop-shadow(0 0 10px rgba(167,139,250,0.35));
     }
     .brand-text { display: flex; flex-direction: column; gap: 2px; }
     .brand-name { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.06em; }
-    .brand-sub  { font-size: 0.62rem; color: var(--muted); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; }
+    .brand-sub  { font-size: 0.68rem; color: var(--muted); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; }
 
     .clock { text-align: center; }
     .clock-time {
@@ -795,7 +799,7 @@
         text-align: center;
       }
       .brand { justify-content: center; }
-      .brand-logo { height: 34px; }
+      .brand-logo { height: 42px; }
       .brand-name { font-size: 0.95rem; }
       .clock-time { font-size: 1.8rem; }
       .clock-date { font-size: 0.6rem; letter-spacing: 0.18em; }

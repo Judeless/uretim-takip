@@ -223,10 +223,13 @@ function adetEslesir(t) {
 function hedefBulSayfa(satlar) {
     // 1) article + satir no (MGPRRE) ayni ekran satirinda
     for (var a = 0; a < satlar.length; a++)
-        if (satlar[a].indexOf(ARTICLE) >= 0 && reSatirNo.test(satlar[a])) return a + 1;
+        // HARF DUYARSIZ (2026-07-30): operator kodu kucuk harfle yazabiliyor
+        // (94.ltk.704); AS400 ekrani BUYUK gosterir. Harf duyarli arama, ERP'ye
+        // BASARIYLA girilen hareketi 'gorunmedi' diye iptal ettiriyordu.
+        if (satlar[a].toUpperCase().indexOf(ARTICLE.toUpperCase()) >= 0 && reSatirNo.test(satlar[a])) return a + 1;
     // 2) article + adet (italyan bicim) ayni satirda
     for (var b = 0; b < satlar.length; b++)
-        if (satlar[b].indexOf(ARTICLE) >= 0 && adetEslesir(satlar[b])) return b + 1;
+        if (satlar[b].toUpperCase().indexOf(ARTICLE.toUpperCase()) >= 0 && adetEslesir(satlar[b])) return b + 1;
     return -1;
 }
 // PAGE DOWN mnemonigi (bu PCOMM secici: [fieldexit] red, [fldext] kabul olmustu —
@@ -265,7 +268,7 @@ while (hedefRow < 0 && sayfa < MAX_SAYFA && dongu < 60) {
     if (eS.indexOf("Risorsa richiesta") >= 0 || eS.indexOf("Riprova") >= 0 || eS.indexOf("fase di aggiornamento") >= 0) {
         kilitCoz(); ps.SendKeys("[enter]"); bekle(); continue;
     }
-    if (eS.indexOf(ARTICLE) >= 0) articleGoruldu = true;
+    if (eS.toUpperCase().indexOf(ARTICLE.toUpperCase()) >= 0) articleGoruldu = true;
     hedefRow = hedefBulSayfa(ekran());
     if (hedefRow >= 0) break;
     // Bu sayfada yok → PAGE DOWN ile sonraki sayfaya bak
@@ -347,7 +350,7 @@ if (eV.toLowerCase().indexOf("errore") >= 0) iptal("'2' + Enter sonrasi hata mes
 // (article arama kutusu) gitmis demektir (kullanici 2026-07-28 248632 vakasi).
 if (eV.indexOf("not defined") >= 0 || eV.toLowerCase().indexOf("non definit") >= 0)
     iptal("AS400 'article tanimsiz' dedi — opsiyon '2' yanlis kutucuga gitmis (2. kutucuk hedeflenmeli); Shift+F4 BASILMADI");
-if (eV.indexOf(ARTICLE) < 0) iptal("Detay ekraninda article gorunmedi");
+if (eV.toUpperCase().indexOf(ARTICLE.toUpperCase()) < 0) iptal("Detay ekraninda article gorunmedi");
 // Causal TA SARTI (yanlis hareket silinmesin)
 var mCa = /Causal\s*cd[.\s]*\s([A-Z]{2,3})\b/.exec(eV);
 if (!mCa) iptal("Detay ekraninda 'Causal cd' okunamadi — F16 BASILMAYACAK");
@@ -402,7 +405,7 @@ dump("f16-sonrasi");
 // Ekranda article hala ayni satirda ayni adetle duruyorsa suphelen (yine de
 // Python dogrulamasi belirleyici — burada yalniz bilgi logu).
 var eSon = ekranStr();
-if (eSon.indexOf(ARTICLE) >= 0 && anaListeMi(eSon) === false && girisEkraniMi(eSon) === false)
+if (eSon.toUpperCase().indexOf(ARTICLE.toUpperCase()) >= 0 && anaListeMi(eSon) === false && girisEkraniMi(eSon) === false)
     log("BILGI: article hala ekranda gorunuyor — Python BMMAF0 dogrulamasi belirleyici olacak");
 // B'yi 07>01 ana ekraninda BIRAK — sonraki cagri kayit no'yu direkt girer, ana
 // menuye surunmez (kullanici 2026-07-27: ardisik iptallerde vakit kaybi olmasin).

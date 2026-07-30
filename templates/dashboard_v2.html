@@ -394,8 +394,9 @@
             }
         }
         .breadcrumb {
-            font-size: 0.85rem; color: var(--muted); font-weight: 600;
-            border-left: 1px solid var(--border); padding-left: 14px;
+            /* Soldaki ayırıcı çizgi KALDIRILDI (2026-07-30): marka metni topbar'dan
+               çıkınca çizgi hiçbir şeyi ayırmıyor, boşluğa dayanıyordu. */
+            font-size: 0.9rem; color: var(--muted); font-weight: 600;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .breadcrumb b { color: var(--text); font-weight: 800; }
@@ -4265,7 +4266,9 @@ window.__I18N_SOZLUK__ = {
             <div class="topbar">
                 <div class="topbar-left">
                     <button class="hamburger" onclick="sidebarAc()" aria-label="Menü">☰</button>
-                    <span class="brand">Cofle Forge</span>
+                    <!-- Marka metni KALDIRILDI (2026-07-30): kenar çubuğunda
+                         zaten "COFLE FORGE" logosu var; ikisi yan yana marka
+                         adını iki kez yazıyordu (andon ile aynı düzeltme). -->
                     <span class="breadcrumb" id="breadcrumb"><b>Fabrika Özeti</b></span>
                     <!-- ÜST BAR BÖLÜM SEÇİCİ (2026-07-28): eskiden yalnız "Üretim & OEE"
                          sayfasının içindeydi → Kayıtlar/Referanslar gibi sayfalarda bölüm

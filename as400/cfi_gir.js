@@ -199,7 +199,10 @@ for (var d2 = 0; d2 < 10 && !basarili; d2++) {
     var listede = false;
     for (var li = 2; li < 7 && li < sats.length; li++) {
         var sl = sats[li];
-        if (sl.indexOf(ARTICLE) >= 0) {
+        // HARF DUYARSIZ (2026-07-30): operator kodu kucuk harfle yazabiliyor
+        // (94.ltk.704); AS400 ekrani BUYUK gosterir. Harf duyarli arama, ERP'ye
+        // BASARIYLA girilen hareketi 'gorunmedi' diye iptal ettiriyordu.
+        if (sl.toUpperCase().indexOf(ARTICLE.toUpperCase()) >= 0) {
             // Ayni satirda adet (italyan bicimi: 53 → '53,000'; binlik nokta olabilir)
             var m = /([\d\.]+),000/.exec(sl);
             if (m && parseInt(m[1].replace(/\./g, ""), 10) === parseInt(ADET, 10)) { listede = true; break; }

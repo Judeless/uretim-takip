@@ -7653,6 +7653,30 @@ def as400_oto_kosu():
                 "SELECT uretim_tarihi, referans FROM as400_teyit_isaret WHERE kapsam='gun'").fetchall():
             gunluk.add((r['uretim_tarihi'] or '', _le.kanonik(r['referans'] or '')))
 
+        # ERP KANALI (2026-07-30, 94.ltk.704 olayı): robot hareketi ERP'ye YAZDIĞI
+        # hâlde ekran doğrulaması tutmazsa log'a 'hata' düşer ve satır sonsuza
+        # kadar "kontrol bekliyor" görünür. 704'te ERP'de 07-29 CFI 24 vardı ama
+        # panel hata gösteriyordu. Kendi log'umuz tek kanal olamaz — ERP'ye de bak.
+        # Sorgu yalnız listede GERÇEKTEN açık kalan kodlar için yapılır (pahalı).
+        acik_adaylar = set()
+        for k in kosular:
+            for s in ((k.get('detay') or {}).get('sabah_kontrol') or []):
+                kod = (s.get('referans') or s.get('article') or '').strip()
+                kn = _le.kanonik(kod)
+                if kod and kn and kn not in kalici and (s.get('tarih') or '', kn) not in basarili \
+                        and (s.get('tarih') or '', kn) not in gunluk:
+                    # ERP sorgusu TAM eşleşme; operatör kodu küçük harfle yazmış
+                    # olabilir (94.ltk.704 ⇄ ERP'de 94.LTK.704). Her iki yazımı da
+                    # sor — sonuç zaten kanonik anahtarla toplanıyor.
+                    acik_adaylar.add(kod)
+                    acik_adaylar.add(kod.upper())
+        erp_hrk = {}
+        if acik_adaylar:
+            try:
+                erp_hrk = _le.teyit_hareketleri(sorted(acik_adaylar)) or {}
+            except Exception as _e:
+                print(f'[oto_kosu] ERP kanali atlandi: {_e}')
+
         for k in kosular:
             sabah = (k.get('detay') or {}).get('sabah_kontrol') or []
             acik = 0
@@ -7669,7 +7693,16 @@ def as400_oto_kosu():
                 elif (t, kn) in gunluk:
                     s['cozuldu'], s['cozum'] = True, 'panelden elle işaretlenmiş'
                 else:
-                    acik += 1
+                    # ERP'de üretim gününde VEYA sonrasında bu adetle hareket var mı?
+                    _h = [x for x in (erp_hrk.get(kn) or [])
+                          if (not t or x.get('tarih', '') >= t)
+                          and abs(float(x.get('adet') or 0) - float(s.get('adet') or 0)) < 0.001]
+                    if _h:
+                        s['cozuldu'] = True
+                        s['cozum'] = (f"ERP'de kayıtlı: {_h[0]['tarih']} · {_h[0].get('tur', '')} "
+                                      f"{_h[0]['adet']:g} adet (robot yazdı, ekran doğrulaması tutmamış)")
+                    else:
+                        acik += 1
             k['acik_kontrol'] = acik
             k['cozulen_kontrol'] = len(sabah) - acik
     except Exception as e:
