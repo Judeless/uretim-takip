@@ -4335,7 +4335,7 @@ def ozet():
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
-        ORDER BY v.tarih DESC, v.robot_no ASC
+        ORDER BY v.tarih DESC, u.referans_kodu ASC, v.robot_no ASC, v.operator_adi ASC
     ''', param_vardiya).fetchall()
 
     # Robot + Referans bazlı üretim kırılımı

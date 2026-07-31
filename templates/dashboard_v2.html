@@ -7243,13 +7243,32 @@ window.__I18N_SOZLUK__ = {
                 return;
             }
             if (count) count.textContent = data.length + ' kayıt';
-            tbody.innerHTML = data.map(u => {
-                const ctStr = u.cycle_time_sn > 0 ? `<span style="color:var(--muted)">${Math.round(u.cycle_time_sn)} sn</span>` : `<span style="color:var(--lg-amber);font-size:.75rem">—</span>`;
-                return `<tr>
-                    <td>${u.tarih}</td>
+            // ── AYNI REFERANS ALT ALTA + ARA TOPLAM (2026-07-31) ──────────────
+            // Kullanıcı: "aynı referansı farklı kişiler ürettiğinde o referansları
+            // alt alta sıralayalım. aynı yapılan ürünleri görmesi ve toplaması
+            // kolay olsun." Backend artık tarih → REFERANS → robot sırasıyla
+            // gönderiyor; burada aynı referans bloğu görsel olarak gruplanıyor
+            // ve blok birden fazla satırsa altına toplam ekleniyor.
+            const grupAnahtar = u => (u.tarih || '') + '|' + (u.referans_kodu || '');
+            let html = '', blok = [], oncekiTarih = null;
+
+            function blokYaz() {
+                if (!blok.length) return;
+                const cok = blok.length > 1;
+                blok.forEach((u, i) => {
+                    const ctStr = u.cycle_time_sn > 0
+                        ? `<span style="color:var(--muted)">${Math.round(u.cycle_time_sn)} sn</span>`
+                        : `<span style="color:var(--lg-amber);font-size:.75rem">—</span>`;
+                    // Aynı blokta referansı YALNIZ ilk satırda yaz; devamı girintili
+                    // görünsün ki "bunlar aynı ürün" bakışta anlaşılsın.
+                    const refHucre = (i === 0)
+                        ? `<b>${u.referans_kodu}</b>` + (cok ? ` <span style="color:var(--dim);font-size:.72rem">×${blok.length}</span>` : '')
+                        : `<span style="color:var(--dim)">↳</span>`;
+                    html += `<tr${cok ? ' style="background:var(--surface-2)"' : ''}>
+                    <td>${i === 0 ? u.tarih : ''}</td>
                     <td><span class="badge badge-blue">${u.robot_no}</span></td>
                     <td style="font-size:.8rem">${u.operator_adi}</td>
-                    <td><b>${u.referans_kodu}</b></td>
+                    <td>${refHucre}</td>
                     <td style="text-align:right;color:var(--success);font-weight:700">${u.ok_adet}</td>
                     <td style="text-align:right;color:var(--danger);font-weight:700">${u.nok_adet}</td>
                     <td style="text-align:right">${ctStr}</td>
@@ -7257,7 +7276,32 @@ window.__I18N_SOZLUK__ = {
                         <button onclick="duzenleUretim(${u.uretim_id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet || 0}, ${u.cycle_time_sn || 0})" class="adm-btn duzenle">✏️ Düzenle</button>
                     </td>
                 </tr>`;
-            }).join('');
+                });
+                if (cok) {
+                    const tOk = blok.reduce((a, u) => a + (u.ok_adet || 0), 0);
+                    const tNok = blok.reduce((a, u) => a + (u.nok_adet || 0), 0);
+                    html += `<tr style="background:var(--surface-2);border-bottom:2px solid var(--border)">
+                    <td colspan="4" style="text-align:right;font-size:.78rem;color:var(--muted);font-weight:700">
+                        ${blok[0].referans_kodu} toplamı (${blok.length} kayıt) →</td>
+                    <td style="text-align:right;color:var(--success);font-weight:800">${tOk}</td>
+                    <td style="text-align:right;color:${tNok > 0 ? 'var(--danger)' : 'var(--muted)'};font-weight:800">${tNok}</td>
+                    <td colspan="2"></td>
+                </tr>`;
+                }
+                blok = [];
+            }
+
+            data.forEach(u => {
+                if (blok.length && grupAnahtar(blok[0]) !== grupAnahtar(u)) blokYaz();
+                // Gün değişiminde ayırıcı — tarih sütunu yalnız blok başında yazılıyor
+                if (oncekiTarih !== null && oncekiTarih !== u.tarih && !blok.length) {
+                    html += `<tr><td colspan="8" style="padding:2px 0;background:var(--border-subtle)"></td></tr>`;
+                }
+                oncekiTarih = u.tarih;
+                blok.push(u);
+            });
+            blokYaz();
+            tbody.innerHTML = html;
         }
 
         // ── DURUŞ KIRILIM TABLOSU + TİP ÖZETİ ──
