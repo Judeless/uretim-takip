@@ -5519,7 +5519,8 @@ window.__I18N_SOZLUK__ = {
                                 <div class="as4-adim"><div class="as4-adim-no">1</div><div>
                                     <div class="as4-adim-baslik">Plan alınır</div>
                                     <div class="as4-adim-metin">Planlamanın haftalık "Kaynak ihtiyaçları"
-                                    dosyası okunur. Öncelik sırası ve launch ihtiyacı korunur.</div></div></div>
+                                    dosyası okunur. İhtiyaç ölçütü <b>6 haftalık açık</b>; hâlihazırda
+                                    açık launch'lar düşülür.</div></div></div>
                                 <div class="as4-adim"><div class="as4-adim-no">2</div><div>
                                     <div class="as4-adim-baslik">ERP hesaplar</div>
                                     <div class="as4-adim-metin">Her kodun 1. seviye ürün ağacı ve alt
@@ -5533,7 +5534,13 @@ window.__I18N_SOZLUK__ = {
                             <div class="as4-sozluk">
                                 <div class="as4-terim"><b>Üretilebilir</b><span>En kısıtlayan alt parçanın
                                 izin verdiği adet: min(01D+CF2 stok ÷ ağaçtaki birim miktar).</span></div>
-                                <div class="as4-terim"><b>TALİMAT VER</b><span>Launch ihtiyacı var ve
+                                <div class="as4-terim"><b>6 Hafta Açık</b><span>6 haftalık toplam
+                                ihtiyaç − toplam stok. Pozitifse o kadar açık var.</span></div>
+                                <div class="as4-terim"><b>Açık Launch</b><span>ERP'de şu an açık olan
+                                launch'lar — o kadarı zaten gelecek, ihtiyaçtan düşülür.</span></div>
+                                <div class="as4-terim"><b>GEREKEN</b><span>6 haftalık açık − açık launch.
+                                Yeni launch alınması gereken adet.</span></div>
+                                <div class="as4-terim"><b>TALİMAT VER</b><span>Gereken adet var ve
                                 malzeme yetiyor — talimat oluşturulabilir.</span></div>
                                 <div class="as4-terim"><b>KISMİ</b><span>Malzeme var ama ihtiyacın
                                 tamamına yetmiyor.</span></div>
@@ -5554,7 +5561,7 @@ window.__I18N_SOZLUK__ = {
                         <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">
                             Göster:
                             <select id="kp-filtre" class="as4g-inp" onchange="kpCiz()">
-                                <option value="aksiyon">Launch ihtiyacı olanlar</option>
+                                <option value="aksiyon">6 haftalık açığı olanlar</option>
                                 <option value="hepsi">Tüm plan</option>
                                 <option value="TALIMAT VER">Talimat verilebilir</option>
                                 <option value="KISMI">Kısmi</option>
@@ -10440,7 +10447,7 @@ window.__I18N_SOZLUK__ = {
             var liste = hepsi.filter(function (s) {
                 if (ara && (s.kaynak_kod + ' ' + (s.urun || '')).toUpperCase().replace(/\s/g, '').indexOf(ara) < 0) return false;
                 if (f === 'hepsi') return true;
-                if (f === 'aksiyon') return (s.launch_ihtiyac || 0) > 0;
+                if (f === 'aksiyon') return (s.gereken || 0) > 0;
                 if (f === 'degisen') return s.degisim !== null && s.degisim !== 0;
                 if (f === 'notlu') return !!(s.aciklama || '').trim();
                 return s.karar === f;
@@ -10462,7 +10469,10 @@ window.__I18N_SOZLUK__ = {
             }
             var h = '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                 '<th style="width:44px">Sıra</th><th>Kaynak Kodu</th><th>Ürün</th>' +
-                '<th style="text-align:right">Launch İht.</th><th style="text-align:right">Üretilebilir</th>' +
+                '<th style="text-align:right" title="6 haftalık toplam ihtiyaç − toplam stok">6 Hafta Açık</th>' +
+                "<th style=\"text-align:right\" title=\"şu an ERP'de açık olan launch'lar — o kadarı zaten gelecek\">Açık Launch</th>" +
+                '<th style="text-align:right" title="6 haftalık açık − açık launch">GEREKEN</th>' +
+                '<th style="text-align:right">Üretilebilir</th>' +
                 '<th style="text-align:right">Değişim</th><th>Karar</th><th>Kısıtlayan</th>' +
                 '<th style="min-width:190px">Not</th></tr></thead><tbody>';
             liste.forEach(function (s) {
@@ -10485,7 +10495,10 @@ window.__I18N_SOZLUK__ = {
                         ((s.agac_farki && s.agac_farki.length) ? ' <span title="ERP ağacı plandakinden farklı: ' +
                             esc(s.agac_farki.join(', ')) + '" style="color:var(--warn)">≠</span>' : '') + '</td>' +
                     '<td style="font-size:.8rem;color:var(--muted)">' + esc(s.urun || '') + '</td>' +
-                    '<td style="text-align:right">' + fmt(s.launch_ihtiyac || 0) + '</td>' +
+                    '<td style="text-align:right;color:' + ((s.acik_6h || 0) > 0 ? 'var(--text)' : 'var(--dim)') + '">' +
+                        fmt(s.acik_6h || 0) + '</td>' +
+                    '<td style="text-align:right;color:var(--muted)">' + fmt(s.acik_launch || 0) + '</td>' +
+                    '<td style="text-align:right;font-weight:800">' + fmt(s.gereken || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' +
                         (s.uretilebilir === null ? '<span style="color:var(--dim)">—</span>' : fmt(s.uretilebilir)) + '</td>' +
                     '<td style="text-align:right">' + dg + '</td>' +
@@ -10498,7 +10511,7 @@ window.__I18N_SOZLUK__ = {
                         (s.not_guncelleyen ? ' title="' + esc(s.not_guncelleyen + ' · ' + (s.not_guncellendi || '')) + '"' : '') +
                         '></td></tr>' +
                     '<tr id="kp-parca-' + esc(s.kaynak_kod).replace(/[^A-Za-z0-9]/g, '_') + '" style="display:none">' +
-                    '<td colspan="9" style="background:var(--surface-2);padding:0"></td></tr>';
+                    '<td colspan="11" style="background:var(--surface-2);padding:0"></td></tr>';
             });
             h += '</tbody></table></div>';
             el.innerHTML = h;
@@ -11253,6 +11266,15 @@ window.__I18N_SOZLUK__ = {
             _as4CfiBekleyen = [];
             var teyitli = [], dikkat = [], araList = [], digerList = [], haricList = [];
 
+            // SADECE HURDA satırı (2026-07-31): o gün o referanstan sağlam üretim
+            // YOK, yalnız hurda var (ok_adet=0, nok_adet>0). Backend bu satırları
+            // artık listeden düşürmüyor (eskiden kaybolup COP'u hiç girilemiyordu),
+            // ama teyit edilecek adetleri olmadığı için launch/CFI kuyruklarına
+            // GİRMEZLER — yalnızca aşağıdaki ♻ COP tablosunda çıkarlar.
+            function sadeceHurda(r) {
+                return (parseFloat(r.adet) || 0) <= 0 && (parseInt(r.hurda) || 0) > 0;
+            }
+
             gunler.forEach(function (g) {
                 var L = g.liste || {};
                 // ── KAPASİTE AŞIMI (2026-07-30) ────────────────────────────────
@@ -11274,6 +11296,7 @@ window.__I18N_SOZLUK__ = {
                 });
                 (L.HARIC || []).forEach(function (r) { haricList.push({ tarih: g.tarih, r: r }); });
                 (L.ACIK || []).forEach(function (r) {
+                    if (sadeceHurda(r)) return;   // teyit edilecek adet yok → yalnız COP
                     var ls = r.launchlar || [];
                     var kesin = null, olasi = null;
                     ls.forEach(function (l) {
@@ -11307,6 +11330,7 @@ window.__I18N_SOZLUK__ = {
                     _as4Bekleyen.push({ tarih: g.tarih, r: r, launchlar: temiz, bugunMu: g.tarih === bugun });
                 });
                 (L.SUPHELI || []).forEach(function (r) {
+                    if (sadeceHurda(r)) return;   // teyit edilecek adet yok → yalnız COP
                     var ls = r.launchlar || [], kesin = null;
                     ls.forEach(function (l) { if (l.zaten_teyitli === 'kesin' && !kesin) kesin = l; });
                     if (kesin) { teyitli.push({ tarih: g.tarih, r: r, l: kesin }); return; }
@@ -11339,6 +11363,7 @@ window.__I18N_SOZLUK__ = {
                 // hareketi (RPR) durur — backend satira zaten_teyitli enjekte eder.
                 // kesin → Teyitli'ye, olasi → Dikkat'e; hicbiri degilse eski kovasina.
                 function dagit(r, kova, ek) {
+                    if (sadeceHurda(r)) return;   // teyit edilecek adet yok → yalnız COP
                     if (r.zaten_teyitli === 'kesin') { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
                     if (r.zaten_teyitli === 'olasi') { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
                     var kayit = { tarih: g.tarih, r: r };
@@ -11348,6 +11373,7 @@ window.__I18N_SOZLUK__ = {
                 // LAUNCH'SIZ uretim (OPR10 + YOK, teyitsiz) → CFI KUYRUGU (kullanici
                 // 2026-07-20: launch olan launch teyidi, olmayan CFI; secilebilir tablo).
                 function cfiKuyruk(r, article) {
+                    if (sadeceHurda(r)) return;   // teyit edilecek adet yok → yalnız COP
                     var teyitVer = (r.isaret && r.isaret.durum === 'teyit_ver');
                     if (r.zaten_teyitli === 'kesin') { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
                     // '✓ kontrol' işaretli satır = elle ilgilenildi → robot kuyruğuna GİRMEZ
@@ -11391,7 +11417,10 @@ window.__I18N_SOZLUK__ = {
                         _as4CopBekleyen.push({
                             tarih: g.tarih, referans: r.referans, article: art, adet: h,
                             bolum: r.bolum || '', bugunMu: g.tarih === bugun,
-                            supheli: (kat === 'SUPHELI'), verildi: !!copVer[g.tarih + '|' + art]
+                            supheli: (kat === 'SUPHELI'), verildi: !!copVer[g.tarih + '|' + art],
+                            // Sağlam üretimi olmayan satır: sayfanın BAŞKA hiçbir
+                            // bölümünde görünmez, yalnız burada (2026-07-31).
+                            sadece: sadeceHurda(r)
                         });
                     });
                 });
@@ -11571,11 +11600,14 @@ window.__I18N_SOZLUK__ = {
                     var sec = !c.bugunMu;   // geçmiş gün seçili; article editable olduğu için varyant da seçilebilir
                     var uyari = c.supheli ? ' <span style="color:var(--lg-amber);font-size:.7rem;font-weight:800" title="Varyant eşleşme — üretilen kod yazıldı; AS400 kodu farklıysa aşağıdaki alandan düzelt">⚠ kod?</span>' : '';
                     var gunU = c.bugunMu ? ' <span style="color:var(--lg-amber)" title="Gün bitmeden önerilmez">⚠</span>' : '';
+                    // Sağlam üretimi olmayan satır (ok_adet=0): teyit tablolarında
+                    // çıkmaz, sayfada YALNIZ burada görünür (2026-07-31).
+                    var sadeceU = c.sadece ? ' <span style="color:var(--lg-red);font-size:.68rem;font-weight:800;border:1px solid var(--lg-red);border-radius:999px;padding:1px 6px" title="O gün bu referanstan sağlam üretim yok, yalnız hurda var — teyit satırı olmadığı için sayfanın başka yerinde görünmez">sadece hurda</span>' : '';
                     sCop += '<tr>' +
                         '<td><input type="checkbox" id="as4-cop-cb-' + i + '"' + (sec ? ' checked' : '') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(c.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(c.bolum)) + '</td>' +
-                        '<td style="font-weight:700">' + esc(c.referans) + '</td>' +
+                        '<td style="font-weight:700">' + esc(c.referans) + sadeceU + '</td>' +
                         '<td><input type="text" id="as4-cop-art-' + i + '" value="' + esc(c.article) + '" class="rt-row-input" style="width:150px;font-size:.8rem' + (c.supheli ? ';border-color:var(--lg-amber)' : '') + '">' + uyari + '</td>' +
                         '<td style="text-align:right"><input type="number" id="as4-cop-adet-' + i + '" value="' + c.adet + '" min="1" class="rt-row-input" style="width:78px;text-align:right;color:var(--lg-red);font-weight:800"></td>' +
                         '</tr>';
@@ -11956,6 +11988,7 @@ window.__I18N_SOZLUK__ = {
                 // COP üç yerde SESSİZCE atlanıyordu: durdurma, genel hata ve ana
                 // teyidin başarısız olması. Artık her biri ekranda gerekçesiyle yazılır.
                 var hurdaliSecim = launchSec.concat(cfiSec).filter(function (s) { return (s.hurda || 0) > 0; });
+                var copGonderildi = {};   // bu koşuda COP'u gönderilen satırlar: "tarih|referans"
                 if (durduruldu || genelHata) {
                     if (hurdaliSecim.length) {
                         html += '<div style="margin:10px 0;padding:12px 14px;background:var(--danger-soft);' +
@@ -11979,6 +12012,7 @@ window.__I18N_SOZLUK__ = {
                         });
                     // Ana teyidi başarısız olduğu için hurdası GİRİLMEYEN satırlar
                     var atlananHurda = hurdaliSecim.filter(function (s) { return !okSet[anahtar(s)]; });
+                    hurdaSec.forEach(function (s) { copGonderildi[s.uretim_tarihi + '|' + s.referans] = 1; });
                     if (hurdaSec.length) {
                         const d3 = await parti('/api/as400/cop_gonder', hurdaSec, 'Son faz: Hurda (COP)');
                         ekle(d3, '♻ Hurda (COP) girişleri — en son');
@@ -11993,6 +12027,26 @@ window.__I18N_SOZLUK__ = {
                             esc(atlananHurda.map(function (s) { return s.referans + ' (' + s.hurda + ')'; }).join(', ')) +
                             '. Teyidi düzeltip tekrar gönderin.</div></div>';
                     }
+                }
+                // ── BU BUTONUN HİÇ DOKUNMADIĞI HURDALAR (2026-07-31) ──────────
+                // Bu buton COP'u YALNIZCA kendi teyit ettiği satırlar için gönderir.
+                // Teyidi ZATEN VERİLMİŞ (ya da kuyrukta olmayan) bir satırın hurdası
+                // buradan ASLA gitmez ve eskiden bu sessizce oluyordu — kullanıcı
+                // "AS400'e gönder diyorum ama COP'u göndermiyor" diyordu
+                // (10.300.1992A_LK: teyidi 07-29/07-30'da verilmiş, hurdası bekliyordu).
+                var kalanCop = (_as4CopBekleyen || []).filter(function (c) {
+                    return !c.verildi && !copGonderildi[c.tarih + '|' + c.referans];
+                });
+                if (kalanCop.length) {
+                    html += '<div style="margin:10px 0;padding:12px 14px;background:var(--warn-soft);' +
+                        'border:1px solid rgba(138,90,5,.3);border-left:3px solid var(--warn);border-radius:8px">' +
+                        '<b style="color:var(--warn)">♻ ' + kalanCop.length + ' satırın hurdası HÂLÂ BEKLİYOR</b>' +
+                        '<div style="font-size:.8rem;color:var(--muted);margin-top:3px">Bu buton yalnızca kendi teyit ettiği ' +
+                        'satırların hurdasını girer; teyidi zaten verilmiş satırların hurdası buradan gitmez. ' +
+                        'Aşağıdaki <b>♻ 2 · Hurda düşümü</b> bölümünden satırları işaretleyip ' +
+                        '<b>♻ Seçili hurdaları COP olarak gönder</b> ile gönderin: ' +
+                        esc(kalanCop.slice(0, 8).map(function (c) { return c.referans + ' (' + c.adet + ')'; }).join(', ')) +
+                        (kalanCop.length > 8 ? ' … +' + (kalanCop.length - 8) : '') + '</div></div>';
                 }
             } catch (e) {
                 html += '<div style="color:var(--lg-red);padding:10px 0">⚠ Bağlantı hatası — o ana kadar işlenenler yukarıda; listeyi yenileyip Teyitli değerlerini kontrol et.</div>';
@@ -12055,7 +12109,26 @@ window.__I18N_SOZLUK__ = {
                 if (!art) return;
                 copSec.push({ uretim_tarihi: c.tarih, referans: c.referans, article: art, adet: adet });
             });
-            if (!copSec.length) { toast('Gönderilecek hurda seçilmedi', 'error'); return; }
+            if (!copSec.length) {
+                // SESSİZ TUZAK (2026-07-31): bugüne ait satırlar varsayılan olarak
+                // İŞARETSİZ gelir (gün bitmeden COP önerilmiyor). Kullanıcı butona
+                // basıp "göndermiyor" diyordu — sebebini artık ekranda da yazıyoruz.
+                var bekleyenler = (_as4CopBekleyen || []).filter(function (c) { return !c.verildi; });
+                var el0 = document.getElementById('as4-cop-sonuc');
+                if (bekleyenler.length && el0) {
+                    el0.innerHTML = '<div style="margin:10px 0;padding:12px 14px;background:var(--warn-soft);' +
+                        'border:1px solid rgba(138,90,5,.3);border-left:3px solid var(--warn);border-radius:8px">' +
+                        '<b style="color:var(--warn)">Hiçbir satır işaretli değil — gönderilecek hurda yok</b>' +
+                        '<div style="font-size:.8rem;color:var(--muted);margin-top:3px">' + bekleyenler.length +
+                        ' satır COP bekliyor ama kutucukları boş. <b>Bugüne ait satırlar varsayılan olarak işaretsiz gelir</b> ' +
+                        '(gün bitmeden COP önerilmez) — göndermek için soldaki kutucuğu işaretleyin ya da ' +
+                        '<b>tümünü seç</b>\'e basın.</div></div>';
+                }
+                toast(bekleyenler.length
+                    ? 'Hiçbir satır işaretli değil — ' + bekleyenler.length + ' hurda bekliyor, kutucukları işaretleyin'
+                    : 'Gönderilecek hurda seçilmedi', 'error');
+                return;
+            }
             var ozet = copSec.map(function (s) {
                 return '  ♻ [' + s.uretim_tarihi + '] ' + s.referans + ' → ' + s.article + ' → ' + s.adet + ' adet';
             }).join('\n');

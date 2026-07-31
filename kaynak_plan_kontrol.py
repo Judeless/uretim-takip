@@ -101,15 +101,29 @@ def plan_oku(yol, limit=None):
             'kaynak_kod': kod,
             'urun': str(h.get(1) or '').strip(),
             'ustler': [str(h.get(k) or '').strip() for k in (2, 3, 4) if str(h.get(k) or '').strip()],
-            # Planlamanın kendi hesabı (dosyadaki hazır sütunlar):
-            'launch_ihtiyac': _say(h, 73),        # "Launch" — kaç adet launch gerekiyor
+            # ── İHTİYAÇ ÖLÇÜTÜ: 6 HAFTA (kullanıcı 2026-07-31) ──────────────
+            # "Launch" sütunu (73) İHTİYAÇ DEĞİL, ŞU AN AÇIK OLAN launch'lar —
+            # yani zaten üretilecek adet. İlk sürümde ihtiyaç sanılmıştı ve
+            # açık launch'ı olmayan 201 referans "gerek yok" görünüyordu.
+            # Doğru ölçüt: "6 hafta için fark" (71) = 6 haftalık toplam ihtiyaç
+            # − toplam stok. Pozitifse o kadar AÇIK var. Doğrulandı: formül
+            # 218/230 satırda birebir tutuyor, "KONTROL 6 hafta yeterli" (74)
+            # bayrağıyla 225/230 uyumlu.
+            # GEREKEN = açık − hâlihazırda açık launch (o kadarı zaten geliyor).
+            'acik_launch': _say(h, 73),
+            'acik_6h': _say(h, 71),
             'bakiye': _say(h, 15),
+            'toplam_stok': _say(h, 68),
             'iht_2h': _say(h, 20),
-            'iht_4h': _say(h, 21),
+            'iht_6h': _say(h, 66),
+            'kontrol6': (None if h.get(74) is None else bool(h.get(74))),
+            'gun_stok': _say(h, 75),
             # Planlamanın elle yazdığı alt parçalar — ERP ağacıyla kıyaslanır
             'plan_parcalar': [str(h.get(k) or '').strip()
                               for k in range(6, 13) if str(h.get(k) or '').strip()],
         })
+        son = satirlar[-1]
+        son['gereken'] = max(0.0, (son['acik_6h'] or 0) - (son['acik_launch'] or 0))
         if limit and len(satirlar) >= limit:
             break
     return satirlar
@@ -199,13 +213,14 @@ def hesapla(satirlar, agac, stok):
     # dosyasındaki Launch sütunu) ile "malzemesi var mı?" (AS400'de ağaç+stok)
     # sorularını birleştirip talimat vermek. İkisi burada birleşir.
     for s in satirlar:
-        ihtiyac = s.get('launch_ihtiyac') or 0
+        ihtiyac = s.get('gereken') or 0
         u = s.get('uretilebilir')
         # ERP ağacı planlamanın listesini kapsıyor mu? (kapsamıyorsa ağaç
         # değişmiş olabilir — karar elle doğrulanmalı)
         erp_kodlar = {p['kod'] for p in s.get('parcalar', [])}
         s['agac_farki'] = sorted(set(s.get('plan_parcalar') or []) - erp_kodlar)
         if ihtiyac <= 0:
+            # 6 haftalık açık yok ya da açığı zaten mevcut launch'lar kapatıyor.
             s['karar'] = 'GEREK YOK'
         elif u is None:
             s['karar'] = 'ELLE BAK'
@@ -256,30 +271,30 @@ def excel_yaz(satirlar, cikti):
         if s['durum'] == 'BIRIM YOK':
             notlar.append('ağaçta birim miktar tanımsız')
         ws.append([s['sira'], s['kaynak_kod'], s['urun'],
-                   s.get('launch_ihtiyac') or 0,
+                   s.get('acik_6h') or 0, s.get('acik_launch') or 0, s.get('gereken') or 0,
                    s['uretilebilir'] if s['uretilebilir'] is not None else '—',
                    s.get('karar', ''), s.get('kisitlayan', ''), kis_stok,
                    len(s.get('parcalar', [])), ' · '.join(notlar)])
         r = ws.max_row
         f = KARAR_RENK.get(s.get('karar'))
-        for c in range(1, 11):
+        for c in range(1, 13):
             ws.cell(row=r, column=c).border = kenar
             if f:
                 ws.cell(row=r, column=c).fill = PatternFill('solid', fgColor=f)
-        ws.cell(row=r, column=4).font = Font(bold=True)
-        ws.cell(row=r, column=5).font = Font(bold=True)
         ws.cell(row=r, column=6).font = Font(bold=True)
+        ws.cell(row=r, column=7).font = Font(bold=True)
+        ws.cell(row=r, column=8).font = Font(bold=True)
 
-    BASLIK = ['Sıra', 'Kaynak Kodu', 'Ürün', 'Launch İhtiyacı', 'Üretilebilir',
-              'KARAR', 'Kısıtlayan Parça', 'Kısıtlayan Stok', 'Parça Sayısı', 'Not']
-    GENIS = [6, 22, 18, 15, 13, 15, 22, 15, 12, 46]
+    BASLIK = ['Sıra', 'Kaynak Kodu', 'Ürün', '6 Hafta Açık', 'Açık Launch', 'GEREKEN',
+              'Üretilebilir', 'KARAR', 'Kısıtlayan Parça', 'Kısıtlayan Stok', 'Parça Sayısı', 'Not']
+    GENIS = [6, 22, 18, 13, 12, 11, 13, 15, 22, 15, 12, 46]
 
     # ── 1. SAYFA: yalnız AKSİYON gerekenler (launch ihtiyacı > 0) ──
     ws = wb.active
     ws.title = 'Aksiyon'
     basliklar(ws, BASLIK, GENIS)
     sira_onem = {'TALIMAT VER': 0, 'KISMI': 1, 'MALZEME YOK': 2, 'ELLE BAK': 3}
-    aksiyon = [s for s in satirlar if (s.get('launch_ihtiyac') or 0) > 0]
+    aksiyon = [s for s in satirlar if (s.get('gereken') or 0) > 0]
     for s in sorted(aksiyon, key=lambda x: (sira_onem.get(x.get('karar'), 9), x['sira'])):
         _satir_yaz(ws, s)
 
@@ -374,26 +389,26 @@ def main():
     say = {}
     for s in satirlar:
         say[s['karar']] = say.get(s['karar'], 0) + 1
-    aksiyon = [s for s in satirlar if (s.get('launch_ihtiyac') or 0) > 0]
-    print(f'\nLaunch ihtiyacı olan: {len(aksiyon)} / {len(satirlar)} satır')
+    aksiyon = [s for s in satirlar if (s.get('gereken') or 0) > 0]
+    print(f'\n6 haftalık açığı olan: {len(aksiyon)} / {len(satirlar)} satır')
     print('KARAR: ' + ' · '.join(f'{k}: {v}' for k, v in sorted(say.items())))
 
     ver = [s for s in aksiyon if s['karar'] == 'TALIMAT VER']
     print(f'\n>>> TALİMAT VERİLEBİLİR ({len(ver)}) — malzemesi tam:')
     for s in ver:
-        print(f"   {s['sira']:>3}. {s['kaynak_kod']:<20} ihtiyaç {s['launch_ihtiyac']:>7.0f} · "
+        print(f"   {s['sira']:>3}. {s['kaynak_kod']:<20} gereken {s['gereken']:>7.0f} · "
               f"üretilebilir {s['uretilebilir']:>7}")
     kis = [s for s in aksiyon if s['karar'] == 'KISMI']
     if kis:
         print(f'\n>>> KISMİ ({len(kis)}) — malzeme yetmiyor:')
         for s in kis[:12]:
-            print(f"   {s['sira']:>3}. {s['kaynak_kod']:<20} ihtiyaç {s['launch_ihtiyac']:>7.0f} · "
+            print(f"   {s['sira']:>3}. {s['kaynak_kod']:<20} gereken {s['gereken']:>7.0f} · "
                   f"üretilebilir {s['uretilebilir']:>7}  (kısıt: {s['kisitlayan']})")
     yok = [s for s in aksiyon if s['karar'] == 'MALZEME YOK']
     if yok:
         print(f'\n>>> MALZEME YOK ({len(yok)}):')
         for s in yok[:12]:
-            print(f"   {s['sira']:>3}. {s['kaynak_kod']:<20} ihtiyaç {s['launch_ihtiyac']:>7.0f} · "
+            print(f"   {s['sira']:>3}. {s['kaynak_kod']:<20} gereken {s['gereken']:>7.0f} · "
                   f"kısıt: {s['kisitlayan']}")
     fark = [s for s in aksiyon if s.get('agac_farki')]
     if fark:

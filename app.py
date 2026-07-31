@@ -7139,14 +7139,20 @@ def kaynak_plan_yukle():
         conn.execute("UPDATE kaynak_plan SET aktif=0")
         for s in satirlar:
             conn.execute(
-                "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, launch_ihtiyac, bakiye, iht_2h, "
-                "plan_dosya, plan_yuklendi, agac_farki, aktif) VALUES (?,?,?,?,?,?,?,?,'',1) "
+                "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, acik_launch, acik_6h, gereken, "
+                "kontrol6, gun_stok, bakiye, toplam_stok, iht_2h, iht_6h, "
+                "plan_dosya, plan_yuklendi, agac_farki, aktif) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'',1) "
                 "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, urun=excluded.urun, "
-                "launch_ihtiyac=excluded.launch_ihtiyac, bakiye=excluded.bakiye, "
-                "iht_2h=excluded.iht_2h, plan_dosya=excluded.plan_dosya, "
+                "acik_launch=excluded.acik_launch, acik_6h=excluded.acik_6h, "
+                "gereken=excluded.gereken, kontrol6=excluded.kontrol6, gun_stok=excluded.gun_stok, "
+                "bakiye=excluded.bakiye, toplam_stok=excluded.toplam_stok, "
+                "iht_2h=excluded.iht_2h, iht_6h=excluded.iht_6h, plan_dosya=excluded.plan_dosya, "
                 "plan_yuklendi=excluded.plan_yuklendi, aktif=1",
-                (s['kaynak_kod'], s['sira'], s['urun'], s['launch_ihtiyac'],
-                 s['bakiye'], s['iht_2h'], gosterim, simdi))
+                (s['kaynak_kod'], s['sira'], s['urun'], s['acik_launch'], s['acik_6h'],
+                 s['gereken'], (None if s.get('kontrol6') is None else int(s['kontrol6'])),
+                 s['gun_stok'], s['bakiye'], s['toplam_stok'], s['iht_2h'], s['iht_6h'],
+                 gosterim, simdi))
             # planlamanın elle yazdığı parçalar — ölçümde ağaç farkı için saklanır
             conn.execute("UPDATE kaynak_plan SET agac_farki=? WHERE kaynak_kod=?",
                          ('|'.join(s.get('plan_parcalar') or []), s['kaynak_kod']))
@@ -7649,8 +7655,15 @@ def _oto_kuyruk_olustur(conn, tarihler):
                       'launch': launch, 'neden': neden})
 
     def cfiye(t, r, article=''):
+        # SADECE HURDA satırı (ok_adet=0, nok_adet>0) — 2026-07-31: bu satırlar
+        # artık listeden düşmüyor, ama teyit edilecek adetleri YOK. Kuyruğa
+        # girerlerse gönderim 'Geçersiz satır parametresi' hatası üretir; hurdaları
+        # zaten aşağıdaki COP fazında toplanır. ACIK kolunda aynı kapı zaten var.
+        _adet = int(round(float(r.get('adet') or 0)))
+        if _adet <= 0:
+            return
         cfiQ.append({'referans': r['referans'], 'article': (article or r['referans']),
-                     'adet': int(round(float(r.get('adet') or 0))), 'uretim_tarihi': t,
+                     'adet': _adet, 'uretim_tarihi': t,
                      'bolum': r.get('bolum', '')})
 
     def kapasite_asti(t, r):
