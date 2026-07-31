@@ -7112,7 +7112,11 @@ def kaynak_plan_yukle():
             if not (f.filename or '').lower().endswith(('.xlsb', '.xlsx')):
                 return jsonify({'hata': 'Yalnız .xlsb / .xlsx dosyası'}), 400
             import tempfile
-            gecici = os.path.join(tempfile.gettempdir(), f'kaynak_plan_{os.getpid()}.xlsb')
+            # Uzantı KORUNMALI: okuyucu buna bakarak seçiliyor (.xlsb→pyxlsb,
+            # .xlsx→openpyxl). Sabit .xlsb yazmak yüklenen .xlsx'i yanlış
+            # okuyucuya gönderiyordu (2026-07-31).
+            _uz = os.path.splitext(f.filename or '')[1].lower() or '.xlsb'
+            gecici = os.path.join(tempfile.gettempdir(), f'kaynak_plan_{os.getpid()}{_uz}')
             f.save(gecici)
             yol, gosterim = gecici, f.filename
         else:

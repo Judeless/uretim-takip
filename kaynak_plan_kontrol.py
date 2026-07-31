@@ -41,45 +41,77 @@ GOSTERILEN_DEPOLAR = ('01D', 'CF2', '01W', 'REP', 'MDT', 'MK2', 'MT2')
 GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,21}$')
 
 
+def _satirlari_getir(yol):
+    """Dosyayı uzantısına göre açar ve satırları {kolon_index: değer} olarak verir.
+
+    .xlsb  → pyxlsb (planlamanın çıkardığı özgün biçim)
+    .xlsx  → openpyxl (zaten kurulu; pyxlsb kurulamadığında kaçış yolu —
+             kullanıcı dosyayı Excel'de "Farklı Kaydet > .xlsx" ile verebilir)
+    pyxlsb yoksa hata mesajı NE YAPILACAĞINI söyler (2026-07-31: sunucuda modül
+    kurulu olmadığı için ham "No module named 'pyxlsb'" görünüyordu)."""
+    uzanti = os.path.splitext(yol)[1].lower()
+    if uzanti == '.xlsb':
+        try:
+            from pyxlsb import open_workbook
+        except ImportError:
+            raise RuntimeError(
+                "Bu sunucuda .xlsb okuyucusu (pyxlsb) kurulu değil. İki çözüm: "
+                "(1) sunucuda 'pip install pyxlsb' çalıştırıp servisi yeniden başlatın, "
+                "(2) ya da dosyayı Excel'de 'Farklı Kaydet > Excel Çalışma Kitabı (.xlsx)' "
+                "ile kaydedip .xlsx olarak yükleyin — o biçim ek kurulum istemez.")
+        with open_workbook(yol) as wb:
+            sayfa = 'Kaynak' if 'Kaynak' in wb.sheets else wb.sheets[0]
+            with wb.get_sheet(sayfa) as s:
+                for satir in s.rows():
+                    yield {c.c: c.v for c in satir}
+        return
+    if uzanti in ('.xlsx', '.xlsm'):
+        import openpyxl
+        wb = openpyxl.load_workbook(yol, read_only=True, data_only=True)
+        try:
+            ad = 'Kaynak' if 'Kaynak' in wb.sheetnames else wb.sheetnames[0]
+            for satir in wb[ad].iter_rows(values_only=True):
+                yield {i: v for i, v in enumerate(satir)}
+        finally:
+            wb.close()
+        return
+    raise RuntimeError(f'Desteklenmeyen dosya biçimi: {uzanti or "(uzantısız)"} — .xlsb veya .xlsx olmalı')
+
+
 def plan_oku(yol, limit=None):
     """Plan dosyasının 'Kaynak' sayfasını okur. [{sira, kaynak_kod, urun, ustler}]
     Satır sırası = öncelik; korunur."""
-    from pyxlsb import open_workbook
     satirlar, gorulen = [], set()
-    with open_workbook(yol) as wb:
-        sayfa = 'Kaynak' if 'Kaynak' in wb.sheets else wb.sheets[0]
-        with wb.get_sheet(sayfa) as s:
-            for i, satir in enumerate(s.rows()):
-                if i == 0:
-                    continue                      # başlık
-                h = {c.c: c.v for c in satir}
-                kod = str(h.get(5) or '').strip()          # F = Kaynak kodu
-                if not kod or kod in gorulen:
-                    continue
-                gorulen.add(kod)
 
-                def _say(idx):
-                    v = h.get(idx)
-                    try:
-                        return float(v)
-                    except (TypeError, ValueError):
-                        return 0.0
-                satirlar.append({
-                    'sira': len(satirlar) + 1,
-                    'kaynak_kod': kod,
-                    'urun': str(h.get(1) or '').strip(),
-                    'ustler': [str(h.get(k) or '').strip() for k in (2, 3, 4) if str(h.get(k) or '').strip()],
-                    # Planlamanın kendi hesabı (dosyadaki hazır sütunlar):
-                    'launch_ihtiyac': _say(73),    # BC "Launch" — kaç adet launch gerekiyor
-                    'bakiye': _say(15),
-                    'iht_2h': _say(20),
-                    'iht_4h': _say(21),
-                    # Planlamanın elle yazdığı alt parçalar — ERP ağacıyla kıyaslanır
-                    'plan_parcalar': [str(h.get(k) or '').strip()
-                                      for k in range(6, 13) if str(h.get(k) or '').strip()],
-                })
-                if limit and len(satirlar) >= limit:
-                    break
+    def _say(h, idx):
+        try:
+            return float(h.get(idx))
+        except (TypeError, ValueError):
+            return 0.0
+
+    for i, h in enumerate(_satirlari_getir(yol)):
+        if i == 0:
+            continue                              # başlık satırı
+        kod = str(h.get(5) or '').strip()         # F = Kaynak kodu
+        if not kod or kod in gorulen:
+            continue
+        gorulen.add(kod)
+        satirlar.append({
+            'sira': len(satirlar) + 1,
+            'kaynak_kod': kod,
+            'urun': str(h.get(1) or '').strip(),
+            'ustler': [str(h.get(k) or '').strip() for k in (2, 3, 4) if str(h.get(k) or '').strip()],
+            # Planlamanın kendi hesabı (dosyadaki hazır sütunlar):
+            'launch_ihtiyac': _say(h, 73),        # "Launch" — kaç adet launch gerekiyor
+            'bakiye': _say(h, 15),
+            'iht_2h': _say(h, 20),
+            'iht_4h': _say(h, 21),
+            # Planlamanın elle yazdığı alt parçalar — ERP ağacıyla kıyaslanır
+            'plan_parcalar': [str(h.get(k) or '').strip()
+                              for k in range(6, 13) if str(h.get(k) or '').strip()],
+        })
+        if limit and len(satirlar) >= limit:
+            break
     return satirlar
 
 
