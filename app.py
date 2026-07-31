@@ -6999,6 +6999,7 @@ def kaynak_plan_liste():
     for s in satirlar:
         ozet[s['karar'] or 'YOK'] = ozet.get(s['karar'] or 'YOK', 0) + 1
     ozet['kaynatilmali'] = sum(1 for s in satirlar if (s.get('gereken') or 0) > 0)
+    ozet['gecikmis_adet'] = sum(1 for s in satirlar if (s.get('gecikmis') or 0) > 0)
     ozet['artan'] = sum(1 for s in satirlar if (s['degisim'] or 0) > 0)
     ozet['azalan'] = sum(1 for s in satirlar if (s['degisim'] or 0) < 0)
     son = max((s.get('olculdu') or '' for s in satirlar), default='')
@@ -7062,12 +7063,44 @@ def _kaynak_plan_olc(conn, kodlar=None):
         # Referansın KENDİ stoğu da ERP'den (kullanıcı 2026-07-31) — plan
         # dosyasındaki stok sütunu dosyanın çekildiği günün fotoğrafı.
         ref_stok = kp.stoklar(cn, [s['kaynak_kod'] for s in satirlar])
+        # İhtiyaç da ERP'den tazelenir (OPR'ler gün içinde değişir)
+        opr = kp.opr_ihtiyaclari(cn, [s['kaynak_kod'] for s in satirlar])
     finally:
         try:
             cn.close()
         except Exception:
             pass
+    for s in satirlar:
+        d = opr.get(s['kaynak_kod'])
+        if d is not None:
+            s['iht_6h'] = d['ihtiyac']
+            s['en_eski_opr'] = d['en_eski'] or ''
+            s['opr_sayisi'] = d['opr_sayisi']
+            s['gecikmis'] = d['gecikmis']
+        else:
+            s['iht_6h'] = s.get('iht_6h') or 0
+            s['en_eski_opr'] = s.get('en_eski_opr') or ''
+            s['opr_sayisi'] = s.get('opr_sayisi') or 0
+            s['gecikmis'] = s.get('gecikmis') or 0
     kp.hesapla(satirlar, agac, stok, ref_stok)
+    # G GI = 01D + MDT (ERP ekranındaki stok) — GEREKEN bunun üzerinden
+    for s in satirlar:
+        d = ref_stok.get(s['kaynak_kod'], {})
+        s['stok_ggi'] = d.get('01D', 0) + d.get('MDT', 0)
+        s['toplam_stok'] = s['stok_ggi']
+        s['gereken'] = max(0.0, (s.get('iht_6h') or 0) - s['stok_ggi'])
+        s['kaynatilmali'] = s['gereken'] > 0
+        u = s.get('uretilebilir')
+        if not s['kaynatilmali']:
+            s['karar'] = 'GEREK YOK'
+        elif u is None:
+            s['karar'] = 'ELLE BAK'
+        elif u >= s['gereken']:
+            s['karar'] = 'TALIMAT VER'
+        elif u > 0:
+            s['karar'] = 'KISMI'
+        else:
+            s['karar'] = 'MALZEME YOK'
     simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
     for s in satirlar:
         eski = conn.execute("SELECT uretilebilir, olculdu FROM kaynak_plan WHERE kaynak_kod=?",
@@ -7078,7 +7111,8 @@ def _kaynak_plan_olc(conn, kodlar=None):
         conn.execute(
             "UPDATE kaynak_plan SET uretilebilir=?, kisitlayan=?, kisit_stok=?, parca_sayisi=?, "
             "durum=?, karar=?, eksi_var=?, olculdu=?, onceki_uretilebilir=?, onceki_olculdu=?, "
-            "toplam_stok=?, gereken=?, ref_depolar=? "
+            "toplam_stok=?, gereken=?, ref_depolar=?, iht_6h=?, en_eski_opr=?, "
+            "opr_sayisi=?, gecikmis=?, stok_ggi=? "
             "WHERE kaynak_kod=?",
             (s.get('uretilebilir'), s.get('kisitlayan', ''),
              next((p['stok_sayilan'] for p in s.get('parcalar', [])
@@ -7087,6 +7121,8 @@ def _kaynak_plan_olc(conn, kodlar=None):
              1 if s.get('eksi_var') else 0, simdi, onc_u, onc_t,
              s.get('toplam_stok') or 0, s.get('gereken') or 0,
              ' '.join(f'{d}:{v:g}' for d, v in (s.get('ref_depolar') or {}).items()),
+             s.get('iht_6h') or 0, s.get('en_eski_opr') or '', s.get('opr_sayisi') or 0,
+             s.get('gecikmis') or 0, s.get('stok_ggi') or 0,
              s['kaynak_kod']))
         # parça kırılımı: önceki stoğu koru, satırları tazele
         onceki_stoklar = {r['alt_kod']: r['stok_sayilan'] for r in conn.execute(
@@ -7179,6 +7215,91 @@ def kaynak_plan_yukle():
                 os.remove(gecici)
             except Exception:
                 pass
+
+
+@app.route('/api/kaynak_plan/erpden_kur', methods=['POST'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_erpden_kur():
+    """Listeyi TAMAMEN ERP'den kurar — plan dosyasına gerek yok (2026-07-31).
+
+    Kullanıcı: "plan için bu exceli planlama biriminden hiç beklemeyelim."
+    Kod kümesi : sistemdeki kaynak referansları (referans_listesi bolum='kaynak')
+                 + daha önce listeye girmiş kodlar (Excel'den gelmiş olabilir)
+    İhtiyaç    : XPRO90 açık OPR'lerin ufuk içindeki KALAN toplamı
+    Öncelik    : en eski OPR teslim tarihi (aciliyet sırası)
+    Stok       : G GI = 01D + MDT
+    Notlar KORUNUR; ihtiyacı kalmayan kodlar aktif=0 olur (not kaybolmasın).
+    Body: {ufuk_gun: 42}"""
+    data = request.get_json(silent=True) or {}
+    try:
+        ufuk = max(1, min(365, int(data.get('ufuk_gun') or 42)))
+    except (TypeError, ValueError):
+        ufuk = 42
+    kp = _kp_modul()
+    conn = get_db()
+    kodlar = {r['referans_kodu'].strip() for r in conn.execute(
+        "SELECT referans_kodu FROM referans_listesi "
+        "WHERE COALESCE(bolum,'kaynak')='kaynak' AND COALESCE(referans_kodu,'')<>''").fetchall()}
+    kodlar |= {r['kaynak_kod'] for r in conn.execute(
+        "SELECT kaynak_kod FROM kaynak_plan").fetchall()}
+    kodlar = sorted(k for k in kodlar if k)
+    if not kodlar:
+        return jsonify({'hata': 'Sistemde kaynak referansı yok — önce referans listesini kurun'}), 400
+    try:
+        cn = kp.erp_baglan()
+    except Exception as e:
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
+    try:
+        opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk)
+    finally:
+        try:
+            cn.close()
+        except Exception:
+            pass
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+    # Aciliyet sırası: en eski OPR tarihi önce; tarihi olmayan sona
+    sirali = sorted(opr.items(), key=lambda kv: (kv[1]['en_eski'] or '9999-12-31', kv[0]))
+    conn.execute("UPDATE kaynak_plan SET aktif=0")
+    for i, (kod, d) in enumerate(sirali, start=1):
+        conn.execute(
+            "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, iht_6h, acik_launch, gereken, "
+            "en_eski_opr, opr_sayisi, gecikmis, plan_dosya, plan_yuklendi, agac_farki, aktif) "
+            "VALUES (?,?,'',?,0,?,?,?,?,'AS400 (OPR)',?,'',1) "
+            "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, "
+            "iht_6h=excluded.iht_6h, gereken=excluded.gereken, "
+            "en_eski_opr=excluded.en_eski_opr, opr_sayisi=excluded.opr_sayisi, "
+            "gecikmis=excluded.gecikmis, plan_dosya=excluded.plan_dosya, "
+            "plan_yuklendi=excluded.plan_yuklendi, aktif=1",
+            (kod, i, d['ihtiyac'], d['ihtiyac'], d['en_eski'] or '',
+             d['opr_sayisi'], d['gecikmis'], simdi))
+    conn.commit()
+    return jsonify({'ok': True, 'satir': len(sirali), 'ufuk_gun': ufuk,
+                    'taranan_kod': len(kodlar),
+                    'mesaj': f'{len(sirali)} referansın açık üretim emri var '
+                             f'({ufuk} günlük ufuk). Sıralama en eski OPR tarihine göre. '
+                             f'Şimdi "Stokları Yenile" ile malzeme kontrolünü çalıştırın.'})
+
+
+@app.route('/api/kaynak_plan/oprler', methods=['GET'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_oprler():
+    """Tek kodun açık üretim emirleri (satır genişletildiğinde gösterilir)."""
+    kod = (request.args.get('kod') or '').strip()
+    if not kod:
+        return jsonify({'hata': 'kod zorunlu'}), 400
+    kp = _kp_modul()
+    try:
+        cn = kp.erp_baglan()
+    except Exception as e:
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
+    try:
+        d = kp.opr_ihtiyaclari(cn, [kod]).get(kod) or {'satirlar': [], 'ihtiyac': 0}
+    finally:
+        try:
+            cn.close()
+        except Exception:
+            pass
+    return jsonify({'kod': kod, **d})
 
 
 @app.route('/api/kaynak_plan/yenile', methods=['POST'])

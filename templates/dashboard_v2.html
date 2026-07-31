@@ -5518,9 +5518,9 @@ window.__I18N_SOZLUK__ = {
                             <div class="as4-adimlar">
                                 <div class="as4-adim"><div class="as4-adim-no">1</div><div>
                                     <div class="as4-adim-baslik">Plan alınır</div>
-                                    <div class="as4-adim-metin">Planlamanın haftalık "Kaynak ihtiyaçları"
-                                    dosyası okunur. İhtiyaç ölçütü <b>6 haftalık açık</b>; hâlihazırda
-                                    açık launch'lar düşülür.</div></div></div>
+                                    <div class="as4-adim-metin">İhtiyaç doğrudan AS400'den:
+                                    açık üretim emirlerinin (OPR) kalan adetleri. Excel dosyası
+                                    gerekmez. Sıra en eski teslim tarihine göre.</div></div></div>
                                 <div class="as4-adim"><div class="as4-adim-no">2</div><div>
                                     <div class="as4-adim-baslik">ERP hesaplar</div>
                                     <div class="as4-adim-metin">Her kodun 1. seviye ürün ağacı ve alt
@@ -5534,12 +5534,15 @@ window.__I18N_SOZLUK__ = {
                             <div class="as4-sozluk">
                                 <div class="as4-terim"><b>Üretilebilir</b><span>En kısıtlayan alt parçanın
                                 izin verdiği adet: min(01D+CF2 stok ÷ ağaçtaki birim miktar).</span></div>
-                                <div class="as4-terim"><b>6 Hafta Açık</b><span>6 haftalık toplam
-                                ihtiyaç − toplam stok. Pozitifse o kadar açık var.</span></div>
-                                <div class="as4-terim"><b>Açık Launch</b><span>ERP'de şu an açık olan
-                                launch'lar — o kadarı zaten gelecek, ihtiyaçtan düşülür.</span></div>
-                                <div class="as4-terim"><b>GEREKEN</b><span>6 haftalık açık − açık launch.
-                                Yeni launch alınması gereken adet.</span></div>
+                                <div class="as4-terim"><b>İhtiyaç (OPR)</b><span>Açık üretim emirlerinin
+                                kalan adetleri (6 haftalık ufuk). Launch alınmışsa teyit verilen düşülür.
+                                Rakama tıklayınca emir dökümü açılır.</span></div>
+                                <div class="as4-terim"><b>Stok (G GI)</b><span>AS400 ekranındaki stok:
+                                01D + MDT (fasondaki dahil).</span></div>
+                                <div class="as4-terim"><b>GEREKEN</b><span>İhtiyaç − stok. Kaynatılması
+                                gereken adet.</span></div>
+                                <div class="as4-terim"><b>⚠ gecikmiş</b><span>Teslim tarihi geçmiş açık
+                                emir var — en acil işler.</span></div>
                                 <div class="as4-terim"><b>TALİMAT VER</b><span>Gereken adet var ve
                                 malzeme yetiyor — talimat oluşturulabilir.</span></div>
                                 <div class="as4-terim"><b>KISMİ</b><span>Malzeme var ama ihtiyacın
@@ -5551,8 +5554,11 @@ window.__I18N_SOZLUK__ = {
                     </details>
 
                     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 20px;border-bottom:1px dashed var(--border-subtle)">
+                        <button class="btn btn-primary" onclick="kpErptenKur()" id="kp-erp-btn"
+                                title="Açık üretim emirlerinden (OPR) listeyi kurar — Excel gerekmez">⚡ AS400'den Kur</button>
                         <button class="btn btn-primary" onclick="kpYenile()" id="kp-yenile-btn">🔄 Stokları Yenile</button>
-                        <button class="btn" onclick="kpPlanYukleSor()" id="kp-yukle-btn">📥 Haftalık Planı Al</button>
+                        <button class="btn" onclick="kpPlanYukleSor()" id="kp-yukle-btn"
+                                title="İsteğe bağlı — planlamanın haftalık dosyasını da alabilirsiniz">📥 Excel'den (opsiyonel)</button>
                         <!-- Sunucu Q: sürücüsünü göremiyorsa dosya doğrudan yüklenebilir -->
                         <input type="file" id="kp-dosya" accept=".xlsb,.xlsx" style="display:none"
                                onchange="kpDosyadanYukle(this)">
@@ -5562,6 +5568,7 @@ window.__I18N_SOZLUK__ = {
                             Göster:
                             <select id="kp-filtre" class="as4g-inp" onchange="kpCiz()">
                                 <option value="aksiyon">Kaynatılması gerekenler</option>
+                <option value="gecikmis">Teslim tarihi geçmişler</option>
                                 <option value="hepsi">Tüm plan</option>
                                 <option value="TALIMAT VER">Kaynatılmalı · malzemesi tam</option>
                                 <option value="KISMI">Kaynatılmalı · malzeme kısmi</option>
@@ -10443,6 +10450,7 @@ window.__I18N_SOZLUK__ = {
                     kpCip('var(--success)', '✅ Malzemesi tam: ' + (o['TALIMAT VER'] || 0)) +
                     kpCip('var(--warn)', '◐ Malzeme kısmi: ' + (o['KISMI'] || 0)) +
                     kpCip('var(--danger)', '✖ Malzeme yok: ' + (o['MALZEME YOK'] || 0)) +
+                    (o.gecikmis_adet ? kpCip('var(--danger)', '⚠ Teslimi geçmiş: ' + o.gecikmis_adet) : '') +
                     (o.artan ? kpCip('var(--success)', '▲ Stoğu artan: ' + o.artan) : '') +
                     (o.azalan ? kpCip('var(--danger)', '▼ Stoğu azalan: ' + o.azalan) : '') +
                     kpCip('var(--muted)', 'Launch gerekmeyen: ' + (o['GEREK YOK'] || 0), true);
@@ -10453,12 +10461,16 @@ window.__I18N_SOZLUK__ = {
                 if (ara && (s.kaynak_kod + ' ' + (s.urun || '')).toUpperCase().replace(/\s/g, '').indexOf(ara) < 0) return false;
                 if (f === 'hepsi') return true;
                 if (f === 'aksiyon') return (s.gereken || 0) > 0;
+                if (f === 'gecikmis') return (s.gecikmis || 0) > 0;
                 if (f === 'degisen') return s.degisim !== null && s.degisim !== 0;
                 if (f === 'notlu') return !!(s.aciklama || '').trim();
                 return s.karar === f;
             });
             // Karar önceliği: talimat verilebilirler üstte, sonra plan sırası
             var oncelik = { 'TALIMAT VER': 0, 'KISMI': 1, 'MALZEME YOK': 2, 'ELLE BAK': 3, 'GEREK YOK': 4 };
+            // Aciliyet sırası (en eski OPR) BOZULMASIN — backend zaten öyle
+            // sıralıyor. Yalnız "malzemesi tam" olanlar öne alınır ki hemen
+            // başlanabilecek işler görünsün; içlerinde yine tarih sırası korunur.
             if (f === 'aksiyon') {
                 liste.sort(function (a, b) {
                     var d = (oncelik[a.karar] || 9) - (oncelik[b.karar] || 9);
@@ -10473,11 +10485,12 @@ window.__I18N_SOZLUK__ = {
                 return;
             }
             var h = '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
-                '<th style="width:44px">Sıra</th><th>Kaynak Kodu</th><th>Ürün</th>' +
-                '<th style="text-align:right" title="Toplam 6 haftalık ihtiyaç (BO sütunu)">6 Hf İhtiyaç</th>' +
-                '<th style="text-align:right" title="mevcutta üretime alınan adet (BV sütunu)">Üretimde</th>' +
-                '<th style="text-align:right" title="AS400 canlı stok (01D+CF2) — ihtiyaçtan düşülür">Stok (AS400)</th>' +
-                '<th style="text-align:right" title="6 haftalık ihtiyaç − üretimde olan − toplam stok">GEREKEN</th>' +
+                '<th style="width:44px">#</th>' +
+                '<th title="en eski açık üretim emrinin teslim tarihi — aciliyet sırası bundan">En Eski OPR</th>' +
+                '<th>Kaynak Kodu</th>' +
+                '<th style="text-align:right" title="ufuk içindeki açık OPR&#39;lerin kalan toplamı">İhtiyaç (OPR)</th>' +
+                '<th style="text-align:right" title="AS400 ekranındaki G GI = 01D + MDT">Stok (G GI)</th>' +
+                '<th style="text-align:right" title="ihtiyaç − stok">GEREKEN</th>' +
                 '<th style="text-align:right">Üretilebilir</th>' +
                 '<th style="text-align:right">Değişim</th>' +
                 '<th title="6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan">Kaynatılmalı?</th>' +
@@ -10511,20 +10524,23 @@ window.__I18N_SOZLUK__ = {
                           : (s.karar === 'MALZEME YOK') ? 'var(--danger-soft)' : '';
                 h += '<tr' + (zemin ? ' style="background:' + zemin + '"' : '') + '>' +
                     '<td style="color:var(--dim);font-size:.78rem">' + s.sira + '</td>' +
+                    '<td style="font-size:.78rem;white-space:nowrap;color:' +
+                        (s.gecikmis > 0 ? 'var(--danger);font-weight:800' : 'var(--muted)') + '"' +
+                        (s.gecikmis > 0 ? ' title="teslim tarihi geçmiş: ' + fmt(s.gecikmis) + ' adet"' : '') + '>' +
+                        esc(s.en_eski_opr || '—') + (s.gecikmis > 0 ? ' ⚠' : '') + '</td>' +
                     '<td style="font-weight:700"><a href="#" onclick="kpParcaAc(\'' + esc(s.kaynak_kod) + '\');return false"' +
                         ' title="alt parçaları göster">' + esc(s.kaynak_kod) + '</a>' +
                         (s.eksi_var ? ' <span title="bazı parçalarda ERP\'de eksi bakiye var" style="color:var(--danger)">⚠</span>' : '') +
                         ((s.agac_farki && s.agac_farki.length) ? ' <span title="ERP ağacı plandakinden farklı: ' +
                             esc(s.agac_farki.join(', ')) + '" style="color:var(--warn)">≠</span>' : '') + '</td>' +
-                    '<td style="font-size:.8rem;color:var(--muted)">' + esc(s.urun || '') + '</td>' +
-                    '<td style="text-align:right">' + fmt(s.iht_6h || 0) + '</td>' +
-                    '<td style="text-align:right;color:var(--muted)">' + fmt(s.acik_launch || 0) + '</td>' +
-                    '<td style="text-align:right;color:' + ((s.toplam_stok || 0) < 0 ? 'var(--danger)' : 'var(--muted)') +
-                        '" title="' + esc('AS400 canlı · 01D+CF2' +
+                    '<td style="text-align:right"><a href="#" onclick="kpOprAc(&quot;' + esc(s.kaynak_kod) + '&quot;);return false"' +
+                        ' title="açık üretim emirlerini göster">' + fmt(s.iht_6h || 0) + '</a>' +
+                        (s.opr_sayisi ? ' <span style="color:var(--dim);font-size:.72rem">(' + s.opr_sayisi + ')</span>' : '') + '</td>' +
+                    '<td style="text-align:right;color:' + ((s.stok_ggi || 0) < 0 ? 'var(--danger)' : 'var(--muted)') +
+                        '" title="' + esc('G GI = 01D + MDT' +
                             (s.ref_depolar ? ' | tüm depolar: ' + s.ref_depolar : '') +
-                            (s.plan_stok !== null && s.plan_stok !== undefined ? ' | plan dosyasında: ' + fmt(s.plan_stok) : '') +
-                            ((s.toplam_stok || 0) < 0 ? " | ERP'de eksi bakiye" : '')) + '">' +
-                        fmt(s.toplam_stok || 0) + '</td>' +
+                            ((s.stok_ggi || 0) < 0 ? " | ERP'de eksi bakiye" : '')) + '">' +
+                        fmt(s.stok_ggi || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' + fmt(s.gereken || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' +
                         (s.uretilebilir === null ? '<span style="color:var(--dim)">—</span>' : fmt(s.uretilebilir)) + '</td>' +
@@ -10541,10 +10557,68 @@ window.__I18N_SOZLUK__ = {
                         (s.not_guncelleyen ? ' title="' + esc(s.not_guncelleyen + ' · ' + (s.not_guncellendi || '')) + '"' : '') +
                         '></td></tr>' +
                     '<tr id="kp-parca-' + esc(s.kaynak_kod).replace(/[^A-Za-z0-9]/g, '_') + '" style="display:none">' +
+                    '<td colspan="13" style="background:var(--surface-2);padding:0"></td></tr>' +
+                    '<tr id="kp-opr-' + esc(s.kaynak_kod).replace(/[^A-Za-z0-9]/g, '_') + '" style="display:none">' +
                     '<td colspan="13" style="background:var(--surface-2);padding:0"></td></tr>';
             });
             h += '</tbody></table></div>';
             el.innerHTML = h;
+        }
+
+        // Açık üretim emirleri (OPR) dökümü — ihtiyaç rakamının nereden geldiği.
+        // Kullanıcı 2026-07-31: "opr tarihi en eskiden itibaren sıraladığımızda
+        // aciliyet sırasına göre sıralamış oluruz."
+        function kpOprAc(kod) {
+            var tr = document.getElementById('kp-opr-' + kod.replace(/[^A-Za-z0-9]/g, '_'));
+            if (!tr) return;
+            if (tr.style.display !== 'none') { tr.style.display = 'none'; return; }
+            tr.style.display = '';
+            var td = tr.firstElementChild;
+            td.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:.82rem">AS400 okunuyor…</div>';
+            fetch('/api/kaynak_plan/oprler?kod=' + encodeURIComponent(kod))
+                .then(function (r) { return r.json(); }).then(function (d) {
+                if (d.hata) { td.innerHTML = '<div style="padding:10px 14px;color:var(--danger)">' + esc(d.hata) + '</div>'; return; }
+                var l = d.satirlar || [];
+                if (!l.length) { td.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:.82rem">Açık üretim emri yok.</div>'; return; }
+                var h = '<table class="admin-table" style="margin:0"><thead><tr>' +
+                    '<th>Teslim Tarihi</th><th>OPR No</th><th>Durum</th>' +
+                    '<th style="text-align:right">Emir Adedi</th><th style="text-align:right">Teyit Verilen</th>' +
+                    '<th style="text-align:right">KALAN</th><th>Ufuk</th></tr></thead><tbody>';
+                var bugun = new Date().toISOString().slice(0, 10);
+                l.forEach(function (x) {
+                    var gec = x.tarih && x.tarih < bugun;
+                    h += '<tr' + (x.ufukta ? '' : ' style="opacity:.5"') + '>' +
+                        '<td style="font-weight:700;color:' + (gec ? 'var(--danger)' : 'var(--text)') + '">' +
+                            esc(x.tarih || '—') + (gec ? ' ⚠ gecikmiş' : '') + '</td>' +
+                        '<td style="font-size:.8rem">' + esc(x.opr) + '</td>' +
+                        '<td style="font-size:.76rem">' + (x.durum === '10' ? 'OPR (launch yok)' : 'launch açık') + '</td>' +
+                        '<td style="text-align:right">' + fmt(x.adet) + '</td>' +
+                        '<td style="text-align:right;color:var(--muted)">' + fmt(x.teyit) + '</td>' +
+                        '<td style="text-align:right;font-weight:800">' + fmt(x.kalan) + '</td>' +
+                        '<td style="font-size:.76rem;color:' + (x.ufukta ? 'var(--success)' : 'var(--dim)') + '">' +
+                            (x.ufukta ? 'sayıldı' : 'ufuk dışı') + '</td></tr>';
+                });
+                h += '</tbody></table><div style="padding:8px 14px;font-size:.78rem;color:var(--muted)">' +
+                    'İhtiyaç = ufuk içindeki KALAN toplamı = <b>' + fmt(d.ihtiyac || 0) + '</b></div>';
+                td.innerHTML = h;
+            });
+        }
+
+        function kpErptenKur() {
+            var b = document.getElementById('kp-erp-btn');
+            b.disabled = true; b.textContent = '⏳ AS400 okunuyor…';
+            fetch('/api/kaynak_plan/erpden_kur', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ufuk_gun: 42 })
+            }).then(function (r) { return r.json(); }).then(function (d) {
+                b.disabled = false; b.textContent = "⚡ AS400'den Kur";
+                if (d.hata) { toast(d.hata, 'err'); return; }
+                toast(d.mesaj || (d.satir + ' referans'), 'ok');
+                kpYukle();
+            }).catch(function (e) {
+                b.disabled = false; b.textContent = "⚡ AS400'den Kur";
+                toast('Kurulum başarısız: ' + e, 'err');
+            });
         }
 
         function kpParcaAc(kod) {

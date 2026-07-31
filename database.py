@@ -926,6 +926,10 @@ def init_db():
             toplam_stok REAL DEFAULT 0,
             plan_stok REAL,
             ref_depolar TEXT DEFAULT '',
+            en_eski_opr TEXT DEFAULT '',
+            opr_sayisi INTEGER DEFAULT 0,
+            gecikmis REAL DEFAULT 0,
+            stok_ggi REAL DEFAULT 0,
             iht_2h REAL DEFAULT 0,
             iht_6h REAL DEFAULT 0,
             plan_dosya TEXT DEFAULT '',
@@ -989,6 +993,10 @@ def init_db():
         ('iht_2h', 'REAL DEFAULT 0'),
         ('plan_stok', 'REAL'),               # plan dosyasindaki stok (kiyas icin)
         ('ref_depolar', "TEXT DEFAULT ''"),  # referansin ERP depo kirilimi
+        ('en_eski_opr', "TEXT DEFAULT ''"),  # aciliyet: en eski OPR teslim tarihi
+        ('opr_sayisi', 'INTEGER DEFAULT 0'),
+        ('gecikmis', 'REAL DEFAULT 0'),      # teslim tarihi gecmis OPR adedi
+        ('stok_ggi', 'REAL DEFAULT 0'),      # ERP ekranindaki G GI (01D+MDT)
     ):
         try:
             c.execute(f'ALTER TABLE kaynak_plan ADD COLUMN {_kol} {_tip}')

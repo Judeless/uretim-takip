@@ -39,6 +39,9 @@ VARSAYILAN_PLAN = r"Q:\UretimPlanlama\Yarımamul Üretim Planları\Kaynak ihtiya
 SAYILAN_DEPOLAR = ('01D', 'CF2')          # kullanıcının kuralı
 GOSTERILEN_DEPOLAR = ('01D', 'CF2', '01W', 'REP', 'MDT', 'MK2', 'MT2')
 GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,21}$')
+# Acik uretim emirleri gorunumu (as400_config.KAYNAK_TABLO ile ayni kaynak)
+OPR_TABLO = 'tkc0301F.XPRO90'
+IHTIYAC_UFUK_GUN = 42          # 6 hafta — kullanicinin 1845W ornegiyle uyumlu
 
 
 def _satirlari_getir(yol):
@@ -171,6 +174,83 @@ def stoklar(cn, kodlar):
         for art, depo, q in cu.fetchall():
             st.setdefault(art, {})[depo] = float(q or 0)
     return st
+
+
+def opr_ihtiyaclari(cn, kodlar, ufuk_gun=42):
+    """AÇIK ÜRETİM EMİRLERİNDEN (OPR) ihtiyaç — plan dosyasına gerek yok.
+
+    Kullanıcı 2026-07-31: "referansın ihtiyaç adedi, 10 07 01 ekranında kodun
+    içine girildiğinde 2 ile tekrar içine girildiğinde O PR numaralarından
+    anlayabiliriz... opr tarihi en eskiden itibaren sıraladığımızda aciliyet
+    sırasına göre sıralamış oluruz."
+
+    Kaynak: tkc0301F.XPRO90 (yalnız AÇIK emirler görünümü).
+      Q0AVAN 10 = OPR var, launch alınmamış → kalan = sipariş adedi
+      Q0AVAN 40/45/50 = launch açık        → kalan = sipariş − teyit verilen
+      Q0FPD* = üretim bitiş (teslim) tarihi → aciliyet sırası ve ufuk filtresi
+
+    ufuk_gun: bugünden itibaren kaç gün ilerisi sayılsın (varsayılan 42 = 6 hafta).
+    Kullanıcının 10.300.1845W örneği bununla birebir tutuyor: 29/06'dan kalan 86
+    + 27/07 tarihli 270 + 31/08 tarihli 732 = 1088; 19/10 tarihli 4. emir ufkun
+    dışında kaldığı için sayılmıyor.
+
+    Döner: {kod: {'ihtiyac', 'en_eski', 'opr_sayisi', 'gecikmis', 'satirlar'[]}}
+    """
+    from datetime import date, timedelta
+    kodlar = [k for k in kodlar if GUVENLI_KOD.match(k)]
+    if not kodlar:
+        return {}
+    bugun = date.today()
+    sinir = bugun + timedelta(days=ufuk_gun)
+    sonuc = {}
+    cu = cn.cursor()
+    for i in range(0, len(kodlar), 50):
+        grup = kodlar[i:i + 50]
+        yer = ','.join('?' * len(grup))
+        cu.execute(
+            f"SELECT TRIM(Q0ARTI), TRIM(Q0AVAN), Q0QTOR, Q0QTRI, Q0RED2, Q0RENU, "
+            f"Q0FPD1, Q0FPD2, Q0FPD3, Q0FPD4 "
+            f"FROM {OPR_TABLO} WHERE TRIM(Q0ARTI) IN ({yer}) "
+            f"AND TRIM(Q0AVAN) IN ('10','40','45','50')", grup)
+        for r in cu.fetchall():
+            kod, durum = r[0], (r[1] or '').strip()
+            adet, teyit = float(r[2] or 0), float(r[3] or 0)
+            # durum 10'da henüz launch yok → teyit de olamaz; 40/45/50'de kalan düşülür
+            kalan = adet if durum == '10' else max(0.0, adet - teyit)
+            if kalan <= 0:
+                continue
+            try:
+                t = date(int(r[6]) * 100 + int(r[7]), int(r[8]), int(r[9]))
+            except (TypeError, ValueError):
+                t = None
+            d = sonuc.setdefault(kod, {'ihtiyac': 0.0, 'en_eski': None, 'opr_sayisi': 0,
+                                       'gecikmis': 0.0, 'satirlar': []})
+            d['satirlar'].append({'opr': f"{str(r[4]).strip()}-{str(r[5]).strip()}",
+                                  'durum': durum, 'adet': adet, 'teyit': teyit,
+                                  'kalan': kalan, 'tarih': t.isoformat() if t else '',
+                                  'ufukta': bool(t and t <= sinir)})
+            if t and t <= sinir:
+                d['ihtiyac'] += kalan
+                d['opr_sayisi'] += 1
+                if t < bugun:
+                    d['gecikmis'] += kalan            # teslim tarihi geçmiş
+                if d['en_eski'] is None or t.isoformat() < d['en_eski']:
+                    d['en_eski'] = t.isoformat()
+    for d in sonuc.values():
+        d['satirlar'].sort(key=lambda x: (x['tarih'] or '9999'))
+    return sonuc
+
+
+def stok_ggi(cn, kodlar):
+    """Referansın ERP ekranında görünen stoğu (G GI) = 01D + MDT.
+
+    Kullanıcı 2026-07-31: "07 10 01 ekranında kodun içine girip 2 ile içine
+    girdiğimizde en üstte G GI kısmında görebiliriz, 300.1845w için 764".
+    Ölçüldü: 01D 308 + MDT 456 = 764 — birebir. MDT fasondaki malzeme; ekranda
+    stoğa dahil ediliyor, 01W dahil DEĞİL."""
+    ham = stoklar(cn, kodlar)
+    return {k: {'ggi': v.get('01D', 0) + v.get('MDT', 0), 'depolar': {a: b for a, b in v.items() if b}}
+            for k, v in ham.items()}
 
 
 def hesapla(satirlar, agac, stok, ref_stok=None):
