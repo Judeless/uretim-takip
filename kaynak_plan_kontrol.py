@@ -221,16 +221,27 @@ def hesapla(satirlar, agac, stok):
         # değişmiş olabilir — karar elle doğrulanmalı)
         erp_kodlar = {p['kod'] for p in s.get('parcalar', [])}
         s['agac_farki'] = sorted(set(s.get('plan_parcalar') or []) - erp_kodlar)
-        if ihtiyac <= 0:
-            # 6 haftalık açık yok ya da açığı zaten mevcut launch'lar kapatıyor.
+        # ── İKİ AYRI SORU (kullanıcı 2026-07-31) ─────────────────────────
+        # Tek "karar" sütunu iki soruyu karıştırıyordu. Kullanıcının sorduğu
+        # sıra: (1) bu ürünü kaynatmam gerekiyor mu? (2) gerekiyorsa malzemem
+        # var mı? Örnek 10.300.1845W: ihtiyaç 2287 − stok 639 − launch 646 =
+        # 1002 KAYNATILMALI; ayrıca alt parçası (10.300.1845A) 01D+CF2'de 0
+        # olduğu için malzeme YOK. İkisi ayrı bilgi, ayrı sütun.
+        s['kaynatilmali'] = ihtiyac > 0
+        if not s['kaynatilmali']:
+            s['malzeme'] = ''
             s['karar'] = 'GEREK YOK'
         elif u is None:
+            s['malzeme'] = 'BILINMIYOR'
             s['karar'] = 'ELLE BAK'
         elif u >= ihtiyac:
+            s['malzeme'] = 'TAM'
             s['karar'] = 'TALIMAT VER'
         elif u > 0:
+            s['malzeme'] = 'KISMI'
             s['karar'] = 'KISMI'
         else:
+            s['malzeme'] = 'YOK'
             s['karar'] = 'MALZEME YOK'
     return satirlar
 

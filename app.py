@@ -6993,9 +6993,12 @@ def kaynak_plan_liste():
         onceki, simdi = s.get('onceki_uretilebilir'), s.get('uretilebilir')
         s['degisim'] = (simdi - onceki) if (onceki is not None and simdi is not None) else None
         s['agac_farki'] = [x for x in (s.get('agac_farki') or '').split('|') if x]
+        # "Bu ürünü kaynatmam gerekiyor mu?" — panelde ayrı sütun (2026-07-31)
+        s['kaynatilmali'] = (s.get('gereken') or 0) > 0
     ozet = {'toplam': len(satirlar)}
     for s in satirlar:
         ozet[s['karar'] or 'YOK'] = ozet.get(s['karar'] or 'YOK', 0) + 1
+    ozet['kaynatilmali'] = sum(1 for s in satirlar if (s.get('gereken') or 0) > 0)
     ozet['artan'] = sum(1 for s in satirlar if (s['degisim'] or 0) > 0)
     ozet['azalan'] = sum(1 for s in satirlar if (s['degisim'] or 0) < 0)
     son = max((s.get('olculdu') or '' for s in satirlar), default='')

@@ -5561,11 +5561,11 @@ window.__I18N_SOZLUK__ = {
                         <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">
                             Göster:
                             <select id="kp-filtre" class="as4g-inp" onchange="kpCiz()">
-                                <option value="aksiyon">6 haftalık açığı olanlar</option>
+                                <option value="aksiyon">Kaynatılması gerekenler</option>
                                 <option value="hepsi">Tüm plan</option>
-                                <option value="TALIMAT VER">Talimat verilebilir</option>
-                                <option value="KISMI">Kısmi</option>
-                                <option value="MALZEME YOK">Malzeme yok</option>
+                                <option value="TALIMAT VER">Kaynatılmalı · malzemesi tam</option>
+                                <option value="KISMI">Kaynatılmalı · malzeme kısmi</option>
+                                <option value="MALZEME YOK">Kaynatılmalı · malzeme yok</option>
                                 <option value="degisen">Stoğu değişenler</option>
                                 <option value="notlu">Notu olanlar</option>
                             </select>
@@ -10394,6 +10394,10 @@ window.__I18N_SOZLUK__ = {
         var _as4Bekleyen = [];    // gönderilebilir LAUNCH satırları (checkbox indeks sırası)
         var _as4CfiBekleyen = []; // launch'sız üretim → CFI kuyruğu (checkbox indeks sırası)
         var _as4CopBekleyen = []; // hurda (nok_adet) → COP kuyruğu (2026-07-24; ANA teyidi onaylı satırlar da dahil)
+        // Son gönderim sonucu (hata satırları dahil). as4Render her çizimden sonra
+        // geri koyar — liste tazelenince sonuç kutusu SİLİNMESİN (2026-07-31).
+        // Bir sonraki gönderim başlarken temizlenir.
+        var _as4SonucSakla = { gonder: '', cop: '' };
         var _as4GonderiSuruyor = false;   // bu sekmede as4Gonder aktif mi
         var _as4DurumTimer = null;
 
@@ -10435,8 +10439,9 @@ window.__I18N_SOZLUK__ = {
             var cip = document.getElementById('kp-cipler');
             if (cip) {
                 cip.innerHTML =
-                    kpCip('var(--success)', '✅ Talimat verilebilir: ' + (o['TALIMAT VER'] || 0)) +
-                    kpCip('var(--warn)', '◐ Kısmi: ' + (o['KISMI'] || 0)) +
+                    kpCip('var(--danger)', '🔥 Kaynatılmalı: ' + (o.kaynatilmali || 0)) +
+                    kpCip('var(--success)', '✅ Malzemesi tam: ' + (o['TALIMAT VER'] || 0)) +
+                    kpCip('var(--warn)', '◐ Malzeme kısmi: ' + (o['KISMI'] || 0)) +
                     kpCip('var(--danger)', '✖ Malzeme yok: ' + (o['MALZEME YOK'] || 0)) +
                     (o.artan ? kpCip('var(--success)', '▲ Stoğu artan: ' + o.artan) : '') +
                     (o.azalan ? kpCip('var(--danger)', '▼ Stoğu azalan: ' + o.azalan) : '') +
@@ -10474,11 +10479,20 @@ window.__I18N_SOZLUK__ = {
                 '<th style="text-align:right" title="toplam stok — ihtiyaçtan düşülür">Stok</th>' +
                 '<th style="text-align:right" title="6 haftalık ihtiyaç − üretimde olan − toplam stok">GEREKEN</th>' +
                 '<th style="text-align:right">Üretilebilir</th>' +
-                '<th style="text-align:right">Değişim</th><th>Karar</th><th>Kısıtlayan</th>' +
+                '<th style="text-align:right">Değişim</th>' +
+                '<th title="6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan">Kaynatılmalı?</th>' +
+                '<th title="alt parçaların 01D+CF2 stoğu gerekeni karşılıyor mu">Malzeme</th>' +
+                '<th>Kısıtlayan</th>' +
                 '<th style="min-width:190px">Not</th></tr></thead><tbody>';
             liste.forEach(function (s) {
                 var kr = { 'TALIMAT VER': 'var(--success)', 'KISMI': 'var(--warn)',
                            'MALZEME YOK': 'var(--danger)', 'ELLE BAK': 'var(--primary)' }[s.karar] || 'var(--dim)';
+                // Malzeme sütunu metni: "kaynatmam lazım mı" sorusundan AYRI dursun.
+                var mlz = !s.kaynatilmali ? '—'
+                        : (s.karar === 'TALIMAT VER') ? '✓ Tam'
+                        : (s.karar === 'KISMI') ? '◐ Kısmi (' + fmt(s.uretilebilir) + ')'
+                        : (s.karar === 'MALZEME YOK') ? '✖ Yok'
+                        : '? Bilinmiyor';
                 var dg = '';
                 if (s.degisim !== null && s.degisim !== 0) {
                     var art = s.degisim > 0;
@@ -10505,7 +10519,10 @@ window.__I18N_SOZLUK__ = {
                     '<td style="text-align:right;font-weight:800">' +
                         (s.uretilebilir === null ? '<span style="color:var(--dim)">—</span>' : fmt(s.uretilebilir)) + '</td>' +
                     '<td style="text-align:right">' + dg + '</td>' +
-                    '<td style="color:' + kr + ';font-weight:700;font-size:.78rem">' + esc(s.karar || '') + '</td>' +
+                    '<td style="font-weight:800;font-size:.8rem;color:' +
+                        (s.kaynatilmali ? 'var(--danger)' : 'var(--dim)') + '">' +
+                        (s.kaynatilmali ? 'EVET · ' + fmt(s.gereken || 0) : '—') + '</td>' +
+                    '<td style="color:' + kr + ';font-weight:700;font-size:.78rem">' + esc(mlz) + '</td>' +
                     '<td style="font-size:.78rem">' + esc(s.kisitlayan || '') +
                         (s.kisit_stok ? ' <span style="color:var(--dim)">(' + fmt(s.kisit_stok) + ')</span>' : '') + '</td>' +
                     '<td><input type="text" value="' + esc(s.aciklama || '') + '" placeholder="not…" ' +
@@ -10514,7 +10531,7 @@ window.__I18N_SOZLUK__ = {
                         (s.not_guncelleyen ? ' title="' + esc(s.not_guncelleyen + ' · ' + (s.not_guncellendi || '')) + '"' : '') +
                         '></td></tr>' +
                     '<tr id="kp-parca-' + esc(s.kaynak_kod).replace(/[^A-Za-z0-9]/g, '_') + '" style="display:none">' +
-                    '<td colspan="12" style="background:var(--surface-2);padding:0"></td></tr>';
+                    '<td colspan="13" style="background:var(--surface-2);padding:0"></td></tr>';
             });
             h += '</tbody></table></div>';
             el.innerHTML = h;
@@ -11625,6 +11642,9 @@ window.__I18N_SOZLUK__ = {
                 // Tüm hurdalar zaten COP verilmiş — pending yok; boş tablo yerine kısa bilgi.
                 sCop += '<div style="margin:18px 0 4px;color:var(--lg-green);font-size:.86rem;font-weight:700">♻ ✅ Bu aralıktaki tüm hurdalar zaten COP verilmiş (' + _as4CopBekleyen.length + ' satır).</div>';
             }
+            // Sonuç kutusu HER ZAMAN dursun: COP başarılı olunca satır listeden
+            // düşüyor, kutu da onunla birlikte kaybolup sonucu götürüyordu (2026-07-31).
+            if (!copBek.length) sCop += '<div id="as4-cop-sonuc"></div>';
 
             // ── 2) DIKKAT (robot dokunmaz) ──
             if (dikkat.length) {
@@ -11802,6 +11822,16 @@ window.__I18N_SOZLUK__ = {
                   '</div>' +
                 '</div></details>';
             icerik.innerHTML = sNasil + ustSerit + cipler + sKuyruk + sCop + sDikkat + sTeyitli + sBilgi + sGecmis + sGonderim;
+            // SON GÖNDERİM SONUCUNU GERİ KOY (2026-07-31): gönderim bitince liste
+            // tazeleniyor ve bu innerHTML sonuç kutusunu siliyordu. Zamanlayıcıyla
+            // geri yazma yarışı kaybediyordu (canlı AS400 sorgusu 3.5 sn'den uzun
+            // sürebiliyor) → hata satırları görünüp kayboluyordu. Artık render'ın
+            // kendisi geri koyuyor; bir sonraki gönderime kadar ekranda kalır.
+            ['gonder', 'cop'].forEach(function (k) {
+                if (!_as4SonucSakla[k]) return;
+                var el = document.getElementById('as4-' + k + '-sonuc');
+                if (el) el.innerHTML = _as4SonucSakla[k];
+            });
             // "Bu sayfa ne yapar" kutusu ilk ziyarette açık gelir; bir kez
             // açıldıktan sonra kapalı başlasın diye tercihi saklıyoruz.
             var _nasil = document.getElementById('as4-nasil');
@@ -11908,6 +11938,7 @@ window.__I18N_SOZLUK__ = {
             if (!confirm('AS400\'e girilecek — önce LAUNCH, sonra CFI:\n\n' + bolumler.join('\n\n') +
                 '\n\nSession B\'nin boşta olduğundan emin ol. Devam?')) return;
 
+            _as4SonucSakla.gonder = '';   // yeni koşu: önceki sonucu ekranda tutma
             var btn = document.getElementById('as4-gonder-btn');
             var durBtn = document.getElementById('as4-durdur-btn');
             var sonucEl = document.getElementById('as4-gonder-sonuc');
@@ -12064,16 +12095,15 @@ window.__I18N_SOZLUK__ = {
                 (durduruldu ? ' <span style="color:var(--lg-amber)">· ⏹ kullanıcı durdurdu</span>' : '') + '</div>';
             if (top.hata) html += '<div style="color:var(--lg-amber);font-size:.8rem;margin-top:6px">⚠ Hatalı satırlar atlandı, sıradakilere devam edildi — listeyi yenileyip tekrar deneyebilirsin.</div>';
             sonucEl.innerHTML = ozetHtml + html;
+            // SONUÇ KAYBOLMASIN (2026-07-31): eskiden "3500 ms sonra geri yaz"
+            // deniyordu; as4Yukle canlı AS400 sorgusu yaptığı için çoğu zaman
+            // 3.5 sn'den UZUN sürüyor, geri yazma render'dan ÖNCE çalışıp boşa
+            // gidiyordu → hata satırları kısa süre görünüp kayboluyordu.
+            // Artık zamanlayıcı yok: sonuç saklanır, as4Render her çizimden sonra
+            // kendisi geri koyar (bir sonraki gönderime kadar ekranda kalır).
+            _as4SonucSakla.gonder = ozetHtml + html;
             toast(top.ok + ' kayıt AS400\'e işlendi', (top.hata ? 'error' : 'ok'));
-            // Listeyi tazele — sonuç bölümünü koru
-            setTimeout(function () {
-                var korunan = sonucEl.innerHTML;
-                as4Yukle();
-                setTimeout(function () {
-                    var yeniEl = document.getElementById('as4-gonder-sonuc');
-                    if (yeniEl) yeniEl.innerHTML = korunan;
-                }, 3500);
-            }, 1200);
+            setTimeout(as4Yukle, 1200);   // listeyi tazele
         }
 
         function as4Durdur() {
@@ -12138,6 +12168,7 @@ window.__I18N_SOZLUK__ = {
             if (!confirm('AS400\'e COP (hurda) hareketi girilecek — hareket tarihi BUGÜN:\n\n' + ozet +
                 '\n\nSession B\'nin boşta olduğundan emin ol. Devam?')) return;
 
+            _as4SonucSakla.cop = '';   // yeni koşu: önceki sonucu ekranda tutma
             var btn = document.getElementById('as4-cop-gonder-btn');
             var durBtn = document.getElementById('as4-cop-durdur-btn');
             var sonucEl = document.getElementById('as4-cop-sonuc');
@@ -12186,16 +12217,9 @@ window.__I18N_SOZLUK__ = {
                 (t.durduruldu ? ' <span style="color:var(--lg-amber)">· ⏹ durduruldu</span>' : '') + '</div>';
             if (t.hata_mesaj) ozetHtml += '<div style="color:var(--lg-red);font-weight:700;padding:6px 0">⚠ ' + esc(t.hata_mesaj) + '</div>';
             sonucEl.innerHTML = ozetHtml + as4SonucSatirlari(t.sonuclar);
+            _as4SonucSakla.cop = ozetHtml + as4SonucSatirlari(t.sonuclar);   // bkz. as4Gonder
             toast(t.ozet.ok + ' hurda COP işlendi', (t.ozet.hata ? 'error' : 'ok'));
-            // Listeyi tazele — COP sonucunu koru
-            setTimeout(function () {
-                var korunan = sonucEl.innerHTML;
-                as4Yukle();
-                setTimeout(function () {
-                    var yeniEl = document.getElementById('as4-cop-sonuc');
-                    if (yeniEl) yeniEl.innerHTML = korunan;
-                }, 3500);
-            }, 1200);
+            setTimeout(as4Yukle, 1200);   // listeyi tazele
         }
 
         // ═══════════════════════════════════════════════════════
