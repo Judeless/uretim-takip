@@ -10469,9 +10469,10 @@ window.__I18N_SOZLUK__ = {
             }
             var h = '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
                 '<th style="width:44px">Sıra</th><th>Kaynak Kodu</th><th>Ürün</th>' +
-                '<th style="text-align:right" title="6 haftalık toplam ihtiyaç − toplam stok">6 Hafta Açık</th>' +
-                "<th style=\"text-align:right\" title=\"şu an ERP'de açık olan launch'lar — o kadarı zaten gelecek\">Açık Launch</th>" +
-                '<th style="text-align:right" title="6 haftalık açık − açık launch">GEREKEN</th>' +
+                '<th style="text-align:right" title="Toplam 6 haftalık ihtiyaç (BO sütunu)">6 Hf İhtiyaç</th>' +
+                '<th style="text-align:right" title="mevcutta üretime alınan adet (BV sütunu)">Üretimde</th>' +
+                '<th style="text-align:right" title="toplam stok — ihtiyaçtan düşülür">Stok</th>' +
+                '<th style="text-align:right" title="6 haftalık ihtiyaç − üretimde olan − toplam stok">GEREKEN</th>' +
                 '<th style="text-align:right">Üretilebilir</th>' +
                 '<th style="text-align:right">Değişim</th><th>Karar</th><th>Kısıtlayan</th>' +
                 '<th style="min-width:190px">Not</th></tr></thead><tbody>';
@@ -10495,9 +10496,11 @@ window.__I18N_SOZLUK__ = {
                         ((s.agac_farki && s.agac_farki.length) ? ' <span title="ERP ağacı plandakinden farklı: ' +
                             esc(s.agac_farki.join(', ')) + '" style="color:var(--warn)">≠</span>' : '') + '</td>' +
                     '<td style="font-size:.8rem;color:var(--muted)">' + esc(s.urun || '') + '</td>' +
-                    '<td style="text-align:right;color:' + ((s.acik_6h || 0) > 0 ? 'var(--text)' : 'var(--dim)') + '">' +
-                        fmt(s.acik_6h || 0) + '</td>' +
+                    '<td style="text-align:right">' + fmt(s.iht_6h || 0) + '</td>' +
                     '<td style="text-align:right;color:var(--muted)">' + fmt(s.acik_launch || 0) + '</td>' +
+                    '<td style="text-align:right;color:' + ((s.toplam_stok || 0) < 0 ? 'var(--danger)' : 'var(--muted)') +
+                        '" title="' + ((s.toplam_stok || 0) < 0 ? "ERP'de eksi bakiye" : '') + '">' +
+                        fmt(s.toplam_stok || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' + fmt(s.gereken || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' +
                         (s.uretilebilir === null ? '<span style="color:var(--dim)">—</span>' : fmt(s.uretilebilir)) + '</td>' +
@@ -10511,7 +10514,7 @@ window.__I18N_SOZLUK__ = {
                         (s.not_guncelleyen ? ' title="' + esc(s.not_guncelleyen + ' · ' + (s.not_guncellendi || '')) + '"' : '') +
                         '></td></tr>' +
                     '<tr id="kp-parca-' + esc(s.kaynak_kod).replace(/[^A-Za-z0-9]/g, '_') + '" style="display:none">' +
-                    '<td colspan="11" style="background:var(--surface-2);padding:0"></td></tr>';
+                    '<td colspan="12" style="background:var(--surface-2);padding:0"></td></tr>';
             });
             h += '</tbody></table></div>';
             el.innerHTML = h;

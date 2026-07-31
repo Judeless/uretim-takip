@@ -919,7 +919,6 @@ def init_db():
             sira INTEGER DEFAULT 0,
             urun TEXT DEFAULT '',
             acik_launch REAL DEFAULT 0,
-            acik_6h REAL DEFAULT 0,
             gereken REAL DEFAULT 0,
             kontrol6 INTEGER,
             gun_stok REAL DEFAULT 0,

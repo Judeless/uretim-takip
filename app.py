@@ -7139,17 +7139,17 @@ def kaynak_plan_yukle():
         conn.execute("UPDATE kaynak_plan SET aktif=0")
         for s in satirlar:
             conn.execute(
-                "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, acik_launch, acik_6h, gereken, "
+                "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, acik_launch, gereken, "
                 "kontrol6, gun_stok, bakiye, toplam_stok, iht_2h, iht_6h, "
                 "plan_dosya, plan_yuklendi, agac_farki, aktif) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'',1) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'',1) "
                 "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, urun=excluded.urun, "
-                "acik_launch=excluded.acik_launch, acik_6h=excluded.acik_6h, "
+                "acik_launch=excluded.acik_launch, "
                 "gereken=excluded.gereken, kontrol6=excluded.kontrol6, gun_stok=excluded.gun_stok, "
                 "bakiye=excluded.bakiye, toplam_stok=excluded.toplam_stok, "
                 "iht_2h=excluded.iht_2h, iht_6h=excluded.iht_6h, plan_dosya=excluded.plan_dosya, "
                 "plan_yuklendi=excluded.plan_yuklendi, aktif=1",
-                (s['kaynak_kod'], s['sira'], s['urun'], s['acik_launch'], s['acik_6h'],
+                (s['kaynak_kod'], s['sira'], s['urun'], s['acik_launch'],
                  s['gereken'], (None if s.get('kontrol6') is None else int(s['kontrol6'])),
                  s['gun_stok'], s['bakiye'], s['toplam_stok'], s['iht_2h'], s['iht_6h'],
                  gosterim, simdi))

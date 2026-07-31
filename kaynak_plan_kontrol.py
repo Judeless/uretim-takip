@@ -101,21 +101,21 @@ def plan_oku(yol, limit=None):
             'kaynak_kod': kod,
             'urun': str(h.get(1) or '').strip(),
             'ustler': [str(h.get(k) or '').strip() for k in (2, 3, 4) if str(h.get(k) or '').strip()],
-            # ── İHTİYAÇ ÖLÇÜTÜ: 6 HAFTA (kullanıcı 2026-07-31) ──────────────
-            # "Launch" sütunu (73) İHTİYAÇ DEĞİL, ŞU AN AÇIK OLAN launch'lar —
-            # yani zaten üretilecek adet. İlk sürümde ihtiyaç sanılmıştı ve
-            # açık launch'ı olmayan 201 referans "gerek yok" görünüyordu.
-            # Doğru ölçüt: "6 hafta için fark" (71) = 6 haftalık toplam ihtiyaç
-            # − toplam stok. Pozitifse o kadar AÇIK var. Doğrulandı: formül
-            # 218/230 satırda birebir tutuyor, "KONTROL 6 hafta yeterli" (74)
-            # bayrağıyla 225/230 uyumlu.
-            # GEREKEN = açık − hâlihazırda açık launch (o kadarı zaten geliyor).
-            'acik_launch': _say(h, 73),
-            'acik_6h': _say(h, 71),
+            # ── İHTİYAÇ ÖLÇÜTÜ (kullanıcı 2026-07-31, sütunları kendisi verdi) ──
+            #   BO (66) "Toplam 6 haft iht"  = ihtiyaç adedi
+            #   BV (73) "Launch"             = mevcutta üretime alınan adet
+            #   BQ (68) "toplam stok"
+            # Kural: üretime alınan ihtiyaçtan azsa KALANI üretmek gerekir ve
+            # eldeki stok da ihtiyaçtan düşülür:
+            #     GEREKEN = max(0, BO − BV − toplam stok)
+            # NOT: dosyadaki hazır "6 hafta için fark" (BT/71) sütunu KULLANILMIYOR;
+            # o sütun negatif stoğu yok sayıyor ve 12 satırda bu formülden
+            # ayrışıyor (ör. BO=100, stok=−44 → BT 100 der, bu kural 144).
+            'acik_launch': _say(h, 73),          # BV — üretime alınan
             'bakiye': _say(h, 15),
-            'toplam_stok': _say(h, 68),
+            'toplam_stok': _say(h, 68),          # BQ
             'iht_2h': _say(h, 20),
-            'iht_6h': _say(h, 66),
+            'iht_6h': _say(h, 66),               # BO — 6 haftalık ihtiyaç
             'kontrol6': (None if h.get(74) is None else bool(h.get(74))),
             'gun_stok': _say(h, 75),
             # Planlamanın elle yazdığı alt parçalar — ERP ağacıyla kıyaslanır
@@ -123,7 +123,9 @@ def plan_oku(yol, limit=None):
                               for k in range(6, 13) if str(h.get(k) or '').strip()],
         })
         son = satirlar[-1]
-        son['gereken'] = max(0.0, (son['acik_6h'] or 0) - (son['acik_launch'] or 0))
+        son['gereken'] = max(0.0, (son['iht_6h'] or 0) - (son['acik_launch'] or 0)
+                            - (son['toplam_stok'] or 0))
+        son['stok_eksi'] = (son['toplam_stok'] or 0) < 0
         if limit and len(satirlar) >= limit:
             break
     return satirlar
@@ -271,23 +273,25 @@ def excel_yaz(satirlar, cikti):
         if s['durum'] == 'BIRIM YOK':
             notlar.append('ağaçta birim miktar tanımsız')
         ws.append([s['sira'], s['kaynak_kod'], s['urun'],
-                   s.get('acik_6h') or 0, s.get('acik_launch') or 0, s.get('gereken') or 0,
+                   s.get('iht_6h') or 0, s.get('acik_launch') or 0, s.get('toplam_stok') or 0,
+                   s.get('gereken') or 0,
                    s['uretilebilir'] if s['uretilebilir'] is not None else '—',
                    s.get('karar', ''), s.get('kisitlayan', ''), kis_stok,
                    len(s.get('parcalar', [])), ' · '.join(notlar)])
         r = ws.max_row
         f = KARAR_RENK.get(s.get('karar'))
-        for c in range(1, 13):
+        for c in range(1, 14):
             ws.cell(row=r, column=c).border = kenar
             if f:
                 ws.cell(row=r, column=c).fill = PatternFill('solid', fgColor=f)
-        ws.cell(row=r, column=6).font = Font(bold=True)
         ws.cell(row=r, column=7).font = Font(bold=True)
         ws.cell(row=r, column=8).font = Font(bold=True)
+        ws.cell(row=r, column=9).font = Font(bold=True)
 
-    BASLIK = ['Sıra', 'Kaynak Kodu', 'Ürün', '6 Hafta Açık', 'Açık Launch', 'GEREKEN',
-              'Üretilebilir', 'KARAR', 'Kısıtlayan Parça', 'Kısıtlayan Stok', 'Parça Sayısı', 'Not']
-    GENIS = [6, 22, 18, 13, 12, 11, 13, 15, 22, 15, 12, 46]
+    BASLIK = ['Sıra', 'Kaynak Kodu', 'Ürün', '6 Hf İhtiyaç (BO)', 'Üretimde (BV)',
+              'Toplam Stok', 'GEREKEN', 'Üretilebilir', 'KARAR', 'Kısıtlayan Parça',
+              'Kısıtlayan Stok', 'Parça Sayısı', 'Not']
+    GENIS = [6, 22, 18, 15, 13, 12, 11, 13, 15, 22, 15, 12, 46]
 
     # ── 1. SAYFA: yalnız AKSİYON gerekenler (launch ihtiyacı > 0) ──
     ws = wb.active
