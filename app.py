@@ -172,7 +172,7 @@ app.config.update(
 PANEL_SAYFALAR = [
     'ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
     'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
-    'as400-teyit',
+    'as400-teyit', 'kaynak-plan',
 ]
 
 def panel_kullanici():
@@ -387,11 +387,15 @@ def _durus_vardiya_bul(durus_id):
 SAYAC_AUTO_CIHAZLAR = (
     {f'ABB{i}' for i in range(1, 10)} | {'300T', '400T', '550T'} | {f'M{i}' for i in range(1, 13)}
     | {'YF1', 'LF-LFP'}
-    # 2026-07-23 yeni sayaç modülleri: abkant (röle) + eksantrik pres (iki-el AND) →
-    # bölüm 'pres'; plastik enjeksiyon (320T/407T, metal mantığı) → bölüm 'plastik' (TK1).
+    # 2026-07-23 yeni sayaç modülleri: abkant (röle) + eksantrik pres → bölüm 'pres';
+    # plastik enjeksiyon (320T/407T, metal mantığı) → bölüm 'plastik' (TK1).
     # 2026-07-27 saha rollout: yapıştırma (kısa röle pulse, plastik hattının makinesi)
     # → bölüm 'plastik' (TK1). robot_no ASCII 'Yapistirma' (firmware ile birebir).
+    # 2026-07-31: pres bölümünün TÜM makineleri makinenin KENDİ SAYACINA takılan röleden
+    # sinyal alır (eski iki-el buton modeli bırakıldı) — 5 eksantrik + 1 hidrolik + 1 broş.
+    # robot_no ASCII 'Bros' (firmware/klasör adı ASCII olmalı — 'Yapistirma' kalıbı).
     | {'Abkant 1', 'Abkant 2', 'Abkant 3'} | {f'Pres {i}' for i in range(1, 6)}
+    | {'Hidrolik Pres', 'Bros'}
     | {'320T', '407T', 'Yapistirma'}
 )
 # YF1: TK1 (yan tesis) montaj deneme modülü — MONTAJ-YF1 cihazı robot_no='YF1' ile flash'lı
@@ -412,16 +416,19 @@ HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1'}
 # ── PRES (Pres Abkant) MAKİNE MODELİ (kullanıcı 2026-07-28) ──
 # Operatör gün içinde makine değiştirerek çalışıyor → makine VARDİYADA DEĞİL, her
 # ÜRETİM KAYDINDA seçilir (lazer modelinin aynısı). Vardiya hattı tek ve sabittir:
-# PRES_SABIT_HAT; makine, uretim_kayitlari.istasyon kolonunda 1..8 olarak durur.
-# Sıra ÖNEMLİ: istasyon no = bu listedeki sıra (1=Abkant 1 ... 8=Pres 5); makine
+# PRES_SABIT_HAT; makine, uretim_kayitlari.istasyon kolonunda 1..10 olarak durur.
+# Sıra ÖNEMLİ: istasyon no = bu listedeki sıra (1=Abkant 1 ... 10=Bros); makine
 # adları pilot.db cihaz robot_no'larıyla (firmware) BİREBİR aynı olmalı.
+# YENİ MAKİNE HEP SONA EKLENİR — araya girmek eski üretim kayıtlarının istasyon
+# numaralarını başka makineye kaydırır (2026-07-31: 9=Hidrolik Pres, 10=Bros).
 PRES_SABIT_HAT  = 'Pres Abkant'
 PRES_MAKINELERI = ['Abkant 1', 'Abkant 2', 'Abkant 3',
-                   'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5']
+                   'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5',
+                   'Hidrolik Pres', 'Bros']
 
 
 def pres_makine_ad(istasyon):
-    """istasyon no (1..8) → makine adı. Geçersiz/0 ise '' (makine seçilmemiş)."""
+    """istasyon no (1..10) → makine adı. Geçersiz/0 ise '' (makine seçilmemiş)."""
     try:
         i = int(istasyon or 0)
     except (TypeError, ValueError):
@@ -430,7 +437,7 @@ def pres_makine_ad(istasyon):
 
 
 def pres_ist_no(makine_ad):
-    """Makine adı → istasyon no (1..8). Listede yoksa 0."""
+    """Makine adı → istasyon no (1..10). Listede yoksa 0."""
     try:
         return PRES_MAKINELERI.index(str(makine_ad or '').strip()) + 1
     except ValueError:
@@ -439,7 +446,7 @@ def pres_ist_no(makine_ad):
 
 def _sayac_cihazi(bolum, robot_no, istasyon=0):
     """Vardiya hattı + üretim kaydı istasyonundan pilot.db CIHAZ robot_no'sunu bulur.
-    - pres: hat sabit, MAKİNE istasyondan gelir (1=Abkant 1 ... 8=Pres 5).
+    - pres: hat sabit, MAKİNE istasyondan gelir (1=Abkant 1 ... 10=Bros).
       istasyon 0 ise (eski kayıtlar: makine vardiyada seçiliyordu) hat adı aynen
       kullanılır → geriye dönük uyum korunur.
     - diğer bölümler: hat→cihaz eşlemesi (LF-LFP→YF1), yoksa hattın kendisi."""
@@ -2934,8 +2941,9 @@ def robot_listesi():
     - metal: 300T, 400T, 550T, Şerit Testere (sabit)
     - lazer: tek sabit hat 'Lazer' — makine (Lazer 1..6) vardiyada DEĞİL üretim kaydında
       seçilir (istasyon kolonu 1..6; operatör aynı anda birden fazla makine çalıştırır)
-    - pres: tek sabit hat 'Pres Abkant' (2026-07-28) — makine (Abkant 1-3 / Pres 1-5)
-      vardiyada DEĞİL üretim kaydında seçilir (istasyon 1..8); operatör gün içinde
+    - pres: tek sabit hat 'Pres Abkant' (2026-07-28) — makine (Abkant 1-3 / Pres 1-5 /
+      Hidrolik Pres / Bros) vardiyada DEĞİL üretim kaydında seçilir (istasyon 1..10);
+      operatör gün içinde
       makine değiştirebildiği için lazer modeline geçildi. Eski vardiyaların makine
       adları (Abkant 2, Pres...) listede KALIR → dashboard geçmiş filtreleri çalışsın.
     - montaj/isleme: vardiyalardan distinct robot_no — operatörler girdikçe dinamik büyür
@@ -3216,7 +3224,8 @@ def saha_cihazlari():
       - 9 robot:    ABB1-IO ... ABB9-IO       (bolum: kaynak, TK2)
       - 12 montaj:  MONTAJ-M1 ... MONTAJ-M12  (bolum: montaj, TK2) + MONTAJ-YF1 (TK1)
       - 3 metal:    300T-IO, 400T-IO, 550T-IO (bolum: metal, TK2)
-      - 3 abkant:   ABKANT-A1/A2/A3            (bolum: pres, TK2)
+      - 10 pres:    ABKANT-A1/A2/A3, PRES-P1..P5,
+                    PRES-HIDROLIK, PRES-BROS   (bolum: pres, TK2)
       - 3 plastik:  PLASTIK-320T/407T/YAPISTIRMA (bolum: plastik, TK1)
 
     Her cihaz için pilot.db'deki cihaz_kayitlari ile eşleştirilir.
@@ -3239,11 +3248,19 @@ def saha_cihazlari():
         ],
         # 2026-07-27 saha rollout — abkant (pres bölümü, TK2) + plastik enjeksiyon &
         # yapıştırma (plastik bölümü, TK1). cihaz_id + robot_no firmware ile birebir
-        # (generate.py DEVICES). Eksantrik Pres (Pres 1-5) modülleri hazır olunca eklenir.
+        # (generate.py DEVICES). 2026-07-31: pres bölümünün kalan makineleri de eklendi
+        # (5 eksantrik + hidrolik + broş) — hepsi makinenin kendi sayacındaki röleyi izler.
         'pres':   [
             {'cihaz_id': 'ABKANT-A1', 'robot_no': 'Abkant 1'},
             {'cihaz_id': 'ABKANT-A2', 'robot_no': 'Abkant 2'},
             {'cihaz_id': 'ABKANT-A3', 'robot_no': 'Abkant 3'},
+            {'cihaz_id': 'PRES-P1', 'robot_no': 'Pres 1'},
+            {'cihaz_id': 'PRES-P2', 'robot_no': 'Pres 2'},
+            {'cihaz_id': 'PRES-P3', 'robot_no': 'Pres 3'},
+            {'cihaz_id': 'PRES-P4', 'robot_no': 'Pres 4'},
+            {'cihaz_id': 'PRES-P5', 'robot_no': 'Pres 5'},
+            {'cihaz_id': 'PRES-HIDROLIK', 'robot_no': 'Hidrolik Pres'},
+            {'cihaz_id': 'PRES-BROS',     'robot_no': 'Bros'},
         ],
         'plastik': [
             {'cihaz_id': 'PLASTIK-320T',       'robot_no': '320T',       'lokasyon': 'TK1'},
@@ -3452,7 +3469,7 @@ def saha_cihazlari():
                 op_bl_1 = op_baseline_map.get((bolum, rno, 1))
                 op_bl_2 = op_baseline_map.get((bolum, rno, 2))
                 op_bl_0 = op_baseline_map.get((bolum, rno, 0))
-                # PRES: baseline anahtarinda istasyon = MAKINE no (sabit hat + 1..8).
+                # PRES: baseline anahtarinda istasyon = MAKINE no (sabit hat + 1..10).
                 # Cihaz tek makinedir → tek sayac (op_bl_0 gibi davranir); eski
                 # makine-adli kayitlarin baseline'i (rno, 0) fallback olarak kalir.
                 if pres_ist:
@@ -6943,6 +6960,217 @@ def as400_teyit_gecmisi():
                     'filtre': {'bas': bas, 'bit': bit, 'alan': alan, 'tip': tip,
                                'sonuc': sonuc_f, 'ref': ref},
                     'limit_asildi': len(satirlar) >= 500})
+
+
+# ══════════════════════════════════════════════════════════════════════
+# KAYNAK PLANI (2026-07-31) — haftalık plan + ERP'den üretilebilirlik takibi
+# Kullanıcı akışı: planlama haftalık .xlsb çıkarır → buraya alınır → ERP'den
+# 1. seviye ağaç + 01D/CF2 stoku ile üretilebilir adet hesaplanır → hafta
+# boyunca "Yenile" ile tazelenir; ÖNCEKİ ölçüm saklandığı için "stoğa bir şey
+# geldi mi" farkı doğrudan görünür. Notlar yenilemede KORUNUR.
+# ══════════════════════════════════════════════════════════════════════
+def _kp_modul():
+    """kaynak_plan_kontrol modülü (plan okuma + ERP sorguları orada)."""
+    import sys as _sys
+    _kok = os.path.dirname(os.path.abspath(__file__))
+    if _kok not in _sys.path:
+        _sys.path.insert(0, _kok)
+    import kaynak_plan_kontrol as _kp
+    return _kp
+
+
+@app.route('/api/kaynak_plan', methods=['GET'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_liste():
+    """Plan satırları + son ölçüm + önceki ölçüme göre değişim."""
+    conn = get_db()
+    try:
+        satirlar = [dict(r) for r in conn.execute(
+            "SELECT * FROM kaynak_plan WHERE aktif=1 ORDER BY sira").fetchall()]
+    except Exception as e:
+        return jsonify({'hata': f'Tablo yok ya da okunamadı: {e}'}), 500
+    for s in satirlar:
+        onceki, simdi = s.get('onceki_uretilebilir'), s.get('uretilebilir')
+        s['degisim'] = (simdi - onceki) if (onceki is not None and simdi is not None) else None
+        s['agac_farki'] = [x for x in (s.get('agac_farki') or '').split('|') if x]
+    ozet = {'toplam': len(satirlar)}
+    for s in satirlar:
+        ozet[s['karar'] or 'YOK'] = ozet.get(s['karar'] or 'YOK', 0) + 1
+    ozet['artan'] = sum(1 for s in satirlar if (s['degisim'] or 0) > 0)
+    ozet['azalan'] = sum(1 for s in satirlar if (s['degisim'] or 0) < 0)
+    son = max((s.get('olculdu') or '' for s in satirlar), default='')
+    dosya = next((s.get('plan_dosya') for s in satirlar if s.get('plan_dosya')), '')
+    return jsonify({'satirlar': satirlar, 'ozet': ozet, 'son_olcum': son,
+                    'plan_dosya': dosya,
+                    'plan_yuklendi': next((s.get('plan_yuklendi') for s in satirlar
+                                           if s.get('plan_yuklendi')), '')})
+
+
+@app.route('/api/kaynak_plan/parcalar', methods=['GET'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_parcalar():
+    """Tek kodun alt parça kırılımı (satır genişletildiğinde)."""
+    kod = (request.args.get('kod') or '').strip()
+    if not kod:
+        return jsonify({'hata': 'kod zorunlu'}), 400
+    conn = get_db()
+    p = [dict(r) for r in conn.execute(
+        "SELECT * FROM kaynak_plan_parca WHERE kaynak_kod=? ORDER BY alt_kod", (kod,)).fetchall()]
+    for x in p:
+        o = x.get('onceki_stok')
+        x['degisim'] = (x['stok_sayilan'] - o) if o is not None else None
+    return jsonify({'parcalar': p})
+
+
+@app.route('/api/kaynak_plan/<int:pid>/not', methods=['PATCH'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_not(pid):
+    """Referans notu — hafta boyunca takip için. Yenilemede KORUNUR."""
+    data = request.get_json(silent=True) or {}
+    metin = (data.get('aciklama') or '').strip()[:500]
+    conn = get_db()
+    cur = conn.execute(
+        "UPDATE kaynak_plan SET aciklama=?, not_guncelleyen=?, "
+        "not_guncellendi=datetime('now','localtime') WHERE id=?",
+        (metin, g.panel_ku['kullanici_adi'], pid))
+    conn.commit()
+    if not cur.rowcount:
+        return jsonify({'hata': 'Satır bulunamadı'}), 404
+    return jsonify({'ok': True, 'aciklama': metin})
+
+
+def _kaynak_plan_olc(conn, kodlar=None):
+    """ERP'den ağaç + stok çekip ölçümü günceller. Notlara DOKUNMAZ.
+    Önceki ölçüm onceki_* alanlarına taşınır → değişim görünür."""
+    kp = _kp_modul()
+    satirlar = [dict(r) for r in conn.execute(
+        "SELECT * FROM kaynak_plan WHERE aktif=1" +
+        (" AND kaynak_kod IN (%s)" % ','.join('?' * len(kodlar)) if kodlar else ""),
+        kodlar or []).fetchall()]
+    if not satirlar:
+        return {'olculen': 0}
+    for s in satirlar:
+        s['plan_parcalar'] = []          # ağaç farkı yalnız yüklemede hesaplanır
+    cn = kp.erp_baglan()
+    try:
+        agac = kp.urun_agaci(cn, [s['kaynak_kod'] for s in satirlar])
+        alt = sorted({a for lst in agac.values() for a, _, _ in lst})
+        stok = kp.stoklar(cn, alt)
+    finally:
+        try:
+            cn.close()
+        except Exception:
+            pass
+    kp.hesapla(satirlar, agac, stok)
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+    for s in satirlar:
+        eski = conn.execute("SELECT uretilebilir, olculdu FROM kaynak_plan WHERE kaynak_kod=?",
+                            (s['kaynak_kod'],)).fetchone()
+        # İlk ölçümde "önceki" yok; sonrakilerde bir öncekini taşı.
+        onc_u = eski['uretilebilir'] if eski else None
+        onc_t = eski['olculdu'] if eski else ''
+        conn.execute(
+            "UPDATE kaynak_plan SET uretilebilir=?, kisitlayan=?, kisit_stok=?, parca_sayisi=?, "
+            "durum=?, karar=?, eksi_var=?, olculdu=?, onceki_uretilebilir=?, onceki_olculdu=? "
+            "WHERE kaynak_kod=?",
+            (s.get('uretilebilir'), s.get('kisitlayan', ''),
+             next((p['stok_sayilan'] for p in s.get('parcalar', [])
+                   if p['kod'] == s.get('kisitlayan')), 0),
+             len(s.get('parcalar', [])), s.get('durum', ''), s.get('karar', ''),
+             1 if s.get('eksi_var') else 0, simdi, onc_u, onc_t, s['kaynak_kod']))
+        # parça kırılımı: önceki stoğu koru, satırları tazele
+        onceki_stoklar = {r['alt_kod']: r['stok_sayilan'] for r in conn.execute(
+            "SELECT alt_kod, stok_sayilan FROM kaynak_plan_parca WHERE kaynak_kod=?",
+            (s['kaynak_kod'],)).fetchall()}
+        conn.execute("DELETE FROM kaynak_plan_parca WHERE kaynak_kod=?", (s['kaynak_kod'],))
+        for p in s.get('parcalar', []):
+            conn.execute(
+                "INSERT INTO kaynak_plan_parca (kaynak_kod, alt_kod, birim, um, stok_01d, stok_cf2, "
+                "stok_sayilan, kapasite, eksi_bakiye, diger_depolar, onceki_stok, olculdu) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (s['kaynak_kod'], p['kod'], p['birim'], p['um'],
+                 p['depolar'].get('01D', 0), p['depolar'].get('CF2', 0), p['stok_sayilan'],
+                 p['kapasite'], 1 if p['eksi_bakiye'] else 0,
+                 ' '.join(f'{d}:{v:g}' for d, v in p['depolar'].items()
+                          if d not in kp.SAYILAN_DEPOLAR),
+                 onceki_stoklar.get(p['kod']), simdi))
+    conn.commit()
+    return {'olculen': len(satirlar), 'olculdu': simdi}
+
+
+@app.route('/api/kaynak_plan/yukle', methods=['POST'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_yukle():
+    """Haftalık plan dosyasını içe alır. Body: {yol} (sunucudan okunur) ya da
+    multipart 'dosya'. Notlar KORUNUR — aynı kod tekrar gelirse not silinmez.
+    Planda olmayan eski kodlar aktif=0 yapılır (geçmiş notlar kaybolmasın)."""
+    kp = _kp_modul()
+    gecici = None
+    try:
+        if 'dosya' in request.files:
+            f = request.files['dosya']
+            if not (f.filename or '').lower().endswith(('.xlsb', '.xlsx')):
+                return jsonify({'hata': 'Yalnız .xlsb / .xlsx dosyası'}), 400
+            import tempfile
+            gecici = os.path.join(tempfile.gettempdir(), f'kaynak_plan_{os.getpid()}.xlsb')
+            f.save(gecici)
+            yol, gosterim = gecici, f.filename
+        else:
+            data = request.get_json(silent=True) or {}
+            yol = (data.get('yol') or kp.VARSAYILAN_PLAN).strip()
+            gosterim = os.path.basename(yol)
+            if not os.path.exists(yol):
+                return jsonify({'hata': f'Dosya bulunamadı: {yol} — sunucu bu yolu '
+                                        f'göremiyorsa dosyayı yükleyin'}), 404
+        try:
+            satirlar = kp.plan_oku(yol)
+        except Exception as e:
+            return jsonify({'hata': f'Plan dosyası okunamadı: {e}'}), 400
+        if not satirlar:
+            return jsonify({'hata': "Dosyada 'Kaynak kodu' sütunu bulunamadı"}), 400
+
+        conn = get_db()
+        simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+        gelen = {s['kaynak_kod'] for s in satirlar}
+        conn.execute("UPDATE kaynak_plan SET aktif=0")
+        for s in satirlar:
+            conn.execute(
+                "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, launch_ihtiyac, bakiye, iht_2h, "
+                "plan_dosya, plan_yuklendi, agac_farki, aktif) VALUES (?,?,?,?,?,?,?,?,'',1) "
+                "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, urun=excluded.urun, "
+                "launch_ihtiyac=excluded.launch_ihtiyac, bakiye=excluded.bakiye, "
+                "iht_2h=excluded.iht_2h, plan_dosya=excluded.plan_dosya, "
+                "plan_yuklendi=excluded.plan_yuklendi, aktif=1",
+                (s['kaynak_kod'], s['sira'], s['urun'], s['launch_ihtiyac'],
+                 s['bakiye'], s['iht_2h'], gosterim, simdi))
+            # planlamanın elle yazdığı parçalar — ölçümde ağaç farkı için saklanır
+            conn.execute("UPDATE kaynak_plan SET agac_farki=? WHERE kaynak_kod=?",
+                         ('|'.join(s.get('plan_parcalar') or []), s['kaynak_kod']))
+        conn.commit()
+        pasif = conn.execute("SELECT COUNT(*) c FROM kaynak_plan WHERE aktif=0").fetchone()['c']
+        return jsonify({'ok': True, 'satir': len(satirlar), 'dosya': gosterim,
+                        'pasiflenen': pasif,
+                        'mesaj': f'{len(satirlar)} kaynak kodu alındı. '
+                                 f'Şimdi "Stokları Yenile" ile ERP hesabını çalıştırın.'})
+    finally:
+        if gecici and os.path.exists(gecici):
+            try:
+                os.remove(gecici)
+            except Exception:
+                pass
+
+
+@app.route('/api/kaynak_plan/yenile', methods=['POST'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_yenile():
+    """ERP'den ağaç + stokları tazeler. Notlar ve plan satırları korunur."""
+    data = request.get_json(silent=True) or {}
+    kodlar = data.get('kodlar') or None
+    try:
+        sonuc = _kaynak_plan_olc(get_db(), kodlar)
+    except Exception as e:
+        return jsonify({'hata': f'ERP ölçümü başarısız: {e}'}), 502
+    return jsonify({'ok': True, **sonuc})
 
 
 @app.route('/api/as400/planlama', methods=['GET'])

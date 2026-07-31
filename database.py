@@ -902,6 +902,68 @@ def init_db():
     ''')
 
     # ─────────────────────────────────────────────────────────────
+    # KAYNAK PLANI (2026-07-31). Planlama her hafta bir "Kaynak ihtiyaçları"
+    # dosyası çıkarıyor; referanslar öncelik sırasına dizili. Launch talimatı
+    # için her kod AS400'de 07>10>01 ile açılıp 1. seviye alt parçaların
+    # 01D/CF2 stoğu elle kontrol ediliyordu (230 satır).
+    # Plan buraya alınır, ERP'den hesaplanır ve HAFTA BOYUNCA takip edilir:
+    #   - not          : kullanıcının o referansa yazdığı serbest not (kalıcı)
+    #   - uretilebilir : son ölçümde min(01D+CF2 / birim miktar)
+    #   - onceki_*     : bir önceki ölçüm → "stoğa bir şey geldi mi?" farkı
+    # Yenilemede plan satırı KORUNUR (not kaybolmasın), yalnız ölçüm güncellenir.
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS kaynak_plan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kaynak_kod TEXT NOT NULL UNIQUE,
+            sira INTEGER DEFAULT 0,
+            urun TEXT DEFAULT '',
+            launch_ihtiyac REAL DEFAULT 0,
+            bakiye REAL DEFAULT 0,
+            iht_2h REAL DEFAULT 0,
+            plan_dosya TEXT DEFAULT '',
+            plan_yuklendi TEXT DEFAULT '',
+            uretilebilir INTEGER,
+            kisitlayan TEXT DEFAULT '',
+            kisit_stok REAL DEFAULT 0,
+            parca_sayisi INTEGER DEFAULT 0,
+            durum TEXT DEFAULT '',
+            karar TEXT DEFAULT '',
+            agac_farki TEXT DEFAULT '',
+            eksi_var INTEGER DEFAULT 0,
+            olculdu TEXT DEFAULT '',
+            onceki_uretilebilir INTEGER,
+            onceki_olculdu TEXT DEFAULT '',
+            aciklama TEXT DEFAULT '',
+            not_guncelleyen TEXT DEFAULT '',
+            not_guncellendi TEXT DEFAULT '',
+            aktif INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS ix_kaynak_plan_sira ON kaynak_plan(aktif, sira)')
+    # Alt parça kırılımı — "hangi parça kısıtlıyor, stoğu ne" ekranda görünsün.
+    # Her yenilemede o kodun satırları silinip yeniden yazılır.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS kaynak_plan_parca (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kaynak_kod TEXT NOT NULL,
+            alt_kod TEXT NOT NULL,
+            birim REAL DEFAULT 0,
+            um TEXT DEFAULT '',
+            stok_01d REAL DEFAULT 0,
+            stok_cf2 REAL DEFAULT 0,
+            stok_sayilan REAL DEFAULT 0,
+            kapasite INTEGER,
+            eksi_bakiye INTEGER DEFAULT 0,
+            diger_depolar TEXT DEFAULT '',
+            onceki_stok REAL,
+            olculdu TEXT DEFAULT ''
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS ix_kaynak_plan_parca_kod ON kaynak_plan_parca(kaynak_kod)')
+
+    # ─────────────────────────────────────────────────────────────
     # AS400 TRANSFER İPTAL log'u (2026-07-27). TK1 hayali stok transferleri
     # (TA 02→01) robotla iptal edilir (07>01 + satır başı 2 + Shift+F4).
     # kayit = AS400 kayıt no (MGANRE-MGNURE, örn '26-245458'), satir = MGPRRE.
