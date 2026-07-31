@@ -924,6 +924,8 @@ def init_db():
             gun_stok REAL DEFAULT 0,
             bakiye REAL DEFAULT 0,
             toplam_stok REAL DEFAULT 0,
+            plan_stok REAL,
+            ref_depolar TEXT DEFAULT '',
             iht_2h REAL DEFAULT 0,
             iht_6h REAL DEFAULT 0,
             plan_dosya TEXT DEFAULT '',
@@ -985,6 +987,8 @@ def init_db():
         ('iht_6h', 'REAL DEFAULT 0'),        # BO
         ('bakiye', 'REAL DEFAULT 0'),
         ('iht_2h', 'REAL DEFAULT 0'),
+        ('plan_stok', 'REAL'),               # plan dosyasindaki stok (kiyas icin)
+        ('ref_depolar', "TEXT DEFAULT ''"),  # referansin ERP depo kirilimi
     ):
         try:
             c.execute(f'ALTER TABLE kaynak_plan ADD COLUMN {_kol} {_tip}')

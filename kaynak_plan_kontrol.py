@@ -173,9 +173,25 @@ def stoklar(cn, kodlar):
     return st
 
 
-def hesapla(satirlar, agac, stok):
-    """Her plan satırına üretilebilir adet ve kısıtlayan parçayı ekler."""
+def hesapla(satirlar, agac, stok, ref_stok=None):
+    """Her plan satırına üretilebilir adet ve kısıtlayan parçayı ekler.
+
+    ref_stok verilirse (kullanıcı 2026-07-31: "referans stoklarını excelden değil
+    as400'den kontrol edelim") referansın KENDİ stoğu ERP'den alınır ve GEREKEN
+    yeniden hesaplanır. Plan dosyasındaki stok sütunu haftalık — dosya çekildiği
+    günün fotoğrafı; ölçüldü: 230 satırın yalnız 11'i ERP ile birebir tutuyor.
+    Depo kuralı alt parçalarla AYNI: 01D + CF2."""
     for s in satirlar:
+        if ref_stok is not None:
+            d = ref_stok.get(s['kaynak_kod'], {})
+            # plan_stok'a DOKUNMA: o, plan dosyasındaki değer ve yalnızca
+            # yüklemede yazılır. Burada ezilirse ikinci ölçümde "kıyas" değeri
+            # bir önceki ERP okumasına dönüşür ve karşılaştırma anlamını yitirir.
+            s['toplam_stok'] = d.get('01D', 0) + d.get('CF2', 0)
+            s['stok_kaynak'] = 'ERP'
+            s['ref_depolar'] = {k: v for k, v in d.items() if v}
+            s['gereken'] = max(0.0, (s.get('iht_6h') or 0) - (s.get('acik_launch') or 0)
+                               - s['toplam_stok'])
         parcalar = agac.get(s['kaynak_kod']) or []
         s['parcalar'] = []
         if not parcalar:
@@ -397,10 +413,12 @@ def main():
         print('  stoklar çekiliyor...')
         stok = stoklar(cn, alt_kodlar)
         print(f'  {len(stok)} parçanın stok kaydı var')
+        # Referansın KENDİ stoğu da ERP'den (plan dosyasındaki sütun haftalık)
+        ref_stok = stoklar(cn, [s['kaynak_kod'] for s in satirlar])
     finally:
         cn.close()
 
-    hesapla(satirlar, agac, stok)
+    hesapla(satirlar, agac, stok, ref_stok)
     say = {}
     for s in satirlar:
         say[s['karar']] = say.get(s['karar'], 0) + 1

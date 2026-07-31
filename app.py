@@ -7059,12 +7059,15 @@ def _kaynak_plan_olc(conn, kodlar=None):
         agac = kp.urun_agaci(cn, [s['kaynak_kod'] for s in satirlar])
         alt = sorted({a for lst in agac.values() for a, _, _ in lst})
         stok = kp.stoklar(cn, alt)
+        # Referansın KENDİ stoğu da ERP'den (kullanıcı 2026-07-31) — plan
+        # dosyasındaki stok sütunu dosyanın çekildiği günün fotoğrafı.
+        ref_stok = kp.stoklar(cn, [s['kaynak_kod'] for s in satirlar])
     finally:
         try:
             cn.close()
         except Exception:
             pass
-    kp.hesapla(satirlar, agac, stok)
+    kp.hesapla(satirlar, agac, stok, ref_stok)
     simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
     for s in satirlar:
         eski = conn.execute("SELECT uretilebilir, olculdu FROM kaynak_plan WHERE kaynak_kod=?",
@@ -7074,13 +7077,17 @@ def _kaynak_plan_olc(conn, kodlar=None):
         onc_t = eski['olculdu'] if eski else ''
         conn.execute(
             "UPDATE kaynak_plan SET uretilebilir=?, kisitlayan=?, kisit_stok=?, parca_sayisi=?, "
-            "durum=?, karar=?, eksi_var=?, olculdu=?, onceki_uretilebilir=?, onceki_olculdu=? "
+            "durum=?, karar=?, eksi_var=?, olculdu=?, onceki_uretilebilir=?, onceki_olculdu=?, "
+            "toplam_stok=?, gereken=?, ref_depolar=? "
             "WHERE kaynak_kod=?",
             (s.get('uretilebilir'), s.get('kisitlayan', ''),
              next((p['stok_sayilan'] for p in s.get('parcalar', [])
                    if p['kod'] == s.get('kisitlayan')), 0),
              len(s.get('parcalar', [])), s.get('durum', ''), s.get('karar', ''),
-             1 if s.get('eksi_var') else 0, simdi, onc_u, onc_t, s['kaynak_kod']))
+             1 if s.get('eksi_var') else 0, simdi, onc_u, onc_t,
+             s.get('toplam_stok') or 0, s.get('gereken') or 0,
+             ' '.join(f'{d}:{v:g}' for d, v in (s.get('ref_depolar') or {}).items()),
+             s['kaynak_kod']))
         # parça kırılımı: önceki stoğu koru, satırları tazele
         onceki_stoklar = {r['alt_kod']: r['stok_sayilan'] for r in conn.execute(
             "SELECT alt_kod, stok_sayilan FROM kaynak_plan_parca WHERE kaynak_kod=?",
@@ -7143,18 +7150,19 @@ def kaynak_plan_yukle():
         for s in satirlar:
             conn.execute(
                 "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, acik_launch, gereken, "
-                "kontrol6, gun_stok, bakiye, toplam_stok, iht_2h, iht_6h, "
+                "kontrol6, gun_stok, bakiye, toplam_stok, plan_stok, iht_2h, iht_6h, "
                 "plan_dosya, plan_yuklendi, agac_farki, aktif) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'',1) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'',1) "
                 "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, urun=excluded.urun, "
                 "acik_launch=excluded.acik_launch, "
                 "gereken=excluded.gereken, kontrol6=excluded.kontrol6, gun_stok=excluded.gun_stok, "
-                "bakiye=excluded.bakiye, toplam_stok=excluded.toplam_stok, "
+                "bakiye=excluded.bakiye, toplam_stok=excluded.toplam_stok, plan_stok=excluded.plan_stok, "
                 "iht_2h=excluded.iht_2h, iht_6h=excluded.iht_6h, plan_dosya=excluded.plan_dosya, "
                 "plan_yuklendi=excluded.plan_yuklendi, aktif=1",
                 (s['kaynak_kod'], s['sira'], s['urun'], s['acik_launch'],
                  s['gereken'], (None if s.get('kontrol6') is None else int(s['kontrol6'])),
-                 s['gun_stok'], s['bakiye'], s['toplam_stok'], s['iht_2h'], s['iht_6h'],
+                 s['gun_stok'], s['bakiye'], s['toplam_stok'], s['toplam_stok'],
+                 s['iht_2h'], s['iht_6h'],
                  gosterim, simdi))
             # planlamanın elle yazdığı parçalar — ölçümde ağaç farkı için saklanır
             conn.execute("UPDATE kaynak_plan SET agac_farki=? WHERE kaynak_kod=?",

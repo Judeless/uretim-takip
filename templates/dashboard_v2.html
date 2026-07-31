@@ -10476,7 +10476,7 @@ window.__I18N_SOZLUK__ = {
                 '<th style="width:44px">Sıra</th><th>Kaynak Kodu</th><th>Ürün</th>' +
                 '<th style="text-align:right" title="Toplam 6 haftalık ihtiyaç (BO sütunu)">6 Hf İhtiyaç</th>' +
                 '<th style="text-align:right" title="mevcutta üretime alınan adet (BV sütunu)">Üretimde</th>' +
-                '<th style="text-align:right" title="toplam stok — ihtiyaçtan düşülür">Stok</th>' +
+                '<th style="text-align:right" title="AS400 canlı stok (01D+CF2) — ihtiyaçtan düşülür">Stok (AS400)</th>' +
                 '<th style="text-align:right" title="6 haftalık ihtiyaç − üretimde olan − toplam stok">GEREKEN</th>' +
                 '<th style="text-align:right">Üretilebilir</th>' +
                 '<th style="text-align:right">Değişim</th>' +
@@ -10502,7 +10502,14 @@ window.__I18N_SOZLUK__ = {
                 } else if (s.degisim === 0) {
                     dg = '<span style="color:var(--dim)">—</span>';
                 }
-                h += '<tr>' +
+                // SATIR ZEMİNİ (kullanıcı 2026-07-31: "üretilebilir olanları farklı
+                // renk yapalım"): kaynatılması gereken VE malzemesi tam olanlar yeşil —
+                // hemen başlanabilir. Kısmi sarı, malzemesi yok kırmızı, gereksiz nötr.
+                var zemin = !s.kaynatilmali ? ''
+                          : (s.karar === 'TALIMAT VER') ? 'var(--success-soft)'
+                          : (s.karar === 'KISMI') ? 'var(--warn-soft)'
+                          : (s.karar === 'MALZEME YOK') ? 'var(--danger-soft)' : '';
+                h += '<tr' + (zemin ? ' style="background:' + zemin + '"' : '') + '>' +
                     '<td style="color:var(--dim);font-size:.78rem">' + s.sira + '</td>' +
                     '<td style="font-weight:700"><a href="#" onclick="kpParcaAc(\'' + esc(s.kaynak_kod) + '\');return false"' +
                         ' title="alt parçaları göster">' + esc(s.kaynak_kod) + '</a>' +
@@ -10513,7 +10520,10 @@ window.__I18N_SOZLUK__ = {
                     '<td style="text-align:right">' + fmt(s.iht_6h || 0) + '</td>' +
                     '<td style="text-align:right;color:var(--muted)">' + fmt(s.acik_launch || 0) + '</td>' +
                     '<td style="text-align:right;color:' + ((s.toplam_stok || 0) < 0 ? 'var(--danger)' : 'var(--muted)') +
-                        '" title="' + ((s.toplam_stok || 0) < 0 ? "ERP'de eksi bakiye" : '') + '">' +
+                        '" title="' + esc('AS400 canlı · 01D+CF2' +
+                            (s.ref_depolar ? ' | tüm depolar: ' + s.ref_depolar : '') +
+                            (s.plan_stok !== null && s.plan_stok !== undefined ? ' | plan dosyasında: ' + fmt(s.plan_stok) : '') +
+                            ((s.toplam_stok || 0) < 0 ? " | ERP'de eksi bakiye" : '')) + '">' +
                         fmt(s.toplam_stok || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' + fmt(s.gereken || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' +
