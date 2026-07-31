@@ -968,6 +968,36 @@ def init_db():
     ''')
     c.execute('CREATE INDEX IF NOT EXISTS ix_kaynak_plan_parca_kod ON kaynak_plan_parca(kaynak_kod)')
 
+    # kaynak_plan SÜTUN MIGRATION'I (2026-07-31).
+    # İhtiyaç ölçütü iki kez değişti (Launch sütunu → 6 haftalık açık →
+    # BO−BV−stok) ve sütun listesi büyüdü. CREATE TABLE IF NOT EXISTS MEVCUT
+    # tabloyu güncellemez: ilk sürümden kalan kurulumlarda yeni sütunlar
+    # oluşmuyor ve plan yükleme "table kaynak_plan has no column named
+    # acik_launch" ile patlıyordu (canlıda görüldü). Eksik olanları ekle —
+    # idempotent, veri kaybı yok. Eski 'launch_ihtiyac' sütunu varsa durur,
+    # artık okunmuyor.
+    for _kol, _tip in (
+        ('acik_launch', 'REAL DEFAULT 0'),   # BV — üretime alınan
+        ('gereken', 'REAL DEFAULT 0'),       # BO − BV − stok
+        ('kontrol6', 'INTEGER'),
+        ('gun_stok', 'REAL DEFAULT 0'),
+        ('toplam_stok', 'REAL DEFAULT 0'),   # BQ
+        ('iht_6h', 'REAL DEFAULT 0'),        # BO
+        ('bakiye', 'REAL DEFAULT 0'),
+        ('iht_2h', 'REAL DEFAULT 0'),
+    ):
+        try:
+            c.execute(f'ALTER TABLE kaynak_plan ADD COLUMN {_kol} {_tip}')
+            print(f'[MIGRATION] kaynak_plan.{_kol} eklendi')
+        except Exception:
+            pass                              # zaten var
+    for _kol, _tip in (('onceki_stok', 'REAL'), ('diger_depolar', "TEXT DEFAULT ''")):
+        try:
+            c.execute(f'ALTER TABLE kaynak_plan_parca ADD COLUMN {_kol} {_tip}')
+            print(f'[MIGRATION] kaynak_plan_parca.{_kol} eklendi')
+        except Exception:
+            pass
+
     # ─────────────────────────────────────────────────────────────
     # AS400 TRANSFER İPTAL log'u (2026-07-27). TK1 hayali stok transferleri
     # (TA 02→01) robotla iptal edilir (07>01 + satır başı 2 + Shift+F4).
