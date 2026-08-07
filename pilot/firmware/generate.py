@@ -112,6 +112,23 @@ DEVICES = {
     'yapistirma': [
         ('PLASTIK-YAPISTIRMA', 'Yapistirma'),
     ],
+    # ── TK1 KAPAMA PRESLERI — COK KANALLI (2026-08-07) ─────────────────
+    # 12 pres, ORTAK PANO: her panoda 3 pres var -> 3 presi TEK ESP32 okur
+    # (GPIO25/26/27). 12 makine = 4 modul. robot_no LISTE verilir; her kanal
+    # kendi makine adiyla sinyal gonderir, kanal sirasi = GPIO sirasi.
+    #   klasor adi CIHAZ_ID'den turer (robot_no tek degil).
+    #   HB_ROBOT_NO = heartbeat/saglik kayitlarinda gorunen modul etiketi.
+    # Bolum 'tel' (kapama, tel uretiminin proses adimi). Bkz tel_kapama.ino.tpl
+    'tel_kapama': [
+        ('TEL-KAPAMA-1', ['Kapama 1',  'Kapama 2',  'Kapama 3'],
+         {'HB_ROBOT_NO': 'Kapama 1-3'}),
+        ('TEL-KAPAMA-2', ['Kapama 4',  'Kapama 5',  'Kapama 6'],
+         {'HB_ROBOT_NO': 'Kapama 4-6'}),
+        ('TEL-KAPAMA-3', ['Kapama 7',  'Kapama 8',  'Kapama 9'],
+         {'HB_ROBOT_NO': 'Kapama 7-9'}),
+        ('TEL-KAPAMA-4', ['Kapama 10', 'Kapama 11', 'Kapama 12'],
+         {'HB_ROBOT_NO': 'Kapama 10-12'}),
+    ],
 }
 
 TEMPLATES = {
@@ -122,37 +139,56 @@ TEMPLATES = {
     'pres':       'pres.ino.tpl',
     'plastik':    'plastik.ino.tpl',
     'yapistirma': 'yapistirma.ino.tpl',
+    'tel_kapama': 'tel_kapama.ino.tpl',
 }
 
 
-def klasor_adi(robot_no):
+def klasor_adi(ad):
     """Klasor + .ino dosya adi turet. ABB1 -> cofle_sayac_abb1
 
     Tire de alt cizgiye cevrilir ('TK1-M1' -> cofle_sayac_tk1_m1): Arduino sketch
     adinda tire sorun cikarabiliyor. robot_no'nun KENDISI degismez (sunucu ile
-    birebir eslesmeli) — yalniz klasor/dosya adi sadelesir."""
-    sade = robot_no.lower().replace(' ', '_').replace('-', '_')
+    birebir eslesmeli) — yalniz klasor/dosya adi sadelesir.
+
+    Cok kanalli modullerde robot_no tek degildir; ad olarak CIHAZ_ID gecilir
+    ('TEL-KAPAMA-1' -> cofle_sayac_tel_kapama_1)."""
+    sade = str(ad).lower().replace(' ', '_').replace('-', '_')
     return f'cofle_sayac_{sade}'
 
 
 def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
     """Template placeholder'lari doldur.
 
-    ekstra: cihaza OZEL degerler (opsiyonel 3. tuple elemani) — buzzer donanimi
-    cihazdan cihaza degistigi icin (2026-07-31):
+    robot_no: tek makine icin str; COK KANALLI modulde makine adlari LISTESI
+    (kanal sirasi = GPIO sirasi). Listede __ROBOT_NO_1/2/3__ doldurulur ve
+    __ROBOT_NO__ ilk kanala baglanir (tek-kanalli template'lerle uyum).
+
+    ekstra: cihaza OZEL degerler (opsiyonel 3. tuple elemani):
       BUZZER_AKTIF     : 'true' aktif-HIGH (TK2 kurulumu) | 'false' aktif-LOW (TK1 modulu)
       BUZZER_BEEP_ADET : pes pese bip sayisi   (TK2 '1', TK1 '2' — 3V3'te ses kisik)
       BUZZER_BEEP_MS   : tek bip suresi ms     (TK2 '200', TK1 '300' — %50 uzun)
+      HB_ROBOT_NO      : cok kanalli modulun heartbeat/telemetri etiketi
     Placeholder'i olmayan template'lerde replace no-op'tur."""
-    fw_suffix = robot_no.lower().replace(' ', '_')
     ek = ekstra or {}
-    return (template_metni
-            .replace('__CIHAZ_ID__', cihaz_id)
-            .replace('__ROBOT_NO__', robot_no)
-            .replace('__FW_SUFFIX__', fw_suffix)
-            .replace('__BUZZER_AKTIF__', ek.get('BUZZER_AKTIF', 'true'))
-            .replace('__BUZZER_BEEP_ADET__', ek.get('BUZZER_BEEP_ADET', '1'))
-            .replace('__BUZZER_BEEP_MS__', ek.get('BUZZER_BEEP_MS', '200')))
+    coklu = isinstance(robot_no, (list, tuple))
+    kanallar = list(robot_no) if coklu else [robot_no]
+    # FW surum soneki: cok kanalli modulde makine adi tek degil -> CIHAZ_ID kullan.
+    # Tek kanalda tire KORUNUR ('tk1-m1'): sahadaki cihazlarin bildirdigi surum
+    # etiketi degismesin (yalniz kozmetik ama gecmis telemetri ile karsilastirilir).
+    fw_suffix = (cihaz_id.lower().replace(' ', '_').replace('-', '_') if coklu
+                 else robot_no.lower().replace(' ', '_'))
+
+    metin = (template_metni
+             .replace('__CIHAZ_ID__', cihaz_id)
+             .replace('__FW_SUFFIX__', fw_suffix)
+             .replace('__HB_ROBOT_NO__', ek.get('HB_ROBOT_NO', kanallar[0]))
+             .replace('__BUZZER_AKTIF__', ek.get('BUZZER_AKTIF', 'true'))
+             .replace('__BUZZER_BEEP_ADET__', ek.get('BUZZER_BEEP_ADET', '1'))
+             .replace('__BUZZER_BEEP_MS__', ek.get('BUZZER_BEEP_MS', '200')))
+    for i, ad in enumerate(kanallar, start=1):
+        metin = metin.replace(f'__ROBOT_NO_{i}__', ad)
+    # __ROBOT_NO__ EN SONA: '__ROBOT_NO_1__' bunu icerir, once o doldurulmali
+    return metin.replace('__ROBOT_NO__', kanallar[0])
 
 
 def main():
@@ -220,7 +256,10 @@ def main():
             # ayar gerekmeyen satirlar 2'li kalir (mevcut liste degismedi).
             cihaz_id, robot_no = cihaz[0], cihaz[1]
             ekstra = cihaz[2] if len(cihaz) > 2 else None
-            klasor = klasor_adi(robot_no)
+            # Cok kanalli modulde (robot_no LISTE) klasor adi CIHAZ_ID'den turer —
+            # tek bir makine adi yok. Tek kanalli cihazlarda eski davranis aynen kalir.
+            coklu = isinstance(robot_no, (list, tuple))
+            klasor = klasor_adi(cihaz_id if coklu else robot_no)
             klasor_yolu = os.path.join(SCRIPT_DIR, klasor)
             os.makedirs(klasor_yolu, exist_ok=True)
 
