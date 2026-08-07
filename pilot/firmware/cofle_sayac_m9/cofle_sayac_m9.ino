@@ -9,8 +9,11 @@
  *  PIN ATAMALARI:
  *   - GPIO25  -> BUTON (NO momentary, GND'ye kapanir)
  *   - GPIO26  -> BOS (INPUT_PULLUP)
- *   - GPIO27  -> BUZZER (+) (active-HIGH; basista ~30ms onay beep'i)
- *   - GND     -> Buton 2. pini + Buzzer (-)
+ *   - GPIO27  -> BUZZER modul I/O girisi (basista onay beep'i)
+ *   - GND     -> Buton 2. pini + Buzzer modul GND
+ *   - VCC     -> TK1 masa modulleri (aktif-LOW kart): 3V3 pini. 5V'ta HIGH esigi
+ *                5V'a gore olur, ESP32'nin 3.3V HIGH'i girisi kapatamaz -> SUREKLI oter.
+ *                TK2 M1..M12 + YF1: mevcut kurulum korunur.
  *
  *  Bu dosya pilot/firmware/_templates/montaj.ino.tpl'den uretildi.
  * ============================================================ */
@@ -40,9 +43,29 @@ const char* OTA_PASS = "cofle-ota-2026";
 
 const int PIN_IST1_SAYAC      = 25;   // Buton (NO temas, GND'ye kapanir)
 const int PIN_IST2_SAYAC      = 26;   // BOS
-const int PIN_BUZZER          = 27;   // Buzzer (+) — active-HIGH (montajda robot durumu kullanilmadigi icin bu pin buzzer)
+const int PIN_BUZZER          = 27;   // Buzzer modul I/O girisi (montajda robot durumu kullanilmadigi icin bu pin buzzer). Polarite: BUZZER_AKTIF_HIGH
 const int PIN_LED             =  2;
-const unsigned long BUZZER_BEEP_MS = 200;  // onay beep suresi (SABIT, donanim timer). 3.3V'ta buzzer KISIK kalir -> uzun beep daha BELIRGIN (tik degil net bip). Gercek YUKSEK ses icin 5V+transistor sart.
+// Onay bip DESENI — CIHAZ BAZLI (generate.py DEVICES'ta ayarlanir):
+//   TK2 M1..M12 + YF1 : 1 bip x 200ms (sahadaki aliskanlik korunur, 5V/aktif-HIGH kurulum)
+//   TK1 masalari      : 2 bip x 300ms (kullanici 2026-07-31: modul 3V3'ten besleniyor,
+//                       ses kisik -> "bip sesini 2 kere cikartalim, sureyi %50 arttiralim")
+// Desen donanim timer'inda kosar (buzzerAdim) — loop'taki HTTP POST bip'i UZATAMAZ.
+// Toplam desen 2x300+120=720ms < MIN_PULSE_GAP_MS (1000ms): yeni sayim gelmeden
+// desen bitmis olur, bip'ler ust uste BINEMEZ.
+const int           BUZZER_BEEP_ADET = 1;  // pes pese bip sayisi
+const unsigned long BUZZER_BEEP_MS   = 200;    // tek bip suresi (ms)
+const unsigned long BUZZER_ARA_MS    = 120;                   // iki bip arasi sessizlik (ms)
+
+// ─── Buzzer modul polaritesi (2026-07-31) ───────────────────────
+// Hazir 3 pinli buzzer modulu (VCC / I-O / GND, YL-44 tipi): uzerinde transistor
+// oldugu icin GPIO'yu yormaz ve VCC=5V ile SESI YUKSEK cikar.
+// Modullerin cogu aktif-HIGH (I-O HIGH iken oter); bazi kartlar aktif-LOW tetikler.
+// SAHA TESTI: flash sonrasi bosta SUREKLI otuyorsa modul aktif-LOW demektir.
+// DEGER CIHAZ BAZLIDIR — generate.py DEVICES'ta ayarlanir (topluca degistirme!):
+// TK2 M1..M12 + YF1 sahada aktif-HIGH calisiyor, global cevirmek onlari bozar.
+const bool BUZZER_AKTIF_HIGH = true;
+const int  BUZZER_ACIK   = BUZZER_AKTIF_HIGH ? HIGH : LOW;
+const int  BUZZER_KAPALI = BUZZER_AKTIF_HIGH ? LOW  : HIGH;
 
 // Pulse algilama: BLOKLAMAYAN INTEGRATOR debounce (v2.5).
 // Eski "15 ardisik ornek HEPSI LOW" (75ms) filtresi tek bir parazit HIGH ile
@@ -54,12 +77,18 @@ const int  INTEG_YUKSEK_ESIK   = 15;   // ~75ms net LOW -> basis algilandi (eski
 const int  INTEG_MAX           = 40;   // tavan (~200ms) — glitch toleransi tamponu
 const int  INTEG_DUSUK_ESIK    = 4;    // ~20ms HIGH -> basis bitti (histerezis)
 const unsigned long MIN_PULSE_GAP_MS = 1000;   // Montaj: hizli operator (1sn back-to-back)
+// Bip deseninin toplami sayim araligindan KISA olmali — yoksa loop task'i ile
+// esp_timer task'i buzzer durumunda yarisir (desen kirpilir). Yorumla degil
+// DERLEYICIYLE garanti: gelecekte generate.py'de ADET/sure buyutulurse burada patlar.
+static_assert(BUZZER_BEEP_ADET * BUZZER_BEEP_MS
+              + (BUZZER_BEEP_ADET - 1) * BUZZER_ARA_MS < MIN_PULSE_GAP_MS,
+              "bip deseni MIN_PULSE_GAP_MS'ten uzun — ADET/BEEP_MS/ARA_MS kucult");
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 2000;  // kesinti kuyrugu (eskiden 200) — elektrik varken gunlerce pulse tutar
-const char* FIRMWARE_VER  = "2.7.2-m9";   // 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
+const char* FIRMWARE_VER  = "2.7.3-m9";   // 2.7.3: buzzer polarite cihaz-bazli + bip DESENI (adet/sure cihaz-bazli). 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
 
 // ─── TANI (diagnostic) — sayim filtresi kararlarini heartbeat ile gonderir ──
 const int TANI_MAX          = 30;   // RAM ring buffer
@@ -98,7 +127,12 @@ bool robotCalisiyor = false;
 // Buzzer onay beep'i — DONANIM TIMER ile kapatilir. (Eski loop-tabanli kapatma, ayni
 // dongudeki bloklayan HTTP POST nedeniyle ILK basista beep'i uzatiyordu; esp_timer one-shot
 // KENDI task'inde calistigi icin beep suresi SABIT kalir, loop/HTTP'den bagimsiz.)
-esp_timer_handle_t buzzerTimer = nullptr;   // buzzerKapat() callback'i asagida, struct'lardan SONRA tanimli (.ino oto-prototip ucu 'Kanal'i kacirmasin)
+esp_timer_handle_t buzzerTimer = nullptr;   // buzzerAdim() callback'i asagida, struct'lardan SONRA tanimli (.ino oto-prototip ucu 'Kanal'i kacirmasin)
+// Bip deseni durumu. volatile: esp_timer task'i yazar, loop (istasyonSinyali) da yazar.
+// OUTPUT pinde digitalRead guvenilmez (input buffer kapali olabilir) -> pin durumu
+// donanimdan OKUNMAZ, buzzerCaliyor degiskeninde tutulur.
+volatile int  buzzerKalanBip = 0;      // desenden geriye kalan bip sayisi (calan haric)
+volatile bool buzzerCaliyor  = false;  // pin su an ACIK surulu mu
 
 struct PulseKaydi {
   uint32_t seq;
@@ -163,11 +197,26 @@ struct Kanal {
 };
 Kanal k1 = { 0, false, HIGH, 0, false, 0, 0 };
 
-// Buzzer kapatma callback'i (esp_timer one-shot suresi dolunca buzzer'i sustur).
+// Buzzer desen adimi (esp_timer one-shot): calan bip'i susturur; kalan bip varsa
+// BUZZER_ARA_MS sessizlikten sonra siradakini baslatir. esp_timer TASK baglaminda
+// kosar (ISR degil) — digitalWrite + timer restart serbest. Yaris riski pratikte yok:
+// desen (720ms) MIN_PULSE_GAP_MS'ten (1000ms) kisa, yeni sayim geldiginde timer bos.
 // TUM struct'lardan SONRA tanimli olmali: Arduino .ino otomatik-prototip ucu, prototipleri
 // ILK fonksiyon tanimindan once ekler; ilk fonksiyon struct Kanal'dan once olursa
 // kanalGuncelle(...,Kanal*,...) prototipi "'Kanal' has not been declared" hatasi verir.
-static void buzzerKapat(void* arg) { digitalWrite(PIN_BUZZER, LOW); }
+static void buzzerAdim(void* arg) {
+  if (buzzerCaliyor) {                       // bip bitti -> sustur
+    digitalWrite(PIN_BUZZER, BUZZER_KAPALI);
+    buzzerCaliyor = false;
+    if (buzzerKalanBip > 0)                  // desende bip kaldi -> arayi baslat
+      esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_ARA_MS * 1000ULL);
+  } else if (buzzerKalanBip > 0) {           // ara bitti -> siradaki bip
+    buzzerKalanBip--;
+    buzzerCaliyor = true;
+    digitalWrite(PIN_BUZZER, BUZZER_ACIK);
+    esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_BEEP_MS * 1000ULL);
+  }
+}
 
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
@@ -318,11 +367,19 @@ void istasyonSinyali(uint8_t istasyon) {
     pulseIst1++;
     seq = pulseIst1;
     prefs.putULong("pulse_i1", pulseIst1);
-    // Basis ONAYI: kisa buzzer beep'i. digitalWrite anlik -> sayim yolu BLOKLANMAZ.
-    // Kapatma DONANIM timer'inda (sabit sure; loop'taki HTTP POST beep'i UZATMAZ).
-    digitalWrite(PIN_BUZZER, HIGH);
-    esp_timer_stop(buzzerTimer);                                  // varsa onceki beep'i durdur
-    esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_BEEP_MS * 1000ULL);  // mikrosaniye
+    // Basis ONAYI: bip desenini baslat (BUZZER_BEEP_ADET x BUZZER_BEEP_MS, aralari
+    // BUZZER_ARA_MS). digitalWrite anlik -> sayim yolu BLOKLANMAZ; adimlar donanim
+    // timer'inda (buzzerAdim) yurur, loop'taki HTTP POST desen suresini UZATAMAZ.
+    // buzzerTimer nullptr olabilir (setup'ta esp_timer_create boot-heap bitiminde
+    // basarisiz olabilir): o durumda ACIK yazip kapatani calistiramayiz — buzzer
+    // SUREKLI oter kalirdi. Sessiz buzzer > kilitli buzzer; sayim etkilenmez.
+    if (buzzerTimer != nullptr) {
+      esp_timer_stop(buzzerTimer);            // yarim kalmis desen varsa iptal
+      buzzerKalanBip = BUZZER_BEEP_ADET - 1;  // ilk bip simdi basliyor, gerisi kuyrukta
+      buzzerCaliyor  = true;
+      digitalWrite(PIN_BUZZER, BUZZER_ACIK);
+      esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_BEEP_MS * 1000ULL);  // mikrosaniye
+    }
   } else {
     return;
   }
@@ -461,10 +518,10 @@ void setup() {
   // Buzzer'i HEMEN sessizle: reset->pinMode arasi GPIO27 float kalmasin (acilis cizirtisi onleme)
   pinMode(PIN_BUZZER, OUTPUT);
   gpio_set_drive_capability((gpio_num_t)PIN_BUZZER, GPIO_DRIVE_CAP_3);  // max surme akimi (~40mA) — GPIO27 gerilim sarkmasini azalt (ses kismayalim)
-  digitalWrite(PIN_BUZZER, LOW);
+  digitalWrite(PIN_BUZZER, BUZZER_KAPALI);
   // Buzzer kapatma one-shot timer'i — beep suresini loop/HTTP'den bagimsiz SABIT tutar
   esp_timer_create_args_t buzzerArgs = {};
-  buzzerArgs.callback = &buzzerKapat;
+  buzzerArgs.callback = &buzzerAdim;
   buzzerArgs.name     = "buzzer";
   esp_timer_create(&buzzerArgs, &buzzerTimer);
   delay(300);
@@ -478,13 +535,19 @@ void setup() {
   Serial.printf("FW: %s · Bolum: %s · Masa: %s · MONTAJ BUTON MODU\n",
                 FIRMWARE_VER, BOLUM, ROBOT_NO);
   Serial.printf("Buton pini: GPIO%d (GND'ye basinca pulse)\n", PIN_IST1_SAYAC);
+  // Buzzer polaritesi ACIKCA yazilir: "yukledim ama duzelmedi" durumunda, calisan
+  // binary'nin dogru ayarla gelip gelmedigi Serial'dan TEK BAKISTA gorulur.
+  Serial.printf("Buzzer: %s (pin GPIO%d, bosta %s surulur, desen %dx%lums)\n",
+                BUZZER_AKTIF_HIGH ? "aktif-HIGH" : "aktif-LOW", PIN_BUZZER,
+                BUZZER_KAPALI == HIGH ? "HIGH" : "LOW",
+                BUZZER_BEEP_ADET, BUZZER_BEEP_MS);
   Serial.printf("Min pulse araligi: %lums (operator hizi siniri)\n", MIN_PULSE_GAP_MS);
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
   pinMode(PIN_IST1_SAYAC,      INPUT_PULLUP);
   pinMode(PIN_IST2_SAYAC,      INPUT_PULLUP);
   pinMode(PIN_LED,             OUTPUT);
-  digitalWrite(PIN_LED, LOW);   // (PIN_BUZZER setup basinda OUTPUT+LOW yapildi — acilis cizirtisi onleme)
+  digitalWrite(PIN_LED, LOW);   // (PIN_BUZZER setup basinda OUTPUT+BUZZER_KAPALI yapildi — acilis cizirtisi onleme; aktif-LOW cihazda bosta pin HIGH=3.3V olculur, LOW degil)
 
   k1.lastRaw     = digitalRead(PIN_IST1_SAYAC);
   robotCalisiyor = false;  // Montajda robot durumu kullanilmiyor

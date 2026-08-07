@@ -1,5 +1,5 @@
 /* ============================================================
- *  COFLE PILOT SAYAC — MONTAJ-M10 firmware (v2.1)
+ *  COFLE PILOT SAYAC — MONTAJ-TK1-M7 firmware (v2.1)
  *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
@@ -28,12 +28,12 @@
 #include "driver/gpio.h"
 
 // ════════════════════════════════════════════════════════════
-//   YAPILANDIRMA — M10
+//   YAPILANDIRMA — TK1-M7
 // ════════════════════════════════════════════════════════════
 
-const char* CIHAZ_ID  = "MONTAJ-M10";
+const char* CIHAZ_ID  = "MONTAJ-TK1-M7";
 const char* BOLUM     = "montaj";
-const char* ROBOT_NO  = "M10";
+const char* ROBOT_NO  = "TK1-M7";
 
 const char* WIFI_SSID = "COFLE-TK";
 const char* WIFI_PASS = "internet2011!";
@@ -52,8 +52,8 @@ const int PIN_LED             =  2;
 // Desen donanim timer'inda kosar (buzzerAdim) — loop'taki HTTP POST bip'i UZATAMAZ.
 // Toplam desen 2x300+120=720ms < MIN_PULSE_GAP_MS (1000ms): yeni sayim gelmeden
 // desen bitmis olur, bip'ler ust uste BINEMEZ.
-const int           BUZZER_BEEP_ADET = 1;  // pes pese bip sayisi
-const unsigned long BUZZER_BEEP_MS   = 200;    // tek bip suresi (ms)
+const int           BUZZER_BEEP_ADET = 2;  // pes pese bip sayisi
+const unsigned long BUZZER_BEEP_MS   = 300;    // tek bip suresi (ms)
 const unsigned long BUZZER_ARA_MS    = 120;                   // iki bip arasi sessizlik (ms)
 
 // ─── Buzzer modul polaritesi (2026-07-31) ───────────────────────
@@ -63,7 +63,7 @@ const unsigned long BUZZER_ARA_MS    = 120;                   // iki bip arasi s
 // SAHA TESTI: flash sonrasi bosta SUREKLI otuyorsa modul aktif-LOW demektir.
 // DEGER CIHAZ BAZLIDIR — generate.py DEVICES'ta ayarlanir (topluca degistirme!):
 // TK2 M1..M12 + YF1 sahada aktif-HIGH calisiyor, global cevirmek onlari bozar.
-const bool BUZZER_AKTIF_HIGH = true;
+const bool BUZZER_AKTIF_HIGH = false;
 const int  BUZZER_ACIK   = BUZZER_AKTIF_HIGH ? HIGH : LOW;
 const int  BUZZER_KAPALI = BUZZER_AKTIF_HIGH ? LOW  : HIGH;
 
@@ -88,7 +88,7 @@ const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 2000;  // kesinti kuyrugu (eskiden 200) — elektrik varken gunlerce pulse tutar
-const char* FIRMWARE_VER  = "2.7.3-m10";   // 2.7.3: buzzer polarite cihaz-bazli + bip DESENI (adet/sure cihaz-bazli). 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
+const char* FIRMWARE_VER  = "2.7.3-tk1-m7";   // 2.7.3: buzzer polarite cihaz-bazli + bip DESENI (adet/sure cihaz-bazli). 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
 
 // ─── TANI (diagnostic) — sayim filtresi kararlarini heartbeat ile gonderir ──
 const int TANI_MAX          = 30;   // RAM ring buffer

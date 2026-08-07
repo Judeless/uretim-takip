@@ -206,13 +206,41 @@ def hesapla_oee(vardiya_id):
     # Kullanilabilirlik (Availability) = Fiili Calisma / Net Plan
     availability = (calisma_suresi_dk / net_plan_dk) if net_plan_dk > 0 else 0
 
-    # Uretim verileri (Referans listesi ile join yaparak guncel cycle time'i al)
+    # Uretim verileri + guncel cycle time.
+    #
+    # ⚠ CYCLE TIME SKALAR ALT-SORGUYLA ALINIR, **LEFT JOIN İLE DEĞİL** (2026-08-04).
+    # LEFT JOIN referans_listesi ON referans_kodu: ayni kod birden fazla satirda
+    # olabildigi icin (TK1+TK2, farkli bolumler — olcum: 2328 kod cift kayitli)
+    # uretim satiri O KADAR KEZ donuyordu ve toplam_ok / toplam_nok / hedef ve
+    # gercek_uretim_sn KATLANIYORDU. Sonuc: 200 adetlik vardiya 400 gorunuyor,
+    # performans 2 kat cikiyordu (OEE'de min(P,1.0) kirpmasi bunu kismen
+    # maskeledigi icin uzun sure fark edilmemis).
+    # gun_uretimi()'nde ayni tuzak 2026-07-30'da duzeltilmisti; burasi atlanmis.
+    #
+    # Once vardiyanin KENDI bolum+lokasyonundaki cycle; yoksa (eski kayit / kod
+    # baska tesiste tanimli) koda gore herhangi biri — eski davranisa duser,
+    # boylece hicbir vardiyanin suresi aniden kaybolmaz.
+    try:
+        _v_bolum = vardiya['bolum'] or 'kaynak'
+    except Exception:
+        _v_bolum = 'kaynak'
+    try:
+        _v_lok = vardiya['lokasyon'] or 'TK2'
+    except Exception:
+        _v_lok = 'TK2'
     uretim_rows = c.execute('''
-        SELECT u.*, r.hedef_cycle_time_sn as guncel_ct
+        SELECT u.*,
+               COALESCE(
+                 (SELECT MAX(r.hedef_cycle_time_sn) FROM referans_listesi r
+                   WHERE UPPER(REPLACE(r.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
+                     AND COALESCE(r.bolum,'kaynak') = ?
+                     AND COALESCE(r.lokasyon,'TK2') = ?),
+                 (SELECT MAX(r2.hedef_cycle_time_sn) FROM referans_listesi r2
+                   WHERE UPPER(REPLACE(r2.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ','')))
+               ) AS guncel_ct
         FROM uretim_kayitlari u
-        LEFT JOIN referans_listesi r ON u.referans_kodu = r.referans_kodu
         WHERE u.vardiya_id = ?
-    ''', (vardiya_id,)).fetchall()
+    ''', (_v_bolum, _v_lok, vardiya_id)).fetchall()
 
     toplam_ok = sum(r['ok_adet'] for r in uretim_rows)
     toplam_nok = sum(r['nok_adet'] for r in uretim_rows)

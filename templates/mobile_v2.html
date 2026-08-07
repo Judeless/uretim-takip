@@ -433,8 +433,17 @@
       letter-spacing: 0.01em;
     }
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    /* minmax(0,1fr) — '1fr' DEGIL (2026-08-04 duzeltmesi): grid hucresinin varsayilan
+       min-width'i 'auto'dur, yani icerigin INTRINSIC genisliginden kucultmez.
+       input[type=time]/[type=date] iOS Safari'de mono font + padding ile genis bir
+       intrinsic olcuye sahip → sutun sisiyor, satir konteyneri asiyor ve kutu
+       ekranin disina tasiyordu (vardiya baslatma Baslangic/Bitis alanlari).
+       width:100% bunu COZMEZ; sutunun kendisi buyudugu icin min'i sifirlamak gerek. */
+    .grid-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+    /* Ayni sebep flex/grid cocugu olan form alanlari icin de gecerli: tasmayi kokten kes */
+    .grid-2 > *, .grid-3 > * { min-width: 0; }
+    input, select, textarea { min-width: 0; max-width: 100%; }
 
     /* Vardiya türü butonları (Gündüz / Diğer) */
     .vp-btn {
@@ -495,7 +504,17 @@
     }
 
     /* ╔══ BÖLÜM SEÇİMİ KARTLARI ══╗ */
-    .bolum-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    /* minmax(0,1fr) + min-width:0 — '1fr' TEK BAŞINA YETMEZ: grid hücresinin
+       varsayılan min-width'i 'auto'dur, yani içeriğin intrinsic genişliğinden
+       küçülmez. Açıklama tek satıra (nowrap) alınınca kutucuklar 389px'e şişip
+       375px ekranı aşıyordu. .grid-2/.grid-3'te çözülen tuzağın aynısı. */
+    .bolum-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px;
+                  /* grid-auto-rows:1fr → TÜM kutucuklar en uzununa eşitlenir.
+                     Başlık/açıklama uzunluğu kutuyu artık şişiremez (plastik 95px,
+                     diğerleri 86px idi → liste kayık görünüyordu). Metni kırpmaya
+                     gerek kalmaz: açıklama sarabilir, yükseklik yine eşit kalır. */
+                  grid-auto-rows: 1fr; }
+    .bolum-grid > * { min-width: 0; }
     .bolum-btn {
       display: flex; align-items: center; gap: 14px;
       padding: 16px 18px;
@@ -525,6 +544,8 @@
     .bolum-btn .bolum-desc {
       font-size: 0.74rem; color: var(--muted);
       margin-top: 3px; font-weight: 500;
+      /* Açıklama SARABİLİR — kırpılmaz. Kutucukların eşit yüksekliği
+         .bolum-grid'deki grid-auto-rows:1fr ile sağlanır (2026-08-04). */
     }
     .bolum-btn.kaynak { border-left: 4px solid var(--c-violet); }
     .bolum-btn.kaynak:hover { border-color: var(--c-violet); background: rgba(167,139,250,0.08); box-shadow: 0 0 28px rgba(167,139,250,0.14); }
@@ -540,6 +561,8 @@
     .bolum-btn.pres:hover   { border-color: #ec4899;   background: rgba(236,72,153,0.06); box-shadow: 0 0 28px rgba(236,72,153,0.14); }
     .bolum-btn.plastik { border-left: 4px solid #a855f7; }
     .bolum-btn.plastik:hover { border-color: #a855f7; background: rgba(168,85,247,0.07); box-shadow: 0 0 28px rgba(168,85,247,0.14); }
+    .bolum-btn.tel { border-left: 4px solid #f59e0b; }
+    .bolum-btn.tel:hover { border-color: #f59e0b; background: rgba(245,158,11,0.07); box-shadow: 0 0 28px rgba(245,158,11,0.14); }
 
     .bolum-badge {
       flex-shrink: 0;
@@ -556,6 +579,7 @@
     .bolum-badge.lazer  { background: rgba(6,182,212,0.15);   color: #a5f3fc; border: 1px solid rgba(6,182,212,0.35); }
     .bolum-badge.pres   { background: rgba(236,72,153,0.15);  color: #fbcfe8; border: 1px solid rgba(236,72,153,0.35); }
     .bolum-badge.plastik { background: rgba(168,85,247,0.15); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.35); }
+    .bolum-badge.tel     { background: rgba(245,158,11,0.15); color: #fde68a; border: 1px solid rgba(245,158,11,0.35); }
 
     /* ╔══ VARDİYA KARTLARI (ANA EKRAN LİSTESİ) ══╗ */
     .vardiya-kart {
@@ -1119,9 +1143,10 @@
     .bolum-btn.lazer   { border-left: 3px solid #0E7490; }
     .bolum-btn.pres    { border-left: 3px solid #9D174D; }
     .bolum-btn.plastik { border-left: 3px solid #A21CAF; }
+    .bolum-btn.tel     { border-left: 3px solid #B45309; }
     .bolum-btn.kaynak:hover, .bolum-btn.montaj:hover, .bolum-btn.metal:hover,
     .bolum-btn.isleme:hover, .bolum-btn.lazer:hover, .bolum-btn.pres:hover,
-    .bolum-btn.plastik:hover {
+    .bolum-btn.plastik:hover, .bolum-btn.tel:hover {
       background: var(--surface-2); box-shadow: var(--shadow); border-color: var(--line);
     }
     /* Bölüm rozeti = KİMLİK → outline pill, dolu değil */
@@ -1137,6 +1162,7 @@
     .bolum-badge.lazer   { color: #0E7490; }
     .bolum-badge.pres    { color: #9D174D; }
     .bolum-badge.plastik { color: #A21CAF; }
+    .bolum-badge.tel     { color: #B45309; }
 
     /* ── 8) VARDİYA KARTLARI + DURUM ROZETLERİ (durum = DOLU ÇİP, 6px) ─────── */
     .vardiya-kart {
@@ -2537,9 +2563,20 @@ window.__I18N_SOZLUK__ = {
             <div class="bolum-icon">🧪</div>
             <div class="bolum-info">
               <div class="bolum-title">Plastik Enjeksiyon</div>
-              <div class="bolum-desc">Plastik enjeksiyon &amp; yapıştırma (320T / 407T / Yapıştırma)</div>
+              <div class="bolum-desc">Enjeksiyon · yapıştırma</div>
             </div>
             <span class="bolum-badge plastik">PLASTİK</span>
+          </div>
+          <!-- tel = TK1 bölümü (2026-08-04). Hat = PROSES ADIMI: operatör hangi
+               adımda çalışıyorsa onu seçer; aynı referans gün içinde farklı
+               adımlarda farklı operatörlerce kaydedilir. -->
+          <div class="bolum-btn tel b0-tk1-only" onclick="bolumSec('tel')" style="display:none">
+            <div class="bolum-icon">🧵</div>
+            <div class="bolum-info">
+              <div class="bolum-title">Tel Üretimi</div>
+              <div class="bolum-desc">Kesim · kapama · montaj</div>
+            </div>
+            <span class="bolum-badge tel">TEL</span>
           </div>
         </div>
       </div>
@@ -2668,6 +2705,8 @@ window.__I18N_SOZLUK__ = {
           <input type="text" id="d-ref" placeholder="Kod yazın... (örn: 10.130)"
             oninput="refAC(this)" autocomplete="off" data-cycle="0">
           <div class="autocomplete-list" id="d-acl" style="display:none"></div>
+          <!-- Tel: ara operasyon eki önizlemesi (2026-08-04) -->
+          <div id="d-tel-ek-bilgi" style="display:none;margin-top:6px;font-size:.74rem;color:var(--c-blue);font-weight:600"></div>
         </div>
         <div id="d-cycle-lbl" class="cycle-badge" style="display:none">⏱ —</div>
 
@@ -2707,10 +2746,6 @@ window.__I18N_SOZLUK__ = {
             <label>ADET (OK)</label>
             <input type="number" id="d-ok" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
           </div>
-          <!-- d-ok yanına sığmaz; sensör ipucu alanı aşağıda tam genişlik -->
-          <div id="d-sayac-ipucu" style="display:none;grid-column:1/-1;margin-top:2px;font-size:.74rem;color:var(--success);font-weight:600">
-            📡 Bu adet sensörden otomatik geliyor (canlı). Değiştirirsen sabitlenir, sayaç durur.
-          </div>
           <div>
             <label>TAMİR</label>
             <input type="number" id="d-tamir" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
@@ -2718,6 +2753,12 @@ window.__I18N_SOZLUK__ = {
           <div>
             <label>HURDA</label>
             <input type="number" id="d-nok" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
+          </div>
+          <!-- Sensor ipucu: grid-column:1/-1 ile TAM SATIR kaplar, bu yuzden uc alanin
+               ARDINDAN gelmeli. Eskiden ADET ile TAMIR'in ARASINDAYDI: gorunur oldugunda
+               satiri boluyor, ADET/TAMIR/HURDA ayni satirdan cikip dagiliyordu (2026-08-04). -->
+          <div id="d-sayac-ipucu" style="display:none;grid-column:1/-1;margin-top:2px;font-size:.74rem;color:var(--success);font-weight:600">
+            📡 Bu adet sensörden otomatik geliyor (canlı). Değiştirirsen sabitlenir, sayaç durur.
           </div>
         </div>
 
@@ -2752,7 +2793,9 @@ window.__I18N_SOZLUK__ = {
         </div>
         <!-- Pres Abkant: makine seçimi ÜRETİM KAYDI bazında (kullanıcı 2026-07-28 —
              operatör gün içinde makine değiştirerek çalışıyor; vardiya hattı sabit
-             'Pres Abkant'). Seçim istasyon kolonuna yazılır: 1-3 Abkant, 4-8 Pres. -->
+             'Pres Abkant'). Seçim istasyon kolonuna yazılır: 1-3 Abkant, 4-8 eksantrik
+             pres, 9 hidrolik pres, 10 broş (2026-07-31). Numaralar app.py
+             PRES_MAKINELERI sırasıyla BİREBİR — yeni makine hep SONA eklenir. -->
         <div id="d-pres-makine-wrap" style="display:none; margin-top:14px">
           <label>Makine</label>
           <select id="d-pres-makine" onchange="presMakineSec(this.value)">
@@ -2765,6 +2808,8 @@ window.__I18N_SOZLUK__ = {
             <option value="6">Pres 3</option>
             <option value="7">Pres 4</option>
             <option value="8">Pres 5</option>
+            <option value="9">Hidrolik Pres</option>
+            <option value="10">Bros</option>
           </select>
         </div>
         <input type="hidden" id="d-istasyon" value="0">
@@ -3468,10 +3513,28 @@ window.__I18N_SOZLUK__ = {
       } else if (bolum === 'pres') {
         // PRES ABKANT (kullanıcı 2026-07-28): operatör gün içinde makine değiştirerek
         // çalışıyor → makine VARDİYADA DEĞİL her ÜRETİM KAYDINDA seçilir (lazer modeli).
-        // Vardiya hattı tek ve sabit: 'Pres Abkant'; makine ekran D'de istasyon 1..8.
+        // Vardiya hattı tek ve sabit: 'Pres Abkant'; makine ekran D'de istasyon 1..10.
         robotWrap.style.display = 'none';
         rsel.innerHTML = '<option value="Pres Abkant" selected>Pres Abkant</option>';
         rsel.onchange = null;
+      } else if (bolum === 'tel') {
+        // TEL ÜRETİMİ (TK1, 2026-08-04): hat = PROSES ADIMI. Operatör hangi adımda
+        // çalışıyorsa onu seçer (halat kesme / yarı-tam otomat / kapama / son montaj).
+        // Adımlar backend'den gelir (app.TEL_ADIMLARI) — sıra üretim sırasıdır.
+        // Aynı referans gün içinde birden çok adımda kaydedilir; ÜRETİM sayısı
+        // yalnız o referansın SON adımından alınır (çoklu sayım önlenir).
+        robotWrap.style.display = 'block';
+        if (robotLabel) robotLabel.textContent = 'Proses Adımı';
+        rsel.innerHTML = '<option value="">Seçin...</option>';
+        rsel.onchange = null;   // tel hatları sabit — serbest ekleme yok
+        fetch('/api/robotlar?bolum=tel').then(function (r) { return r.json(); }).then(function (list) {
+          list.forEach(function (ad) {
+            var opt = document.createElement('option');
+            opt.value = ad; opt.textContent = ad;
+            rsel.appendChild(opt);
+          });
+          sonHatUygula(bolum);
+        }).catch(function () { });
       } else if (bolum === 'isleme' || bolum === 'plastik') {
         // Sabit makine tabanlı bölümler: dinamik liste (backend taban + vardiyalardan
         // DISTINCT) + "yeni ekle". plastik (TK1) → 320T/407T/Yapistirma.
@@ -3490,15 +3553,23 @@ window.__I18N_SOZLUK__ = {
           sonHatUygula(bolum);
         }).catch(function () { });
       } else {
-        // Montaj: hat seçimi zorunlu. TK2 → M1..M12 (+ yeni hat); TK1 → sabit 4 hat.
+        // Montaj: hat seçimi zorunlu. TK2 → M1..M12 (+ yeni hat); TK1 → 4 hat + 7 masa.
         robotWrap.style.display = 'block';
         if (robotLabel) robotLabel.textContent = 'Hat';
         var lok = localStorage.getItem('mobile_aktif_lokasyon') || 'TK2';
         var montajHatlari = '<option value="">Seçin...</option>';
         if (lok === 'TK1') {
-          ['Pull', 'Push-Pull', 'Iveco', 'LF-LFP'].forEach(function (h) {
+          // Pull / Push-Pull ÇIKARILDI (2026-08-04): bunlar TEL ÜRÜNÜ adları, montaj
+          // hattı değil — tel, 'Tel Üretimi' bölümünde proses adımlarında üretilir.
+          ['LF-LFP', 'Iveco'].forEach(function (h) {
             montajHatlari += '<option value="' + h + '">' + h + '</option>';
           });
+          // TK1 montaj masaları (2026-07-31): 7 masaya buton+buzzer sayaç modülü
+          // takıldı. Sayaç vardiyanın hattı ile eşleşiyor → masayı seçen operatörde
+          // OTOMATİK sayım açılır (TK2'deki M1..M12 ile aynı model).
+          for (var t = 1; t <= 7; t++) {
+            montajHatlari += '<option value="TK1-M' + t + '">TK1-M' + t + ' Masası (sayaçlı)</option>';
+          }
           rsel.innerHTML = montajHatlari;
           rsel.onchange = null;   // TK1'de serbest hat ekleme yok
           sonHatUygula(bolum);
@@ -3665,10 +3736,12 @@ window.__I18N_SOZLUK__ = {
       });
     }
 
-    // Pres Abkant makine seçimi (istasyon 1-3 Abkant, 4-8 Pres). Seçim cihazda
-    // hatırlanır: operatör aynı makinede arka arkaya kayıt girerken tekrar seçmesin.
+    // Pres Abkant makine seçimi (1-3 Abkant, 4-8 eksantrik pres, 9 hidrolik, 10 broş).
+    // Seçim cihazda hatırlanır: operatör aynı makinede arka arkaya kayıt girerken
+    // tekrar seçmesin. Numaralar app.py PRES_MAKINELERI ile BİREBİR aynı olmalı.
     var PRES_MAKINE_ADI = { 1: 'Abkant 1', 2: 'Abkant 2', 3: 'Abkant 3',
-                            4: 'Pres 1', 5: 'Pres 2', 6: 'Pres 3', 7: 'Pres 4', 8: 'Pres 5' };
+                            4: 'Pres 1', 5: 'Pres 2', 6: 'Pres 3', 7: 'Pres 4', 8: 'Pres 5',
+                            9: 'Hidrolik Pres', 10: 'Bros' };
     function presMakineSec(deger) {
       document.getElementById('d-istasyon').value = deger;
       try { localStorage.setItem('mobile_pres_son_makine', String(deger || '0')); } catch (e) {}
@@ -3696,10 +3769,38 @@ window.__I18N_SOZLUK__ = {
     function testCihazWrapGoster() {
       var wrap = document.getElementById('d-test-wrap');
       if (!wrap) return;
-      // Test cihazıyla yalnız MONTAJ çalışır (TK1 de bolum='montaj' — otomatik kapsanır);
-      // diğer bölümlerde (kaynak/metal/isleme/lazer/pres) blok hiç görünmez.
-      var montajMi = (secilenBolum === 'montaj');
-      wrap.style.display = (montajMi && _testCihazlari && _testCihazlari.etkin && _testCihazlari.cihazlar && _testCihazlari.cihazlar.length) ? 'block' : 'none';
+      // Test cihazı (Cofle SVP) ile çalışan bölümler:
+      //   montaj  — TK2 + TK1 montaj masaları (mevcut kurulum)
+      //   plastik — TK1 SIZDIRMAZLIK TEST makinesi (2026-08-04): adet sahadaki bir
+      //             sayaçtan değil, SVP'nin başarılı test kayıtlarından gelir.
+      // Diğer bölümlerde (kaynak/metal/isleme/lazer/pres) blok hiç görünmez.
+      var testliBolum = (secilenBolum === 'montaj' || secilenBolum === 'plastik');
+      wrap.style.display = (testliBolum && _testCihazlari && _testCihazlari.etkin && _testCihazlari.cihazlar && _testCihazlari.cihazlar.length) ? 'block' : 'none';
+      sizdirmazlikOnHazirla();
+    }
+
+    // ── SIZDIRMAZLIK TEST MAKİNESİ → SVP "TANK" CİHAZI (2026-08-04) ──────────
+    // Kullanıcı: "SVP'de sızdırmazlık testi için TANK adındaki yerden verileri
+    // alacağız." Operatör bu makinede vardiya açtıysa test cihazı bloğu KENDİLİĞİNDEN
+    // açılır ve adında 'tank' geçen cihaz ön-seçili gelir — yanlış cihaz seçme riski
+    // biter. Eşleşme bulunamazsa hiçbir şey zorlanmaz, operatör listeden kendi seçer.
+    function sizdirmazlikOnHazirla() {
+      if (secilenBolum !== 'plastik') return;
+      var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
+      if (mak !== 'Sizdirmazlik Test') return;
+      if (!_testCihazlari || !_testCihazlari.cihazlar) return;
+      var tank = _testCihazlari.cihazlar.filter(function (c) {
+        return /tank/i.test(String(c.ad || ''));
+      })[0];
+      if (!tank) return;
+      var tog = document.getElementById('d-test-toggle');
+      var sel = document.getElementById('d-test-cihaz');
+      // Operatör kendi seçimini yaptıysa EZME (yalnız boşken ön-seç)
+      if (sel && !sel.value) {
+        if (tog && !tog.checked) { tog.checked = true; testCihazToggle(); }
+        sel.value = String(tank.id);
+        testCihazSecildi();
+      }
     }
     function testCihazToggle() {
       var on = document.getElementById('d-test-toggle').checked;
@@ -3709,6 +3810,31 @@ window.__I18N_SOZLUK__ = {
         var ip = document.getElementById('d-sayac-ipucu'); if (ip) ip.style.display = 'none';
       }
     }
+    // ── TEL: ARA OPERASYON EKİ ÖNİZLEMESİ (2026-08-04) ──────────────────────
+    // Kayıt sunucuda ara adımlarda '93.TK.464 KESIM' olarak yazılır (son adımda
+    // base kod kalır). Operatör bunu KAYDETMEDEN ÖNCE görsün — sonradan raporda
+    // "kod neden değişmiş" sorusu çıkmasın. Salt bilgi; kodu değiştirmez.
+    var TEL_EK = { 'Halat Kesme': 'KESIM', 'Yarı Otomatik': 'YARI OTOMAT',
+                   'Tam Otomatik': 'TAM OTOMAT', 'Kapama': 'KAPAMA', 'Son Montaj': 'SON MONTAJ' };
+    function telHatAdimi(hat) {
+      var ad = String(hat || '').trim();
+      if (TEL_EK[ad]) return ad;
+      var kok = ad.replace(/\s*\d+$/, '').trim();
+      return TEL_EK[kok] ? kok : null;
+    }
+    function telEkOnizleme() {
+      var el = document.getElementById('d-tel-ek-bilgi');
+      if (!el) return;
+      var ref = (document.getElementById('d-ref') || {}).value || '';
+      var hat = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
+      var adim = telHatAdimi(hat);
+      if (secilenBolum !== 'tel' || !ref.trim() || !adim) { el.style.display = 'none'; return; }
+      // Her adım kendi ekini alır (istisna yok) → kesin dil kullanılabilir.
+      el.innerHTML = '🏷️ Kayıt <b>' + esc(ref.trim()) + ' ' + esc(TEL_EK[adim]) +
+                     '</b> olarak yazılır — bu hattın işi diğer adımlarla karışmaz.';
+      el.style.display = 'block';
+    }
+
     function testCihazSecildi() {
       var v = document.getElementById('d-test-cihaz').value;
       var ip = document.getElementById('d-sayac-ipucu');
@@ -3817,7 +3943,7 @@ window.__I18N_SOZLUK__ = {
           return;
         }
 
-        var groups = { kaynak: [], montaj: [], metal: [], isleme: [], lazer: [], pres: [] };
+        var groups = { kaynak: [], montaj: [], metal: [], isleme: [], lazer: [], pres: [], plastik: [] };
         list.forEach(function(v) {
           var b = v.bolum || 'kaynak';
           if (!groups[b]) groups[b] = [];
@@ -3831,13 +3957,26 @@ window.__I18N_SOZLUK__ = {
           metal: { title: '⚙️ Metal Enjeksiyon', color: '#8F6100', bg: '#F2ECE2' },
           isleme: { title: '🛠️ İşleme', color: '#3F6212', bg: '#EDE7FB' },
           lazer: { title: '🔦 Lazer Kesim', color: '#0E7490', bg: '#E3EEF6' },
-          pres: { title: '🗜️ Pres Abkant', color: '#9D174D', bg: '#F8E4EC' }
+          pres: { title: '🗜️ Pres Abkant', color: '#9D174D', bg: '#F8E4EC' },
+          plastik: { title: '🧪 Plastik Enjeksiyon', color: '#6D28D9', bg: '#EDE9FE' }
         };
 
-        ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'].forEach(function(bKey) {
+        // SABIT BOLUM DIZISI YOK (2026-08-04 duzeltmesi): burada elle sayilan liste
+        // 'plastik' icermiyordu — TK1 plastik vardiyasi ANA EKRANDA HIC gorunmuyordu.
+        // Operator sayfayi yenileyince kendi ACIK vardiyasina donemiyor, uretim
+        // ekleyemiyor, vardiyayi KAPATAMIYOR ve mukerrer vardiya aciyordu (backend
+        // veriyi donduruyordu, kayip tamamen ekrandaydi).
+        // Artik siralama SABIT ama liste VERI-GUDUMLU: bilinen bolumler once verilen
+        // sirada, sonra gruplarda gorunen BILINMEYEN bolumler (yeni bolum eklendiginde
+        // burasi guncellenmese bile vardiya EKRANDAN KAYBOLMAZ).
+        var _sira = ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik'];
+        Object.keys(groups).forEach(function (k) { if (_sira.indexOf(k) === -1) _sira.push(k); });
+        _sira.forEach(function(bKey) {
           var arr = groups[bKey];
           if (arr && arr.length > 0) {
-            var gInfo = bLabels[bKey];
+            // Etiketi olmayan bolum icin notr fallback — eksik etiket ARTIK CRASH ETMEZ
+            // (gInfo.bg okumasi TypeError firlatip tum listeyi bos birakiyordu).
+            var gInfo = bLabels[bKey] || { title: bKey, color: 'var(--text)', bg: 'var(--surface-2)' };
             html += '<div style="margin: 16px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid var(--border-subtle);">';
             html += '<span style="background:' + gInfo.bg + '; color:' + gInfo.color + '; padding: 4px 10px; border-radius: 6px; font-size: .75rem; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;">' + gInfo.title + '</span>';
             html += '</div>';
@@ -3964,15 +4103,17 @@ window.__I18N_SOZLUK__ = {
       var op = document.getElementById('b-operator').value.trim();
       var tarih = document.getElementById('b-tarih').value;
       var bolum = document.getElementById('b-bolum').value || 'kaynak';
-      var robot = '';
-      if (bolum === 'kaynak' || bolum === 'montaj' || bolum === 'metal' ||
-          bolum === 'isleme' || bolum === 'lazer' || bolum === 'pres') {
-        // Tum bolumlerde dropdown'dan secilen deger:
-        // kaynak: ABB1..ABB9, montaj: M1..M12 (hat), metal: 300T/400T/550T/Serit Testere,
-        // isleme: tezgahlar, pres: Abkant 1-3 + Pres; lazer: sabit 'Lazer'
-        // (lazerde makine vardiyada DEGIL, uretim kaydinda secilir — istasyon 1..6)
-        robot = document.getElementById('b-robot').value;
-      }
+      // HAT/MAKINE DEGERI — BOLUM ALLOWLIST'I YOK (2026-08-04 duzeltmesi).
+      // Eskiden bolum adlari burada TEK TEK sayiliyordu ve 'plastik' listeye
+      // eklenmemisti: TK1 plastik enjeksiyonda makine (ör. 407T) EKRANDA SECILI
+      // oldugu halde robot='' kaliyor, "Robot seciniz" hatasi veriliyordu.
+      // b-robot HER bolumde dogru degeri tasir (bkz. bolumSec):
+      //   kaynak/montaj/metal/isleme/plastik → kullanicinin dropdown secimi
+      //   lazer/pres                        → GIZLI ama sabit dolu ('Lazer'/'Pres Abkant')
+      // Bu yuzden gorunurluge de bakilmaz, KOSULSUZ okunur; yeni bolum eklenince
+      // burasi tekrar unutulamaz.
+      var robotEl = document.getElementById('b-robot');
+      var robot = robotEl ? (robotEl.value || '') : '';
       var vt = document.getElementById('b-vardiya-turu').value;
       var bas = document.getElementById('b-bas').value || simdiSaat();
       var bit = document.getElementById('b-bit').value;   // boş olabilir — kapatınca belirlenir
@@ -3980,8 +4121,14 @@ window.__I18N_SOZLUK__ = {
       if (!op) { toast('Operat\u00f6r se\u00e7iniz', 'error'); return; }
       // Tum bolumlerde zorunlu secim: kaynak=Robot, montaj=Hat, isleme=Tezgah, digerleri=Makine
       if (!robot || robot === '__yeni__') {
-        var alanAdi = (bolum === 'metal' || bolum === 'lazer' || bolum === 'pres') ? 'Makine'
-                    : (bolum === 'montaj' ? 'Hat' : (bolum === 'isleme' ? 'Tezgah' : 'Robot'));
+        // Alan adi bolume gore: ekranda ne yaziyorsa hata mesajinda da O yazmali
+        // (plastikte "Makine" secicisi varken "Robot seciniz" demesi kafa karistiriyordu).
+        // Varsayilan 'Makine' \u2014 yeni bir bolum eklenip buraya yazilmasi unutulursa
+        // en azindan 'Robot' gibi yanlis bir sey demez.
+        var _alanAdlari = { kaynak: 'Robot', montaj: 'Hat', isleme: 'Tezgah',
+                            metal: 'Makine', lazer: 'Makine', pres: 'Makine',
+                            plastik: 'Makine' };
+        var alanAdi = _alanAdlari[bolum] || 'Makine';
         toast(alanAdi + ' se\u00e7iniz', 'error'); return;
       }
       if (!tarih) { toast('Tarih giriniz', 'error'); return; }
@@ -4073,12 +4220,16 @@ window.__I18N_SOZLUK__ = {
         document.getElementById('c-detay').textContent =
           d.vardiya.baslangic_saati + ' → ' + d.vardiya.bitis_saati + ' · ' + d.vardiya.vardiya_turu + ' · ' + d.vardiya.tarih;
 
-        // Masa/Hat değiştir butonu — sadece montaj bölümünde + açık vardiyada
+        // Masa/Hat değiştir butonu — montaj + TEL bölümünde, açık vardiyada.
+        // Tel (2026-08-04): operatör gün içinde makine değiştirebiliyor
+        // ('Kapama 1' → 'Kapama 3'); vardiyayı kapatıp yenisini açmak zorunda kalmasın.
         var hatBtn = document.getElementById('c-hat-degistir-btn');
         if (hatBtn) {
           var hatBolum = d.vardiya.bolum || secilenBolum || 'kaynak';
+          var _hatDegisebilir = (hatBolum === 'montaj' || hatBolum === 'tel');
           hatBtn.style.display =
-            (hatBolum === 'montaj' && d.vardiya.durum !== 'kapali') ? 'inline-block' : 'none';
+            (_hatDegisebilir && d.vardiya.durum !== 'kapali') ? 'inline-block' : 'none';
+          hatBtn.textContent = (hatBolum === 'tel') ? '🔀 Proses / Makine Değiştir' : '🔀 Masa / Hat Değiştir';
         }
 
         // 📡 Sinyal Geçmişi — isleme/lazer/pres'te sayaç yok → butonu gizle
@@ -4135,7 +4286,9 @@ window.__I18N_SOZLUK__ = {
             // HTML escape (XSS koruması) — basit
             var ackEsc = (u.aciklama || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             var aciklamaSatiri = ackEsc ? ('<div class="ki-detail" style="font-style:italic;color:var(--c-amber);margin-top:3px">📝 ' + ackEsc + '</div>') : '';
-            div.innerHTML = '<div class="ki-head"><div>' +
+            // flex:1;min-width:0 — uzun referans kodunda sol sutun kucumsemeyip
+            // sag taraftaki butonlari (✏️/🗑) ekran disina itiyordu (2026-08-04).
+            div.innerHTML = '<div class="ki-head"><div style="flex:1;min-width:0">' +
               '<div class="ki-kod" style="' + (tamam ? 'opacity:.5;text-decoration:line-through;' : '') + '">' + u.referans_kodu + '</div>' +
               '<div class="ki-detail">' + makineTxt + 'OK: ' + u.ok_adet + sayacBadge + nokTxt + ctTxt + isDkTxt + '</div>' +
               aciklamaSatiri +
@@ -4159,7 +4312,7 @@ window.__I18N_SOZLUK__ = {
             div.className = 'kayit-item';
             var saat = dr.baslangic_saati ? ' · ' + dr.baslangic_saati : '';
             var acik = dr.aciklama ? ' · ' + dr.aciklama : '';
-            div.innerHTML = '<div class="ki-head"><div>' +
+            div.innerHTML = '<div class="ki-head"><div style="flex:1;min-width:0">' +
               '<div class="ki-kod">' + dr.durus_sebebi + '</div>' +
               '<div class="ki-detail">' + dr.sure_dk + ' dk' + saat + acik + '</div>' +
               '</div><div class="ki-actions">' +
@@ -4272,12 +4425,53 @@ window.__I18N_SOZLUK__ = {
       if (!aktifVardiyaData || !aktifVardiyaData.robot_no) return;
       var sel = document.getElementById('hat-modal-sel');
       var mevcut = aktifVardiyaData.robot_no;
-      var html = '';
-      for (var i = 1; i <= 12; i++) {
-        html += '<option value="M' + i + '">M' + i + ' Hattı</option>';
+      // LOKASYONA GORE HAT LISTESI (2026-08-04 duzeltmesi): burasi TK2'ye sabit
+      // kodluydu (M1..M12). TK1 montaj hatlari + yeni TK1-M1..TK1-M7 masalari
+      // bolumSec'e eklendigi halde bu modal guncellenmemisti; TK1 operatoru
+      // "Masa/Hat Degistir" deyince SADECE TK2 hatlarini goruyor ve secince
+      // vardiyasinin robot_no'su 'M5' oluyordu. pilot.db'de LOKASYON KOLONU YOK
+      // (sayac eslesmesi bolum+robot_no ile yapilir) -> TK1 vardiyasi TK2'deki
+      // FIZIKSEL M5 cihazinin pulse'larini saymaya baslardi: sessiz durma degil,
+      // tesisler arasi veri kirlenmesi. Liste artik bolumSec ile AYNI kaynaktan.
+      var _lok = localStorage.getItem('mobile_aktif_lokasyon') || 'TK2';
+      var _hatlar = [];
+      // TEL: hat listesi PROSES HATLARIDIR ve backend'den gelir (13 makine).
+      // Operatör 'Kapama 1' → 'Kapama 3' geçişini vardiyayı kapatmadan yapar.
+      var _bolumSimdi = (aktifVardiyaData && aktifVardiyaData.bolum) || secilenBolum || '';
+      if (_bolumSimdi === 'tel') {
+        fetch('/api/robotlar?bolum=tel').then(function (r) { return r.json(); }).then(function (list) {
+          var h = (list || []).map(function (ad) {
+            return '<option value="' + ad + '">' + ad + '</option>';
+          }).join('');
+          if ((list || []).indexOf(mevcut) === -1) {
+            h = '<option value="' + mevcut + '">' + mevcut + '</option>' + h;
+          }
+          sel.innerHTML = h;          // tel'de "+ manuel" YOK — hatlar sabit
+          sel.value = mevcut;
+          document.getElementById('hat-modal').style.display = 'flex';
+        }).catch(function () { toast('Hat listesi alınamadı', 'error'); });
+        return;
       }
-      // Mevcut hat listede yoksa (özel hat, ör: "HAT 5") başa ekle
-      if (!/^M([1-9]|1[0-2])$/.test(mevcut)) {
+      if (_lok === 'TK1') {
+        // Pull / Push-Pull ÇIKARILDI (2026-08-04): tel ürünü adları, montaj hattı değil.
+        // Mevcut vardiyası bu isimlerdeyse aşağıdaki "listede yoksa başa ekle" kuralı
+        // onu yine gösterir — eski kayıtla çalışan operatör kilitlenmez.
+        ['LF-LFP', 'Iveco'].forEach(function (h) {
+          _hatlar.push({ v: h, t: h });
+        });
+        for (var t = 1; t <= 7; t++) {
+          _hatlar.push({ v: 'TK1-M' + t, t: 'TK1-M' + t + ' Masası (sayaçlı)' });
+        }
+      } else {
+        for (var i = 1; i <= 12; i++) _hatlar.push({ v: 'M' + i, t: 'M' + i + ' Hattı' });
+      }
+      var html = '';
+      _hatlar.forEach(function (h) {
+        html += '<option value="' + h.v + '">' + h.t + '</option>';
+      });
+      // Mevcut hat listede yoksa (özel hat, ör: "HAT 5") başa ekle — kontrol artik
+      // regex ile DEGIL uretilen listeye bakarak (lokasyona gore liste degisiyor).
+      if (!_hatlar.some(function (h) { return h.v === mevcut; })) {
         html = '<option value="' + mevcut + '">' + mevcut + '</option>' + html;
       }
       html += '<option value="__yeni__">+ Başka hat (manuel)...</option>';
@@ -4391,7 +4585,7 @@ window.__I18N_SOZLUK__ = {
       if (lzWrap) lzWrap.style.display = (secilenBolum === 'lazer') ? 'block' : 'none';
       var lzSel = document.getElementById('d-lazer-makine');
       if (lzSel) lzSel.value = String(parseInt(istasyon || 0) || 0);
-      // Pres Abkant: makine seçici görünür, kayıttaki makine (istasyon 1..8) seçili gelir
+      // Pres Abkant: makine seçici görünür, kayıttaki makine (istasyon 1..10) seçili gelir
       var prWrap = document.getElementById('d-pres-makine-wrap');
       if (prWrap) prWrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
       var prSel = document.getElementById('d-pres-makine');
@@ -4594,6 +4788,29 @@ window.__I18N_SOZLUK__ = {
     // ── AUTOCOMPLETE ──
     // Debounce (180ms) + istek sayaci: yalniz SON istegin yaniti render edilir
     // (eski yanit gec gelirse atilir — hizli yazarken liste ziplamasin).
+    // ── MAKİNEYE GÖRE KOD FİLTRESİ (2026-08-04) ────────────────────────────
+    // Plastik bölümünde iki kod ailesi var:
+    //   sonu 'G'  → YAPIŞTIRMA ürünleri. Yapıştırma makinesinde üretilir ve AYNI
+    //               kodlar SIZDIRMAZLIK TEST makinesinde test edilir (kullanıcı
+    //               2026-08-04: "sızdırmazlık testi kodları yapıştırma ile aynı").
+    //   diğerleri → enjeksiyon ürünleri (320T / 407T)
+    // Amaç: yanlış makineye kayıt açılmasın.
+    // Liste filtresi bir ENGEL DEĞİL: operatör kodu elle yazıp yine kaydedebilir
+    // (istisna durumları bloklamamak için bilinçli tercih).
+    var G_KODLU_MAKINELER = ['Yapistirma', 'Sizdirmazlik Test'];
+    function makineKodFiltresi(items) {
+      if (secilenBolum !== 'plastik' || !items || !items.length) return items;
+      var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
+      if (!mak) return items;
+      var gliMakine = (G_KODLU_MAKINELER.indexOf(mak) !== -1);
+      var suzulmus = items.filter(function (r) {
+        var gli = /G$/i.test(String(r.referans_kodu || '').trim());
+        return gliMakine ? gli : !gli;
+      });
+      // Filtre her şeyi elediyse ham listeyi göster — operatör kilitlenmesin
+      return suzulmus.length ? suzulmus : items;
+    }
+
     var _refACTimer = null, _refACSeq = 0;
     function refAC(input) {
       var q = input.value.trim();
@@ -4611,6 +4828,7 @@ window.__I18N_SOZLUK__ = {
           .then(function (r) { return r.json(); })
           .then(function (items) {
             if (seq !== _refACSeq) return;   // bayat yanit — atla
+            items = makineKodFiltresi(items);
             if (!items.length) { list.style.display = 'none'; return; }
             list.innerHTML = '';
             items.forEach(function (r) {
@@ -4668,6 +4886,7 @@ window.__I18N_SOZLUK__ = {
       var lbl = document.getElementById('d-cycle-lbl');
       if (ct > 0) { lbl.textContent = '⏱ ' + Math.round(ct) + ' sn/parça'; lbl.style.display = 'inline-flex'; }
       else { lbl.style.display = 'none'; }
+      telEkOnizleme();   // tel: kodun nasıl kaydedileceğini göster
       // Referansın hatırlanan büküm operasyon sayısı hazır gelsin (operatör değiştirebilir)
       if (secilenBolum === 'pres') bukumGoster(bukumOp || 1);
       // Pres: referansın Excel açıklaması alttaki Açıklama alanına gelir (operatör görsün).

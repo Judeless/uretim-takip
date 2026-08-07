@@ -21,6 +21,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.utils import formataddr
 
+
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH     = os.path.join(PROJECT_DIR, 'uretim.db')
 CONFIG_YOL  = os.path.join(PROJECT_DIR, 'mail_config.json')
@@ -204,11 +205,20 @@ def gunluk_veri(tarih=None, lokasyon=None):
         if lokasyon and lokasyon.upper() != 'HEPSI':
             sql += " AND COALESCE(v.lokasyon,'TK2') = ?"
             params.append(lokasyon.upper())
+        # Hat (robot_no) da kırılıma girer: tel üretiminde aynı operatör aynı gün
+        # farklı makinelerde çalışabilir ('Kapama 1' ve 'Kapama 3') — satırlar
+        # birleşmesin, kimin hangi makinede ne yaptığı görünsün.
         sql += """
-            GROUP BY tesis, bolum, v.operator_adi, u.referans_kodu
+            GROUP BY tesis, bolum, v.operator_adi, u.referans_kodu, v.robot_no
             HAVING SUM(u.ok_adet) > 0
             ORDER BY tesis, bolum, v.operator_adi, u.referans_kodu
         """
+        # ── TEL ÜRETİMİ: TÜM OPERATÖRLER RAPORDA GÖRÜNÜR (2026-08-04) ─────────
+        # Kullanıcı: "raporda diğer operatörlerin de ne yaptığını görelim."
+        # Ara adımlar SÜZÜLMEZ — çoklu sayım artık REFERANS KODUNDAN ayrışıyor:
+        # ara operasyonlar adım ekiyle kaydediliyor ('93.TK.464 KESIM'), bitmiş
+        # ürün base kodla ('93.TK.464'). Kesimi yapan operatörün 200 adet kesim
+        # yaptığı raporda görünür ama ürün toplamına karışmaz — farklı koddur.
         return conn.execute(sql, params).fetchall()
     finally:
         conn.close()
@@ -217,7 +227,7 @@ def gunluk_veri(tarih=None, lokasyon=None):
 # Bölüm kimlik renkleri — dashboard paletiyle (--b-*) AYNI değerler.
 _BOLUM_RENK = {'kaynak': '#1D4ED8', 'montaj': '#07734F', 'metal': '#8F6100',
                'isleme': '#3F6212', 'lazer': '#0E7490', 'pres': '#9D174D',
-               'plastik': '#A21CAF'}
+               'plastik': '#A21CAF', 'tel': '#B45309'}
 
 
 def _bolum_kirilimi(tarih, lokasyon=None):

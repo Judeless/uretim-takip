@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Andon TV</title>
+<!--
+  ANDON TV KABUĞU (2026-08-04)
+  ============================
+  SORUN: Andon ekranı bellek birikimini önlemek için ~30 dk'da bir location.reload()
+  yapıyordu. Fullscreen API sayfa yenilenince ÇIKAR ve kullanıcı jesti (tık) olmadan
+  geri alınamaz → TV yarım saatte bir tam ekrandan düşüyordu. Kullanıcı TV'ye uzaktan
+  bağlanamıyor, yalnız fare ile kontrol ediyor; kiosk modu kurulumu yapılamıyor.
+
+  ÇÖZÜM: İki katmanlı yapı.
+    • DIŞ KABUK (bu sayfa) — ASLA yenilenmez. Tam ekranı O tutar, bir kez açılır ve
+      açık kalır. İçinde neredeyse hiç JS/DOM yok, bellek biriktirmez.
+    • İÇ ÇERÇEVE (iframe) — asıl andon sayfası. Periyodik olarak SADECE O yenilenir;
+      belge yok edilip yeniden kurulduğu için renderer/GPU belleği temizlenir.
+      iframe yenilenmesi dış belgeyi etkilemez → TAM EKRAN BOZULMAZ.
+
+  ⚠ TAM HTML BELGESİ OLMALI: ilk sürümde DOCTYPE/html/head/body yoktu; tarayıcı
+  sayfayı QUIRKS MODE'da açıyor, 'html,body{height:100%}' zinciri kurulamıyor ve
+  iframe SIFIR YÜKSEKLİKTE kalıyordu → ekran bomboş görünüyordu (2026-08-04).
+
+  Kullanım: TV'de /andon_tv?bolum=metal açılır, fareyle bir kez "Tam Ekran"a tıklanır.
+-->
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b1020; }
+  /* Yükseklik hem 100% hem 100vh: biri (eski tarayıcı / yerleşim farkı) tutmazsa
+     diğeri devreye girsin — iframe'in sıfır yükseklikte kalması ekranı boş bırakır. */
+  #andon-cerceve { display: block; width: 100%; height: 100%; min-height: 100vh; border: 0; }
+
+  /* Tam ekran butonu: FARE ile tıklanabilir tek kontrol. Tam ekrana geçilince
+     gizlenir (ekranı kapatmasın), tam ekrandan çıkılırsa yeniden görünür. */
+  #tv-fs {
+    position: fixed; right: 18px; bottom: 18px; z-index: 9999;
+    padding: 14px 22px; border-radius: 12px; cursor: pointer;
+    background: rgba(17, 24, 39, .92); color: #fff;
+    border: 1px solid rgba(255,255,255,.25);
+    font: 700 1rem/1.2 system-ui, "Segoe UI", Arial, sans-serif;
+    box-shadow: 0 8px 28px rgba(0,0,0,.45);
+  }
+  #tv-fs:hover { background: rgba(37, 47, 74, .96); }
+  /* Tam ekranda hiçbir kontrol görünmesin (webkit ön ekli sürüm eski TV tarayıcıları için) */
+  :fullscreen #tv-fs { display: none; }
+  :-webkit-full-screen #tv-fs { display: none; }
+
+  /* Yenileme sırasında kısa bir iz — ekran karardı sanılmasın */
+  #tv-durum {
+    position: fixed; left: 18px; bottom: 18px; z-index: 9998;
+    padding: 8px 14px; border-radius: 10px; opacity: 0; transition: opacity .4s ease;
+    background: rgba(17,24,39,.85); color: #93c5fd;
+    font: 600 .8rem/1.2 system-ui, "Segoe UI", Arial, sans-serif;
+    pointer-events: none;
+  }
+  #tv-durum.gorunur { opacity: 1; }
+</style>
+</head>
+<body>
+
+<iframe id="andon-cerceve" src="{{ hedef }}" allowfullscreen title="Andon"></iframe>
+
+<button id="tv-fs" onclick="tvTamEkran()">⛶ Tam Ekran</button>
+<div id="tv-durum">↻ içerik tazelendi</div>
+
+<script>
+  // ── Tam ekran (fare ile tek tık) ──────────────────────────────────────────
+  // requestFullscreen KULLANICI JESTİ ister; otomatik çağrılamaz, butona bağlıdır.
+  // Bir kez basıldıktan sonra kabuk hiç yenilenmediği için tam ekran kalıcıdır.
+  function tvTamEkran() {
+    var el = document.documentElement;
+    var ac = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    var kapat = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    var acikMi = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+    try {
+      if (!acikMi) { if (ac) ac.call(el); }
+      else { if (kapat) kapat.call(document); }
+    } catch (e) { /* tarayıcı izin vermezse buton görünür kalır */ }
+  }
+
+  // ── Periyodik İÇERİK yenileme ─────────────────────────────────────────────
+  // SADECE iframe yenilenir; dış belge (ve onun tam ekran durumu) korunur.
+  // Jitter: birden çok andon TV'si aynı anda sunucuya yüklenmesin.
+  var TV_YENILE_DK = 30;
+  function tvIcerikYenile() {
+    var ifr = document.getElementById('andon-cerceve');
+    try {
+      ifr.src = ifr.src;   // belgeyi tamamen yeniden kurar (bellek temizliği)
+      var d = document.getElementById('tv-durum');
+      d.className = 'gorunur';
+      setTimeout(function () { d.className = ''; }, 2500);
+    } catch (e) { /* yenileme başarısızsa ekran mevcut içerikle devam eder */ }
+    tvZamanla();
+  }
+  function tvZamanla() {
+    setTimeout(tvIcerikYenile, (TV_YENILE_DK * 60 + Math.floor(Math.random() * 60)) * 1000);
+  }
+  tvZamanla();
+</script>
+</body>
+</html>

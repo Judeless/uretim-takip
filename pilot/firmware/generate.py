@@ -61,6 +61,22 @@ DEVICES = {
         ('MONTAJ-M11', 'M11'),
         ('MONTAJ-M12', 'M12'),
         ('MONTAJ-YF1', 'YF1'),   # TK1 yan tesis montaj deneme modülü (sahada robot_no=YF1 ile flash'li)
+        # TK1 (yan tesis) montaj masalari — 2026-07-31, 7 adet. TK2'deki M1..M12 modelinin
+        # aynisi: MASA = hat (operator mobilde masasini secer, sayac dogrudan eslesir).
+        # YF1 sahada KALIR (LF-LFP esleme sürüyor) — bu 7 cihaz onun yanina eklenir.
+        # robot_no global benzersiz olmali: 'TK1-M1' (TK2'nin 'M1'i ile karismasin).
+        # BUZZER_AKTIF='false': TK1 masalarina alinan 3 pinli hazir modul (VCC/I-O/GND)
+        # AKTIF-LOW cikti — sahada denendi, HIGH surulunce SUREKLI otuyordu (2026-07-31).
+        # Modul 3V3'ten beslenir (5V'ta 3.3V HIGH girisi kapatamiyor) -> ses kisik;
+        # telafi: CIFT bip x 300ms (kullanici istegi). TK2 M1..M12 + YF1 tek bip
+        # 200ms aktif-HIGH kalir; bu yuzden ayarlarin HEPSI CIHAZ BAZLI.
+        ('MONTAJ-TK1-M1', 'TK1-M1', {'BUZZER_AKTIF': 'false', 'BUZZER_BEEP_ADET': '2', 'BUZZER_BEEP_MS': '300'}),
+        ('MONTAJ-TK1-M2', 'TK1-M2', {'BUZZER_AKTIF': 'false', 'BUZZER_BEEP_ADET': '2', 'BUZZER_BEEP_MS': '300'}),
+        ('MONTAJ-TK1-M3', 'TK1-M3', {'BUZZER_AKTIF': 'false', 'BUZZER_BEEP_ADET': '2', 'BUZZER_BEEP_MS': '300'}),
+        ('MONTAJ-TK1-M4', 'TK1-M4', {'BUZZER_AKTIF': 'false', 'BUZZER_BEEP_ADET': '2', 'BUZZER_BEEP_MS': '300'}),
+        ('MONTAJ-TK1-M5', 'TK1-M5', {'BUZZER_AKTIF': 'false', 'BUZZER_BEEP_ADET': '2', 'BUZZER_BEEP_MS': '300'}),
+        ('MONTAJ-TK1-M6', 'TK1-M6', {'BUZZER_AKTIF': 'false', 'BUZZER_BEEP_ADET': '2', 'BUZZER_BEEP_MS': '300'}),
+        ('MONTAJ-TK1-M7', 'TK1-M7', {'BUZZER_AKTIF': 'false', 'BUZZER_BEEP_ADET': '2', 'BUZZER_BEEP_MS': '300'}),
     ],
     'metal': [
         ('300T-IO', '300T'),
@@ -73,13 +89,18 @@ DEVICES = {
         ('ABKANT-A2', 'Abkant 2'),
         ('ABKANT-A3', 'Abkant 3'),
     ],
-    # Eksantrik pres — iki-el AND butonu (bolum='pres'). Bkz pres.ino.tpl
+    # Pres makineleri — makinenin KENDI SAYACINA takilan role (bolum='pres').
+    # 2026-07-31: eski iki-el buton (AND) modeli birakildi, abkant deseni kullaniliyor.
+    # 5 eksantrik + 1 hidrolik pres + 1 bros. Bkz pres.ino.tpl
+    # robot_no ASCII olmali: klasor/dosya adi + app.py PRES_MAKINELERI ile birebir.
     'pres': [
         ('PRES-P1', 'Pres 1'),
         ('PRES-P2', 'Pres 2'),
         ('PRES-P3', 'Pres 3'),
         ('PRES-P4', 'Pres 4'),
         ('PRES-P5', 'Pres 5'),
+        ('PRES-HIDROLIK', 'Hidrolik Pres'),
+        ('PRES-BROS',     'Bros'),
     ],
     # Plastik enjeksiyon — TK1, metal mantigi (bolum='plastik'). Bkz plastik.ino.tpl
     'plastik': [
@@ -105,18 +126,33 @@ TEMPLATES = {
 
 
 def klasor_adi(robot_no):
-    """Klasor + .ino dosya adi turet. ABB1 -> cofle_sayac_abb1"""
-    sade = robot_no.lower().replace(' ', '_')
+    """Klasor + .ino dosya adi turet. ABB1 -> cofle_sayac_abb1
+
+    Tire de alt cizgiye cevrilir ('TK1-M1' -> cofle_sayac_tk1_m1): Arduino sketch
+    adinda tire sorun cikarabiliyor. robot_no'nun KENDISI degismez (sunucu ile
+    birebir eslesmeli) — yalniz klasor/dosya adi sadelesir."""
+    sade = robot_no.lower().replace(' ', '_').replace('-', '_')
     return f'cofle_sayac_{sade}'
 
 
-def template_uygula(template_metni, cihaz_id, robot_no):
-    """Template placeholder'lari doldur."""
+def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
+    """Template placeholder'lari doldur.
+
+    ekstra: cihaza OZEL degerler (opsiyonel 3. tuple elemani) — buzzer donanimi
+    cihazdan cihaza degistigi icin (2026-07-31):
+      BUZZER_AKTIF     : 'true' aktif-HIGH (TK2 kurulumu) | 'false' aktif-LOW (TK1 modulu)
+      BUZZER_BEEP_ADET : pes pese bip sayisi   (TK2 '1', TK1 '2' — 3V3'te ses kisik)
+      BUZZER_BEEP_MS   : tek bip suresi ms     (TK2 '200', TK1 '300' — %50 uzun)
+    Placeholder'i olmayan template'lerde replace no-op'tur."""
     fw_suffix = robot_no.lower().replace(' ', '_')
+    ek = ekstra or {}
     return (template_metni
             .replace('__CIHAZ_ID__', cihaz_id)
             .replace('__ROBOT_NO__', robot_no)
-            .replace('__FW_SUFFIX__', fw_suffix))
+            .replace('__FW_SUFFIX__', fw_suffix)
+            .replace('__BUZZER_AKTIF__', ek.get('BUZZER_AKTIF', 'true'))
+            .replace('__BUZZER_BEEP_ADET__', ek.get('BUZZER_BEEP_ADET', '1'))
+            .replace('__BUZZER_BEEP_MS__', ek.get('BUZZER_BEEP_MS', '200')))
 
 
 def main():
@@ -179,13 +215,17 @@ def main():
             tpl = f.read()
 
         print(f'[{bolum.upper()}] {len(cihazlar)} cihaz uretiliyor')
-        for cihaz_id, robot_no in cihazlar:
+        for cihaz in cihazlar:
+            # (cihaz_id, robot_no) veya (cihaz_id, robot_no, {ekstra}) — cihaza ozel
+            # ayar gerekmeyen satirlar 2'li kalir (mevcut liste degismedi).
+            cihaz_id, robot_no = cihaz[0], cihaz[1]
+            ekstra = cihaz[2] if len(cihaz) > 2 else None
             klasor = klasor_adi(robot_no)
             klasor_yolu = os.path.join(SCRIPT_DIR, klasor)
             os.makedirs(klasor_yolu, exist_ok=True)
 
             ino_yolu = os.path.join(klasor_yolu, klasor + '.ino')
-            icerik = template_uygula(tpl, cihaz_id, robot_no)
+            icerik = template_uygula(tpl, cihaz_id, robot_no, ekstra)
             with open(ino_yolu, 'w', encoding='utf-8') as f:
                 f.write(icerik)
             print(f'  [ok]   {klasor}/{klasor}.ino  ({cihaz_id})')

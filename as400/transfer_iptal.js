@@ -25,8 +25,13 @@ var ARTICLE = ("" + args(3)).replace(/^\s+|\s+$/g, ""), ADET = "" + args(4);
 var DRYRUN = false;
 for (var ai = 5; ai < args.length; ai++)
     if (("" + args(ai)).toUpperCase() === "DRYRUN") DRYRUN = true;
+// ARTICLE filtresi cfi_gir.js ile AYNI kurala cekildi (2026-07-31): eski beyaz
+// liste alt cizgiyi eliyordu → '10.300.1992A_LK' gibi kodlarin transferi 16:45
+// oto kosusunda da "gecersiz parametre" ile atlaniyordu. Gercek riskler: PCOMM
+// mnemonik parantezi [ ], bosluk/ASCII disi karakter, 21+ karakter.
 if (!/^\d{2}$/.test(KYIL) || !/^\d{1,7}$/.test(KNO) || !/^\d{1,5}$/.test(SATIR)
-    || !/^[A-Za-z0-9.\-\/]{5,20}$/.test(ARTICLE) || !/^\d{1,6}(\.\d+)?$/.test(ADET)) {
+    || !/^[\x21-\x7E]{3,21}$/.test(ARTICLE) || /[\[\]]/.test(ARTICLE)
+    || !/^\d{1,6}(\.\d+)?$/.test(ADET)) {
     WScript.Echo("HATA: gecersiz parametre (yil=" + KYIL + " no=" + KNO + " satir=" + SATIR + " article='" + ARTICLE + "' adet=" + ADET + ")");
     WScript.Echo("SONUC=IPTAL"); WScript.Quit(2);
 }

@@ -1,21 +1,27 @@
 /* ============================================================
- *  COFLE PILOT SAYAC — MONTAJ-M10 firmware (v2.1)
+ *  COFLE PILOT SAYAC — PRES-BROS firmware (v2.1)
  *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
- *  HEDEF:  Montaj masasi operatorunun butonuna her basisinda
- *          1 uretim pulse'u olarak kaydeder.
+ *  HEDEF:  Bros makinesinin KENDI SAYACINA takilan roleyi izler.
+ *          Makinenin mekanik/elektronik vurus sayaci her vuruste tetiklenir;
+ *          ona paralel baglanan role NO-COM'u kapatir -> 1 uretim pulse'u.
+ *          (Bolum "pres": 5 eksantrik + 1 hidrolik pres + 1 bros makinesi.)
+ *
+ *  NOT: 2026-07-31'e kadar eksantrik preste IKI-EL BUTON (AND) modeli vardi;
+ *       sinyal artik sayac rolesinden alindigi icin abkant deseni kullanilir.
+ *       (Buton modeli sahaya hic cikmadi — cihazlar pilot.db'ye hic kayit acmadi.)
  *
  *  PIN ATAMALARI:
- *   - GPIO25  -> BUTON (NO momentary, GND'ye kapanir)
+ *   - GPIO25  -> ROLE NO (kuru kontak, GND'ye kapanir — sayac rolesi)
  *   - GPIO26  -> BOS (INPUT_PULLUP)
- *   - GPIO27  -> BUZZER modul I/O girisi (basista onay beep'i)
- *   - GND     -> Buton 2. pini + Buzzer modul GND
- *   - VCC     -> TK1 masa modulleri (aktif-LOW kart): 3V3 pini. 5V'ta HIGH esigi
- *                5V'a gore olur, ESP32'nin 3.3V HIGH'i girisi kapatamaz -> SUREKLI oter.
- *                TK2 M1..M12 + YF1: mevcut kurulum korunur.
+ *   - GPIO27  -> BOS (buzzer kodu duruyor ama preste buzzer TAKILMAZ)
+ *   - GND     -> Rolenin diger ucu (COM)
  *
- *  Bu dosya pilot/firmware/_templates/montaj.ino.tpl'den uretildi.
+ *  UYARI: ROLE KURU KONTAK olmali (potansiyelsiz). 24V besleme cikisi ise
+ *         DIREKT BAGLAMA — araya optokuplor sart, aksi halde ESP32 yanar.
+ *
+ *  Bu dosya pilot/firmware/_templates/pres.ino.tpl'den uretildi.
  * ============================================================ */
 
 #include <WiFi.h>
@@ -28,12 +34,12 @@
 #include "driver/gpio.h"
 
 // ════════════════════════════════════════════════════════════
-//   YAPILANDIRMA — M10
+//   YAPILANDIRMA — Bros
 // ════════════════════════════════════════════════════════════
 
-const char* CIHAZ_ID  = "MONTAJ-M10";
-const char* BOLUM     = "montaj";
-const char* ROBOT_NO  = "M10";
+const char* CIHAZ_ID  = "PRES-BROS";
+const char* BOLUM     = "pres";
+const char* ROBOT_NO  = "Bros";
 
 const char* WIFI_SSID = "COFLE-TK";
 const char* WIFI_PASS = "internet2011!";
@@ -41,31 +47,11 @@ const char* SUNUCU_HOST = "http://192.168.21.155:5001";
 const char* API_TOKEN = "cofle-pilot-2026";
 const char* OTA_PASS = "cofle-ota-2026";
 
-const int PIN_IST1_SAYAC      = 25;   // Buton (NO temas, GND'ye kapanir)
+const int PIN_IST1_SAYAC      = 25;   // SAYAC ROLESI (kuru kontak, GND'ye kapanir)
 const int PIN_IST2_SAYAC      = 26;   // BOS
-const int PIN_BUZZER          = 27;   // Buzzer modul I/O girisi (montajda robot durumu kullanilmadigi icin bu pin buzzer). Polarite: BUZZER_AKTIF_HIGH
+const int PIN_BUZZER          = 27;   // BOS (preste buzzer TAKILMAZ; kod duruyor, zararsiz)
 const int PIN_LED             =  2;
-// Onay bip DESENI — CIHAZ BAZLI (generate.py DEVICES'ta ayarlanir):
-//   TK2 M1..M12 + YF1 : 1 bip x 200ms (sahadaki aliskanlik korunur, 5V/aktif-HIGH kurulum)
-//   TK1 masalari      : 2 bip x 300ms (kullanici 2026-07-31: modul 3V3'ten besleniyor,
-//                       ses kisik -> "bip sesini 2 kere cikartalim, sureyi %50 arttiralim")
-// Desen donanim timer'inda kosar (buzzerAdim) — loop'taki HTTP POST bip'i UZATAMAZ.
-// Toplam desen 2x300+120=720ms < MIN_PULSE_GAP_MS (1000ms): yeni sayim gelmeden
-// desen bitmis olur, bip'ler ust uste BINEMEZ.
-const int           BUZZER_BEEP_ADET = 1;  // pes pese bip sayisi
-const unsigned long BUZZER_BEEP_MS   = 200;    // tek bip suresi (ms)
-const unsigned long BUZZER_ARA_MS    = 120;                   // iki bip arasi sessizlik (ms)
-
-// ─── Buzzer modul polaritesi (2026-07-31) ───────────────────────
-// Hazir 3 pinli buzzer modulu (VCC / I-O / GND, YL-44 tipi): uzerinde transistor
-// oldugu icin GPIO'yu yormaz ve VCC=5V ile SESI YUKSEK cikar.
-// Modullerin cogu aktif-HIGH (I-O HIGH iken oter); bazi kartlar aktif-LOW tetikler.
-// SAHA TESTI: flash sonrasi bosta SUREKLI otuyorsa modul aktif-LOW demektir.
-// DEGER CIHAZ BAZLIDIR — generate.py DEVICES'ta ayarlanir (topluca degistirme!):
-// TK2 M1..M12 + YF1 sahada aktif-HIGH calisiyor, global cevirmek onlari bozar.
-const bool BUZZER_AKTIF_HIGH = true;
-const int  BUZZER_ACIK   = BUZZER_AKTIF_HIGH ? HIGH : LOW;
-const int  BUZZER_KAPALI = BUZZER_AKTIF_HIGH ? LOW  : HIGH;
+const unsigned long BUZZER_BEEP_MS = 200;  // onay beep suresi (SABIT, donanim timer). 3.3V'ta buzzer KISIK kalir -> uzun beep daha BELIRGIN (tik degil net bip). Gercek YUKSEK ses icin 5V+transistor sart.
 
 // Pulse algilama: BLOKLAMAYAN INTEGRATOR debounce (v2.5).
 // Eski "15 ardisik ornek HEPSI LOW" (75ms) filtresi tek bir parazit HIGH ile
@@ -76,19 +62,18 @@ const int  BUZZER_KAPALI = BUZZER_AKTIF_HIGH ? LOW  : HIGH;
 const int  INTEG_YUKSEK_ESIK   = 15;   // ~75ms net LOW -> basis algilandi (eski filtre ile ayni)
 const int  INTEG_MAX           = 40;   // tavan (~200ms) — glitch toleransi tamponu
 const int  INTEG_DUSUK_ESIK    = 4;    // ~20ms HIGH -> basis bitti (histerezis)
-const unsigned long MIN_PULSE_GAP_MS = 1000;   // Montaj: hizli operator (1sn back-to-back)
-// Bip deseninin toplami sayim araligindan KISA olmali — yoksa loop task'i ile
-// esp_timer task'i buzzer durumunda yarisir (desen kirpilir). Yorumla degil
-// DERLEYICIYLE garanti: gelecekte generate.py'de ADET/sure buyutulurse burada patlar.
-static_assert(BUZZER_BEEP_ADET * BUZZER_BEEP_MS
-              + (BUZZER_BEEP_ADET - 1) * BUZZER_ARA_MS < MIN_PULSE_GAP_MS,
-              "bip deseni MIN_PULSE_GAP_MS'ten uzun — ADET/BEEP_MS/ARA_MS kucult");
+// PRES GAP: abkant 1500ms'tir (buk arasi uzun), ama eksantrik pres surekli modda
+// 60+ vurus/dk yapabilir — 1500ms filtre vurus KAYBETTIRIR. 600ms = en fazla 100
+// vurus/dk gecer; integrator (75ms) zaten kontak sicramasini eliyor.
+// SAHA AYARI: cift sayarsa buyut, hizli preste eksik sayarsa kucult (heartbeat
+// TANI: tani_erken artiyorsa GAP cok buyuk, tani_parazit artiyorsa gurultu var).
+const unsigned long MIN_PULSE_GAP_MS = 600;    // pres vurus araligi siniri (sahada ayarlanabilir)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 2000;  // kesinti kuyrugu (eskiden 200) — elektrik varken gunlerce pulse tutar
-const char* FIRMWARE_VER  = "2.7.3-m10";   // 2.7.3: buzzer polarite cihaz-bazli + bip DESENI (adet/sure cihaz-bazli). 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
+const char* FIRMWARE_VER  = "2.7.2-bros";   // 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
 
 // ─── TANI (diagnostic) — sayim filtresi kararlarini heartbeat ile gonderir ──
 const int TANI_MAX          = 30;   // RAM ring buffer
@@ -127,12 +112,7 @@ bool robotCalisiyor = false;
 // Buzzer onay beep'i — DONANIM TIMER ile kapatilir. (Eski loop-tabanli kapatma, ayni
 // dongudeki bloklayan HTTP POST nedeniyle ILK basista beep'i uzatiyordu; esp_timer one-shot
 // KENDI task'inde calistigi icin beep suresi SABIT kalir, loop/HTTP'den bagimsiz.)
-esp_timer_handle_t buzzerTimer = nullptr;   // buzzerAdim() callback'i asagida, struct'lardan SONRA tanimli (.ino oto-prototip ucu 'Kanal'i kacirmasin)
-// Bip deseni durumu. volatile: esp_timer task'i yazar, loop (istasyonSinyali) da yazar.
-// OUTPUT pinde digitalRead guvenilmez (input buffer kapali olabilir) -> pin durumu
-// donanimdan OKUNMAZ, buzzerCaliyor degiskeninde tutulur.
-volatile int  buzzerKalanBip = 0;      // desenden geriye kalan bip sayisi (calan haric)
-volatile bool buzzerCaliyor  = false;  // pin su an ACIK surulu mu
+esp_timer_handle_t buzzerTimer = nullptr;   // buzzerKapat() callback'i asagida, struct'lardan SONRA tanimli (.ino oto-prototip ucu 'Kanal'i kacirmasin)
 
 struct PulseKaydi {
   uint32_t seq;
@@ -197,26 +177,11 @@ struct Kanal {
 };
 Kanal k1 = { 0, false, HIGH, 0, false, 0, 0 };
 
-// Buzzer desen adimi (esp_timer one-shot): calan bip'i susturur; kalan bip varsa
-// BUZZER_ARA_MS sessizlikten sonra siradakini baslatir. esp_timer TASK baglaminda
-// kosar (ISR degil) — digitalWrite + timer restart serbest. Yaris riski pratikte yok:
-// desen (720ms) MIN_PULSE_GAP_MS'ten (1000ms) kisa, yeni sayim geldiginde timer bos.
+// Buzzer kapatma callback'i (esp_timer one-shot suresi dolunca buzzer'i sustur).
 // TUM struct'lardan SONRA tanimli olmali: Arduino .ino otomatik-prototip ucu, prototipleri
 // ILK fonksiyon tanimindan once ekler; ilk fonksiyon struct Kanal'dan once olursa
 // kanalGuncelle(...,Kanal*,...) prototipi "'Kanal' has not been declared" hatasi verir.
-static void buzzerAdim(void* arg) {
-  if (buzzerCaliyor) {                       // bip bitti -> sustur
-    digitalWrite(PIN_BUZZER, BUZZER_KAPALI);
-    buzzerCaliyor = false;
-    if (buzzerKalanBip > 0)                  // desende bip kaldi -> arayi baslat
-      esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_ARA_MS * 1000ULL);
-  } else if (buzzerKalanBip > 0) {           // ara bitti -> siradaki bip
-    buzzerKalanBip--;
-    buzzerCaliyor = true;
-    digitalWrite(PIN_BUZZER, BUZZER_ACIK);
-    esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_BEEP_MS * 1000ULL);
-  }
-}
+static void buzzerKapat(void* arg) { digitalWrite(PIN_BUZZER, LOW); }
 
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
@@ -330,7 +295,7 @@ bool bufferdanBirGonder() {
   doc["bolum"]      = BOLUM;
   doc["robot_no"]   = ROBOT_NO;
   doc["istasyon"]   = p.istasyon;
-  doc["kaynak_tip"] = "buton";
+  doc["kaynak_tip"] = "role";
   String mac6 = WiFi.macAddress();
   mac6.replace(":", "");
   if (mac6.length() > 6) mac6 = mac6.substring(mac6.length() - 6);
@@ -367,19 +332,11 @@ void istasyonSinyali(uint8_t istasyon) {
     pulseIst1++;
     seq = pulseIst1;
     prefs.putULong("pulse_i1", pulseIst1);
-    // Basis ONAYI: bip desenini baslat (BUZZER_BEEP_ADET x BUZZER_BEEP_MS, aralari
-    // BUZZER_ARA_MS). digitalWrite anlik -> sayim yolu BLOKLANMAZ; adimlar donanim
-    // timer'inda (buzzerAdim) yurur, loop'taki HTTP POST desen suresini UZATAMAZ.
-    // buzzerTimer nullptr olabilir (setup'ta esp_timer_create boot-heap bitiminde
-    // basarisiz olabilir): o durumda ACIK yazip kapatani calistiramayiz — buzzer
-    // SUREKLI oter kalirdi. Sessiz buzzer > kilitli buzzer; sayim etkilenmez.
-    if (buzzerTimer != nullptr) {
-      esp_timer_stop(buzzerTimer);            // yarim kalmis desen varsa iptal
-      buzzerKalanBip = BUZZER_BEEP_ADET - 1;  // ilk bip simdi basliyor, gerisi kuyrukta
-      buzzerCaliyor  = true;
-      digitalWrite(PIN_BUZZER, BUZZER_ACIK);
-      esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_BEEP_MS * 1000ULL);  // mikrosaniye
-    }
+    // Vurus ONAYI: kisa buzzer beep'i (buzzer takilirsa). digitalWrite anlik -> sayim BLOKLANMAZ.
+    // Kapatma DONANIM timer'inda (sabit sure; loop'taki HTTP POST beep'i UZATMAZ).
+    digitalWrite(PIN_BUZZER, HIGH);
+    esp_timer_stop(buzzerTimer);                                  // varsa onceki beep'i durdur
+    esp_timer_start_once(buzzerTimer, (uint64_t)BUZZER_BEEP_MS * 1000ULL);  // mikrosaniye
   } else {
     return;
   }
@@ -504,7 +461,7 @@ void heartbeatGonder() {
   } else {
     httpFailCount++;
   }
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · buton=%lu · tani(S%lu/P%lu/E%lu) · fail=%d\n",
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · vurus=%lu · tani(S%lu/P%lu/E%lu) · fail=%d\n",
                 rc, WiFi.RSSI(), buf_dolu, pulseIst1,
                 taniSayildi, taniParazit, taniErken, httpFailCount);
 }
@@ -518,10 +475,10 @@ void setup() {
   // Buzzer'i HEMEN sessizle: reset->pinMode arasi GPIO27 float kalmasin (acilis cizirtisi onleme)
   pinMode(PIN_BUZZER, OUTPUT);
   gpio_set_drive_capability((gpio_num_t)PIN_BUZZER, GPIO_DRIVE_CAP_3);  // max surme akimi (~40mA) — GPIO27 gerilim sarkmasini azalt (ses kismayalim)
-  digitalWrite(PIN_BUZZER, BUZZER_KAPALI);
+  digitalWrite(PIN_BUZZER, LOW);
   // Buzzer kapatma one-shot timer'i — beep suresini loop/HTTP'den bagimsiz SABIT tutar
   esp_timer_create_args_t buzzerArgs = {};
-  buzzerArgs.callback = &buzzerAdim;
+  buzzerArgs.callback = &buzzerKapat;
   buzzerArgs.name     = "buzzer";
   esp_timer_create(&buzzerArgs, &buzzerTimer);
   delay(300);
@@ -532,30 +489,24 @@ void setup() {
   Serial.println("\n╔════════════════════════════════════════════╗");
   Serial.printf( "║  COFLE PILOT SAYAC — %-21s ║\n", CIHAZ_ID);
   Serial.println("╚════════════════════════════════════════════╝");
-  Serial.printf("FW: %s · Bolum: %s · Masa: %s · MONTAJ BUTON MODU\n",
+  Serial.printf("FW: %s · Bolum: %s · Makine: %s · PRES SAYAC ROLE MODU\n",
                 FIRMWARE_VER, BOLUM, ROBOT_NO);
-  Serial.printf("Buton pini: GPIO%d (GND'ye basinca pulse)\n", PIN_IST1_SAYAC);
-  // Buzzer polaritesi ACIKCA yazilir: "yukledim ama duzelmedi" durumunda, calisan
-  // binary'nin dogru ayarla gelip gelmedigi Serial'dan TEK BAKISTA gorulur.
-  Serial.printf("Buzzer: %s (pin GPIO%d, bosta %s surulur, desen %dx%lums)\n",
-                BUZZER_AKTIF_HIGH ? "aktif-HIGH" : "aktif-LOW", PIN_BUZZER,
-                BUZZER_KAPALI == HIGH ? "HIGH" : "LOW",
-                BUZZER_BEEP_ADET, BUZZER_BEEP_MS);
-  Serial.printf("Min pulse araligi: %lums (operator hizi siniri)\n", MIN_PULSE_GAP_MS);
+  Serial.printf("Sayac role pini: GPIO%d (NO-COM kapaninca pulse)\n", PIN_IST1_SAYAC);
+  Serial.printf("Min pulse araligi: %lums (cift sayim siniri)\n", MIN_PULSE_GAP_MS);
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
   pinMode(PIN_IST1_SAYAC,      INPUT_PULLUP);
   pinMode(PIN_IST2_SAYAC,      INPUT_PULLUP);
   pinMode(PIN_LED,             OUTPUT);
-  digitalWrite(PIN_LED, LOW);   // (PIN_BUZZER setup basinda OUTPUT+BUZZER_KAPALI yapildi — acilis cizirtisi onleme; aktif-LOW cihazda bosta pin HIGH=3.3V olculur, LOW degil)
+  digitalWrite(PIN_LED, LOW);   // (PIN_BUZZER setup basinda OUTPUT+LOW yapildi — acilis cizirtisi onleme)
 
   k1.lastRaw     = digitalRead(PIN_IST1_SAYAC);
-  robotCalisiyor = false;  // Montajda robot durumu kullanilmiyor
+  robotCalisiyor = false;  // Preste robot durumu kullanilmiyor
 
   prefs.begin("cofle", false);
   pulseIst1 = prefs.getULong("pulse_i1", 0);
   pulseIst2 = prefs.getULong("pulse_i2", 0);
-  Serial.printf("[NVS] Kayitli buton sayimi: %lu\n", pulseIst1);
+  Serial.printf("[NVS] Kayitli vurus sayimi: %lu\n", pulseIst1);
 
   // bootId STABIL (reboot'lar arasi ayni). NVS silinirse boot_id de gider -> yeni bootId +
   // sayim 0'dan baslar, eski idempotency key'leriyle CAKISMAZ. (Eski kod her boot'ta
@@ -645,7 +596,7 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] Integrator debounce + TANI aktif — operator buton basisi bekleniyor...");
+  Serial.println("[READY] Integrator debounce + TANI aktif — pres sayac rolesi bekleniyor...");
   Serial.printf( "        (YUKSEK=%d/MAX=%d/DUSUK=%d · MIN_PULSE_GAP=%lums)\n\n",
                  INTEG_YUKSEK_ESIK, INTEG_MAX, INTEG_DUSUK_ESIK, MIN_PULSE_GAP_MS);
   ledYakBlink(3, 60);
@@ -667,7 +618,7 @@ void loop() {
     wifiKoptuMs = 0;
   }
 
-  // Buton pulse — bloklamayan integrator debounce (gurultuye dayanikli)
+  // Sayac role pulse'u — bloklamayan integrator debounce (gurultuye dayanikli)
   kanalGuncelle(PIN_IST1_SAYAC, 1, &k1, now);
 
   // Retry: basarisiz gonderimde ustel geri cekilme (3s -> 60s cap). Sunucu kapaliyken
@@ -698,10 +649,10 @@ void loop() {
   }
 
   // ─── SELF-HEAL kontrolleri ───
-  // 1) 24 saat uptime → koruyucu reset, AMA buton son 2 dk basilmadiysa (bos)
+  // 1) 24 saat uptime → koruyucu reset, AMA makine son 2 dk vurmadiysa (bos)
   if ((now - bootMs) > UPTIME_RESET_MS) {
     if ((now - k1.lastValidPulse) > 120000UL && buf_dolu == 0) {
-      Serial.println("\n[SELFHEAL] 24h doldu + buton bos + kuyruk bos — koruyucu reset");
+      Serial.println("\n[SELFHEAL] 24h doldu + makine bos + kuyruk bos — koruyucu reset");
       delay(500);
       ESP.restart();
     }
@@ -733,8 +684,8 @@ void loop() {
       delay(500);
       ESP.restart();
     } else if ((now - lastRadyoYenile) > 60000UL) {
-      // Once YUMUSAK kurtarma: radyo tazele. SADECE HAT BOSKEN — wifiRadyoYenile ~16sn
-      // bloklar, operator basarken buton pulse'i kaybettirir (RSSI dalinin kurali).
+      // Once YUMUSAK kurtarma: radyo tazele. SADECE MAKINE BOSKEN — wifiRadyoYenile ~16sn
+      // bloklar, pres calisirken vurus pulse'i kaybettirir (RSSI dalinin kurali).
       // Uretim varsa atla — 5dk watermark+reboot yolu zaten guvenli kurtarma.
       bool makineBosZ = (now - k1.lastValidPulse) > 120000UL;
       if (makineBosZ) {
@@ -771,7 +722,7 @@ void loop() {
     if (sonRSSI < RSSI_ZAYIF_ESIK && sonRSSI < 0) {
       rssiZayifSayac++;
       Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d)%s\n", sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX,
-                    makineBosRssi ? "" : " — buton aktif, recovery ertelendi");
+                    makineBosRssi ? "" : " — makine calisiyor, recovery ertelendi");
       if (rssiZayifSayac >= RSSI_ZAYIF_MAX && makineBosRssi) {
         rssiZayifSayac = 0;
         radyoYenileSayac++;

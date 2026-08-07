@@ -4386,7 +4386,7 @@ window.__I18N_SOZLUK__ = {
 
                 <div class="kpi-grid">
                     <div class="kpi-card k-ok">
-                        <div class="kpi-label">✅ Toplam OK</div>
+                        <div class="kpi-label" id="kpi-ok-label">✅ Toplam OK</div>
                         <div class="kpi-value" id="kpi-ok">—</div>
                         <div class="kpi-sub" id="kpi-ok-sub">&nbsp;</div>
                     </div>
@@ -4438,6 +4438,33 @@ window.__I18N_SOZLUK__ = {
                             </div>
                             <div class="gfx-wrap" id="robot-grafik">
                                 <div class="yukleniyor">Yükleniyor…</div>
+                            </div>
+                        </div>
+                        <!-- Operatör × iş kırılımı (2026-08-04). Tel üretiminde bir
+                             referans birden çok adımdan geçtiği için "kim ne iş yaptı"
+                             ayrı bir sorudur: ürünün toplam üretimi son adımdan sayılır
+                             ama her operatör KENDİ adımındaki adediyle burada görünür. -->
+                        <div class="panel-card">
+                            <div class="panel-header">
+                                <h3 id="operator-tablo-baslik">👷 Operatör Bazlı Üretim</h3>
+                                <span class="adet-info" id="operator-uretim-info"></span>
+                            </div>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Operatör</th>
+                                            <th id="op-th-hat">Hat</th>
+                                            <th id="op-th-adim" style="display:none">Proses</th>
+                                            <th>Referans</th>
+                                            <th style="text-align:right">OK</th>
+                                            <th style="text-align:right">NOK</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="operator-uretim-tbody">
+                                        <tr><td colspan="6"><div class="yukleniyor">Yükleniyor…</div></td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                         <div class="panel-card">
@@ -4662,6 +4689,7 @@ window.__I18N_SOZLUK__ = {
                     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
                         <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:rgba(52,211,153,0.5);color:var(--lg-green)" title="Excel → Program: sayfadaki referans/operatör listesini programa yükler">📥 Excel'den İçe Aktar</button>
                         <button class="btn btn-outline" id="ref-excel-guncelle-btn" onclick="referansExcelGuncelle()" style="border-color:rgba(96,165,250,0.5);color:var(--b-kaynak)" title="Program → Excel: tanımlı süreleri Excel sayfasına yazar">📤 Excel'e Yaz</button>
+                        <button class="btn btn-outline" id="ref-excel-indir-btn" onclick="referansExcelIndir()" style="border-color:rgba(180,83,9,0.5);color:#B45309" title="Bu bölümün referanslarını süreleriyle .xlsx olarak indirir (planlamayla paylaşmak için). Süresi tanımsız olanlar listeye girmez.">⬇️ Excel İndir</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
                 </div>
@@ -5925,11 +5953,28 @@ window.__I18N_SOZLUK__ = {
             isleme: { ad: 'İşleme',           ikon: '⚙️', renk: 'var(--b-isleme)', parlak: 'var(--b-isleme)', mark: 'var(--b-isleme)', rgb: '63,98,18',  tekil: 'Tezgah' },
             lazer:  { ad: 'Lazer Kesim',      ikon: '✂️', renk: 'var(--b-lazer)', parlak: 'var(--b-lazer)', mark: 'var(--b-lazer)', rgb: '14,116,144',   tekil: 'Makine' },
             pres:   { ad: 'Pres Abkant',      ikon: '🗜️', renk: 'var(--b-pres)', parlak: 'var(--b-pres)', mark: 'var(--b-pres)', rgb: '157,23,77',  tekil: 'Makine' },
-            // plastik = TK1 bölümü (BOLUM_SIRA'da YOK — o TK2 toggle listesi; plastik
-            // Saha Cihazları başlığı + rapor/etiket aramaları için burada tanımlı).
-            plastik: { ad: 'Plastik Enjeksiyon', ikon: '🧪', renk: 'var(--b-plastik)', parlak: 'var(--b-plastik)', mark: 'var(--b-plastik)', rgb: '162,28,175', tekil: 'Makine' }
+            plastik: { ad: 'Plastik Enjeksiyon', ikon: '🧪', renk: 'var(--b-plastik)', parlak: 'var(--b-plastik)', mark: 'var(--b-plastik)', rgb: '162,28,175', tekil: 'Makine' },
+            // Tel üretimi (TK1, 2026-08-04): "tekil" = Proses Adımı — bu bölümde
+            // hat bir makine değil, üretim akışının adımı (halat kesme → … → montaj).
+            tel:     { ad: 'Tel Üretimi', ikon: '🧵', renk: '#B45309', parlak: '#F59E0B', mark: '#B45309', rgb: '180,83,9', tekil: 'Proses Adımı' }
         };
         var BOLUM_SIRA = ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'];
+
+        // ── LOKASYONA GÖRE BÖLÜM LİSTESİ (2026-08-04) ────────────────────────
+        // TK1 eskiden TEK bölümlü (montaj) varsayılıyordu ve bu varsayım 10'dan
+        // fazla yere sabit kodlanmıştı; TK1'e plastik enjeksiyon eklenince o
+        // bölümün üretimi Fabrika Özeti / Üretim & OEE / Kayıtlar sayfalarının
+        // HİÇBİRİNDE görünmüyordu (veri backend'de vardı, engel tamamen UI'daydı).
+        // Tek kaynak burası: yeni bölüm/lokasyon eklendiğinde yalnız bu tablo
+        // güncellenir. TK1'de plastik = 320T/407T/Yapistirma/Sizdirmazlik Test
+        // makinelerinin ORTAK bölümü (yapıştırma ayrı bölüm DEĞİL).
+        var LOKASYON_BOLUMLERI = {
+            TK2: BOLUM_SIRA,
+            TK1: ['montaj', 'plastik', 'tel']
+        };
+        function lokBolumleri(lok) {
+            return LOKASYON_BOLUMLERI[lok || aktifLokasyon] || BOLUM_SIRA;
+        }
         // BOLUMLER yukarıdaki tema kurulumundan SONRA tanımlanıyor; ilk uygulamada
         // renkleri tazelenmemiş olurdu. Koyu temada bölüm renkleri CSS'ten gelir,
         // burada bir kez daha okunur (açık temada değerler zaten aynı → no-op).
@@ -5961,7 +6006,10 @@ window.__I18N_SOZLUK__ = {
             var v = localStorage.getItem('dbv2_bolum');
             return BOLUM_SIRA.indexOf(v) !== -1 ? v : 'kaynak';
         })();
-        if (aktifLokasyon === 'TK1') aktifBolum = 'montaj';
+        // Hatırlanan bölüm bu lokasyonda yoksa (ör. TK2'de 'kaynak' iken TK1'e
+        // geçilmiş) o lokasyonun İLK bölümüne düş — eskiden koşulsuz 'montaj'dı.
+        if (lokBolumleri(aktifLokasyon).indexOf(aktifBolum) === -1)
+            aktifBolum = lokBolumleri(aktifLokasyon)[0];
         var aktifSayfa = 'ozet';
         var ozetIstekNo = 0;   // bayat yanıt koruması (Fabrika Özeti)
         var bolumIstekNo = 0;  // bayat yanıt koruması (Üretim & OEE)
@@ -5999,8 +6047,10 @@ window.__I18N_SOZLUK__ = {
         function isoTarih(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
 
         function bolumAdi(b) {
-            if (aktifLokasyon === 'TK1' && b === 'montaj') return 'Montaj (TK1)';
-            return (BOLUMLER[b] || {}).ad || b;
+            var ad = (BOLUMLER[b] || {}).ad || b;
+            // TK1'de aynı bölüm adları TK2'de de var (montaj, ileride başkaları) —
+            // hangi tesise baktığın başlıktan anlaşılsın diye tesis eki konur.
+            return (aktifLokasyon === 'TK1') ? (ad + ' (TK1)') : ad;
         }
 
         // ═══════════════════════════════════════════════════════
@@ -6151,6 +6201,50 @@ window.__I18N_SOZLUK__ = {
         }
 
         // ── Bölüm detayı: '(tekil) Bazlı Üretim' yatay bar grafiği ──
+        // ── OPERATÖR BAZLI ÜRETİM TABLOSU (2026-08-04) ────────────────────────
+        // Kaynak: /api/ozet → operator_uretim (operatör × hat × referans).
+        // TEL bölümünde ayrıca 'adim' alanı gelir ('Kapama 3' → 'Kapama') ve ayrı
+        // bir sütunda gösterilir: operatör hangi PROSESİ yaptı, hangi MAKİNEDE.
+        // Aynı operatör aynı referansı farklı adımlarda yapabilir → satırlar
+        // operatör+hat+referans kırılımındadır, TOPLANMAZ (yoksa kim ne yaptı kaybolur).
+        function operatorTablosuCiz(liste) {
+            var tbody = document.getElementById('operator-uretim-tbody');
+            var info  = document.getElementById('operator-uretim-info');
+            var thHat = document.getElementById('op-th-hat');
+            var thAdim = document.getElementById('op-th-adim');
+            if (!tbody) return;
+            var telMi = (aktifBolum === 'tel');
+            // Sütun başlıkları bölüme göre: tel'de "Makine" + "Proses", diğerlerinde bölümün tekili
+            if (thHat) thHat.textContent = telMi ? 'Makine' : ((BOLUMLER[aktifBolum] || {}).tekil || 'Hat');
+            if (thAdim) thAdim.style.display = telMi ? '' : 'none';
+            var kolonSayisi = telMi ? 6 : 5;
+
+            if (!liste.length) {
+                tbody.innerHTML = '<tr><td colspan="' + kolonSayisi + '">' +
+                    '<div class="empty"><span class="empty-icon">📭</span>Bu aralıkta kayıt yok</div></td></tr>';
+                if (info) info.textContent = '';
+                return;
+            }
+            // Operatör sayısı (satır değil) — "3 operatör · 12 kayıt"
+            var opSet = {};
+            liste.forEach(function (o) { if (o.operator_adi) opSet[o.operator_adi] = 1; });
+            if (info) info.textContent = Object.keys(opSet).length + ' operatör · ' + liste.length + ' satır';
+
+            tbody.innerHTML = liste.map(function (o) {
+                var nok = Number(o.toplam_nok) || 0;
+                var adimHucre = telMi
+                    ? '<td><span class="badge badge-blue">' + esc(o.adim || '—') + '</span></td>' : '';
+                return '<tr>' +
+                    '<td style="font-weight:700">' + esc(o.operator_adi || '—') + '</td>' +
+                    '<td>' + esc(o.robot_no || '—') + '</td>' +
+                    adimHucre +
+                    '<td>' + esc(o.referans_kodu || '—') + '</td>' +
+                    '<td style="text-align:right;color:var(--success);font-weight:800">' + fmt(o.toplam_ok) + '</td>' +
+                    '<td style="text-align:right;color:' + (nok > 0 ? 'var(--danger)' : 'var(--dim)') + ';font-weight:700">' + fmt(nok) + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
         function robotGrafikCiz(robotU) {
             var kutu = document.getElementById('robot-grafik');
             var info = document.getElementById('robot-grafik-info');
@@ -6204,7 +6298,7 @@ window.__I18N_SOZLUK__ = {
         }
 
         // /api/ozet yanıtından kart/KPI metrikleri türet (savunmacı — alan yoksa null)
-        function ozetMetrik(d) {
+        function ozetMetrik(d, bolum) {
             d = (d && typeof d === 'object') ? d : {};
             var vardiyalar = Array.isArray(d.vardiyalar) ? d.vardiyalar : [];
             var robotU = Array.isArray(d.robot_uretim) ? d.robot_uretim : [];
@@ -6213,6 +6307,11 @@ window.__I18N_SOZLUK__ = {
 
             var ok = robotU.reduce(function (s, r) { return s + (Number(r.toplam_ok) || 0); }, 0);
             var nok = robotU.reduce(function (s, r) { return s + (Number(r.toplam_nok) || 0); }, 0);
+            // TEL ÜRETİMİ (2026-08-04): burada özel bir düzeltme YOK. Her proses
+            // adımı kendi referans ekiyle kaydedildiği için ('93.TK.464 KESIM',
+            // '93.TK.464 KAPAMA'…) adımlar ayrı kodlarda toplanır; aynı iş iki kez
+            // sayılmaz. Bu bölümde KPI "yapılan toplam iş"tir (bitmiş ürün değil) —
+            // etiketi de öyle yazılır, bkz. bolumDetayCiz.
             if (!robotU.length) {
                 ok = vardiyalar.reduce(function (s, v) { return s + (Number(v.ok) || 0); }, 0);
                 nok = vardiyalar.reduce(function (s, v) { return s + (Number(v.nok) || 0); }, 0);
@@ -6259,13 +6358,15 @@ window.__I18N_SOZLUK__ = {
         // Bölüme BAĞLI sayfalarda görünür (kullanıcı: "kayıtlar kısmında bölüm
         // değiştiremiyorum"). Bölümden bağımsız sayfalarda (saha cihazları, AS400,
         // kullanıcılar…) gizlenir ki yanlış bir bağlam izlenimi vermesin.
-        // TK1 tek bölümlü (montaj) → hiçbir sayfada gösterilmez.
+        // TK1 artık ÇOK bölümlü (montaj + plastik, 2026-08-04) → seçici orada da
+        // görünür. Tek bölümlü bir lokasyon olursa seçici anlamsız olacağı için
+        // liste uzunluğuna bakılır (sabit 'TK1' kontrolü DEĞİL).
         var BOLUM_BAGLI_SAYFALAR = ['bolum', 'kayitlar', 'referanslar', 'operatorler',
                                     'fikstur', 'andon-ayarlari', 'sinyal-analizi'];
         function bolumSecGuncelle() {
             var el = document.getElementById('bolum-sec-ust');
             if (!el) return;
-            var goster = (aktifLokasyon !== 'TK1') &&
+            var goster = (lokBolumleri().length > 1) &&
                          BOLUM_BAGLI_SAYFALAR.indexOf(aktifSayfa) !== -1;
             el.style.display = goster ? '' : 'none';
             if (goster) el.value = aktifBolum;
@@ -6362,7 +6463,7 @@ window.__I18N_SOZLUK__ = {
                 // İş Yönetimi bölümden bağımsız açılır; aktif bölüm iş-takibi olmayan bir
                 // yeni bölümse (isleme/lazer/pres) lokasyona göre varsayılana düş.
                 if (!isYonetimiVarMi()) {
-                    var _vb = (aktifLokasyon === 'TK1') ? 'montaj' : 'kaynak';
+                    var _vb = isYonetimiBolumleri()[0] || lokBolumleri()[0];
                     aktifBolum = _vb; localStorage.setItem('dbv2_bolum', _vb);
                     bolumGorunum();
                 }
@@ -6452,13 +6553,13 @@ window.__I18N_SOZLUK__ = {
             if (yeni === aktifLokasyon) return;
             aktifLokasyon = yeni;
             localStorage.setItem('dbv2_lokasyon', yeni);
-            if (yeni === 'TK1') {
-                localStorage.setItem('dbv2_tk2_son_bolum', aktifBolum);
-                aktifBolum = 'montaj';
-            } else {
-                var son = localStorage.getItem('dbv2_tk2_son_bolum');
-                if (BOLUM_SIRA.indexOf(son) !== -1) aktifBolum = son;
-            }
+            // Her lokasyonun son bölümü AYRI hatırlanır (TK1 artık çok bölümlü:
+            // montaj ↔ plastik arasında gidip gelen kullanıcı her dönüşte
+            // 'montaj'a zorlanmasın). Hatırlanan bölüm o lokasyonda geçerli
+            // değilse listenin ilkine düşülür.
+            localStorage.setItem('dbv2_son_bolum_' + (yeni === 'TK1' ? 'TK2' : 'TK1'), aktifBolum);
+            var son = localStorage.getItem('dbv2_son_bolum_' + yeni);
+            aktifBolum = (lokBolumleri(yeni).indexOf(son) !== -1) ? son : lokBolumleri(yeni)[0];
             localStorage.setItem('dbv2_bolum', aktifBolum);
             lokasyonGorunum();
             bolumGorunum();
@@ -6485,13 +6586,16 @@ window.__I18N_SOZLUK__ = {
         function lokasyonGorunum() {
             document.getElementById('lok-tk2').classList.toggle('active', aktifLokasyon === 'TK2');
             document.getElementById('lok-tk1').classList.toggle('active', aktifLokasyon === 'TK1');
-            // TK1'de tek bölüm (montaj) — bölüm dropdown'ları gizli
-            document.getElementById('bolum-sec').style.display = (aktifLokasyon === 'TK1') ? 'none' : '';
+            // Bölüm dropdown'ı yalnız ÇOK bölümlü lokasyonda anlamlı (TK1 2026-08-04'ten
+            // beri iki bölümlü: montaj + plastik)
+            document.getElementById('bolum-sec').style.display = (lokBolumleri().length > 1) ? '' : 'none';
             bolumSecGuncelle();   // üst bardaki seçici de lokasyona uymalı
         }
 
         function bolumDegistir(yeni) {
-            if (BOLUM_SIRA.indexOf(yeni) === -1) return;
+            // Aktif LOKASYONUN listesine bak (BOLUM_SIRA = yalnız TK2): eskiden
+            // TK1'in 'plastik'i bu kapıdan geçemez, seçim sessizce yok sayılırdı.
+            if (lokBolumleri().indexOf(yeni) === -1) return;
             if (yeni === aktifBolum) return;
             aktifBolum = yeni;
             localStorage.setItem('dbv2_bolum', yeni);
@@ -6537,7 +6641,7 @@ window.__I18N_SOZLUK__ = {
             pill.textContent = bilgi.ikon + ' ' + bolumAdi(aktifBolum);
 
             // Bölüm seçiciler: sayfa içi (Üretim & OEE) + ÜST BAR (her sayfada)
-            var secenekler = BOLUM_SIRA.map(function (b) {
+            var secenekler = lokBolumleri().map(function (b) {
                 return '<option value="' + b + '"' + (b === aktifBolum ? ' selected' : '') + '>' +
                        esc(BOLUMLER[b].ikon + ' ' + BOLUMLER[b].ad) + '</option>';
             }).join('');
@@ -6716,7 +6820,7 @@ window.__I18N_SOZLUK__ = {
             var istek = ++ozetIstekNo;
             var animYap = !girisAnimYapildi; // giriş animasyonu yalnız ilk yüklemede
             girisAnimYapildi = true;
-            var bolumler = (aktifLokasyon === 'TK1') ? ['montaj'] : BOLUM_SIRA;
+            var bolumler = lokBolumleri();   // TK1: montaj + plastik (2026-08-04)
             var grid = document.getElementById('bolum-grid');
             grid.classList.toggle('tek-kart', bolumler.length === 1);
             tarihEtiketi();
@@ -6750,7 +6854,7 @@ window.__I18N_SOZLUK__ = {
                         sonuk = ' bk-sonuk';
                         govde = '<div class="empty" style="padding:16px 0;margin:auto 0"><span class="empty-icon">⚠️</span>Veri alınamadı</div>';
                     } else {
-                        var m = ozetMetrik(d);
+                        var m = ozetMetrik(d, b);   // bölüm: tel'de son-adım kuralı uygulanır
                         topOk += m.ok; topVardiya += m.aktifVardiya; topDurus += m.durusDk;
                         halka = miniOeeHalka(m.oee);
                         if (!m.ok && !m.vardiyaSayisi) sonuk = ' bk-sonuk'; // verisiz bölüm — sönük ama estetik
@@ -6831,7 +6935,7 @@ window.__I18N_SOZLUK__ = {
                 oeeGosterge(null);
                 return;
             }
-            var m = ozetMetrik(d);
+            var m = ozetMetrik(d, aktifBolum);   // tel'de KPI son adımdan sayılır
             var vardiyalar = Array.isArray(d.vardiyalar) ? d.vardiyalar : [];
             var detay = Array.isArray(d.uretim_detay_listesi) ? d.uretim_detay_listesi : [];
             var duruslar = Array.isArray(d.durus_dagilim) ? d.durus_dagilim : [];
@@ -6839,6 +6943,13 @@ window.__I18N_SOZLUK__ = {
             // ── KPI'lar
             document.getElementById('kpi-ok').textContent = fmt(m.ok);
             document.getElementById('kpi-ok-sub').textContent = m.nok > 0 ? (fmt(m.nok) + ' NOK') : 'NOK yok';
+            // TEL: bu sayı BİTMİŞ ÜRÜN değil, tüm proses adımlarında yapılan
+            // toplam iştir (aynı tel kesim + otomat + kapama + montaj adımlarında
+            // ayrı ayrı işlenir). Etiketi buna göre yaz — "Toplam OK" okuyan biri
+            // bunu üretilen ürün adedi sanardı (2026-08-04).
+            var _kpiLbl = document.getElementById('kpi-ok-label');
+            if (_kpiLbl) _kpiLbl.textContent = (aktifBolum === 'tel')
+                ? '✅ Toplam İşlem (tüm adımlar)' : '✅ Toplam OK';
             if (m.hedef > 0) {
                 var gerc = Math.round((m.ok / m.hedef) * 100);
                 document.getElementById('kpi-hedef').textContent = '%' + fmt(gerc);
@@ -6878,6 +6989,13 @@ window.__I18N_SOZLUK__ = {
                         '</tr>';
                 }).join('');
             }
+
+            // ── Operatör Bazlı Üretim tablosu (2026-08-04) ────────────────────
+            // "Kim ne iş yaptı" görünümü. Tel üretiminde kritik: bir referans o gün
+            // kesim + otomat + kapama adımlarından geçtiyse, KESİMİ yapan operatörün
+            // o referanstan kaç adet KESİM yaptığı burada görünür. Ürünün toplam
+            // üretimi (son adım) ayrı hesaplanır — bu tablo onu tekrarlamaz.
+            operatorTablosuCiz(d.operator_uretim || []);
 
             // ── Duruşlar listesi (mini bar)
             var dl = document.getElementById('durus-liste');
@@ -8073,6 +8191,44 @@ window.__I18N_SOZLUK__ = {
             } catch (e) { toast('Bağlantı hatası', 'err'); }
         }
 
+        // ── REFERANSLARI .XLSX OLARAK İNDİR (2026-08-04) ──────────────────────
+        // Planlama bölümüyle paylaşmak için: aktif BÖLÜM + LOKASYONUN referansları
+        // süreleriyle birlikte inen bağımsız bir dosyaya yazılır.
+        // "Excel'e Yaz"dan farkı: o sunucudaki kaynak dosyayı günceller, bu ise
+        // kaynak dosyaya DOKUNMADAN paylaşılabilir bir kopya üretir.
+        // Süresi tanımsız referanslar dosyaya GİRMEZ (planlama 0 süreyle yanlış
+        // kapasite hesaplar); kaç satırın atlandığı dosyanın sonunda yazar.
+        async function referansExcelIndir() {
+            var btn = document.getElementById('ref-excel-indir-btn');
+            var eskiMetin = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Hazırlanıyor…'; }
+            try {
+                const r = await panelFetch('/api/referanslar/indir_excel?bolum=' +
+                    encodeURIComponent(aktifBolum) + '&lokasyon=' + encodeURIComponent(aktifLokasyon));
+                if (!r.ok) {
+                    var h = ''; try { h = (await r.json()).hata || ''; } catch (e) {}
+                    toast(h || ('İndirilemedi (HTTP ' + r.status + ')'), 'err');
+                    return;
+                }
+                const blob = await r.blob();
+                // Dosya adı sunucudan gelir (Content-Disposition); okunamazsa kendimiz üretiriz.
+                var ad = 'referanslar_' + aktifBolum + '_' + aktifLokasyon + '.xlsx';
+                var cd = r.headers.get('Content-Disposition') || '';
+                var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+                if (m && m[1]) { try { ad = decodeURIComponent(m[1]); } catch (e) { ad = m[1]; } }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = ad;
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+                toast('📊 ' + ad + ' indirildi', 'ok');
+            } catch (e) {
+                toast('Bağlantı hatası — indirilemedi', 'err');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = eskiMetin; }
+            }
+        }
+
         async function referansExcelGuncelle() {
             const bilgi = (BOLUMLER[aktifBolum] || BOLUMLER.kaynak).ad;
             const sayfaAdi = BOLUM_EXCEL_SAYFA[aktifBolum] || 'Kaynak Referans';
@@ -8094,9 +8250,13 @@ window.__I18N_SOZLUK__ = {
         }
 
         async function excelVeriAktar() {
-            // TK1 ayrı dosya/akış: data/Tk1 Veriler.xlsx → import_tk1 (montaj)
+            // TK1 ayrı dosya/akış: data/Tk1 Veriler.xlsx → import_tk1.
+            // TEK ÇAĞRIDA İKİ BÖLÜM birden aktarılır (2026-08-04): montaj sayfaları
+            // (Refernaslar / Operatörler) + plastik sayfaları (Plastik Enjeksiyon
+            // Referanslar / Plastik Enjeksyion Operatörler) — aktif bölüm hangisi
+            // olursa olsun ikisi de güncellenir.
             if (aktifLokasyon === 'TK1') {
-                if (!confirm('TK1 için "data/Tk1 Veriler.xlsx" dosyasından referans ve operatörler aktarılacak.\n\nDevam edilsin mi?')) return;
+                if (!confirm('TK1 için "data/Tk1 Veriler.xlsx" dosyasından referans ve operatörler aktarılacak.\n\nMONTAJ ve PLASTİK ENJEKSİYON sayfalarının ikisi de aktarılır.\n\nDevam edilsin mi?')) return;
             } else {
                 // Operatör sayfası eki — eski bölümlerde ASCII 'Operator', yenilerde Türkçe 'Operatör' (import_excel.py ile aynı)
                 const opSayfaEk = {
@@ -8112,7 +8272,7 @@ window.__I18N_SOZLUK__ = {
                 const bilgiTk2 = (BOLUMLER[aktifBolum] || BOLUMLER.kaynak).ad;
                 if (!confirm(`${bilgiTk2} bölümü için data/uretim_verileri.xlsx → "${sayfaAdi}" sayfalarından veriler aktarılacak.\n\nDevam edilsin mi?`)) return;
             }
-            const bilgi = (aktifLokasyon === 'TK1') ? 'TK1 Montaj' : (BOLUMLER[aktifBolum] || BOLUMLER.kaynak).ad;
+            const bilgi = (aktifLokasyon === 'TK1') ? 'TK1 (montaj + plastik)' : (BOLUMLER[aktifBolum] || BOLUMLER.kaynak).ad;
 
             toast('Veriler aktarılıyor, lütfen bekleyin...', 'info');
             try {
@@ -8202,9 +8362,13 @@ window.__I18N_SOZLUK__ = {
 
         // İş Yönetimi sayfa-içi bölüm sekmeleri (kaynak/montaj/metal — lokasyona göre).
         // Aktif bölümü vurgular; tıklayınca sayfadan çıkmadan bölüm değişir.
+        var IS_TAKIBI_BOLUMLERI = ['kaynak', 'montaj', 'metal'];
         function isYonetimiBolumleri() {
-            // İş takibi yalnız kaynak/montaj/metal'de; TK1'de yalnız montaj var.
-            return (aktifLokasyon === 'TK1') ? ['montaj'] : ['kaynak', 'montaj', 'metal'];
+            // İş takibi yalnız kaynak/montaj/metal'de var. Lokasyonun bölümlerinden
+            // BUNLARI süz — TK1 (montaj+plastik) → ['montaj']; plastikte iş takibi yok.
+            return lokBolumleri().filter(function (b) {
+                return IS_TAKIBI_BOLUMLERI.indexOf(b) !== -1;
+            });
         }
         function rtBolumTablariCiz() {
             var host = document.getElementById('rt-bolum-tablari');
@@ -9174,6 +9338,13 @@ window.__I18N_SOZLUK__ = {
             montaj: ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12'],
             metal:  ['300T','400T','550T'],
         };
+        // TK1 cihazları LOKASYONA ÖZEL (2026-08-04): eskiden sabit ['YF1'] idi, yani
+        // TK1'in 7 masa sayacı ve plastik makineleri sinyal analizinde HİÇ seçilemiyordu.
+        // robot_no değerleri firmware'lerle birebir (bkz. pilot/firmware/generate.py).
+        const SA_DEVICES_TK1 = {
+            montaj:  ['YF1', 'TK1-M1','TK1-M2','TK1-M3','TK1-M4','TK1-M5','TK1-M6','TK1-M7'],
+            plastik: ['320T', '407T', 'Yapistirma'],   // Sizdirmazlik Test'te saha sayacı YOK (SVP)
+        };
         let _saChart = null;
 
         // Sinyal Kalitesi & Sayım Kararları paneli (tüm cihazlar — tani + mutabakat)
@@ -9229,11 +9400,21 @@ window.__I18N_SOZLUK__ = {
             if (tarihEl && !tarihEl.value) {
                 tarihEl.value = new Date().toISOString().slice(0, 10);
             }
-            // TK1 → bölüm montaj'a sabit (YF1 cihazı pilot.db'de bolum=montaj); bölüm seçici gizli.
+            // Bölüm seçici: seçenekleri LOKASYONUN bölümleriyle doldur (TK1 artık
+            // montaj + plastik). Eskiden TK1'de gizlenip 'montaj'a sabitleniyordu →
+            // plastik makinelerinin sinyalleri hiç görüntülenemiyordu.
             const saBolumEl = document.getElementById('sa-bolum');
             if (saBolumEl) {
-                if (aktifLokasyon === 'TK1') saBolumEl.value = 'montaj';
-                if (saBolumEl.parentElement) saBolumEl.parentElement.style.display = (aktifLokasyon === 'TK1') ? 'none' : '';
+                var _saBolumler = lokBolumleri().filter(function (b) {
+                    return (aktifLokasyon === 'TK1') ? !!SA_DEVICES_TK1[b] : !!SA_DEVICES[b];
+                });
+                if (!_saBolumler.length) _saBolumler = [lokBolumleri()[0]];
+                saBolumEl.innerHTML = _saBolumler.map(function (b) {
+                    return '<option value="' + b + '">' + esc((BOLUMLER[b] || {}).ad || b) + '</option>';
+                }).join('');
+                if (_saBolumler.indexOf(aktifBolum) !== -1) saBolumEl.value = aktifBolum;
+                if (saBolumEl.parentElement)
+                    saBolumEl.parentElement.style.display = (_saBolumler.length > 1) ? '' : 'none';
             }
             // Robot listesi (lokasyon + bölüme göre)
             _saRobotListesiYukle();
@@ -9264,14 +9445,11 @@ window.__I18N_SOZLUK__ = {
 
         function _saRobotListesiYukle() {
             const robotEl = document.getElementById('sa-robot');
-            // TK1 → sadece TK1 cihazları (şu an YF1 deneme modülü). TK2 → bölümün cihazları.
-            let list;
-            if (aktifLokasyon === 'TK1') {
-                list = ['YF1'];
-            } else {
-                const bolum = document.getElementById('sa-bolum').value;
-                list = SA_DEVICES[bolum] || [];
-            }
+            // Cihaz listesi lokasyon + bölüme göre (TK1: montaj masaları / plastik makineleri).
+            const bolum = document.getElementById('sa-bolum').value;
+            const list = (aktifLokasyon === 'TK1')
+                ? (SA_DEVICES_TK1[bolum] || [])
+                : (SA_DEVICES[bolum] || []);
             robotEl.innerHTML = list.map(r => `<option value="${r}">${r}</option>`).join('');
         }
 
@@ -11833,8 +12011,25 @@ window.__I18N_SOZLUK__ = {
                     sTeyitli += '<tr style="opacity:.85"><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
-                            (x.r.isaret ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
-                                        : as4IsaretBtn(x.r, x.tarih, 'kontrol')) + '</td>' +
+                            // İŞARETLİ SATIR TEK YÖNLÜ KAPI OLMASIN (2026-08-04).
+                            // Bir satır "✓ kontrol" ile işaretlenince Dikkat'ten çıkıp buraya
+                            // taşınıyor ve eskiden burada HİÇ buton yoktu: kullanıcı fikrini
+                            // değiştirip teyit vermek isteyince ("adet aslında doğruymuş")
+                            // hiçbir seçenek bulamıyordu — işareti geri alma da yoktu.
+                            // Artık işaretle gelen satırda hem ➕ teyit ver hem ↩ geri al var.
+                            // Gerçekten ERP'de teyidi olan satırlarda (işaretsiz) bu butonlar
+                            // ÇIKMAZ; oraya teyit vermek mükerrer hareket demek olurdu.
+                            (x.r.isaret
+                              ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">' +
+                                (x.r.isaret.durum === 'teyit_ver' ? '➕ teyit verilecek' : '✓ kontrol edildi') + '</span>' +
+                                '<div style="margin-top:3px">' +
+                                (x.r.isaret.durum !== 'teyit_ver' ? as4IsaretBtn(x.r, x.tarih, 'teyit_ver') : '') +
+                                '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
+                                'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'' + esc(x.r.isaret.durum || 'kontrol') + '\',this.dataset.tar,true)" ' +
+                                'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" data-tar="' + esc(x.tarih) + '" ' +
+                                'title="Bu günkü işareti kaldır — satır tekrar Dikkat listesine döner">↩ işareti kaldır</button>' +
+                                '</div>'
+                              : as4IsaretBtn(x.r, x.tarih, 'kontrol')) + '</td>' +
                         '<td style="text-align:right">' + fmt(x.r.adet) + '</td>' +
                         '<td style="font-size:.78rem;color:var(--lg-slate)">' + hrk + '</td></tr>';
                 });
@@ -12007,16 +12202,75 @@ window.__I18N_SOZLUK__ = {
         }
 
         // Ortak sonuç satırı çizici — launch satırı: yıl-no; CFI satırı: article
+        // Gönderim sonucu satırları. "Mükerrer" nedeniyle ATLANAN satırlara
+        // "yine de gönder" butonu konur (2026-08-06): aynı gün aynı referansı iki
+        // operatör üretip ikisi de AYNI adette olduğunda mükerrer freni haklı olarak
+        // devreye girer, ama o durumda kalan teyit hiç verilemiyordu — kullanıcının
+        // elinde çıkış yolu yoktu (backend 'zorla' destekliyordu, arayüzde yoktu).
         function as4SonucSatirlari(sonuclar) {
-            return (sonuclar || []).map(function (s) {
+            _as4ZorlaAdaylari = [];
+            return (sonuclar || []).map(function (s, i) {
                 var renk = s.sonuc === 'ok' ? 'var(--success)' : (s.sonuc === 'atlandi' ? 'var(--lg-slate2)' : 'var(--danger)');
                 var ikon = s.sonuc === 'ok' ? '✔' : (s.sonuc === 'atlandi' ? '⏭' : '✖');
                 var by = s.bayrak === 'S' ? ' <b style="color:var(--lg-red)">[S-KAPAT]</b>' : '';
                 var hedef = s.no ? (s.yil + '-' + s.no)
                           : ((s.bayrak === 'COP' ? '♻ COP · ' : 'CFI · ') + (s.article || s.referans || ''));
+                // Yalnız "zaten gönderilmiş (log)" türü atlamalarda zorla teklif edilir.
+                // ERP'de karşılığı bulunan / kapasite reddi olan satırlarda TEKLİF EDİLMEZ:
+                // orada zorlamak ERP'ye gerçekten mükerrer hareket yazar.
+                var zorlanabilir = (s.sonuc === 'atlandi' && /ZATEN gönderilmiş|zaten gönderilmiş/i.test(s.mesaj || ''));
+                var btn = '';
+                if (zorlanabilir) {
+                    var idx = _as4ZorlaAdaylari.length;
+                    _as4ZorlaAdaylari.push(s);
+                    btn = ' <button class="btn btn-ghost" style="padding:1px 7px;font-size:.68rem;margin-left:6px;' +
+                          'color:var(--lg-amber);border-color:color-mix(in srgb,var(--lg-amber) 45%,transparent)" ' +
+                          'onclick="as4ZorlaGonder(' + idx + ')" ' +
+                          'title="Mükerrer frenini atlayarak bu satırı yine de gönder — ERP\'ye ikinci hareket yazılır, emin ol">⚠ yine de gönder</button>';
+                }
                 return '<div style="font-size:.82rem;padding:4px 0;color:' + renk + '">' + ikon + ' [' + esc(s.uretim_tarihi || '') + '] ' +
-                    esc(s.referans || '') + ' → ' + esc(hedef) + ' (' + s.adet + ' adet)' + by + ': ' + esc(s.mesaj || s.sonuc) + '</div>';
+                    esc(s.referans || '') + ' → ' + esc(hedef) + ' (' + s.adet + ' adet)' + by + ': ' + esc(s.mesaj || s.sonuc) + btn + '</div>';
             }).join('');
+        }
+
+        // Zorla gönderilebilecek (mükerrer log'u nedeniyle atlanmış) satırlar
+        var _as4ZorlaAdaylari = [];
+        async function as4ZorlaGonder(idx) {
+            var s = _as4ZorlaAdaylari[idx];
+            if (!s) return;
+            var hedefAd = s.no ? ('launch ' + s.yil + '-' + s.no) : (s.article || s.referans);
+            if (!confirm('MÜKERRER FRENİ ATLANACAK\n\n' + s.referans + ' → ' + hedefAd +
+                         '\n' + s.adet + ' adet · üretim günü ' + s.uretim_tarihi +
+                         '\n\nBu koda bu gün için AYNI ADET zaten gönderilmiş görünüyor. Yine de göndermek ' +
+                         'ERP\'ye İKİNCİ bir hareket yazar.\n\nİki operatör aynı adedi ürettiyse doğrudur. ' +
+                         'Emin misin?')) return;
+            // COP / CFI / launch — satırın tipine göre doğru uç noktaya, zorla=true
+            var url, govde;
+            if (s.bayrak === 'COP') {
+                url = '/api/as400/cop_gonder';
+                govde = { zorla: true, satirlar: [{ referans: s.referans, article: s.article,
+                          adet: s.adet, uretim_tarihi: s.uretim_tarihi }] };
+            } else if (s.no) {
+                url = '/api/as400/teyit_gonder';
+                govde = { zorla: true, satirlar: [{ yil: s.yil, no: s.no, article: s.article,
+                          referans: s.referans, adet: s.adet, uretim_tarihi: s.uretim_tarihi,
+                          bayrak: s.bayrak || 'A' }] };
+            } else {
+                url = '/api/as400/cfi_gonder';
+                govde = { zorla: true, satirlar: [{ referans: s.referans, article: s.article,
+                          adet: s.adet, uretim_tarihi: s.uretim_tarihi }] };
+            }
+            toast('🤖 Zorla gönderiliyor — robot çalışıyor, bekleyin…', 'info');
+            try {
+                const r = await panelFetch(url, { method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde) });
+                const d = await r.json();
+                if (!r.ok) { toast(d.hata || 'Gönderilemedi', 'err'); return; }
+                var so = (d.sonuclar || [])[0] || {};
+                toast((so.sonuc === 'ok' ? '✔ ' : '⚠ ') + (so.mesaj || so.sonuc || 'tamam'),
+                      so.sonuc === 'ok' ? 'ok' : 'err');
+                setTimeout(as4Yukle, 1200);
+            } catch (e) { toast('Bağlantı hatası', 'err'); }
         }
 
         async function as4Gonder() {

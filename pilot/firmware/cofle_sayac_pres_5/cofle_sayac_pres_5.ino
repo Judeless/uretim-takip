@@ -3,18 +3,23 @@
  *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
- *  HEDEF:  Pres 5 eksantrik presin IKI-EL kumanda butonu.
- *          Operator iki butona AYNI ANDA basinca pres calisir -> 1 pulse.
- *          (Iki buton da basili degilse sayilmaz — AND mantigi.)
+ *  HEDEF:  Pres 5 makinesinin KENDI SAYACINA takilan roleyi izler.
+ *          Makinenin mekanik/elektronik vurus sayaci her vuruste tetiklenir;
+ *          ona paralel baglanan role NO-COM'u kapatir -> 1 uretim pulse'u.
+ *          (Bolum "pres": 5 eksantrik + 1 hidrolik pres + 1 bros makinesi.)
+ *
+ *  NOT: 2026-07-31'e kadar eksantrik preste IKI-EL BUTON (AND) modeli vardi;
+ *       sinyal artik sayac rolesinden alindigi icin abkant deseni kullanilir.
+ *       (Buton modeli sahaya hic cikmadi — cihazlar pilot.db'ye hic kayit acmadi.)
  *
  *  PIN ATAMALARI:
- *   - GPIO25  -> BUTON 1 (NO kuru kontak, GND'ye kapanir)
- *   - GPIO26  -> BUTON 2 (NO kuru kontak, GND'ye kapanir)
- *   - GPIO27  -> BUZZER (+) opsiyonel (sayimda onay beep'i; takilmasa da olur)
- *   - GND     -> Iki butonun ortak ucu + Buzzer (-)
+ *   - GPIO25  -> ROLE NO (kuru kontak, GND'ye kapanir — sayac rolesi)
+ *   - GPIO26  -> BOS (INPUT_PULLUP)
+ *   - GPIO27  -> BOS (buzzer kodu duruyor ama preste buzzer TAKILMAZ)
+ *   - GND     -> Rolenin diger ucu (COM)
  *
- *  UYARI: Butonlar KURU KONTAK olmali. Pres emniyet butonlari 24V ise
- *         DIREKT BAGLAMA — her buton icin optokuplor sart (ESP32 3.3V).
+ *  UYARI: ROLE KURU KONTAK olmali (potansiyelsiz). 24V besleme cikisi ise
+ *         DIREKT BAGLAMA — araya optokuplor sart, aksi halde ESP32 yanar.
  *
  *  Bu dosya pilot/firmware/_templates/pres.ino.tpl'den uretildi.
  * ============================================================ */
@@ -42,9 +47,9 @@ const char* SUNUCU_HOST = "http://192.168.21.155:5001";
 const char* API_TOKEN = "cofle-pilot-2026";
 const char* OTA_PASS = "cofle-ota-2026";
 
-const int PIN_IST1_SAYAC      = 25;   // BUTON 1 (NO kuru kontak, GND'ye kapanir)
-const int PIN_IST2_SAYAC      = 26;   // BUTON 2 (NO kuru kontak, GND'ye kapanir) — AND
-const int PIN_BUZZER          = 27;   // Buzzer (+) — active-HIGH (montajda robot durumu kullanilmadigi icin bu pin buzzer)
+const int PIN_IST1_SAYAC      = 25;   // SAYAC ROLESI (kuru kontak, GND'ye kapanir)
+const int PIN_IST2_SAYAC      = 26;   // BOS
+const int PIN_BUZZER          = 27;   // BOS (preste buzzer TAKILMAZ; kod duruyor, zararsiz)
 const int PIN_LED             =  2;
 const unsigned long BUZZER_BEEP_MS = 200;  // onay beep suresi (SABIT, donanim timer). 3.3V'ta buzzer KISIK kalir -> uzun beep daha BELIRGIN (tik degil net bip). Gercek YUKSEK ses icin 5V+transistor sart.
 
@@ -57,7 +62,12 @@ const unsigned long BUZZER_BEEP_MS = 200;  // onay beep suresi (SABIT, donanim t
 const int  INTEG_YUKSEK_ESIK   = 15;   // ~75ms net LOW -> basis algilandi (eski filtre ile ayni)
 const int  INTEG_MAX           = 40;   // tavan (~200ms) — glitch toleransi tamponu
 const int  INTEG_DUSUK_ESIK    = 4;    // ~20ms HIGH -> basis bitti (histerezis)
-const unsigned long MIN_PULSE_GAP_MS = 1500;   // Pres: iki basis arasi min (sahada ayarlanabilir; cift sayimi eler)
+// PRES GAP: abkant 1500ms'tir (buk arasi uzun), ama eksantrik pres surekli modda
+// 60+ vurus/dk yapabilir — 1500ms filtre vurus KAYBETTIRIR. 600ms = en fazla 100
+// vurus/dk gecer; integrator (75ms) zaten kontak sicramasini eliyor.
+// SAHA AYARI: cift sayarsa buyut, hizli preste eksik sayarsa kucult (heartbeat
+// TANI: tani_erken artiyorsa GAP cok buyuk, tani_parazit artiyorsa gurultu var).
+const unsigned long MIN_PULSE_GAP_MS = 600;    // pres vurus araligi siniri (sahada ayarlanabilir)
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
@@ -285,7 +295,7 @@ bool bufferdanBirGonder() {
   doc["bolum"]      = BOLUM;
   doc["robot_no"]   = ROBOT_NO;
   doc["istasyon"]   = p.istasyon;
-  doc["kaynak_tip"] = "pres_2buton";
+  doc["kaynak_tip"] = "role";
   String mac6 = WiFi.macAddress();
   mac6.replace(":", "");
   if (mac6.length() > 6) mac6 = mac6.substring(mac6.length() - 6);
@@ -322,7 +332,7 @@ void istasyonSinyali(uint8_t istasyon) {
     pulseIst1++;
     seq = pulseIst1;
     prefs.putULong("pulse_i1", pulseIst1);
-    // Basis ONAYI: kisa buzzer beep'i. digitalWrite anlik -> sayim yolu BLOKLANMAZ.
+    // Vurus ONAYI: kisa buzzer beep'i (buzzer takilirsa). digitalWrite anlik -> sayim BLOKLANMAZ.
     // Kapatma DONANIM timer'inda (sabit sure; loop'taki HTTP POST beep'i UZATMAZ).
     digitalWrite(PIN_BUZZER, HIGH);
     esp_timer_stop(buzzerTimer);                                  // varsa onceki beep'i durdur
@@ -350,15 +360,7 @@ void istasyonSinyali(uint8_t istasyon) {
 
 // Bloklamayan integrator debounce — loop'ta her dongude bir kez cagrilir.
 void kanalGuncelle(int pin, uint8_t istasyon, Kanal* k, unsigned long now) {
-  // PRES IKI-EL KUMANDASI: sinyal SADECE iki buton da AYNI ANDA basiliyken aktif.
-  // Her iki buton NO kuru kontak, basilinca kendi GPIO'sunu GND'ye ceker (LOW).
-  // v = AND: ikisi de LOW -> aktif (LOW); biri bile HIGH -> pasif (HIGH). Integrator
-  // bu birlesik sinyali debounce eder; her "ikisi birden basildi" olayi 1 sayim
-  // (MIN_PULSE_GAP + histerezis: birakip tekrar basmadan ikinci sayim olmaz).
-  int b1 = digitalRead(PIN_IST1_SAYAC);
-  int b2 = digitalRead(PIN_IST2_SAYAC);
-  int v = (b1 == LOW && b2 == LOW) ? LOW : HIGH;
-  (void)pin;   // pin parametresi kullanilmiyor (iki pin birden okunuyor)
+  int v = digitalRead(pin);
 
   if (k->lastRaw == HIGH && v == LOW) taniParazit++;   // ham gurultu kenar gostergesi
   k->lastRaw = v;
@@ -459,7 +461,7 @@ void heartbeatGonder() {
   } else {
     httpFailCount++;
   }
-  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · buton=%lu · tani(S%lu/P%lu/E%lu) · fail=%d\n",
+  Serial.printf("[HEART] HTTP %d · RSSI=%d · kuyruk=%d · vurus=%lu · tani(S%lu/P%lu/E%lu) · fail=%d\n",
                 rc, WiFi.RSSI(), buf_dolu, pulseIst1,
                 taniSayildi, taniParazit, taniErken, httpFailCount);
 }
@@ -487,10 +489,10 @@ void setup() {
   Serial.println("\n╔════════════════════════════════════════════╗");
   Serial.printf( "║  COFLE PILOT SAYAC — %-21s ║\n", CIHAZ_ID);
   Serial.println("╚════════════════════════════════════════════╝");
-  Serial.printf("FW: %s · Bolum: %s · Makine: %s · PRES IKI-EL AND MODU\n",
+  Serial.printf("FW: %s · Bolum: %s · Makine: %s · PRES SAYAC ROLE MODU\n",
                 FIRMWARE_VER, BOLUM, ROBOT_NO);
-  Serial.printf("Buton pini: GPIO%d (GND'ye basinca pulse)\n", PIN_IST1_SAYAC);
-  Serial.printf("Min pulse araligi: %lums (operator hizi siniri)\n", MIN_PULSE_GAP_MS);
+  Serial.printf("Sayac role pini: GPIO%d (NO-COM kapaninca pulse)\n", PIN_IST1_SAYAC);
+  Serial.printf("Min pulse araligi: %lums (cift sayim siniri)\n", MIN_PULSE_GAP_MS);
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
   pinMode(PIN_IST1_SAYAC,      INPUT_PULLUP);
@@ -499,12 +501,12 @@ void setup() {
   digitalWrite(PIN_LED, LOW);   // (PIN_BUZZER setup basinda OUTPUT+LOW yapildi — acilis cizirtisi onleme)
 
   k1.lastRaw     = digitalRead(PIN_IST1_SAYAC);
-  robotCalisiyor = false;  // Montajda robot durumu kullanilmiyor
+  robotCalisiyor = false;  // Preste robot durumu kullanilmiyor
 
   prefs.begin("cofle", false);
   pulseIst1 = prefs.getULong("pulse_i1", 0);
   pulseIst2 = prefs.getULong("pulse_i2", 0);
-  Serial.printf("[NVS] Kayitli buton sayimi: %lu\n", pulseIst1);
+  Serial.printf("[NVS] Kayitli vurus sayimi: %lu\n", pulseIst1);
 
   // bootId STABIL (reboot'lar arasi ayni). NVS silinirse boot_id de gider -> yeni bootId +
   // sayim 0'dan baslar, eski idempotency key'leriyle CAKISMAZ. (Eski kod her boot'ta
@@ -594,7 +596,7 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] Integrator debounce + TANI aktif — iki buton birlikte basisi bekleniyor...");
+  Serial.println("[READY] Integrator debounce + TANI aktif — pres sayac rolesi bekleniyor...");
   Serial.printf( "        (YUKSEK=%d/MAX=%d/DUSUK=%d · MIN_PULSE_GAP=%lums)\n\n",
                  INTEG_YUKSEK_ESIK, INTEG_MAX, INTEG_DUSUK_ESIK, MIN_PULSE_GAP_MS);
   ledYakBlink(3, 60);
@@ -616,7 +618,7 @@ void loop() {
     wifiKoptuMs = 0;
   }
 
-  // Buton pulse — bloklamayan integrator debounce (gurultuye dayanikli)
+  // Sayac role pulse'u — bloklamayan integrator debounce (gurultuye dayanikli)
   kanalGuncelle(PIN_IST1_SAYAC, 1, &k1, now);
 
   // Retry: basarisiz gonderimde ustel geri cekilme (3s -> 60s cap). Sunucu kapaliyken
@@ -647,10 +649,10 @@ void loop() {
   }
 
   // ─── SELF-HEAL kontrolleri ───
-  // 1) 24 saat uptime → koruyucu reset, AMA buton son 2 dk basilmadiysa (bos)
+  // 1) 24 saat uptime → koruyucu reset, AMA makine son 2 dk vurmadiysa (bos)
   if ((now - bootMs) > UPTIME_RESET_MS) {
     if ((now - k1.lastValidPulse) > 120000UL && buf_dolu == 0) {
-      Serial.println("\n[SELFHEAL] 24h doldu + buton bos + kuyruk bos — koruyucu reset");
+      Serial.println("\n[SELFHEAL] 24h doldu + makine bos + kuyruk bos — koruyucu reset");
       delay(500);
       ESP.restart();
     }
@@ -682,8 +684,8 @@ void loop() {
       delay(500);
       ESP.restart();
     } else if ((now - lastRadyoYenile) > 60000UL) {
-      // Once YUMUSAK kurtarma: radyo tazele. SADECE HAT BOSKEN — wifiRadyoYenile ~16sn
-      // bloklar, operator basarken buton pulse'i kaybettirir (RSSI dalinin kurali).
+      // Once YUMUSAK kurtarma: radyo tazele. SADECE MAKINE BOSKEN — wifiRadyoYenile ~16sn
+      // bloklar, pres calisirken vurus pulse'i kaybettirir (RSSI dalinin kurali).
       // Uretim varsa atla — 5dk watermark+reboot yolu zaten guvenli kurtarma.
       bool makineBosZ = (now - k1.lastValidPulse) > 120000UL;
       if (makineBosZ) {
@@ -720,7 +722,7 @@ void loop() {
     if (sonRSSI < RSSI_ZAYIF_ESIK && sonRSSI < 0) {
       rssiZayifSayac++;
       Serial.printf("[RSSI] Zayif sinyal %d dBm (%d/%d)%s\n", sonRSSI, rssiZayifSayac, RSSI_ZAYIF_MAX,
-                    makineBosRssi ? "" : " — buton aktif, recovery ertelendi");
+                    makineBosRssi ? "" : " — makine calisiyor, recovery ertelendi");
       if (rssiZayifSayac >= RSSI_ZAYIF_MAX && makineBosRssi) {
         rssiZayifSayac = 0;
         radyoYenileSayac++;

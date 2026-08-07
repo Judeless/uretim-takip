@@ -1,5 +1,7 @@
 # TK1 — Plastik Enjeksiyon + Yapıştırma Sayaç Bağlantı Şemaları
 
+> Abkant dahil birleşik şema: [BAGLANTI_SEMASI_ABKANT_PLASTIK_YAPISTIRMA.md](BAGLANTI_SEMASI_ABKANT_PLASTIK_YAPISTIRMA.md)
+
 ESP32-WROOM-32U + makine rölesi ile üretim sinyali sayımı.
 **Güç: LM2596 buck modülü** (harici USB adaptör DEĞİL — makinenin 24V'undan beslenir).
 

@@ -1681,9 +1681,25 @@ window.__I18N_SOZLUK__ = {
   }
 
   // ── Tam ekran ──
+  // TV KABUĞU İÇİNDE Mİ? (/andon_tv). Tanım BURADA: aşağıdaki buton gizleme ve
+  // periyodik yenileme bloklarının ikisi de bunu okuyor; 'var' hoisting değeri
+  // taşımadığı için ilk kullanımdan ÖNCE atanmış olmalı.
+  var _tvKabugunda = (function () {
+    try { return window.self !== window.top; } catch (e) { return true; }
+  })();
+
+  // TV kabuğu içindeyken tam ekranı KABUK yönetir; buradaki buton
+  // yalnız iframe'i tam ekran yapar ve kullanıcıyı yanıltır → gizlenir.
   function toggleFullscreen() {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
     else document.exitFullscreen();
+  }
+  if (_tvKabugunda) {
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.header-btn').forEach(function (b) {
+        if ((b.textContent || '').trim() === 'Tam Ekran') b.style.display = 'none';
+      });
+    });
   }
 
   // ── Duyuru modal ──
@@ -1732,9 +1748,33 @@ window.__I18N_SOZLUK__ = {
   // görünmez. Uzun uptime'da tarayıcı renderer/GPU belleği büyür ("bellek hatası"); periyodik
   // reload tüm birikimi temizler. ~30dk + küçük rastgele jitter (tüm andonlar aynı anda
   // yenilenip sunucuya yüklenmesin). Tarayıcı kapatmaya/kısayola gerek bırakmaz.
+  // TAM EKRAN KORUMASI (2026-08-04): reload, Fullscreen API'yi DÜŞÜRÜR — sayfa
+  // yenilenince tarayıcı tam ekrandan çıkar ve kullanıcı jesti (tık/tuş) olmadan
+  // geri alınamaz. Kullanıcı: "metal andon ekranı sürekli tam ekrandan çıkıyor" —
+  // sebebi buydu, yarım saatte bir.
+  // Kural: TAM EKRANDAYKEN yenileme ERTELENİR (10 dk'da bir tekrar bakılır).
+  // Güvenlik valfi: ekran çok uzun süre açık kalırsa (bellek birikimi asıl risk)
+  // 12 saat sonra tam ekranda bile yenilenir — pratikte gece, kimse bakmazken.
+  // NOT: Chrome kiosk modunda (--kiosk) fullscreenElement null olur; orada reload
+  // ekranı bozmaz ve bu erteleme hiç devreye girmez (önerilen kurulum).
   var ANDON_RELOAD_DK = 30;
-  setTimeout(function () { location.reload(); },
-            (ANDON_RELOAD_DK * 60 + Math.floor(Math.random() * 60)) * 1000);
+  var ANDON_ZORLA_SAAT = 12;
+  var _andonAcilis = Date.now();
+  // _tvKabugunda yukarıda (tam ekran bölümünde) tanımlı: kabuk zaten iframe'i
+  // periyodik tazeliyor; içeride bir de kendimizi yenilersek iki zamanlayıcı
+  // çakışır. Kabuk varken bu blok TAMAMEN devre dışı kalır.
+  function andonPeriyodikYenile() {
+    var gecenMs = Date.now() - _andonAcilis;
+    if (document.fullscreenElement && gecenMs < ANDON_ZORLA_SAAT * 3600 * 1000) {
+      setTimeout(andonPeriyodikYenile, 10 * 60 * 1000);   // tam ekran: ertele
+      return;
+    }
+    location.reload();
+  }
+  if (!_tvKabugunda) {
+    setTimeout(andonPeriyodikYenile,
+              (ANDON_RELOAD_DK * 60 + Math.floor(Math.random() * 60)) * 1000);
+  }
 
   // ── Başlat ──
   (async () => {

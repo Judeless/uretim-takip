@@ -397,6 +397,10 @@ SAYAC_AUTO_CIHAZLAR = (
     | {'Abkant 1', 'Abkant 2', 'Abkant 3'} | {f'Pres {i}' for i in range(1, 6)}
     | {'Hidrolik Pres', 'Bros'}
     | {'320T', '407T', 'Yapistirma'}
+    # 2026-07-31: TK1 montaj masaları (7 adet, buton+buzzer). TK2'deki M1..M12
+    # modelinin aynısı — MASA = hat; operatör mobilde masasını seçer, sayaç
+    # doğrudan eşleşir (ek hat→cihaz eşlemesi gerekmez). YF1 ayrı, LF-LFP'ye bağlı.
+    | {f'TK1-M{i}' for i in range(1, 8)}
 )
 # YF1: TK1 (yan tesis) montaj deneme modülü — MONTAJ-YF1 cihazı robot_no='YF1' ile flash'lı
 # (sahada zaten yüklü, yeniden flash YOK). pilot.db'de bolum=montaj/robot_no=YF1; saha_cihazlari
@@ -405,8 +409,17 @@ SAYAC_AUTO_CIHAZLAR = (
 # TK1 (yan tesis) cihazlarının robot_no'ları — pilot.db'de lokasyon kolonu olmadığı için
 # saha_cihazlari/sinyal_kalitesi'ni lokasyona göre filtrelerken robot_no ile eşleriz.
 # YF1 = sahadaki deneme modülü; diğerleri TK1 hatları (ileride cihaz takılırsa kapsanır).
-TK1_ROBOT_NOLARI = {'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
-                    '320T', '407T', 'Yapistirma'}   # 2026-07-27 plastik enj + yapıştırma (TK1)
+#   Pull / Push-Pull: TEL ÜRÜNÜ adları, hat değil (kullanıcı 2026-08-04) — montaj
+#   hat listesinden çıkarıldı, ama GEÇMİŞ vardiyaları bu isimlerle kayıtlı olduğu
+#   için burada KALIR (yoksa eski kayıtlar TK1 filtrelerinden düşerdi).
+TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
+                     '320T', '407T', 'Yapistirma', 'Sizdirmazlik Test'}  # 2026-07-27 plastik enj + yapıştırma (TK1)
+                    | {f'TK1-M{i}' for i in range(1, 8)}   # 2026-07-31 TK1 montaj masaları
+                    # 2026-08-04 tel üretimi proses hatları (şimdilik sayaç yok, elle giriş)
+                    | {'Halat Kesme 1', 'Halat Kesme 2', 'Halat Kesme 3',
+                       'Yarı Otomatik', 'Tam Otomatik',
+                       'Kapama 1', 'Kapama 2', 'Kapama 3', 'Kapama 4',
+                       'Son Montaj 1', 'Son Montaj 2', 'Son Montaj 3', 'Son Montaj 4'})
 
 # Hat → sayaç cihazının robot_no eşlemesi: operatör hattı seçer (vardiya.robot_no='LF-LFP')
 # ama saha modülü pulse'ları robot_no='YF1' ile pilot.db'ye düşer. Sayım yapılırken hat
@@ -481,7 +494,7 @@ ADMIN_ADI = 'Admin'
 # yeni bölümler; sayaç/andon/iş takibi YOK, sadece vardiya + üretim girişi + rapor.
 # Yeni bölüm eklerken: import_excel.BOLUM_SAYFA + mobil/dashboard/rapor template
 # toggle'ları da güncellenmeli (anahtarlar ASCII slug — URL/CSS class/JS map'lerde kullanılır).
-GECERLI_BOLUMLER = ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik')
+GECERLI_BOLUMLER = ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik', 'tel')
 BOLUM_AD = {
     'kaynak': 'Robot Kaynak',
     'montaj': 'Montaj',
@@ -490,7 +503,21 @@ BOLUM_AD = {
     'lazer':  'Lazer Kesim',
     'pres':   'Pres Abkant',
     'plastik': 'Plastik Enjeksiyon',
+    'tel':    'Tel Üretimi',
 }
+
+# ── TEL ÜRETİMİ PROSES ADIMLARI (TK1, 2026-08-04) ──────────────────────────
+# Bir tel referansı sırayla birden çok HATTAN geçer ve her adımı FARKLI operatör
+# kendi vardiyasında kaydeder. Bu yüzden adım = hat (vardiya.robot_no).
+# SIRA ÖNEMLİ: "son adım" bu listedeki en son işaretli adımdır (bkz.
+# referans_listesi.tel_adimlar) ve üretim YALNIZ son adımda sayılır — aksi hâlde
+# aynı 100 adet dört kez sayılıp rapor 400 gösterirdi.
+# Yarı/tam otomatik AYNI SIRADA iki alternatif hattır (ürün hangisine düşerse).
+# Tanımlar tel_proses.py'de — mail_raporu.py ve oee.py de aynı kuralı kullanıyor,
+# app.py'yi import edemedikleri için (Flask'ı ayağa kaldırır) ortak modüle taşındı.
+from tel_proses import (TEL_ADIMLARI, TEL_ADIM_SIRA, TEL_HATLARI,      # noqa: F401
+                        TEL_ADIM_EKI, tel_hat_adimi, tel_referans_kodu,
+                        tel_ek_ayikla, tel_adim_etiketi)
 
 # Push bildirim alıcıları — bölüme yeni referans/launch eklendiğinde kimin
 # telefonuna bildirim gitsin. İsimler operatorler tablosundaki adlarla
@@ -1596,6 +1623,30 @@ def andon_metal_sayfasi():
                            panel_baslik='Makine Durum Paneli')
 
 
+@app.route('/andon_tv')
+def andon_tv_sayfasi():
+    """Andon TV KABUĞU (2026-08-04) — tam ekranı kalıcı tutar.
+
+    Andon sayfası bellek birikimini önlemek için ~30 dk'da bir kendini yeniliyor;
+    Fullscreen API sayfa yenilenince çıktığı ve kullanıcı jesti olmadan geri
+    alınamadığı için TV yarım saatte bir tam ekrandan düşüyordu. Kullanıcı TV'ye
+    uzaktan bağlanamıyor (yalnız fare) → kiosk modu kurulamıyor.
+
+    Bu kabuk ASLA yenilenmez: tam ekranı o tutar, andon içeriği iframe'de durur ve
+    periyodik olarak yalnız iframe tazelenir (bellek temizliği korunur, tam ekran
+    bozulmaz). TV'de bir kez açılıp fareyle "Tam Ekran"a basılması yeterlidir.
+
+    Kullanım: /andon_tv?bolum=metal   (kaynak | montaj | metal | tk1)
+    Hedef sunucuda BEYAZ LİSTEDEN seçilir — dışarıdan gelen serbest URL iframe'e
+    verilmez (açık yönlendirme / yabancı içerik gömme riski).
+    """
+    HEDEFLER = {'kaynak': '/andon', 'montaj': '/andon_montaj',
+                'metal': '/andon_metal', 'tk1': '/andon_tk1'}
+    bolum = (request.args.get('bolum') or 'kaynak').strip().lower()
+    return render_template('andon_tv.html',
+                           hedef=HEDEFLER.get(bolum, HEDEFLER['kaynak']))
+
+
 @app.route('/andon_tk1')
 def andon_tk1_sayfasi():
     """TK1 (yan tesis) Andon ekranı — montaj mantığı, lokasyon=TK1 (v5 tasarım)."""
@@ -2156,6 +2207,41 @@ def uretim_ekle():
         eklenen = 0
         for satir in satirlar:
             ref = (satir.get('referans_kodu') or data.get('referans_kodu') or '').strip()
+            # ── PROSES ADIMI EKİ (kullanıcı 2026-08-04) ───────────────────────
+            # Tel üretiminde HER adım kendi ekiyle kaydedilir ('93.TK.464 KAPAMA').
+            # Böylece adımlar ayrı kodlarda toplanır: ne çoklu sayım olur ne de
+            # kimin ne iş yaptığı kaybolur. "Son adım base kod alır" kuralı YOK —
+            # kapaması/son montajı dışarıda yapılacak ürünler sabit değil (üretim
+            # yoğunluğu + tedarikçi durumuna göre değişiyor), önceden tanımlanamaz.
+            # OTOMATİK yapılır (operatör elle yazmaz): yazım hatası referansı
+            # bambaşka bir koda çevirir ve kayıt kaybolurdu. Elle yazılmışsa da
+            # tekrarlanmaz — tel_referans_kodu önce mevcut eki ayıklar.
+            if vardiya_bolum == 'tel' and ref:
+                ref = tel_referans_kodu(ref, vardiya_robot)
+            # ── KAPAMA: BİR REFERANS = TEK OPERATÖR (kullanıcı 2026-08-04) ──────
+            # "Kapama hattında 1 referansı birden fazla operatör yapamaz — tek
+            # operatör tek iş." Aynı gün aynı referans için BAŞKA bir operatörün
+            # kapama kaydı varsa yeni kayıt reddedilir (kendi kaydını güncellemek
+            # serbest: PUT ayrı endpoint, burası yalnız YENİ kayıt).
+            # Kesim/otomat/son montaj bölünebilir — kısıt YALNIZ kapamaya özel.
+            if vardiya_bolum == 'tel' and tel_hat_adimi(vardiya_robot) == 'Kapama' and ref:
+                # LIMIT YOK: aynı referansın o günkü TÜM tel kayıtları çekilir ve
+                # kapama olanlar Python'da süzülür. (LIMIT 1 ile ilk satır kesim/otomat
+                # olabiliyor, kapama filtresi boşa düşüyor ve kısıt hiç çalışmıyordu.)
+                _cak = c.execute("""
+                    SELECT v.operator_adi, v.robot_no FROM uretim_kayitlari u
+                    JOIN vardiyalar v ON v.id = u.vardiya_id
+                    WHERE COALESCE(v.bolum,'')='tel'
+                      AND v.tarih = (SELECT tarih FROM vardiyalar WHERE id=?)
+                      AND UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(?,' ',''))
+                      AND u.vardiya_id != ?
+                """, (vardiya_id_int, ref, vardiya_id_int)).fetchall()
+                _baska = [r for r in _cak if tel_hat_adimi(r['robot_no']) == 'Kapama']
+                if _baska:
+                    return jsonify({'hata':
+                        f"Bu referansın kapaması bugün zaten {_baska[0]['operator_adi']} "
+                        f"({_baska[0]['robot_no']}) tarafından girilmiş. Kapamada bir referansı "
+                        f"tek operatör yapar — adet düzeltmesi gerekiyorsa o kaydı güncelleyin."}), 409
             ct_in = float(satir.get('cycle_time_sn', 0) or 0)
             # cycle_time gönderilmediyse ya da 0 ise referanslardan otomatik çek.
             # LOKASYON filtresi ŞART: composite UNIQUE sonrası aynı kod TK1+TK2'de
@@ -2874,6 +2960,85 @@ def referans_eksik_listesi():
     return jsonify([r['referans_kodu'] for r in rows])
 
 
+@app.route('/api/referanslar/indir_excel', methods=['GET'])
+@panel_gerekli(izin='referanslar')
+def referans_excel_indir():
+    """Bölümün referanslarını SÜRELERİYLE birlikte .xlsx olarak İNDİRİR.
+
+    Amaç (kullanıcı 2026-08-04): mevcut referansları planlama bölümüyle paylaşmak.
+    'Excel'e Yaz'dan FARKI: o, sunucudaki kaynak dosyayı (data/uretim_verileri.xlsx)
+    günceller; bu ise tarayıcıya indirilen BAĞIMSIZ bir dosya üretir — paylaşmak
+    için kaynak dosyaya dokunmak gerekmez.
+
+    SÜRESİ TANIMSIZ OLANLAR LİSTEYE GİRMEZ (hedef_cycle_time_sn <= 0): planlama
+    süresiz satırla hesap yapamaz; boş süre gönderilirse 0 sanılıp yanlış kapasite
+    çıkarılır. Kaç satırın bu yüzden atlandığı dosyanın altında yazar ki eksik
+    olduğu görünsün.
+
+    Query: ?bolum=kaynak&lokasyon=TK2
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
+    import io as _io
+
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper()
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+
+    conn = get_db()
+    satirlar = conn.execute(
+        "SELECT referans_kodu, COALESCE(aciklama,'') aciklama, "
+        "       COALESCE(hedef_cycle_time_sn,0) ct, "
+        "       COALESCE(kaynak_suresi_sn,0) ks, COALESCE(soktak_suresi_sn,0) ss, "
+        "       COALESCE(sure_teyit,0) teyit, COALESCE(sure_teyit_tarihi,'') teyit_tarih "
+        "FROM referans_listesi "
+        "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? "
+        "ORDER BY referans_kodu", (bolum, lokasyon)).fetchall()
+    dolu = [r for r in satirlar if (r['ct'] or 0) > 0]
+    atlanan = len(satirlar) - len(dolu)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (BOLUM_AD.get(bolum, bolum))[:31]      # Excel sayfa adı en fazla 31 karakter
+    # Kaynak bölümünde süre kaynak+söktak olarak ayrışır — planlama ikisini de ister.
+    kaynak_mi = (bolum == 'kaynak')
+    basliklar = ['Referans Kodu', 'Açıklama', 'Cycle Time (sn)']
+    if kaynak_mi:
+        basliklar += ['Kaynak Süresi (sn)', 'Söktak Süresi (sn)']
+    basliklar += ['Süre Teyitli', 'Teyit Tarihi']
+    ws.append(basliklar)
+    _bas_font = Font(bold=True, color='FFFFFF')
+    _bas_dolgu = PatternFill('solid', fgColor='6D28D9')
+    for h in ws[1]:
+        h.font, h.fill = _bas_font, _bas_dolgu
+        h.alignment = Alignment(horizontal='center', vertical='center')
+    for r in dolu:
+        satir = [r['referans_kodu'], r['aciklama'], round(float(r['ct']), 1)]
+        if kaynak_mi:
+            satir += [round(float(r['ks']), 1), round(float(r['ss']), 1)]
+        satir += ['Evet' if r['teyit'] else 'Hayır', r['teyit_tarih']]
+        ws.append(satir)
+    # Kolon genişlikleri: içeriğe göre (planlama dosyayı açar açmaz okusun)
+    for i, _b in enumerate(basliklar, start=1):
+        en = max([len(str(_b))] + [len(str(c.value or '')) for c in ws[chr(64 + i)]][:400])
+        ws.column_dimensions[chr(64 + i)].width = min(max(en + 3, 12), 45)
+    ws.freeze_panes = 'A2'
+    # Atlananları dosyanın SONUNA not düş — "liste eksik mi?" sorusu doğsun
+    if atlanan:
+        ws.append([])
+        ws.append([f'NOT: süresi tanımlı olmadığı için {atlanan} referans bu listeye '
+                   f'alınmadı (toplam {len(satirlar)} referans var).'])
+        ws.cell(row=ws.max_row, column=1).font = Font(italic=True, color='9D174D')
+
+    bellek = _io.BytesIO()
+    wb.save(bellek)
+    bellek.seek(0)
+    _ad = f"referanslar_{bolum}_{lokasyon}_{date.today().isoformat()}.xlsx"
+    return send_file(bellek, as_attachment=True, download_name=_ad,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @app.route('/api/referanslar/export_excel', methods=['POST'])
 @panel_gerekli(izin='referanslar')
 def referans_excel_export():
@@ -2958,15 +3123,37 @@ def robot_listesi():
             "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='plastik' "
             "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no").fetchall()
         conn.close()
-        # 320T/407T = enjeksiyon; Yapistirma = yapıştırma makinesi (aynı bölüm, TK1).
-        taban = ['320T', '407T', 'Yapistirma']
+        # 320T/407T = enjeksiyon; Yapistirma = yapıştırma makinesi; Sizdirmazlik Test =
+        # sızdırmazlık test makinesi (adet SVP test cihazından gelir, saha sayacı YOK).
+        # Hepsi AYNI bölümün (plastik, TK1) makineleri — ayrı bölüm DEĞİL (2026-08-04).
+        # ASCII yazım zorunlu: robot_no firmware/klasör adları ve rapor kırılımlarıyla
+        # birebir eşleşiyor (Türkçe karakter ODBC/dosya adı tarafında sorun çıkarıyor).
+        taban = ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']
+        return jsonify(taban + [r['robot_no'] for r in rows if r['robot_no'] not in taban])
+    # Tel üretimi (TK1, 2026-08-04): hat = PROSES ADIMI. Operatör vardiyasında
+    # hangi adımda çalıştığını seçer; aynı referans gün içinde farklı adımlarda
+    # farklı operatörler tarafından kaydedilir (üretim yalnız SON adımda sayılır).
+    if bolum == 'tel':
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='tel' "
+            "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no").fetchall()
+        conn.close()
+        taban = list(TEL_HATLARI)
         return jsonify(taban + [r['robot_no'] for r in rows if r['robot_no'] not in taban])
     if lokasyon == 'TK1':
-        # TK1 (yan tesis) sabit hatları — montaj mantığı
-        return jsonify(['Pull', 'Push-Pull', 'Iveco', 'LF-LFP'])
+        # TK1 (yan tesis) sabit hatları — montaj mantığı.
+        # 2026-07-31: 7 masaya sayaç modülü takıldı (TK1-M1..TK1-M7). TK2'deki
+        # M1..M12 modeli: MASA = hat → operatör masasını seçince otomatik sayaç
+        # çalışır. Eski 4 hat adı KALDI (geçmiş vardiyalar + hat bazlı çalışma).
+        # Pull / Push-Pull ÇIKARILDI (kullanıcı 2026-08-04): bunlar TEL ÜRÜNÜ adları,
+        # montaj hattı değil — telin kendisi 'tel' bölümünde proses adımlarında üretilir.
+        # Geçmiş vardiyalar bu isimlerle kayıtlı kalır (TK1_ROBOT_NOLARI'nda duruyorlar).
+        return jsonify(['LF-LFP', 'Iveco']
+                       + [f'TK1-M{i}' for i in range(1, 8)])
     # Sabit makine tabanı olan bölümler (liste her zaman tam görünür; DISTINCT ekstraları eklenir)
     # pres BURADA DEĞİL: hattı sabit (aşağıda), makineleri üretim kaydında seçilir.
-    SABIT_TABAN = {'plastik': ['320T', '407T', 'Yapistirma']}
+    SABIT_TABAN = {'plastik': ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']}
     # Dinamik bölümlerde hiç vardiya yokken gösterilecek varsayılan makine/hat adı
     DINAMIK_VARSAYILAN = {'montaj': 'HAT 1', 'isleme': 'Tezgah 1'}
     if bolum == 'metal':
@@ -3240,7 +3427,11 @@ def saha_cihazlari():
     BEKLENEN = {
         'kaynak': [{'cihaz_id': f'ABB{i}-IO', 'robot_no': f'ABB{i}'} for i in range(1, 10)],
         'montaj': [{'cihaz_id': f'MONTAJ-M{i}', 'robot_no': f'M{i}'} for i in range(1, 13)]
-                  + [{'cihaz_id': 'MONTAJ-YF1', 'robot_no': 'YF1', 'lokasyon': 'TK1'}],
+                  + [{'cihaz_id': 'MONTAJ-YF1', 'robot_no': 'YF1', 'lokasyon': 'TK1'}]
+                  # TK1 montaj masaları (2026-07-31): cihaz_id/robot_no firmware ile
+                  # birebir (generate.py DEVICES['montaj']).
+                  + [{'cihaz_id': f'MONTAJ-TK1-M{i}', 'robot_no': f'TK1-M{i}',
+                      'lokasyon': 'TK1'} for i in range(1, 8)],
         'metal':  [
             {'cihaz_id': '300T-IO', 'robot_no': '300T'},
             {'cihaz_id': '400T-IO', 'robot_no': '400T'},
@@ -4294,6 +4485,39 @@ def ozet():
         ORDER BY toplam_uretim DESC
     ''', param_vardiya).fetchall()
 
+    # NOT (2026-08-04): tel bölümünde ayrıca bir "son adım" süzgeci YOK.
+    # Her proses adımı kendi referans ekiyle kaydedildiği için ('93.TK.464 KESIM',
+    # '93.TK.464 KAPAMA'…) adımlar zaten ayrı satırlarda toplanır — aynı iş birden
+    # çok kez sayılmaz. Kapaması/son montajı dışarıda yapılacak ürünler sabit
+    # olmadığından referans bazlı son-adım tanımı da kullanılmıyor.
+
+    # ── OPERATÖR × ADIM × REFERANS ÜRETİMİ (2026-08-04) ───────────────────────
+    # Kullanıcı isteği (tel üretimi): "1 referans o gün kesim, yarı otomatik ve
+    # kapama işlemlerinden geçtiyse ve 200 adet üretildiyse, kesimi yapan
+    # operatörün bu referanstan 200 adet KESİM yaptığını görelim."
+    # Bu, "üretim yalnız son adımda sayılır" kuralıyla ÇELİŞMEZ: orası ürünün
+    # toplam üretimi, burası KİMİN NE İŞ YAPTIĞI. Her adım kendi adediyle görünür.
+    # Tel dışındaki bölümlerde de anlamlı (operatör performans kırılımı) → hepsinde
+    # döner; frontend yalnız gerekli sayfada gösterir.
+    operator_uretim = [dict(r) for r in c.execute(f'''
+        SELECT v.operator_adi,
+               v.robot_no,
+               u.referans_kodu,
+               SUM(u.ok_adet)  as toplam_ok,
+               SUM(u.nok_adet) as toplam_nok,
+               COUNT(*)        as kayit_sayisi
+        FROM uretim_kayitlari u
+        JOIN vardiyalar v ON v.id = u.vardiya_id
+        WHERE {sart_vardiya}
+        GROUP BY v.operator_adi, v.robot_no, u.referans_kodu
+        ORDER BY toplam_ok DESC
+    ''', param_vardiya).fetchall()]
+    # Tel bölümünde hat adının ADIM karşılığını da ver ('Kapama 3' → 'Kapama') —
+    # frontend adım bazlı gruplama yapabilsin, hat numarasını ayrıca gösterebilsin.
+    if (bolum or '') == 'tel':
+        for _o in operator_uretim:
+            _o['adim'] = tel_hat_adimi(_o.get('robot_no')) or ''
+
     # Duruş sebep bazlı dağılım
     durus_dagilim = c.execute(f'''
         SELECT d.durus_sebebi,
@@ -4409,6 +4633,7 @@ def ozet():
         'ort_oee': ort_oee,
         'robot_uretim': [dict(r) for r in robot_uretim],
         'referans_uretim': [dict(r) for r in referans_uretim],
+        'operator_uretim': operator_uretim,   # operatör × hat/adım × referans (2026-08-04)
         'uretim_detay_listesi': [dict(r) for r in uretim_detay_listesi],
         'robot_referans_uretim': [dict(r) for r in robot_referans_uretim],
         'durus_dagilim': [dict(r) for r in durus_dagilim],
@@ -6317,13 +6542,24 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
         if not (yil.isdigit() and len(yil) == 2 and no.isdigit() and 0 < adet <= 99999 and article and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
             continue
-        # Mükerrer koruması 1: kendi gönderim log'umuz
+        # Mükerrer koruması 1: kendi gönderim log'umuz — ADET DAHİL (2026-08-06).
+        # ESKİDEN gün+launch yeterliydi: o güne bir kez teyit verildiyse İKİNCİSİ
+        # asla gönderilemiyordu. Gerçek olay (94.LTK.890): aynı gün AYNI referansı
+        # İKİ OPERATÖR üretti, yalnız birinin adedi teyit edildi; kalan adet için
+        # gönderim "zaten gönderilmiş" diye sessizce atlanıyor ve teyit hiç
+        # tamamlanamıyordu. Adet karşılaştırması kısmi teyide izin verir, gerçek
+        # mükerrerliği (aynı satırı iki kez göndermek) yine engeller.
+        # Aynı gün aynı adet MEŞRU şekilde iki kez gerekiyorsa (iki operatör eşit
+        # adet üretmişse) 'zorla' ile gönderilir — arayüzde "yine de gönder" butonu.
         var = conn.execute(
-            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil=? AND launch_no=? AND sonuc='ok'",
-            (u_tarih, yil, no)).fetchone()
+            "SELECT id, adet FROM as400_teyit_log WHERE uretim_tarihi=? AND yil=? AND launch_no=? "
+            "AND sonuc='ok' AND CAST(adet AS INTEGER)=?",
+            (u_tarih, yil, no, int(adet))).fetchone()
         if var and not zorla:
             sonuclar.append({**kayit, 'sonuc': 'atlandi',
-                             'mesaj': f'Bu üretim günü için bu launch\'a zaten gönderilmiş (log #{var["id"]})'})
+                             'mesaj': f'Bu launch\'a bu gün için {int(adet)} adet ZATEN gönderilmiş '
+                                      f'(log #{var["id"]}). Farklı adet göndermek serbest; aynı adedi '
+                                      f'tekrar göndermek gerekiyorsa "yine de gönder" seçeneğini kullanın.'})
             continue
         # Mükerrer koruması 1b — REFERANS+GÜN (2026-07-30, 94.LTK.487/10 olayı):
         # yukarıdaki kontrol launch numarasına bağlı; ilk launch kapanıp YENİ launch
@@ -6627,12 +6863,17 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
         if not (article and 0 < adet <= 99999 and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
             continue
-        # Mükerrer 1: kendi log'umuz (CFI kayıtları yil='CF', launch_no=article)
+        # Mükerrer 1: kendi log'umuz (CFI kayıtları yil='CF', launch_no=article).
+        # ADET DAHİL (2026-08-06) — bkz. launch tarafındaki aynı düzeltme: aynı gün
+        # aynı referansı iki operatör üretince kalan adet gönderilemiyordu.
         var = conn.execute(
-            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CF' AND launch_no=? AND sonuc='ok'",
-            (u_tarih, article)).fetchone()
+            "SELECT id, adet FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CF' AND launch_no=? "
+            "AND sonuc='ok' AND CAST(adet AS INTEGER)=?",
+            (u_tarih, article, int(adet))).fetchone()
         if var and not zorla:
-            sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için CFI zaten gönderilmiş (log)'})
+            sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                             'mesaj': f'Bu koda bu gün için {int(adet)} adet CFI ZATEN gönderilmiş '
+                                      f'(log #{var["id"]}). Farklı adet göndermek serbest.'})
             continue
         # Mükerrer 2: ERP hareketleri (RPR+CFI) — HEM article HEM üretim referansı
         # (2026-07-21 4082W dersi: launch teyidi gerçek article'a, CFI adayı çıplak
@@ -6809,10 +7050,13 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False):
         if not (article and 0 < adet <= 99999 and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
             continue
-        # Mükerrer: aynı üretim günü + article için COP zaten girildiyse atla
+        # Mükerrer: aynı üretim günü + article + AYNI ADET için COP girildiyse atla.
+        # ADET DAHİL (2026-08-06) — launch/CFI ile aynı gerekçe: aynı gün iki
+        # operatör hurda çıkarırsa ikincisinin adedi de girilebilmeli.
         var = conn.execute(
-            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CO' AND launch_no=? AND sonuc='ok'",
-            (u_tarih, article)).fetchone()
+            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CO' AND launch_no=? "
+            "AND sonuc='ok' AND CAST(adet AS INTEGER)=?",
+            (u_tarih, article, int(adet))).fetchone()
         if var:
             sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
             continue

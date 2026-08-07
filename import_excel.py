@@ -55,7 +55,98 @@ TK1_SAYFA = {
     'ref':   'Refernaslar',     # tek kolon 'Ürün Kodu' (sayfa adı Excel'de bu typo ile)
     'op':    'Operatörler',     # BAŞLIK SATIRI YOK — row 0 = ilk operatör
     'durus': 'Duruş Listesi',   # No | Duruş Listesi | Planlı/Plansız
+    # ── Plastik enjeksiyon (2026-08-04) ──
+    # TK1'de montajdan AYRI bölüm (bolum='plastik'): makineleri 320T / 407T /
+    # Yapistirma / Sizdirmazlik Test. Yapıştırma AYRI BÖLÜM DEĞİL, bu bölümün bir
+    # makinesi — kodları (sonu 'G' ile biten) aynı referans sayfasında durur.
+    # Sayfa adları Excel'dekiyle BİREBİR — ikisinde de yazım hatası var
+    # ('Enjeksyion'), düzeltmeyin: Excel'de düzeltilirse burası da güncellenmeli.
+    'plastik_ref': 'Plastik Enjeksiyon Referanslar',
+    'plastik_op':  'Plastik Enjeksyion Operatörler',
+    # ── Tel üretimi (2026-08-04) ──
+    # TK1'de ayrı bölüm (bolum='tel'). Referans sayfası ÇOK KOLONLU: 1. kolon ürün
+    # kodu, sonraki kolonlar PROSES ADIMLARI (başlık satırından okunur, işaretli
+    # olanlar referansın adımları olur). Bkz. TEL_ADIM_BASLIK.
+    'tel_ref': 'Tel Referanslar',
+    'tel_op':  'Tel Operatörler',
 }
+
+# Tel referans sayfasının adım kolonları. Excel başlığı (küçük harfe indirgenmiş)
+# → sistemdeki adım adı. Başlık yazımı esnek olsun diye birkaç varyant tanınır;
+# tanınmayan kolon sessizce YOK SAYILIR (yeni kolon eklenirse buraya da eklenmeli).
+TEL_ADIM_BASLIK = {
+    'halat kesme': 'Halat Kesme', 'kesim': 'Halat Kesme', 'halat kesim': 'Halat Kesme',
+    'yarı otomatik': 'Yarı Otomatik', 'yari otomatik': 'Yarı Otomatik',
+    'yarı otomat': 'Yarı Otomatik', 'yari otomat': 'Yarı Otomatik',
+    'tam otomatik': 'Tam Otomatik', 'tam otomat': 'Tam Otomatik',
+    'kapama': 'Kapama',
+    'son montaj': 'Son Montaj', 'montaj': 'Son Montaj',
+}
+# Hücre "bu adım var" mı diyor? X / x / 1 / EVET / VAR / ✓ kabul edilir.
+_TEL_ISARET = {'x', '1', 'evet', 'var', '✓', '✔', 'e', 'yes', 'true'}
+
+
+# Üretim sırası — tel_adimlar bu sıraya göre yazılır (app.TEL_ADIMLARI ile aynı).
+# Sıralı tutmak "son adım" hesabını kolaylaştırır ve panelde okunaklı gösterir.
+TEL_ADIM_SIRASI = ('Halat Kesme', 'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
+
+
+def _tel_isaretli_mi(hucre):
+    if hucre is None:
+        return False
+    s = str(hucre).strip().lower()
+    if not s:
+        return False
+    if s in _TEL_ISARET:
+        return True
+    # Sayısal 1 (openpyxl int/float döndürebilir)
+    try:
+        return float(s) == 1.0
+    except ValueError:
+        return False
+
+# Başlık satırı tespiti (2026-08-04): TK1 sayfalarının bazısında başlık VAR
+# ('Refernaslar' → 'Ürün Kodu'), bazısında YOK ('Operatörler' → row 0 = ilk kişi).
+# Yeni plastik sayfalarında hangisinin olacağı garanti değil; sabit "ilk satırı atla"
+# kuralı başlıksız sayfada İLK KAYDI YUTAR. Bu yüzden içeriğe bakıyoruz.
+_TK1_BASLIKLAR = {
+    'ürün kodu', 'urun kodu', 'ürün kod', 'parça kodu', 'parca kodu', 'parça kod',
+    'kod', 'kodu', 'referans', 'referans kodu', 'referanslar',
+    'ad', 'adi', 'adı', 'isim', 'ad soyad', 'operatör', 'operator',
+    'operatörler', 'operatorler', 'no',
+}
+
+
+def _tk1_baslik_mi(deger):
+    """Hücre bir başlık mı, veri mi? (TK1 sayfalarında başlık satırı tutarsız)"""
+    return str(deger or '').strip().lower() in _TK1_BASLIKLAR
+
+
+# ── TK1 OPERATÖR DAĞILIMI (kullanıcı 2026-08-04) ────────────────────────────
+# Excel'deki tek 'Operatörler' sayfası TK1'in TÜM operatörlerini tutuyor; bölüm
+# ayrımı Excel'de yok, kural burada:
+#   montaj  → yalnız aşağıdaki iki kişi
+#   tel     → kalan HERKES
+#   plastik → kendi sayfasından gelir (Mustafa Kaya, Musa Kolip)
+# Ad karşılaştırması Türkçe karakter ve boşluk farklarına DAYANIKLI (_ad_normal):
+# Excel'de 'BİRCAN KILIÇ' / 'Bircan Kilic' / çift boşluk hepsi eşleşir.
+TK1_MONTAJ_OPERATORLERI = ('BİRCAN KILIÇ', 'OSMAN İMAT')
+
+
+def _ad_normal(ad):
+    """Ad eşleştirme anahtarı: Türkçe karakterler sadeleşir, boşluklar tekilleşir."""
+    s = str(ad or '').strip().upper()
+    for a, b in (('İ', 'I'), ('Ş', 'S'), ('Ğ', 'G'), ('Ü', 'U'), ('Ö', 'O'), ('Ç', 'C')):
+        s = s.replace(a, b)
+    return ' '.join(s.split())
+
+
+_TK1_MONTAJ_NORMAL = {_ad_normal(a) for a in TK1_MONTAJ_OPERATORLERI}
+
+
+def tk1_operator_bolumu(ad):
+    """TK1 ana operatör sayfasındaki bir isim hangi bölüme ait? 'montaj' | 'tel'"""
+    return 'montaj' if _ad_normal(ad) in _TK1_MONTAJ_NORMAL else 'tel'
 
 
 def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
@@ -132,6 +223,7 @@ def _bolum_import(conn, wb, bolum):
 
     ref_sayisi = 0
     ref_guncellenen = 0
+    tel_kodu_atlanan = 0        # TK2'ye yazılmayan 93.* (TK1 tel) kodları
     excel_kodlari_norm = set()
 
     # Kaynak bölümü için Excel artık 4 kolon: Kod | Kaynak Süresi | Söktak Süresi | Toplam Cycle
@@ -187,6 +279,22 @@ def _bolum_import(conn, wb, bolum):
                 cycle = float(row[1]) if (len(row) > 1 and row[1] is not None) else 0.0
             except (ValueError, TypeError):
                 cycle = 0.0
+
+        # ── TK1 TEL KODU TK2'YE YAZILMAZ (kullanıcı 2026-08-06) ──────────────
+        # Kural: "93. ile başlayan bütün referanslar tel referansıdır" → tel
+        # üretimi TK1'de yapılır, bu kodların TK2 listesinde işi yok.
+        # OLAY: TK2 Excel'inin 'Montaj Referans' sayfasında 1460 adet 93.* kod
+        # duruyordu; hepsi süresiz olduğu için TK2 montajın "Süre Tanımı Bekleyen
+        # Referanslar" panelini şişiriyor (2384 satırın 1459'u bunlardı) ve gerçek
+        # eksikler arasında kayboluyordu.
+        # Koda ATLAMA yeterli: bu kodlar excel_kodlari_norm'a girmediği için
+        # aşağıdaki mirror-sync onları DB'den de temizler — Excel'i elle
+        # düzeltmeye gerek kalmaz, sonraki içe aktarımlarda geri gelmezler.
+        # Ölçüm (2026-08-06): TK2'de 93.* kodların HİÇBİRİNİN süresi tanımlı
+        # değildi, yani silinen bir bilgi yok.
+        if kod.strip().startswith('93.'):
+            tel_kodu_atlanan += 1
+            continue
 
         excel_kodlari_norm.add(kod.upper().replace(' ', ''))
 
@@ -246,7 +354,8 @@ def _bolum_import(conn, wb, bolum):
                 )
             ref_sayisi += 1
 
-    print(f"  Referanslar: {ref_sayisi} eklendi, {ref_guncellenen} güncellendi")
+    print(f"  Referanslar: {ref_sayisi} eklendi, {ref_guncellenen} güncellendi"
+          + (f", {tel_kodu_atlanan} adet '93.*' TK1 tel kodu atlandı" if tel_kodu_atlanan else ""))
 
     # ── MIRROR SYNC: Excel'de olmayan referansları bu bölümden temizle ──
     ref_silinen = 0
@@ -327,41 +436,169 @@ def import_tk1(conn=None):
         return {'basarili': False, 'hata': f"'{TK1_EXCEL_YOL}' bulunamadı"}
     wb = openpyxl.load_workbook(TK1_EXCEL_YOL, data_only=True)
 
-    # ── Referanslar (tek kolon 'Ürün Kodu', row 0 = başlık) ──
-    ref_eklenen = 0
-    if TK1_SAYFA['ref'] in wb.sheetnames:
-        for i, row in enumerate(wb[TK1_SAYFA['ref']].iter_rows(values_only=True)):
-            if i == 0 or not row or row[0] is None:
-                continue
-            kod = str(row[0]).strip()
-            if not kod or len(kod) < 2:
-                continue
-            cur = c.execute(
-                "INSERT OR IGNORE INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, bolum, lokasyon) "
-                "VALUES (?, 0, 'montaj', 'TK1')",
-                (kod,)
-            )
-            ref_eklenen += cur.rowcount
+    def _sayfa_aktar(sayfa_adi, bolum, tur):
+        """Tek kolonlu TK1 sayfasını aktarır. tur: 'ref' | 'op'. Döner: eklenen satır.
 
-    # ── Operatörler (BAŞLIK YOK — row 0 = ilk operatör) ──
-    op_eklenen = 0
-    if TK1_SAYFA['op'] in wb.sheetnames:
-        for row in wb[TK1_SAYFA['op']].iter_rows(values_only=True):
+        Başlık satırı SABİT İNDEKSLE DEĞİL İÇERİKLE atlanır (bkz. _tk1_baslik_mi):
+        montaj referans sayfasında başlık var, operatör sayfasında yok; plastik
+        sayfalarında hangisinin olacağı belli değil ve sabit kural ya ilk kaydı
+        yutar ya da başlığı referans/operatör olarak veritabanına yazar."""
+        if sayfa_adi not in wb.sheetnames:
+            return 0
+        eklenen = 0
+        ilk_veri = True
+        for row in wb[sayfa_adi].iter_rows(values_only=True):
             if not row or row[0] is None:
                 continue
-            ad = str(row[0]).strip()
-            if not ad:
+            deger = str(row[0]).strip()
+            if not deger:
                 continue
+            # Başlık YALNIZ ilk dolu satırda aranır. Kelime listesini her satıra
+            # uygulamak MEŞRU kodları elerdi: TK1 listesinde 'TEST', 'ÖZEL ÜRÜN',
+            # 'HALAT TAHRIBAT' gibi rakamsız ama GERÇEK referanslar var (aynı
+            # sebeple "kod rakam içermeli" kuralı da kullanılamaz).
+            if ilk_veri:
+                ilk_veri = False
+                if _tk1_baslik_mi(deger):
+                    continue
+            if tur == 'ref':
+                if len(deger) < 2:
+                    continue
+                # 93.* KODLARI DOĞRUDAN TELE YAZILIR (kullanıcı 2026-08-04).
+                # Ana sayfa montaj + tel kodlarını birlikte tutuyor. Önce montaja
+                # yazıp sonra UPDATE ile taşımak İKİ KAYIT üretiyordu (tel'e taşınan
+                # eski satır + ana sayfadan tekrar eklenen montaj satırı) ve ikinci
+                # içe aktarımda UNIQUE(kod,bolum,lokasyon) hatası veriyordu.
+                _ref_bolum = ('tel' if (bolum == 'montaj' and deger.startswith('93.'))
+                              else bolum)
+                cur = c.execute(
+                    "INSERT OR IGNORE INTO referans_listesi "
+                    "(referans_kodu, hedef_cycle_time_sn, bolum, lokasyon) VALUES (?, 0, ?, 'TK1')",
+                    (deger, _ref_bolum))
+            else:
+                # Ana operatör sayfasında bölüm İSME göre belirlenir (montaj = 2 kişi,
+                # kalan herkes tel). Plastik/tel kendi sayfalarından gelirse bolum sabit.
+                _op_bolum = tk1_operator_bolumu(deger) if bolum == 'montaj' else bolum
+                cur = c.execute(
+                    "INSERT OR IGNORE INTO operatorler (ad, pin, bolum, lokasyon) "
+                    "VALUES (?, '0000', ?, 'TK1')",
+                    (deger, _op_bolum))
+            eklenen += cur.rowcount
+        return eklenen
+
+    # ── ÖNCE MEVCUT VERİYİ DÜZELT, SONRA EKLE ────────────────────────────────
+    # Sıra kritik: yeni kayıtlar isme/koda göre doğru bölümle ekleniyor. Eğer önce
+    # eklersek, aynı kişi/kod hem eski 'montaj' satırı hem yeni 'tel' satırı olarak
+    # bulunur ve taşıma UNIQUE(ad,bolum,lokasyon) kısıtına takılır.
+    #
+    # 1) Kod kuralı — 93.* → tel. İDEMPOTENT ve GERİYE DÖNÜK. Tersi YAPILMAZ
+    #    (tel sayfasından gelen 93.* olmayan kod tel kalır — orada bilinçli tanım var).
+    # Satır satır: aynı kod tel'de zaten varsa (eski veriden kalma çift kayıt)
+    # toplu UPDATE tüm işlemi patlatırdı — o satır silinir, tel kaydı korunur.
+    tel_tasinan = 0
+    for _rr in c.execute(
+            "SELECT id, referans_kodu FROM referans_listesi "
+            "WHERE COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(bolum,'')='montaj' "
+            "AND TRIM(referans_kodu) LIKE '93.%'").fetchall():
+        try:
+            c.execute("UPDATE referans_listesi SET bolum='tel' WHERE id=?", (_rr[0],))
+        except sqlite3.IntegrityError:
+            c.execute("DELETE FROM referans_listesi WHERE id=?", (_rr[0],))
+        tel_tasinan += 1
+
+    # 2) Operatör dağılımı — montaj listesinde OLMAYAN herkes tele taşınır.
+    #    'Admin' (her bölümde görünen özel kullanıcı) dışarıda bırakılır.
+    #    Çakışma olursa (kişi zaten tel'de kayıtlı) eski montaj satırı silinir ama
+    #    PIN'i korunur — operatör kendi PIN'iyle girmeye devam etsin.
+    op_tel_tasinan = 0
+    for _r in c.execute(
+            "SELECT id, ad, COALESCE(pin,'0000') FROM operatorler "
+            "WHERE COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(bolum,'')='montaj' "
+            "AND ad != 'Admin'").fetchall():
+        if tk1_operator_bolumu(_r[1]) != 'tel':
+            continue
+        try:
+            c.execute("UPDATE operatorler SET bolum='tel' WHERE id=?", (_r[0],))
+        except sqlite3.IntegrityError:
+            # Aynı kişi tel'de zaten var → PIN'i oraya taşı, montaj satırını sil
+            c.execute("UPDATE operatorler SET pin=? WHERE ad=? AND bolum='tel' "
+                      "AND COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(pin,'0000')='0000'",
+                      (_r[2], _r[1]))
+            c.execute("DELETE FROM operatorler WHERE id=?", (_r[0],))
+        op_tel_tasinan += 1
+
+    # ── Montaj (mevcut akış) ──
+    # TEL KURALI (kullanıcı 2026-08-04): TK1'de "93." ile başlayan HER referans
+    # tel referansıdır. Ana referans sayfası montaj + tel kodlarını birlikte
+    # tutuyor; bölüm koda bakılarak ayrılır (ayrı sayfa tutmaya gerek yok).
+    ref_eklenen = _sayfa_aktar(TK1_SAYFA['ref'], 'montaj', 'ref')
+    op_eklenen  = _sayfa_aktar(TK1_SAYFA['op'],  'montaj', 'op')
+
+    # ── Plastik enjeksiyon (2026-08-04) — TK1'de AYRI bölüm ──
+    # Operatör ve referansları montajdan bağımsız: plastik operatörü montaj
+    # referanslarını görmemeli, mobilde bölüm seçilince kendi listesi gelmeli.
+    p_ref_eklenen = _sayfa_aktar(TK1_SAYFA['plastik_ref'], 'plastik', 'ref')
+    p_op_eklenen  = _sayfa_aktar(TK1_SAYFA['plastik_op'],  'plastik', 'op')
+
+    # ── Tel üretimi (2026-08-04) — OPSİYONEL sayfa ──
+    # Tel referansları ARTIK BU SAYFADAN GELMİYOR: TK1'de '93.' ile başlayan her
+    # kod tel referansıdır (yukarıdaki kural) ve operatörler ana sayfadan isimle
+    # ayrışır. Bu blok yalnız GERİYE UYUM için duruyor — sayfa varsa okunur,
+    # yoksa hiçbir şey olmaz (normal durum budur).
+    # tel_adimlar (proses tanımı) artık KULLANILMIYOR: kapaması/son montajı
+    # dışarıda yapılacak ürünler sabit olmadığı için referans bazlı akış tanımı
+    # terk edildi; her adım kendi referans ekiyle kaydediliyor (bkz. tel_proses.py).
+    t_ref_eklenen = t_adim_guncel = 0
+    if TK1_SAYFA['tel_ref'] in wb.sheetnames:
+        ws = wb[TK1_SAYFA['tel_ref']]
+        sutun_adim = {}          # kolon indeksi → adım adı
+        baslik_okundu = False
+        for row in ws.iter_rows(values_only=True):
+            if not row or row[0] is None or not str(row[0]).strip():
+                continue
+            ilk = str(row[0]).strip()
+            if not baslik_okundu:
+                baslik_okundu = True
+                if _tk1_baslik_mi(ilk):
+                    # Başlık satırı: adım kolonlarını buradan öğren
+                    for i, h in enumerate(row[1:], start=1):
+                        ad = TEL_ADIM_BASLIK.get(str(h or '').strip().lower())
+                        if ad:
+                            sutun_adim[i] = ad
+                    continue      # başlık satırı veri değil
+            kod = ilk
+            if len(kod) < 2:
+                continue
+            # İşaretli adımları ÜRETİM SIRASINDA topla (kolon sırası değil —
+            # Excel'de kolonlar karışık dizilse bile sıra doğru kalsın).
+            secili = [sutun_adim[i] for i in sorted(sutun_adim)
+                      if i < len(row) and _tel_isaretli_mi(row[i])]
+            sirali = [a for a in TEL_ADIM_SIRASI if a in secili]
+            adim_metni = ','.join(sirali)
             cur = c.execute(
-                "INSERT OR IGNORE INTO operatorler (ad, pin, bolum, lokasyon) VALUES (?, '0000', 'montaj', 'TK1')",
-                (ad,)
-            )
-            op_eklenen += cur.rowcount
+                "INSERT OR IGNORE INTO referans_listesi "
+                "(referans_kodu, hedef_cycle_time_sn, bolum, lokasyon, tel_adimlar) "
+                "VALUES (?, 0, 'tel', 'TK1', ?)", (kod, adim_metni))
+            t_ref_eklenen += cur.rowcount
+            if adim_metni:
+                cur2 = c.execute(
+                    "UPDATE referans_listesi SET tel_adimlar=? "
+                    "WHERE referans_kodu=? AND COALESCE(bolum,'')='tel' "
+                    "AND COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(tel_adimlar,'')!=?",
+                    (adim_metni, kod, adim_metni))
+                t_adim_guncel += cur2.rowcount
+    t_op_eklenen = _sayfa_aktar(TK1_SAYFA['tel_op'], 'tel', 'op')
 
     conn.commit()
     if kapat:
         conn.close()
-    print(f"[TK1] {ref_eklenen} referans + {op_eklenen} operatör eklendi (lokasyon=TK1, bolum=montaj)")
+    print(f"[TK1] montaj: {ref_eklenen} referans + {op_eklenen} operatör | "
+          f"plastik: {p_ref_eklenen} referans + {p_op_eklenen} operatör | "
+          f"tel: {t_ref_eklenen} referans + {t_op_eklenen} operatör "
+          f"({t_adim_guncel} proses tanımı güncellendi, {tel_tasinan} kod '93.*' kuralıyla, "
+          f"{op_tel_tasinan} operatör tele taşındı) (lokasyon=TK1)")
+    ref_eklenen += p_ref_eklenen + t_ref_eklenen
+    op_eklenen  += p_op_eklenen + t_op_eklenen
     # NOT: referans_kodu GLOBAL UNIQUE → TK2 ile çakışan TK1 kodları INSERT OR IGNORE ile
     # atlanır (atlanan = bu kodlar TK2'de var). Tam ayrışma için UNIQUE(referans_kodu,lokasyon)
     # migration gerekir (bkz. lokasyon denetimi). 'referanslar_guncellenen' UI mesajı için 0.

@@ -313,6 +313,14 @@ def _zaten_teyitli(hareketler, uretim_tarihi, adet, gecmis=None):
     Donis: (durum, ilgili_hareketler)  durum: None | 'kesin' | 'olasi'
     """
     gecmis = gecmis or {}
+    # ADET YOKSA TEYIT KANITI DA YOK (2026-07-31): 'sadece hurda' satirlarinda
+    # (ok_adet=0, nok_adet>0) adet 0'dir. Asagidaki 'toplam >= adet' kurali 0 ile
+    # DAIMA saglanir ve satir sahte 'olasi' isaretlenip Dikkat kovasini sisirirdi.
+    try:
+        if float(adet or 0) <= 0:
+            return None, []
+    except (TypeError, ValueError):
+        return None, []
 
     def aciklanan(h):
         """Hareket BASKA bir gunun uretimiyle aciklaniyor mu? (kullanici 2026-07-20:
@@ -347,9 +355,15 @@ def _zaten_teyitli(hareketler, uretim_tarihi, adet, gecmis=None):
         if (h['tarih'] == uretim_tarihi and abs(h['adet'] - adet) < 0.001
                 and not aciklanan(h)):
             return 'kesin', [h]
-    # 3) Baska gunlerin uretimiyle aciklanan sonraki hareketler KANIT DEGIL
-    #    (orn pazartesi girilen 68, cumanin 68'lik uretiminin teyidi olabilir).
-    kalanlar = [h for h in sonrakiler if not aciklanan(h)]
+    # 3) BOLUNMUS TEYIT — AYNI GUN + SONRAKI GUNLER BIRLIKTE (2026-08-06 duzeltmesi).
+    #    Eskiden yalniz 'sonrakiler' toplanirdi; ayni gun verilen PARCALI teyit
+    #    hic sayilmiyordu. Gercek olay 94.LTK.890: 06.08 uretimi 80 adet, teyit AYNI
+    #    GUN iki parca halinde verilmis (RPR 23 + RPR 57 = 80). Iki hareket de tek
+    #    basina 80'e esit olmadigi icin kural 2'ye takilmiyor, kural 3 ise ayni gunu
+    #    hic gormuyordu → satir "teyitsiz" kalip kuyrukta tekrar tekrar cikiyordu.
+    #    Baska gunun uretimiyle aciklanan hareketler yine ELENIR (aciklanan): ayni
+    #    gunlu bir hareket onceki gunun teyidi olabilir, o koruma bozulmuyor.
+    kalanlar = [h for h in hareketler if h['tarih'] >= uretim_tarihi and not aciklanan(h)]
     if not kalanlar:
         return None, []
     toplam = sum(h['adet'] for h in kalanlar)
@@ -550,7 +564,13 @@ def gun_uretimi(tarih):
     # '10.300.1393A'); orijinal yazim UI'da gosterilmek uzere saklanir (2026-07-22).
     sonuc = []
     for d in grup.values():
-        if d['adet'] <= 0:
+        # SADECE HURDA (2026-07-31): ok_adet=0 ama nok_adet>0 olan gun/referans
+        # satiri ESKIDEN buradan tamamen dusuyordu -> AS400 teyit sayfasinda HIC
+        # gorunmuyor, hurdasi ♻ COP kuyruguna da girmiyordu. "Hepsi hurda cikti"
+        # gunu sessizce kayboluyor ve COP asla girilemiyordu.
+        # Satir artik KALIR; adet=0 oldugu icin teyit kuyruklarina giremez
+        # (launch/CFI yollarinda adet>0 kapisi var), yalniz COP listesinde cikar.
+        if d['adet'] <= 0 and (d.get('hurda') or 0) <= 0:
             continue
         duz = bosluk_nokta(d['referans'])
         if duz != d['referans']:

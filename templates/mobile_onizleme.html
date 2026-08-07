@@ -2822,7 +2822,9 @@ window.__I18N_SOZLUK__ = {
         </div>
         <!-- Pres Abkant: makine seçimi ÜRETİM KAYDI bazında (kullanıcı 2026-07-28 —
              operatör gün içinde makine değiştirerek çalışıyor; vardiya hattı sabit
-             'Pres Abkant'). Seçim istasyon kolonuna yazılır: 1-3 Abkant, 4-8 Pres. -->
+             'Pres Abkant'). Seçim istasyon kolonuna yazılır: 1-3 Abkant, 4-8 eksantrik
+             pres, 9 hidrolik pres, 10 broş (2026-07-31). Numaralar app.py
+             PRES_MAKINELERI sırasıyla BİREBİR — yeni makine hep SONA eklenir. -->
         <div id="d-pres-makine-wrap" style="display:none; margin-top:14px">
           <label>Makine</label>
           <select id="d-pres-makine" onchange="presMakineSec(this.value)">
@@ -2835,6 +2837,8 @@ window.__I18N_SOZLUK__ = {
             <option value="6">Pres 3</option>
             <option value="7">Pres 4</option>
             <option value="8">Pres 5</option>
+            <option value="9">Hidrolik Pres</option>
+            <option value="10">Bros</option>
           </select>
         </div>
         <input type="hidden" id="d-istasyon" value="0">
@@ -3538,7 +3542,7 @@ window.__I18N_SOZLUK__ = {
       } else if (bolum === 'pres') {
         // PRES ABKANT (kullanıcı 2026-07-28): operatör gün içinde makine değiştirerek
         // çalışıyor → makine VARDİYADA DEĞİL her ÜRETİM KAYDINDA seçilir (lazer modeli).
-        // Vardiya hattı tek ve sabit: 'Pres Abkant'; makine ekran D'de istasyon 1..8.
+        // Vardiya hattı tek ve sabit: 'Pres Abkant'; makine ekran D'de istasyon 1..10.
         robotWrap.style.display = 'none';
         rsel.innerHTML = '<option value="Pres Abkant" selected>Pres Abkant</option>';
         rsel.onchange = null;
@@ -3735,10 +3739,12 @@ window.__I18N_SOZLUK__ = {
       });
     }
 
-    // Pres Abkant makine seçimi (istasyon 1-3 Abkant, 4-8 Pres). Seçim cihazda
-    // hatırlanır: operatör aynı makinede arka arkaya kayıt girerken tekrar seçmesin.
+    // Pres Abkant makine seçimi (1-3 Abkant, 4-8 eksantrik pres, 9 hidrolik, 10 broş).
+    // Seçim cihazda hatırlanır: operatör aynı makinede arka arkaya kayıt girerken
+    // tekrar seçmesin. Numaralar app.py PRES_MAKINELERI ile BİREBİR aynı olmalı.
     var PRES_MAKINE_ADI = { 1: 'Abkant 1', 2: 'Abkant 2', 3: 'Abkant 3',
-                            4: 'Pres 1', 5: 'Pres 2', 6: 'Pres 3', 7: 'Pres 4', 8: 'Pres 5' };
+                            4: 'Pres 1', 5: 'Pres 2', 6: 'Pres 3', 7: 'Pres 4', 8: 'Pres 5',
+                            9: 'Hidrolik Pres', 10: 'Bros' };
     function presMakineSec(deger) {
       document.getElementById('d-istasyon').value = deger;
       try { localStorage.setItem('mobile_pres_son_makine', String(deger || '0')); } catch (e) {}
@@ -4465,7 +4471,7 @@ window.__I18N_SOZLUK__ = {
       if (lzWrap) lzWrap.style.display = (secilenBolum === 'lazer') ? 'block' : 'none';
       var lzSel = document.getElementById('d-lazer-makine');
       if (lzSel) lzSel.value = String(parseInt(istasyon || 0) || 0);
-      // Pres Abkant: makine seçici görünür, kayıttaki makine (istasyon 1..8) seçili gelir
+      // Pres Abkant: makine seçici görünür, kayıttaki makine (istasyon 1..10) seçili gelir
       var prWrap = document.getElementById('d-pres-makine-wrap');
       if (prWrap) prWrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
       var prSel = document.getElementById('d-pres-makine');

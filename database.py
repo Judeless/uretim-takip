@@ -607,6 +607,20 @@ def init_db():
     except Exception:
         pass
 
+    # Migration (2026-08-04): TEL ÜRETİMİ proses adımları (TK1, bolum='tel').
+    # Bir tel referansı sırayla birden çok HATTAN geçer: halat kesme → yarı/tam
+    # otomat → kapama → son montaj. Her adım AYRI hatta, AYRI operatör tarafından
+    # kaydedilir; ama "üretildi" sayılacak olan yalnız SON adımdır (yoksa aynı 100
+    # adet 4 kez sayılıp raporu 400 gösterirdi).
+    # Son montaj HER üründE YOKTUR (fasona verilebilir ya da o telin prosesi
+    # olmayabilir) → son adım referansa göre değişir ve TANIMDAN okunur.
+    # Biçim: adım adları virgülle, ÜRETİM SIRASINDA ('Halat Kesme,Tam Otomatik,Kapama').
+    # Son adım = listenin SONUNCU elemanı. Boş/NULL = tanımsız (tel dışı referanslar).
+    try:
+        c.execute("ALTER TABLE referans_listesi ADD COLUMN tel_adimlar TEXT DEFAULT ''")
+    except Exception:
+        pass
+
     # Migration (2026-05-14): Robot kaynakta cycle_time'ı kaynak+söktak olarak ayır.
     # İki istasyon paralel çalıştığı için pair cycle = max(K1,S2)+max(K2,S1)
     # formülü kullanılabilsin diye.

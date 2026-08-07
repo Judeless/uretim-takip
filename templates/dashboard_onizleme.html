@@ -1831,9 +1831,9 @@ window.__I18N_SOZLUK__ = {
     "en": "Plastic Injection & Bonding (TK1)",
     "it": "Stampaggio plastica e incollaggio (TK1)"
   },
-  "Pres Abkant (3 makine)": {
-    "en": "Press Brake (3 machines)",
-    "it": "Pressa piegatrice (3 macchine)"
+  "Pres Abkant (10 makine)": {
+    "en": "Press Brake (10 machines)",
+    "it": "Pressa piegatrice (10 macchine)"
   },
   "Andon ekranları": {
     "en": "Andon screens",
@@ -5065,8 +5065,8 @@ window.__I18N_SOZLUK__ = {
 
                 <div id="saha-sec-pres" style="margin-bottom:24px;display:none">
                     <h3 class="saha-grup-baslik">
-                        <span class="saha-rozet" style="background:rgba(236,72,153,0.15);color:#9D174D">ABKANT</span>
-                        Pres Abkant (3 makine)
+                        <span class="saha-rozet" style="background:rgba(236,72,153,0.15);color:#9D174D">PRES</span>
+                        Pres Abkant (10 makine)
                     </h3>
                     <div id="saha-pres-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
                 </div>
@@ -5777,8 +5777,11 @@ window.__I18N_SOZLUK__ = {
         // (pres 2026-07-28: operatör gün içinde makine değiştiriyor). Bu bölümlerde
         // vardiya.robot_no sabit hat adıdır ('Lazer' / 'Pres Abkant'); gerçek makine
         // uretim_kayitlari.istasyon'dan gelir. istasyon 0 = eski kayıt → robot_no göster.
+        // Sıra app.py PRES_MAKINELERI ile BİREBİR — yeni makine hep SONA eklenir
+        // (2026-07-31: 9=Hidrolik Pres, 10=Bros; araya girmek eski kayıtları kaydırır).
         var PRES_MAKINELERI = ['Abkant 1', 'Abkant 2', 'Abkant 3',
-                               'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5'];
+                               'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5',
+                               'Hidrolik Pres', 'Bros'];
         function makineAdi(bolum, istasyon, robotNo) {
             var i = parseInt(istasyon || 0) || 0;
             if (i > 0) {

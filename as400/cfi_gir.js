@@ -22,8 +22,21 @@ var CAUSAL = (args.length >= 3 && ("" + args(2)).toUpperCase() !== "DRYRUN")
 var DRYRUN = false;
 for (var ai = 2; ai < args.length; ai++)
     if (("" + args(ai)).toUpperCase() === "DRYRUN") DRYRUN = true;
-// Article: harf/rakam/nokta/tire/slash, 5-20 karakter, BOSLUKSUZ. Adet 1..99999.
-if (!/^[A-Za-z0-9.\-\/]{5,20}$/.test(ARTICLE) || !/^\d{1,5}$/.test(ADET) || parseInt(ADET, 10) <= 0
+// ARTICLE FILTRESI (2026-07-31 duzeltmesi) — eskiden beyaz listeydi:
+//   ^[A-Za-z0-9.\-\/]{5,20}$   → ALT CIZGI listede YOK.
+// Sonuc: "10.300.1992A_LK" icin COP "gecersiz parametre" ile IPTAL oluyordu;
+// kod ekrana hic yazilmadan robot cikiyordu. Ayni hatanin PYTHON tarafi
+// 2026-07-30'da duzeltilmisti (ERP article master'inda _ , & ( ) $ * " iceren
+// 318 GERCEK kod olculdu) — robot script'i atlanmisti.
+// Beyaz liste DEGIL, gercek riskler:
+//   [ ]           → PCOMM SendKeys mnemonik parantezi ("[enter]") — ekrana yazilmaz
+//   bosluk / ASCII disi → arguman gecisi + ekran kodlamasi
+//   21+ karakter  → ekran alani tasar (kuyrugu kilitleyen hata sinifi)
+// Kodun ERP'de GERCEKTEN tanimli oldugu cagiran tarafta dogrulanir
+// (_article_gecersiz_mi); ayrica alanYaz yazdigini ekrandan geri okuyup
+// karsilastirir — yani bu filtre tek fren degil, ilk elemedir.
+if (!/^[\x21-\x7E]{3,21}$/.test(ARTICLE) || /[\[\]]/.test(ARTICLE)
+    || !/^\d{1,5}$/.test(ADET) || parseInt(ADET, 10) <= 0
     || (CAUSAL !== "CFI" && CAUSAL !== "COP")) {
     WScript.Echo("HATA: gecersiz parametre (article='" + ARTICLE + "' adet=" + ADET + " causal=" + CAUSAL + ")");
     WScript.Echo("SONUC=IPTAL"); WScript.Quit(2);
