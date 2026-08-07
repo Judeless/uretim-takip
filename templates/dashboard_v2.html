@@ -5171,6 +5171,16 @@ window.__I18N_SOZLUK__ = {
                     </h3>
                     <div id="saha-plastik-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
                 </div>
+
+                <!-- Kapama presleri (2026-08-07): 12 pres, 4 modül — her pres AYRI kart,
+                     modülü paylaşan üç kartın online/RSSI/firmware bilgisi aynıdır. -->
+                <div id="saha-sec-tel" style="margin-bottom:24px;display:none">
+                    <h3 class="saha-grup-baslik">
+                        <span class="saha-rozet" style="background:rgba(180,83,9,0.15);color:#B45309">TEL</span>
+                        Kapama Presleri (TK1 · 12 pres, 4 modül)
+                    </h3>
+                    <div id="saha-tel-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+                </div>
             </section>
 
             <!-- ══════ SAYFA: SİNYAL ANALİZİ (eski dashboard modülü — v2 kabuğunda) ══════ -->
@@ -9131,9 +9141,11 @@ window.__I18N_SOZLUK__ = {
                 let toplamOnline = 0, toplamOffline = 0, toplamBekleme = 0;
                 const aktifKartlar = [];
                 // Lokasyon-farkında: backend zaten aktif tesise göre süzer (TK2 →
-                // kaynak/montaj/metal/pres; TK1 → montaj/plastik). O tesiste cihazı
+                // kaynak/montaj/metal/pres; TK1 → montaj/plastik/tel). O tesiste cihazı
                 // olmayan bölüm bölümü (bölüm başlığı) tamamen gizlenir.
-                ['kaynak', 'montaj', 'metal', 'pres', 'plastik'].forEach(bolum => {
+                // 'tel' 2026-08-07'de eklendi (kapama presleri) — bu liste ELLE tutulur,
+                // yeni bölüme cihaz takılınca buraya da eklenmezse kartlar HİÇ görünmez.
+                ['kaynak', 'montaj', 'metal', 'pres', 'plastik', 'tel'].forEach(bolum => {
                     const liste = d[bolum] || [];
                     const sec = document.getElementById('saha-sec-' + bolum);
                     if (sec) sec.style.display = liste.length ? '' : 'none';
@@ -9163,7 +9175,7 @@ window.__I18N_SOZLUK__ = {
         }
 
         // Saha cihazı sayaç manuel sıfırlama
-        // istasyon: 0 = tüm, 1 = sadece İst.1, 2 = sadece İst.2
+        // istasyon: 0 = tüm, 1..3 = tek kanal (kaynak İst.1/2 · kapama presi kanalı)
         async function sahaSayacReset(cihazId, istasyon, label) {
             if (!confirm(`${cihazId} — ${label} sayacını sıfırlamak istediğinize emin misiniz?\n\nBundan sonra gelen pulse'lar SIFIRDAN sayılır. Geçmiş pulse kayıtları silinmez (analiz sayfasından hâlâ görünür).`)) {
                 return;
@@ -9257,11 +9269,16 @@ window.__I18N_SOZLUK__ = {
                     <span>İst.2:</span><span style="color:var(--text);font-weight:700">${ist2Sayim}${resetBtn(2, 'İstasyon 2')}</span>
                 `;
             } else {
-                const ref = aktifRefMap[0] || aktifRefMap[1];
+                // ÇOK KANALLI MODÜL (kapama presleri): kart modülün TEK presini gösterir.
+                // kanal>0 ise hem aktif referans hem SIFIRLAMA o kanala aittir — resetBtn(0)
+                // kullanılsaydı bir presi sıfırlamak panodaki diğer iki presi de silerdi.
+                const kn = c.kanal || 0;
+                const ref = aktifRefMap[kn] || aktifRefMap[0] || aktifRefMap[1];
+                const rLabel = kn ? `${c.robot_no} sayacı` : 'Sayaç';
                 if (ref) {
-                    sayimHtml = `<span>Aktif:</span><span style="color:var(--text);font-weight:700">${ref.pulse_sayisi} <span style="font-size:.65rem;color:var(--lg-green)">▶ ${ref.referans_kodu}</span>${resetBtn(0, 'Sayaç')}</span>`;
+                    sayimHtml = `<span>Aktif:</span><span style="color:var(--text);font-weight:700">${ref.pulse_sayisi} <span style="font-size:.65rem;color:var(--lg-green)">▶ ${ref.referans_kodu}</span>${resetBtn(kn, rLabel)}</span>`;
                 } else {
-                    sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${(c.bugun_toplam != null ? c.bugun_toplam : (c.toplam_sinyal || 0))} pulse${resetBtn(0, 'Sayaç')}</span>`;
+                    sayimHtml = `<span>Toplam:</span><span style="color:var(--text);font-weight:700">${(c.bugun_toplam != null ? c.bugun_toplam : (c.toplam_sinyal || 0))} pulse${resetBtn(kn, rLabel)}</span>`;
                 }
             }
 
@@ -9318,7 +9335,8 @@ window.__I18N_SOZLUK__ = {
                     <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
                         <div>
                             <div style="font-size:1.05rem;font-weight:800;color:var(--text)">${c.robot_no}</div>
-                            <div style="font-size:.66rem;color:var(--muted);font-family:monospace;margin-top:2px">${c.cihaz_id}</div>
+                            <div style="font-size:.66rem;color:var(--muted);font-family:monospace;margin-top:2px">${c.cihaz_id}${c.kanal ? ' · kanal ' + c.kanal : ''}</div>
+                            ${c.modul ? `<div style="font-size:.62rem;color:var(--muted);margin-top:2px">ortak modül: ${c.modul}</div>` : ''}
                         </div>
                         <span style="background:${r.bg};color:${r.ic};border:1px solid ${r.bd};padding:3px 10px;border-radius:999px;font-size:.62rem;font-weight:800;letter-spacing:.06em;flex-shrink:0">
                             ${r.text}
@@ -9344,6 +9362,10 @@ window.__I18N_SOZLUK__ = {
         const SA_DEVICES_TK1 = {
             montaj:  ['YF1', 'TK1-M1','TK1-M2','TK1-M3','TK1-M4','TK1-M5','TK1-M6','TK1-M7'],
             plastik: ['320T', '407T', 'Yapistirma'],   // Sizdirmazlik Test'te saha sayacı YOK (SVP)
+            // Kapama presleri (2026-08-07): sayaçlı TEK tel adımı. Üçerli ortak panoda
+            // tek modüle bağlılar ama sinyalleri robot_no bazında ayrı düşer, o yüzden
+            // analizde her pres AYRI seçilir. Diğer tel hatlarında sayaç yok → listede yok.
+            tel:     Array.from({ length: 12 }, function (_, i) { return 'Kapama ' + (i + 1); }),
         };
         let _saChart = null;
 

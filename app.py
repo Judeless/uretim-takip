@@ -13,6 +13,11 @@ from database import get_db as db_connect, init_db
 from oee import hesapla_oee, hesapla_oee_ozet
 from import_excel import import_data, durus_sebepleri_yukle, import_tum, export_referans_cycle_times, import_tk1
 from export_excel import export_arsiv
+# Tel proses mantığı — TK1_ROBOT_NOLARI (aşağıda) TEL_HATLARI'ndan türediği için
+# import DOSYA BAŞINDA olmak zorunda. Ayrıntılı açıklama tanımın yanında.
+from tel_proses import (TEL_ADIMLARI, TEL_ADIM_SIRA, TEL_HATLARI,      # noqa: F401
+                        TEL_ADIM_EKI, tel_hat_adimi, tel_referans_kodu,
+                        tel_ek_ayikla, tel_adim_etiketi)
 
 # ODS dosyası yolu
 FIKSTUR_ODS_YOLU = r'C:\Users\selcu\OneDrive\Masaüstü\KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods'
@@ -401,6 +406,13 @@ SAYAC_AUTO_CIHAZLAR = (
     # modelinin aynısı — MASA = hat; operatör mobilde masasını seçer, sayaç
     # doğrudan eşleşir (ek hat→cihaz eşlemesi gerekmez). YF1 ayrı, LF-LFP'ye bağlı.
     | {f'TK1-M{i}' for i in range(1, 8)}
+    # 2026-08-07: TK1 kapama presleri (12 adet, röle). Presler ÜÇERLİ ORTAK
+    # PANOLARDA → 4 ESP32 modülü 3'er presi okur, ama her kanal KENDİ makine adıyla
+    # (robot_no='Kapama N', istasyon=1..3) sinyal gönderir. Yani sayaç eşleşmesi
+    # tek makineli cihazlarla AYNI: operatör hattını seçer, doğrudan eşleşir.
+    # Hat listesi TEL_HATLARI'ndan gelir (tel_proses.py) — burası onunla aynı sayıda
+    # olmalı; kapamaya makine eklenirse İKİ yer birden güncellenir.
+    | {f'Kapama {i}' for i in range(1, 13)}
 )
 # YF1: TK1 (yan tesis) montaj deneme modülü — MONTAJ-YF1 cihazı robot_no='YF1' ile flash'lı
 # (sahada zaten yüklü, yeniden flash YOK). pilot.db'de bolum=montaj/robot_no=YF1; saha_cihazlari
@@ -415,11 +427,11 @@ SAYAC_AUTO_CIHAZLAR = (
 TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
                      '320T', '407T', 'Yapistirma', 'Sizdirmazlik Test'}  # 2026-07-27 plastik enj + yapıştırma (TK1)
                     | {f'TK1-M{i}' for i in range(1, 8)}   # 2026-07-31 TK1 montaj masaları
-                    # 2026-08-04 tel üretimi proses hatları (şimdilik sayaç yok, elle giriş)
-                    | {'Halat Kesme 1', 'Halat Kesme 2', 'Halat Kesme 3',
-                       'Yarı Otomatik', 'Tam Otomatik',
-                       'Kapama 1', 'Kapama 2', 'Kapama 3', 'Kapama 4',
-                       'Son Montaj 1', 'Son Montaj 2', 'Son Montaj 3', 'Son Montaj 4'})
+                    # Tel üretimi proses hatları — TEL_HATLARI'ndan TÜRETİLİR (elle
+                    # yazılmaz). Eskiden burada 13 hat elle sayılıydı; kapama 4'ten
+                    # 12'ye çıkınca (2026-08-07) yeni presler bu kümeye eklenmeyi
+                    # unutulsaydı TK1 filtrelerinden sessizce düşerlerdi.
+                    | set(TEL_HATLARI))
 
 # Hat → sayaç cihazının robot_no eşlemesi: operatör hattı seçer (vardiya.robot_no='LF-LFP')
 # ama saha modülü pulse'ları robot_no='YF1' ile pilot.db'ye düşer. Sayım yapılırken hat
@@ -515,9 +527,7 @@ BOLUM_AD = {
 # Yarı/tam otomatik AYNI SIRADA iki alternatif hattır (ürün hangisine düşerse).
 # Tanımlar tel_proses.py'de — mail_raporu.py ve oee.py de aynı kuralı kullanıyor,
 # app.py'yi import edemedikleri için (Flask'ı ayağa kaldırır) ortak modüle taşındı.
-from tel_proses import (TEL_ADIMLARI, TEL_ADIM_SIRA, TEL_HATLARI,      # noqa: F401
-                        TEL_ADIM_EKI, tel_hat_adimi, tel_referans_kodu,
-                        tel_ek_ayikla, tel_adim_etiketi)
+# (import DOSYA BAŞINDA — TK1_ROBOT_NOLARI yukarıda TEL_HATLARI'nı kullanıyor.)
 
 # Push bildirim alıcıları — bölüme yeni referans/launch eklendiğinde kimin
 # telefonuna bildirim gitsin. İsimler operatorler tablosundaki adlarla
@@ -3458,6 +3468,21 @@ def saha_cihazlari():
             {'cihaz_id': 'PLASTIK-407T',       'robot_no': '407T',       'lokasyon': 'TK1'},
             {'cihaz_id': 'PLASTIK-YAPISTIRMA', 'robot_no': 'Yapistirma', 'lokasyon': 'TK1'},
         ],
+        # 2026-08-07 TK1 kapama presleri — İLK ÇOK KANALLI KURULUM.
+        # 12 pres üçerli ortak panolarda: 1 ESP32 = 3 makine (GPIO25/26/27).
+        # Bu yüzden burada ÜÇ satır AYNI cihaz_id'yi paylaşır; onları ayıran
+        # 'kanal' (= firmware'in gönderdiği istasyon 1..3). Sayım/reset kanala
+        # göre süzülür, cihaz sağlığı (online/RSSI/firmware) üçünde de aynıdır —
+        # 'modul' etiketi panoda hangi modülün baktığını gösterir.
+        # cihaz_id + robot_no firmware ile BİREBİR (generate.py DEVICES['tel_kapama']).
+        'tel': [
+            {'cihaz_id': f'TEL-KAPAMA-{m}',
+             'robot_no': f'Kapama {(m - 1) * 3 + kn}',
+             'lokasyon': 'TK1',
+             'kanal':    kn,
+             'modul':    f'Kapama {(m - 1) * 3 + 1}-{(m - 1) * 3 + 3}'}
+            for m in range(1, 5) for kn in (1, 2, 3)
+        ],
     }
 
     # Pilot DB'den mevcut cihaz_kayitlari + bugünün ist1/ist2 sayıları
@@ -3587,6 +3612,10 @@ def saha_cihazlari():
             cid = beklenen_cihaz['cihaz_id']
             rno = beklenen_cihaz['robot_no']
             dev_lok = beklenen_cihaz.get('lokasyon', 'TK2')
+            # ÇOK KANALLI MODÜL (kapama presleri): 3 makine 1 cihaz_id paylaşır.
+            # kanal = firmware'in gönderdiği istasyon (1..3); sayım/reset buna göre
+            # süzülür. Tek makineli cihazlarda 0 → filtre yok, eski davranış aynen.
+            kanal = int(beklenen_cihaz.get('kanal') or 0)
             if lokasyon and dev_lok != lokasyon:
                 continue   # bu tesisin cihazı değil — atla
             kayit = mevcut.get(cid)
@@ -3607,6 +3636,8 @@ def saha_cihazlari():
             reset_ist1 = reset_map.get((cid, 1))
             reset_ist2 = reset_map.get((cid, 2))
             reset_all  = reset_map.get((cid, 0))  # tum istasyonlari kapsar
+            # Cok kanalli modulde SADECE bu presin reset'i (kanal=3 ise ist1/ist2 degil)
+            reset_kanal = reset_map.get((cid, kanal)) if kanal else None
 
             # Aktif referans tespiti — kaynakta her istasyon ayri olabilir,
             # montaj/metal'de tek istasyon (genelde 0 veya 1).
@@ -3644,12 +3675,16 @@ def saha_cihazlari():
                             break
                 if a:
                     op_bl = op_baseline_map.get((bolum, rno, 0)) or op_baseline_map.get((bolum, rno, 1))
-                    filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_all, reset_ist1, op_bl)
+                    # Cok kanalli modulde ist1 reset'i DIGER presi ilgilendirmez —
+                    # kanal varsa yalniz kendi reset'i (reset_kanal) hesaba katilir.
+                    _r_ist = reset_kanal if kanal else reset_ist1
+                    filt_ts = _en_son_ts(vardiya_ts, a['basla_ts'], reset_all, _r_ist, op_bl)
                     aktif_referanslar.append({
-                        'istasyon':      None,
+                        'istasyon':      kanal or None,
                         'referans_kodu': a['referans_kodu'],
                         'basla_ts':      filt_ts,
-                        'pulse_sayisi':  _aktif_pulse_say(cid, 0, filt_ts),
+                        # kanal>0: SADECE bu presin pulse'lari (modulun ucu birden degil)
+                        'pulse_sayisi':  _aktif_pulse_say(cid, kanal, filt_ts),
                     })
 
             # Sayac degerlerini hesapla — uretim kapisi = AKTIF VARDIYA (bkz. vardiya_acik):
@@ -3679,6 +3714,14 @@ def saha_cihazlari():
                     ist1_v = 0
                     ist2_v = 0
                     toplam_v = 0
+                elif kanal:
+                    # COK KANALLI MODUL: bu satir modulun TEK bir presi. Sayim yalniz
+                    # kendi kanalindan; modulun diger iki presi bu karta KARISMAZ
+                    # (kanal filtresi olmasaydi uc presin toplami gorunurdu).
+                    kanal_filt = _en_son_ts(vardiya_ts, reset_kanal, reset_all, op_bl_0)
+                    ist1_v = _aktif_pulse_say(cid, kanal, kanal_filt) if kanal_filt else 0
+                    ist2_v = 0
+                    toplam_v = ist1_v
                 else:
                     # En gec baslangic noktasindan say: vardiya / manuel reset / baseline
                     ist1_filt = _en_son_ts(vardiya_ts, reset_ist1, reset_all, op_bl_1)
@@ -3718,6 +3761,10 @@ def saha_cihazlari():
                     'robot_no':           rno,
                     'bolum':              bolum,
                     'lokasyon':           dev_lok,
+                    # Cok kanalli modulde kart, cihazi DIGER iki presle paylasir:
+                    # online/RSSI/firmware ucunde AYNI, sayim ise kanala ozel.
+                    'kanal':              kanal,
+                    'modul':              beklenen_cihaz.get('modul', ''),
                     'durum':              kayit.get('durum', 'offline'),
                     'ip_adresi':          kayit.get('ip_adresi', ''),
                     'wifi_rssi':          kayit.get('wifi_rssi', 0),
@@ -3743,6 +3790,8 @@ def saha_cihazlari():
                     'robot_no':           rno,
                     'bolum':              bolum,
                     'lokasyon':           dev_lok,
+                    'kanal':              kanal,
+                    'modul':              beklenen_cihaz.get('modul', ''),
                     'durum':              'beklemede',
                     'aktif_vardiya_ts':   vardiya_ts,
                     'aktif_referanslar':  aktif_referanslar,
@@ -3760,8 +3809,12 @@ def saha_cihazlari_sayac_reset():
 
     Body:
       - cihaz_id: 'ABB2-IO', 'MONTAJ-M3', '400T-IO' vb. (zorunlu)
-      - istasyon: 0 (tüm), 1 (sadece ist.1), 2 (sadece ist.2) — default 0
+      - istasyon: 0 (tüm), 1..3 (tek kanal) — default 0
       - yapan:    opsiyonel, logging için
+
+    İSTASYON 3 (2026-08-07): kapama presleri üçerli ortak panoda tek modüle bağlı
+    (TEL-KAPAMA-N). Kanal başına sıfırlama olmasaydı bir presi sıfırlamak diğer
+    ikisinin sayacını da silerdi — bu yüzden aralık 0/1/2'den 0..3'e genişletildi.
 
     Pilot.db.sayac_reset_noktalari'na INSERT OR REPLACE yapılır.
     /api/saha_cihazlari endpoint'i sayım sırasında bu ts'i de en sona dahil eder.
@@ -3774,8 +3827,8 @@ def saha_cihazlari_sayac_reset():
 
     if not cihaz_id:
         return jsonify({'hata': 'cihaz_id zorunlu'}), 400
-    if istasyon not in (0, 1, 2):
-        return jsonify({'hata': 'istasyon 0/1/2 olmalı'}), 400
+    if istasyon not in (0, 1, 2, 3):
+        return jsonify({'hata': 'istasyon 0..3 olmalı'}), 400
 
     pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
     if not os.path.exists(pilot_db):

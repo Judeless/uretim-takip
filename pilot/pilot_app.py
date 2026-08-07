@@ -461,6 +461,10 @@ def saha_cihazlari():
     Aynı mantıkla app.py'da da var (dashboard için). Burada pilot UI
     (port 5001) doğrudan çağırabilsin diye duplike edildi.
     """
+    # NOT: bu liste app.py'daki BEKLENEN'in ESKİ/DAR bir kopyasıdır (pres, plastik ve
+    # TK1 cihazları burada yok). Dashboard app.py'ı kullanır; burası saha kurulumunda
+    # bakılan pilot UI'sı. 'tel' 2026-08-07'de eklendi — kapama modülleri sahaya
+    # takılırken bu ekrandan kontrol edilecek.
     BEKLENEN = {
         'kaynak': [{'cihaz_id': f'ABB{i}-IO', 'robot_no': f'ABB{i}'} for i in range(1, 10)],
         'montaj': [{'cihaz_id': f'MONTAJ-M{i}', 'robot_no': f'M{i}'} for i in range(1, 13)],
@@ -468,6 +472,14 @@ def saha_cihazlari():
             {'cihaz_id': '300T-IO', 'robot_no': '300T'},
             {'cihaz_id': '400T-IO', 'robot_no': '400T'},
             {'cihaz_id': '550T-IO', 'robot_no': '550T'},
+        ],
+        # TK1 kapama presleri: 1 modül = 3 pres (GPIO25/26/27 -> istasyon 1/2/3).
+        # Burada satır MODÜL bazlıdır (cihaz sağlığı ekranı); pres bazlı kırılım
+        # bugun_ist1/2/3 alanlarında. Makine bazlı kart app.py tarafındadır.
+        'tel': [
+            {'cihaz_id': f'TEL-KAPAMA-{m}',
+             'robot_no': f'Kapama {(m - 1) * 3 + 1}-{(m - 1) * 3 + 3}'}
+            for m in range(1, 5)
         ],
     }
 
@@ -519,6 +531,7 @@ def saha_cihazlari():
                     'buffer_kuyruk':    kayit.get('buffer_kuyruk', 0),
                     'bugun_ist1':       ist_map.get(1, 0),
                     'bugun_ist2':       ist_map.get(2, 0),
+                    'bugun_ist3':       ist_map.get(3, 0),   # 3 kanalli modul (kapama presleri)
                     'bugun_toplam':     sum(ist_map.values()),
                     'robot_calisiyor':  1 if kayit.get('robot_calisiyor') else 0,
                     'kayitli':          True,
@@ -531,6 +544,7 @@ def saha_cihazlari():
                     'durum':         'beklemede',
                     'bugun_ist1':    0,
                     'bugun_ist2':    0,
+                    'bugun_ist3':    0,
                     'bugun_toplam':  0,
                     'robot_calisiyor': 0,
                     'kayitli':       False,
