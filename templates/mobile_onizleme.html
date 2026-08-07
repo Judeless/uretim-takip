@@ -438,8 +438,34 @@
       letter-spacing: 0.01em;
     }
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    /* TARIH/SAAT KUTULARI — iOS Safari duzeltmesi (2026-08-07, mobile_v2 ile ayni).
+       -webkit-appearance sifirlanmazsa iOS bu alanlari native kutu gibi cizer:
+       arka plan/kenarlik yok sayilir, kutu kisa kalir, deger metni ustte durur. */
+    input[type="date"], input[type="time"] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      min-height: 48px;
+      line-height: 1.2;
+      text-align: left;
+    }
+    input[type="date"]::-webkit-date-and-time-value,
+    input[type="time"]::-webkit-date-and-time-value {
+      text-align: left;
+      margin: 0;
+      min-height: 1.2em;
+    }
+    input[type="date"]::-webkit-datetime-edit,
+    input[type="time"]::-webkit-datetime-edit { padding: 0; line-height: 1.2; }
+
+    /* minmax(0,1fr) — '1fr' DEGIL: grid hucresinin varsayilan min-width'i 'auto'dur,
+       icerigin intrinsic genisliginden kucultmez. input[type=time]/[type=date] iOS'ta
+       mono font + padding ile genis bir intrinsic olcuye sahip → sutun sisiyor, kutu
+       ekranin disina tasiyordu. width:100% bunu COZMEZ. (mobile_v2'den portlandi.) */
+    .grid-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+    .grid-2 > *, .grid-3 > * { min-width: 0; }
+    input, select, textarea { min-width: 0; max-width: 100%; }
 
     /* Vardiya türü butonları (Gündüz / Diğer) */
     .vp-btn {
@@ -1507,13 +1533,17 @@ window.__I18N_SOZLUK__ = {
     "en": "Other",
     "it": "Altro"
   },
-  "Başlangıç (şu an — düzeltebilirsiniz)": {
-    "en": "Start (now — you can adjust)",
-    "it": "Inizio (adesso — modificabile)"
+  "Başlangıç": {
+    "en": "Start",
+    "it": "Inizio"
   },
-  "Bitiş (kapatınca otomatik)": {
-    "en": "End (automatic on close)",
-    "it": "Fine (automatica alla chiusura)"
+  "Bitiş": {
+    "en": "End",
+    "it": "Fine"
+  },
+  "Başlangıç şu anki saattir, gerekirse düzeltin. Bitiş vardiyayı kapatınca otomatik yazılır.": {
+    "en": "Start is the current time — adjust it if needed. End is filled in automatically when the shift is closed.",
+    "it": "L'inizio è l'ora attuale, correggila se necessario. La fine viene inserita automaticamente alla chiusura del turno."
   },
   "Robot No": {
     "en": "Robot No.",
@@ -2639,15 +2669,20 @@ window.__I18N_SOZLUK__ = {
         </div>
         <input type="hidden" id="b-vardiya-turu" value="Gunduz">
 
+        <!-- Etiketler KISA (2026-08-07): uzun etiket dar telefonda iki sutunda
+             farkli satir sayisina sariyor, kutular kayik duruyordu. -->
         <div class="grid-2" style="margin-top:14px">
           <div>
-            <label>Başlangıç (şu an — düzeltebilirsiniz)</label>
+            <label>Başlangıç</label>
             <input type="time" id="b-bas" value="">
           </div>
           <div>
-            <label>Bitiş (kapatınca otomatik)</label>
+            <label>Bitiş</label>
             <input type="time" id="b-bit" value="">
           </div>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);font-weight:500;margin-top:6px">
+          Başlangıç şu anki saattir, gerekirse düzeltin. Bitiş vardiyayı kapatınca otomatik yazılır.
         </div>
 
         <div id="b-robot-wrap">
@@ -3306,8 +3341,17 @@ window.__I18N_SOZLUK__ = {
 
     var secilenDurusTipi = 'plansiz';
 
+    // BUGUNUN TARIHI — YEREL saat dilimiyle (2026-08-07). toISOString() UTC'ye
+    // cevirir: Turkiye UTC+3, gece 00:00-02:59 arasi DUNUN tarihini veriyordu.
+    function bugunTarih() {
+      var d = new Date();
+      return d.getFullYear() + '-' +
+             ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+             ('0' + d.getDate()).slice(-2);
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
-      var bugun = new Date().toISOString().split('T')[0];
+      var bugun = bugunTarih();
       document.getElementById('b-tarih').value = bugun;
       document.getElementById('tarih-goster').textContent =
         new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -3661,7 +3705,7 @@ window.__I18N_SOZLUK__ = {
         // B ekranına her girişte tarih/saati tazele — sekme açık kalmışsa
         // dünün tarihi/bayat saat ile vardiya açılmasın
         try {
-          document.getElementById('b-tarih').value = new Date().toISOString().split('T')[0];
+          document.getElementById('b-tarih').value = bugunTarih();
           document.getElementById('b-bas').value = simdiSaat();
         } catch (e) {}
       }
