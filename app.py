@@ -6417,6 +6417,46 @@ def _teyit_agent_var():
         return False
 
 
+def _oturum_0_mi():
+    """App bir Windows SERVİSİ olarak mı koşuyor (Session 0)? Sunucuda cofle-app
+    NSSM servisi Session 0'dadır; PCOMM pencereleri promanage'ın RDP oturumunda.
+    Oturum izolasyonu yüzünden servisin başlattığı cscript PCOMM'u GÖREMEZ —
+    bu yüzden teyit-agent var (bkz. as400/SERVER_AS400_KURULUM.md).
+    Belirlenemezse False (laptop davranışı) döner."""
+    try:
+        import ctypes
+        sid = ctypes.c_ulong()
+        if ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(sid)):
+            return sid.value == 0
+    except Exception:
+        pass
+    return False
+
+
+def _robot_sessiz_mesaj(yol, rc, hata_cikti):
+    """Robot HİÇ stdout üretmedi → sebebi anlaşılır yaz (2026-08-17).
+
+    NEDEN: cscript'in stderr'i yakalanıyordu ama HİÇ KULLANILMIYORDU; stdout boş
+    olunca satır "Robot iptal:" diye BOMBOŞ bir mesajla loglanıyordu. 14 satırın
+    14'ü aynı boş mesajla düşüp operatöre tek bir ipucu vermiyordu.
+    En sık sebep: teyit_gir.js'in 2. satırındaki
+        new ActiveXObject("PCOMM.autECLSession") / SetConnectionByName("B")
+    PCOMM kapalı/oturum açılmamışsa FIRLATIR → JScript hatası stderr'e gider,
+    stdout boş kalır (SONUC= satırı hiç basılmaz)."""
+    st = ' '.join((hata_cikti or '').split())[:300]
+    pcomm_kokusu = (not st) or any(k in st for k in (
+        'PCOMM', 'autECL', 'ActiveX', '80040154', '800401F3', 'SetConnectionByName',
+        'Automation', 'sunucu'))
+    # NOT: mesajda cp1254 DIŞI karakter kullanma (ok/emoji). Bu metin sunucu
+    # konsoluna da düşebiliyor; '➜' orada UnicodeEncodeError veriyordu.
+    ipucu = (' >> PCOMM Session B AÇIK ve OTURUM AÇILMIŞ olmalı. Sunucuya RDP ile girip '
+             'A+B pencerelerini açın, sign-on yapın, teyit-agent penceresinin ayakta '
+             'olduğunu görün, sonra RDP\'yi LOGOFF değil DISCONNECT edin '
+             '(bkz. as400/SERVER_AS400_KURULUM.md · madde 7).') if pcomm_kokusu else ''
+    return (f'Robot hiç çıktı üretmedi ({yol}, çıkış kodu {rc}) — AS400\'e hiçbir şey '
+            f'yazılmadı.' + (f' Robot hatası: {st}' if st else '') + ipucu)
+
+
 def _as400_robot_calistir(script_dosya, args, timeout_sn):
     """Robot cscript'ini çalıştır (agent varsa onda, yoksa yerel).
     Döner: (cikti:str, hata:str|None) — hata doluysa satır 'hata' olarak loglanmalı.
@@ -6430,22 +6470,42 @@ def _as400_robot_calistir(script_dosya, args, timeout_sn):
                               json={'script': script_dosya, 'args': args, 'timeout': timeout_sn},
                               timeout=(3, timeout_sn + 15))
             if r.status_code == 200:
-                return (r.json() or {}).get('cikti', ''), None
+                j = r.json() or {}
+                cikti = j.get('cikti') or ''
+                if not cikti.strip():
+                    # Agent cscript'i çalıştırdı ama stdout BOŞ → script başlarken
+                    # fırlamış (çoğunlukla PCOMM/Session B yok). rc + stderr ile anlat.
+                    return '', _robot_sessiz_mesaj('teyit-agent', j.get('rc'), j.get('hata_cikti'))
+                return cikti, None
             if r.status_code == 504:
                 return '', f'Robot zaman aşımı ({timeout_sn} sn) — sıradakine geçildi'
             return '', f'Teyit-agent hatası (HTTP {r.status_code}): {(r.json() or {}).get("hata", "")}'
         except Exception as e:
             return '', f'Teyit-agent bağlantısı koptu ({e}) — robot durumu belirsiz, Session B\'yi kontrol edin'
+    # Agent YOK. Servis olarak koşuyorsak yerel cscript PCOMM'u göremez — denemek
+    # yerine sebebi söyle (eskiden denenip boş çıktıyla "Robot iptal:" yazılıyordu).
+    if _oturum_0_mi():
+        return '', ('Teyit-agent çalışmıyor ve uygulama Windows SERVİSİ olarak (Session 0) '
+                    'koşuyor — servisin başlattığı robot PCOMM pencerelerini GÖREMEZ, teyit '
+                    'verilemez. Sunucuya RDP ile girip PCOMM A+B\'yi açın, sign-on yapın ve '
+                    'as400\\Teyit_Agent_Baslat.bat\'ı çalıştırın (bkz. SERVER_AS400_KURULUM.md).')
     import subprocess
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', script_dosya)
     try:
         pr = subprocess.run([r'C:\Windows\SysWOW64\cscript.exe', '//nologo', script] + args,
                             capture_output=True, timeout=timeout_sn)
-        return (pr.stdout or b'').decode('cp1254', errors='replace'), None
+        cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
+        if not cikti.strip():
+            return '', _robot_sessiz_mesaj('yerel cscript', pr.returncode,
+                                           (pr.stderr or b'').decode('cp1254', errors='replace'))
+        return cikti, None
     except subprocess.TimeoutExpired:
         # Timeout → cscript KILL edilir → yarım transaction + record-lock riski;
         # sonraki satıra devam edilir (sonraki robot G0'da record-lock'u kurtarır).
         return '', f'Robot zaman aşımı ({timeout_sn} sn) — sıradakine geçildi'
+    except FileNotFoundError:
+        return '', (r'cscript.exe bulunamadı (C:\Windows\SysWOW64\cscript.exe) — '
+                    '32-bit cscript şart (PCOMM COM 32-bit).')
 
 
 def _as400_launch_durum(yil, no):
@@ -6700,7 +6760,8 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
         elif robot_ok:
             mesaj = f'Robot OK ama doğrulama tutmadı (önce {once} sonra {sonra}, durum {sonra_durum})'
         else:
-            mesaj = f'Robot iptal: {son_satirlar}'
+            mesaj = (f'Robot iptal: {son_satirlar}' if son_satirlar
+                     else 'Robot iptal — çıktı yok (robot ekrana hiç ulaşamadı)')
         conn.execute(
             "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, teyitli_once, teyitli_sonra, olusturan) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -6990,7 +7051,8 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
         elif robot_ok:
             mesaj = f'Robot OK ama bugünkü CFI hareketlerinde {adet} bulunamadı — elle kontrol edin'
         else:
-            mesaj = f'Robot iptal: {son_satirlar}'
+            mesaj = (f'Robot iptal: {son_satirlar}' if son_satirlar
+                     else 'Robot iptal — çıktı yok (robot ekrana hiç ulaşamadı)')
         conn.execute(
             "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -7169,7 +7231,8 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False):
             mesaj = f'Robot OK ama bugünkü COP hareketlerinde {adet} bulunamadı — elle kontrol edin'
         else:
             son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-300:]
-            mesaj = f'Robot iptal: {son_satirlar}'
+            mesaj = (f'Robot iptal: {son_satirlar}' if son_satirlar
+                     else 'Robot iptal — çıktı yok (robot ekrana hiç ulaşamadı)')
         conn.execute(
             "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -7862,7 +7925,8 @@ def _transfer_iptal_calistir(conn, satirlar, kullanici, dryrun=False):
             elif robot_ok:
                 sonuc, mesaj = 'hata', 'Robot OK dedi ama kayıt BMMAF0\'da HÂLÂ DURUYOR — elle kontrol edin'
             else:
-                sonuc, mesaj = 'hata', f'Robot iptal: {son_satirlar}'
+                sonuc, mesaj = 'hata', (f'Robot iptal: {son_satirlar}' if son_satirlar
+                                        else 'Robot iptal — çıktı yok (robot ekrana hiç ulaşamadı)')
         _transfer_logla(conn, kaydet, sonuc, mesaj, kullanici)
         sonuclar.append({**kaydet, 'sonuc': sonuc, 'mesaj': mesaj})
     return sonuclar

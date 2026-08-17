@@ -89,9 +89,16 @@ def calistir():
             pr = subprocess.run([CSCRIPT, '//nologo', yol] + temiz,
                                 capture_output=True, timeout=timeout)
             cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
+            # stderr DE geri verilir (2026-08-17): PCOMM kapaliyken teyit_gir.js
+            # SetConnectionByName("B")'de firliyor, JScript hatasi STDERR'e gidiyor,
+            # stdout BOS kaliyordu. App bunu gormedigi icin operatore bombos
+            # "Robot iptal:" yaziliyordu — 14 satirin 14'u sebepsiz.
+            hata_cikti = (pr.stderr or b'').decode('cp1254', errors='replace')
             son = [l for l in cikti.splitlines() if l.strip()]
-            print(f'[AGENT]   -> rc={pr.returncode} | {son[-1] if son else "(bos)"}')
-            return jsonify({'rc': pr.returncode, 'cikti': cikti})
+            hson = ' '.join(hata_cikti.split())[:200]
+            print(f'[AGENT]   -> rc={pr.returncode} | {son[-1] if son else "(bos)"}'
+                  + (f' | STDERR: {hson}' if hson else ''))
+            return jsonify({'rc': pr.returncode, 'cikti': cikti, 'hata_cikti': hata_cikti})
         except subprocess.TimeoutExpired:
             print(f'[AGENT]   -> TIMEOUT ({timeout}s) — cscript kill edildi')
             return jsonify({'hata': 'timeout'}), 504
