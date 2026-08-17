@@ -54,13 +54,23 @@ echo ------------------------------------------------------------
 echo Bu pencere su oturumda: %SESSIONNAME%  (kullanici: %USERNAME%)
 echo.
 echo Sunucudaki TUM oturumlar:
-query session 2>nul || echo   (query session calistirilamadi)
+REM NOT: query session tabloyu bassa da bazen sifir-disi cikis kodu donuyor —
+REM bu yuzden "|| echo calistirilamadi" YANILTICIYDI, kaldirildi.
+query session 2>nul
+echo.
+echo Su sutunlar onemli:  IMAGE NAME / SESSION NAME / SESSION#
 echo.
 echo PCOMM emulator sureci (pcsws.exe) - hangi oturumda?
-tasklist /FI "IMAGENAME eq pcsws.exe" 2>nul | findstr /I "pcsws.exe" || echo   YOK - PCOMM emulator HIC CALISMIYOR
+tasklist /FI "IMAGENAME eq pcsws.exe" 2>nul | findstr /I "pcsws" >nul
+if errorlevel 1 (
+    echo   *** YOK - PCOMM emulator HIC CALISMIYOR ***
+    echo   Cozum: bu oturumda once A sonra B oturumunu ac, elle sign-on yap.
+) else (
+    tasklist /FI "IMAGENAME eq pcsws.exe" /FO TABLE 2>nul
+)
 echo.
 echo Teyit-agent sureci (python) - hangi oturumda?
-tasklist /FI "IMAGENAME eq python.exe" 2>nul | findstr /I "python.exe" || echo   (python sureci gorunmuyor)
+tasklist /FI "IMAGENAME eq python.exe" /FO TABLE 2>nul
 echo.
 echo   ^>^> pcsws.exe ile teyit-agent AYNI oturum numarasinda olmali.
 echo      Farkliysa robot PCOMM'u goremez - hata tam olarak ECL37110'dur.
