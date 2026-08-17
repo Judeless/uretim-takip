@@ -6245,12 +6245,21 @@ def rapor_vardiya_listesi():
 @panel_gerekli(izin='as400-teyit')
 def as400_teyit_listesi():
     """Sabah teyit KUYRUĞU. İki mod:
-      ?gunler=3[&bugun=1]  → son 3 tamamlanmış günün (dün, önceki, ...) listesi;
+      ?gunler=3[&bugun=1]  → son 3 ÜRETİM gününün listesi (takvim günü değil —
+                             hafta sonu/tatil/duruş pencereyi kaydırmasın);
                              bugun=1 ise bugünü de ekler (varsayılan mod)
       ?tarih=YYYY-MM-DD    → tek gün (geçmiş inceleme)
     AS400 okumaları tek sefer yapılır (esle_coklu). Yanıt her gün için
     kategorili liste + son robot gönderimleri (as400_teyit_log) içerir."""
     tarih = (request.args.get('tarih') or '').strip()
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+    except Exception as e:
+        return jsonify({'hata': f'AS400 modülü yüklenemedi: {e}'}), 502
     if tarih:
         tarihler = [tarih]
     else:
@@ -6261,13 +6270,15 @@ def as400_teyit_listesi():
         tarihler = []
         if (request.args.get('bugun') or '') in ('1', 'true'):
             tarihler.append(date.today().isoformat())
-        tarihler += [(date.today() - timedelta(days=i)).isoformat() for i in range(1, gunler + 1)]
+        # SON N ÜRETİM GÜNÜ (2026-08-17) — takvim günü DEĞİL. Üretimsiz günler
+        # (hafta sonu / tatil / duruş) pencereyi yiyordu: her pazartesi pencere
+        # pratikte tek güne iniyor, 07.08'deki bir haftalık aradan sonra da o günün
+        # teyit edilmemiş kodları "Yenile" ile HİÇ görünmüyordu (yalnız elle tarih
+        # filtresiyle). Üretim yapılan günleri seçince ara pencereyi kaydırmaz.
+        # DB okunamazsa eski takvim davranışına düşülür (kuyruk hiç boş kalmasın).
+        tarihler += (_le.son_uretim_gunleri(gunler) or
+                     [(date.today() - timedelta(days=i)).isoformat() for i in range(1, gunler + 1)])
     try:
-        import sys as _sys
-        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
-        if _d not in _sys.path:
-            _sys.path.insert(0, _d)
-        import launch_esle as _le
         coklu = _le.esle_coklu(tarihler)
     except Exception as e:
         # AS400 kapalı/şifre yok/ağ hatası → paneli kırmadan anlaşılır mesaj

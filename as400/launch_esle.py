@@ -502,6 +502,50 @@ def _kapasite_isle(d):
         }
 
 
+def son_uretim_gunleri(adet=3, bugun_haric=True, azami_geri_gun=45):
+    """Teyit kuyrugunun bakacagi son 'adet' URETIM GUNU (takvim gunu DEGIL).
+
+    NEDEN (2026-08-17): kuyruk "bugun - 1..3" takvim gunune bakiyordu. Uretim
+    olmayan gunler pencereyi yiyor:
+      - Her PAZARTESI pencere Pzt/Paz/Cmt/Cum -> pratikte yalniz CUMA gorunuyor,
+        persembenin teyit edilmemis isi sessizce pencereden dusuyordu.
+      - 2026-08-07'de bir HAFTALIK ara verildi; donuste 07.08'in teyit edilmemis
+        kodlari 'Yenile' ile HIC gorunmedi (10 gun geride, ustelik gunler
+        parametresi 7 ile sinirli) — yalniz elle tarih filtresiyle bulunabildi.
+    Uretim yapilan gunleri secince ara/hafta sonu/tatil pencereyi kaydirmaz.
+
+    Kapsam gun_uretimi ile AYNI (LOKASYON + LAUNCH_BOLUMLERI): TK1'de veya teyit
+    disi bir bolumde uretim yapilan gun kuyruga girmez, aksi halde bos gun icin
+    bosuna AS400 sorgusu atilirdi.
+
+    azami_geri_gun: bu kadar gunden eski gunler alinmaz — sistem uzun sure bos
+    kalirsa kuyruk aylar oncesini acmasin (o kayitlara elle tarih filtresiyle
+    bakilir). Sorgu basarisiz olursa BOS liste doner; cagiran takvim gunune duser.
+    """
+    try:
+        bugun = date.today()
+        alt_sinir = (bugun - timedelta(days=azami_geri_gun)).isoformat()
+        ust_sinir = (bugun - timedelta(days=1)).isoformat() if bugun_haric else bugun.isoformat()
+        conn = sqlite3.connect(URETIM_DB)
+        try:
+            rows = conn.execute(f"""
+                SELECT DISTINCT v.tarih
+                FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
+                WHERE v.tarih BETWEEN ? AND ?
+                  AND COALESCE(u.ok_adet,0) > 0
+                  AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
+                  AND COALESCE(v.lokasyon,'TK2') = ?
+                  AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})
+                ORDER BY v.tarih DESC LIMIT ?""",
+                (alt_sinir, ust_sinir, LOKASYON) + LAUNCH_BOLUMLERI + (int(adet),)).fetchall()
+        finally:
+            conn.close()
+        return [r[0] for r in rows]
+    except Exception as e:
+        print(f'[launch_esle] son_uretim_gunleri basarisiz, takvim gunune dusuluyor: {e}')
+        return []
+
+
 def gun_uretimi(tarih):
     """O gunun referans+adet listesi — yalniz launch'li bolumler + TK2.
     Rework kayitlari (aciklama/referans 'rework' varyanti) haric tutulur."""

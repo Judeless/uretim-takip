@@ -5515,17 +5515,20 @@ window.__I18N_SOZLUK__ = {
                     </div>
                     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:14px 20px;border-bottom:1px dashed var(--border-subtle)">
                         <button class="btn btn-primary" onclick="as4Yukle()" id="as4-yenile-btn">🔄 Yenile</button>
+                        <!-- 'Bugünü de göster' yalnız kuyruk modunda anlamlı → tek gün
+                             görünümündeyken tıklanırsa kuyruğa döner (2026-08-17). -->
                         <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);cursor:pointer">
-                            <input type="checkbox" id="as4-bugun" onchange="as4Yukle()" style="width:15px;height:15px">
+                            <input type="checkbox" id="as4-bugun" onchange="as4KuyrugaDon()" style="width:15px;height:15px">
                             Bugünü de göster <span style="color:var(--dim)">(gün bitmeden teyit önerilmez)</span>
                         </label>
-                        <span style="font-size:.76rem;color:var(--muted)">Son 3 günün üretimi canlı ERP ile karşılaştırılır — teyidi verilmişler otomatik ayrılır.</span>
+                        <span style="font-size:.76rem;color:var(--muted)">Son 3 <b>üretim gününün</b> işi canlı ERP ile karşılaştırılır (hafta sonu/tatil/duruş atlanır) — teyidi verilmişler otomatik ayrılır.</span>
                         <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted)">
                             Geçmiş gün:
                             <input type="date" id="as4-tarih" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 9px">
                             <button class="hizli-btn" onclick="as4TekGun()">Göster</button>
                         </span>
                     </div>
+                    <div id="as4-mod-rozet" style="display:none;padding:8px 20px;font-size:.8rem;color:var(--muted);border-bottom:1px dashed var(--border-subtle)"></div>
                     <div id="as4-durum-bar" style="display:none;padding:12px 20px;font-size:.86rem;font-weight:600"></div>
                     <div id="as4-icerik" style="padding:6px 20px 20px">
                         <div class="empty" style="padding:30px 0"><span class="empty-icon">🔁</span>Tarih seçip "Sorgula"ya basın.</div>
@@ -11232,14 +11235,44 @@ window.__I18N_SOZLUK__ = {
             return t;
         }
 
+        // GÖRÜNÜM MODU (2026-08-17): 'kuyruk' = son üretim günleri · 'gun' = tek gün.
+        // Mod DEĞİŞİMİ yalnız kullanıcının açık eylemiyle olur; as4Yukle() ARGÜMANSIZ
+        // çağrıldığında MEVCUT modu tazeler. Eskiden argümansız çağrı koşulsuz varsayılan
+        // kuyruğa dönüyordu: 07.08 filtresindeyken "➕ teyit ver"/"✓ kontrol"a basmak
+        // (as4Isaret sonunda as4Yukle()) veya bir gönderim yapmak (setTimeout(as4Yukle))
+        // ekranı son 3 güne atıyor, seçilen gün kayboluyordu.
+        var _as4Mod = { tip: 'kuyruk', tarih: '' };
+
+        function as4KuyrugaDon() {
+            _as4Mod = { tip: 'kuyruk', tarih: '' };
+            var t = document.getElementById('as4-tarih'); if (t) t.value = '';
+            as4Yukle();
+        }
+
+        function as4ModRozet() {
+            var el = document.getElementById('as4-mod-rozet');
+            if (!el) return;
+            if (_as4Mod.tip === 'gun') {
+                el.style.display = '';
+                el.innerHTML = '📅 <b>' + esc(_as4Mod.tarih) + '</b> tek gün görünümü ' +
+                    '<button class="hizli-btn" style="margin-left:6px" onclick="as4KuyrugaDon()">✕ kuyruğa dön</button>';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
         function as4Yukle(tekTarih) {
+            // Argümanlı çağrı = moda geç; argümansız = mevcut modu tazele.
+            if (typeof tekTarih === 'string' && tekTarih) _as4Mod = { tip: 'gun', tarih: tekTarih };
+            var aktifTarih = (_as4Mod.tip === 'gun') ? _as4Mod.tarih : '';
+            as4ModRozet();
             var btn = document.getElementById('as4-yenile-btn');
             var bar = document.getElementById('as4-durum-bar');
             var icerik = document.getElementById('as4-icerik');
             btn.disabled = true; bar.style.display = 'none';
             icerik.innerHTML = '<div class="yukleniyor" style="padding:26px 0">⏳ AS400 sorgulanıyor… (canlı bağlantı, birkaç saniye)</div>';
-            var url = '/api/as400/teyit_listesi?' + (tekTarih
-                ? 'tarih=' + encodeURIComponent(tekTarih)
+            var url = '/api/as400/teyit_listesi?' + (aktifTarih
+                ? 'tarih=' + encodeURIComponent(aktifTarih)
                 : 'gunler=3' + (document.getElementById('as4-bugun').checked ? '&bugun=1' : ''));
             panelFetch(url)
               .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
