@@ -6604,8 +6604,9 @@ def _article_gecersiz_mi(article):
         return (f'ERP\'de böyle bir article YOK: "{article}" — operatör kodu yanlış '
                 f'yazmış olabilir (örn. kod alanına operasyon bilgisi karışmış). '
                 f'Robota gönderilmedi; üretim kaydındaki referans kodunu düzeltin. '
-                f'NOT: bu satır gönderilseydi ekran kilitlenip AYNI KOŞUDAKİ diğer '
-                f'referansların teyidi de verilemezdi.')
+                f'Kodun DOĞRU olduğundan eminseniz "⚠ yine de gönder" ile bu kontrolü '
+                f'atlayabilirsiniz (kod gerçekten tanımsızsa robot ekrana yazamaz, '
+                f'yalnız bu satır hata verir — kuyruk durmaz).')
     except Exception as e:
         print(f'[article] kontrol yapılamadı ({article}): {e}')
     return None
@@ -7098,7 +7099,12 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
         # '10.300.1992A.OP.1' vakası: operatör kod alanına operasyon bilgisi yazmış;
         # robot ekrana yazamayınca alan taştı ve AYNI KOŞUDAKİ DİĞER satırlar da
         # gönderilemedi. Tek bozuk kod tüm kuyruğu durduruyordu.
-        gecersiz = _article_gecersiz_mi(article)
+        # ZORLA = kullanıcının açık onayı → master kontrolü ATLANIR (2026-08-17).
+        # Gerekçe: bu kontrol ERP master'ını okuyamadığında/kod harf farkıyla
+        # bulunamadığında MEŞRU teyidi de reddediyordu ('10.130.6202b' vakası).
+        # Kod artık ekranı KİLİTLEMİYOR (cfi_gir iptalinde ana menüye dönüyor),
+        # yani zorlamanın bedeli tek satırın hatası — kuyruk durmuyor.
+        gecersiz = None if zorla else _article_gecersiz_mi(article)
         if gecersiz:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
             continue
@@ -7280,8 +7286,9 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False):
                 conn.commit()
                 sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _msg})
                 continue
-        # COP da aynı ekranı (07>01>F1) kullanır — bozuk kod burada da kuyruğu kilitler
-        gecersiz = _article_gecersiz_mi(article)
+        # COP da aynı ekranı (07>01>F1) kullanır — bozuk kod burada da kuyruğu kilitler.
+        # zorla ile atlanabilir (bkz. CFI tarafındaki aynı gerekçe).
+        gecersiz = None if zorla else _article_gecersiz_mi(article)
         if gecersiz:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
             continue

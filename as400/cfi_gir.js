@@ -99,9 +99,28 @@ function anaMenuyeDon(maks) {
 function iptal(neden) {
     log("HATA: " + neden);
     dump("iptal-ani");
+    // ── KUYRUGU KURTAR (2026-08-17, kullanici istegi) ────────────────────────
+    // ESKIDEN: burada geri cekilme YOKTU; "B'yi oldugu yerde birak, kullanici
+    // durumu gorsun" gerekcesiyle ekran yarim dolu KALIYORDU. Sonucu agir:
+    // sonraki satirin kosusu ayni ekranda basliyor, "Article alani BOS DEGIL"
+    // kontrolune carpip o da iptal oluyor ve KUYRUGUN GERI KALANI KOMPLE
+    // dusuyordu (kullanici: "durup bekliyor, ilk sayfaya cikip devam etsin").
+    // Launch tarafi (teyit_gir.js) bunu guvenliBirak ile zaten yapiyordu.
+    // GUVENLIK: F3/F12 = Exit/Cancel; CFI satiri YALNIZ Enter ile commit olur,
+    // geri cekilmek yarim satiri KAYDETMEZ. Enter basildiktan sonraki
+    // dogrulama hatasinda ise satir gercekten girilmis OLABILIR — onu app
+    // tarafi bagimsiz olarak BMMAF0'dan (_as400_cfi_bugun) kontrol ediyor,
+    // yani geri cekilmek hicbir kaniti gizlemez.
+    try {
+        kilitCoz();
+        geriCekil(6);
+        var doneldu = anaMenuyeDon(4);   // TEK cagri: ikinci cagri bosuna PF3 gonderirdi
+        log(doneldu ? "Kurtarma: ana menuye donuldu — sonraki satir devam edebilir"
+                    : "UYARI: ana menuye donulemedi, sonraki satir de dusebilir");
+    } catch (e) {
+        log("UYARI: kurtarma sirasinda hata: " + e.message);
+    }
     log("SONUC=IPTAL"); logDosya.Close(); WScript.Quit(2);
-    // NOT: geriCekil YOK — CFI ekraninda Enter'siz alanlar commit olmaz; B'yi
-    // oldugu yerde birakmak, kullanicinin durumu gormesi icin daha guvenli.
 }
 
 // Giris ekrani mi? (2-Variation + Causal cd gorunur)

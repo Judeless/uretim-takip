@@ -12270,10 +12270,17 @@ window.__I18N_SOZLUK__ = {
                 var by = s.bayrak === 'S' ? ' <b style="color:var(--lg-red)">[S-KAPAT]</b>' : '';
                 var hedef = s.no ? (s.yil + '-' + s.no)
                           : ((s.bayrak === 'COP' ? '♻ COP · ' : 'CFI · ') + (s.article || s.referans || ''));
-                // Yalnız "zaten gönderilmiş (log)" türü atlamalarda zorla teklif edilir.
+                // Zorla İKİ durumda teklif edilir:
+                //  1) "zaten gönderilmiş (log)" atlaması — iki operatör aynı adedi üretmiş olabilir.
+                //  2) "ERP'de böyle bir article YOK" hatası (2026-08-17): master okuması kodu
+                //     bulamamış olabilir (harf farkı / bağlantı) ama kullanıcı kodun doğru
+                //     olduğunu biliyor olabilir ('10.130.6202b' vakası). Burada zorlamak
+                //     MÜKERRER YAZMAZ — yalnız kod kontrolünü atlar; kod gerçekten tanımsızsa
+                //     robot ekrana yazamaz ve tek satır hata verir (artık kuyruk da durmuyor).
                 // ERP'de karşılığı bulunan / kapasite reddi olan satırlarda TEKLİF EDİLMEZ:
                 // orada zorlamak ERP'ye gerçekten mükerrer hareket yazar.
-                var zorlanabilir = (s.sonuc === 'atlandi' && /ZATEN gönderilmiş|zaten gönderilmiş/i.test(s.mesaj || ''));
+                var zorlanabilir = (s.sonuc === 'atlandi' && /ZATEN gönderilmiş|zaten gönderilmiş/i.test(s.mesaj || ''))
+                                || (s.sonuc === 'hata' && /böyle bir article YOK/i.test(s.mesaj || ''));
                 var btn = '';
                 if (zorlanabilir) {
                     var idx = _as4ZorlaAdaylari.length;
@@ -12294,11 +12301,21 @@ window.__I18N_SOZLUK__ = {
             var s = _as4ZorlaAdaylari[idx];
             if (!s) return;
             var hedefAd = s.no ? ('launch ' + s.yil + '-' + s.no) : (s.article || s.referans);
-            if (!confirm('MÜKERRER FRENİ ATLANACAK\n\n' + s.referans + ' → ' + hedefAd +
-                         '\n' + s.adet + ' adet · üretim günü ' + s.uretim_tarihi +
-                         '\n\nBu koda bu gün için AYNI ADET zaten gönderilmiş görünüyor. Yine de göndermek ' +
-                         'ERP\'ye İKİNCİ bir hareket yazar.\n\nİki operatör aynı adedi ürettiyse doğrudur. ' +
-                         'Emin misin?')) return;
+            // İki farklı zorlama var — onay metni de farklı olmalı (2026-08-17).
+            // Mükerrer freni ERP'ye ikinci hareket yazar; kod kontrolü atlamak YAZMAZ.
+            var kodKontrolu = (s.sonuc === 'hata' && /böyle bir article YOK/i.test(s.mesaj || ''));
+            var ortak = s.referans + ' → ' + hedefAd + '\n' + s.adet + ' adet · üretim günü ' + s.uretim_tarihi;
+            var metin = kodKontrolu
+                ? ('KOD KONTROLÜ ATLANACAK\n\n' + ortak +
+                   '\n\nBu kod ERP article master\'ında BULUNAMADI. Kodun doğru olduğundan eminsen ' +
+                   'gönderilebilir (mükerrer hareket YAZILMAZ — yalnız kontrol atlanır).\n\n' +
+                   'Kod gerçekten tanımsızsa robot ekrana yazamaz ve bu satır hata verir; ' +
+                   'kuyruğun geri kalanı etkilenmez.\n\nDevam?')
+                : ('MÜKERRER FRENİ ATLANACAK\n\n' + ortak +
+                   '\n\nBu koda bu gün için AYNI ADET zaten gönderilmiş görünüyor. Yine de göndermek ' +
+                   'ERP\'ye İKİNCİ bir hareket yazar.\n\nİki operatör aynı adedi ürettiyse doğrudur. ' +
+                   'Emin misin?');
+            if (!confirm(metin)) return;
             // COP / CFI / launch — satırın tipine göre doğru uç noktaya, zorla=true
             var url, govde;
             if (s.bayrak === 'COP') {

@@ -216,8 +216,18 @@ def article_tanimli(kodlar):
     # Her ozel karakter (_ , & ( ) $ * " \x1a) gercek ERP sorgusuyla tek tek VE
     # toplu test edildi: parametreli sorgu oldugu icin hicbiri patlatmiyor.
     _guvenli = re.compile(r'^[\x00-\x7F]{1,21}$')
-    liste = sorted({str(k).strip() for k in kodlar
-                    if str(k or '').strip() and _guvenli.match(str(k).strip())})
+    # HARF DUYARLILIGI (2026-08-17 duzeltmesi): DB2 IN karsilastirmasi harf
+    # DUYARLIDIR, ama donen kume kanonik(=UPPER) ile kuruluyor ve cagiran da
+    # kanonik(article) ile bakiyor. Yani sorgu duyarli, karsilastirma duyarsiz —
+    # tutarsizlik. Sonuc: operator kucuk harfle yazdiginda ('10.130.6202b')
+    # ERP'de kod BUYUK harfle dururken sorgu HICBIR SEY bulmuyor ve mesru kod
+    # "ERP'de boyle bir article YOK" diye reddediliyordu.
+    # Cozum: hem yazildigi gibi hem BUYUK harfli bicimi IN listesine koy. Kolona
+    # UPPER(A0ARTI) uygulamak indeksi devre disi birakirdi — bu yol esitlik
+    # karsilastirmasini (ve indeksi) korur.
+    ham = {str(k).strip() for k in kodlar
+           if str(k or '').strip() and _guvenli.match(str(k).strip())}
+    liste = sorted(ham | {k.upper() for k in ham})
     if not liste:
         return set()
     try:
