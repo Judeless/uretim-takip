@@ -17,9 +17,14 @@ REM ============================================================
 cd /d "%~dp0"
 set "CS=C:\Windows\SysWOW64\cscript.exe"
 
+REM QuickEdit tuzagi: pencereye TIKLAMA. Konsol "Sec/Isaretle" moduna girer ve
+REM cikti DONAR (baslik "Sec Komut Istemi" olur). Donduysa ESC'e bas, devam eder.
 echo ============================================================
 echo   COFLE ROBOT TANISI
 echo ============================================================
+echo.
+echo [UYARI] Bu pencereye TIKLAMAYIN - konsol "Sec" moduna girip cikti donar.
+echo         Donarsa ESC'e basin, kaldigi yerden devam eder.
 echo.
 
 if not exist "%CS%" (
@@ -58,19 +63,14 @@ REM NOT: query session tabloyu bassa da bazen sifir-disi cikis kodu donuyor —
 REM bu yuzden "|| echo calistirilamadi" YANILTICIYDI, kaldirildi.
 query session 2>nul
 echo.
-echo Su sutunlar onemli:  IMAGE NAME / SESSION NAME / SESSION#
+echo PCOMM (pcsws) ve teyit-agent (python) hangi oturumda?
+REM TASKLIST KULLANMA (2026-08-17): bu sunucuda tasklist ASILIYOR — teyit_agent.py
+REM icindeki not da ayni seyi soyluyor ("bazi sunucularda tasklist asilip agent'i
+REM startta kilitliyordu, PCOMM sayaci kaldirildi"). Get-Process saf Win32 surec
+REM listesi kullanir, RPC/WMI beklemesi yoktur ve SessionId'yi dogrudan verir.
+powershell -NoProfile -Command "$p = Get-Process pcsws,python -ErrorAction SilentlyContinue; if ($p) { $p | Select-Object Name,Id,SessionId | Sort-Object Name,SessionId | Format-Table -AutoSize | Out-String } else { 'HIC SUREC YOK' }"
 echo.
-echo PCOMM emulator sureci (pcsws.exe) - hangi oturumda?
-tasklist /FI "IMAGENAME eq pcsws.exe" 2>nul | findstr /I "pcsws" >nul
-if errorlevel 1 (
-    echo   *** YOK - PCOMM emulator HIC CALISMIYOR ***
-    echo   Cozum: bu oturumda once A sonra B oturumunu ac, elle sign-on yap.
-) else (
-    tasklist /FI "IMAGENAME eq pcsws.exe" /FO TABLE 2>nul
-)
-echo.
-echo Teyit-agent sureci (python) - hangi oturumda?
-tasklist /FI "IMAGENAME eq python.exe" /FO TABLE 2>nul
+powershell -NoProfile -Command "if (Get-Process pcsws -ErrorAction SilentlyContinue) { '' } else { '   *** pcsws YOK - PCOMM emulator HIC CALISMIYOR ***'; '   Cozum: bu oturumda once A sonra B oturumunu ac, elle sign-on yap.' }"
 echo.
 echo   ^>^> pcsws.exe ile teyit-agent AYNI oturum numarasinda olmali.
 echo      Farkliysa robot PCOMM'u goremez - hata tam olarak ECL37110'dur.
