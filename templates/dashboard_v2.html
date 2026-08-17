@@ -11782,8 +11782,13 @@ window.__I18N_SOZLUK__ = {
             // ve ARAOP (ara-op) hariç. SUPHELI (varyant eşleşme) → ⚠ + varsayılan seçili
             // DEĞİL (AS400 kodu doğrulanmalı). Mükerrer: cop_gonder dedup (yil='CO') korur.
             _as4CopBekleyen = [];
-            var copVer = d.cop_verildi || {};   // "tarih|article" → zaten COP verilmiş adet
-            var copHata = d.cop_hatali || {};   // "tarih|article" → {son, deneme}: önceki deneme HATA bitti
+            var copVer = d.cop_verildi || {};   // "tarih|NORM(article)" → zaten COP verilmiş adet
+            var copHata = d.cop_hatali || {};   // "tarih|NORM(article)" → {son, deneme}: önceki deneme HATA bitti
+            // Anahtar normalizasyonu backend _cop_key ile BİREBİR aynı olmalı:
+            // boşlukları sil + büyük harf. Aksi hâlde gönderim "zaten girilmiş"
+            // derken panel satırı "bekliyor" göstermeye devam eder ve satır kısır
+            // döngüye girer (2026-08-17 · 10.130.6206b vakası).
+            function copKey(t, kod) { return t + '|' + String(kod || '').replace(/\s+/g, '').toUpperCase(); }
             gunler.forEach(function (g) {
                 var L = g.liste || {};
                 Object.keys(L).forEach(function (kat) {
@@ -11799,12 +11804,10 @@ window.__I18N_SOZLUK__ = {
                         _as4CopBekleyen.push({
                             tarih: g.tarih, referans: r.referans, article: art, adet: h,
                             bolum: r.bolum || '', bugunMu: g.tarih === bugun,
-                            // Anahtar BÜYÜK HARF — backend cop_verildi'yi de öyle kuruyor
-                            // (kod log'a küçük harfle düşmüş olabilir, 2026-08-17).
-                            supheli: (kat === 'SUPHELI'), verildi: !!copVer[g.tarih + '|' + String(art || '').toUpperCase()],
+                            supheli: (kat === 'SUPHELI'), verildi: !!copVer[copKey(g.tarih, art)],
                             // Önceki denemesi HATA ile bitmiş satır: ERP'ye girilmiş OLABİLİR
                             // (robot yazdı ama doğrulama tutmadı). Satırda uyarı gösterilir.
-                            hataliDeneme: copHata[g.tarih + '|' + String(art || '').toUpperCase()] || null,
+                            hataliDeneme: copHata[copKey(g.tarih, art)] || null,
                             // Sağlam üretimi olmayan satır: sayfanın BAŞKA hiçbir
                             // bölümünde görünmez, yalnız burada (2026-07-31).
                             sadece: sadeceHurda(r)

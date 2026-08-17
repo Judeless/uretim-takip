@@ -546,6 +546,22 @@ BILDIRIM_ALICILARI = {
 METAL_CALISIYOR_ESIK_SN = 20
 
 
+def _cop_key(uretim_tarihi, kod):
+    """COP dedup anahtari: 'uretim_tarihi|NORMALIZE(kod)'.
+
+    NORMALIZE = tum bosluklar silinir + BUYUK harf — kod tabaninin her yerinde
+    kullanilan kanonik karsilastirmanin aynisi. NEDEN (2026-08-17): panel
+    "COP verildi"yi bu anahtarla ariyor, log satirini ise robota GONDERILEN kod
+    yaziyor. Yalniz upper() yapmak yetmedi; kod ERP'den bosluk dolgulu ('92.10.4312
+    B') ya da operatorun yazdigi gibi gelebiliyor. Anahtarin iki tarafi ayni
+    normalizasyondan gecmezse gonderim "zaten girilmis" derken panel satiri
+    "bekliyor" gostermeye devam ediyor ve satir KISIR DONGUYE giriyor:
+    listede duruyor ama gonderilince atlaniyor. Frontend de ayni normalizasyonu
+    uygular (bosluk sil + upper).
+    """
+    return f"{uretim_tarihi}|" + re.sub(r'\s+', '', str(kod or '')).upper()
+
+
 def _pilot_db_yolu():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
 
@@ -6297,11 +6313,7 @@ def as400_teyit_listesi():
         for _cr in conn.execute(
             "SELECT uretim_tarihi, launch_no, SUM(adet) tp FROM as400_teyit_log "
             "WHERE yil='CO' AND sonuc='ok' GROUP BY uretim_tarihi, launch_no").fetchall():
-            # Anahtar BUYUK HARFLE (2026-08-17): kod log'a operatörün yazdığı gibi
-            # düşüyor ('10.130.6206b'), listede başka bir yazımla gelebiliyor →
-            # harf farkı dedup'ı sessizce kaçırırdı. Frontend de aynı şekilde
-            # büyütüyor. (Değer yalnız 'verildi mi' için okunuyor.)
-            cop_verildi[f"{_cr['uretim_tarihi']}|{str(_cr['launch_no'] or '').upper()}"] = _cr['tp']
+            cop_verildi[_cop_key(_cr['uretim_tarihi'], _cr['launch_no'])] = _cr['tp']
         # BASARISIZ COP DENEMELERI (2026-08-17). Panel "COP verildi"yi YALNIZ kendi
         # log'undan (sonuc='ok') turetiyor; ERP'ye bakmiyor. Hareket sorgusu da COP'u
         # kapsamiyor (MGCACD IN ('RPR','CFI')) — COP'u oraya eklemek YANLIS olur,
@@ -6314,7 +6326,7 @@ def as400_teyit_listesi():
         for _cr in conn.execute(
             "SELECT uretim_tarihi, launch_no, MAX(created_at) son, COUNT(*) n FROM as400_teyit_log "
             "WHERE yil='CO' AND sonuc<>'ok' GROUP BY uretim_tarihi, launch_no").fetchall():
-            _k = f"{_cr['uretim_tarihi']}|{str(_cr['launch_no'] or '').upper()}"
+            _k = _cop_key(_cr['uretim_tarihi'], _cr['launch_no'])
             if _k not in cop_verildi:
                 cop_hatali[_k] = {'son': _cr['son'], 'deneme': _cr['n']}
     except Exception as _e:
@@ -7283,12 +7295,27 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False):
         # Mükerrer: aynı üretim günü + article + AYNI ADET için COP girildiyse atla.
         # ADET DAHİL (2026-08-06) — launch/CFI ile aynı gerekçe: aynı gün iki
         # operatör hurda çıkarırsa ikincisinin adedi de girilebilmeli.
+        # KARSILASTIRMA NORMALIZE (2026-08-17): eskiden launch_no=? HARF/BOSLUK
+        # DUYARLI esitlikti. Panel ise anahtari normalize ederek (bosluk sil+upper)
+        # kuruyor. Ikisi ayrismasi KISIR DONGU uretiyordu: gonderim "zaten girilmis"
+        # diye atliyor, panel ayni satiri "bekliyor" gostermeye devam ediyordu ve
+        # satir hicbir zaman listeden dusmuyordu (kullanici 10.130.6206b vakasi).
+        # Artik iki taraf AYNI normalizasyonu kullanir.
+        _norm = "REPLACE(REPLACE(REPLACE(UPPER(launch_no),' ',''),CHAR(9),''),CHAR(10),'')"
         var = conn.execute(
-            "SELECT id FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CO' AND launch_no=? "
-            "AND sonuc='ok' AND CAST(adet AS INTEGER)=?",
-            (u_tarih, article, int(adet))).fetchone()
+            f"SELECT id, uretim_tarihi, launch_no, adet, created_at FROM as400_teyit_log "
+            f"WHERE uretim_tarihi=? AND yil='CO' AND sonuc='ok' AND CAST(adet AS INTEGER)=? "
+            f"AND {_norm} = ?",
+            (u_tarih, int(adet), re.sub(r'\s+', '', str(article or '')).upper())).fetchone()
         if var:
-            sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': 'Bu üretim günü için hurda COP zaten girilmiş'})
+            # Mesaj log satirini KIMLIKLENDIRIR: panel yine bekliyor gosteriyorsa
+            # anahtarin nerede ayristigi buradan gorulur (sessiz dongu bitti).
+            sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                             'mesaj': (f'Bu üretim günü için hurda COP zaten girilmiş '
+                                       f'(log #{var["id"]}: {var["uretim_tarihi"]} · '
+                                       f'kod "{var["launch_no"]}" · {var["adet"]} adet · '
+                                       f'{var["created_at"]}). Satır listeden düşmüyorsa '
+                                       f'bu kaydı bildir.')})
             continue
         # Mükerrer koruması 2 — ERP'NİN KENDİSİ (2026-07-30, 10.300.4180A olayı):
         # yukarıdaki kontrol yalnızca KENDİ log'umuza bakar. Robot COP'u ERP'ye
