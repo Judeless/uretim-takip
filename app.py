@@ -6451,8 +6451,10 @@ def _robot_log_kuyrugu(saniye=240, satir=4):
                 if f.lower().endswith('.txt')]
         yeni = [(m, f) for m, f in yeni if (simdi - m) <= saniye]
         if not yeni:
-            return ('  · Robot log dosyası OLUŞMADI (as400\\teyit_loglari) — script daha '
-                    'ilk satırlarında düşmüş: cscript/dosya yolu veya Windows Script Host sorunu.')
+            # SEBEP İDDİA ETME: dosya yokluğu tek başına cscript/WSH sorunu demek
+            # değil (ör. ECL37110'da script log satırına gelemeden de düşebilir).
+            return ('  · Robot log dosyası oluşmadı (as400\\teyit_loglari) — script log '
+                    'satırına gelmeden düşmüş.')
         m, f = max(yeni)
         with open(os.path.join(d, f), 'r', encoding='cp1254', errors='replace') as fh:
             satirlar = [l.strip() for l in fh if l.strip()]
@@ -6476,6 +6478,18 @@ def _robot_sessiz_mesaj(yol, rc, hata_cikti):
     PCOMM kapalı/oturum açılmamışsa FIRLATIR → JScript hatası stderr'e gider,
     stdout boş kalır (SONUC= satırı hiç basılmaz)."""
     st = ' '.join((hata_cikti or '').split())[:300]
+    # ECL37110 = "emulasyon arayuzu kullanilamiyor" (2026-08-17 sahada gorulen hata,
+    # PCOMM Italyanca: 'Interfaccia di emulazione non disponibile'). COM nesnesi
+    # OLUSUYOR (yani PCOMM KURULU) ama o Windows oturumunda ACIK EMULATOR YOK.
+    # En sik sebebi: PCOMM ile teyit-agent FARKLI RDP oturumlarinda (ya da PCOMM
+    # hic acik degil). cscript bu hatada bile 0 ile cikar — rc'ye guvenme.
+    if 'ECL37110' in st or 'emulazione' in st.lower() or 'emulation interface' in st.lower():
+        return (f'PCOMM emülasyon arayüzü YOK (ECL37110) — PCOMM kurulu ama robotun '
+                f'çalıştığı Windows oturumunda AÇIK bir emülatör oturumu bulunamadı. '
+                f'Genelde PCOMM ile teyit-agent FARKLI RDP oturumlarındadır: sunucuda '
+                f'`query session` ile promanage\'ın KAÇ oturumu olduğuna bakın, fazlasını '
+                f'logoff edin; A+B pencerelerini agent\'ın koştuğu oturumda açıp sign-on '
+                f'yapın (as400\\Robot_Tani.bat bunu yerinde gösterir).' + _robot_log_kuyrugu())
     pcomm_kokusu = (not st) or any(k in st for k in (
         'PCOMM', 'autECL', 'ActiveX', '80040154', '800401F3', 'SetConnectionByName',
         'Automation', 'sunucu'))

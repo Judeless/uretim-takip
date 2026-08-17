@@ -49,6 +49,24 @@ if "%errorlevel%"=="0" (
 )
 
 echo ------------------------------------------------------------
+echo OTURUM DURUMU  (ECL37110 hatasinin en sik sebebi)
+echo ------------------------------------------------------------
+echo Bu pencere su oturumda: %SESSIONNAME%  (kullanici: %USERNAME%)
+echo.
+echo Sunucudaki TUM oturumlar:
+query session 2>nul || echo   (query session calistirilamadi)
+echo.
+echo PCOMM emulator sureci (pcsws.exe) - hangi oturumda?
+tasklist /FI "IMAGENAME eq pcsws.exe" 2>nul | findstr /I "pcsws.exe" || echo   YOK - PCOMM emulator HIC CALISMIYOR
+echo.
+echo Teyit-agent sureci (python) - hangi oturumda?
+tasklist /FI "IMAGENAME eq python.exe" 2>nul | findstr /I "python.exe" || echo   (python sureci gorunmuyor)
+echo.
+echo   ^>^> pcsws.exe ile teyit-agent AYNI oturum numarasinda olmali.
+echo      Farkliysa robot PCOMM'u goremez - hata tam olarak ECL37110'dur.
+echo.
+
+echo ------------------------------------------------------------
 echo TEST 2/2 - PCOMM Session B baglantisi  (SADECE OKUR, YAZMAZ)
 echo ------------------------------------------------------------
 > "%TEMP%\cofle_pcomm_test.js" echo var s = new ActiveXObject("PCOMM.autECLSession");
@@ -65,6 +83,14 @@ echo.
 echo ------------------------------------------------------------
 echo YORUM
 echo ------------------------------------------------------------
+echo  * TEST 2 "ECL37110 / emulazione non disponibile" derse:  ^<-- EN SIK
+echo      PCOMM KURULU ama bu Windows oturumunda ACIK EMULATOR YOK.
+echo      Yukaridaki OTURUM DURUMU bolumune bak:
+echo        - pcsws.exe hic yoksa  -^> PCOMM'u bu oturumda ac (A sonra B) + sign-on
+echo        - pcsws.exe VAR ama BASKA oturumdaysa -^> promanage'in birden fazla
+echo          RDP oturumu var demektir. Fazlasini logoff et, PCOMM'u ve
+echo          teyit-agent'i AYNI oturumda birak.
+echo      NOT: bu hatada cscript yine de 0 ile cikar, aldanma.
 echo  * TEST 2 "ActiveX component can't create object" derse:
 echo      PCOMM kurulu degil ya da bu oturumda calismiyor.
 echo  * TEST 2 "SetConnectionByName" hatasi verirse:
