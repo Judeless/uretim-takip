@@ -69,6 +69,28 @@ pip install pyodbc keyring requests
   penceresinin kalktığını gör → RDP'yi **Disconnect** et (LOGOFF ETME! Logoff
   oturumu kapatır, PCOMM + agent ölür).
 
+> ### ⚠️ "Pencereler açık" YETERLİ DEĞİL — otomasyonu doğrula (2026-08-17 olayı)
+>
+> Bir haftalık aradan sonra teyit gönderimi 14 satırın 14'ünde düştü. `pcsws.exe`
+> **iki tane çalışıyordu**, agent'la **aynı oturumdaydı** (Session 2), sign-on da
+> yapılmıştı — ama `PCOMM.autECLConnList.Refresh()` **0 bağlantı** görüyordu.
+> Emülatör pencereleri otomasyon katmanına KAYITLI DEĞİLDİ; robot
+> `SetConnectionByName("B")` derken `ECL37110 — emülasyon arayüzü kullanılamıyor`
+> alıyordu. cscript bu hatada bile **0 ile çıkar**, hata metni **stderr**'e gider.
+>
+> **Doğrulama ölçüsü süreç listesi değil, bağlantı sayısıdır:**
+>
+> ```
+> C:\cofle\uretim_takip\as400\Robot_Tani.bat
+> ```
+>
+> "Otomasyonun gördüğü bağlantı sayısı" **2** ve adlar **[A]**, **[B]** olmalı.
+> 0 görüyorsan PCOMM'u **kapat**, promanage oturumunda **yönetici olmadan** önce
+> A sonra B'yi aç, sign-on yap, tanıyı tekrar çalıştır. (Olay bu şekilde çözüldü.)
+>
+> Not: `tasklist` bu sunucuda asılıyor — süreç bakmak gerekirse `Get-Process`
+> kullan (tanı aracı zaten öyle yapıyor).
+
 ### 8. Canlı test
 1. Dashboard (server) → AS400 Teyit → listeyi yenile (ODBC + keyring testi).
 2. TEK launch seç → Gönder → Session B'yi RDP'den izle (robot testi).
