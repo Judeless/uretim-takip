@@ -6292,6 +6292,7 @@ def as400_teyit_listesi():
     # satırları TEKRAR göstermesin (sayfa yenilenince mükerrer görünüyordu). Anahtar =
     # "uretim_tarihi|article" (article = COP log'daki launch_no). Dedup ile aynı mantık.
     cop_verildi = {}
+    cop_hatali = {}   # basarisiz COP denemeleri (ERP'de girilmis OLABILIR)
     try:
         for _cr in conn.execute(
             "SELECT uretim_tarihi, launch_no, SUM(adet) tp FROM as400_teyit_log "
@@ -6301,6 +6302,21 @@ def as400_teyit_listesi():
             # harf farkı dedup'ı sessizce kaçırırdı. Frontend de aynı şekilde
             # büyütüyor. (Değer yalnız 'verildi mi' için okunuyor.)
             cop_verildi[f"{_cr['uretim_tarihi']}|{str(_cr['launch_no'] or '').upper()}"] = _cr['tp']
+        # BASARISIZ COP DENEMELERI (2026-08-17). Panel "COP verildi"yi YALNIZ kendi
+        # log'undan (sonuc='ok') turetiyor; ERP'ye bakmiyor. Hareket sorgusu da COP'u
+        # kapsamiyor (MGCACD IN ('RPR','CFI')) — COP'u oraya eklemek YANLIS olur,
+        # hurda hareketi uretim teyidi sayilip mukerrer frenini bozardi.
+        # Sonuc: robot COP'u ERP'ye yazdigi halde dogrulama tutmazsa satir sessizce
+        # "hic COP verilmemis" gibi gorunuyordu (10.130.6206b vakasi: ERP'de kayit
+        # 269526 duruyordu, panel bekliyor diyordu). Artik basarisiz deneme de
+        # doner ve satirda UYARI olarak gosterilir; tekrar gondermek ERP'de mevcut
+        # hareketi bulup kaydi 'ok' ile ESITLER (mukerrer COP YAZMAZ).
+        for _cr in conn.execute(
+            "SELECT uretim_tarihi, launch_no, MAX(created_at) son, COUNT(*) n FROM as400_teyit_log "
+            "WHERE yil='CO' AND sonuc<>'ok' GROUP BY uretim_tarihi, launch_no").fetchall():
+            _k = f"{_cr['uretim_tarihi']}|{str(_cr['launch_no'] or '').upper()}"
+            if _k not in cop_verildi:
+                cop_hatali[_k] = {'son': _cr['son'], 'deneme': _cr['n']}
     except Exception as _e:
         print(f'[teyit_listesi] cop_verildi atlandı: {_e}')
 
@@ -6333,6 +6349,7 @@ def as400_teyit_listesi():
                     'liste': coklu[t]} for t in tarihler],
         'son_gonderimler': son_gonderimler,
         'cop_verildi': cop_verildi,
+        'cop_hatali': cop_hatali,
     })
 
 

@@ -11783,6 +11783,7 @@ window.__I18N_SOZLUK__ = {
             // DEĞİL (AS400 kodu doğrulanmalı). Mükerrer: cop_gonder dedup (yil='CO') korur.
             _as4CopBekleyen = [];
             var copVer = d.cop_verildi || {};   // "tarih|article" → zaten COP verilmiş adet
+            var copHata = d.cop_hatali || {};   // "tarih|article" → {son, deneme}: önceki deneme HATA bitti
             gunler.forEach(function (g) {
                 var L = g.liste || {};
                 Object.keys(L).forEach(function (kat) {
@@ -11801,6 +11802,9 @@ window.__I18N_SOZLUK__ = {
                             // Anahtar BÜYÜK HARF — backend cop_verildi'yi de öyle kuruyor
                             // (kod log'a küçük harfle düşmüş olabilir, 2026-08-17).
                             supheli: (kat === 'SUPHELI'), verildi: !!copVer[g.tarih + '|' + String(art || '').toUpperCase()],
+                            // Önceki denemesi HATA ile bitmiş satır: ERP'ye girilmiş OLABİLİR
+                            // (robot yazdı ama doğrulama tutmadı). Satırda uyarı gösterilir.
+                            hataliDeneme: copHata[g.tarih + '|' + String(art || '').toUpperCase()] || null,
                             // Sağlam üretimi olmayan satır: sayfanın BAŞKA hiçbir
                             // bölümünde görünmez, yalnız burada (2026-07-31).
                             sadece: sadeceHurda(r)
@@ -11986,11 +11990,21 @@ window.__I18N_SOZLUK__ = {
                     // Sağlam üretimi olmayan satır (ok_adet=0): teyit tablolarında
                     // çıkmaz, sayfada YALNIZ burada görünür (2026-07-31).
                     var sadeceU = c.sadece ? ' <span style="color:var(--lg-red);font-size:.68rem;font-weight:800;border:1px solid var(--lg-red);border-radius:999px;padding:1px 6px" title="O gün bu referanstan sağlam üretim yok, yalnız hurda var — teyit satırı olmadığı için sayfanın başka yerinde görünmez">sadece hurda</span>' : '';
+                    // ÖNCEKİ DENEME HATA İLE BİTTİ (2026-08-17): robot COP'u ERP'ye yazmış
+                    // ama doğrulama tutmamış olabilir. Satır burada duruyor ama "hiç
+                    // denenmemiş" gibi görünmesi yanıltıcıydı. Tekrar göndermek GÜVENLİ:
+                    // gönderim ERP'de mevcut hareketi bulursa mükerrer YAZMAZ, kaydı eşitler.
+                    var denemeU = c.hataliDeneme
+                        ? ' <span style="color:var(--lg-amber);font-size:.68rem;font-weight:800;border:1px solid var(--lg-amber);border-radius:999px;padding:1px 6px" ' +
+                          'title="Bu satır daha önce ' + (c.hataliDeneme.deneme || 1) + ' kez denendi ve hata ile bitti (son: ' +
+                          esc(c.hataliDeneme.son || '') + '). COP ERP\'ye GİRİLMİŞ OLABİLİR. Tekrar göndermek güvenli: ' +
+                          'ERP\'de aynı adet varsa mükerrer yazılmaz, yalnız kayıt eşitlenir.">⚠ önceki deneme hata</span>'
+                        : '';
                     sCop += '<tr>' +
                         '<td><input type="checkbox" id="as4-cop-cb-' + i + '"' + (sec ? ' checked' : '') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(c.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(c.bolum)) + '</td>' +
-                        '<td style="font-weight:700">' + esc(c.referans) + sadeceU + '</td>' +
+                        '<td style="font-weight:700">' + esc(c.referans) + sadeceU + denemeU + '</td>' +
                         '<td><input type="text" id="as4-cop-art-' + i + '" value="' + esc(c.article) + '" class="rt-row-input" style="width:150px;font-size:.8rem' + (c.supheli ? ';border-color:var(--lg-amber)' : '') + '">' + uyari + '</td>' +
                         '<td style="text-align:right"><input type="number" id="as4-cop-adet-' + i + '" value="' + c.adet + '" min="1" class="rt-row-input" style="width:78px;text-align:right;color:var(--lg-red);font-weight:800"></td>' +
                         '</tr>';
