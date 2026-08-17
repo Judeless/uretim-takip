@@ -11798,7 +11798,9 @@ window.__I18N_SOZLUK__ = {
                         _as4CopBekleyen.push({
                             tarih: g.tarih, referans: r.referans, article: art, adet: h,
                             bolum: r.bolum || '', bugunMu: g.tarih === bugun,
-                            supheli: (kat === 'SUPHELI'), verildi: !!copVer[g.tarih + '|' + art],
+                            // Anahtar BÜYÜK HARF — backend cop_verildi'yi de öyle kuruyor
+                            // (kod log'a küçük harfle düşmüş olabilir, 2026-08-17).
+                            supheli: (kat === 'SUPHELI'), verildi: !!copVer[g.tarih + '|' + String(art || '').toUpperCase()],
                             // Sağlam üretimi olmayan satır: sayfanın BAŞKA hiçbir
                             // bölümünde görünmez, yalnız burada (2026-07-31).
                             sadece: sadeceHurda(r)

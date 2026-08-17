@@ -274,8 +274,16 @@ def teyit_hareketleri(articles):
     # Her ozel karakter (_ , & ( ) $ * " \x1a) gercek ERP sorgusuyla tek tek VE
     # toplu test edildi: parametreli sorgu oldugu icin hicbiri patlatmiyor.
     _guvenli = re.compile(r'^[\x00-\x7F]{1,21}$')
-    liste = sorted({str(a).strip() for a in articles
-                    if str(a or '').strip() and _guvenli.match(str(a).strip())})
+    # HARF DUYARLILIGI (2026-08-17) — BURADA EN TEHLIKELISI: sorgu MGARCD'yi HARF
+    # DUYARLI karsilastirir, donen sozluk ise kanonik(=UPPER) anahtarli. Operator
+    # kucuk harfle yazdiginda ('10.130.6206b') ERP'de kod BUYUK dururken hareket
+    # sorgusu HICBIR SEY bulmuyor → o urunun MEVCUT TEYITLERI GORUNMEZ oluyor →
+    # mukerrer freni calismiyor ve ayni uretim IKINCI KEZ teyit edilebiliyor.
+    # Cozum: kodun hem yazildigi hem BUYUK harfli bicimini sorgula (esitlik ve
+    # indeks korunur; kolona UPPER() uygulamak indeksi devre disi birakirdi).
+    ham = {str(a).strip() for a in articles
+           if str(a or '').strip() and _guvenli.match(str(a).strip())}
+    liste = sorted(ham | {a.upper() for a in ham})
     if not liste:
         return {}
     pw = CFG.sifre_al()

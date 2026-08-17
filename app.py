@@ -6296,7 +6296,11 @@ def as400_teyit_listesi():
         for _cr in conn.execute(
             "SELECT uretim_tarihi, launch_no, SUM(adet) tp FROM as400_teyit_log "
             "WHERE yil='CO' AND sonuc='ok' GROUP BY uretim_tarihi, launch_no").fetchall():
-            cop_verildi[f"{_cr['uretim_tarihi']}|{_cr['launch_no']}"] = _cr['tp']
+            # Anahtar BUYUK HARFLE (2026-08-17): kod log'a operatörün yazdığı gibi
+            # düşüyor ('10.130.6206b'), listede başka bir yazımla gelebiliyor →
+            # harf farkı dedup'ı sessizce kaçırırdı. Frontend de aynı şekilde
+            # büyütüyor. (Değer yalnız 'verildi mi' için okunuyor.)
+            cop_verildi[f"{_cr['uretim_tarihi']}|{str(_cr['launch_no'] or '').upper()}"] = _cr['tp']
     except Exception as _e:
         print(f'[teyit_listesi] cop_verildi atlandı: {_e}')
 
@@ -7019,10 +7023,16 @@ def _as400_cfi_bugun(article, causal='CFI'):
     pw = _cfg.sifre_al()
     cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=20, autocommit=True)
     try:
+        # HARF DUYARLILIGI (2026-08-17): MGARCD=? karsilastirmasi harf duyarli.
+        # '10.130.6206b' COP'u ERP'ye BASARIYLA girildi (ekranda 10.130.6206B
+        # olarak duruyor) ama bu sorgu kucuk harfli kodu arayip bulamadi →
+        # dogrulama 'False' dondu → satir 'hata' loglandi → panel COP'u hala
+        # BEKLIYOR gosterdi. Kodun iki bicimini de sor (indeks korunur).
         rows = cn.cursor().execute(
-            "SELECT MGQTA FROM tkc0301F.BMMAF0 WHERE MGCACD=? AND MGARCD=? "
+            "SELECT MGQTA FROM tkc0301F.BMMAF0 WHERE MGCACD=? AND MGARCD IN (?, ?) "
             "AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? AND MGDGGO=?",
-            (causal, article, bugun.year // 100, bugun.year % 100, bugun.month, bugun.day)).fetchall()
+            (causal, article, str(article).upper(),
+             bugun.year // 100, bugun.year % 100, bugun.month, bugun.day)).fetchall()
         return [float(r[0] or 0) for r in rows]
     finally:
         cn.close()
