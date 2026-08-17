@@ -6433,6 +6433,38 @@ def _oturum_0_mi():
     return False
 
 
+def _robot_log_kuyrugu(saniye=240, satir=4):
+    """Robotun KENDİ log dosyasının son satırları (2026-08-17).
+
+    teyit_gir.js/cfi_gir.js daha PCOMM'a dokunmadan ÖNCE
+    as400/teyit_loglari/<zaman>_<launch>.txt dosyasını açar ve her adımı oraya da
+    yazar. Robot stdout üretmeden öldüğünde tek kanıt bu dosyadır; app buraya hiç
+    bakmıyordu. Dosya YOKSA script daha log satırına gelmeden düşmüş demektir
+    (bunu da söylüyoruz — 'sessiz' hatanın en ayırt edici işareti)."""
+    try:
+        import time
+        d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400', 'teyit_loglari')
+        if not os.path.isdir(d):
+            return ''
+        simdi = time.time()
+        yeni = [(os.path.getmtime(os.path.join(d, f)), f) for f in os.listdir(d)
+                if f.lower().endswith('.txt')]
+        yeni = [(m, f) for m, f in yeni if (simdi - m) <= saniye]
+        if not yeni:
+            return ('  · Robot log dosyası OLUŞMADI (as400\\teyit_loglari) — script daha '
+                    'ilk satırlarında düşmüş: cscript/dosya yolu veya Windows Script Host sorunu.')
+        m, f = max(yeni)
+        with open(os.path.join(d, f), 'r', encoding='cp1254', errors='replace') as fh:
+            satirlar = [l.strip() for l in fh if l.strip()]
+        if not satirlar:
+            return (f'  · Robot logu ({f}) BOŞ — script log dosyasını açtı ama tek satır '
+                    f'yazamadan düştü (PCOMM.autECLSession / Session B bağlanamadı).')
+        son = ' | '.join(satirlar[-satir:])[:400]
+        return f'  · Robot logu ({f}) son satırlar: {son}'
+    except Exception as e:
+        return f'  · Robot logu okunamadı: {e}'
+
+
 def _robot_sessiz_mesaj(yol, rc, hata_cikti):
     """Robot HİÇ stdout üretmedi → sebebi anlaşılır yaz (2026-08-17).
 
@@ -6453,8 +6485,12 @@ def _robot_sessiz_mesaj(yol, rc, hata_cikti):
              'A+B pencerelerini açın, sign-on yapın, teyit-agent penceresinin ayakta '
              'olduğunu görün, sonra RDP\'yi LOGOFF değil DISCONNECT edin '
              '(bkz. as400/SERVER_AS400_KURULUM.md · madde 7).') if pcomm_kokusu else ''
-    return (f'Robot hiç çıktı üretmedi ({yol}, çıkış kodu {rc}) — AS400\'e hiçbir şey '
-            f'yazılmadı.' + (f' Robot hatası: {st}' if st else '') + ipucu)
+    # "AS400'e hiçbir şey yazılmadı" DEME: burada bunu bilemeyiz (çıkış kodu 0 ise
+    # script kendini başarılı sanmış olabilir). Yazılıp yazılmadığını çağıran,
+    # BPROF0 teyitli değerini önce/sonra okuyarak söyler.
+    return (f'Robot hiç çıktı üretmedi ({yol}, çıkış kodu {rc}).'
+            + (f' Robot hatası: {st}' if st else '')
+            + ipucu + _robot_log_kuyrugu())
 
 
 def _as400_robot_calistir(script_dosya, args, timeout_sn):
@@ -6735,7 +6771,28 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
 
         cikti, robot_hata = _as400_robot_calistir('teyit_gir.js', [yil, no, article, adet, bayrak], 150)
         if robot_hata:
-            sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': robot_hata, 'teyitli_once': once})
+            # ROBOT HATA VERDİ AMA YAZMIŞ OLABİLİR (2026-08-17). Eskiden burada
+            # sonra-okuması YAPILMIYORDU: "robot iptal" denip geçiliyor, ekranda
+            # gerçekten teyit girilmişse KİMSE görmüyordu. Çıktısız/hatalı koşuda
+            # tek güvenilir kanıt BPROF0'ın teyitli değeridir — okuyup söyle.
+            try:
+                sonra_h, _ = _as400_launch_durum(yil, no)
+            except Exception:
+                sonra_h = None
+            if once is not None and sonra_h is not None and abs(sonra_h - once) > 0.001:
+                robot_hata += (f'  ⚠ DİKKAT: robot hata verdi AMA launch teyitlisi DEĞİŞTİ '
+                               f'({once:g} → {sonra_h:g}) — ERP\'ye yazılmış olabilir, TEKRAR '
+                               f'GÖNDERMEDEN ÖNCE Session B\'yi ve launch\'ı kontrol edin.')
+                # Log'a da 'hata' olarak düşsün ki mükerrer freni bunu görebilsin
+                conn.execute(
+                    "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, teyitli_once, teyitli_sonra, olusturan) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (u_tarih, yil, no, referans, article, adet, bayrak, 'hata', robot_hata, once, sonra_h, kullanici))
+                conn.commit()
+            elif once is not None and sonra_h is not None:
+                robot_hata += f'  ✔ Kontrol edildi: launch teyitlisi DEĞİŞMEDİ ({once:g}) — ERP\'ye yazılmadı.'
+            sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': robot_hata,
+                             'teyitli_once': once, 'teyitli_sonra': sonra_h})
             continue
 
         robot_ok = 'SONUC=OK' in cikti
