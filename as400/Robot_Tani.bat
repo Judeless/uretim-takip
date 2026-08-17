@@ -77,6 +77,29 @@ echo      Farkliysa robot PCOMM'u goremez - hata tam olarak ECL37110'dur.
 echo.
 
 echo ------------------------------------------------------------
+echo PCOMM OTURUM LISTESI  (otomasyon KAC baglanti goruyor?)
+echo ------------------------------------------------------------
+REM Kritik ayrim (2026-08-17): pcsws.exe calisiyor olmasi YETMEZ. Otomasyon
+REM katmani ayni BAGLAM'dan (ayni Windows oturumu + ayni yukseltme seviyesi)
+REM bakmazsa baglanti listesi BOS gorunur ve SetConnectionByName("B") ECL37110
+REM verir. Sahada tam olarak bu yasandi: pcsws x2 vardi ama Count=0 idi.
+powershell -NoProfile -Command "'Bu pencere yonetici mi : ' + ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)"
+> "%TEMP%\cofle_pcomm_liste.js" echo var l = new ActiveXObject("PCOMM.autECLConnList");
+>>"%TEMP%\cofle_pcomm_liste.js" echo l.Refresh();
+>>"%TEMP%\cofle_pcomm_liste.js" echo WScript.Echo("Otomasyonun gordugu baglanti sayisi: " + l.Count);
+>>"%TEMP%\cofle_pcomm_liste.js" echo for (var i = 1; i ^<= l.Count; i++) WScript.Echo("   ad=[" + l(i).Name + "]  baslatildi=" + l(i).Started);
+"%CS%" //nologo "%TEMP%\cofle_pcomm_liste.js"
+del "%TEMP%\cofle_pcomm_liste.js" >nul 2>&1
+echo.
+echo   ^>^> Sayi 0 ise: pcsws calisiyor olsa bile otomasyon onlari GORMUYOR.
+echo      Ya PCOMM baska bir baglamda acilmis (yonetici olarak / baska oturum),
+echo      ya da pencereler gercek emulator oturumu degil (Session Manager).
+echo      Cozum: PCOMM'u KAPAT, promanage oturumunda YONETICI OLMADAN
+echo      once A sonra B'yi ac, sign-on yap, bu tanıyı tekrar calistir.
+echo   ^>^> Sayi 2 ve adlar [A],[B] ise robot yolu hazir demektir.
+echo.
+
+echo ------------------------------------------------------------
 echo TEST 2/2 - PCOMM Session B baglantisi  (SADECE OKUR, YAZMAZ)
 echo ------------------------------------------------------------
 > "%TEMP%\cofle_pcomm_test.js" echo var s = new ActiveXObject("PCOMM.autECLSession");
