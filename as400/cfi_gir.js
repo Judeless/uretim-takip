@@ -150,7 +150,81 @@ var kol = sat[whSat - 1].indexOf("01D") + 1;
 if (kol <= 0) kol = 25;
 log("G1: alan haritasi — wh@" + whSat + " ca@" + caSat + " ar@" + arSat + " qty@" + qtSat + " cp@" + cpSat + " kolon=" + kol);
 
+// ── Satirdaki GIRIS alanlari (soldan saga) — autECLFieldList'ten OKUNUR ──
+// NEDEN (2026-08-17): "Article cd" ekranda TEK alan DEGIL. 16 karakterlik ana alan,
+// arada bosluk, sonra ek alan. 17 karakterlik kod (10.300.2757A-10-S) tek parca
+// yazilinca 17. karakter alan sinirini asiyor; ustelik yanki kontrolu kol'dan
+// itibaren 17 karakter okudugu icin araya dusen BOSLUGU kodun parcasi saniyor ve
+// "Article cd yazilamadi" ile iptal ediyordu. Alan uzunlugunu VARSAYMA — ekrandan oku.
+// NOT: bu PCOMM surumunde ps.GetFieldLength YOK; autECLFieldList kullaniliyor.
+// JScript'te koleksiyona fl(i) ile erisilir (fl.Item(i) desteklenmiyor).
+function satirGirisAlanlari(satir) {
+    var a = [];
+    try {
+        var fl = ps.autECLFieldList;
+        fl.Refresh();
+        for (var i = 1; i <= fl.Count; i++) {
+            var f = fl(i);
+            if (Number(f.StartRow) === Number(satir) && !f.Protected && Number(f.Length) > 0)
+                a.push({ kol: Number(f.StartCol), uz: Number(f.Length) });
+        }
+    } catch (e) {
+        log("UYARI: alan listesi okunamadi (" + e.message + ") — tek alan varsayilacak");
+        return [];
+    }
+    a.sort(function (x, y) { return x.kol - y.kol; });
+    var s2 = [];
+    for (var j = 0; j < a.length; j++) if (a[j].kol >= kol) s2.push(a[j]);
+    return s2;
+}
+
+// Article kodunu alanlara BOLEREK yaz + her alani AYRI dogrula.
+function articleYaz(satir, kod) {
+    var al = satirGirisAlanlari(satir);
+    // Alan listesi okunamadiysa eski davranis (tek alan) — kisa kodlar zaten boyle calisiyordu
+    if (!al.length) { alanYaz(satir, kod, "Article cd"); return; }
+    if (kod.length <= al[0].uz) { alanYaz(satir, kod, "Article cd"); return; }
+    if (al.length < 2)
+        iptal("Article kodu " + kod.length + " karakter ama ekranda tek " + al[0].uz +
+              " karakterlik alan var — kod bu ekrana sigmiyor");
+    var p1 = kod.substring(0, al[0].uz);
+    var p2 = kod.substring(al[0].uz);
+    if (p2.length > al[1].uz)
+        iptal("Article kodu alanlara sigmiyor (" + al[0].uz + "+" + al[1].uz +
+              " < " + kod.length + "): '" + kod + "'");
+    log("Article BOLUNDU (kod " + kod.length + " karakter): alan1@" + al[0].kol + "(" +
+        al[0].uz + ")='" + p1 + "'  alan2@" + al[1].kol + "(" + al[1].uz + ")='" + p2 + "'");
+    ps.SetCursorPos(satir, al[0].kol); WScript.Sleep(200);
+    ps.SendKeys(p1); WScript.Sleep(250);
+    ps.SetCursorPos(satir, al[1].kol); WScript.Sleep(200);
+    ps.SendKeys(p2); WScript.Sleep(250);
+    // Dogrulama: alanlari AYRI oku, birlestir (aradaki bosluk kodun parcasi DEGIL)
+    var g1 = ps.GetText(satir, al[0].kol, al[0].uz).replace(/\s+$/, "");
+    var g2 = ps.GetText(satir, al[1].kol, p2.length);
+    if (g1.toUpperCase() !== p1.toUpperCase() || g2.toUpperCase() !== p2.toUpperCase())
+        iptal("Article cd yazilamadi (yanki: alan1='" + g1 + "' alan2='" + g2 + "')");
+    log("Article yankisi dogrulandi: '" + g1 + "' + '" + g2 + "'");
+}
+
 if (DRYRUN) {
+    // Article alan haritasini + planlanan bolmeyi RAPORLA (hicbir sey yazilmadan).
+    // Boylece sahada uzun kodun nasil bolunecegi ONCE gorulur.
+    var _al = satirGirisAlanlari(arSat);
+    if (!_al.length) {
+        log("DRYRUN: Article satirinda alan listesi okunamadi — tek alan varsayilir.");
+    } else {
+        var _tarif = [];
+        for (var _i = 0; _i < _al.length && _i < 3; _i++)
+            _tarif.push("alan" + (_i + 1) + "@" + _al[_i].kol + "(" + _al[_i].uz + ")");
+        log("DRYRUN: Article giris alanlari -> " + _tarif.join("  "));
+        if (ARTICLE.length <= _al[0].uz)
+            log("DRYRUN: kod " + ARTICLE.length + " karakter, ilk alana SIGIYOR (bolme yok).");
+        else if (_al.length >= 2)
+            log("DRYRUN: kod " + ARTICLE.length + " karakter -> BOLUNECEK: '" +
+                ARTICLE.substring(0, _al[0].uz) + "' + '" + ARTICLE.substring(_al[0].uz) + "'");
+        else
+            log("DRYRUN: DIKKAT — kod ilk alana sigmiyor ve ikinci alan YOK.");
+    }
     log("DRYRUN: ekran + alan haritasi dogrulandi, HICBIR SEY YAZILMADI.");
     log("SONUC=DRYRUN-OK"); logDosya.Close(); WScript.Quit(0);
 }
@@ -186,7 +260,7 @@ if (alanOku(caSat) !== CAUSAL) iptal("Causal cd " + CAUSAL + " degil: '" + alanO
 // Article alani bos olmali (onceki girdiden kalan varsa Enter'lenmemis demektir → DUR)
 var mevcutArticle = ps.GetText(arSat, kol, 20).replace(/\s+/g, "");
 if (mevcutArticle.length) iptal("Article alani BOS DEGIL ('" + mevcutArticle + "') — B'de yarim giris olabilir, elle kontrol edin");
-alanYaz(arSat, ARTICLE, "Article cd");
+articleYaz(arSat, ARTICLE);   // uzun kodu alanlara boler (bkz. articleYaz)
 ps.SetCursorPos(qtSat, kol); WScript.Sleep(200);
 ps.SendKeys(ADET); WScript.Sleep(250);
 ps.SendKeys("[fldext]"); WScript.Sleep(300);   // kucuk enter: saga yasla
