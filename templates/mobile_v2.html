@@ -1654,6 +1654,30 @@ window.__I18N_SOZLUK__ = {
     "en": "— Select machine —",
     "it": "— Seleziona macchina —"
   },
+  "Yapıştırma": {
+    "en": "Bonding",
+    "it": "Incollaggio"
+  },
+  "Sızdırmazlık Test": {
+    "en": "Leak Test",
+    "it": "Test di tenuta"
+  },
+  "Makine Ayarı": {
+    "en": "Machine Setup",
+    "it": "Regolazione macchina"
+  },
+  "Bu kod yapıştırma ürünü — makineyi kontrol edin": {
+    "en": "This code is a bonding product — check the machine",
+    "it": "Questo codice è un prodotto di incollaggio — controlla la macchina"
+  },
+  "Bu kod enjeksiyon ürünü — makineyi kontrol edin": {
+    "en": "This code is an injection product — check the machine",
+    "it": "Questo codice è un prodotto stampato — controlla la macchina"
+  },
+  "Yapıştırma kodu — adet test cihazından otomatik sayılacak": {
+    "en": "Bonding code — quantity will be counted automatically from the test device",
+    "it": "Codice di incollaggio — la quantità sarà conteggiata automaticamente dal dispositivo di test"
+  },
   "Lazer 1": {
     "en": "Laser 1",
     "it": "Laser 1"
@@ -2736,7 +2760,7 @@ window.__I18N_SOZLUK__ = {
         <label>Referans Kodu</label>
         <div class="ac-wrap">
           <input type="text" id="d-ref" placeholder="Kod yazın... (örn: 10.130)"
-            oninput="refAC(this)" autocomplete="off" data-cycle="0">
+            oninput="refAC(this)" onchange="refKodDegisti()" autocomplete="off" data-cycle="0">
           <div class="autocomplete-list" id="d-acl" style="display:none"></div>
           <!-- Tel: ara operasyon eki önizlemesi (2026-08-04) -->
           <div id="d-tel-ek-bilgi" style="display:none;margin-top:6px;font-size:.74rem;color:var(--c-blue);font-weight:600"></div>
@@ -2756,6 +2780,23 @@ window.__I18N_SOZLUK__ = {
           <div id="d-bukum-ipucu" style="font-size:.74rem;color:var(--muted);font-weight:500;margin-top:6px">
             Bir parçaya kaç büküm uygulanıyor? Sayaç her <b id="d-bukum-n">1</b>. sinyali 1 adet sayar.
           </div>
+        </div>
+
+        <!-- Plastik Enjeksiyon: makine seçimi ÜRETİM KAYDI bazında (kullanıcı 2026-08-18:
+             "makine seçimini referansı seçtikten sonra yapalım, yani abkant hattındaki gibi").
+             Bu yüzden REFERANSIN HEMEN ALTINDA duruyor — operatör önce kodu, sonra makineyi
+             işaretler. Seçim istasyon kolonuna yazılır: 1=320T, 2=407T, 3=Yapıştırma,
+             4=Sızdırmazlık Test. Numaralar app.py PLASTIK_MAKINELERI sırasıyla BİREBİR —
+             yeni makine hep SONA eklenir (araya girmek eski kayıtları başka makineye kaydırır). -->
+        <div id="d-plastik-makine-wrap" style="display:none; margin-top:14px">
+          <label>Makine</label>
+          <select id="d-plastik-makine" onchange="plastikMakineSec(this.value)">
+            <option value="0">— Makine seçin —</option>
+            <option value="1">320T</option>
+            <option value="2">407T</option>
+            <option value="3">Yapıştırma</option>
+            <option value="4">Sızdırmazlık Test</option>
+          </select>
         </div>
 
         <!-- Test cihazı sayaç kaynağı (Cofle/wicow) — yalnızca entegrasyon açıksa görünür.
@@ -3599,11 +3640,18 @@ window.__I18N_SOZLUK__ = {
           });
           sonHatUygula(bolum);
         }).catch(function () { });
-      } else if (bolum === 'isleme' || bolum === 'plastik') {
-        // Sabit makine tabanlı bölümler: dinamik liste (backend taban + vardiyalardan
-        // DISTINCT) + "yeni ekle". plastik (TK1) → 320T/407T/Yapistirma.
+      } else if (bolum === 'plastik') {
+        // PLASTİK ENJEKSİYON (kullanıcı 2026-08-18): pres/abkant modeline geçti —
+        // operatör makineyi REFERANSI SEÇTİKTEN SONRA, her ÜRETİM KAYDINDA işaretler.
+        // Vardiya hattı tek ve sabit: 'Plastik Enjeksiyon'; makine ekran D'de istasyon 1..4.
+        robotWrap.style.display = 'none';
+        rsel.innerHTML = '<option value="Plastik Enjeksiyon" selected>Plastik Enjeksiyon</option>';
+        rsel.onchange = null;
+      } else if (bolum === 'isleme') {
+        // Sabit makine tabanlı bölüm: dinamik liste (backend taban + vardiyalardan
+        // DISTINCT) + "yeni ekle".
         robotWrap.style.display = 'block';
-        if (robotLabel) robotLabel.textContent = (bolum === 'isleme') ? 'Tezgah' : 'Makine';
+        if (robotLabel) robotLabel.textContent = 'Tezgah';
         rsel.innerHTML = '<option value="">Seçin...</option>' +
                          '<option value="__yeni__">+ Yeni ekle...</option>';
         rsel.onchange = montajHatSecimDegisti;
@@ -3659,8 +3707,8 @@ window.__I18N_SOZLUK__ = {
       var _promptlar = {
         isleme: ['Yeni tezgah adı (ör: Tezgah 2):', 'Tezgah '],
         lazer:  ['Yeni makine adı (ör: Lazer 2):', 'Lazer '],
-        pres:   ['Yeni makine adı (ör: Abkant 2):', 'Abkant '],
-        plastik: ['Yeni makine adı (ör: 320T):', '']
+        pres:   ['Yeni makine adı (ör: Abkant 2):', 'Abkant ']
+        // plastik BURADA DEĞİL (2026-08-18): makineleri sabit liste, üretim kaydında seçilir.
       };
       var _p = _promptlar[secilenBolum] || ['Yeni hat adı / numarası (ör: HAT 5):', 'HAT '];
       var girilen = prompt(_p[0], _p[1]);
@@ -3770,6 +3818,15 @@ window.__I18N_SOZLUK__ = {
         try { _sonMak = localStorage.getItem('mobile_pres_son_makine') || '0'; } catch (e) {}
         prSel.value = _sonMak;
       }
+      // Plastik enjeksiyon: aynı kalıp (makine üretim kaydında, son seçim hatırlanır).
+      var plWrap = document.getElementById('d-plastik-makine-wrap');
+      if (plWrap) plWrap.style.display = (secilenBolum === 'plastik') ? 'block' : 'none';
+      var plSel = document.getElementById('d-plastik-makine');
+      if (plSel) {
+        var _sonPl = '0';
+        try { _sonPl = localStorage.getItem('mobile_plastik_son_makine') || '0'; } catch (e) {}
+        plSel.value = _sonPl;
+      }
       // Büküm operasyon sayısı: yeni kayıt 1'den başlar, referans seçilince
       // referansın hatırlanan değeriyle dolar (bkz. secRef).
       bukumGoster(1);
@@ -3778,8 +3835,9 @@ window.__I18N_SOZLUK__ = {
       var sifirla = document.getElementById('d-sayac-sifirla-wrap');
       if (sifirla) sifirla.style.display = 'none';  // yeni kayıtta reset butonu yok (henüz kayıt yok)
       istasyonSec(0);
-      // pres: istasyonSec(0) hidden alanı sıfırladı — hatırlanan makineyi geri yaz
+      // pres/plastik: istasyonSec(0) hidden alanı sıfırladı — hatırlanan makineyi geri yaz
       if (secilenBolum === 'pres' && prSel) document.getElementById('d-istasyon').value = prSel.value;
+      if (secilenBolum === 'plastik' && plSel) document.getElementById('d-istasyon').value = plSel.value;
       // Test cihazı seçimi — sıfırla + (entegrasyon açıksa) listeyi yükle/göster
       var ttog = document.getElementById('d-test-toggle');
       if (ttog) ttog.checked = false;
@@ -3811,6 +3869,42 @@ window.__I18N_SOZLUK__ = {
       try { localStorage.setItem('mobile_pres_son_makine', String(deger || '0')); } catch (e) {}
     }
 
+    // ── PLASTİK ENJEKSİYON MAKİNE SEÇİMİ (2026-08-18) ──────────────────────
+    // 1=320T, 2=407T, 3=Yapistirma, 4=Sizdirmazlik Test. Numaralar app.py
+    // PLASTIK_MAKINELERI ile BİREBİR aynı olmalı — yeni makine hep SONA eklenir.
+    // Ekranda Türkçe yazılır ('Yapıştırma'), kayda giden şey NUMARADIR; makine
+    // adı sunucuda çözülür (ASCII robot_no firmware/cihaz adlarıyla eşleşiyor).
+    var PLASTIK_SABIT_HAT   = 'Plastik Enjeksiyon';
+    var PLASTIK_MAKINE_ADI  = { 1: '320T', 2: '407T', 3: 'Yapistirma', 4: 'Sizdirmazlik Test' };
+    function plastikMakineSec(deger) {
+      document.getElementById('d-istasyon').value = deger;
+      try { localStorage.setItem('mobile_plastik_son_makine', String(deger || '0')); } catch (e) {}
+      plastikKodMakineUyari();
+    }
+
+    // Kod ailesi ↔ makine uyumu. Makine artık referanstan SONRA seçildiği için
+    // eski "listeyi makineye göre süz" koruması işlemiyor; yerine UYARI koydu:
+    // engellemez (istisna işler bloklanmasın), yalnız yanlış makineyi görünür yapar.
+    function plastikKodMakineUyari() {
+      if (secilenBolum !== 'plastik') return;
+      var kod = ((document.getElementById('d-ref') || {}).value || '').trim();
+      var no  = parseInt((document.getElementById('d-plastik-makine') || {}).value || 0) || 0;
+      if (!kod || !no) return;
+      var gliKod    = /G$/i.test(kod);
+      var gliMakine = (G_KODLU_MAKINELER.indexOf(PLASTIK_MAKINE_ADI[no]) !== -1);
+      if (gliKod === gliMakine) return;
+      toast(gliKod ? 'Bu kod yapıştırma ürünü — makineyi kontrol edin'
+                   : 'Bu kod enjeksiyon ürünü — makineyi kontrol edin', 'info');
+    }
+
+    // Referans kodu değişti (listeden seçim VEYA elle yazıp alandan çıkma).
+    // Koda bağlı tüm otomatikler tek yerden tetiklenir.
+    function refKodDegisti() {
+      telEkOnizleme();            // tel: kodun nasıl kaydedileceğini göster
+      yapistirmaTestOnHazirla();  // plastik: yapıştırma kodu → test cihazı
+      plastikKodMakineUyari();    // plastik: kod ↔ makine uyumu
+    }
+
     // ── Test cihazı sayaç kaynağı (Cofle/wicow) ──
     // Operatör test cihazıyla çalışıyorsa cihaz seçer; ADET o cihazın başarılı
     // testlerinden otomatik sayılır (ESP32 sensörünün muadili).
@@ -3840,31 +3934,36 @@ window.__I18N_SOZLUK__ = {
       // Diğer bölümlerde (kaynak/metal/isleme/lazer/pres) blok hiç görünmez.
       var testliBolum = (secilenBolum === 'montaj' || secilenBolum === 'plastik');
       wrap.style.display = (testliBolum && _testCihazlari && _testCihazlari.etkin && _testCihazlari.cihazlar && _testCihazlari.cihazlar.length) ? 'block' : 'none';
-      sizdirmazlikOnHazirla();
+      yapistirmaTestOnHazirla();
     }
 
-    // ── SIZDIRMAZLIK TEST MAKİNESİ → SVP "TANK" CİHAZI (2026-08-04) ──────────
-    // Kullanıcı: "SVP'de sızdırmazlık testi için TANK adındaki yerden verileri
-    // alacağız." Operatör bu makinede vardiya açtıysa test cihazı bloğu KENDİLİĞİNDEN
-    // açılır ve adında 'tank' geçen cihaz ön-seçili gelir — yanlış cihaz seçme riski
-    // biter. Eşleşme bulunamazsa hiçbir şey zorlanmaz, operatör listeden kendi seçer.
-    function sizdirmazlikOnHazirla() {
+    // ── YAPIŞTIRMA KODU → SVP "TANK" TEST CİHAZI (kullanıcı 2026-08-18) ──────
+    // "Operatör yapıştırma kodunu seçtiğinde otomatik olarak veriyi test cihazından
+    // alsın." Yapıştırma ürünleri (kod sonu 'G') sızdırmazlık testinden geçiyor;
+    // sayılabilir çıktı sahadaki bir sayaç değil, SVP'deki BAŞARILI TEST.
+    // TETİKLEYİCİ KOD (2026-08-18): eskiden vardiyanın makinesi 'Sizdirmazlik Test'
+    // ise açılıyordu; makine artık vardiyada değil kayıtta (ve referanstan SONRA)
+    // seçildiği için tetikleyici REFERANS KODU oldu.
+    // ÖN-SEÇİM, KİLİT DEĞİL: operatör kutucuğu kapatıp adedi elle girebilir; kendi
+    // cihaz seçimini yaptıysa EZİLMEZ. 'tank' adlı cihaz yoksa hiçbir şey zorlanmaz.
+    function yapistirmaTestOnHazirla() {
       if (secilenBolum !== 'plastik') return;
-      var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
-      if (mak !== 'Sizdirmazlik Test') return;
-      if (!_testCihazlari || !_testCihazlari.cihazlar) return;
+      // Düzenlemede kaynak değiştirilmez (test_cihaz_id sunucuda korunuyor)
+      if ((document.getElementById('d-uid') || {}).value) return;
+      var kod = ((document.getElementById('d-ref') || {}).value || '').trim();
+      if (!/G$/i.test(kod)) return;
+      if (!_testCihazlari || !_testCihazlari.etkin || !_testCihazlari.cihazlar) return;
       var tank = _testCihazlari.cihazlar.filter(function (c) {
         return /tank/i.test(String(c.ad || ''));
       })[0];
       if (!tank) return;
       var tog = document.getElementById('d-test-toggle');
       var sel = document.getElementById('d-test-cihaz');
-      // Operatör kendi seçimini yaptıysa EZME (yalnız boşken ön-seç)
-      if (sel && !sel.value) {
-        if (tog && !tog.checked) { tog.checked = true; testCihazToggle(); }
-        sel.value = String(tank.id);
-        testCihazSecildi();
-      }
+      if (!sel || sel.value) return;   // operatör kendi seçimini yaptıysa EZME
+      if (tog && !tog.checked) { tog.checked = true; testCihazToggle(); }
+      sel.value = String(tank.id);
+      testCihazSecildi();
+      toast('Yapıştırma kodu — adet test cihazından otomatik sayılacak', 'info');
     }
     function testCihazToggle() {
       var on = document.getElementById('d-test-toggle').checked;
@@ -4654,6 +4753,11 @@ window.__I18N_SOZLUK__ = {
       if (prWrap) prWrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
       var prSel = document.getElementById('d-pres-makine');
       if (prSel) prSel.value = String(parseInt(istasyon || 0) || 0);
+      // Plastik: makine seçici görünür, kayıttaki makine (istasyon 1..4) seçili gelir
+      var plWrap = document.getElementById('d-plastik-makine-wrap');
+      if (plWrap) plWrap.style.display = (secilenBolum === 'plastik') ? 'block' : 'none';
+      var plSel = document.getElementById('d-plastik-makine');
+      if (plSel) plSel.value = String(parseInt(istasyon || 0) || 0);
       // Büküm operasyon sayısı: KAYDIN kendi değeri (referansın güncel varsayılanı
       // değil) — geçmiş kaydın adedi hangi bölenle hesaplandıysa o görünsün.
       bukumGoster(bukumOp || 1);
@@ -4672,9 +4776,9 @@ window.__I18N_SOZLUK__ = {
       if (!ref) { toast('Referans kodu giriniz', 'error'); return; }
       var uid = document.getElementById('d-uid').value;
       var istEl = document.getElementById('d-istasyon');
-      // Lazer/Pres: makine seçimi ZORUNLU (vardiyada makine yok — rapor kırılımı ve
-      // sensör sayacı bu alandan gelir; makinesiz kayıtta otomatik sayaç çalışmaz)
-      if ((secilenBolum === 'lazer' || secilenBolum === 'pres')
+      // Lazer/Pres/Plastik: makine seçimi ZORUNLU (vardiyada makine yok — rapor kırılımı
+      // ve sensör sayacı bu alandan gelir; makinesiz kayıtta otomatik sayaç çalışmaz)
+      if ((secilenBolum === 'lazer' || secilenBolum === 'pres' || secilenBolum === 'plastik')
           && !(istEl && parseInt(istEl.value || 0) > 0)) {
         toast('Makine seçiniz', 'error'); return;
       }
@@ -4865,7 +4969,12 @@ window.__I18N_SOZLUK__ = {
     function makineKodFiltresi(items) {
       if (secilenBolum !== 'plastik' || !items || !items.length) return items;
       var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
-      if (!mak) return items;
+      // 2026-08-18: makine artık ÜRETİM KAYDINDA, referanstan SONRA seçiliyor →
+      // liste hazırlanırken makine HENÜZ BİLİNMİYOR. Yeni vardiyalarda robot_no
+      // sabit hattır → filtre uygulanamaz, tüm kodlar görünür; kod/makine uyumu
+      // makine seçilince UYARI ile denetlenir (plastikKodMakineUyari).
+      // ESKİ vardiyalar (robot_no bir MAKİNE adı) için filtre aynen korunur.
+      if (!mak || mak === PLASTIK_SABIT_HAT) return items;
       var gliMakine = (G_KODLU_MAKINELER.indexOf(mak) !== -1);
       var suzulmus = items.filter(function (r) {
         var gli = /G$/i.test(String(r.referans_kodu || '').trim());
@@ -4950,7 +5059,8 @@ window.__I18N_SOZLUK__ = {
       var lbl = document.getElementById('d-cycle-lbl');
       if (ct > 0) { lbl.textContent = '⏱ ' + Math.round(ct) + ' sn/parça'; lbl.style.display = 'inline-flex'; }
       else { lbl.style.display = 'none'; }
-      telEkOnizleme();   // tel: kodun nasıl kaydedileceğini göster
+      // Koda bağlı otomatikler: tel eki önizleme + plastik test cihazı/makine uyarısı
+      refKodDegisti();
       // Referansın hatırlanan büküm operasyon sayısı hazır gelsin (operatör değiştirebilir)
       if (secilenBolum === 'pres') bukumGoster(bukumOp || 1);
       // Pres: referansın Excel açıklaması alttaki Açıklama alanına gelir (operatör görsün).

@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, render_template, send_file, g, session, redirect
+from flask import (Flask, request, jsonify, render_template, send_file, g, session,
+                   redirect, make_response)
 from flask_cors import CORS
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -425,7 +426,8 @@ SAYAC_AUTO_CIHAZLAR = (
 #   hat listesinden çıkarıldı, ama GEÇMİŞ vardiyaları bu isimlerle kayıtlı olduğu
 #   için burada KALIR (yoksa eski kayıtlar TK1 filtrelerinden düşerdi).
 TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
-                     '320T', '407T', 'Yapistirma', 'Sizdirmazlik Test'}  # 2026-07-27 plastik enj + yapıştırma (TK1)
+                     '320T', '407T', 'Yapistirma', 'Sizdirmazlik Test',  # 2026-07-27 plastik enj + yapıştırma (TK1)
+                     'Plastik Enjeksiyon'}   # 2026-08-18 plastik SABİT HAT (makine artık üretim kaydında)
                     | {f'TK1-M{i}' for i in range(1, 8)}   # 2026-07-31 TK1 montaj masaları
                     # Tel üretimi proses hatları — TEL_HATLARI'ndan TÜRETİLİR (elle
                     # yazılmaz). Eskiden burada 13 hat elle sayılıydı; kapama 4'ten
@@ -452,31 +454,56 @@ PRES_MAKINELERI = ['Abkant 1', 'Abkant 2', 'Abkant 3',
                    'Hidrolik Pres', 'Bros']
 
 
-def pres_makine_ad(istasyon):
-    """istasyon no (1..10) → makine adı. Geçersiz/0 ise '' (makine seçilmemiş)."""
+# ── PLASTİK ENJEKSİYON MAKİNE MODELİ (kullanıcı 2026-08-18) ──
+# Pres/abkant ile AYNI model: makine artık VARDİYADA değil her ÜRETİM KAYDINDA
+# seçilir (operatör referansı seçtikten sonra makinesini işaretler). Vardiya hattı
+# tek ve sabittir: PLASTIK_SABIT_HAT.
+# SIRA ÖNEMLİ: istasyon no = bu listedeki sıra (1=320T ... 4=Sizdirmazlik Test).
+# Adlar pilot.db cihaz robot_no'larıyla (firmware, generate.py DEVICES['plastik'])
+# BİREBİR aynı — ASCII yazım zorunlu. YENİ MAKİNE HEP SONA EKLENİR; araya girmek
+# eski üretim kayıtlarının istasyon numaralarını başka makineye kaydırır.
+PLASTIK_SABIT_HAT  = 'Plastik Enjeksiyon'
+PLASTIK_MAKINELERI = ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']
+
+# Makinesi ÜRETİM KAYDINDA (istasyon kolonunda) seçilen bölümler: {bolum: (sabit_hat, makineler)}
+# Lazer BURADA DEĞİL: onun makineleri (Lazer 1..6) da kayıtta seçilir ama sahada
+# sayaç cihazı yok — istasyon yalnız rapor kırılımı için kullanılır, robot_no→cihaz
+# eşlemesine girmez.
+KAYITTA_MAKINE = {
+    'pres':    (PRES_SABIT_HAT, PRES_MAKINELERI),
+    'plastik': (PLASTIK_SABIT_HAT, PLASTIK_MAKINELERI),
+}
+
+
+def kayit_makine_ad(bolum, istasyon):
+    """(bolum, istasyon no) → makine adı. Geçersiz/0/bölüm kapsam dışı ise ''."""
+    makineler = KAYITTA_MAKINE.get(bolum, (None, []))[1]
+    if not makineler:
+        return ''
     try:
         i = int(istasyon or 0)
     except (TypeError, ValueError):
         return ''
-    return PRES_MAKINELERI[i - 1] if 1 <= i <= len(PRES_MAKINELERI) else ''
+    return makineler[i - 1] if 1 <= i <= len(makineler) else ''
 
 
-def pres_ist_no(makine_ad):
-    """Makine adı → istasyon no (1..10). Listede yoksa 0."""
+def kayit_ist_no(bolum, makine_ad):
+    """(bolum, makine adı) → istasyon no. Listede yoksa 0."""
+    makineler = KAYITTA_MAKINE.get(bolum, (None, []))[1]
     try:
-        return PRES_MAKINELERI.index(str(makine_ad or '').strip()) + 1
+        return makineler.index(str(makine_ad or '').strip()) + 1
     except ValueError:
         return 0
 
 
 def _sayac_cihazi(bolum, robot_no, istasyon=0):
     """Vardiya hattı + üretim kaydı istasyonundan pilot.db CIHAZ robot_no'sunu bulur.
-    - pres: hat sabit, MAKİNE istasyondan gelir (1=Abkant 1 ... 10=Bros).
-      istasyon 0 ise (eski kayıtlar: makine vardiyada seçiliyordu) hat adı aynen
-      kullanılır → geriye dönük uyum korunur.
+    - pres / plastik: hat sabit, MAKİNE istasyondan gelir (pres 1=Abkant 1 ... 10=Bros;
+      plastik 1=320T ... 4=Sizdirmazlik Test). istasyon 0 ise (eski kayıtlar: makine
+      vardiyada seçiliyordu) hat adı aynen kullanılır → geriye dönük uyum korunur.
     - diğer bölümler: hat→cihaz eşlemesi (LF-LFP→YF1), yoksa hattın kendisi."""
-    if bolum == 'pres':
-        ad = pres_makine_ad(istasyon)
+    if bolum in KAYITTA_MAKINE:
+        ad = kayit_makine_ad(bolum, istasyon)
         if ad:
             return ad
     return HAT_SAYAC_CIHAZI.get(robot_no, robot_no)
@@ -493,8 +520,9 @@ def _sayac_destekli_bolum(bolum, robot_no):
     """VARDİYA düzeyi UI ipucu: bu vardiyada sensör sayımı mümkün mü? pres'te makine
     üretim kaydında seçildiğinden bölümdeki herhangi bir sayaçlı makine yeterlidir
     (mobil sensör rozeti/sıfırla butonu vardiya açılışında da görünsün)."""
-    if bolum == 'pres' and robot_no == PRES_SABIT_HAT:
-        return any(m in SAYAC_AUTO_CIHAZLAR for m in PRES_MAKINELERI)
+    sabit_hat, makineler = KAYITTA_MAKINE.get(bolum, (None, []))
+    if sabit_hat and robot_no == sabit_hat:
+        return any(m in SAYAC_AUTO_CIHAZLAR for m in makineler)
     return _sayac_destekli(bolum, robot_no, 0)
 
 # Yönetici kullanıcı — operatorler tablosunda 'Admin' (PIN varsayılan 9999, panelden
@@ -572,10 +600,10 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
     tek istasyon, firmware istasyon=1 gönderir → filtre yok hepsini sayar)."""
     # Hat → cihaz robot_no eşlemesi (LF-LFP→YF1; pres'te istasyon→makine)
     cihaz = _sayac_cihazi(bolum, robot_no, istasyon)
-    # PRES: istasyon MAKİNE seçimidir, cihaz-içi istasyon değil — makineye çevrildiyse
-    # istasyon filtresi KALKAR (abkant/pres firmware'i montaj gibi istasyon=1 gönderir;
-    # filtre bırakılırsa istasyon=3 aranır ve hiç pulse bulunamazdı).
-    if bolum == 'pres' and pres_makine_ad(istasyon):
+    # PRES/PLASTİK: istasyon MAKİNE seçimidir, cihaz-içi istasyon değil — makineye
+    # çevrildiyse istasyon filtresi KALKAR (abkant/pres/plastik firmware'i montaj gibi
+    # istasyon=1 gönderir; filtre bırakılırsa istasyon=3 aranır ve hiç pulse bulunamazdı).
+    if kayit_makine_ad(bolum, istasyon):
         istasyon = 0
     robot_no = cihaz
     pilot_db = _pilot_db_yolu()
@@ -1131,10 +1159,55 @@ def _vardiya_efektif_dk(vardiya):
 # SAYFA ROUTES
 # ─────────────────────────────────────────────────────────────
 
+# ── CİHAZ TESİS SABİTLEME (kullanıcı 2026-08-18) ────────────────────────────
+# Sorun: TK1 operatörü tarayıcıda /tk1'i açıp "ana ekrana/masaüstüne ekle" dediğinde
+# kısayol sadece "coflemanage.online" olarak kaydediliyor (yol düşüyor) → uygulama
+# '/' açılıyor, lokasyon TK2'ye dönüyor ve operatör TK2 ekranını görüyor.
+# manifest.json'daki start_url='/tk1' bunu ÇÖZMÜYOR: iOS "Ana Ekrana Ekle" ve
+# masaüstü "kısayol oluştur" akışları manifest'i dikkate almıyor, o anki adresi
+# (bazen yalnız kök adresi) kaydediyor.
+# Çözüm kısayoldan BAĞIMSIZ: /tk1 bir kez açıldığında cihaza uzun ömürlü bir çerez
+# yazılır; '/' bu çerezi görürse /tk1'e yönlendirir. Böylece kısayol nasıl kaydedilmiş
+# olursa olsun TK1 telefonu/bilgisayarı hep TK1 ekranını açar.
+# ÇIKIŞ KAPISI: /tk2 (ya da /?tesis=TK2) çerezi siler — aynı cihaz TK2'ye dönebilir.
+LOKASYON_COOKIE = 'cofle_lokasyon'
+LOKASYON_COOKIE_OMUR = 60 * 60 * 24 * 365 * 2   # 2 yıl (fabrika cihazı kalıcı sayılır)
+
+
+def _lokasyon_cerezi_yaz(resp, lokasyon):
+    """Cihazı bir tesise sabitler. lokasyon=None → sabitlemeyi kaldırır.
+    secure=False BİLİNÇLİ: sistem fabrika içinden düz http (192.168.x) ile de
+    açılıyor; secure çerez orada hiç yazılmaz ve düzeltme çalışmazdı."""
+    if lokasyon:
+        resp.set_cookie(LOKASYON_COOKIE, lokasyon, max_age=LOKASYON_COOKIE_OMUR,
+                        path='/', samesite='Lax')
+    else:
+        resp.set_cookie(LOKASYON_COOKIE, '', max_age=0, path='/', samesite='Lax')
+    return resp
+
+
 @app.route('/')
 def operator_sayfasi():
-    """Operatör mobil giriş sayfası (v2). Varsayılan lokasyon: TK2 (mevcut fabrika)."""
+    """Operatör mobil giriş sayfası (v2). Varsayılan lokasyon: TK2 (mevcut fabrika).
+
+    Cihaz TK1'e sabitlenmişse (bkz. LOKASYON_COOKIE) /tk1'e yönlendirilir —
+    kısayolun yolu düşse bile TK1 operatörü TK2 ekranını görmez.
+    ?tesis=TK2 sabitlemeyi kaldırır (ortak/deneme cihazları için çıkış kapısı).
+    """
+    if (request.args.get('tesis') or '').upper() == 'TK2':
+        return _lokasyon_cerezi_yaz(
+            make_response(render_template('mobile_v2.html', lokasyon='TK2')), None)
+    if request.cookies.get(LOKASYON_COOKIE) == 'TK1':
+        return redirect('/tk1')
     return render_template('mobile_v2.html', lokasyon='TK2')
+
+
+@app.route('/tk2')
+def operator_tk2_sayfasi():
+    """TK2 operatör sayfası — AÇIK adres. '/' ile aynı ekran, ek olarak cihazın
+    TK1 sabitlemesini KALDIRIR: TK1'de denenmiş bir cihaz buradan TK2'ye döner."""
+    return _lokasyon_cerezi_yaz(
+        make_response(render_template('mobile_v2.html', lokasyon='TK2')), None)
 
 
 @app.route('/mobile_v2')
@@ -1146,8 +1219,13 @@ def operator_v2_preview():
 @app.route('/tk1')
 def operator_tk1_sayfasi():
     """TK1 (yan tesis) operatör mobil veri giriş sayfası. Lokasyon URL'den SABİT (TK1);
-    operatör ekranda TK1/TK2 seçmez — bu adres TK1 operatörlerinin telefonu içindir."""
-    return render_template('mobile_v2.html', lokasyon='TK1')
+    operatör ekranda TK1/TK2 seçmez — bu adres TK1 operatörlerinin telefonu içindir.
+
+    Bu sayfayı bir kez açan cihaz TK1'e SABİTLENİR (çerez): kısayol kök adrese
+    kaydedilmiş olsa bile '/' buradan devam eder. Geri alma: /tk2
+    """
+    return _lokasyon_cerezi_yaz(
+        make_response(render_template('mobile_v2.html', lokasyon='TK1')), 'TK1')
 
 
 @app.route('/onizleme')
@@ -1836,15 +1914,15 @@ def vardiya_detay(vid):
     # test cihazıyla çalışan hatta pulse düşmez, yalnız pilot'a bakmak YANLIŞ duruş sayar.
     # En yakın (en küçük dk) aktivite geçerli.
     vbolum = (vardiya['bolum'] if 'bolum' in vardiya.keys() else None) or 'kaynak'
-    # pres: makine üretim kaydında → o an çalışılan makineyi son auto kayıttan al
+    # pres/plastik: makine üretim kaydında → o an çalışılan makineyi son auto kayıttan al
     # (duruş uyarısı doğru cihazın pulse'ına bakmalı; makine yoksa 0 = hat adı).
-    _pres_ist = 0
-    if vbolum == 'pres':
+    _mak_ist = 0
+    if vbolum in KAYITTA_MAKINE:
         _pr = c.execute(
             "SELECT istasyon FROM uretim_kayitlari WHERE vardiya_id=? "
             "AND sayac_baslangic_ts IS NOT NULL ORDER BY id DESC LIMIT 1", (vid,)).fetchone()
-        _pres_ist = int((_pr['istasyon'] if _pr else 0) or 0)
-    son_pulse_dk = _pilot_son_pulse_dk(vbolum, vardiya['robot_no'], istasyon=_pres_ist)
+        _mak_ist = int((_pr['istasyon'] if _pr else 0) or 0)
+    son_pulse_dk = _pilot_son_pulse_dk(vbolum, vardiya['robot_no'], istasyon=_mak_ist)
     test_dk = _test_son_aktivite_dk(conn, vid)
     if test_dk is not None:
         son_pulse_dk = test_dk if son_pulse_dk is None else min(son_pulse_dk, test_dk)
@@ -3151,18 +3229,18 @@ def robot_listesi():
     # Plastik enjeksiyon (TK1, 2026-07-23): sabit 2 makine + operatörün eklediği ekstralar.
     # TK1 montaj-hat kısayolundan ÖNCE — aksi halde plastik montaj hatlarıyla ezilirdi.
     if bolum == 'plastik':
+        # 2026-08-18: makine artık VARDİYADA DEĞİL ÜRETİM KAYDINDA seçilir (pres modeli
+        # — kullanıcı: "makine seçimini referansı seçtikten sonra yapalım, abkant gibi").
+        # Vardiya hattı tek ve sabit: PLASTIK_SABIT_HAT. Mobil bu listeyi kullanmaz
+        # (hat gizli/sabit); dashboard GEÇMİŞ filtreleri kullanır → eski vardiyaların
+        # makine adları ('320T', 'Yapistirma' …) listede KALIR.
         conn = get_db()
         rows = conn.execute(
             "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='plastik' "
             "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no").fetchall()
         conn.close()
-        # 320T/407T = enjeksiyon; Yapistirma = yapıştırma makinesi; Sizdirmazlik Test =
-        # sızdırmazlık test makinesi (adet SVP test cihazından gelir, saha sayacı YOK).
-        # Hepsi AYNI bölümün (plastik, TK1) makineleri — ayrı bölüm DEĞİL (2026-08-04).
-        # ASCII yazım zorunlu: robot_no firmware/klasör adları ve rapor kırılımlarıyla
-        # birebir eşleşiyor (Türkçe karakter ODBC/dosya adı tarafında sorun çıkarıyor).
-        taban = ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']
-        return jsonify(taban + [r['robot_no'] for r in rows if r['robot_no'] not in taban])
+        return jsonify([PLASTIK_SABIT_HAT]
+                       + [r['robot_no'] for r in rows if r['robot_no'] != PLASTIK_SABIT_HAT])
     # Tel üretimi (TK1, 2026-08-04): hat = PROSES ADIMI. Operatör vardiyasında
     # hangi adımda çalıştığını seçer; aynı referans gün içinde farklı adımlarda
     # farklı operatörler tarafından kaydedilir (üretim yalnız SON adımda sayılır).
@@ -3186,7 +3264,9 @@ def robot_listesi():
                        + [f'TK1-M{i}' for i in range(1, 8)])
     # Sabit makine tabanı olan bölümler (liste her zaman tam görünür; DISTINCT ekstraları eklenir)
     # pres BURADA DEĞİL: hattı sabit (aşağıda), makineleri üretim kaydında seçilir.
-    SABIT_TABAN = {'plastik': ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']}
+    # plastik BURADA DEĞİL (2026-08-18): pres gibi hattı sabit, makineleri üretim
+    # kaydında seçilir — yukarıdaki erken dönüşte karşılanır.
+    SABIT_TABAN = {}
     # Dinamik bölümlerde hiç vardiya yokken gösterilecek varsayılan makine/hat adı
     DINAMIK_VARSAYILAN = {'montaj': 'HAT 1', 'isleme': 'Tezgah 1'}
     if bolum == 'metal':
@@ -3643,14 +3723,16 @@ def saha_cihazlari():
                 continue   # bu tesisin cihazı değil — atla
             kayit = mevcut.get(cid)
 
-            # PRES (2026-07-28): makine artik VARDIYADA degil URETIM KAYDINDA secilir.
-            # Cihaz 'Abkant 2' → vardiya hatti PRES_SABIT_HAT, baseline istasyonu = 2.
-            # ESKI kayitlar (vardiya.robot_no='Abkant 2', istasyon=0) icin fallback var.
-            v_rno, pres_ist = rno, 0
-            if bolum == 'pres':
-                _pi = pres_ist_no(rno)
+            # PRES (2026-07-28) / PLASTIK (2026-08-18): makine artik VARDIYADA degil
+            # URETIM KAYDINDA secilir. Cihaz 'Abkant 2' → vardiya hatti sabit hat,
+            # baseline istasyonu = 2. ESKI kayitlar (vardiya.robot_no='Abkant 2' /
+            # '320T', istasyon=0) icin fallback var.
+            v_rno, mak_ist = rno, 0
+            _sabit_hat = KAYITTA_MAKINE.get(bolum, (None, []))[0]
+            if _sabit_hat:
+                _pi = kayit_ist_no(bolum, rno)
                 if _pi:
-                    v_rno, pres_ist = PRES_SABIT_HAT, _pi
+                    v_rno, mak_ist = _sabit_hat, _pi
 
             # Aktif vardiya baslangic ts (varsa) — sayac sifirlama referansi
             # (yeni model once; bulunamazsa eski makine-adli vardiyaya dus)
@@ -3718,11 +3800,11 @@ def saha_cihazlari():
                 op_bl_1 = op_baseline_map.get((bolum, rno, 1))
                 op_bl_2 = op_baseline_map.get((bolum, rno, 2))
                 op_bl_0 = op_baseline_map.get((bolum, rno, 0))
-                # PRES: baseline anahtarinda istasyon = MAKINE no (sabit hat + 1..10).
+                # PRES/PLASTIK: baseline anahtarinda istasyon = MAKINE no (sabit hat + 1..N).
                 # Cihaz tek makinedir → tek sayac (op_bl_0 gibi davranir); eski
                 # makine-adli kayitlarin baseline'i (rno, 0) fallback olarak kalir.
-                if pres_ist:
-                    op_bl_0 = _en_son_ts(op_baseline_map.get((bolum, PRES_SABIT_HAT, pres_ist)),
+                if mak_ist:
+                    op_bl_0 = _en_son_ts(op_baseline_map.get((bolum, _sabit_hat, mak_ist)),
                                          op_bl_0)
                     op_bl_1 = op_bl_2 = None
                 # ── URETIM KAPISI: AKTIF VARDIYA ──────────────────────────────

@@ -46,6 +46,43 @@ BOLUM_DURUS_SAYFA = {
     'pres':   'Pres Abkant Duruş Listesi',
 }
 
+# ── BÖLÜME ÖZEL EK DURUŞ SEBEPLERİ (kullanıcı 2026-08-18) ────────────────────
+# pres / lazer / işleme bölümlerinin Excel'de KENDİ duruş sayfası yok → hepsi
+# 'Montaj Duruş Listesi'ne düşüyor. Montaj bir MASA bölümü olduğu için o listede
+# makine ayarı sebebi yok; bu üç bölümde ise ayar en sık duruşlardan biri ve
+# operatör mecburen 'Setup Süresi' / 'Bakım Çalışması' gibi yanlış sebep seçiyordu.
+# Sebep KODDA duruyor ki Excel'e sayfa eklenene kadar sahada seçilebilsin.
+# Excel'e aynı adla eklenirse TEKRARLANMAZ (bkz. _ek_durus_uygula dedupe) —
+# yani bu tablo Excel'i ezmez, yalnızca eksiği tamamlar.
+# Tip 'planli': ayar planlı bir hazırlık duruşu (Metal Enjeksiyon sayfasındaki
+# 'Makine Ayar Yapımı' da Planlı) → OEE'de plansız arıza gibi cezalandırılmaz.
+BOLUM_EK_DURUS = {
+    'isleme': [{'sebep': 'Makine Ayarı', 'tip': 'planli'}],
+    'lazer':  [{'sebep': 'Makine Ayarı', 'tip': 'planli'}],
+    'pres':   [{'sebep': 'Makine Ayarı', 'tip': 'planli'}],
+}
+
+
+def _durus_anahtar(sebep):
+    """Duruş adı karşılaştırma anahtarı — boşluk/büyük-küçük harf farkına dayanıklı."""
+    return ' '.join(str(sebep or '').split()).casefold()
+
+
+def _ek_durus_uygula(bolum, lokasyon, sonuc):
+    """BOLUM_EK_DURUS'taki sebepleri listeye ekler; Excel'de zaten varsa eklemez.
+    TK1'de uygulanmaz: TK1'in duruş listesi bölümden bağımsız TEK listedir."""
+    if (lokasyon or 'TK2').upper() == 'TK1':
+        return sonuc
+    ekler = BOLUM_EK_DURUS.get(bolum)
+    if not ekler:
+        return sonuc
+    var_olan = {_durus_anahtar(s.get('sebep')) for s in sonuc}
+    for e in ekler:
+        if _durus_anahtar(e['sebep']) not in var_olan:
+            sonuc.append(dict(e))
+    return sonuc
+
+
 # Ek sayfalar (kaynak bölümüne özel — diğer bölümler için gerekmez)
 ROBOT_PROGRAM_SAYFA = 'Robot Program Listesi'
 FIKSTUR_RAF_SAYFA   = 'Fikstür Raf Listesi'
@@ -207,6 +244,12 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
             else:
                 tip = 'plansiz'  # boş/bilinmeyen → güvenli yan: plansız
             sonuc.append({'sebep': sebep, 'tip': tip})
+        # Bölüme özel ek sebepler — YALNIZ Excel'den gerçek bir liste okunduysa.
+        # Boş listeye eklemek olmaz: '/api/durus_sebepleri' boş listeyi "Excel
+        # okunamadı" tanısı için kullanıyor, tek maddelik liste o tanıyı susturur
+        # ve operatör 1 sebeple baş başa kalırdı (mobil yedek listesi de devreye girmez).
+        if sonuc:
+            _ek_durus_uygula(bolum, lokasyon, sonuc)
         return sonuc
     except Exception as e:
         print(f"[durus_sebepleri] Hata: {e}")
