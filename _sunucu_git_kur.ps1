@@ -47,20 +47,24 @@ Write-Host ('HEAD: ' + (& $gitExe log --oneline -1))
 $bat = @'
 @echo off
 REM === Cofle Manage - Sunucu Guncelleme ===
-REM GitHub main'den son kodu ceker ve servisleri yeniden baslatir.
+REM ARTIK REPODA: sunucu\Guncelle.bat (VERI KORUMALI surum). Bu gomulu kopya
+REM yalniz ILK KURULUMDA is gorur; repodaki surum varsa ona DEVREDER.
+REM NEDEN (2026-08-17): eski surum 'git reset --hard' ile data\uretim_verileri.xlsx
+REM dosyasini eziyordu; o dosyaya UYGULAMA yaziyor (teyit auto-sync) -> sunucudaki
+REM Excel degisiklikleri her guncellemede sessizce geri aliniyordu.
 net session >nul 2>&1 || (powershell -Command "Start-Process '%~f0' -Verb RunAs" & exit /b)
+if exist C:\cofle\uretim_takip\sunucu\Guncelle.bat (
+    copy /Y C:\cofle\uretim_takip\sunucu\Guncelle.bat C:\cofle\Guncelle.bat >nul
+    call C:\cofle\Guncelle.bat
+    exit /b
+)
 cd /d C:\cofle\uretim_takip
-echo ============================================
-echo   GitHub'dan son kod cekiliyor...
-echo ============================================
+echo GitHub'dan son kod cekiliyor...
 "C:\Program Files\Git\cmd\git.exe" fetch origin main
 "C:\Program Files\Git\cmd\git.exe" reset --hard origin/main
-echo.
-echo   Servisler yeniden baslatiliyor...
 C:\cofle\nssm.exe restart cofle-app
 C:\cofle\nssm.exe restart cofle-pilot
-echo.
-echo   GUNCELLEME TAMAMLANDI.
+echo GUNCELLEME TAMAMLANDI.
 timeout /t 5
 '@
 Set-Content -Path 'C:\cofle\Guncelle.bat' -Value $bat -Encoding ASCII
