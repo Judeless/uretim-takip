@@ -3397,8 +3397,28 @@ window.__I18N_SOZLUK__ = {
           .then(function (data) {
             var liste = (data && data.sebepler) || [];
             if (!liste.length) {
-              // Excel okunamadıysa fallback default
+              // SESSİZ DÜŞME YOK (2026-08-18): Excel okunamayınca 6 maddelik yedek
+              // listeye sessizce düşülüyordu. Operatörler bunu fark etmeden duruşları
+              // GENEL sebeplerle kaydediyor, hata ancak "duruşlarımız azaldı"
+              // denince ortaya çıkıyordu — arada kaydedilen veri yanlış kalıyor.
+              // Artık ekranda AÇIKÇA yazıyor; operatör duruş girmeye devam edebilir
+              // ama listenin eksik olduğunu bilir ve haber verir.
               liste = defaultListe();
+              toast('⚠ Duruş listesi sunucudan gelmedi — KISA yedek liste gösteriliyor. '
+                    + 'Bölüm sorumlusuna bildirin.', 'error');
+              try {
+                var _u = document.getElementById('e-cats');
+                if (_u) {
+                  var _b = document.createElement('div');
+                  _b.style.cssText = 'grid-column:1/-1;margin-bottom:8px;padding:8px 10px;'
+                    + 'background:var(--danger-soft);border:1px solid rgba(180,35,28,.3);'
+                    + 'border-radius:10px;font-size:.74rem;color:var(--danger);font-weight:700';
+                  _b.textContent = '⚠ Bölümünüzün duruş listesi yüklenemedi — aşağıdaki kısa '
+                    + 'yedek liste gösteriliyor. Doğru sebep yoksa açıklamaya yazın ve bildirin.'
+                    + (data && data.uyari ? ' (' + data.uyari + ')' : '');
+                  _u.parentNode.insertBefore(_b, _u);
+                }
+              } catch (e) {}
             }
             renderListe(liste);
           })

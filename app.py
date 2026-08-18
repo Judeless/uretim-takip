@@ -4474,7 +4474,37 @@ def durus_sebepleri_api():
     if bolum not in GECERLI_BOLUMLER:
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
     sebepler = durus_sebepleri_yukle(bolum, lokasyon)
-    resp = jsonify({'bolum': bolum, 'lokasyon': lokasyon, 'sebepler': sebepler})
+    # BOŞ LİSTENİN SEBEBİNİ SÖYLE (2026-08-18). Eskiden boş dönerdi ve operatör
+    # mobili sessizce 6 maddelik yedek listeye düşerdi: operatörler "duruşlarımız
+    # azaldı" diyene kadar kimse fark etmiyor, o arada duruşlar YANLIŞ/GENEL
+    # sebeplerle kaydediliyordu. Artık neden boş olduğu API'de görünür.
+    uyari = ''
+    if not sebepler:
+        try:
+            import import_excel as _ie
+            _yol = _ie.TK1_EXCEL_YOL if (lokasyon or 'TK2').upper() == 'TK1' else _ie.EXCEL_YOL
+            if not os.path.exists(_yol):
+                uyari = f'Excel dosyası BULUNAMADI: {_yol}'
+            else:
+                try:
+                    import openpyxl as _op
+                    _wb = _op.load_workbook(_yol, data_only=True, read_only=True)
+                    _sayfa = (_ie.TK1_SAYFA['durus'] if (lokasyon or 'TK2').upper() == 'TK1'
+                              else _ie.BOLUM_DURUS_SAYFA.get(bolum, ''))
+                    if _sayfa and _sayfa not in _wb.sheetnames:
+                        uyari = (f'"{_sayfa}" sayfası dosyada yok. Mevcut sayfalar: '
+                                 + ', '.join(_wb.sheetnames[:12]))
+                    else:
+                        uyari = f'"{_sayfa}" sayfası var ama okunabilir satır yok (liste boş?)'
+                    _wb.close()
+                except Exception as _e2:
+                    uyari = (f'Excel AÇILAMADI ({type(_e2).__name__}: {_e2}) — '
+                             f'dosya sunucuda AÇIK/kilitli veya bozuk olabilir')
+        except Exception as _e:
+            uyari = f'tanı yapılamadı: {_e}'
+        print(f'[durus_sebepleri] {bolum}/{lokasyon} BOŞ — {uyari}')
+    resp = jsonify({'bolum': bolum, 'lokasyon': lokasyon, 'sebepler': sebepler,
+                    'uyari': uyari})
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     resp.headers['Pragma'] = 'no-cache'
     return resp, 200
