@@ -4487,8 +4487,12 @@ def durus_sebepleri_api():
                 uyari = f'Excel dosyası BULUNAMADI: {_yol}'
             else:
                 try:
-                    import openpyxl as _op
-                    _wb = _op.load_workbook(_yol, data_only=True, read_only=True)
+                    import openpyxl as _op, io as _bio
+                    # Tanı da BELLEKTEN okur — bozuk dosyayı KİLİTLEMESİN
+                    # (bu kod her istekte çalışıyor).
+                    with open(_yol, "rb") as _f2:
+                        _ham = _f2.read()
+                    _wb = _op.load_workbook(_bio.BytesIO(_ham), data_only=True, read_only=True)
                     _sayfa = (_ie.TK1_SAYFA['durus'] if (lokasyon or 'TK2').upper() == 'TK1'
                               else _ie.BOLUM_DURUS_SAYFA.get(bolum, ''))
                     if _sayfa and _sayfa not in _wb.sheetnames:

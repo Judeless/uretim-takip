@@ -16,6 +16,7 @@ Her operator sayfası: 2. sütun operatör adı (1. sütun No).
 """
 import openpyxl
 import sqlite3
+import io
 import os
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -171,7 +172,15 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
         return []
 
     try:
-        wb = openpyxl.load_workbook(excel_yol, data_only=True)
+        # DOSYAYI BELLEGE OKU, openpyxl"e BytesIO ver (2026-08-18).
+        # NEDEN: bozuk bir xlsx"te openpyxl uye okurken BadZipFile firlatiyor ve
+        # arsivi ACIK birakiyor -> her istekte bir tutamak sizip dosya KILITLENIYOR.
+        # Sahada yasandi: bozuk dosya ne tasinabildi ne degistirilebildi
+        # ("baska bir islem tarafindan kullaniliyor"). BytesIO ile OS tutamagi
+        # "with" bitince kapanir; bozuk dosya bile kendini kilitlemez.
+        with open(excel_yol, "rb") as _fh:
+            _veri = _fh.read()
+        wb = openpyxl.load_workbook(io.BytesIO(_veri), data_only=True)
         if sayfa_adi not in wb.sheetnames:
             # Bölümün kendi duruş sayfası yoksa genel listeye düş (yeni bölümler:
             # işleme/lazer/pres — Excel'e kendi sayfaları eklenince otomatik geçilir).
