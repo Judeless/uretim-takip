@@ -23,12 +23,17 @@ düşer — davranış değişmez.
 import os
 import subprocess
 import threading
+import time
 
 from flask import Flask, request, jsonify
 
 KOK      = os.path.dirname(os.path.abspath(__file__))     # .../as400
 CSCRIPT  = r'C:\Windows\SysWOW64\cscript.exe'             # 32-bit (PCOMM COM 32-bit)
-IZINLI   = ('teyit_gir.js', 'cfi_gir.js', 'transfer_iptal.js')   # beyaz liste — başka script ÇALIŞMAZ
+IZINLI   = ('teyit_gir.js', 'cfi_gir.js', 'transfer_iptal.js',
+            'oturum_ac.js')                                       # beyaz liste — başka script ÇALIŞMAZ
+# Şifreyi ortam değişkeniyle alan scriptler (argümanla ASLA geçilmez — argümanlar
+# bu konsola ve Windows süreç listesine düşer). Bunların args'ı da loglanmaz.
+SIFRE_ISTEYEN = ('oturum_ac.js',)
 PORT     = 5010
 
 app = Flask(__name__)
@@ -83,11 +88,28 @@ def calistir():
             return jsonify({'hata': f'geçersiz arg: {a[:30]}'}), 400
         temiz.append(a)
     yol = os.path.join(KOK, script)
-    print(f'[AGENT] {script} {" ".join(temiz)} (timeout={timeout}s)')
+    # Şifre isteyen scriptlerde ARGÜMANLARI YAZDIRMA (konsol + kayıt hijyeni)
+    if script in SIFRE_ISTEYEN:
+        print(f'[AGENT] {script} (args gizlendi) (timeout={timeout}s)')
+    else:
+        print(f'[AGENT] {script} {" ".join(temiz)} (timeout={timeout}s)')
+    # Şifre YALNIZCA çocuk sürecin ortamına konur: argümana, dosyaya, loga girmez.
+    ortam = None
+    if script in SIFRE_ISTEYEN:
+        try:
+            import as400_config as _cfg
+            _pw = _cfg.sifre_al()
+        except Exception as _e:
+            _pw = None
+            print(f'[AGENT]   -> UYARI: kasadan şifre okunamadı: {_e}')
+        if not _pw:
+            return jsonify({'hata': 'AS400 şifresi kasada yok (kaydet_sifre.py çalıştırın)'}), 503
+        ortam = dict(os.environ)
+        ortam['COFLE_AS400_PW'] = _pw
     with _KILIT:
         try:
             pr = subprocess.run([CSCRIPT, '//nologo', yol] + temiz,
-                                capture_output=True, timeout=timeout)
+                                capture_output=True, timeout=timeout, env=ortam)
             cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
             # stderr DE geri verilir (2026-08-17): PCOMM kapaliyken teyit_gir.js
             # SetConnectionByName("B")'de firliyor, JScript hatasi STDERR'e gidiyor,
@@ -102,6 +124,93 @@ def calistir():
         except subprocess.TimeoutExpired:
             print(f'[AGENT]   -> TIMEOUT ({timeout}s) — cscript kill edildi')
             return jsonify({'hata': 'timeout'}), 504
+
+
+
+# ════════════════════════════════════════════════════════════════════
+#   OTURUM GOZCUSU (2026-08-17, kullanici izinde iken sistem ayakta kalsin)
+# ════════════════════════════════════════════════════════════════════
+# Sunucudaki Session B uzun sure islem yapilmayinca dusuyor (AS400 QINACTITV ya
+# da baglanti kopmasi) ve teyit robotu bir daha calisamiyor. Elle sign-on yapacak
+# kimse olmadiginda sistem sessizce durur.
+#
+# BU, KURULUM KILAVUZUNDAKI "sign-on INSAN isi" KURALINI BILEREK GEVSETIR —
+# kullanicinin acik istegi (2026-08-17). Guvenlik dengesi:
+#   · sifre YINE kasada (Windows Credential Manager / DPAPI), kodda-dosyada DEGIL
+#   · sifre cocuk surece YALNIZ ortam degiskeniyle gecer (arguman/log/disk YOK)
+#   · varsayilan KAPALI — oturum_config.json'da etkin:true yapilmadan calismaz
+#   · robot yanlis sifre DENEMEZ; sign-on reddedilirse durur (AS400 profil
+#     kilitlenmesi riskine girilmez) ve bir sonraki turda tekrar dener
+OTURUM_CFG = os.path.join(KOK, 'oturum_config.json')
+
+
+def _oturum_ayar():
+    """oturum_config.json'u HER TURDA taze oku (dosya degisince agent restart
+    gerekmesin). Dosya yoksa/bozuksa gozcu KAPALI sayilir."""
+    try:
+        import json
+        with open(OTURUM_CFG, 'r', encoding='utf-8-sig') as f:
+            d = json.load(f) or {}
+        return {
+            'etkin': bool(d.get('etkin')),
+            'kullanici': str(d.get('kullanici') or '').strip(),
+            'aralik_sn': max(60, int(d.get('aralik_sn') or 300)),
+        }
+    except FileNotFoundError:
+        return {'etkin': False, 'kullanici': '', 'aralik_sn': 300}
+    except Exception as e:
+        print(f'[GOZCU] config okunamadi ({e}) — kapali sayiliyor')
+        return {'etkin': False, 'kullanici': '', 'aralik_sn': 300}
+
+
+def _oturum_kontrol_et(kullanici):
+    """oturum_ac.js'i calistir. Doner: (sonuc_etiketi, son_satir).
+    _KILIT ile korunur → teyit robotu kosarken ASLA araya girmez."""
+    try:
+        import as400_config as _cfg
+        pw = _cfg.sifre_al()
+    except Exception as e:
+        return ('KASA-HATA', f'sifre okunamadi: {e}')
+    if not pw:
+        return ('KASA-BOS', 'AS400 sifresi kasada yok (kaydet_sifre.py)')
+    ortam = dict(os.environ)
+    ortam['COFLE_AS400_PW'] = pw
+    with _KILIT:
+        try:
+            pr = subprocess.run([CSCRIPT, '//nologo', os.path.join(KOK, 'oturum_ac.js'), kullanici],
+                                capture_output=True, timeout=180, env=ortam)
+        except subprocess.TimeoutExpired:
+            return ('TIMEOUT', 'oturum_ac.js 180 sn icinde bitmedi')
+    cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
+    satirlar = [l.strip() for l in cikti.splitlines() if l.strip()]
+    son = satirlar[-1] if satirlar else '(cikti yok)'
+    for etiket in ('SONUC=OK', 'SONUC=ZATEN', 'SONUC=IPTAL'):
+        if etiket in cikti:
+            return (etiket.split('=')[1], ' | '.join(satirlar[-3:]))
+    return ('BILINMEYEN', f'rc={pr.returncode} | ' + ' | '.join(satirlar[-3:]))
+
+
+def _gozcu_dongusu():
+    """Arka plan: periyodik olarak Session B'yi kontrol eder, dusmusse geri getirir.
+    SESSIZ CALISIR — yalniz DURUM DEGISINCE ekrana yazar (konsol sismesin)."""
+    son_durum = None
+    while True:
+        ayar = _oturum_ayar()
+        if not ayar['etkin'] or not ayar['kullanici']:
+            if son_durum != 'kapali':
+                print('[GOZCU] kapali (oturum_config.json etkin:false ya da kullanici bos)')
+                son_durum = 'kapali'
+            time.sleep(60)
+            continue
+        durum, detay = _oturum_kontrol_et(ayar['kullanici'])
+        if durum == 'OK':
+            print(f'[GOZCU] Session B DUSMUSTU -> yeniden giris yapildi. {detay}')
+        elif durum in ('IPTAL', 'TIMEOUT', 'KASA-BOS', 'KASA-HATA', 'BILINMEYEN'):
+            print(f'[GOZCU] SORUN ({durum}): {detay}')
+        elif durum != son_durum:
+            print(f'[GOZCU] Session B saglikli (kontrol araligi {ayar["aralik_sn"]} sn)')
+        son_durum = durum
+        time.sleep(ayar['aralik_sn'])
 
 
 def _quickedit_kapat():

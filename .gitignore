@@ -63,3 +63,6 @@ nul
 *.db.bak*
 *.db-wal
 *.db-shm
+
+# AS400 oturum gozcusu ayari (kullanici adi icerir; sifre kasada)
+as400/oturum_config.json

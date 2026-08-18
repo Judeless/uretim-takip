@@ -1,0 +1,6 @@
+{
+  "_aciklama": "Session B oturum gozcusu. Sunucudaki PCOMM oturumu dusunce otomatik geri getirir. Sifre BU DOSYADA DEGIL - Windows kasasinda (kaydet_sifre.py). Bu dosya gitignore'da; ornekten kopyalayin: copy oturum_config.json.example oturum_config.json",
+  "etkin": false,
+  "kullanici": "EMREDTK",
+  "aralik_sn": 300
+}
