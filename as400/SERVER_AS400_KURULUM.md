@@ -100,3 +100,52 @@ pip install pyodbc keyring requests
 Laptoptan teyit hâlâ mümkün: laptop'ta app konsol uygulaması olarak koşar,
 agent yoktur → yerel subprocess yolu aynen çalışır. (Ama laptop DB'si BAYAT —
 yalnız acil durumda ve DB tazeleyerek kullan.)
+
+## 9. Oturum gözcüsü — Session B düşerse otomatik geri getirir (2026-08-17)
+
+Session B uzun süre işlem yapılmayınca düşüyor (AS400 `QINACTITV` ya da bağlantı
+kopması); teyit robotu bir daha çalışamıyor. Kullanıcı izindeyken elle sign-on
+yapacak kimse olmadığı için gözcü eklendi.
+
+> ⚠️ Bu, madde 7'deki **"sign-on İNSAN işi"** kuralını bilerek gevşetir
+> (kullanıcı isteği, 2026-08-17). Denge şöyle korundu:
+> - Şifre **yine kasada** (Credential Manager / DPAPI) — kodda, config'de, log'da
+>   **yok**. `oturum_config.json` yalnız **kullanıcı adını** tutar (gitignore'da).
+> - Şifre alt sürece **yalnız ortam değişkeniyle** geçer (`COFLE_AS400_PW`).
+>   Argümanla geçilseydi agent konsoluna ve Windows süreç listesine düşerdi —
+>   bu yüzden agent bu script için argümanları da loglamaz.
+> - Robot **yanlış şifre denemez**: sign-on reddedilirse durur ve ekran mesajını
+>   raporlar (AS400 `QMAXSIGN` profil kilitleme riskine girilmez).
+> - Varsayılan **KAPALI**; config yoksa/bozuksa da kapalı.
+
+**Açmak için** (promanage oturumunda, bir kez):
+
+```
+cd C:\cofle\uretim_takip\as400
+copy oturum_config.json.example oturum_config.json
+notepad oturum_config.json      ->  "etkin": true,  "kullanici": "<AS400 kullanici adi>"
+python kaydet_sifre.py           (sifre zaten kayitliysa gerekmez)
+```
+
+Sonra **agent'ı yeniden başlat** (`Teyit_Agent_Baslat.bat`). Konsolda
+`Oturum gözcüsü AÇIK — kullanıcı …, her 300 sn kontrol` yazmalı.
+
+**Önce güvenli test** (hiçbir tuş göndermez, şifreyi kullanmaz):
+
+```
+C:\Windows\SysWOW64\cscript.exe //nologo oturum_ac.js <kullanici> TESTBAGLAN
+```
+
+Bağlantı yoksa kurar, sign-on ekranını ve **alan konumlarını** raporlar, kendi
+kurduğu bağlantıyı geri kapatır. `utente alani = kol N` satırları geliyorsa alan
+tespiti doğrudur. `DRYRUN` ise hiç bağlanmaz, yalnız mevcut durumu söyler.
+
+**Sonuçlar:** `SONUC=OK` düşmüştü, giriş yapıldı · `SONUC=ZATEN` sağlıklı ya da
+robot başka ekranda bırakmış (**dokunmaz**) · `SONUC=IPTAL` sorun var, konsolda
+gerekçesiyle yazar. Gözcü teyit robotu koşarken **araya girmez** (aynı kilidi
+bekler) ve yalnız durum değişince ekrana yazar.
+
+**Bilinen tuzak:** `CommStarted=true` oturumun kullanılabilir olduğunu
+**göstermez**. Ölçümde bağlantı kuruldu, OIA "hazır" dedi ama host 30 sn boyunca
+tek satır göndermedi. Robot bu yüzden kararını **ekran içeriğine** göre verir;
+bağlı-ama-boş ekranı arıza sayar ve kendi kurduğu yarım bağlantıyı kapatır.
