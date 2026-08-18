@@ -45,7 +45,7 @@ def durum():
     """Sağlık — app.py yönlendirme kararını buradan verir (agent=cofle-teyit).
     HIÇBIR dış komut (tasklist vb.) ÇAĞIRMAZ — anında döner (bazı sunucularda
     tasklist asılıp agent'ı startta kilitliyordu; PCOMM sayacı kaldırıldı)."""
-    return jsonify({'agent': 'cofle-teyit', 'ok': True})
+    return jsonify({'agent': 'cofle-teyit', 'ok': True, 'gozcu': dict(_GOZCU)})
 
 
 @app.route('/sifre')
@@ -143,6 +143,12 @@ def calistir():
 #     kilitlenmesi riskine girilmez) ve bir sonraki turda tekrar dener
 OTURUM_CFG = os.path.join(KOK, 'oturum_config.json')
 
+# Gozcunun son bilinen durumu — /durum bunu OKUR (dosya/komut erisimi YAPMAZ).
+# NEDEN (2026-08-17): "agent yeniden basladi ama gozcu acildi mi?" sorusunun
+# cevabi yalnizca konsol penceresine bakmak olmamali; disaridan sorulabilmeli.
+_GOZCU = {'etkin': False, 'kullanici': '', 'aralik_sn': 0,
+          'son_durum': None, 'son_zaman': None, 'son_detay': ''}
+
 
 def _oturum_ayar():
     """oturum_config.json'u HER TURDA taze oku (dosya degisince agent restart
@@ -196,6 +202,9 @@ def _gozcu_dongusu():
     son_durum = None
     while True:
         ayar = _oturum_ayar()
+        _GOZCU['etkin'] = ayar['etkin']
+        _GOZCU['kullanici'] = ayar['kullanici']
+        _GOZCU['aralik_sn'] = ayar['aralik_sn']
         if not ayar['etkin'] or not ayar['kullanici']:
             if son_durum != 'kapali':
                 print('[GOZCU] kapali (oturum_config.json etkin:false ya da kullanici bos)')
@@ -203,6 +212,9 @@ def _gozcu_dongusu():
             time.sleep(60)
             continue
         durum, detay = _oturum_kontrol_et(ayar['kullanici'])
+        _GOZCU['son_durum'] = durum
+        _GOZCU['son_detay'] = detay[:300]
+        _GOZCU['son_zaman'] = time.strftime('%Y-%m-%d %H:%M:%S')
         if durum == 'OK':
             print(f'[GOZCU] Session B DUSMUSTU -> yeniden giris yapildi. {detay}')
         elif durum in ('IPTAL', 'TIMEOUT', 'KASA-BOS', 'KASA-HATA', 'BILINMEYEN'):
