@@ -148,7 +148,11 @@ OTURUM_CFG = os.path.join(KOK, 'oturum_config.json')
 # NEDEN (2026-08-17): "agent yeniden basladi ama gozcu acildi mi?" sorusunun
 # cevabi yalnizca konsol penceresine bakmak olmamali; disaridan sorulabilmeli.
 _GOZCU = {'etkin': False, 'kullanici': '', 'aralik_sn': 0,
-          'son_durum': None, 'son_zaman': None, 'son_detay': ''}
+          'son_durum': None, 'son_zaman': None, 'son_detay': '',
+          # dongu_zaman = thread'in HER turda guncelledigi nabiz. son_zaman yalniz
+          # kontrol BITINCE dolar; ikisini ayirmak 'thread olmus' ile 'kontrol
+          # suruyor'u ayirt ettirir. thread_hata = donguyu oldurmus istisna.
+          'dongu_zaman': None, 'thread_hata': ''}
 
 
 def _oturum_ayar():
@@ -202,6 +206,8 @@ def _gozcu_dongusu():
     SESSIZ CALISIR — yalniz DURUM DEGISINCE ekrana yazar (konsol sismesin)."""
     son_durum = None
     while True:
+      try:
+        _GOZCU['dongu_zaman'] = time.strftime('%Y-%m-%d %H:%M:%S')
         ayar = _oturum_ayar()
         _GOZCU['etkin'] = ayar['etkin']
         _GOZCU['kullanici'] = ayar['kullanici']
@@ -223,7 +229,15 @@ def _gozcu_dongusu():
         elif durum != son_durum:
             print(f'[GOZCU] Session B saglikli (kontrol araligi {ayar["aralik_sn"]} sn)')
         son_durum = durum
+        _GOZCU['thread_hata'] = ''
         time.sleep(ayar['aralik_sn'])
+      except Exception as _e:
+        # DAEMON THREAD SESSIZCE OLMESIN (2026-08-17): buradaki bir istisna
+        # gozcuyu KALICI durdurur, /durum ise 'etkin:true' gostermeye devam
+        # ederdi — en kotu yanilgi. Hatayi kaydet, bekle, DEVAM ET.
+        _GOZCU['thread_hata'] = f'{type(_e).__name__}: {_e}'[:200]
+        print(f'[GOZCU] DONGU HATASI (devam ediliyor): {_GOZCU["thread_hata"]}')
+        time.sleep(60)
 
 
 def _quickedit_kapat():
