@@ -178,6 +178,18 @@ var yanki = ps.GetText(uSat, uAlan.kol, KULLANICI.length);
 if (yanki.replace(/\s+$/, "").toUpperCase() !== KULLANICI.toUpperCase())
     iptal("Kullanici adi yazilamadi (yanki: '" + yanki + "')");
 
+// SIGMA KONTROLU (2026-08-17, sahada olculdu: parola alani 10 karakter).
+// Sifre alandan UZUNSA yazma — tasan karakterler alan kilidine ya da EKSIK
+// sifreye yol acar; ikisi de BASARISIZ GIRIS DENEMESI demektir ve AS400
+// QMAXSIGN ile profili kilitleyebilir. Denemektense DURMAK dogru.
+if (SIFRE.length > pAlan.uz) {
+    iptal("Sifre ekran alanina sigmiyor (sifre " + SIFRE.length + " karakter, alan " +
+          pAlan.uz + ") — yanlis giris denemesi yapilmadi. Kasadaki sifre bu ekranin " +
+          "sifresi olmayabilir (ODBC sifresiyle karisti mi?).");
+}
+if (KULLANICI.length > uAlan.uz) {
+    iptal("Kullanici adi alana sigmiyor (" + KULLANICI.length + " > " + uAlan.uz + ")");
+}
 // Sifre: ayri alana imlecle git (Tab davranisina guvenme), yankisi OKUNMAZ/LOGLANMAZ
 ps.SetCursorPos(pSat, pAlan.kol); WScript.Sleep(200);
 ps.SendKeys(SIFRE); WScript.Sleep(300);
@@ -193,6 +205,14 @@ for (var k = 0; k < 12; k++) {
 }
 if (anaMenuMu(son)) {
     log("SIGN-ON BASARILI — ana menu geldi.");
+    log("SONUC=OK"); logKapat(); WScript.Quit(0);
+}
+// Menu adi kullaniciya/profile gore degisebilir. AS400'de sign-on HATASI olsaydi
+// EKRAN SIGN-ON'DA KALIRDI (mesaj altta). Sign-on'dan CIKTIYSA giris kabul
+// edilmistir — beklenmeyen ekran adiyla basariyi reddetme, ama LOGA yaz.
+if (!signOnMu(son) && son.replace(/\s/g, "").length > 20) {
+    log("SIGN-ON BASARILI — sign-on ekranindan cikildi (beklenen menu adi gorulmedi).");
+    log("Gelen ekranin ilk satiri: " + ekran()[0].replace(/\s+$/, ""));
     log("SONUC=OK"); logKapat(); WScript.Quit(0);
 }
 if (signOnMu(son)) {
