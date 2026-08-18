@@ -165,8 +165,27 @@ def _planli_dongu(hour, minute, fn, etiket, kacirildi_mi=None):
 _started = False  # Yalnızca tek thread spawn etmek için
 
 
-def start_scheduler(ek_gorevler=None):
+def _periyodik_dongu(aralik_dk, fn, etiket):
+    """Belirli dakika araligiyla surekli calisan gorev dongusu (2026-08-18).
+
+    Mevcut _planli_dongu GUNDE BIR KEZ belirli saatte calisir; erken teyit gibi
+    "gun icinde surekli bak" isleri icin uygun degildi. Hata YUTULMAZ ama donguyu
+    OLDURMEZ — bir turdaki istisna loglanir ve bir sonraki tura devam edilir
+    (gozetimsiz kosacak isler icin sessiz olum en kotu sonuc)."""
+    aralik = max(60, int(aralik_dk) * 60)
+    # Acilista hemen kosma: uygulama daha tam ayaga kalkmamis olabilir.
+    time.sleep(min(120, aralik))
+    while True:
+        try:
+            fn()
+        except Exception as e:
+            print(f'[SCHED] {etiket} HATA (dongu devam ediyor): {type(e).__name__}: {e}')
+        time.sleep(aralik)
+
+
+def start_scheduler(ek_gorevler=None, periyodik_gorevler=None):
     """Flask başlangıcında çağrılır. Daemon thread'leri başlatır.
+    periyodik_gorevler: [(aralik_dk, fn, etiket), ...] — gun icinde tekrar eden isler.
     ek_gorevler: [(saat, dakika, fn, etiket), ...] veya
                  [(saat, dakika, fn, etiket, kacirildi_mi), ...] — app.py'nin kendi
     planlı işleri (örn. AS400 oto koşuları) buradan verilir; circular import olmaz.
@@ -184,6 +203,12 @@ def start_scheduler(ek_gorevler=None):
             daemon=True, name=f'scheduler-ek-{i}'
         )
         te.start()
+
+    for j, pg in enumerate(periyodik_gorevler or []):
+        _ad, _fn, _et = pg
+        tp = threading.Thread(target=_periyodik_dongu, args=(_ad, _fn, _et),
+                              daemon=True, name=f'scheduler-periyodik-{j}')
+        tp.start()
 
     # 18:00 — Günlük arşiv
     t = threading.Thread(

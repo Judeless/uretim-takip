@@ -244,6 +244,16 @@ def init_db():
     except Exception:
         pass  # Kolon zaten var
 
+    # tamamlandi_ts (2026-08-18): operatör satırı "tamamlandı" işaretlediği AN.
+    # ERKEN TEYİT bunu kullanır — işaretten N dakika sonra o referansın teyidi
+    # otomatik gönderilir (kullanıcı: "bitirip başka referansa geçince 5 dk sonra").
+    # Gecikme bilerek var: operatör adedi düzeltirse ya da işareti geri alırsa
+    # gönderim daha yapılmamış olur. İşaret KALDIRILINCA NULL'a döner.
+    try:
+        c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN tamamlandi_ts TEXT")
+    except Exception:
+        pass  # Kolon zaten var
+
     # aciklama kolonu — operatör üretim kaydında not bırakabilir
     try:
         c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN aciklama TEXT DEFAULT ''")

@@ -2572,9 +2572,16 @@ def uretim_tamamlandi_guncelle(uid):
     data = request.get_json() or {}
     deger = 1 if data.get('tamamlandi') else 0
     conn = get_db()
-    conn.execute('UPDATE uretim_kayitlari SET tamamlandi=? WHERE id=?', (deger, uid))
+    # tamamlandi_ts = ERKEN TEYİT sayacının başlangıcı (2026-08-18). İşaret
+    # kaldırılırsa NULL'a döner ki bekleyen erken teyit de İPTAL olsun.
+    # NOT: conn.close() KALDIRILDI — get_db() request-paylaşımlı (flask.g cache);
+    # burada kapatmak aynı istekte sonra kullanan kodu düşürür (bkz. daha önce
+    # decorator'da yaşanan prod 500).
+    conn.execute(
+        "UPDATE uretim_kayitlari SET tamamlandi=?, "
+        "tamamlandi_ts = CASE WHEN ?=1 THEN datetime('now','localtime') ELSE NULL END "
+        "WHERE id=?", (deger, deger, uid))
     conn.commit()
-    conn.close()
     return jsonify({'basarili': True})
 
 @app.route('/api/durus', methods=['POST'])
@@ -8115,6 +8122,13 @@ _OTO_CONFIG_YOL = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as40
 _OTO_VARSAYILAN = {
     'transfer_iptal': {'etkin': True, 'saat': '16:45', 'gunler': 60, 'dryrun': False},
     'oto_teyit':      {'etkin': True, 'saat': '17:10', 'gunler': 3},
+    # ERKEN TEYİT (2026-08-18, kullanıcı isteği): operatör bir referansı
+    # "tamamlandı" işaretleyince gecikme_dk sonra o referansın teyidi gün
+    # İÇİNDE gönderilir; gün sonunu beklemez.
+    # VARSAYILAN KAPALI — bu, ERP'ye gün içinde YAZAN yeni bir otomasyon.
+    # Sahada bir kez izlenmeden kendiliğinden başlamamalı (oto_config.json'da
+    # etkin:true ile açılır, restart gerekmez — her turda taze okunur).
+    'erken_teyit':    {'etkin': False, 'gecikme_dk': 5, 'kontrol_dk': 2},
 }
 
 
@@ -8426,6 +8440,244 @@ def _oto_kuyruk_olustur(conn, tarihler):
     return launchQ, cfiQ, copQ, sabah
 
 
+def _erken_teyit_adaylari(conn, tarih, gecikme_dk):
+    """ERKEN TEYİT adayı referanslar (2026-08-18).
+
+    Aday olmanın şartları:
+      1) O günün üretimi, teyit kapsamındaki bölüm + TK2 (launch_esle ile aynı kapsam)
+      2) Referansın O GÜNKÜ TÜM kayıtları 'tamamlandı' işaretli.
+         NEDEN "tümü": kuyruk motoru (gun_uretimi) satırları REFERANS BAZINDA
+         toplar. Referansın açık (devam eden) bir kaydı varken teyit gönderirsek
+         o an ki kısmi adet gider, kalanı gün sonunda FARK olarak takılır.
+         Aynı referansa sonradan DÖNÜLÜRSE yeni kayıt açılır ve o kayıt
+         tamamlanana kadar aday listesinden düşer — kendiliğinden doğru.
+      3) İşaretten bu yana gecikme_dk geçmiş (operatör adedi düzeltebilsin /
+         işareti geri alabilsin diye bilerek bekleniyor)
+      4) ok_adet > 0 (yalnız hurdalı satır teyit almaz)
+      5) O gün + o referans için as400_teyit_log'da BAŞARILI kayıt yok
+         (COP hariç — yil='CO' hurda hareketidir, üretim teyidi değil)
+
+    Döner: {kanonik_referans: {'referans','toplam','son_ts'}}
+    """
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+    except Exception as e:
+        print(f'[ERKEN] launch_esle yüklenemedi: {e}')
+        return {}
+    bolumler = _le.LAUNCH_BOLUMLERI
+    try:
+        rows = conn.execute(f"""
+            SELECT u.referans_kodu ref,
+                   SUM(COALESCE(u.ok_adet,0)) toplam,
+                   MAX(u.tamamlandi_ts) son_ts,
+                   SUM(CASE WHEN COALESCE(u.tamamlandi,0)=1 THEN 0 ELSE 1 END) acik
+            FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
+            WHERE v.tarih = ?
+              AND COALESCE(v.lokasyon,'TK2') = ?
+              AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(bolumler))})
+              AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
+            GROUP BY u.referans_kodu
+            HAVING acik = 0 AND toplam > 0 AND son_ts IS NOT NULL
+               AND son_ts <= datetime('now','localtime', ?)
+        """, (tarih, _le.LOKASYON) + tuple(bolumler) + (f'-{int(gecikme_dk)} minutes',)).fetchall()
+    except Exception as e:
+        print(f'[ERKEN] aday sorgusu hatası: {e}')
+        return {}
+    # Zaten teyit edilmişleri düş (bosuna robot koşturma)
+    teyitli = set()
+    try:
+        for r in conn.execute(
+            "SELECT referans FROM as400_teyit_log "
+            "WHERE uretim_tarihi=? AND sonuc='ok' AND yil <> 'CO'", (tarih,)).fetchall():
+            teyitli.add(_le.kanonik(r['referans']))
+    except Exception:
+        pass
+    adaylar = {}
+    for r in rows:
+        kn = _le.kanonik(r['ref'])
+        if kn in teyitli:
+            continue
+        adaylar[kn] = {'referans': r['ref'], 'toplam': r['toplam'], 'son_ts': r['son_ts']}
+    return adaylar
+
+
+def _mutabakat_farklari(conn, tarih):
+    """GÜN SONU MUTABAKATI (2026-08-18): o gün teyit EDİLEN adet ile üretim
+    kaydındaki GÜNCEL adet tutuyor mu?
+
+    Gerekçe (kullanıcı): erken teyit gün içinde gidiyor, ama operatör gün sonunda
+    adedi değiştirebiliyor. Değişikliği kimse fark etmezse ERP ile üretim kaydı
+    kalıcı olarak ayrışır.
+
+    Döner: [{'referans','uretim','teyit','fark'}] — yalnız fark != 0 olanlar.
+      fark > 0  → EKSİK teyit (gün sonu adet arttı) → farkı göndermek GEREKİR
+      fark < 0  → FAZLA teyit (adet düşürüldü) → ERP'de fazla stok var; geri almak
+                  NEGATİF hareket demektir, otomatik YAPILMAZ, yalnız raporlanır.
+    COP (yil='CO') hurda hareketidir, üretim teyidi sayılmaz — hesaba katılmaz.
+    """
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import launch_esle as _le
+    bolumler = _le.LAUNCH_BOLUMLERI
+    uretim = {}
+    for r in conn.execute(f"""
+            SELECT u.referans_kodu ref, SUM(COALESCE(u.ok_adet,0)) toplam
+            FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
+            WHERE v.tarih = ? AND COALESCE(v.lokasyon,'TK2') = ?
+              AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(bolumler))})
+              AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
+            GROUP BY u.referans_kodu""",
+            (tarih, _le.LOKASYON) + tuple(bolumler)).fetchall():
+        kn = _le.kanonik(r['ref'])
+        g = uretim.setdefault(kn, {'referans': r['ref'], 'uretim': 0, 'teyit': 0})
+        g['uretim'] += int(r['toplam'] or 0)
+    for r in conn.execute(
+            "SELECT referans, SUM(CAST(adet AS INTEGER)) tp FROM as400_teyit_log "
+            "WHERE uretim_tarihi=? AND sonuc='ok' AND yil <> 'CO' "
+            "GROUP BY referans", (tarih,)).fetchall():
+        kn = _le.kanonik(r['referans'])
+        g = uretim.setdefault(kn, {'referans': r['referans'], 'uretim': 0, 'teyit': 0})
+        g['teyit'] += int(r['tp'] or 0)
+    out = []
+    for kn, g in uretim.items():
+        fark = g['uretim'] - g['teyit']
+        if fark != 0:
+            out.append({**g, 'kanonik': kn, 'fark': fark})
+    out.sort(key=lambda x: -abs(x['fark']))
+    return out
+
+
+def _mutabakat_uygula(conn, tarih, kullanici='oto-mutabakat'):
+    """Farkları işle: ARTAN farkı gönder, AZALANI yalnız raporla.
+
+    Artan fark için satır, o günün AS400 eşlemesinden kurulur (açık launch varsa
+    launch teyidi, yoksa CFI) ama ADET = FARK'tır — tam adet DEĞİL. Tam adedi
+    tekrar göndermek mükerrer olurdu; zaten mükerrer frenleri de reddederdi.
+    Döner: (gonderilen_sonuclar, rapor_satirlari)
+    """
+    farklar = _mutabakat_farklari(conn, tarih)
+    if not farklar:
+        return [], []
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import launch_esle as _le
+    try:
+        gun = _le.esle_coklu([tarih])[tarih]
+    except Exception as e:
+        return [], [{**f, 'karar': f'AS400 eşlemesi okunamadı: {e}'} for f in farklar]
+
+    # kanonik referans -> (kategori, satir)
+    harita = {}
+    for kat, satirlar in gun.items():
+        for r in satirlar:
+            harita.setdefault(_le.kanonik(r.get('referans') or ''), (kat, r))
+
+    launchQ, cfiQ, rapor = [], [], []
+    for f in farklar:
+        if f['fark'] < 0:
+            rapor.append({**f, 'karar': "FAZLA TEYİT — ERP'de fazla stok var, "
+                                        "geri alma NEGATİF hareket gerektirir, elle düzeltin"})
+            continue
+        kat_satir = harita.get(f['kanonik'])
+        if not kat_satir:
+            rapor.append({**f, 'karar': 'Eksik teyit ama AS400 eşlemesi bulunamadı — elle bakın'})
+            continue
+        kat, r = kat_satir
+        launchlar = [l for l in (r.get('launchlar') or []) if l.get('durum') == 40]
+        if launchlar:
+            l = launchlar[0]
+            launchQ.append({'uretim_tarihi': tarih, 'yil': l['red2'], 'no': l['renu'],
+                            'article': l['article'], 'referans': r['referans'],
+                            'adet': f['fark'], 'bayrak': 'A'})
+            rapor.append({**f, 'karar': f'EKSİK TEYİT → launch {l["launch"]} ile {f["fark"]} adet gönderildi'})
+        else:
+            cfiQ.append({'uretim_tarihi': tarih, 'referans': r['referans'],
+                         'article': r['referans'], 'adet': f['fark']})
+            rapor.append({**f, 'karar': f'EKSİK TEYİT → CFI ile {f["fark"]} adet gönderildi'})
+    sonuclar = []
+    if launchQ:
+        sonuclar += [{**x, 'faz': 'mutabakat-launch'} for x in
+                     _teyit_gonder_calistir(conn, launchQ, kullanici)]
+    if cfiQ:
+        sonuclar += [{**x, 'faz': 'mutabakat-cfi'} for x in
+                     _cfi_gonder_calistir(conn, cfiQ, kullanici)]
+    return sonuclar, rapor
+
+
+def erken_teyit_job():
+    """Gün İÇİ teyit: 'tamamlandı' işaretli referansları gecikme sonrası gönderir.
+
+    Kuyruk motoru YENİDEN YAZILMAZ — _oto_kuyruk_olustur (17:10 koşusuyla ORTAK)
+    bugünün kuyruğunu kurar, biz yalnız ADAY referanslara süzeriz. Üçüncü bir
+    kova mantığı kopyası çıkarmak drift riskidir (bkz. _oto_kuyruk_olustur notu).
+    """
+    cfg = _oto_config().get('erken_teyit') or {}
+    if not cfg.get('etkin'):
+        return
+    if not _teyit_agent_var():
+        return          # bu makine robot koşusu için yapılandırılmamış — sessiz geç
+    bugun = date.today().isoformat()
+    conn = db_connect()
+    try:
+        adaylar = _erken_teyit_adaylari(conn, bugun, cfg.get('gecikme_dk', 5))
+        if not adaylar:
+            return
+        # Kilit BEKLEMEDEN alınır: meşguls (elle gönderim / 17:10) bir sonraki tura kalsın.
+        if not _AS400_KILIT.acquire(blocking=False):
+            print(f'[ERKEN] AS400 meşgul — {len(adaylar)} aday sonraki tura ertelendi')
+            return
+        try:
+            _AS400_DURDUR.clear()
+            try:
+                launchQ, cfiQ, copQ, _sabah = _oto_kuyruk_olustur(conn, [bugun])
+            except Exception as e:
+                print(f'[ERKEN] kuyruk oluşturulamadı: {e}')
+                return
+            import launch_esle as _le
+
+            def _suz(kuyruk):
+                return [r for r in kuyruk
+                        if _le.kanonik(r.get('referans') or '') in adaylar]
+            lq, cq = _suz(launchQ), _suz(cfiQ)
+            # COP (hurda) erken fazda GÖNDERİLMEZ: hurda gün sonunda tek seferde
+            # girilir (17:10 koşusunun COP fazı) — gün içinde ekranlar arası mekik
+            # dokumamak için alınmış karar (2026-07-23) burada da geçerli.
+            if not lq and not cq:
+                return
+            print(f'[ERKEN] {len(lq)} launch + {len(cq)} CFI gönderiliyor '
+                  f'(adaylar: {", ".join(a["referans"] for a in adaylar.values())})')
+            sonuclar = []
+            if lq:
+                sonuclar += [{**r, 'faz': 'launch'} for r in
+                             _teyit_gonder_calistir(conn, lq, 'oto-erken')]
+            if cq:
+                sonuclar += [{**r, 'faz': 'cfi'} for r in
+                             _cfi_gonder_calistir(conn, cq, 'oto-erken')]
+            ok = sum(1 for r in sonuclar if r.get('sonuc') == 'ok')
+            print(f'[ERKEN] sonuç: {ok} ok / {len(sonuclar)} satır')
+            try:
+                _oto_kosu_kaydet(conn, 'erken', sonuclar, [],
+                                 f'Erken teyit: {ok}/{len(sonuclar)} ok')
+            except Exception:
+                pass
+        finally:
+            _AS400_DURDUR.clear()
+            _AS400_KILIT.release()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def oto_teyit_job():
     """17:10 — günün tüm teyit kuyruğu: launch (A/S) → CFI → COP."""
     cfg = _oto_config()['oto_teyit']
@@ -8457,6 +8709,7 @@ def oto_teyit_job():
                                  f'HATA: AS400 eşleme başarısız ({e})')
                 return
             sonuclar = []
+            mutabakat_rapor = []
             for faz, kuyruk in (('launch', launchQ), ('cfi', cfiQ), ('cop', copQ)):
                 if _AS400_DURDUR.is_set():
                     break
@@ -8469,6 +8722,20 @@ def oto_teyit_job():
                 else:
                     s = _cop_gonder_calistir(conn, kuyruk, 'oto-17:10')
                 sonuclar += [{**r, 'faz': faz} for r in s]
+            # GÜN SONU MUTABAKATI (2026-08-18) — normal kuyruktan SONRA.
+            # Erken teyit gün içinde kısmi adet göndermiş olabilir; operatör gün
+            # sonunda adedi değiştirmiş olabilir. Burada teyit edilen toplam ile
+            # üretim kaydı karşılaştırılır: ARTAN fark gönderilir, AZALAN yalnız
+            # raporlanır (negatif hareket otomatik yapılmaz).
+            if not _AS400_DURDUR.is_set():
+                try:
+                    _ms, mutabakat_rapor = _mutabakat_uygula(conn, date.today().isoformat())
+                    sonuclar += _ms
+                    for _r in mutabakat_rapor:
+                        print(f"[MUTABAKAT] {_r['referans']}: üretim {_r['uretim']} / "
+                              f"teyit {_r['teyit']} / fark {_r['fark']:+d} — {_r['karar']}")
+                except Exception as _e:
+                    print(f'[MUTABAKAT] hata: {_e}')
         finally:
             _AS400_DURDUR.clear()
             _AS400_KILIT.release()
@@ -8669,7 +8936,15 @@ if __name__ == '__main__':
                 # Güvenli: her iki iş de kendi içinde mükerrer korumalı (as400_teyit_log
                 # 'ok' kaydı olan launch tekrar gönderilmez), ayrıca kapalıysa zaten atlar.
                 _ek.append((_h, _m, _fn, _et, _oto_telafi_gerek_mi(_kt)))
-            start_scheduler(ek_gorevler=_ek)
+            # ERKEN TEYİT: günde bir kez değil, gün içinde PERİYODİK.
+            # İş kendi içinde etkin/agent/kilit kontrolü yapar; kapalıyken bedeli
+            # birkaç saniyelik bir sorgudur. Aralık config'ten (varsayılan 2 dk).
+            try:
+                _ekd = max(1, int((_ocfg.get('erken_teyit') or {}).get('kontrol_dk') or 2))
+            except (TypeError, ValueError):
+                _ekd = 2
+            start_scheduler(ek_gorevler=_ek,
+                            periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit')])
         except Exception as _e:
             print(f'[SCHED] başlatılamadı: {_e}')
 
