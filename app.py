@@ -8132,6 +8132,10 @@ _OTO_VARSAYILAN = {
 }
 
 
+# oto_config.json son okuma hatasi (bos = sorun yok). Sabah Kontrol paneli okur.
+_OTO_CONFIG_HATA = {'mesaj': '', 'zaman': ''}
+
+
 def _oto_config():
     """oto_config.json + varsayılanlar. utf-8-sig: BOM toleransı (mail_config dersi)."""
     cfg = json.loads(json.dumps(_OTO_VARSAYILAN))   # derin kopya
@@ -8144,7 +8148,15 @@ def _oto_config():
     except FileNotFoundError:
         pass
     except Exception as e:
+        # BOZUK CONFIG SESSIZ KALMASIN (2026-08-18): tek bir eksik virgül bile
+        # TÜM dosyayı düşürür ve tüm ayarlar varsayılana döner — kullanıcı
+        # "erken teyit'i açtım" sanırken hiçbir şey değişmemiş olur (yaşandı).
+        # Hata modülde tutulur; Sabah Kontrol paneli bunu ekranda gösterir.
+        _OTO_CONFIG_HATA['mesaj'] = str(e)
+        _OTO_CONFIG_HATA['zaman'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f'[OTO] oto_config.json okunamadı ({e}) — varsayılanlar kullanılıyor')
+        return cfg
+    _OTO_CONFIG_HATA['mesaj'] = ''      # basarili okuma -> hata temizlenir
     return cfg
 
 
@@ -8765,6 +8777,7 @@ def as400_oto_kosu():
     except (TypeError, ValueError):
         limit = 6
     conn = get_db()
+    _oto_config()          # taze oku — bozuksa _OTO_CONFIG_HATA dolar
     kosular = []
     try:
         for r in conn.execute(
@@ -8864,7 +8877,11 @@ def as400_oto_kosu():
         # Tespit edilemezse hiçbir satır gizlenmez (güvenli yön: eksik gösterme)
         print(f'[oto_kosu] cozuldu tespiti atlandi: {e}')
 
-    return jsonify({'kosular': kosular, 'config': _oto_config(), 'agent': _teyit_agent_var()})
+    # config_hata: oto_config.json bozuksa panel bunu GOSTERIR. Aksi halde tek bir
+    # eksik virgul tum ayarlari varsayilana dusurur ve kullanici farketmez.
+    return jsonify({'kosular': kosular, 'config': _oto_config(),
+                    'config_hata': dict(_OTO_CONFIG_HATA),
+                    'agent': _teyit_agent_var()})
 
 
 @app.route('/api/as400/oto_config', methods=['POST'])

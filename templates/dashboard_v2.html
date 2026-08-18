@@ -11132,17 +11132,31 @@ window.__I18N_SOZLUK__ = {
                     return;
                 }
                 var cfg = d.config || {};
-                var t = cfg.transfer_iptal || {}, y = cfg.oto_teyit || {};
+                var t = cfg.transfer_iptal || {}, y = cfg.oto_teyit || {}, ek = cfg.erken_teyit || {};
+                // BOZUK CONFIG UYARISI (2026-08-18): oto_config.json'da tek bir eksik
+                // virgül bile TÜM dosyayı düşürür ve bütün ayarlar sessizce varsayılana
+                // döner — kullanıcı "açtım" sanır, hiçbir şey değişmemiştir (yaşandı).
+                var cfgHata = (d.config_hata || {}).mesaj
+                    ? '<div style="margin:0 0 10px;padding:10px 12px;background:var(--danger-soft);' +
+                      'border:1px solid rgba(180,35,28,.35);border-left:3px solid var(--danger);border-radius:8px">' +
+                      '<b style="color:var(--danger)">⚠ oto_config.json OKUNAMIYOR — ayarlar varsayılana düştü</b>' +
+                      '<div style="font-size:.78rem;color:var(--muted);margin-top:3px">' + esc(d.config_hata.mesaj) +
+                      '<br>Dosyadaki ayarların HİÇBİRİ geçerli değil (aşağıda görünenler varsayılan). ' +
+                      'JSON hatasını düzeltin: as400\oto_config.json</div></div>'
+                    : '';
                 var ajanRozet = d.agent
                     ? '<span style="color:var(--success);font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
                     : '<span style="color:var(--danger);font-weight:700;font-size:.74rem">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>';
 
                 // ── TEYİT paneli (Launch Kapama sayfası) ──
-                var html = (y.etkin ? '' : as4KapaliBant('oto_teyit', 'Otomatik teyit', y.saat || '17:10')) +
+                var erkenRozet = ek.etkin
+                    ? '<span style="color:var(--success);font-weight:700;font-size:.74rem" title="Operatör bir referansı tamamlandı işaretleyince ' + (ek.gecikme_dk || 5) + ' dk sonra teyidi otomatik gönderilir">⚡ erken teyit AÇIK (' + (ek.gecikme_dk || 5) + ' dk)</span>'
+                    : '<span style="color:var(--muted);font-weight:600;font-size:.74rem" title="Gün içi otomatik teyit kapalı — teyitler yalnız 17:10 koşusunda gider">⚡ erken teyit kapalı</span>';
+                var html = cfgHata + (y.etkin ? '' : as4KapaliBant('oto_teyit', 'Otomatik teyit', y.saat || '17:10')) +
                     '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
                     '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ' + (y.etkin ? 'checked' : '') +
                         ' onchange="as4OtoToggle(\'oto_teyit\', {etkin:this.checked})" style="width:15px;height:15px">📤 Teyit kuyruğu (' + esc(y.saat || '17:10') + ')</label>' +
-                    ajanRozet + '</div>';
+                    ajanRozet + erkenRozet + '</div>';
                 // ── TRANSFER paneli (02'den Aktarım sayfası) ──
                 var htmlTr = (t.etkin ? '' : as4KapaliBant('transfer_iptal', 'Otomatik transfer iptali', t.saat || '16:45')) +
                     '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.8rem;margin-bottom:10px">' +
