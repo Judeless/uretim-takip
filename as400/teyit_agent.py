@@ -22,6 +22,7 @@ düşer — davranış değişmez.
 """
 import os
 import subprocess
+import sys
 import threading
 import time
 
@@ -241,10 +242,33 @@ def _quickedit_kapat():
 
 
 if __name__ == '__main__':
+    # STDOUT'U UTF-8'E SABITLE (2026-08-17): banner ve gozcu satirlari kutu/Turkce
+    # karakter iceriyor. Konsol kod sayfasi cp1254 ise (ornegin cikti bir dosyaya
+    # yonlendirilirse) print UnicodeEncodeError firlatiyor ve AGENT DAHA ACILIRKEN
+    # OLUYOR. Gozetimsiz kosacak bir kopru icin kabul edilemez; errors='replace'
+    # ile en kotu ihtimalle karakter bozulur, servis AYAKTA KALIR.
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
     _quickedit_kapat()
     print('╔══════════════════════════════════════════════╗')
     print('║  COFLE TEYIT AGENT — PCOMM oturumu köprüsü   ║')
     print('╚══════════════════════════════════════════════╝')
     print(f'Dinleme: 127.0.0.1:{PORT} (yalniz yerel) — agent HAZIR')
-    print('Bu pencereyi KAPATMA — robot koşuları burada görünür.\n')
+    # ── OTURUM GOZCUSU ──
+    # DIKKAT: bu blok bir onceki denemede sessizce UYGULANMAMISTI (metin degisimi
+    # eslesmedi, kontrol edilmedi) — gozcu fonksiyonu dosyada vardi ama THREAD HIC
+    # BASLAMIYORDU. /durum'da aralik_sn=0 gorulmesi bunun izidir (config bir kez
+    # bile okunsa 60/300 olurdu). Degisiklikler artik dogrulanarak yapiliyor.
+    _a = _oturum_ayar()
+    _GOZCU.update({'etkin': _a['etkin'], 'kullanici': _a['kullanici'],
+                   'aralik_sn': _a['aralik_sn']})
+    if _a['etkin'] and _a['kullanici']:
+        print(f"Oturum gözcüsü AÇIK — kullanıcı {_a['kullanici']}, her {_a['aralik_sn']} sn kontrol")
+    else:
+        print('Oturum gözcüsü KAPALI (as400/oturum_config.json → etkin:true ile açılır)')
+    threading.Thread(target=_gozcu_dongusu, daemon=True).start()
+    print('Bu pencereyi KAPATMA — robot koşuları burada görünür.' + chr(10))
     app.run(host='127.0.0.1', port=PORT, threaded=True)
