@@ -684,11 +684,18 @@ BOLUM_AD = {
 }
 
 # ── TEL ÜRETİMİ PROSES ADIMLARI (TK1, 2026-08-04) ──────────────────────────
-# Bir tel referansı sırayla birden çok HATTAN geçer ve her adımı FARKLI operatör
-# kendi vardiyasında kaydeder. Bu yüzden adım = hat (vardiya.robot_no).
-# SIRA ÖNEMLİ: "son adım" bu listedeki en son işaretli adımdır (bkz.
-# referans_listesi.tel_adimlar) ve üretim YALNIZ son adımda sayılır — aksi hâlde
-# aynı 100 adet dört kez sayılıp rapor 400 gösterirdi.
+# Bir tel referansı birden çok HATTAN geçer; her adımı ayrı kaydedilir.
+# 2026-08-19: adım artık vardiyanın değil ÜRETİM KAYDININ hattından gelir
+# (bkz. KAYITTA_HAT) — aynı operatör aynı vardiyada birden çok adım kaydedebilir.
+#
+# HİÇBİR ADIM ZORUNLU DEĞİL (kullanıcı 2026-08-19: "her üründe otomatik hazırlık
+# yapılmak zorunda değil"). Referans bazlı proses tanımı (referans_listesi.
+# tel_adimlar) 2026-08-04'te TERK EDİLDİ: kapaması/son montajı dışarıda yapılacak
+# ürünler sabit değil. Yapılmayan adımın kaydı hiç açılmaz, raporda '—' görünür.
+#
+# ⚠ ESKİ KURAL DEĞİL: "üretim yalnız SON adımda sayılır" kuralı KALDIRILDI. Çoklu
+# sayım artık KOD EKİYLE çözülüyor (her adım '… KAPAMA' gibi ayrı kodda toplanır)
+# ve rapor ürün bazlı adım kırılımı veriyor — adımlar tek toplamda birleştirilmez.
 # Yarı/tam otomatik AYNI SIRADA iki alternatif hattır (ürün hangisine düşerse).
 # Tanımlar tel_proses.py'de — mail_raporu.py ve oee.py de aynı kuralı kullanıyor,
 # app.py'yi import edemedikleri için (Flask'ı ayağa kaldırır) ortak modüle taşındı.
