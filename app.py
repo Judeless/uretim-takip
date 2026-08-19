@@ -458,7 +458,23 @@ _KAPAMA_SAHA_CIHAZ = {
     'Kapama 21': 'Kapama 7',   'Kapama 19': 'Kapama 8',   'Kapama 20': 'Kapama 9',
     'Kapama 27': 'Kapama 10',  'Kapama 25': 'Kapama 11',  'Kapama 26': 'Kapama 12',
 }
-HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1', **_KAPAMA_SAHA_CIHAZ}
+# TK1 MONTAJ: buton etiketi → firmware robot_no (kullanıcı 2026-08-19).
+# Modüller 'TK1-M1..M7' / 'YF1' olarak flash'lı; sahadaki butonlar MONTAJ - 1..5
+# diye etiketlendi. Yeniden flash GEREKMEZ, eşleme burada.
+# ⚠ MONTAJ - 1..4 ↔ TK1-M1..M4 sırası VARSAYIM (kullanıcı yalnız "YF butonu
+# MONTAJ - 5 olacak" dedi). Sahada her butona bir kez basıp sayacın doğru masada
+# arttığı DOĞRULANMALI; tutmuyorsa yalnız bu tablo düzeltilir.
+_TK1_MONTAJ_BUTON_CIHAZ = {
+    'MONTAJ - 1': 'TK1-M1',
+    'MONTAJ - 2': 'TK1-M2',
+    'MONTAJ - 3': 'TK1-M3',
+    'MONTAJ - 4': 'TK1-M4',
+    'MONTAJ - 5': 'YF1',      # sahaya ilk konan deneme modülü
+}
+# 'LF-LFP': 'YF1' GEÇMİŞ vardiyalar için kalıyor (hat listesinden çıktı ama eski
+# kayıtların sayacı hâlâ bu eşlemeyle çözülüyor). Aynı cihaza iki ad işaret
+# ediyor; ters arama listede BULUNAN adı seçtiği için karışmaz.
+HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1', **_TK1_MONTAJ_BUTON_CIHAZ, **_KAPAMA_SAHA_CIHAZ}
 
 # ── PRES (Pres Abkant) MAKİNE MODELİ (kullanıcı 2026-07-28) ──
 # Operatör gün içinde makine değiştirerek çalışıyor → makine VARDİYADA DEĞİL, her
@@ -492,8 +508,14 @@ PLASTIK_MAKINELERI = ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']
 # eskiden bunun için İKİ AYRI VARDİYA açmak gerekiyordu.
 # TK2 montaj DEĞİŞMEDİ — orada hat vardiyada seçilmeye devam eder.
 TK1_MONTAJ_SABIT_HAT = 'TK1 Montaj'
+# HAT ADLARI = SAHADAKİ BUTON ETİKETLERİ (kullanıcı 2026-08-19): "5 adet buton
+# kullanıyoruz, butonları MONTAJ - 1 … MONTAJ - 5 diye isimlendirdim." Operatör
+# ekranda, masanın üstünde yazan adı görmeli — kapama preslerinde olduğu gibi.
+# LF-LFP ve Iveco ÇIKARILDI (kullanıcı): artık montaj hattı değiller. Geçmiş
+# vardiyaları bu adlarla kayıtlı olduğundan TK1_ROBOT_NOLARI'nda ve /api/robotlar
+# geçmiş listesinde KALIRLAR — dashboard filtreleri bozulmaz.
 # SIRA ÖNEMLİ (istasyon no = sıra); yeni hat HEP SONA eklenir.
-TK1_MONTAJ_HATLARI = ['LF-LFP', 'Iveco'] + [f'TK1-M{i}' for i in range(1, 8)]
+TK1_MONTAJ_HATLARI = [f'MONTAJ - {i}' for i in range(1, 6)]
 TEL_SABIT_HAT = 'Tel Üretimi'
 
 # Hattı/makinesi ÜRETİM KAYDINDA (istasyon kolonunda) seçilen bölümler.

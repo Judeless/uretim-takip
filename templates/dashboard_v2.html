@@ -6011,8 +6011,10 @@ window.__I18N_SOZLUK__ = {
         var PLASTIK_MAKINELERI = ['320T', '407T', 'Yapıştırma', 'Sızdırmazlık Test'];
         // TK1 (2026-08-18): hat da üretim kaydında. Sıralar app.py TK1_MONTAJ_HATLARI
         // ve tel_proses.TEL_HATLARI ile BİREBİR — yeni hat hep SONA eklenir.
-        var TK1_MONTAJ_HATLARI = ['LF-LFP', 'Iveco', 'TK1-M1', 'TK1-M2', 'TK1-M3',
-                                  'TK1-M4', 'TK1-M5', 'TK1-M6', 'TK1-M7'];
+        // Buton etiketleri (2026-08-19) — app.TK1_MONTAJ_HATLARI ile BİREBİR.
+        // LF-LFP / Iveco çıkarıldı; geçmiş vardiyalar robot_no'suyla gösterilir.
+        var TK1_MONTAJ_HATLARI = ['MONTAJ - 1', 'MONTAJ - 2', 'MONTAJ - 3',
+                                  'MONTAJ - 4', 'MONTAJ - 5'];
         // KAPAMA presleri SAHA KODUYLA (2026-08-18) — sıra tel_proses.TEL_HATLARI ile
         // BİREBİR olmalı, yoksa tel kayıtlarında yanlış pres adı gösterilir.
         var TEL_HATLARI = ['Halat Kesme 1', 'Halat Kesme 2', 'Halat Kesme 3',
