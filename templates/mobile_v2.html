@@ -1674,10 +1674,6 @@ window.__I18N_SOZLUK__ = {
     "en": "This code is an injection product — check the machine",
     "it": "Questo codice è un prodotto stampato — controlla la macchina"
   },
-  "Yapıştırma kodu — adet test cihazından otomatik sayılacak": {
-    "en": "Bonding code — quantity will be counted automatically from the test device",
-    "it": "Codice di incollaggio — la quantità sarà conteggiata automaticamente dal dispositivo di test"
-  },
   "Lazer 1": {
     "en": "Laser 1",
     "it": "Laser 1"
@@ -3880,6 +3876,9 @@ window.__I18N_SOZLUK__ = {
       document.getElementById('d-istasyon').value = deger;
       try { localStorage.setItem('mobile_plastik_son_makine', String(deger || '0')); } catch (e) {}
       plastikKodMakineUyari();
+      // Makine değişti → test cihazı eşlemesi de değişir (Sızdırmazlık Test → Tank,
+      // diğer makinelerde kutu hiç görünmez).
+      testCihazlariYukle(testCihazWrapGoster);
     }
 
     // Kod ailesi ↔ makine uyumu. Makine artık referanstan SONRA seçildiği için
@@ -3901,69 +3900,107 @@ window.__I18N_SOZLUK__ = {
     // Koda bağlı tüm otomatikler tek yerden tetiklenir.
     function refKodDegisti() {
       telEkOnizleme();            // tel: kodun nasıl kaydedileceğini göster
-      yapistirmaTestOnHazirla();  // plastik: yapıştırma kodu → test cihazı
       plastikKodMakineUyari();    // plastik: kod ↔ makine uyumu
+      // NOT: test cihazı artık KODA değil HAT/MAKİNEYE bağlı (TEST_CIHAZ_ESLEME) —
+      // tetikleme plastikMakineSec / testCihazlariYukle üzerinden yapılır.
     }
 
     // ── Test cihazı sayaç kaynağı (Cofle/wicow) ──
     // Operatör test cihazıyla çalışıyorsa cihaz seçer; ADET o cihazın başarılı
     // testlerinden otomatik sayılır (ESP32 sensörünün muadili).
-    var _testCihazlari = null;  // {etkin, cihazlar:[{id,ad}]} — bir kez yüklenip cache'lenir
+    // Cihaz listesi BAĞLAMA GÖRE gelir (2026-08-18): kutu her kayıtta değil, yalnız
+    // gerçekten SVP'den sayılan hat/makinede çıkar ve orada SADECE o hattın cihazları
+    // listelenir (eşleme app.py TEST_CIHAZ_ESLEME'de). Bağlam = lokasyon + bölüm + hat.
+    var _testCihazlari = null;   // aktif bağlamın yanıtı
+    var _testCache = {};         // bağlam anahtarı -> yanıt (her form açılışında API dövülmesin)
+
+    // Eşleme HAT/MAKİNE bazlı → bağlam hattını burada çöz.
+    // plastik: makine VARDİYADA değil ÜRETİM KAYDINDA seçilir → bağlam KAYDIN makinesi
+    // (operatör makineyi değiştirince plastikMakineSec yeniden yükletir).
+    function testBaglamHat() {
+      if (secilenBolum === 'plastik') {
+        var no = parseInt((document.getElementById('d-plastik-makine') || {}).value || 0) || 0;
+        return PLASTIK_MAKINE_ADI[no] || '';
+      }
+      return (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
+    }
+
+    function testCihazSecicisiDoldur() {
+      var sel = document.getElementById('d-test-cihaz');
+      if (!sel) return;
+      var liste = (_testCihazlari && _testCihazlari.cihazlar) || [];
+      var html = '<option value="">— Cihaz seçin —</option>';
+      liste.forEach(function (c) {
+        html += '<option value="' + c.id + '">' + esc(c.ad || c.id) + '</option>';
+      });
+      sel.innerHTML = html;
+    }
+
     function testCihazlariYukle(cb) {
-      if (_testCihazlari) { if (cb) cb(); return; }
-      fetch('/api/test_cihazlari').then(function (r) { return r.json(); }).then(function (d) {
-        _testCihazlari = d || { etkin: false, cihazlar: [] };
-        var sel = document.getElementById('d-test-cihaz');
-        if (sel && _testCihazlari.cihazlar) {
-          var html = '<option value="">— Cihaz seçin —</option>';
-          _testCihazlari.cihazlar.forEach(function (c) {
-            html += '<option value="' + c.id + '">' + (c.ad || c.id) + '</option>';
-          });
-          sel.innerHTML = html;
-        }
+      var hat = testBaglamHat();
+      var anahtar = LOKASYON + '|' + (secilenBolum || '') + '|' + hat;
+      if (_testCache[anahtar]) {
+        _testCihazlari = _testCache[anahtar];
+        testCihazSecicisiDoldur();
         if (cb) cb();
-      }).catch(function () { _testCihazlari = { etkin: false, cihazlar: [] }; if (cb) cb(); });
+        return;
+      }
+      var u = '/api/test_cihazlari?lokasyon=' + encodeURIComponent(LOKASYON) +
+              '&bolum=' + encodeURIComponent(secilenBolum || '') +
+              '&hat=' + encodeURIComponent(hat);
+      fetch(u).then(function (r) { return r.json(); }).then(function (d) {
+        _testCihazlari = d || { etkin: false, cihazlar: [] };
+        _testCache[anahtar] = _testCihazlari;
+        testCihazSecicisiDoldur();
+        if (cb) cb();
+      }).catch(function () {
+        _testCihazlari = { etkin: false, cihazlar: [] };
+        testCihazSecicisiDoldur();
+        if (cb) cb();
+      });
     }
     function testCihazWrapGoster() {
       var wrap = document.getElementById('d-test-wrap');
       if (!wrap) return;
-      // Test cihazı (Cofle SVP) ile çalışan bölümler:
-      //   montaj  — TK2 + TK1 montaj masaları (mevcut kurulum)
-      //   plastik — TK1 SIZDIRMAZLIK TEST makinesi (2026-08-04): adet sahadaki bir
-      //             sayaçtan değil, SVP'nin başarılı test kayıtlarından gelir.
-      // Diğer bölümlerde (kaynak/metal/isleme/lazer/pres) blok hiç görünmez.
-      var testliBolum = (secilenBolum === 'montaj' || secilenBolum === 'plastik');
-      wrap.style.display = (testliBolum && _testCihazlari && _testCihazlari.etkin && _testCihazlari.cihazlar && _testCihazlari.cihazlar.length) ? 'block' : 'none';
-      yapistirmaTestOnHazirla();
+      var d = _testCihazlari || {};
+      var cihazVar = !!(d.etkin && d.cihazlar && d.cihazlar.length);
+      // eslesme_var: bu bölüm için TEST_CIHAZ_ESLEME'de kayıt VAR → söz onundur;
+      // eşlenmemiş hatta kutu HİÇ çıkmaz (kullanıcı 2026-08-18: "her referans için
+      // göstermeye gerek yok").
+      // eslesme_var=false: bölüm henüz eşlenmemiş → ESKİ davranış korunur (montaj +
+      // plastik'te tüm cihazlar). TK2 montajda cihaz canlı kullanımda; eşlemesi
+      // verilmeden kutuyu kapatmak çalışan bir özelliği keserdi.
+      var goster = d.eslesme_var
+        ? cihazVar
+        : (cihazVar && (secilenBolum === 'montaj' || secilenBolum === 'plastik'));
+      wrap.style.display = goster ? 'block' : 'none';
+      if (!goster) {
+        // Bu hatta test cihazı yok → önceki bağlamdan kalan seçim kalıntı bırakmasın
+        var tog0 = document.getElementById('d-test-toggle');
+        if (tog0 && tog0.checked) { tog0.checked = false; testCihazToggle(); }
+        return;
+      }
+      testCihazOtoSec();
     }
 
-    // ── YAPIŞTIRMA KODU → SVP "TANK" TEST CİHAZI (kullanıcı 2026-08-18) ──────
-    // "Operatör yapıştırma kodunu seçtiğinde otomatik olarak veriyi test cihazından
-    // alsın." Yapıştırma ürünleri (kod sonu 'G') sızdırmazlık testinden geçiyor;
-    // sayılabilir çıktı sahadaki bir sayaç değil, SVP'deki BAŞARILI TEST.
-    // TETİKLEYİCİ KOD (2026-08-18): eskiden vardiyanın makinesi 'Sizdirmazlik Test'
-    // ise açılıyordu; makine artık vardiyada değil kayıtta (ve referanstan SONRA)
-    // seçildiği için tetikleyici REFERANS KODU oldu.
-    // ÖN-SEÇİM, KİLİT DEĞİL: operatör kutucuğu kapatıp adedi elle girebilir; kendi
-    // cihaz seçimini yaptıysa EZİLMEZ. 'tank' adlı cihaz yoksa hiçbir şey zorlanmaz.
-    function yapistirmaTestOnHazirla() {
-      if (secilenBolum !== 'plastik') return;
+    // ── TEK CİHAZ EŞLENMİŞSE OTOMATİK SEÇ (kullanıcı 2026-08-18) ────────────
+    // "Plastik enjeksiyonda sızdırmazlık testinde çalışılıyorsa cihaz otomatik
+    // seçilsin." Aynı kural tel yarı otomat hatları için de geçerli — o hatlarda
+    // saha sayacı YOK, adet doğrudan SVP'den gelir, operatörün seçecek bir şeyi yok.
+    // Birden çok cihaz eşlenmişse (TK1 montaj: JKP / JKP YENI / JKW) seçim
+    // operatörde kalır — kutuyu işaretler, üç cihazdan kendininkini seçer.
+    // ÖN-SEÇİM, KİLİT DEĞİL: operatör kutuyu kapatıp adedi elle girebilir.
+    function testCihazOtoSec() {
+      var d = _testCihazlari || {};
+      if (!d.otomatik) return;
       // Düzenlemede kaynak değiştirilmez (test_cihaz_id sunucuda korunuyor)
       if ((document.getElementById('d-uid') || {}).value) return;
-      var kod = ((document.getElementById('d-ref') || {}).value || '').trim();
-      if (!/G$/i.test(kod)) return;
-      if (!_testCihazlari || !_testCihazlari.etkin || !_testCihazlari.cihazlar) return;
-      var tank = _testCihazlari.cihazlar.filter(function (c) {
-        return /tank/i.test(String(c.ad || ''));
-      })[0];
-      if (!tank) return;
       var tog = document.getElementById('d-test-toggle');
       var sel = document.getElementById('d-test-cihaz');
       if (!sel || sel.value) return;   // operatör kendi seçimini yaptıysa EZME
       if (tog && !tog.checked) { tog.checked = true; testCihazToggle(); }
-      sel.value = String(tank.id);
+      sel.value = String(d.otomatik);
       testCihazSecildi();
-      toast('Yapıştırma kodu — adet test cihazından otomatik sayılacak', 'info');
     }
     function testCihazToggle() {
       var on = document.getElementById('d-test-toggle').checked;
@@ -4244,6 +4281,16 @@ window.__I18N_SOZLUK__ = {
     // ── EKRAN B ──
     // Başlangıç = vardiyanın AÇILDIĞI gerçek saat (sabit 07:00/16:30 YOK).
     // Operatör gerekirse elle düzeltir. Bitiş vardiya kapatılınca belirlenir.
+    // HTML kaçışı — dışarıdan gelen metin (referans kodu, SVP cihaz adı) innerHTML'e
+    // yazılırken. 2026-08-18: bu fonksiyon İKİ yerde ÇAĞRILIYOR ama hiç TANIMLI
+    // DEĞİLDİ (telEkOnizleme ReferenceError atardı); tel hattı sahada henüz
+    // açılmadığı için görülmemişti. Tanım burada, tek yerde.
+    function esc(v) {
+      return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function simdiSaat() {
       var d = new Date();
       return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);

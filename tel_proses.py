@@ -34,15 +34,19 @@ TEL_ADIMLARI = ('Halat Kesme', 'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son 
 TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Yarı Otomatik': 2, 'Tam Otomatik': 2,
                  'Kapama': 3, 'Son Montaj': 4}
 
-# FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 1 · tam otomatik 1
-# · kapama 12 · son montaj 4 = 21 hat. Tek makineli adımlarda numara YOK.
+# FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
+# · kapama 12 · son montaj 4 = 22 hat. Tek makineli adımlarda numara YOK.
+# YARI OTOMATİK 1 → 2 (kullanıcı 2026-08-18): sahada iki makine olduğu ortaya çıktı.
+# İkisinin de sayacı ESP32 DEĞİL, SVP test cihazı (app.TEST_CIHAZ_ESLEME:
+# 'Yarı Otomatik 1'→41, 'Yarı Otomatik 2'→43) — bu hatlara saha modülü takılmayacak.
 # KAPAMA 4 → 12 (2026-08-07): kapama hattında 12 pres var; sayaç modülleri
 # takılırken gerçek makine sayısı ortaya çıktı (eski 4 rakamı eksikti). Presler
 # üçerli ortak panolarda; 4 ESP32 modülü 3'er presi okur (bkz. pilot/firmware/
 # _templates/tel_kapama.ino.tpl). Hat adları firmware'deki robot_no ile BİREBİR.
 TEL_HATLARI = (
     ['Halat Kesme %d' % i for i in range(1, 4)]
-    + ['Yarı Otomatik', 'Tam Otomatik']
+    + ['Yarı Otomatik %d' % i for i in range(1, 3)]
+    + ['Tam Otomatik']
     + ['Kapama %d' % i for i in range(1, 13)]
     + ['Son Montaj %d' % i for i in range(1, 5)]
 )

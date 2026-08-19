@@ -496,6 +496,56 @@ def kayit_ist_no(bolum, makine_ad):
         return 0
 
 
+# ── TEST CİHAZI (SVP) EŞLEMESİ (kullanıcı 2026-08-18) ────────────────────────
+# "Test cihazı ile çalışıyorum" kutusu HER KAYITTA çıkmasın: yalnız gerçekten SVP
+# test cihazından sayılan hat/makinelerde görünsün, orada da SADECE o hattın
+# cihazları listelensin (operatör 40 cihazlık listeden doğru olanı aramasın).
+#
+# Anahtar: (lokasyon, bolum, hat) — hat None ise o bölümün TÜM hatları.
+#   'hat' = vardiyanın robot_no'su; makinesi ÜRETİM KAYDINDA seçilen bölümlerde
+#   (plastik) KAYDIN makine adı (bkz. KAYITTA_MAKINE).
+# Değer: SVP device_id listesi. TEK cihaz varsa mobil onu KENDİLİĞİNDEN seçer.
+#
+# GERİYE UYUM — BİLİNÇLİ: bir (lokasyon, bolum) için HİÇ kayıt yoksa eski davranış
+# sürer (kutu görünür, TÜM cihazlar listelenir). TK2 montajda cihaz 31/35/53 hâlâ
+# sahada kullanılıyor (M3/M7/M11, son kayıt 2026-07-23); kullanıcı TK2 eşlemesini
+# vermeden burayı kapatmak canlı bir özelliği sessizce keserdi.
+# Bölümün EN AZ BİR kaydı varsa eşlenmemiş hatlarda kutu GİZLENİR (TK1 plastikte
+# yalnız Sizdirmazlik Test, tel'de yalnız iki yarı otomat hattı gibi).
+#
+# device_id'ler beta.coflesvp.com/device/<id>/test-logs adresindeki id'dir.
+TEST_CIHAZ_ESLEME = {
+    # TK1 montaj: hatlarda ayrıca buton/sayaç modülü de var (TK1-M1..M7) — operatör
+    # test cihazını işaretlemezse ESP32 sayar, işaretlerse SVP sayar.
+    ('TK1', 'montaj',  None):               [22, 65, 57],   # JKP · JKP YENI · JKW
+    # TK1 plastik: sızdırmazlık testinin sayacı SVP 'Tank'. Yapistirma/320T/407T'nin
+    # kendi ESP32 sayacı var → onlarda kutu HİÇ görünmez.
+    ('TK1', 'plastik', 'Sizdirmazlik Test'): [12],          # Tank
+    # TK1 tel — yarı otomat 2 makine; ikisine de saha modülü TAKILMAYACAK (kullanıcı),
+    # adet doğrudan SVP'den gelir.
+    ('TK1', 'tel',     'Yarı Otomatik 1'):   [41],          # PP OTOMATIK SPIRAL PRESLEME
+    ('TK1', 'tel',     'Yarı Otomatik 2'):   [43],          # PP LINE 8 (Otomatik 2)
+}
+
+
+def test_cihaz_eslemesi(lokasyon, bolum, hat):
+    """(lokasyon, bolum, hat) → (device_id listesi, bolum_eslenmis_mi).
+
+    Dönen liste boş + bolum_eslenmis True  → bu hatta test cihazı YOK (kutu gizlenir).
+    Dönen liste boş + bolum_eslenmis False → eşleme tanımlanmamış (eski davranış:
+                                             tüm cihazlar listelenir).
+    """
+    lok = (lokasyon or 'TK2').upper()
+    bol = (bolum or '').strip()
+    hat_ad = (hat or '').strip()
+    bolum_eslenmis = any(k[0] == lok and k[1] == bol for k in TEST_CIHAZ_ESLEME)
+    if not bolum_eslenmis:
+        return [], False
+    return (list(TEST_CIHAZ_ESLEME.get((lok, bol, hat_ad))
+                 or TEST_CIHAZ_ESLEME.get((lok, bol, None))
+                 or []), True)
+
+
 def _sayac_cihazi(bolum, robot_no, istasyon=0):
     """Vardiya hattı + üretim kaydı istasyonundan pilot.db CIHAZ robot_no'sunu bulur.
     - pres / plastik: hat sabit, MAKİNE istasyondan gelir (pres 1=Abkant 1 ... 10=Bros;
@@ -3304,15 +3354,40 @@ def robot_listesi():
 @app.route('/api/test_cihazlari', methods=['GET'])
 def test_cihazlari():
     """Cofle test cihazı listesi (operatör mobil dropdown'u için). Token sunucuda
-    kalır — mobil API'ye doğrudan erişmez. Entegrasyon kapalıysa boş liste döner."""
+    kalır — mobil API'ye doğrudan erişmez. Entegrasyon kapalıysa boş liste döner.
+
+    ?lokasyon=&bolum=&hat= verilirse liste TEST_CIHAZ_ESLEME'ye göre SÜZÜLÜR:
+    o hatta hangi cihaz(lar) kullanılıyorsa yalnız onlar döner. Tek cihaz varsa
+    'otomatik' alanında o cihazın id'si gelir → mobil kendiliğinden seçer.
+    'eslesme_var' False ise bölüm için eşleme tanımlanmamıştır (eski davranış).
+    """
     try:
         import cofle_test
         if not cofle_test.etkin():
-            return jsonify({'etkin': False, 'cihazlar': []})
-        return jsonify({'etkin': True, 'cihazlar': cofle_test.cihaz_listesi()})
+            return jsonify({'etkin': False, 'cihazlar': [], 'eslesme_var': False,
+                            'otomatik': None})
+        tum = cofle_test.cihaz_listesi()
+        lokasyon = request.args.get('lokasyon')
+        bolum = request.args.get('bolum')
+        hat = request.args.get('hat')
+        if not bolum:
+            # Bağlam verilmediyse eski davranış (dashboard/tanı çağrıları)
+            return jsonify({'etkin': True, 'cihazlar': tum, 'eslesme_var': False,
+                            'otomatik': None})
+        idler, eslesme_var = test_cihaz_eslemesi(lokasyon, bolum, hat)
+        if not eslesme_var:
+            return jsonify({'etkin': True, 'cihazlar': tum, 'eslesme_var': False,
+                            'otomatik': None})
+        # SVP listesi geçici olarak boş/bayat gelse bile eşlenmiş cihaz KAYBOLMASIN:
+        # adı bulunamayanı id'siyle göster (kutuyu gizlemek, sayımı durdurmaktır).
+        ad_map = {c['id']: c.get('ad') for c in tum}
+        cihazlar = [{'id': i, 'ad': ad_map.get(i) or f'Cihaz {i}'} for i in idler]
+        return jsonify({'etkin': True, 'cihazlar': cihazlar, 'eslesme_var': True,
+                        'otomatik': (cihazlar[0]['id'] if len(cihazlar) == 1 else None)})
     except Exception as e:
         print(f"[test_cihazlari] hata: {e}")
-        return jsonify({'etkin': False, 'cihazlar': []})
+        return jsonify({'etkin': False, 'cihazlar': [], 'eslesme_var': False,
+                        'otomatik': None})
 
 
 @app.route('/api/operatorler', methods=['GET'])
