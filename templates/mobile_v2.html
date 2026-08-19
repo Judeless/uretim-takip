@@ -2540,6 +2540,17 @@ window.__I18N_SOZLUK__ = {
               </div>
               <span class="bolum-badge plastik">PLASTİK</span>
             </button>
+            <!-- tel = TK1 bölümü (2026-08-19): bölüm seçim ekranında (B0) vardı ama
+                 RAPOR listesine eklenmemişti → TK1 tel operatörü günlük raporunu hiç
+                 paylaşamıyordu. Aynı 'rapor-tk1-only' kalıbı: TK2'de gizli. -->
+            <button class="bolum-btn tel rapor-tk1-only" type="button" onclick="raporAc('tel')" style="display:none">
+              <div class="bolum-icon">🧵</div>
+              <div class="bolum-info">
+                <div class="bolum-title">Tel Üretimi</div>
+                <div class="bolum-desc">Kesim · kapama · montaj</div>
+              </div>
+              <span class="bolum-badge tel">TEL</span>
+            </button>
           </div>
         </div>
       </div>

@@ -324,7 +324,11 @@ const BOLUM_BILGI = {
   isleme: { ad: 'İşleme',           tekil: 'Tezgah', ikon: '🛠️', kolon3: 'PARÇA KODU' },
   lazer:  { ad: 'Lazer Kesim',      tekil: 'Makine', ikon: '🔦', kolon3: 'PARÇA KODU' },
   pres:   { ad: 'Pres Abkant',      tekil: 'Makine', ikon: '🗜️', kolon3: 'PARÇA KODU' },
-  plastik: { ad: 'Plastik Enjeksiyon', tekil: 'Makine', ikon: '🧪', kolon3: 'PARÇA KODU' }
+  plastik: { ad: 'Plastik Enjeksiyon', tekil: 'Makine', ikon: '🧪', kolon3: 'PARÇA KODU' },
+  // tel (2026-08-19): tanım eksikti → rapor açılsa bile başlık/kolon adı
+  // undefined kalıyordu. 'tekil' = gruplama kolonunun adı; tel'de grup PROSES
+  // ADIMI (hat), o yüzden 'Hat' değil 'Proses Adımı'.
+  tel:     { ad: 'Tel Üretimi',      tekil: 'Proses Adımı', ikon: '🧵', kolon3: 'PARÇA KODU' }
 };
 
 // Sayfayı bölüme göre etiketle
