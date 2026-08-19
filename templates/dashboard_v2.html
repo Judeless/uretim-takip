@@ -4218,10 +4218,6 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">📦</span> Referanslar</a>
                 <a class="nav-item" data-sayfa="operatorler" onclick="sayfaAc('operatorler')">
                     <span class="nav-icon">🔐</span> Operatörler</a>
-                <!-- EOQ (2026-08-19) AYRI SAYFA: dashboard SPA'sına yeni sekme eklemek
-                     yerine kendi şablonunda duruyor (/kaynak_eoq). Yeni sekmede açılır. -->
-                <a class="nav-item" onclick="window.open('/kaynak_eoq','_blank')">
-                    <span class="nav-icon">🧮</span> Kaynak EOQ</a>
                 </div>
             </div>
 
@@ -4266,6 +4262,11 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">📊</span> Planlama</a>
                 <a class="nav-item" data-sayfa="kaynak-plan" onclick="sayfaAc('kaynak-plan')">
                     <span class="nav-icon">🧩</span> Kaynak Planı</a>
+                <!-- EOQ (2026-08-19): veri AS400'den (BARTF0.A0QTMI) geldiği için bu
+                     grupta. AYRI SAYFA — dashboard SPA'sına sekme eklemek yerine kendi
+                     şablonunda (/kaynak_eoq), yeni sekmede açılır. -->
+                <a class="nav-item" onclick="window.open('/kaynak_eoq','_blank')">
+                    <span class="nav-icon">🧮</span> Kaynak EOQ</a>
                 </div>
             </div>
 

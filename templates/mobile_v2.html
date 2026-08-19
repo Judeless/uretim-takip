@@ -3820,20 +3820,6 @@ window.__I18N_SOZLUK__ = {
         try { _sonPl = localStorage.getItem('mobile_plastik_son_makine') || '0'; } catch (e) {}
         plSel.value = _sonPl;
       }
-      // TK1 kayıt hattı (tel proses adımı / TK1 montaj hattı) — aynı kalıp
-      var khWrap = document.getElementById('d-kayit-hat-wrap');
-      if (khWrap) khWrap.style.display = kayitHatliBolum() ? 'block' : 'none';
-      kayitHatYukle(function () {
-        var khSel = document.getElementById('d-kayit-hat');
-        if (!khSel || !kayitHatliBolum()) return;
-        var _sonKh = '0';
-        try { _sonKh = localStorage.getItem('mobile_kayit_hat_' + LOKASYON + '_' + secilenBolum) || '0'; } catch (e) {}
-        khSel.value = _sonKh;
-        // istasyonSec(0) hidden alanı sıfırlamış olabilir — hatırlanan hattı geri yaz
-        if (khSel.value && khSel.value !== '0') document.getElementById('d-istasyon').value = khSel.value;
-        telEkOnizleme();
-        testCihazlariYukle(testCihazWrapGoster);
-      });
       // Büküm operasyon sayısı: yeni kayıt 1'den başlar, referans seçilince
       // referansın hatırlanan değeriyle dolar (bkz. secRef).
       bukumGoster(1);
@@ -3845,6 +3831,26 @@ window.__I18N_SOZLUK__ = {
       // pres/plastik: istasyonSec(0) hidden alanı sıfırladı — hatırlanan makineyi geri yaz
       if (secilenBolum === 'pres' && prSel) document.getElementById('d-istasyon').value = prSel.value;
       if (secilenBolum === 'plastik' && plSel) document.getElementById('d-istasyon').value = plSel.value;
+      // TK1 kayıt hattı (tel proses adımı / TK1 montaj hattı) — aynı kalıp.
+      // SIRA ÖNEMLİ (2026-08-19 saha hatası): bu blok istasyonSec(0)'dan SONRA olmalı.
+      // Önceden önce geliyordu ve liste ÖNBELLEKTEYSE geri çağrı SENKRON koşuyordu →
+      // hatırlanan adım d-istasyon'a yazılıyor, hemen ardından istasyonSec(0) onu
+      // 0'lıyordu. Ekranda "Yarı Otomatik 1" seçili görünürken kaydet "Proses adımı
+      // seçiniz" diyordu (ilk açılışta fetch async olduğu için sorun görünmüyordu).
+      var khWrap = document.getElementById('d-kayit-hat-wrap');
+      if (khWrap) khWrap.style.display = kayitHatliBolum() ? 'block' : 'none';
+      kayitHatYukle(function () {
+        var khSel = document.getElementById('d-kayit-hat');
+        if (!khSel || !kayitHatliBolum()) return;
+        var _sonKh = '0';
+        try { _sonKh = localStorage.getItem('mobile_kayit_hat_' + LOKASYON + '_' + secilenBolum) || '0'; } catch (e) {}
+        khSel.value = _sonKh;
+        // Seçici ile hidden alan HER ZAMAN birlikte yazılır — ekranda görünen adım
+        // ile kaydedilecek adım ayrışmasın.
+        document.getElementById('d-istasyon').value = (khSel.value && khSel.value !== '0') ? khSel.value : 0;
+        telEkOnizleme();
+        testCihazlariYukle(testCihazWrapGoster);
+      });
       // Test cihazı seçimi — sıfırla + (entegrasyon açıksa) listeyi yükle/göster
       var ttog = document.getElementById('d-test-toggle');
       if (ttog) ttog.checked = false;

@@ -29,7 +29,13 @@
       text-decoration:none;padding:8px 14px;border:1px solid var(--line-strong);
       border-radius:10px;background:var(--surface)}
     .aciklama{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--brand);
-      border-radius:12px;padding:12px 14px;font-size:.82rem;color:var(--muted);line-height:1.55;margin-bottom:14px}
+      border-radius:12px;padding:12px 14px;font-size:.82rem;color:var(--muted);line-height:1.55;margin-bottom:10px}
+    .aciklama code{font-family:var(--font-mono);font-size:.78rem;background:var(--surface-2);
+      padding:1px 5px;border-radius:5px;color:var(--text)}
+    /* Yazmıyoruz — bunu SÖYLEMEK zorundayız: aksi halde operatör panelde EOQ'yu
+       düzeltip ERP'de düzeldiğini sanır ve sonraki çekimde değeri sessizce kaybolur. */
+    .uyari{background:var(--warn-soft);border:1px solid rgba(138,90,5,.28);border-left:3px solid var(--warn);
+      border-radius:12px;padding:12px 14px;font-size:.82rem;color:var(--warn);line-height:1.55;margin-bottom:14px}
     .ozet{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
     .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 16px;min-width:120px}
     .kpi b{display:block;font-size:1.35rem;font-weight:800;font-family:var(--font-mono)}
@@ -76,9 +82,15 @@
 
   <div class="aciklama">
     AS400'de <b>07 / 10 / 01 — SITUAZIONE ARTICOLO</b> ekranında her ürün için tanımlı
-    sipariş miktarı (EOQ). Hücreye yazıp <b>Enter</b>'a basınca kaydedilir.
-    <b>Son güncelleme</b> kolonu hangi bilginin bayat olduğunu gösterir; AS400
-    okuyucusu çalıştığında bu kolon kendiliğinden tazelenir.
+    sipariş miktarı (EOQ). Değerler ERP article master'ından okunur
+    (<code>TKC0301F.BARTF0.A0QTMI</code>). <b>Son güncelleme</b> kolonu hangi bilginin
+    bayat olduğunu gösterir.
+  </div>
+  <div class="uyari">
+    ⚠ <b>Bu sayfa AS400'e YAZMAZ.</b> Buradaki düzenleme yalnızca bu panelin kopyasını
+    değiştirir; ERP'deki EOQ olduğu gibi kalır. Üstelik bir sonraki AS400 çekiminde
+    girdiğiniz değer <b>ERP'dekiyle geri ezilir</b>. Kalıcı değişiklik AS400'de
+    yapılmalıdır — bu sayfa "hangileri güncellenecek" listesidir.
   </div>
 
   <div class="ozet">

@@ -787,8 +787,13 @@ def _test_basari_say(conn, cihaz_id, referans_kodu, basla_ts, biti_ts=None):
     except Exception:
         return None
     norm = _test_ref_norm(referans_kodu)
+    # UPPER(referans_norm): eşleşme HARF DUYARSIZ (kullanıcı 2026-08-19). Poller
+    # kaydı zaten büyütüyor ama SVP'de kod küçük harfle tanımlanırsa ya da eski
+    # kayıtlar farklı yazımla düştüyse sayaç sessizce 0 okurdu — SQLite '=' harfe
+    # duyarlıdır, bu yüzden karşılaştırma açıkça normalize edilir.
     q = ("SELECT COUNT(*) FROM test_sonuclari "
-         "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? AND (?='' OR referans_norm=?)")
+         "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? "
+         "AND (?='' OR UPPER(referans_norm)=?)")
     params = [cihaz_id, bas_epoch, norm, norm]
     if biti_ts:
         try:
@@ -828,7 +833,8 @@ def _test_son_aktivite_dk(conn, vardiya_id):
             norm = _test_ref_norm(r['referans_kodu'])
             row = conn.execute(
                 "SELECT MAX(ts_epoch) FROM test_sonuclari "
-                "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? AND (?='' OR referans_norm=?)",
+                "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? "
+                "AND (?='' OR UPPER(referans_norm)=?)",
                 (r['test_cihaz_id'], bas_epoch, norm, norm)
             ).fetchone()
             aktivite = (row[0] if row and row[0] else bas_epoch)  # hiç test yok → başlangıç anı
