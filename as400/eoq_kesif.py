@@ -24,6 +24,7 @@ KULLANIM (sunucuda — iSeries ODBC surucusu + keyring sifresi orada):
 """
 
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +32,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 KUTUPHANE = 'TKC0301F'
 TABLO = 'BARTF0'        # article master (launch_esle.article_tanimli: BARTF0.A0ARTI)
 KOD_KOLON = 'A0ARTI'
+EOQ_KOLON = 'A0QTMI'    # 2026-08-19 saha dogrulamasi: 10.300.3059W -> 850 (quantita minima)
+
+# iSeries ODBC'nin parametreli sorguda kaldirabildigi kod bicimi
+# (bkz. launch_esle.article_tanimli — ayni sinir, ayni gerekce).
+_GUVENLI_KOD = re.compile(r'^[\x00-\x7F]{1,21}$')
 
 
 def _baglan():
@@ -100,8 +106,24 @@ def toplu_cek(cn, kolon, sunucu, deneme=False):
             sunucu.rstrip('/') + '/api/kaynak_eoq?bolum=kaynak&lokasyon=TK2',
             timeout=30) as r:
         veri = json.loads(r.read().decode('utf-8'))
-    kodlar = [x['referans_kodu'] for x in veri.get('referanslar', [])]
-    print(f'  {len(kodlar)} kaynak referansi icin EOQ sorgulanacak...')
+    ham_kodlar = [x['referans_kodu'] for x in veri.get('referanslar', [])]
+
+    # ── SORGUYU PATLATAN KODLARI AYIKLA (launch_esle.article_tanimli ile ayni kural)
+    # iSeries ODBC surucusu iki durumda SQLExecDirectW'de patlar ve TUM blogu
+    # goturur (sahada 2026-08-19: CWBNL0107 "2 errori", 323 kodun hicbiri gelmedi):
+    #   · ASCII disi karakter  -> CWBNL0107 donusum hatasi (Turkce 'hazirlik'taki 'i')
+    #   · 21+ karakter         -> CWB0111 truncation
+    # Bu kodlar zaten operatorun elle ekledigi varyantlar ('... hazirlik', '... tamir',
+    # '... punta') — ERP article master'inda karsiligi YOK. Sessizce dusurmuyoruz:
+    # asagida "sorgulanamayan" olarak listeleniyor.
+    kodlar = [k for k in ham_kodlar if _GUVENLI_KOD.match(k)]
+    sorgulanamayan = [k for k in ham_kodlar if not _GUVENLI_KOD.match(k)]
+    print(f'  {len(kodlar)} kaynak referansi icin EOQ sorgulanacak'
+          + (f' ({len(sorgulanamayan)} kod ODBC sorgusuna uygun degil, atlandi)'
+             if sorgulanamayan else '') + '...')
+    for k in sorgulanamayan:
+        sebep = 'ASCII disi karakter' if any(ord(c) > 127 for c in k) else f'{len(k)} karakter (21 sinir)'
+        print(f'    [sorgulanamaz] {k}  — {sebep}')
     if not kodlar:
         return 0
 
@@ -153,10 +175,18 @@ def main():
 
     # --cek <KOLON> <SUNUCU> [--deneme]  → kolon bilindikten SONRA toplu cekim
     if sys.argv[1] == '--cek':
-        if len(sys.argv) < 4:
-            print('Kullanim: eoq_kesif.py --cek <KOLON_ADI> <SUNUCU_URL> [--deneme]')
+        # Kolon artik BILINIYOR (A0QTMI, 2026-08-19 saha dogrulamasi) → yalniz
+        # sunucu vermek yeter:
+        #   --cek <SUNUCU>            (varsayilan kolon EOQ_KOLON)
+        #   --cek <KOLON> <SUNUCU>    (baska bir kolon denemek icin)
+        kalan = [a for a in sys.argv[2:] if a != '--deneme']
+        if not kalan:
+            print('Kullanim: eoq_kesif.py --cek [KOLON_ADI] <SUNUCU_URL> [--deneme]')
             return 1
-        kolon, sunucu = sys.argv[2].strip().upper(), sys.argv[3]
+        if len(kalan) == 1:
+            kolon, sunucu = EOQ_KOLON, kalan[0]
+        else:
+            kolon, sunucu = kalan[0].strip().upper(), kalan[1]
         deneme = '--deneme' in sys.argv
         try:
             cn = _baglan()
@@ -208,8 +238,10 @@ def main():
             print('  aday elenir (ornegin stok/siparis miktari tesadufen esit olmus olabilir).')
             print('')
             print("  SONRAKI ADIM — tum EOQ'lari cekip panele yazmak icin:")
-            print(f'    python as400\\eoq_kesif.py --cek {eslesen[0]} '
+            print(f'    python eoq_kesif.py --cek {eslesen[0]} '
                   f'http://192.168.20.210:5000 --deneme')
+            print('    (as400 klasorunun ICINDEN calistirin; ust dizinden ise'
+                  ' "python as400\\eoq_kesif.py ...")')
             print("    (cikti dogruysa --deneme'yi kaldirip tekrar calistirin)")
         else:
             print('  Deger eslesmesi bulunamadi. Ekrandaki EOQ baska bir dosyada olabilir')
