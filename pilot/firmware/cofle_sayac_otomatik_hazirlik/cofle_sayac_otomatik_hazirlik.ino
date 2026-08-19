@@ -1,11 +1,11 @@
 /* ============================================================
- *  COFLE PILOT SAYAC — ABKANT-A1 firmware (v2.1)
+ *  COFLE PILOT SAYAC — TEL-HAZIRLIK firmware (v2.1)
  *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
- *  HEDEF:  Abkant 1 makinesinin ProManage rolesini izler.
+ *  HEDEF:  Otomatik Hazirlik makinesinin ProManage rolesini izler.
  *          Her vurus rolesi GND'ye kapanir -> 1 uretim pulse'u.
- *          (Bolum "pres" — bu desen abkant/pres disinda tek roleli baska
+ *          (Bolum "tel" — bu desen abkant/pres disinda tek roleli baska
  *           makineler icin de kullaniliyor, bolum jeneratorden gelir.)
  *
  *  PIN ATAMALARI:
@@ -30,12 +30,12 @@
 #include "driver/gpio.h"
 
 // ════════════════════════════════════════════════════════════
-//   YAPILANDIRMA — Abkant 1
+//   YAPILANDIRMA — Otomatik Hazirlik
 // ════════════════════════════════════════════════════════════
 
-const char* CIHAZ_ID  = "ABKANT-A1";
-const char* BOLUM     = "pres";  // jeneratorden gelir (abkant/pres -> "pres")
-const char* ROBOT_NO  = "Abkant 1";
+const char* CIHAZ_ID  = "TEL-HAZIRLIK";
+const char* BOLUM     = "tel";  // jeneratorden gelir (abkant/pres -> "pres")
+const char* ROBOT_NO  = "Otomatik Hazirlik";
 
 const char* WIFI_SSID = "COFLE-TK";
 const char* WIFI_PASS = "internet2011!";
@@ -64,7 +64,7 @@ const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 2000;  // kesinti kuyrugu (eskiden 200) — elektrik varken gunlerce pulse tutar
-const char* FIRMWARE_VER  = "2.7.2-abkant_1";   // 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
+const char* FIRMWARE_VER  = "2.7.2-otomatik_hazirlik";   // 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
 
 // ─── TANI (diagnostic) — sayim filtresi kararlarini heartbeat ile gonderir ──
 const int TANI_MAX          = 30;   // RAM ring buffer

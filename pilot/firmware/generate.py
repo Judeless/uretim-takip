@@ -119,6 +119,15 @@ DEVICES = {
     #   klasor adi CIHAZ_ID'den turer (robot_no tek degil).
     #   HB_ROBOT_NO = heartbeat/saglik kayitlarinda gorunen modul etiketi.
     # Bolum 'tel' (kapama, tel uretiminin proses adimi). Bkz tel_kapama.ino.tpl
+    # ── TK1 OTOMATIK HAZIRLIK (2026-08-19) ────────────────────────────
+    # Tek makine, tek role. Parca cevrimi 5-15 sn -> hizli pulse riski YOK,
+    # abkant deseni (integrator ~75ms net LOW) fazlasiyla yeterli.
+    # Bolum 'tel' (tel uretiminin proses adimi: 'Otomatik Hazirlik').
+    # robot_no ASCII: klasor cofle_sayac_otomatik_hazirlik, sunucuda hat adi
+    # 'Otomatik Hazirlik' Turkce -> app.HAT_SAYAC_CIHAZI cevirir.
+    'tel_hazirlik': [
+        ('TEL-HAZIRLIK', 'Otomatik Hazirlik', {'BOLUM': 'tel'}),
+    ],
     'tel_kapama': [
         ('TEL-KAPAMA-1', ['Kapama 1',  'Kapama 2',  'Kapama 3'],
          {'HB_ROBOT_NO': 'Kapama 1-3'}),
@@ -140,6 +149,7 @@ TEMPLATES = {
     'plastik':    'plastik.ino.tpl',
     'yapistirma': 'yapistirma.ino.tpl',
     'tel_kapama': 'tel_kapama.ino.tpl',
+    'tel_hazirlik': 'abkant.ino.tpl',   # tek kanalli role — abkant ile ayni desen
 }
 
 
@@ -168,6 +178,9 @@ def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
       BUZZER_BEEP_ADET : pes pese bip sayisi   (TK2 '1', TK1 '2' — 3V3'te ses kisik)
       BUZZER_BEEP_MS   : tek bip suresi ms     (TK2 '200', TK1 '300' — %50 uzun)
       HB_ROBOT_NO      : cok kanalli modulun heartbeat/telemetri etiketi
+      BOLUM            : sunucuya bildirilen bolum ('pres' varsayilan). Sayim
+                         sorgusu (bolum, robot_no) ikilisiyle yapildigi icin
+                         YANLIS bolum = hic sayilmayan makine demektir.
     Placeholder'i olmayan template'lerde replace no-op'tur."""
     ek = ekstra or {}
     coklu = isinstance(robot_no, (list, tuple))
@@ -181,6 +194,7 @@ def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
     metin = (template_metni
              .replace('__CIHAZ_ID__', cihaz_id)
              .replace('__FW_SUFFIX__', fw_suffix)
+             .replace('__BOLUM__', ek.get('BOLUM', 'pres'))
              .replace('__HB_ROBOT_NO__', ek.get('HB_ROBOT_NO', kanallar[0]))
              .replace('__BUZZER_AKTIF__', ek.get('BUZZER_AKTIF', 'true'))
              .replace('__BUZZER_BEEP_ADET__', ek.get('BUZZER_BEEP_ADET', '1'))

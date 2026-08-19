@@ -27,12 +27,18 @@ article'ıyla birebir kalma zorunluluğu da yok.
 import re
 
 # Üretim sırasında proses adımları.
-TEL_ADIMLARI = ('Halat Kesme', 'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
+# 'Otomatik Hazırlık' 2026-08-19'da eklendi (kullanıcı): otomatik hazırlık yapma
+# makinesi. KESİMDEN SONRA gelir (kullanıcı) → kesim ile otomat adımlarının
+# arasında. Bu tuple RAPOR KOLON SIRASINI belirler; mantık TEL_ADIM_SIRA
+# üyeliğine bakar, sayısal değere değil.
+TEL_ADIMLARI = ('Halat Kesme', 'Otomatik Hazırlık', 'Yarı Otomatik', 'Tam Otomatik',
+                'Kapama', 'Son Montaj')
 
 # Sıra numarası: yarı ve tam otomatik AYNI adım sayılır (2) — biri diğerinin
 # alternatifi, ikisi arka arkaya uygulanmaz.
-TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Yarı Otomatik': 2, 'Tam Otomatik': 2,
-                 'Kapama': 3, 'Son Montaj': 4}
+TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Otomatik Hazırlık': 2,
+                 'Yarı Otomatik': 3, 'Tam Otomatik': 3,
+                 'Kapama': 4, 'Son Montaj': 5}
 
 # FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
 # · kapama 12 · son montaj 4 = 22 hat. Tek makineli adımlarda numara YOK.
@@ -72,6 +78,11 @@ TEL_HATLARI = (
     + ['Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30', 'Kapama 28', 'Kapama 29']
     + ['Kapama 21', 'Kapama 19', 'Kapama 20', 'Kapama 27', 'Kapama 25', 'Kapama 26']
     + ['Son Montaj %d' % i for i in range(1, 5)]
+    # YENİ HAT HEP SONA (2026-08-19: otomatik hazırlık makinesi) — araya girmek
+    # yazılmış kayıtların istasyon numaralarını başka hatta kaydırır.
+    # Operatöre Türkçe görünür; sayaç cihazının robot_no'su ASCII 'Otomatik Hazirlik'
+    # (firmware/klasör adı kuralı) — eşleme app.HAT_SAYAC_CIHAZI'nda.
+    + ['Otomatik Hazırlık']
 )
 
 # Saha kodu bekleyen (modülü henüz takılmamış) hatlar — operatör listesinde
@@ -117,6 +128,7 @@ def tel_hat_adimi(robot_no):
 # birden çok kez "üretim" sayılmaz ve hangi ürünün nerede bittiği raporda
 # kendiliğinden görünür — sabit bir proses tanımına ihtiyaç kalmaz.
 TEL_ADIM_EKI = {
+    'Otomatik Hazırlık': 'HAZIRLIK',
     'Halat Kesme':   'KESIM',
     'Yarı Otomatik': 'YARI OTOMAT',
     'Tam Otomatik':  'TAM OTOMAT',
@@ -125,7 +137,8 @@ TEL_ADIM_EKI = {
 }
 # Ek zaten yazılmış mı? (operatör elle yazdıysa iki kez eklenmesin)
 _EK_DESEN = re.compile(
-    r'\s+(KESIM|YARI\s*OTOMAT|TAM\s*OTOMAT|KAPAMA|SON\s*MONTAJ)\s*$', re.IGNORECASE)
+    r'\s+(HAZIRLIK|KESIM|YARI\s*OTOMAT|TAM\s*OTOMAT|KAPAMA|SON\s*MONTAJ)\s*$',
+    re.IGNORECASE)
 
 
 def tel_ek_ayikla(referans_kodu):

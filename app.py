@@ -416,6 +416,9 @@ SAYAC_AUTO_CIHAZLAR = (
     # operatörün gördüğü HAT ADI saha kodudur ('Kapama 5' hattı → 'Kapama 1' cihazı).
     # Çeviri HAT_SAYAC_CIHAZI'nda yapılır; bu küme firmware tarafında kalır.
     | {f'Kapama {i}' for i in range(1, 13)}
+    # 2026-08-19: TK1 otomatik hazırlık makinesi (tek röle, 5-15 sn/parça).
+    # robot_no ASCII — hat adı Türkçe, çeviri HAT_SAYAC_CIHAZI'nda.
+    | {'Otomatik Hazirlik'}
 )
 # YF1: TK1 (yan tesis) montaj deneme modülü — MONTAJ-YF1 cihazı robot_no='YF1' ile flash'lı
 # (sahada zaten yüklü, yeniden flash YOK). pilot.db'de bolum=montaj/robot_no=YF1; saha_cihazlari
@@ -476,7 +479,11 @@ _TK1_MONTAJ_BUTON_CIHAZ = {
 # 'LF-LFP': 'YF1' GEÇMİŞ vardiyalar için kalıyor (hat listesinden çıktı ama eski
 # kayıtların sayacı hâlâ bu eşlemeyle çözülüyor). Aynı cihaza iki ad işaret
 # ediyor; ters arama listede BULUNAN adı seçtiği için karışmaz.
-HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1', **_TK1_MONTAJ_BUTON_CIHAZ, **_KAPAMA_SAHA_CIHAZ}
+HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1',
+                    # Hat adı Türkçe (operatör görür) ↔ cihaz robot_no ASCII
+                    # (firmware/klasör adı kuralı) — 2026-08-19 otomatik hazırlık.
+                    'Otomatik Hazırlık': 'Otomatik Hazirlik',
+                    **_TK1_MONTAJ_BUTON_CIHAZ, **_KAPAMA_SAHA_CIHAZ}
 
 # ── PRES (Pres Abkant) MAKİNE MODELİ (kullanıcı 2026-07-28) ──
 # Operatör gün içinde makine değiştirerek çalışıyor → makine VARDİYADA DEĞİL, her
@@ -600,10 +607,11 @@ TEST_CIHAZ_ESLEME = {
     # TK1 plastik: sızdırmazlık testinin sayacı SVP 'Tank'. Yapistirma/320T/407T'nin
     # kendi ESP32 sayacı var → onlarda kutu HİÇ görünmez.
     ('TK1', 'plastik', 'Sizdirmazlik Test'): [12],          # Tank
-    # TK1 tel — yarı otomat 2 makine; ikisine de saha modülü TAKILMAYACAK (kullanıcı),
-    # adet doğrudan SVP'den gelir.
-    ('TK1', 'tel',     'Yarı Otomatik 1'):   [41],          # PP OTOMATIK SPIRAL PRESLEME
-    ('TK1', 'tel',     'Yarı Otomatik 2'):   [43],          # PP LINE 8 (Otomatik 2)
+    # TK1 tel — bu makinelere saha modülü TAKILMAYACAK (kullanıcı), adet doğrudan
+    # SVP'den gelir. Eşleme 2026-08-19'da kullanıcı tarafından DÜZELTİLDİ.
+    ('TK1', 'tel',     'Yarı Otomatik 1'):   [43],          # PP LINE 8 (Otomatik 2)
+    ('TK1', 'tel',     'Yarı Otomatik 2'):   [48],          # PP LINE 7 (Otomatik 1)
+    ('TK1', 'tel',     'Tam Otomatik'):      [41],          # PP OTOMATIK SPIRAL PRESLEME
 }
 
 
@@ -928,15 +936,23 @@ def _bukum_excel_yaz(ref, adet):
         print(f'[bukum] Excel sync hatasi ({ref}): {e}')
 
 
-def _bukum_op_coz(c, gelen, ref, bolum, lokasyon):
-    """Üretim kaydına yazılacak büküm operasyon sayısını belirler.
+def _bukum_op_coz(c, gelen, ref, bolum, lokasyon, hat=None):
+    """Üretim kaydına yazılacak "1 parça = kaç sinyal" sayısını belirler.
 
-    - pres DIŞINDAKİ bölümlerde her zaman 1 → özellik kapalı, hiçbir şey değişmez.
+    İKİ YERDE AÇIK (2026-08-19):
+      · pres (abkant büküm operasyonu)
+      · tel KAPAMA hatları — kullanıcı: "bir ürün için birden fazla kez prese
+        basabiliyorlar". Kapama dışındaki tel adımlarında (kesim/otomat/son montaj)
+        KAPALI: orada 1 sinyal = 1 parça, açık bırakılsa referansın hatırlanan
+        kapama değeri o adımın sayacını da bölerdi.
+    - Diğer bölümlerde her zaman 1 → özellik kapalı, hiçbir şey değişmez.
     - İstemci değer gönderdiyse: referansa da YAZILIR (bir sonraki üretimde hazır
       gelsin) ve Excel'e senkronlanır — ama YALNIZ değer gerçekten değiştiyse,
       yoksa her üretim kaydında 700 satırlık Excel açılıp kaydedilirdi.
     - Göndermediyse: referansın hatırlanan değeri kullanılır (yoksa 1)."""
-    if (bolum or '') != 'pres':
+    _acik = ((bolum or '') == 'pres'
+             or ((bolum or '') == 'tel' and tel_hat_adimi(hat) == 'Kapama'))
+    if not _acik:
         return 1
     kayitli = 1
     try:
@@ -969,7 +985,10 @@ def _bukum_op_coz(c, gelen, ref, bolum, lokasyon):
             )
         except Exception as e:
             print(f'[bukum] referans guncellenemedi ({ref}): {e}')
-        _bukum_excel_yaz(ref, yeni)
+        # Excel senkronu YALNIZ pres: hedef dosya Pres Abkant referans sayfası,
+        # tel kodu oraya yazılırsa sayfaya ait olmayan satır açar.
+        if (bolum or '') == 'pres':
+            _bukum_excel_yaz(ref, yeni)
     return yeni
 
 
@@ -2595,7 +2614,7 @@ def uretim_ekle():
             # (bölme yok = eski davranış). Kayda KOPYALANIR: referansın varsayılanı
             # sonradan değişse bile bu kaydın adedi retroaktif kaymasın.
             bop = _bukum_op_coz(c, satir.get('bukum_operasyon', data.get('bukum_operasyon')),
-                                ref, vardiya_bolum, vardiya_lokasyon)
+                                ref, vardiya_bolum, vardiya_lokasyon, kayit_hat)
 
             c.execute('''
                 INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id, bukum_operasyon)
@@ -2728,7 +2747,9 @@ def uretim_guncelle(uid):
         ).fetchone()
         bop = _bukum_op_coz(c, data.get('bukum_operasyon'), ref,
                             v_bl['bolum'] if v_bl else 'kaynak',
-                            v_bl['lokasyon'] if v_bl else 'TK2')
+                            v_bl['lokasyon'] if v_bl else 'TK2',
+                            kayit_hatti(v_bl['robot_no'] if v_bl else '',
+                                        int(data.get('istasyon', 0) or 0)))
 
         # TEL: kod eki KAYDIN hattından türer. Hat artık üretim kaydında seçildiği
         # için DÜZENLEMEDE de uygulanmalı — yoksa 'Kapama'dan 'Son Montaj'a alınan
@@ -3911,6 +3932,12 @@ def saha_cihazlari():
         # 'modul' etiketi panoda hangi modülün baktığını gösterir.
         # cihaz_id + robot_no firmware ile BİREBİR (generate.py DEVICES['tel_kapama']).
         'tel': [
+            # 2026-08-19 otomatik hazırlık makinesi — TEK kanallı (kapama modülleri
+            # üçerli, bu değil). Modül montajı kullanıcıda; takılana kadar panelde
+            # "beklemede" görünür.
+            {'cihaz_id': 'TEL-HAZIRLIK', 'robot_no': 'Otomatik Hazirlik',
+             'lokasyon': 'TK1'},
+        ] + [
             {'cihaz_id': f'TEL-KAPAMA-{m}',
              'robot_no': f'Kapama {(m - 1) * 3 + kn}',
              'lokasyon': 'TK1',

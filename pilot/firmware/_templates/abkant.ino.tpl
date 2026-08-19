@@ -3,9 +3,10 @@
  *  >>> OTOMATIK URETILDI: generate.py — manuel duzenleme!
  * ============================================================
  *
- *  HEDEF:  __ROBOT_NO__ abkant makinesinin ProManage rolesini izler.
- *          Her buk/vurus rolesi GND'ye kapanir -> 1 uretim pulse'u.
- *          (Bolum "pres" — abkant, pres bolumunun makinesidir.)
+ *  HEDEF:  __ROBOT_NO__ makinesinin ProManage rolesini izler.
+ *          Her vurus rolesi GND'ye kapanir -> 1 uretim pulse'u.
+ *          (Bolum "__BOLUM__" — bu desen abkant/pres disinda tek roleli baska
+ *           makineler icin de kullaniliyor, bolum jeneratorden gelir.)
  *
  *  PIN ATAMALARI:
  *   - GPIO25  -> ROLE (kuru kontak, GND'ye kapanir — ProManage rolesi)
@@ -33,7 +34,7 @@
 // ════════════════════════════════════════════════════════════
 
 const char* CIHAZ_ID  = "__CIHAZ_ID__";
-const char* BOLUM     = "pres";      // abkant, pres bolumunun makinesidir
+const char* BOLUM     = "__BOLUM__";  // jeneratorden gelir (abkant/pres -> "pres")
 const char* ROBOT_NO  = "__ROBOT_NO__";
 
 const char* WIFI_SSID = "COFLE-TK";

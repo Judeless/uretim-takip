@@ -2770,11 +2770,12 @@ window.__I18N_SOZLUK__ = {
              Değer referansa kaydedilir (Excel'de D kolonu), sonraki üretimlerde
              hazır gelir, operatör değiştirebilir. Yalnız pres bölümünde görünür. -->
         <div id="d-bukum-wrap" style="display:none;margin-top:12px">
-          <label>Büküm Operasyon Sayısı</label>
+          <label id="d-bukum-lbl">Büküm Operasyon Sayısı</label>
           <input type="number" id="d-bukum" value="1" min="1" max="99"
                  inputmode="numeric" pattern="[0-9]*" onchange="bukumDegisti()">
           <div id="d-bukum-ipucu" style="font-size:.74rem;color:var(--muted);font-weight:500;margin-top:6px">
-            Bir parçaya kaç büküm uygulanıyor? Sayaç her <b id="d-bukum-n">1</b>. sinyali 1 adet sayar.
+            <span id="d-bukum-soru">Bir parçaya kaç büküm uygulanıyor? Sayaç her</span>
+            <b id="d-bukum-n">1</b>. sinyali 1 adet sayar.
           </div>
         </div>
 
@@ -3934,6 +3935,7 @@ window.__I18N_SOZLUK__ = {
                                  String(deger || '0')); } catch (e) {}
       telEkOnizleme();                            // kod eki hattan türüyor
       testCihazlariYukle(testCihazWrapGoster);    // cihaz eşlemesi hat bazlı
+      bukumGoster(bukumDeger());                  // kapama seçilince basış alanı açılır
     }
 
     // ── PLASTİK ENJEKSİYON MAKİNE SEÇİMİ (2026-08-18) ──────────────────────
@@ -5159,11 +5161,30 @@ window.__I18N_SOZLUK__ = {
     // ── BÜKÜM OPERASYON SAYISI (pres) ─────────────────────────────────────
     // Alanı yalnız pres bölümünde gösterir ve ipucundaki N'i günceller.
     // Diğer bölümlerde alan gizli kalır ve değeri 1'dir → sayaç bölünmez.
+    // "1 parça = kaç sinyal" alanı. İKİ yerde açık (2026-08-19):
+    //   pres    → büküm operasyon sayısı (bir parçaya sırayla N büküm)
+    //   tel     → YALNIZ kapama hatlarında: kullanıcı "bir ürün için birden fazla
+    //             kez prese basabiliyorlar". Diğer tel adımlarında 1 sinyal = 1 parça.
+    function bukumAcikMi() {
+      if (secilenBolum === 'pres') return true;
+      return secilenBolum === 'tel' && telHatAdimi(kayitHatAdi()) === 'Kapama';
+    }
     function bukumGoster(n) {
       var wrap = document.getElementById('d-bukum-wrap');
       var inp = document.getElementById('d-bukum');
       if (!wrap || !inp) return;
-      wrap.style.display = (secilenBolum === 'pres') ? 'block' : 'none';
+      var acik = bukumAcikMi();
+      wrap.style.display = acik ? 'block' : 'none';
+      // Alan adı sahadaki işe göre: abkantta büküm, kapamada prese basış
+      var lbl = document.getElementById('d-bukum-lbl');
+      var ipc = document.getElementById('d-bukum-soru');
+      if (secilenBolum === 'tel') {
+        if (lbl) lbl.textContent = 'Prese Basış Sayısı';
+        if (ipc) ipc.textContent = 'Bir ürün için kaç kez prese basılıyor? Sayaç her';
+      } else {
+        if (lbl) lbl.textContent = 'Büküm Operasyon Sayısı';
+        if (ipc) ipc.textContent = 'Bir parçaya kaç büküm uygulanıyor? Sayaç her';
+      }
       var v = parseInt(n, 10);
       if (!(v >= 1)) v = 1;
       if (v > 99) v = 99;
@@ -5181,7 +5202,7 @@ window.__I18N_SOZLUK__ = {
       if (et) et.textContent = v;
     }
     function bukumDeger() {
-      if (secilenBolum !== 'pres') return 1;
+      if (!bukumAcikMi()) return 1;
       var inp = document.getElementById('d-bukum');
       var v = inp ? parseInt(inp.value, 10) : 1;
       return (v >= 1 && v <= 99) ? v : 1;
@@ -5197,7 +5218,7 @@ window.__I18N_SOZLUK__ = {
       // Koda bağlı otomatikler: tel eki önizleme + plastik test cihazı/makine uyarısı
       refKodDegisti();
       // Referansın hatırlanan büküm operasyon sayısı hazır gelsin (operatör değiştirebilir)
-      if (secilenBolum === 'pres') bukumGoster(bukumOp || 1);
+      if (secilenBolum === 'pres' || secilenBolum === 'tel') bukumGoster(bukumOp || 1);
       // Pres: referansın Excel açıklaması alttaki Açıklama alanına gelir (operatör görsün).
       // Operatörün kendi yazdığı notu EZME — yalnız alan boşken ya da önceki otomatik
       // doldurma duruyorken yaz (başka referans seçilince güncellenir).
