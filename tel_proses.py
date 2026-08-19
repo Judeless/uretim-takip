@@ -104,6 +104,25 @@ def tel_ek_ayikla(referans_kodu):
     return _EK_DESEN.sub('', str(referans_kodu or '').strip()).strip()
 
 
+# Ek → adım ters haritası. Rapor katmanı adımı KODDAN çözer (hat/istasyon
+# gerekmez): mail_raporu.py app.py'yi import EDEMEZ ama kodu görebilir.
+_EK_ADIM = {ek: adim for adim, ek in TEL_ADIM_EKI.items()}
+
+
+def tel_koddan_adim(referans_kodu):
+    """'93.TK.464 KAPAMA' → 'Kapama'. Ek yoksa None (tel dışı ya da eksiz kayıt).
+
+    Adım bazlı rapor kırılımının temeli: aynı ürünün farklı adımları AYRI kodlarda
+    durduğu için, base kod + adım ikilisi 'aynı 100 parça 4 adımdan geçti'yi
+    '400 üretim' gibi göstermeden çözer."""
+    m = _EK_DESEN.search(str(referans_kodu or ''))
+    if not m:
+        return None
+    # Ek yazımı esnek olabilir ('SON  MONTAJ') → boşlukları tekille, büyüt
+    ek = ' '.join(m.group(1).split()).upper()
+    return _EK_ADIM.get(ek)
+
+
 def tel_referans_kodu(referans_kodu, robot_no):
     """Bu hatta kaydedilecek NİHAİ referans kodunu üretir: '93.TK.464 KAPAMA'.
 

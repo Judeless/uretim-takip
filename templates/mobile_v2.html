@@ -2795,6 +2795,20 @@ window.__I18N_SOZLUK__ = {
           </select>
         </div>
 
+        <!-- TK1 — HAT DA ÜRETİM KAYDINDA (kullanıcı 2026-08-18):
+             "Operatör referansı seçtikten SONRA hattı seçsin; bir operatör bir
+             referansı yaparken birden fazla hatta çalışabilir." Somut vaka: aynı kişi
+             bir ürünün halat kapamasını yapıp ardından son montajını da yapıyor —
+             eskiden bunun için iki ayrı vardiya açmak gerekiyordu.
+             Liste /api/kayit_hatlari'ndan gelir (tek kaynak app.HAT_MAKINELERI);
+             seçilen değer istasyon kolonuna yazılır. TK2 montaj DEĞİŞMEDİ. -->
+        <div id="d-kayit-hat-wrap" style="display:none; margin-top:14px">
+          <label id="d-kayit-hat-lbl">Hat</label>
+          <select id="d-kayit-hat" onchange="kayitHatSec(this.value)">
+            <option value="0">— Seçin —</option>
+          </select>
+        </div>
+
         <!-- Test cihazı sayaç kaynağı (Cofle/wicow) — yalnızca entegrasyon açıksa görünür.
              Seçiliyse ADET, test cihazının başarılı testlerinden otomatik sayılır. -->
         <div id="d-test-wrap" style="display:none;margin-top:12px;padding:10px 12px;border:1px solid rgba(29,78,216,0.30);border-radius:12px;background:var(--info-soft)">
@@ -3619,23 +3633,14 @@ window.__I18N_SOZLUK__ = {
         rsel.innerHTML = '<option value="Pres Abkant" selected>Pres Abkant</option>';
         rsel.onchange = null;
       } else if (bolum === 'tel') {
-        // TEL ÜRETİMİ (TK1, 2026-08-04): hat = PROSES ADIMI. Operatör hangi adımda
-        // çalışıyorsa onu seçer (halat kesme / yarı-tam otomat / kapama / son montaj).
-        // Adımlar backend'den gelir (app.TEL_ADIMLARI) — sıra üretim sırasıdır.
-        // Aynı referans gün içinde birden çok adımda kaydedilir; ÜRETİM sayısı
-        // yalnız o referansın SON adımından alınır (çoklu sayım önlenir).
-        robotWrap.style.display = 'block';
-        if (robotLabel) robotLabel.textContent = 'Proses Adımı';
-        rsel.innerHTML = '<option value="">Seçin...</option>';
-        rsel.onchange = null;   // tel hatları sabit — serbest ekleme yok
-        fetch('/api/robotlar?bolum=tel').then(function (r) { return r.json(); }).then(function (list) {
-          list.forEach(function (ad) {
-            var opt = document.createElement('option');
-            opt.value = ad; opt.textContent = ad;
-            rsel.appendChild(opt);
-          });
-          sonHatUygula(bolum);
-        }).catch(function () { });
+        // TEL ÜRETİMİ (TK1): hat = PROSES ADIMI (halat kesme / yarı-tam otomat /
+        // kapama / son montaj). 2026-08-18: adım artık VARDİYADA DEĞİL her ÜRETİM
+        // KAYDINDA seçilir — bir operatör aynı gün aynı ürünün hem kapamasını hem
+        // son montajını yapabiliyor, eskiden bunun için iki vardiya gerekiyordu.
+        // Vardiya hattı tek ve sabit: 'Tel Üretimi'.
+        robotWrap.style.display = 'none';
+        rsel.innerHTML = '<option value="Tel Üretimi" selected>Tel Üretimi</option>';
+        rsel.onchange = null;
       } else if (bolum === 'plastik') {
         // PLASTİK ENJEKSİYON (kullanıcı 2026-08-18): pres/abkant modeline geçti —
         // operatör makineyi REFERANSI SEÇTİKTEN SONRA, her ÜRETİM KAYDINDA işaretler.
@@ -3667,20 +3672,12 @@ window.__I18N_SOZLUK__ = {
         var lok = localStorage.getItem('mobile_aktif_lokasyon') || 'TK2';
         var montajHatlari = '<option value="">Seçin...</option>';
         if (lok === 'TK1') {
-          // Pull / Push-Pull ÇIKARILDI (2026-08-04): bunlar TEL ÜRÜNÜ adları, montaj
-          // hattı değil — tel, 'Tel Üretimi' bölümünde proses adımlarında üretilir.
-          ['LF-LFP', 'Iveco'].forEach(function (h) {
-            montajHatlari += '<option value="' + h + '">' + h + '</option>';
-          });
-          // TK1 montaj masaları (2026-07-31): 7 masaya buton+buzzer sayaç modülü
-          // takıldı. Sayaç vardiyanın hattı ile eşleşiyor → masayı seçen operatörde
-          // OTOMATİK sayım açılır (TK2'deki M1..M12 ile aynı model).
-          for (var t = 1; t <= 7; t++) {
-            montajHatlari += '<option value="TK1-M' + t + '">TK1-M' + t + ' Masası (sayaçlı)</option>';
-          }
-          rsel.innerHTML = montajHatlari;
-          rsel.onchange = null;   // TK1'de serbest hat ekleme yok
-          sonHatUygula(bolum);
+          // TK1 MONTAJ (2026-08-18): hat da ÜRETİM KAYDINDA seçilir (operatör gün
+          // içinde masa/hat değiştirebiliyor). Vardiya hattı tek ve sabit.
+          // TK2 montaj DEĞİŞMEDİ — aşağıdaki dalda hat vardiyada seçilmeye devam eder.
+          robotWrap.style.display = 'none';
+          rsel.innerHTML = '<option value="TK1 Montaj" selected>TK1 Montaj</option>';
+          rsel.onchange = null;
         } else {
           for (var i = 1; i <= 12; i++) {
             montajHatlari += '<option value="M' + i + '">M' + i + ' Hattı</option>';
@@ -3823,6 +3820,20 @@ window.__I18N_SOZLUK__ = {
         try { _sonPl = localStorage.getItem('mobile_plastik_son_makine') || '0'; } catch (e) {}
         plSel.value = _sonPl;
       }
+      // TK1 kayıt hattı (tel proses adımı / TK1 montaj hattı) — aynı kalıp
+      var khWrap = document.getElementById('d-kayit-hat-wrap');
+      if (khWrap) khWrap.style.display = kayitHatliBolum() ? 'block' : 'none';
+      kayitHatYukle(function () {
+        var khSel = document.getElementById('d-kayit-hat');
+        if (!khSel || !kayitHatliBolum()) return;
+        var _sonKh = '0';
+        try { _sonKh = localStorage.getItem('mobile_kayit_hat_' + LOKASYON + '_' + secilenBolum) || '0'; } catch (e) {}
+        khSel.value = _sonKh;
+        // istasyonSec(0) hidden alanı sıfırlamış olabilir — hatırlanan hattı geri yaz
+        if (khSel.value && khSel.value !== '0') document.getElementById('d-istasyon').value = khSel.value;
+        telEkOnizleme();
+        testCihazlariYukle(testCihazWrapGoster);
+      });
       // Büküm operasyon sayısı: yeni kayıt 1'den başlar, referans seçilince
       // referansın hatırlanan değeriyle dolar (bkz. secRef).
       bukumGoster(1);
@@ -3863,6 +3874,60 @@ window.__I18N_SOZLUK__ = {
     function presMakineSec(deger) {
       document.getElementById('d-istasyon').value = deger;
       try { localStorage.setItem('mobile_pres_son_makine', String(deger || '0')); } catch (e) {}
+    }
+
+    // ── KAYIT HATTI SEÇİCİSİ — TK1 (kullanıcı 2026-08-18) ──────────────────
+    // TK1'de hat/proses adımı VARDİYADA DEĞİL her ÜRETİM KAYDINDA, referanstan
+    // SONRA seçilir. Liste sunucudan gelir (/api/kayit_hatlari → app.HAT_MAKINELERI);
+    // gönderilen değer NUMARADIR (istasyon), ad çözümü sunucuda yapılır — hat adı
+    // iki yerde yazılmaz. Plastik/pres/lazer'in kendi seçicileri ayrı durur.
+    var _kayitHat = null;    // {sabit_hat, etiket, hatlar:[{no,ad}]}
+    var _kayitHatKey = '';
+
+    function kayitHatliBolum() {
+      return secilenBolum === 'tel' || (LOKASYON === 'TK1' && secilenBolum === 'montaj');
+    }
+
+    function kayitHatYukle(cb) {
+      if (!kayitHatliBolum()) { _kayitHat = null; if (cb) cb(); return; }
+      var key = LOKASYON + '|' + secilenBolum;
+      if (_kayitHatKey === key && _kayitHat) { kayitHatSecicisiDoldur(); if (cb) cb(); return; }
+      fetch('/api/kayit_hatlari?lokasyon=' + encodeURIComponent(LOKASYON) +
+            '&bolum=' + encodeURIComponent(secilenBolum))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          _kayitHat = d || null; _kayitHatKey = key;
+          kayitHatSecicisiDoldur();
+          if (cb) cb();
+        }).catch(function () { _kayitHat = null; if (cb) cb(); });
+    }
+
+    function kayitHatSecicisiDoldur() {
+      var sel = document.getElementById('d-kayit-hat');
+      var lbl = document.getElementById('d-kayit-hat-lbl');
+      if (!sel || !_kayitHat) return;
+      if (lbl) lbl.textContent = _kayitHat.etiket || 'Hat';
+      var html = '<option value="0">— Seçin —</option>';
+      (_kayitHat.hatlar || []).forEach(function (h) {
+        html += '<option value="' + h.no + '">' + esc(h.ad) + '</option>';
+      });
+      sel.innerHTML = html;
+    }
+
+    // Seçili hattın ADI (tel kod eki önizlemesi + test cihazı eşlemesi bunu kullanır)
+    function kayitHatAdi() {
+      if (!_kayitHat) return '';
+      var no = parseInt((document.getElementById('d-kayit-hat') || {}).value || 0) || 0;
+      var bul = (_kayitHat.hatlar || []).filter(function (h) { return h.no === no; })[0];
+      return bul ? bul.ad : '';
+    }
+
+    function kayitHatSec(deger) {
+      document.getElementById('d-istasyon').value = deger;
+      try { localStorage.setItem('mobile_kayit_hat_' + LOKASYON + '_' + secilenBolum,
+                                 String(deger || '0')); } catch (e) {}
+      telEkOnizleme();                            // kod eki hattan türüyor
+      testCihazlariYukle(testCihazWrapGoster);    // cihaz eşlemesi hat bazlı
     }
 
     // ── PLASTİK ENJEKSİYON MAKİNE SEÇİMİ (2026-08-18) ──────────────────────
@@ -3922,6 +3987,7 @@ window.__I18N_SOZLUK__ = {
         var no = parseInt((document.getElementById('d-plastik-makine') || {}).value || 0) || 0;
         return PLASTIK_MAKINE_ADI[no] || '';
       }
+      if (kayitHatliBolum()) return kayitHatAdi();
       return (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
     }
 
@@ -4026,7 +4092,8 @@ window.__I18N_SOZLUK__ = {
       var el = document.getElementById('d-tel-ek-bilgi');
       if (!el) return;
       var ref = (document.getElementById('d-ref') || {}).value || '';
-      var hat = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
+      // Hat artık ÜRETİM KAYDINDA (2026-08-18) — eski kayıtlarda vardiyanınkine düşer
+      var hat = kayitHatAdi() || (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
       var adim = telHatAdimi(hat);
       if (secilenBolum !== 'tel' || !ref.trim() || !adim) { el.style.display = 'none'; return; }
       // Her adım kendi ekini alır (istisna yok) → kesin dil kullanılabilir.
@@ -4805,6 +4872,16 @@ window.__I18N_SOZLUK__ = {
       if (plWrap) plWrap.style.display = (secilenBolum === 'plastik') ? 'block' : 'none';
       var plSel = document.getElementById('d-plastik-makine');
       if (plSel) plSel.value = String(parseInt(istasyon || 0) || 0);
+      // TK1 kayıt hattı: kaydın istasyonu seçili gelir (liste asenkron dolar)
+      var khWrap = document.getElementById('d-kayit-hat-wrap');
+      if (khWrap) khWrap.style.display = kayitHatliBolum() ? 'block' : 'none';
+      kayitHatYukle(function () {
+        var khSel = document.getElementById('d-kayit-hat');
+        if (khSel && kayitHatliBolum()) {
+          khSel.value = String(parseInt(istasyon || 0) || 0);
+          telEkOnizleme();
+        }
+      });
       // Büküm operasyon sayısı: KAYDIN kendi değeri (referansın güncel varsayılanı
       // değil) — geçmiş kaydın adedi hangi bölenle hesaplandıysa o görünsün.
       bukumGoster(bukumOp || 1);
@@ -4828,6 +4905,11 @@ window.__I18N_SOZLUK__ = {
       if ((secilenBolum === 'lazer' || secilenBolum === 'pres' || secilenBolum === 'plastik')
           && !(istEl && parseInt(istEl.value || 0) > 0)) {
         toast('Makine seçiniz', 'error'); return;
+      }
+      // TK1: hat/proses adımı da kayıt bazlı ve ZORUNLU — kod eki, sayaç eşlemesi
+      // ve rapor adım kırılımı bu alandan türüyor.
+      if (kayitHatliBolum() && !(istEl && parseInt(istEl.value || 0) > 0)) {
+        toast((secilenBolum === 'tel' ? 'Proses adımı' : 'Hat') + ' seçiniz', 'error'); return;
       }
       var launchEl = document.getElementById('d-launch');
       var acEl = document.getElementById('d-aciklama');

@@ -6004,10 +6004,31 @@ window.__I18N_SOZLUK__ = {
                                'Pres 1', 'Pres 2', 'Pres 3', 'Pres 4', 'Pres 5',
                                'Hidrolik Pres', 'Bros'];
         var PLASTIK_MAKINELERI = ['320T', '407T', 'Yapıştırma', 'Sızdırmazlık Test'];
+        // TK1 (2026-08-18): hat da üretim kaydında. Sıralar app.py TK1_MONTAJ_HATLARI
+        // ve tel_proses.TEL_HATLARI ile BİREBİR — yeni hat hep SONA eklenir.
+        var TK1_MONTAJ_HATLARI = ['LF-LFP', 'Iveco', 'TK1-M1', 'TK1-M2', 'TK1-M3',
+                                  'TK1-M4', 'TK1-M5', 'TK1-M6', 'TK1-M7'];
+        var TEL_HATLARI = ['Halat Kesme 1', 'Halat Kesme 2', 'Halat Kesme 3',
+                           'Yarı Otomatik 1', 'Yarı Otomatik 2', 'Tam Otomatik',
+                           'Kapama 1', 'Kapama 2', 'Kapama 3', 'Kapama 4', 'Kapama 5',
+                           'Kapama 6', 'Kapama 7', 'Kapama 8', 'Kapama 9', 'Kapama 10',
+                           'Kapama 11', 'Kapama 12',
+                           'Son Montaj 1', 'Son Montaj 2', 'Son Montaj 3', 'Son Montaj 4'];
+        // Sabit hat adı → o hattın makine/alt-hat listesi (app.HAT_MAKINELERI'nin eşi).
+        var HAT_MAKINELERI = {
+            'Pres Abkant': PRES_MAKINELERI,
+            'Plastik Enjeksiyon': PLASTIK_MAKINELERI,
+            'TK1 Montaj': TK1_MONTAJ_HATLARI,
+            'Tel Üretimi': TEL_HATLARI
+        };
         function makineAdi(bolum, istasyon, robotNo) {
             var i = parseInt(istasyon || 0) || 0;
             if (i > 0) {
                 if (bolum === 'lazer') return 'Lazer ' + i;
+                // Önce SABİT HAT adından çöz (tek kaynak); robotNo geçilmemiş eski
+                // çağrılar için bölüm bazlı geri düşüş korunur.
+                var mk = HAT_MAKINELERI[robotNo];
+                if (mk) return mk[i - 1] || ('Makine ' + i);
                 if (bolum === 'pres') return PRES_MAKINELERI[i - 1] || ('Makine ' + i);
                 if (bolum === 'plastik') return PLASTIK_MAKINELERI[i - 1] || ('Makine ' + i);
             }
@@ -7595,11 +7616,14 @@ window.__I18N_SOZLUK__ = {
                 if (detay.uretim.length) {
                     html += `<div class="detail-section"><h4>Üretim Kayıtları</h4>`;
                     // Lazer + Pres + Plastik: makine üretim kaydında seçilir → satırda rozet göster
-                    var _makineKayitta = (v.bolum === 'lazer' || v.bolum === 'pres' || v.bolum === 'plastik');
-                    var _makineIkon = (v.bolum === 'lazer') ? '🔦' : (v.bolum === 'plastik') ? '🧪' : '🗜️';
+                    var _makineKayitta = (v.bolum === 'lazer' || v.bolum === 'pres'
+                                          || v.bolum === 'plastik' || v.bolum === 'tel'
+                                          || (v.bolum === 'montaj' && HAT_MAKINELERI[v.robot_no]));
+                    var _makineIkon = (v.bolum === 'lazer') ? '🔦' : (v.bolum === 'plastik') ? '🧪'
+                                    : (v.bolum === 'tel') ? '🧵' : (v.bolum === 'montaj') ? '🔩' : '🗜️';
                     detay.uretim.forEach(u => {
                         var makineRozet = (_makineKayitta && (u.istasyon || 0) > 0)
-                            ? `<span class="badge badge-blue" style="margin-left:6px;font-size:.62rem">${_makineIkon} ${esc(makineAdi(v.bolum, u.istasyon, ''))}</span>` : '';
+                            ? `<span class="badge badge-blue" style="margin-left:6px;font-size:.62rem">${_makineIkon} ${esc(makineAdi(v.bolum, u.istasyon, v.robot_no))}</span>` : '';
                         html += `<div class="detail-row"><span>📦 ${u.referans_kodu}${makineRozet}</span><span style="display:flex;align-items:center;gap:6px">
                             <span><b style="color:var(--success)">${u.ok_adet}</b> OK / <span style="color:var(--danger)">${u.nok_adet}</span> NOK (Hdf: ${u.hedef_adet})</span>
                             <button onclick="duzenleUretim(${u.id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet})" class="adm-btn duzenle" style="padding:2px 6px;font-size:0.65rem">✏️</button>

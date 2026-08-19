@@ -193,6 +193,31 @@
     tbody.robot-group { border-bottom: 2px solid #0f172a; }
     tbody.robot-group:last-child { border-bottom: none; }
 
+    /* ── ÜRÜN BAZLI ADIM TABLOSU (tel, 2026-08-18) ──────────────────────
+       Aynı ürünün adımları AYRI SATIR değil AYRI KOLON: '100 kapama + 100 son
+       montaj' toplanıp 200 ürün sanılmasın. Satır = ürün, kolon = proses adımı. */
+    .urun-blok { margin-bottom: 14px; }
+    .urun-blok .ub-baslik {
+      background: #0f172a; color: #f9d71c; font-weight: 900; font-size: 12px;
+      padding: 8px 10px; letter-spacing: .04em;
+    }
+    .urun-blok .ub-not {
+      background: #fffbeb; color: #78350f; font-size: 10.5px; font-weight: 600;
+      padding: 7px 10px; border-bottom: 1px solid #fde68a; line-height: 1.45;
+    }
+    table.urun { width: 100%; border-collapse: collapse; }
+    table.urun td, table.urun th {
+      border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 11px;
+      text-align: center; color: #0f172a; background: #fff;
+    }
+    table.urun th { background: #e2e8f0; font-weight: 800; font-size: 10px; }
+    table.urun td.u-ref { text-align: left; font-weight: 800; font-size: 10.5px; }
+    table.urun td.u-adet { background: var(--c-adet); font-weight: 800; }
+    table.urun td.u-bos { background: #f8fafc; color: #cbd5e1; }
+    table.urun tfoot td { background: #0f172a; color: #f9d71c; font-weight: 900; }
+    table.urun tfoot td.u-adet { background: #1e293b; color: #f9d71c; }
+    .urun-blok .ub-op { font-size: 9px; color: #64748b; font-weight: 600; display: block; }
+
     /* Toplam satırı */
     tfoot.r-toplam td {
       background: #0f172a; color: #f9d71c;
@@ -327,6 +352,40 @@ function formatTarih(s){
 }
 function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ── ÜRÜN BAZLI ADIM TABLOSU (tel, kullanıcı 2026-08-18) ────────────────────
+// "100 adet halat kapama, 100 adet son montaj toplam 200 ürün olarak anlaşılır mı?"
+// Evet, anlaşılırdı — bu tablo onu yapısal olarak imkânsız kılar: satır ÜRÜN,
+// kolon ADIM. Bir ürünün satırındaki sayılar TOPLANMAZ, o ürünün hangi adımlardan
+// kaç adet geçtiğini gösterir. Alt satır adım bazlı toplamdır (kolon içi toplanır).
+function urunBlokHtml(ak) {
+  const adimlar = ak.adimlar || [];
+  let h = `<div class="urun-blok">
+    <div class="ub-baslik">ÜRÜN BAZLI ÜRETİM — ADIM KIRILIMI</div>
+    <div class="ub-not">Satır = ürün, kolon = proses adımı.
+      Bir satırdaki sayılar <b>toplanmaz</b>: aynı parçanın geçtiği adımları gösterir.
+      Örn. bir üründe Kapama 100 + Son Montaj 100 → <b>200 değil, 100 parça</b>
+      (100 parça iki adımdan geçmiştir).</div>
+    <div class="rapor-scroll">
+    <table class="urun">
+      <thead><tr><th style="text-align:left">ÜRÜN (REFERANS)</th>`;
+  adimlar.forEach(function (a) { h += `<th>${esc(a).toUpperCase()}</th>`; });
+  h += `</tr></thead><tbody>`;
+  (ak.satirlar || []).forEach(function (r) {
+    h += `<tr><td class="u-ref">${esc(r.referans)}</td>`;
+    adimlar.forEach(function (a) {
+      const v = (r.adet || {})[a];
+      if (v === undefined || v === null) { h += `<td class="u-bos">—</td>`; return; }
+      const op = (r.operatorler || {})[a] || '';
+      h += `<td class="u-adet">${v}<span class="ub-op">${esc(op)}</span></td>`;
+    });
+    h += `</tr>`;
+  });
+  h += `</tbody><tfoot><tr><td style="text-align:right">ADIM TOPLAMI</td>`;
+  adimlar.forEach(function (a) { h += `<td class="u-adet">${(ak.adim_toplam || {})[a] || 0}</td>`; });
+  h += `</tr></tfoot></table></div></div>`;
+  return h;
+}
+
 // ── Init ──
 document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('rep-tarih').value = bugunStr();
@@ -411,6 +470,12 @@ function renderTablo(veri, tarih, vardiya){
 
   let toplamAdet = 0, toplamTamir = 0, toplamHurda = 0;
 
+  // TEL: aynı ürünün adımları toplanıp çift sayılmasın diye ÜRÜN BAZLI blok.
+  // Aşağıdaki operatör/adım tablosu "kim ne yaptı"yı gösterir; ürün adedi BU
+  // tablodan okunur (satır = ürün, kolon = adım).
+  const ak = veri.adim_kirilimi;
+  const telModu = !!(ak && ak.satirlar && ak.satirlar.length);
+
   let html = `<div id="rapor-wrap">
     <div class="r-head">
       <div class="r-title"><span class="ico">${bilgi.ikon}</span><span>${esc(bilgi.ad.toUpperCase())} — GÜNLÜK ÜRETİM RAPORU</span></div>
@@ -419,6 +484,7 @@ function renderTablo(veri, tarih, vardiya){
         <div>${tarihL}</div>
       </div>
     </div>
+    ${telModu ? urunBlokHtml(ak) : ''}
     <div class="rapor-scroll">
     <table class="rapor">
       <colgroup>
@@ -471,13 +537,20 @@ function renderTablo(veri, tarih, vardiya){
     html += `</tbody>`;
   });
 
+  // TEL'de TEK BİR "TOPLAM" YAZILMAZ (2026-08-18): 100 kapama + 100 son montaj
+  // toplanınca 200 çıkıyor ve 200 ÜRÜN sanılıyordu. Adım adedi yapılan iştir;
+  // adımlar ancak KENDİ İÇİNDE toplanabilir → adım bazlı alt toplam yazılır.
+  const toplamHucre = telModu
+    ? `<td colspan="3" style="text-align:right;padding-right:10px">ADIM TOPLAMI</td>
+       <td class="t-adet" colspan="3" style="font-size:10.5px;letter-spacing:0">
+         ${ak.adimlar.map(a => esc(a) + ' ' + (ak.adim_toplam[a] || 0)).join(' · ')}
+       </td>`
+    : `<td colspan="3" style="text-align:right;padding-right:10px">TOPLAM</td>
+       <td class="t-adet">${toplamAdet}</td>
+       <td class="t-tamir">${toplamTamir}</td>
+       <td class="t-hurda">${toplamHurda}</td>`;
   html += `<tfoot class="r-toplam">
-      <tr>
-        <td colspan="3" style="text-align:right;padding-right:10px">TOPLAM</td>
-        <td class="t-adet">${toplamAdet}</td>
-        <td class="t-tamir">${toplamTamir}</td>
-        <td class="t-hurda">${toplamHurda}</td>
-      </tr>
+      <tr>${toplamHucre}</tr>
     </tfoot>
     </table>
     </div>

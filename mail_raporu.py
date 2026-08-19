@@ -21,6 +21,10 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.utils import formataddr
 
+# Tel üretiminde adım, referans kodunun EKİNDEN çözülür ('93.TK.464 KAPAMA').
+# app.py import EDİLEMEZ (Flask'ı ayağa kaldırır) — ortak mantık tel_proses'te.
+from tel_proses import tel_koddan_adim, tel_ek_ayikla
+
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH     = os.path.join(PROJECT_DIR, 'uretim.db')
@@ -36,7 +40,8 @@ BOLUM_AD = {
     'isleme': 'İşleme',
     'lazer':  'Lazer Kesim',
     'pres':   'Pres Abkant',
-    'plastik': 'Plastik Yapıştırma',
+    'plastik': 'Plastik Enjeksiyon',
+    'tel':    'Tel Üretimi',
 }
 
 
@@ -349,7 +354,12 @@ def excel_olustur(tarih=None, lokasyon=None):
     ws = wb.active
     ws.title = 'Günlük Üretim'
 
-    basliklar = ['Tarih', 'Tesis', 'Bölüm', 'Operatör', 'Referans Kodu', 'Adet']
+    # 'Proses Adımı' (2026-08-18): tel üretiminde aynı ürün birden çok adımdan
+    # geçiyor ve her adım kendi kod ekiyle ayrı satır oluyor. Adım artık koddan
+    # ayıklanıp KENDİ KOLONUNA yazılır — okuyan "aynı referans neden iki kez
+    # yazılmış" diye düşünmez, satırların farklı OPERASYONLAR olduğunu görür.
+    basliklar = ['Tarih', 'Tesis', 'Bölüm', 'Operatör', 'Referans Kodu',
+                 'Proses Adımı', 'Adet']
     ws.append(basliklar)
 
     # Başlık stili (koyu lacivert — Cofle kimliği)
@@ -365,16 +375,31 @@ def excel_olustur(tarih=None, lokasyon=None):
         c.border = kenar
 
     tarih_tr = _tarih_tr(tarih)
+    # TEL SATIRLARI GENEL TOPLAMA GİRMEZ (kullanıcı 2026-08-18): bir ürün kesim +
+    # otomat + kapama + son montaj adımlarından geçtiğinde adetleri toplamak aynı
+    # parçayı 4 kez saymaktır ("100 kapama + 100 son montaj = 200 ürün" yanılgısı).
+    # Adım adedi YAPILAN İŞTİR; ancak KENDİ İÇİNDE toplanabilir → tel için adım
+    # bazlı alt toplamlar ayrıca yazılır.
     toplam_adet = 0
+    tel_adim_toplam = {}
     for r in rows:
-        toplam_adet += int(r['adet'] or 0)
+        adet = int(r['adet'] or 0)
+        tel_mi = (r['bolum'] or '') == 'tel'
+        adim = tel_koddan_adim(r['referans']) if tel_mi else None
+        if tel_mi:
+            tel_adim_toplam[adim or '—'] = tel_adim_toplam.get(adim or '—', 0) + adet
+        else:
+            toplam_adet += adet
         ws.append([
             tarih_tr,
             r['tesis'],
             BOLUM_AD.get(r['bolum'], r['bolum']),
             r['operator'] or '',
-            r['referans'],
-            int(r['adet'] or 0),
+            # Tel'de kod ADIMSIZ yazılır: aynı ürünün satırları aynı kodda görünsün,
+            # hangi adım olduğu yan kolonda dursun.
+            tel_ek_ayikla(r['referans']) if tel_mi else r['referans'],
+            adim or '',
+            adet,
         ])
 
     # Gövde hücre kenarları + Adet sağa yasla
@@ -382,20 +407,33 @@ def excel_olustur(tarih=None, lokasyon=None):
         for sutun in range(1, len(basliklar) + 1):
             hc = ws.cell(row=satir, column=sutun)
             hc.border = kenar
-            if sutun == 6:
+            if sutun == 7:
                 hc.alignment = Alignment(horizontal='right')
 
-    # Toplam satırı
+    # Toplam satır(lar)ı
     if rows:
-        tsatir = ws.max_row + 1
-        ws.cell(row=tsatir, column=5, value='TOPLAM').font = Font(bold=True)
-        ws.cell(row=tsatir, column=5).alignment = Alignment(horizontal='right')
-        tc = ws.cell(row=tsatir, column=6, value=toplam_adet)
-        tc.font = Font(bold=True)
-        tc.alignment = Alignment(horizontal='right')
+        def _toplam_satiri(etiket, deger, kalin=True):
+            r = ws.max_row + 1
+            e = ws.cell(row=r, column=6, value=etiket)
+            e.font = Font(bold=kalin)
+            e.alignment = Alignment(horizontal='right')
+            d = ws.cell(row=r, column=7, value=deger)
+            d.font = Font(bold=kalin)
+            d.alignment = Alignment(horizontal='right')
+
+        _toplam_satiri('TOPLAM', toplam_adet)
+        if tel_adim_toplam:
+            # Tel adımları AYRI AYRI — tek bir sayıda toplanmaz (bkz. yukarıdaki not)
+            not_r = ws.max_row + 2
+            nc = ws.cell(row=not_r, column=1,
+                         value='TEL ÜRETİMİ — adım bazlı (aynı ürün birden çok '
+                               'adımdan geçer, adımlar TOPLANMAZ):')
+            nc.font = Font(bold=True, italic=True)
+            for adim, deger in tel_adim_toplam.items():
+                _toplam_satiri(adim, deger, kalin=False)
 
     # Kolon genişlikleri
-    for kol, gen in zip('ABCDEF', (12, 8, 18, 22, 20, 10)):
+    for kol, gen in zip('ABCDEFG', (12, 8, 18, 22, 20, 14, 10)):
         ws.column_dimensions[kol].width = gen
     ws.freeze_panes = 'A2'
 

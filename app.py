@@ -18,7 +18,7 @@ from export_excel import export_arsiv
 # import DOSYA BAŞINDA olmak zorunda. Ayrıntılı açıklama tanımın yanında.
 from tel_proses import (TEL_ADIMLARI, TEL_ADIM_SIRA, TEL_HATLARI,      # noqa: F401
                         TEL_ADIM_EKI, tel_hat_adimi, tel_referans_kodu,
-                        tel_ek_ayikla, tel_adim_etiketi)
+                        tel_ek_ayikla, tel_adim_etiketi, tel_koddan_adim)
 
 # ODS dosyası yolu
 FIKSTUR_ODS_YOLU = r'C:\Users\selcu\OneDrive\Masaüstü\KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods'
@@ -427,7 +427,8 @@ SAYAC_AUTO_CIHAZLAR = (
 #   için burada KALIR (yoksa eski kayıtlar TK1 filtrelerinden düşerdi).
 TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
                      '320T', '407T', 'Yapistirma', 'Sizdirmazlik Test',  # 2026-07-27 plastik enj + yapıştırma (TK1)
-                     'Plastik Enjeksiyon'}   # 2026-08-18 plastik SABİT HAT (makine artık üretim kaydında)
+                     'Plastik Enjeksiyon',   # 2026-08-18 plastik SABİT HAT (makine artık üretim kaydında)
+                     'TK1 Montaj', 'Tel Üretimi'}   # 2026-08-18 TK1 montaj + tel SABİT HATLARI
                     | {f'TK1-M{i}' for i in range(1, 8)}   # 2026-07-31 TK1 montaj masaları
                     # Tel üretimi proses hatları — TEL_HATLARI'ndan TÜRETİLİR (elle
                     # yazılmaz). Eskiden burada 13 hat elle sayılıydı; kapama 4'ten
@@ -465,19 +466,47 @@ PRES_MAKINELERI = ['Abkant 1', 'Abkant 2', 'Abkant 3',
 PLASTIK_SABIT_HAT  = 'Plastik Enjeksiyon'
 PLASTIK_MAKINELERI = ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']
 
-# Makinesi ÜRETİM KAYDINDA (istasyon kolonunda) seçilen bölümler: {bolum: (sabit_hat, makineler)}
-# Lazer BURADA DEĞİL: onun makineleri (Lazer 1..6) da kayıtta seçilir ama sahada
-# sayaç cihazı yok — istasyon yalnız rapor kırılımı için kullanılır, robot_no→cihaz
-# eşlemesine girmez.
-KAYITTA_MAKINE = {
-    'pres':    (PRES_SABIT_HAT, PRES_MAKINELERI),
-    'plastik': (PLASTIK_SABIT_HAT, PLASTIK_MAKINELERI),
+# ── TK1: HAT DA ÜRETİM KAYDINDA (kullanıcı 2026-08-18) ──
+# "TK1'de bütün üretim mantığında operatör referansı seçtikten SONRA hattı seçsin —
+# bir operatör bir referansı yaparken birden fazla hatta çalışabilir." Somut vaka:
+# aynı kişi bir ürünün halat kapamasını yapıp ardından son montajını da yapıyor;
+# eskiden bunun için İKİ AYRI VARDİYA açmak gerekiyordu.
+# TK2 montaj DEĞİŞMEDİ — orada hat vardiyada seçilmeye devam eder.
+TK1_MONTAJ_SABIT_HAT = 'TK1 Montaj'
+# SIRA ÖNEMLİ (istasyon no = sıra); yeni hat HEP SONA eklenir.
+TK1_MONTAJ_HATLARI = ['LF-LFP', 'Iveco'] + [f'TK1-M{i}' for i in range(1, 8)]
+TEL_SABIT_HAT = 'Tel Üretimi'
+
+# Hattı/makinesi ÜRETİM KAYDINDA (istasyon kolonunda) seçilen bölümler.
+#   KAYITTA_HAT:    (lokasyon, bolum) → vardiyada seçilen TEK sabit hat adı
+#   HAT_MAKINELERI: sabit hat adı → o hattın makine/alt-hat listesi
+# Anahtar SABİT HAT ADI: adlar global benzersiz olduğundan çözümleme fonksiyonlarına
+# lokasyon taşımak gerekmez (vardiyanın robot_no'su zaten sabit hattın kendisidir).
+# Lazer BURADA DEĞİL: makinesi (Lazer 1..6) kayıtta seçilir ama sahada sayaç cihazı
+# yok — istasyon yalnız rapor kırılımı, robot_no→cihaz eşlemesine girmez.
+KAYITTA_HAT = {
+    ('TK2', 'pres'):    PRES_SABIT_HAT,
+    ('TK1', 'plastik'): PLASTIK_SABIT_HAT,
+    ('TK1', 'montaj'):  TK1_MONTAJ_SABIT_HAT,
+    ('TK1', 'tel'):     TEL_SABIT_HAT,
+}
+HAT_MAKINELERI = {
+    PRES_SABIT_HAT:       PRES_MAKINELERI,
+    PLASTIK_SABIT_HAT:    PLASTIK_MAKINELERI,
+    TK1_MONTAJ_SABIT_HAT: TK1_MONTAJ_HATLARI,
+    TEL_SABIT_HAT:        list(TEL_HATLARI),
 }
 
 
-def kayit_makine_ad(bolum, istasyon):
-    """(bolum, istasyon no) → makine adı. Geçersiz/0/bölüm kapsam dışı ise ''."""
-    makineler = KAYITTA_MAKINE.get(bolum, (None, []))[1]
+def sabit_hat_adi(lokasyon, bolum):
+    """(lokasyon, bolum) → vardiyada seçilecek sabit hat adı; yoksa '' (hat vardiyada seçilir)."""
+    return KAYITTA_HAT.get(((lokasyon or 'TK2').upper(), (bolum or '').strip()), '')
+
+
+def kayit_makine_ad(robot_no, istasyon):
+    """(vardiya hattı, istasyon no) → kaydın makine/alt-hat adı.
+    Sabit hat değilse ya da istasyon 0/geçersizse '' (eski kayıt: hat vardiyadaydı)."""
+    makineler = HAT_MAKINELERI.get(str(robot_no or '').strip())
     if not makineler:
         return ''
     try:
@@ -487,13 +516,20 @@ def kayit_makine_ad(bolum, istasyon):
     return makineler[i - 1] if 1 <= i <= len(makineler) else ''
 
 
-def kayit_ist_no(bolum, makine_ad):
-    """(bolum, makine adı) → istasyon no. Listede yoksa 0."""
-    makineler = KAYITTA_MAKINE.get(bolum, (None, []))[1]
+def kayit_ist_no(robot_no, makine_ad):
+    """(vardiya hattı, makine adı) → istasyon no. Listede yoksa 0."""
+    makineler = HAT_MAKINELERI.get(str(robot_no or '').strip()) or []
     try:
         return makineler.index(str(makine_ad or '').strip()) + 1
     except ValueError:
         return 0
+
+
+def kayit_hatti(robot_no, istasyon):
+    """Kaydın GERÇEKTE çalışıldığı hat: sabit hatlı bölümlerde kaydın makinesi,
+    diğerlerinde (ve eski kayıtlarda) vardiyanın hattı. Tel'de kod eki, sayaç
+    eşlemesi ve rapor adımı BU değerden türer."""
+    return kayit_makine_ad(robot_no, istasyon) or str(robot_no or '').strip()
 
 
 # ── TEST CİHAZI (SVP) EŞLEMESİ (kullanıcı 2026-08-18) ────────────────────────
@@ -503,7 +539,7 @@ def kayit_ist_no(bolum, makine_ad):
 #
 # Anahtar: (lokasyon, bolum, hat) — hat None ise o bölümün TÜM hatları.
 #   'hat' = vardiyanın robot_no'su; makinesi ÜRETİM KAYDINDA seçilen bölümlerde
-#   (plastik) KAYDIN makine adı (bkz. KAYITTA_MAKINE).
+#   (plastik/tel/TK1 montaj) KAYDIN hat adı (bkz. KAYITTA_HAT).
 # Değer: SVP device_id listesi. TEK cihaz varsa mobil onu KENDİLİĞİNDEN seçer.
 #
 # GERİYE UYUM — BİLİNÇLİ: bir (lokasyon, bolum) için HİÇ kayıt yoksa eski davranış
@@ -552,10 +588,10 @@ def _sayac_cihazi(bolum, robot_no, istasyon=0):
       plastik 1=320T ... 4=Sizdirmazlik Test). istasyon 0 ise (eski kayıtlar: makine
       vardiyada seçiliyordu) hat adı aynen kullanılır → geriye dönük uyum korunur.
     - diğer bölümler: hat→cihaz eşlemesi (LF-LFP→YF1), yoksa hattın kendisi."""
-    if bolum in KAYITTA_MAKINE:
-        ad = kayit_makine_ad(bolum, istasyon)
-        if ad:
-            return ad
+    ad = kayit_makine_ad(robot_no, istasyon)
+    if ad:
+        # Hat→cihaz eşlemesi kayıt hattına da uygulanır (TK1 montajda LF-LFP→YF1)
+        return HAT_SAYAC_CIHAZI.get(ad, ad)
     return HAT_SAYAC_CIHAZI.get(robot_no, robot_no)
 
 
@@ -570,9 +606,9 @@ def _sayac_destekli_bolum(bolum, robot_no):
     """VARDİYA düzeyi UI ipucu: bu vardiyada sensör sayımı mümkün mü? pres'te makine
     üretim kaydında seçildiğinden bölümdeki herhangi bir sayaçlı makine yeterlidir
     (mobil sensör rozeti/sıfırla butonu vardiya açılışında da görünsün)."""
-    sabit_hat, makineler = KAYITTA_MAKINE.get(bolum, (None, []))
-    if sabit_hat and robot_no == sabit_hat:
-        return any(m in SAYAC_AUTO_CIHAZLAR for m in makineler)
+    makineler = HAT_MAKINELERI.get(str(robot_no or '').strip())
+    if makineler:
+        return any(HAT_SAYAC_CIHAZI.get(m, m) in SAYAC_AUTO_CIHAZLAR for m in makineler)
     return _sayac_destekli(bolum, robot_no, 0)
 
 # Yönetici kullanıcı — operatorler tablosunda 'Admin' (PIN varsayılan 9999, panelden
@@ -653,7 +689,7 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
     # PRES/PLASTİK: istasyon MAKİNE seçimidir, cihaz-içi istasyon değil — makineye
     # çevrildiyse istasyon filtresi KALKAR (abkant/pres/plastik firmware'i montaj gibi
     # istasyon=1 gönderir; filtre bırakılırsa istasyon=3 aranır ve hiç pulse bulunamazdı).
-    if kayit_makine_ad(bolum, istasyon):
+    if kayit_makine_ad(robot_no, istasyon):
         istasyon = 0
     robot_no = cihaz
     pilot_db = _pilot_db_yolu()
@@ -1967,7 +2003,7 @@ def vardiya_detay(vid):
     # pres/plastik: makine üretim kaydında → o an çalışılan makineyi son auto kayıttan al
     # (duruş uyarısı doğru cihazın pulse'ına bakmalı; makine yoksa 0 = hat adı).
     _mak_ist = 0
-    if vbolum in KAYITTA_MAKINE:
+    if vardiya['robot_no'] in HAT_MAKINELERI:
         _pr = c.execute(
             "SELECT istasyon FROM uretim_kayitlari WHERE vardiya_id=? "
             "AND sayac_baslangic_ts IS NOT NULL ORDER BY id DESC LIMIT 1", (vid,)).fetchone()
@@ -2362,6 +2398,13 @@ def uretim_ekle():
         for satir in satirlar:
             ref = (satir.get('referans_kodu') or data.get('referans_kodu') or '').strip()
             # ── PROSES ADIMI EKİ (kullanıcı 2026-08-04) ───────────────────────
+            # KAYDIN HATTI — tel/TK1 montaj/plastik/pres'te hat ÜRETİM KAYDINDA seçilir
+            # (kullanıcı 2026-08-18). Kod eki, kapama kısıtı ve sayaç eşlemesi artık
+            # vardiyanın hattından DEĞİL bu değerden türer. istasyon 0 (eski kayıt ya
+            # da hattı vardiyada seçilen bölüm) → vardiyanın hattına düşer.
+            ist_val = int(satir.get('istasyon', data.get('istasyon', 0)) or 0)
+            kayit_hat = kayit_hatti(vardiya_robot, ist_val)
+
             # Tel üretiminde HER adım kendi ekiyle kaydedilir ('93.TK.464 KAPAMA').
             # Böylece adımlar ayrı kodlarda toplanır: ne çoklu sayım olur ne de
             # kimin ne iş yaptığı kaybolur. "Son adım base kod alır" kuralı YOK —
@@ -2371,30 +2414,32 @@ def uretim_ekle():
             # bambaşka bir koda çevirir ve kayıt kaybolurdu. Elle yazılmışsa da
             # tekrarlanmaz — tel_referans_kodu önce mevcut eki ayıklar.
             if vardiya_bolum == 'tel' and ref:
-                ref = tel_referans_kodu(ref, vardiya_robot)
+                ref = tel_referans_kodu(ref, kayit_hat)
             # ── KAPAMA: BİR REFERANS = TEK OPERATÖR (kullanıcı 2026-08-04) ──────
             # "Kapama hattında 1 referansı birden fazla operatör yapamaz — tek
             # operatör tek iş." Aynı gün aynı referans için BAŞKA bir operatörün
             # kapama kaydı varsa yeni kayıt reddedilir (kendi kaydını güncellemek
             # serbest: PUT ayrı endpoint, burası yalnız YENİ kayıt).
             # Kesim/otomat/son montaj bölünebilir — kısıt YALNIZ kapamaya özel.
-            if vardiya_bolum == 'tel' and tel_hat_adimi(vardiya_robot) == 'Kapama' and ref:
+            if vardiya_bolum == 'tel' and tel_hat_adimi(kayit_hat) == 'Kapama' and ref:
                 # LIMIT YOK: aynı referansın o günkü TÜM tel kayıtları çekilir ve
                 # kapama olanlar Python'da süzülür. (LIMIT 1 ile ilk satır kesim/otomat
                 # olabiliyor, kapama filtresi boşa düşüyor ve kısıt hiç çalışmıyordu.)
                 _cak = c.execute("""
-                    SELECT v.operator_adi, v.robot_no FROM uretim_kayitlari u
+                    SELECT v.operator_adi, v.robot_no, u.istasyon FROM uretim_kayitlari u
                     JOIN vardiyalar v ON v.id = u.vardiya_id
                     WHERE COALESCE(v.bolum,'')='tel'
                       AND v.tarih = (SELECT tarih FROM vardiyalar WHERE id=?)
                       AND UPPER(REPLACE(u.referans_kodu,' ','')) = UPPER(REPLACE(?,' ',''))
                       AND u.vardiya_id != ?
                 """, (vardiya_id_int, ref, vardiya_id_int)).fetchall()
-                _baska = [r for r in _cak if tel_hat_adimi(r['robot_no']) == 'Kapama']
+                # Karşı kaydın hattı da KAYITTAN çözülür (vardiya hattı artık sabit)
+                _cak_hat = {id(r): kayit_hatti(r['robot_no'], r['istasyon']) for r in _cak}
+                _baska = [r for r in _cak if tel_hat_adimi(_cak_hat[id(r)]) == 'Kapama']
                 if _baska:
                     return jsonify({'hata':
                         f"Bu referansın kapaması bugün zaten {_baska[0]['operator_adi']} "
-                        f"({_baska[0]['robot_no']}) tarafından girilmiş. Kapamada bir referansı "
+                        f"({_cak_hat[id(_baska[0])]}) tarafından girilmiş. Kapamada bir referansı "
                         f"tek operatör yapar — adet düzeltmesi gerekiyorsa o kaydı güncelleyin."}), 409
             ct_in = float(satir.get('cycle_time_sn', 0) or 0)
             # cycle_time gönderilmediyse ya da 0 ise referanslardan otomatik çek.
@@ -2412,7 +2457,6 @@ def uretim_ekle():
                 if ref_row:
                     ct_in = float(ref_row['hedef_cycle_time_sn'] or 0)
 
-            ist_val = int(satir.get('istasyon', data.get('istasyon', 0)) or 0)
             ok_val  = int(satir.get('ok_adet', 0) or 0)
 
             # Test cihazı (Cofle/wicow) seçildiyse sayaç kaynağı o cihaz olur (ESP32 yerine)
@@ -2618,12 +2662,21 @@ def uretim_guncelle(uid):
         # BÜKÜM OPERASYON SAYISI — operatör kaydı düzenlerken de değiştirebilir.
         # Vardiyanın bölüm/lokasyonuyla çözülür; pres dışında her zaman 1 döner.
         v_bl = c.execute(
-            "SELECT COALESCE(bolum,'kaynak') AS bolum, COALESCE(lokasyon,'TK2') AS lokasyon "
+            "SELECT COALESCE(bolum,'kaynak') AS bolum, COALESCE(lokasyon,'TK2') AS lokasyon, "
+            "       robot_no "
             "FROM vardiyalar WHERE id=?", (mevcut['vardiya_id'],)
         ).fetchone()
         bop = _bukum_op_coz(c, data.get('bukum_operasyon'), ref,
                             v_bl['bolum'] if v_bl else 'kaynak',
                             v_bl['lokasyon'] if v_bl else 'TK2')
+
+        # TEL: kod eki KAYDIN hattından türer. Hat artık üretim kaydında seçildiği
+        # için DÜZENLEMEDE de uygulanmalı — yoksa 'Kapama'dan 'Son Montaj'a alınan
+        # kaydın kodu KAPAMA ekiyle kalır ve iş yanlış adımda toplanırdı.
+        # tel_referans_kodu önce mevcut eki ayıklar → ek iki kez yazılmaz.
+        yeni_ist = int(data.get('istasyon', 0) or 0)
+        if v_bl and v_bl['bolum'] == 'tel' and ref:
+            ref = tel_referans_kodu(ref, kayit_hatti(v_bl['robot_no'], yeni_ist))
 
         c.execute('''
             UPDATE uretim_kayitlari
@@ -2636,7 +2689,7 @@ def uretim_guncelle(uid):
             int(data.get('tamir_adet', 0) or 0),
             int(data.get('hedef_adet', 0) or 0),
             ct,
-            int(data.get('istasyon', 0) or 0),
+            yeni_ist,
             int(data.get('launch_adet', 0) or 0),
             (data.get('aciklama') or '').strip(),
             yeni_otomatik,
@@ -3295,13 +3348,30 @@ def robot_listesi():
     # hangi adımda çalıştığını seçer; aynı referans gün içinde farklı adımlarda
     # farklı operatörler tarafından kaydedilir (üretim yalnız SON adımda sayılır).
     if bolum == 'tel':
+        # 2026-08-18: proses adımı (hat) artık VARDİYADA DEĞİL ÜRETİM KAYDINDA seçilir —
+        # bir operatör aynı gün aynı referansın hem kapamasını hem son montajını
+        # yapabiliyor. Vardiya hattı tek ve sabit: TEL_SABIT_HAT.
+        # Mobil bu listeyi kullanmaz (hat gizli/sabit); dashboard GEÇMİŞ filtreleri
+        # kullanır → eski vardiyaların hat adları listede KALIR.
         conn = get_db()
         rows = conn.execute(
             "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='tel' "
             "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no").fetchall()
         conn.close()
-        taban = list(TEL_HATLARI)
-        return jsonify(taban + [r['robot_no'] for r in rows if r['robot_no'] not in taban])
+        return jsonify([TEL_SABIT_HAT]
+                       + [r['robot_no'] for r in rows if r['robot_no'] != TEL_SABIT_HAT])
+    if lokasyon == 'TK1' and bolum == 'montaj':
+        # 2026-08-18: TK1 montajda da hat ÜRETİM KAYDINDA seçilir (operatör gün içinde
+        # masa/hat değiştirebiliyor). Vardiya hattı tek ve sabit: TK1_MONTAJ_SABIT_HAT.
+        # TK2 montaj DEĞİŞMEDİ — orada hat vardiyada seçilir.
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'')='montaj' "
+            "AND COALESCE(lokasyon,'TK2')='TK1' AND robot_no IS NOT NULL AND robot_no != '' "
+            "ORDER BY robot_no").fetchall()
+        conn.close()
+        return jsonify([TK1_MONTAJ_SABIT_HAT]
+                       + [r['robot_no'] for r in rows if r['robot_no'] != TK1_MONTAJ_SABIT_HAT])
     if lokasyon == 'TK1':
         # TK1 (yan tesis) sabit hatları — montaj mantığı.
         # 2026-07-31: 7 masaya sayaç modülü takıldı (TK1-M1..TK1-M7). TK2'deki
@@ -3349,6 +3419,28 @@ def robot_listesi():
     else:
         robotlar = [f'ABB{i}' for i in range(1, 10)]
     return jsonify(robotlar)
+
+
+@app.route('/api/kayit_hatlari', methods=['GET'])
+def kayit_hatlari_api():
+    """Hattı/makinesi ÜRETİM KAYDINDA seçilen bölümlerin hat listesi (mobil ekran D).
+
+    ?lokasyon=TK1&bolum=tel →
+      {'sabit_hat': 'Tel Üretimi', 'etiket': 'Proses Adımı',
+       'hatlar': [{'no': 1, 'ad': 'Halat Kesme 1'}, ...]}
+    sabit_hat '' ise bu bölümde hat VARDİYADA seçilir → 'hatlar' boş döner.
+    'no' = uretim_kayitlari.istasyon değeri (listedeki sıra) — mobil bu numarayı
+    gönderir, ad çözümü SUNUCUDA yapılır (tek kaynak: HAT_MAKINELERI).
+    """
+    lokasyon = request.args.get('lokasyon') or 'TK2'
+    bolum = (request.args.get('bolum') or '').strip()
+    sh = sabit_hat_adi(lokasyon, bolum)
+    etiket = {'tel': 'Proses Adımı', 'montaj': 'Hat'}.get(bolum, 'Makine')
+    hatlar = [{'no': i + 1, 'ad': ad}
+              for i, ad in enumerate(HAT_MAKINELERI.get(sh, []))] if sh else []
+    resp = jsonify({'sabit_hat': sh, 'etiket': etiket, 'hatlar': hatlar})
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 @app.route('/api/test_cihazlari', methods=['GET'])
@@ -3802,12 +3894,20 @@ def saha_cihazlari():
             # URETIM KAYDINDA secilir. Cihaz 'Abkant 2' → vardiya hatti sabit hat,
             # baseline istasyonu = 2. ESKI kayitlar (vardiya.robot_no='Abkant 2' /
             # '320T', istasyon=0) icin fallback var.
+            # Cihazın makine adı hangi sabit hattın listesinde? (LF-LFP→YF1 gibi
+            # takma adlı cihazlar için ALIAS'a da bakılır: cihaz robot_no'su YF1 ama
+            # operatörün seçtiği hat 'LF-LFP'dir.)
             v_rno, mak_ist = rno, 0
-            _sabit_hat = KAYITTA_MAKINE.get(bolum, (None, []))[0]
-            if _sabit_hat:
-                _pi = kayit_ist_no(bolum, rno)
-                if _pi:
-                    v_rno, mak_ist = _sabit_hat, _pi
+            _sabit_hat = ''
+            _aliaslar = [rno] + [k for k, v in HAT_SAYAC_CIHAZI.items() if v == rno]
+            for _sh in HAT_MAKINELERI:
+                for _al in _aliaslar:
+                    _pi = kayit_ist_no(_sh, _al)
+                    if _pi:
+                        v_rno, mak_ist, _sabit_hat = _sh, _pi, _sh
+                        break
+                if _sabit_hat:
+                    break
 
             # Aktif vardiya baslangic ts (varsa) — sayac sifirlama referansi
             # (yeni model once; bulunamazsa eski makine-adli vardiyaya dus)
@@ -4769,6 +4869,7 @@ def ozet():
     operator_uretim = [dict(r) for r in c.execute(f'''
         SELECT v.operator_adi,
                v.robot_no,
+               COALESCE(u.istasyon, 0) AS istasyon,
                u.referans_kodu,
                SUM(u.ok_adet)  as toplam_ok,
                SUM(u.nok_adet) as toplam_nok,
@@ -4776,14 +4877,20 @@ def ozet():
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
-        GROUP BY v.operator_adi, v.robot_no, u.referans_kodu
+        GROUP BY v.operator_adi, v.robot_no, COALESCE(u.istasyon, 0), u.referans_kodu
         ORDER BY toplam_ok DESC
     ''', param_vardiya).fetchall()]
-    # Tel bölümünde hat adının ADIM karşılığını da ver ('Kapama 3' → 'Kapama') —
-    # frontend adım bazlı gruplama yapabilsin, hat numarasını ayrıca gösterebilsin.
+    # Hattı ÜRETİM KAYDINDA seçilen bölümlerde (2026-08-18: TK1 montaj + tel,
+    # plastik/pres) 'robot_no' sabit hattır — kırılım kaydın istasyonundan gelir.
+    # 'hat' alanı gerçek hattı taşır; eski istemciler robot_no'yu okumaya devam eder.
+    for _o in operator_uretim:
+        _o['hat'] = kayit_hatti(_o.get('robot_no'), _o.get('istasyon'))
+    # Tel'de adım karşılığı da verilir ('Kapama 3' → 'Kapama') — frontend adım
+    # bazlı gruplayabilsin, hat numarasını ayrıca gösterebilsin.
     if (bolum or '') == 'tel':
         for _o in operator_uretim:
-            _o['adim'] = tel_hat_adimi(_o.get('robot_no')) or ''
+            _o['adim'] = (tel_koddan_adim(_o.get('referans_kodu'))
+                          or tel_hat_adimi(_o.get('hat')) or '')
 
     # Duruş sebep bazlı dağılım
     durus_dagilim = c.execute(f'''
@@ -6325,7 +6432,13 @@ def gunluk_rapor_detay():
         # LAZER: makine vardiyada değil ÜRETİM KAYDINDA seçilir (istasyon 1..6) —
         # rapor makine bazında kırılır, gruplamaya istasyon eklenir.
         lazer_modu = (bolum == 'lazer')
-        ist_kolon = ", COALESCE(u.istasyon, 0) as istasyon" if lazer_modu else ""
+        # HATTI ÜRETİM KAYDINDA SEÇİLEN BÖLÜMLER (2026-08-18: TK1 montaj + tel,
+        # ayrıca plastik/pres): vardiya.robot_no sabit hattır, GERÇEK hat kaydın
+        # istasyonundadır → gruplama istasyona göre yapılmalı, yoksa raporun
+        # tamamı tek satıra ('TK1 Montaj') çöker.
+        kayitta_hat = sabit_hat_adi(lokasyon, bolum)
+        ist_modu = lazer_modu or bool(kayitta_hat)
+        ist_kolon = ", COALESCE(u.istasyon, 0) as istasyon" if ist_modu else ""
         sql = f"""
             SELECT
                 v.robot_no,
@@ -6345,7 +6458,7 @@ def gunluk_rapor_detay():
         if lokasyon:
             sql += " AND COALESCE(v.lokasyon, 'TK2') = ?"
             params.append(lokasyon)
-        if lazer_modu:
+        if ist_modu:
             sql += " GROUP BY v.robot_no, v.operator_adi, u.referans_kodu, COALESCE(u.istasyon, 0) ORDER BY istasyon, v.operator_adi"
         else:
             sql += " GROUP BY v.robot_no, v.operator_adi, u.referans_kodu ORDER BY v.robot_no, v.operator_adi"
@@ -6359,6 +6472,17 @@ def gunluk_rapor_detay():
             robot_listesi = ['300T', '400T', '550T', 'Şerit Testere']
         elif lazer_modu:
             robot_listesi = [f'Lazer {i}' for i in range(1, 7)]
+        elif kayitta_hat:
+            # Yalnız O GÜN çalışılmış hatlar (22 tel hattının tamamını boş boş
+            # listelemek raporu okunmaz yapar); sıra kanonik hat sırasıdır.
+            _kanon = HAT_MAKINELERI.get(kayitta_hat, [])
+            _gorulen = []
+            for r in rows:
+                _h = kayit_hatti(r['robot_no'], r['istasyon'])
+                if _h and _h not in _gorulen:
+                    _gorulen.append(_h)
+            robot_listesi = ([h for h in _kanon if h in _gorulen]
+                             + [h for h in _gorulen if h not in _kanon])
         else:  # montaj / isleme / pres
             # O gun calisan distinct hat'lari sirayla
             seen = []
@@ -6389,6 +6513,9 @@ def gunluk_rapor_detay():
                 # makinesiz eski/boş kayıtlar genel 'Lazer' grubuna düşer.
                 ist = int(row['istasyon'] or 0)
                 target_r = f'Lazer {ist}' if ist > 0 else 'Lazer'
+            elif kayitta_hat:
+                # Kaydın hattı (istasyon) — eski kayıtlarda vardiyanın hattına düşer
+                target_r = kayit_hatti(row['robot_no'], row['istasyon'])
             else:
                 target_r = (row['robot_no'] or '').strip()
             if not target_r:
@@ -6409,11 +6536,47 @@ def gunluk_rapor_detay():
                 rapor_data[target_r] = []
             rapor_data[target_r].append(entry)
 
+        # ── TEL: ÜRÜN BAZLI ADIM KIRILIMI (kullanıcı 2026-08-18) ───────────────
+        # Sorun: aynı 100 parçanın kapaması + son montajı ayrı satırlar olarak
+        # yazılınca rapordaki TOPLAM 200 diyordu — adım adedi YAPILAN İŞTİR, ürün
+        # adedi değil. Çözüm: satır = ÜRÜN (ek atılmış base kod), kolon = ADIM.
+        # '93.TK.464 | Kapama 100 | Son Montaj 100' okunduğunda aynı 100 parçanın
+        # iki adımı olduğu gözle görülür; kimse satırı toplamaz. Adım toplamları
+        # ayrı verilir, TEK BİR genel toplam ÜRETİLMEZ.
+        adim_kirilimi = None
+        if bolum == 'tel':
+            _satir = {}       # base kod -> {adim: adet}
+            _op = {}          # base kod -> {adim: set(operatör)}
+            _adim_toplam = {}
+            for row in rows:
+                kod = row['referans_kodu'] or ''
+                adet = int(row['ok_toplam'] or 0)
+                if not kod:
+                    continue
+                adim = tel_koddan_adim(kod) or tel_hat_adimi(
+                    kayit_hatti(row['robot_no'], row['istasyon'])) or '—'
+                base = tel_ek_ayikla(kod)
+                _satir.setdefault(base, {}).setdefault(adim, 0)
+                _satir[base][adim] += adet
+                _op.setdefault(base, {}).setdefault(adim, set()).add(row['operator_adi'] or '')
+                _adim_toplam[adim] = _adim_toplam.get(adim, 0) + adet
+            adim_kirilimi = {
+                'adimlar': [a for a in TEL_ADIMLARI if a in _adim_toplam]
+                           + [a for a in _adim_toplam if a not in TEL_ADIMLARI],
+                'satirlar': [
+                    {'referans': b, 'adet': _satir[b],
+                     'operatorler': {a: ', '.join(sorted(o)) for a, o in _op[b].items()}}
+                    for b in sorted(_satir)
+                ],
+                'adim_toplam': _adim_toplam,
+            }
+
         return jsonify({
             'tarih':   tarih,
             'vardiya': vardiya_turu,
             'bolum':   bolum,
             'siralama': robot_listesi,
+            'adim_kirilimi': adim_kirilimi,
             'data':    rapor_data,
         })
     except Exception as e:
