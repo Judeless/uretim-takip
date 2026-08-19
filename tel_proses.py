@@ -36,6 +36,7 @@ TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Yarı Otomatik': 2, 'Tam Otomatik': 2,
 
 # FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
 # · kapama 12 · son montaj 4 = 22 hat. Tek makineli adımlarda numara YOK.
+# KAPAMA presleri 2026-08-18'de SAHA KODLARINA çevrildi — aşağıdaki nota bakın.
 # YARI OTOMATİK 1 → 2 (kullanıcı 2026-08-18): sahada iki makine olduğu ortaya çıktı.
 # İkisinin de sayacı ESP32 DEĞİL, SVP test cihazı (app.TEST_CIHAZ_ESLEME:
 # 'Yarı Otomatik 1'→41, 'Yarı Otomatik 2'→43) — bu hatlara saha modülü takılmayacak.
@@ -43,13 +44,38 @@ TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Yarı Otomatik': 2, 'Tam Otomatik': 2,
 # takılırken gerçek makine sayısı ortaya çıktı (eski 4 rakamı eksikti). Presler
 # üçerli ortak panolarda; 4 ESP32 modülü 3'er presi okur (bkz. pilot/firmware/
 # _templates/tel_kapama.ino.tpl). Hat adları firmware'deki robot_no ile BİREBİR.
+# ── KAPAMA PRESLERİ: SAHA KODU (kullanıcı 2026-08-18) ───────────────────────
+# Modüller takılınca sistemdeki sıra numarası ile presin ÜRETİM SAHASINDAKİ kodu
+# tutmadığı görüldü: sistemde 'Kapama 1' olan modülün bağlı olduğu presin saha
+# kodu 5. Operatör sahada gördüğü kodu seçmeli → hat adları SAHA KODUNA çevrildi.
+#
+# FIRMWARE YENİDEN YÜKLENMEDİ: modüller hâlâ robot_no='Kapama 1..6' gönderiyor.
+# Hat adı → cihaz eşlemesi app.HAT_SAYAC_CIHAZI'nda (LF-LFP→YF1 ile aynı kalıp).
+#   saha 5  ← cihaz Kapama 1      saha 30 ← cihaz Kapama 4
+#   saha 12 ← cihaz Kapama 2      saha 28 ← cihaz Kapama 5
+#   saha 4  ← cihaz Kapama 3      saha 29 ← cihaz Kapama 6
+#
+# 'Kapama 9xx' = SAHA KODU HENÜZ VERİLMEMİŞ presler (modül montajı yapılmadı,
+# kullanıcı kodları bildirecek). 9xx bilinçli: gerçek bir saha kodu olamaz ve
+# yeni 'Kapama 12' ile ÇAKIŞMAZ. Son iki hane firmware kanalıdır (907 → cihaz
+# 'Kapama 7'). Bunlar operatör listesinde GİZLİDİR (bkz. TEL_GIZLI_HATLAR).
+#
+# SIRA DEĞİŞMEZ — YALNIZ AD DEĞİŞTİ: pozisyon = uretim_kayitlari.istasyon.
+# Liste kısaltılsaydı Son Montaj hatları 19..22'den 13..16'ya kayar ve yazılmış
+# kayıtlar başka hattı göstermeye başlardı. Yeni hat HEP SONA eklenir.
 TEL_HATLARI = (
     ['Halat Kesme %d' % i for i in range(1, 4)]
     + ['Yarı Otomatik %d' % i for i in range(1, 3)]
     + ['Tam Otomatik']
-    + ['Kapama %d' % i for i in range(1, 13)]
+    + ['Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30', 'Kapama 28', 'Kapama 29']
+    + ['Kapama %d' % i for i in range(907, 913)]
     + ['Son Montaj %d' % i for i in range(1, 5)]
 )
+
+# Saha kodu bekleyen (modülü henüz takılmamış) kapama presleri — operatör
+# listesinde gösterilmez. Kod geldikçe yukarıdaki adı değiştirip buradan çıkarın;
+# POZİSYONU KORUYUN (istasyon numarası kaymasın).
+TEL_GIZLI_HATLAR = frozenset('Kapama %d' % i for i in range(907, 913))
 
 _SON_NUMARA = re.compile(r'\s*\d+$')
 

@@ -17,6 +17,7 @@ from export_excel import export_arsiv
 # Tel proses mantığı — TK1_ROBOT_NOLARI (aşağıda) TEL_HATLARI'ndan türediği için
 # import DOSYA BAŞINDA olmak zorunda. Ayrıntılı açıklama tanımın yanında.
 from tel_proses import (TEL_ADIMLARI, TEL_ADIM_SIRA, TEL_HATLARI,      # noqa: F401
+                        TEL_GIZLI_HATLAR,
                         TEL_ADIM_EKI, tel_hat_adimi, tel_referans_kodu,
                         tel_ek_ayikla, tel_adim_etiketi, tel_koddan_adim)
 
@@ -411,8 +412,9 @@ SAYAC_AUTO_CIHAZLAR = (
     # PANOLARDA → 4 ESP32 modülü 3'er presi okur, ama her kanal KENDİ makine adıyla
     # (robot_no='Kapama N', istasyon=1..3) sinyal gönderir. Yani sayaç eşleşmesi
     # tek makineli cihazlarla AYNI: operatör hattını seçer, doğrudan eşleşir.
-    # Hat listesi TEL_HATLARI'ndan gelir (tel_proses.py) — burası onunla aynı sayıda
-    # olmalı; kapamaya makine eklenirse İKİ yer birden güncellenir.
+    # DİKKAT: burası CİHAZ (firmware robot_no) adlarıdır — 2026-08-18'den beri
+    # operatörün gördüğü HAT ADI saha kodudur ('Kapama 5' hattı → 'Kapama 1' cihazı).
+    # Çeviri HAT_SAYAC_CIHAZI'nda yapılır; bu küme firmware tarafında kalır.
     | {f'Kapama {i}' for i in range(1, 13)}
 )
 # YF1: TK1 (yan tesis) montaj deneme modülü — MONTAJ-YF1 cihazı robot_no='YF1' ile flash'lı
@@ -439,7 +441,20 @@ TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
 # Hat → sayaç cihazının robot_no eşlemesi: operatör hattı seçer (vardiya.robot_no='LF-LFP')
 # ama saha modülü pulse'ları robot_no='YF1' ile pilot.db'ye düşer. Sayım yapılırken hat
 # adı cihazın robot_no'suna çevrilir. (Yeniden flash gerektirmeden eşleştirme.)
-HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1'}
+# ── KAPAMA PRESLERİ: SAHA KODU → FIRMWARE robot_no (kullanıcı 2026-08-18) ──
+# Modüller 'Kapama 1..12' olarak flash'lı ama sahadaki preslerin kodları başka
+# (sistemdeki 'Kapama 1' modülü saha kodu 5 olan prese bağlı). Operatör sahada
+# gördüğü kodu seçmeli → HAT ADI saha kodu oldu, cihaz adı firmware'deki gibi
+# KALDI. Yeniden flash GEREKMEZ; eşleme burada (LF-LFP→YF1 ile aynı kalıp).
+# Saha kodu bekleyen presler 'Kapama 907..912' (bkz. tel_proses.TEL_GIZLI_HATLAR)
+# — kod gelince yalnız ADI değişir, buradaki satır güncellenir.
+_KAPAMA_SAHA_CIHAZ = {
+    'Kapama 5':  'Kapama 1',   'Kapama 12': 'Kapama 2',   'Kapama 4':  'Kapama 3',
+    'Kapama 30': 'Kapama 4',   'Kapama 28': 'Kapama 5',   'Kapama 29': 'Kapama 6',
+    'Kapama 907': 'Kapama 7',  'Kapama 908': 'Kapama 8',  'Kapama 909': 'Kapama 9',
+    'Kapama 910': 'Kapama 10', 'Kapama 911': 'Kapama 11', 'Kapama 912': 'Kapama 12',
+}
+HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1', **_KAPAMA_SAHA_CIHAZ}
 
 # ── PRES (Pres Abkant) MAKİNE MODELİ (kullanıcı 2026-07-28) ──
 # Operatör gün içinde makine değiştirerek çalışıyor → makine VARDİYADA DEĞİL, her
@@ -3436,8 +3451,11 @@ def kayit_hatlari_api():
     bolum = (request.args.get('bolum') or '').strip()
     sh = sabit_hat_adi(lokasyon, bolum)
     etiket = {'tel': 'Proses Adımı', 'montaj': 'Hat'}.get(bolum, 'Makine')
+    # Saha kodu henüz verilmemiş kapama presleri listede GÖSTERİLMEZ (modülü yok,
+    # adı geçici). Pozisyonları listede DURUR → istasyon numaraları kaymaz.
     hatlar = [{'no': i + 1, 'ad': ad}
-              for i, ad in enumerate(HAT_MAKINELERI.get(sh, []))] if sh else []
+              for i, ad in enumerate(HAT_MAKINELERI.get(sh, []))
+              if ad not in TEL_GIZLI_HATLAR] if sh else []
     resp = jsonify({'sabit_hat': sh, 'etiket': etiket, 'hatlar': hatlar})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
@@ -3898,13 +3916,15 @@ def saha_cihazlari():
             # takma adlı cihazlar için ALIAS'a da bakılır: cihaz robot_no'su YF1 ama
             # operatörün seçtiği hat 'LF-LFP'dir.)
             v_rno, mak_ist = rno, 0
-            _sabit_hat = ''
-            _aliaslar = [rno] + [k for k, v in HAT_SAYAC_CIHAZI.items() if v == rno]
+            _sabit_hat, _hat_ad = '', ''
+            # ÖNCE alias: cihaz 'Kapama 4' hattı 'Kapama 30'dur; ham adla arasak
+            # listedeki 'Kapama 4' HATTINI (cihaz 'Kapama 3') yanlışlıkla bulurduk.
+            _aliaslar = [k for k, v in HAT_SAYAC_CIHAZI.items() if v == rno] or [rno]
             for _sh in HAT_MAKINELERI:
                 for _al in _aliaslar:
                     _pi = kayit_ist_no(_sh, _al)
                     if _pi:
-                        v_rno, mak_ist, _sabit_hat = _sh, _pi, _sh
+                        v_rno, mak_ist, _sabit_hat, _hat_ad = _sh, _pi, _sh, _al
                         break
                 if _sabit_hat:
                     break
@@ -4039,6 +4059,10 @@ def saha_cihazlari():
                 liste.append({
                     'cihaz_id':           cid,
                     'robot_no':           rno,
+                    # OPERATÖRÜN GÖRDÜĞÜ ad (2026-08-18): kapama preslerinde firmware
+                    # 'Kapama 1' der, sahadaki presin kodu 5'tir → panelde saha kodu
+                    # gösterilmezse arıza takibi yanlış prese bakar.
+                    'hat_adi':            _hat_ad or rno,
                     'bolum':              bolum,
                     'lokasyon':           dev_lok,
                     # Cok kanalli modulde kart, cihazi DIGER iki presle paylasir:
@@ -4068,6 +4092,7 @@ def saha_cihazlari():
                 liste.append({
                     'cihaz_id':           cid,
                     'robot_no':           rno,
+                    'hat_adi':            _hat_ad or rno,
                     'bolum':              bolum,
                     'lokasyon':           dev_lok,
                     'kanal':              kanal,
