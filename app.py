@@ -446,13 +446,17 @@ TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
 # (sistemdeki 'Kapama 1' modülü saha kodu 5 olan prese bağlı). Operatör sahada
 # gördüğü kodu seçmeli → HAT ADI saha kodu oldu, cihaz adı firmware'deki gibi
 # KALDI. Yeniden flash GEREKMEZ; eşleme burada (LF-LFP→YF1 ile aynı kalıp).
-# Saha kodu bekleyen presler 'Kapama 907..912' (bkz. tel_proses.TEL_GIZLI_HATLAR)
-# — kod gelince yalnız ADI değişir, buradaki satır güncellenir.
+# DİKKAT: 'Kapama 12' hem HAT adı (saha kodu 12 → cihaz 'Kapama 2') hem CİHAZ adı
+# (modül 4 kanal 3 → hat 'Kapama 26'). Karışmaz çünkü arama tek yönlü ve tek adımdır:
+# ileri yön hat adıyla (HAT_SAYAC_CIHAZI['Kapama 12'] = 'Kapama 2'), geri yön
+# DEĞERLERDE arayarak (cihaz 'Kapama 12' → hat 'Kapama 26').
 _KAPAMA_SAHA_CIHAZ = {
+    # Modül 1-2 (2026-08-18)
     'Kapama 5':  'Kapama 1',   'Kapama 12': 'Kapama 2',   'Kapama 4':  'Kapama 3',
     'Kapama 30': 'Kapama 4',   'Kapama 28': 'Kapama 5',   'Kapama 29': 'Kapama 6',
-    'Kapama 907': 'Kapama 7',  'Kapama 908': 'Kapama 8',  'Kapama 909': 'Kapama 9',
-    'Kapama 910': 'Kapama 10', 'Kapama 911': 'Kapama 11', 'Kapama 912': 'Kapama 12',
+    # Modül 3-4 (2026-08-19) — 12 presin tamamı adlandırıldı, gizli hat kalmadı
+    'Kapama 21': 'Kapama 7',   'Kapama 19': 'Kapama 8',   'Kapama 20': 'Kapama 9',
+    'Kapama 27': 'Kapama 10',  'Kapama 25': 'Kapama 11',  'Kapama 26': 'Kapama 12',
 }
 HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1', **_KAPAMA_SAHA_CIHAZ}
 

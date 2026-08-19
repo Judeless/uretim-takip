@@ -51,14 +51,16 @@ TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Yarı Otomatik': 2, 'Tam Otomatik': 2,
 #
 # FIRMWARE YENİDEN YÜKLENMEDİ: modüller hâlâ robot_no='Kapama 1..6' gönderiyor.
 # Hat adı → cihaz eşlemesi app.HAT_SAYAC_CIHAZI'nda (LF-LFP→YF1 ile aynı kalıp).
-#   saha 5  ← cihaz Kapama 1      saha 30 ← cihaz Kapama 4
-#   saha 12 ← cihaz Kapama 2      saha 28 ← cihaz Kapama 5
-#   saha 4  ← cihaz Kapama 3      saha 29 ← cihaz Kapama 6
+#   MODÜL 1-2 (2026-08-18)          MODÜL 3-4 (2026-08-19)
+#   saha 5  ← cihaz Kapama 1        saha 21 ← cihaz Kapama 7
+#   saha 12 ← cihaz Kapama 2        saha 19 ← cihaz Kapama 8
+#   saha 4  ← cihaz Kapama 3        saha 20 ← cihaz Kapama 9
+#   saha 30 ← cihaz Kapama 4        saha 27 ← cihaz Kapama 10
+#   saha 28 ← cihaz Kapama 5        saha 25 ← cihaz Kapama 11
+#   saha 29 ← cihaz Kapama 6        saha 26 ← cihaz Kapama 12
 #
-# 'Kapama 9xx' = SAHA KODU HENÜZ VERİLMEMİŞ presler (modül montajı yapılmadı,
-# kullanıcı kodları bildirecek). 9xx bilinçli: gerçek bir saha kodu olamaz ve
-# yeni 'Kapama 12' ile ÇAKIŞMAZ. Son iki hane firmware kanalıdır (907 → cihaz
-# 'Kapama 7'). Bunlar operatör listesinde GİZLİDİR (bkz. TEL_GIZLI_HATLAR).
+# 12 presin TAMAMI adlandırıldı — geçici 'Kapama 9xx' adları kalktı, gizli hat
+# kalmadı. Kural aynı kalıyor: kod gelince YALNIZ AD değişir, SIRA ASLA.
 #
 # SIRA DEĞİŞMEZ — YALNIZ AD DEĞİŞTİ: pozisyon = uretim_kayitlari.istasyon.
 # Liste kısaltılsaydı Son Montaj hatları 19..22'den 13..16'ya kayar ve yazılmış
@@ -68,14 +70,15 @@ TEL_HATLARI = (
     + ['Yarı Otomatik %d' % i for i in range(1, 3)]
     + ['Tam Otomatik']
     + ['Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30', 'Kapama 28', 'Kapama 29']
-    + ['Kapama %d' % i for i in range(907, 913)]
+    + ['Kapama 21', 'Kapama 19', 'Kapama 20', 'Kapama 27', 'Kapama 25', 'Kapama 26']
     + ['Son Montaj %d' % i for i in range(1, 5)]
 )
 
-# Saha kodu bekleyen (modülü henüz takılmamış) kapama presleri — operatör
-# listesinde gösterilmez. Kod geldikçe yukarıdaki adı değiştirip buradan çıkarın;
-# POZİSYONU KORUYUN (istasyon numarası kaymasın).
-TEL_GIZLI_HATLAR = frozenset('Kapama %d' % i for i in range(907, 913))
+# Saha kodu bekleyen (modülü henüz takılmamış) hatlar — operatör listesinde
+# gösterilmez. 2026-08-19'da 12 kapama presinin hepsi adlandırıldı → şu an BOŞ.
+# Mekanizma duruyor: yeni bir hat kodsuz devreye girerse geçici adıyla buraya
+# eklenir, kod gelince yalnız ADI değiştirilip buradan çıkarılır (POZİSYON SABİT).
+TEL_GIZLI_HATLAR = frozenset()
 
 _SON_NUMARA = re.compile(r'\s*\d+$')
 
