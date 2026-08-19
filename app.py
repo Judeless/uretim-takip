@@ -764,6 +764,17 @@ def _pilot_son_pulse_dk(bolum, robot_no, gun=None, istasyon=0):
         return None
 
 
+def _test_ref_norm(referans_kodu):
+    """SVP test cihazı eşleşmesi için referans anahtarı (boşluksuz, BÜYÜK harf).
+
+    TEL ADIM EKİ ATILIR (2026-08-19 saha hatası): tel kaydında kod adım ekiyle durur
+    ('93.00 3062 YARI OTOMAT') ama test cihazı ürünü BASE koduyla bildirir
+    ('93.00 3062' → test_conf_name). Ek atılmazsa referans_norm eşleşmesi HİÇ tutmaz,
+    sayaç sessizce 0 okur ve operatör "test cihazı sayamıyor" der.
+    Tel dışı kodlarda no-op (yalnız bilinen adım ekleri ayıklanır)."""
+    return tel_ek_ayikla(referans_kodu).strip().upper().replace(' ', '')
+
+
 def _test_basari_say(conn, cihaz_id, referans_kodu, basla_ts, biti_ts=None):
     """Cofle test cihazından (cofle_test poller'ı doldurur) basla_ts ile biti_ts
     arasında o referansa ait BAŞARILI test sayısı. ESP32 pulse sayımının test-cihazı
@@ -775,7 +786,7 @@ def _test_basari_say(conn, cihaz_id, referans_kodu, basla_ts, biti_ts=None):
         bas_epoch = int(datetime.strptime(basla_ts, '%Y-%m-%d %H:%M:%S').timestamp())
     except Exception:
         return None
-    norm = (referans_kodu or '').strip().upper().replace(' ', '')
+    norm = _test_ref_norm(referans_kodu)
     q = ("SELECT COUNT(*) FROM test_sonuclari "
          "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? AND (?='' OR referans_norm=?)")
     params = [cihaz_id, bas_epoch, norm, norm]
@@ -814,7 +825,7 @@ def _test_son_aktivite_dk(conn, vardiya_id):
                 bas_epoch = int(datetime.strptime(r['sayac_baslangic_ts'], '%Y-%m-%d %H:%M:%S').timestamp())
             except Exception:
                 continue
-            norm = (r['referans_kodu'] or '').strip().upper().replace(' ', '')
+            norm = _test_ref_norm(r['referans_kodu'])
             row = conn.execute(
                 "SELECT MAX(ts_epoch) FROM test_sonuclari "
                 "WHERE cihaz_id=? AND basarili=1 AND ts_epoch>=? AND (?='' OR referans_norm=?)",
