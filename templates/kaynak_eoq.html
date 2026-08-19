@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaynak EOQ — Cofle Forge</title>
+  <link rel="icon" type="image/png" href="/logo?tip=mark">
+  <meta name="color-scheme" content="light">
+  <style>
+    /* Dashboard v2 paletiyle aynı (mor-lacivert cam). Bu AYRI bir sayfa olduğu
+       için değişkenler burada tekrar tanımlı — dashboard_v2.html'e dokunulmadı
+       (754 KB'lık dosyada yeni sayfa açmak gereksiz risk). */
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --bg-0:#ECECF1; --surface:#FFFFFF; --surface-2:#F3F3F8;
+      --line:#E1E1EA; --line-strong:#D1D1DE;
+      --text:#14122B; --muted:#5B5B72; --dim:#8A8AA0;
+      --primary:#6D28D9; --brand:#7C3AED; --primary-soft:rgba(124,58,237,.10);
+      --success:#0F7B4F; --danger:#B42318; --warn:#8A5A05;
+      --warn-soft:#FEF6E7;
+      --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-mono:ui-monospace,"Cascadia Mono","Consolas",monospace;
+    }
+    body{background:var(--bg-0);color:var(--text);font-family:var(--font-sans);padding:18px}
+    .wrap{max-width:1150px;margin:0 auto}
+    .hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .hd h1{font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
+    .hd .geri{margin-left:auto;font-size:.8rem;font-weight:700;color:var(--primary);
+      text-decoration:none;padding:8px 14px;border:1px solid var(--line-strong);
+      border-radius:10px;background:var(--surface)}
+    .aciklama{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--brand);
+      border-radius:12px;padding:12px 14px;font-size:.82rem;color:var(--muted);line-height:1.55;margin-bottom:14px}
+    .ozet{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 16px;min-width:120px}
+    .kpi b{display:block;font-size:1.35rem;font-weight:800;font-family:var(--font-mono)}
+    .kpi span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+    .kpi.eksik b{color:var(--danger)}
+    .kpi.dolu b{color:var(--success)}
+    .arac{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    input[type=search],select{padding:9px 12px;border:1px solid var(--line-strong);border-radius:10px;
+      background:var(--surface);color:var(--text);font-size:.85rem;font-family:inherit}
+    input[type=search]{min-width:230px}
+    .tablo-kutu{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .tablo-kaydir{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.84rem}
+    th{background:var(--surface-2);text-align:left;padding:10px 12px;font-size:.7rem;
+      text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;
+      border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+    th.sag,td.sag{text-align:right}
+    td{padding:8px 12px;border-bottom:1px solid var(--line)}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:var(--surface-2)}
+    .kod{font-family:var(--font-mono);font-weight:700}
+    .eoq-inp{width:92px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:8px;
+      font-family:var(--font-mono);font-weight:700;font-size:.85rem;text-align:right;background:var(--surface)}
+    .eoq-inp:focus{outline:2px solid var(--primary-soft);border-color:var(--brand)}
+    .rozet{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.66rem;font-weight:800}
+    .rozet.as400{background:var(--primary-soft);color:var(--primary)}
+    .rozet.elle{background:var(--warn-soft);color:var(--warn)}
+    .rozet.yok{background:#F3F3F8;color:var(--dim)}
+    .tarih{font-size:.72rem;color:var(--muted);font-family:var(--font-mono)}
+    .bos{padding:26px;text-align:center;color:var(--muted);font-size:.85rem}
+    #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+      background:var(--text);color:#fff;padding:11px 18px;border-radius:10px;
+      font-size:.82rem;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+    #toast.gor{opacity:1}
+    #toast.hata{background:var(--danger)}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <h1>📦 Kaynak Referansları — EOQ</h1>
+    <a class="geri" href="/dashboard">‹ Panele dön</a>
+  </div>
+
+  <div class="aciklama">
+    AS400'de <b>07 / 10 / 01 — SITUAZIONE ARTICOLO</b> ekranında her ürün için tanımlı
+    sipariş miktarı (EOQ). Hücreye yazıp <b>Enter</b>'a basınca kaydedilir.
+    <b>Son güncelleme</b> kolonu hangi bilginin bayat olduğunu gösterir; AS400
+    okuyucusu çalıştığında bu kolon kendiliğinden tazelenir.
+  </div>
+
+  <div class="ozet">
+    <div class="kpi"><b id="k-toplam">—</b><span>Referans</span></div>
+    <div class="kpi dolu"><b id="k-dolu">—</b><span>EOQ girili</span></div>
+    <div class="kpi eksik"><b id="k-eksik">—</b><span>EOQ yok</span></div>
+  </div>
+
+  <div class="arac">
+    <input type="search" id="ara" placeholder="🔍 Referans veya açıklama ara..." oninput="ciz()">
+    <select id="suzgec" onchange="ciz()">
+      <option value="hepsi">Tümü</option>
+      <option value="yok">Yalnız EOQ girilmemişler</option>
+      <option value="var">Yalnız EOQ girilenler</option>
+    </select>
+    <select id="lokasyon" onchange="yukle()">
+      <option value="TK2">TK2</option>
+      <option value="TK1">TK1</option>
+    </select>
+  </div>
+
+  <div class="tablo-kutu">
+    <div class="tablo-kaydir">
+      <table>
+        <thead><tr>
+          <th onclick="sirala('referans_kodu')">Referans</th>
+          <th onclick="sirala('aciklama')">Açıklama</th>
+          <th class="sag" onclick="sirala('hedef_cycle_time_sn')">Cycle (sn)</th>
+          <th class="sag" onclick="sirala('eoq')">EOQ</th>
+          <th onclick="sirala('eoq_kaynak')">Kaynak</th>
+          <th onclick="sirala('eoq_tarih')">Son güncelleme</th>
+        </tr></thead>
+        <tbody id="govde"><tr><td colspan="6" class="bos">Yükleniyor...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+  var VERI = [], siraSutun = 'referans_kodu', siraYon = 1;
+
+  function esc(v){ return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  function toast(msg, hata){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'gor' + (hata ? ' hata' : '');
+    clearTimeout(window._tt);
+    window._tt = setTimeout(function(){ t.className = ''; }, 2200);
+  }
+
+  function yukle(){
+    var lok = document.getElementById('lokasyon').value;
+    fetch('/api/kaynak_eoq?bolum=kaynak&lokasyon=' + encodeURIComponent(lok), {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        VERI = d.referanslar || [];
+        document.getElementById('k-toplam').textContent = d.ozet.toplam;
+        document.getElementById('k-dolu').textContent   = d.ozet.eoq_var;
+        document.getElementById('k-eksik').textContent  = d.ozet.eoq_yok;
+        ciz();
+      })
+      .catch(function(){
+        document.getElementById('govde').innerHTML =
+          '<tr><td colspan="6" class="bos">Liste yüklenemedi.</td></tr>';
+      });
+  }
+
+  function sirala(alan){
+    siraYon = (siraSutun === alan) ? -siraYon : 1;
+    siraSutun = alan;
+    ciz();
+  }
+
+  function ciz(){
+    var q = (document.getElementById('ara').value || '').trim().toLowerCase();
+    var sz = document.getElementById('suzgec').value;
+    var liste = VERI.filter(function(r){
+      var eoqVar = (r.eoq || 0) > 0;
+      if (sz === 'yok' && eoqVar) return false;
+      if (sz === 'var' && !eoqVar) return false;
+      if (!q) return true;
+      return (String(r.referans_kodu || '').toLowerCase().indexOf(q) !== -1)
+          || (String(r.aciklama || '').toLowerCase().indexOf(q) !== -1);
+    });
+    liste.sort(function(a, b){
+      var x = a[siraSutun], y = b[siraSutun];
+      if (x == null) x = '';
+      if (y == null) y = '';
+      if (siraSutun === 'eoq' || siraSutun === 'hedef_cycle_time_sn')
+        return ((Number(x) || 0) - (Number(y) || 0)) * siraYon;
+      return String(x).localeCompare(String(y), 'tr') * siraYon;
+    });
+    var g = document.getElementById('govde');
+    if (!liste.length){
+      g.innerHTML = '<tr><td colspan="6" class="bos">Eşleşen referans yok.</td></tr>';
+      return;
+    }
+    g.innerHTML = liste.map(function(r){
+      var kaynakRozet = r.eoq_kaynak === 'as400'
+        ? '<span class="rozet as400">AS400</span>'
+        : (r.eoq_kaynak ? '<span class="rozet elle">Elle</span>'
+                        : '<span class="rozet yok">—</span>');
+      var ct = Number(r.hedef_cycle_time_sn) || 0;
+      return '<tr>'
+        + '<td class="kod">' + esc(r.referans_kodu) + '</td>'
+        + '<td>' + esc(r.aciklama || '') + '</td>'
+        + '<td class="sag">' + (ct ? Math.round(ct) : '') + '</td>'
+        + '<td class="sag"><input class="eoq-inp" type="number" min="0" inputmode="numeric"'
+          + ' value="' + (r.eoq == null ? '' : r.eoq) + '"'
+          + ' data-kod="' + esc(r.referans_kodu) + '"'
+          + ' onkeydown="eoqTus(event, this)" onchange="eoqKaydet(this)"></td>'
+        + '<td>' + kaynakRozet + '</td>'
+        + '<td class="tarih">' + esc((r.eoq_tarih || '').replace('T', ' ')) + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  // Enter = alandan çık → onchange tetiklenir ve kaydeder (mobilde de çalışsın diye ayrı)
+  function eoqTus(ev, inp){
+    if (ev.key === 'Enter') inp.blur();
+  }
+
+  function eoqKaydet(inp){
+    var kod = inp.dataset.kod;
+    var deger = inp.value.trim();
+    fetch('/api/kaynak_eoq', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        kaynak: 'elle',
+        lokasyon: document.getElementById('lokasyon').value,
+        kayitlar: [{ referans_kodu: kod, eoq: deger === '' ? null : deger }]
+      })
+    }).then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.hata || !d.guncellenen){
+          toast(d.hata || (kod + ' güncellenemedi'), true);
+          return;
+        }
+        toast(kod + ' → EOQ ' + (deger === '' ? 'temizlendi' : deger));
+        yukle();
+      })
+      .catch(function(){ toast('Bağlantı hatası', true); });
+  }
+
+  yukle();
+</script>
+</body>
+</html>

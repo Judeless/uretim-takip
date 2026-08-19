@@ -244,6 +244,22 @@ def init_db():
     except Exception:
         pass  # Kolon zaten var
 
+    # ── EOQ (kullanıcı 2026-08-19) ──────────────────────────────────────────
+    # AS400'de (07/10/01 SITUAZIONE ARTICOLO) her ürün için tanımlı sipariş
+    # miktarı. Kullanıcı: "kaynak referanslarında tanımlı EOQ'lar eski, hepsini
+    # bir arada görüp güncellememiz gerek." Değer AS400'den okunur (eoq_kaynak
+    # 'as400') ya da panelden elle girilir ('elle'); eoq_tarih son okuma anıdır
+    # → hangi referansın bilgisi bayat, listede görünür.
+    for _sql in (
+        "ALTER TABLE referans_listesi ADD COLUMN eoq INTEGER",
+        "ALTER TABLE referans_listesi ADD COLUMN eoq_tarih TEXT",
+        "ALTER TABLE referans_listesi ADD COLUMN eoq_kaynak TEXT",
+    ):
+        try:
+            c.execute(_sql)
+        except Exception:
+            pass  # Kolon zaten var
+
     # tamamlandi_ts (2026-08-18): operatör satırı "tamamlandı" işaretlediği AN.
     # ERKEN TEYİT bunu kullanır — işaretten N dakika sonra o referansın teyidi
     # otomatik gönderilir (kullanıcı: "bitirip başka referansa geçince 5 dk sonra").

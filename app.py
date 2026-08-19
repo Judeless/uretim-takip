@@ -3447,6 +3447,103 @@ def robot_listesi():
     return jsonify(robotlar)
 
 
+# ─────────────────────────────────────────────────────────────
+# EOQ (AS400 sipariş miktarı) — kullanıcı 2026-08-19
+# AS400 07/10/01 "SITUAZIONE ARTICOLO" ekranında her ürün için tanımlı EOQ var
+# ve kullanıcıya göre çoğu ESKİ. Hepsini bir arada görebilmek için referans
+# başına saklanır (referans_listesi.eoq / eoq_tarih / eoq_kaynak).
+# Değer İKİ yoldan gelir: AS400 okuyucusu (as400/eoq_kesif.js ile keşfedilen
+# akış) ya da panelden elle giriş. eoq_tarih = son güncelleme anı → listede
+# hangi bilginin bayat olduğu görünür.
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/kaynak_eoq')
+@panel_gerekli()
+def kaynak_eoq_sayfasi():
+    """Kaynak referanslarının EOQ listesi (panel girişi gerekir)."""
+    return render_template('kaynak_eoq.html')
+
+
+@app.route('/api/kaynak_eoq', methods=['GET'])
+def kaynak_eoq_listesi():
+    """Bir bölümün referansları + EOQ değerleri. Varsayılan: kaynak / TK2."""
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT referans_kodu, aciklama, hedef_cycle_time_sn, eoq, eoq_tarih, eoq_kaynak "
+        "FROM referans_listesi "
+        "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? "
+        "ORDER BY referans_kodu",
+        (bolum, lokasyon)
+    ).fetchall()
+    liste = [dict(r) for r in rows]
+    resp = jsonify({
+        'bolum': bolum, 'lokasyon': lokasyon,
+        'referanslar': liste,
+        'ozet': {
+            'toplam':  len(liste),
+            'eoq_var': sum(1 for r in liste if (r['eoq'] or 0) > 0),
+            'eoq_yok': sum(1 for r in liste if not (r['eoq'] or 0)),
+        },
+    })
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/kaynak_eoq', methods=['POST'])
+def kaynak_eoq_kaydet():
+    """EOQ yaz. Tek kayıt (panelden elle) ya da TOPLU (AS400 okuyucusu).
+
+    Gövde: {'kaynak': 'as400'|'elle', 'lokasyon': 'TK2',
+            'kayitlar': [{'referans_kodu': '10.300.3059W', 'eoq': 850}, ...]}
+    Tek kayıt için 'referans_kodu' + 'eoq' doğrudan gövdede de olabilir.
+    Eşleşme NORMALİZE koda göre (boşluk/harf farkı): AS400 kodu '10.300.3059 W'
+    yazsa bile aynı referansa düşer. Bulunamayan kod 'eslesmeyen'de döner —
+    sessizce yutulmaz, hangi kodun sistemde olmadığı görülür.
+    """
+    data = request.get_json(silent=True) or {}
+    kayitlar = data.get('kayitlar')
+    if not kayitlar:
+        if data.get('referans_kodu') is None:
+            return jsonify({'hata': 'kayitlar veya referans_kodu zorunlu'}), 400
+        kayitlar = [{'referans_kodu': data.get('referans_kodu'), 'eoq': data.get('eoq')}]
+    kaynak = (data.get('kaynak') or 'elle').strip()[:20]
+    lokasyon = (data.get('lokasyon') or 'TK2').strip() or 'TK2'
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    guncellenen, eslesmeyen = 0, []
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        for k in kayitlar:
+            kod = (k.get('referans_kodu') or '').strip()
+            if not kod:
+                continue
+            try:
+                # Boş/None → EOQ temizle (elle silme mümkün olsun)
+                deger = k.get('eoq')
+                deger = None if deger in (None, '', '-') else int(deger)
+            except (TypeError, ValueError):
+                eslesmeyen.append(kod)
+                continue
+            cur = c.execute(
+                "UPDATE referans_listesi SET eoq=?, eoq_tarih=?, eoq_kaynak=? "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "  AND COALESCE(lokasyon,'TK2')=?",
+                (deger, simdi, kaynak, kod, lokasyon)
+            )
+            if cur.rowcount:
+                guncellenen += cur.rowcount
+            else:
+                eslesmeyen.append(kod)
+        conn.commit()
+    except Exception as e:
+        print(f'HATA (kaynak_eoq_kaydet): {traceback.format_exc()}')
+        return jsonify({'hata': str(e)}), 500
+    return jsonify({'basarili': True, 'guncellenen': guncellenen,
+                    'eslesmeyen': eslesmeyen}), 200
+
+
 @app.route('/api/kayit_hatlari', methods=['GET'])
 def kayit_hatlari_api():
     """Hattı/makinesi ÜRETİM KAYDINDA seçilen bölümlerin hat listesi (mobil ekran D).
