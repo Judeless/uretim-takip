@@ -4,13 +4,22 @@
 // SALT OKUNUR: yalnız menü gezinme + ürün kodu yazma + Enter + PF3. Hiçbir veri
 // DEĞİŞTİRMEZ, kaydetmez, onaylamaz.
 //
+// ⚠ 32-BİT cscript ŞART — düz "cscript" ile "Otomasyon sunucusu, nesne
+//   oluşturamıyor" hatası verir (PCOMM COM 32-bit; 64-bit cscript göremez).
+//   Ayrıca PCOMM oturumu AÇIK ve script SİZİN oturumunuzda koşmalı: Session 0'dan
+//   (servis) başlatılan cscript PCOMM oturumlarını GÖREMEZ.
+//
 // KULLANIM
 //   Tek kod (keşif/doğrulama — ekranı da döker):
-//     cscript //nologo eoq_cek.js 10.300.3059W
+//     C:\Windows\SysWOW64\cscript.exe //nologo as400\eoq_cek.js 10.300.3059W
 //   Toplu (sunucudan kaynak referanslarını çeker, EOQ'ları geri yazar):
-//     cscript //nologo eoq_cek.js --toplu http://192.168.20.210:5000
+//     C:\Windows\SysWOW64\cscript.exe //nologo as400\eoq_cek.js --toplu http://192.168.20.210:5000
 //   Toplu ama YAZMADAN (ne bulacağını gör):
-//     cscript //nologo eoq_cek.js --toplu http://192.168.20.210:5000 --deneme
+//     ... --toplu http://192.168.20.210:5000 --deneme
+//
+// NOT: EOQ article master'da bir kolonsa bu betiğe HİÇ gerek yok —
+// as400/eoq_kesif.py ODBC ile aynı işi saniyeler içinde yapar. Bu betik yalnız
+// EOQ'nun SQL'den okunamadığı durum için yedektir.
 //
 // NOT (önemli): 07/10/01'den sonra ürün kodunun YAZILDIĞI ekranı görmedim —
 // tek-kod modu bu yüzden ekranın TAMAMINI döker. İlk çalıştırmada çıktıyı
