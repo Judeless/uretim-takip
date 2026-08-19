@@ -407,7 +407,7 @@ SAYAC_AUTO_CIHAZLAR = (
     # 2026-07-31: TK1 montaj masaları (7 adet, buton+buzzer). TK2'deki M1..M12
     # modelinin aynısı — MASA = hat; operatör mobilde masasını seçer, sayaç
     # doğrudan eşleşir (ek hat→cihaz eşlemesi gerekmez). YF1 ayrı, LF-LFP'ye bağlı.
-    | {f'TK1-M{i}' for i in range(1, 8)}
+    | {f'TK1-M{i}' for i in range(1, 5)}   # 2026-08-19: buton olanlar (M5/M6/M7 değil)
     # 2026-08-07: TK1 kapama presleri (12 adet, röle). Presler ÜÇERLİ ORTAK
     # PANOLARDA → 4 ESP32 modülü 3'er presi okur, ama her kanal KENDİ makine adıyla
     # (robot_no='Kapama N', istasyon=1..3) sinyal gönderir. Yani sayaç eşleşmesi
@@ -432,6 +432,8 @@ TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
                      'Plastik Enjeksiyon',   # 2026-08-18 plastik SABİT HAT (makine artık üretim kaydında)
                      'TK1 Montaj', 'Tel Üretimi'}   # 2026-08-18 TK1 montaj + tel SABİT HATLARI
                     | {f'TK1-M{i}' for i in range(1, 8)}   # 2026-07-31 TK1 montaj masaları
+                    # (M5/M6/M7 2026-08-19'da buton listesinden çıktı ama GEÇMİŞ
+                    #  kayıtları TK1 filtrelerinden düşmesin diye bu kümede KALIYOR)
                     # Tel üretimi proses hatları — TEL_HATLARI'ndan TÜRETİLİR (elle
                     # yazılmaz). Eskiden burada 13 hat elle sayılıydı; kapama 4'ten
                     # 12'ye çıkınca (2026-08-07) yeni presler bu kümeye eklenmeyi
@@ -3868,8 +3870,13 @@ def saha_cihazlari():
                   + [{'cihaz_id': 'MONTAJ-YF1', 'robot_no': 'YF1', 'lokasyon': 'TK1'}]
                   # TK1 montaj masaları (2026-07-31): cihaz_id/robot_no firmware ile
                   # birebir (generate.py DEVICES['montaj']).
+                  # TK1'de 5 BUTON var (kullanıcı 2026-08-19): MONTAJ - 1..4 =
+                  # TK1-M1..M4, MONTAJ - 5 = YF1 (yukarıdaki satır). Dolayısıyla
+                  # TK1-M5/M6/M7 buton DEĞİL → beklenenler listesinden çıkarıldı.
+                  # Sahada olmayan cihaz burada dururken panelde kalıcı "beklemede"
+                  # görünür ve GERÇEK arızayı gizler.
                   + [{'cihaz_id': f'MONTAJ-TK1-M{i}', 'robot_no': f'TK1-M{i}',
-                      'lokasyon': 'TK1'} for i in range(1, 8)],
+                      'lokasyon': 'TK1'} for i in range(1, 5)],
         'metal':  [
             {'cihaz_id': '300T-IO', 'robot_no': '300T'},
             {'cihaz_id': '400T-IO', 'robot_no': '400T'},
