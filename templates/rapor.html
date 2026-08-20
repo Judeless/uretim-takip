@@ -301,22 +301,8 @@
   </div>
 
 <script>
-// ── URL'den bolum oku (default: kaynak)
-const aktifBolum = (function () {
-  const params = new URLSearchParams(window.location.search);
-  const b = (params.get('bolum') || 'kaynak').toLowerCase();
-  return ['montaj','metal','isleme','lazer','pres','plastik'].includes(b) ? b : 'kaynak';
-})();
-
-// ── URL'den lokasyon oku; yoksa mobilin kaydettiği tesise, o da yoksa TK2'ye düş.
-// (TK1 vardiyaları da bolum='montaj' — lokasyon gönderilmezse backend TK2 varsayar;
-//  bu sayede TK1 operatörleri TK2 raporuna karışmaz, TK1 telefonu kendi raporunu görür.)
-const aktifLokasyon = (function () {
-  const params = new URLSearchParams(window.location.search);
-  const l = (params.get('lokasyon') || localStorage.getItem('mobile_aktif_lokasyon') || 'TK2').toUpperCase();
-  return (l === 'TK1') ? 'TK1' : 'TK2';
-})();
-
+// Bölüm tanımları — aktifBolum bunu kullandığı için ÖNCE gelmeli
+// (const 'temporal dead zone': sonra tanımlansa ReferenceError verir).
 const BOLUM_BILGI = {
   kaynak: { ad: 'Kaynakhane',       tekil: 'Robot',  ikon: '🔧', kolon3: 'PARÇA KODU' },
   montaj: { ad: 'Montaj',           tekil: 'Hat',    ikon: '🔩', kolon3: 'PARÇA KODU' },
@@ -330,6 +316,28 @@ const BOLUM_BILGI = {
   // ADIMI (hat), o yüzden 'Hat' değil 'Proses Adımı'.
   tel:     { ad: 'Tel Üretimi',      tekil: 'Proses Adımı', ikon: '🧵', kolon3: 'PARÇA KODU' }
 };
+
+// ── URL'den bolum oku (default: kaynak)
+const aktifBolum = (function () {
+  const params = new URLSearchParams(window.location.search);
+  const b = (params.get('bolum') || 'kaynak').toLowerCase();
+  // Geçerli bölümler BOLUM_BILGI'den TÜRETİLİR — elle yazılan İKİNCİ bir liste
+  // tutmuyoruz. 2026-08-20'de tam bu yüzden hata çıktı: 'tel' BOLUM_BILGI'ye
+  // eklendi ama buradaki sabit listeye eklenmeyi unutuldu; rapor sessizce
+  // 'kaynak'a düşüp "Kaynakhane bölümünde bu tarihte üretim verisi bulunamadı"
+  // diyordu. Tek kaynak olunca yeni bölüm eklerken burası unutulamaz.
+  return Object.prototype.hasOwnProperty.call(BOLUM_BILGI, b) ? b : 'kaynak';
+})();
+
+// ── URL'den lokasyon oku; yoksa mobilin kaydettiği tesise, o da yoksa TK2'ye düş.
+// (TK1 vardiyaları da bolum='montaj' — lokasyon gönderilmezse backend TK2 varsayar;
+//  bu sayede TK1 operatörleri TK2 raporuna karışmaz, TK1 telefonu kendi raporunu görür.)
+const aktifLokasyon = (function () {
+  const params = new URLSearchParams(window.location.search);
+  const l = (params.get('lokasyon') || localStorage.getItem('mobile_aktif_lokasyon') || 'TK2').toUpperCase();
+  return (l === 'TK1') ? 'TK1' : 'TK2';
+})();
+
 
 // Sayfayı bölüme göre etiketle
 (function () {
