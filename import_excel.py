@@ -59,7 +59,12 @@ BOLUM_DURUS_SAYFA = {
 BOLUM_EK_DURUS = {
     'isleme': [{'sebep': 'Makine Ayarı', 'tip': 'planli'}],
     'lazer':  [{'sebep': 'Makine Ayarı', 'tip': 'planli'}],
-    'pres':   [{'sebep': 'Makine Ayarı', 'tip': 'planli'}],
+    # 'Malzeme Toplama' YALNIZ pres (kullanıcı 2026-08-20): abkantta operatör
+    # sıradaki işin sacını depodan kendisi topluyor — montaj listesindeki
+    # 'Malzeme Teslim' (birinin getirmesi) ve 'Malzeme Bekleme' (plansız, iş
+    # duruyor) bunu karşılamıyor. Planlı: işin bilinen bir parçası.
+    'pres':   [{'sebep': 'Makine Ayarı',    'tip': 'planli'},
+               {'sebep': 'Malzeme Toplama', 'tip': 'planli'}],
 }
 
 
