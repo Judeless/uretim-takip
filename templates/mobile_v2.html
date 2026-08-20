@@ -5253,13 +5253,13 @@ window.__I18N_SOZLUK__ = {
       if (et) et.textContent = v;
     }
     // ── MONTAJ ADET SAYISI (paket çarpanı) ─────────────────────────────────
-    // TK1'de montaj işi iki yerde: 'montaj' bölümü (MONTAJ - 1..5 butonlu masalar)
-    // ve tel bölümünün 'Son Montaj' adımı. İkisinde de ürün 10'arlı sepetlerle
-    // toplanıyor. Başka yerde AÇILMAZ — TK2 montajda 1 basış = 1 parça, çarpan
-    // açık kalsa üretim 10 katına çıkardı.
+    // YALNIZ tel bölümünün 'Son Montaj' adımı (kullanıcı 2026-08-20: "tk1 montaj
+    // masalarında olmasın, sadece son montaj hatları için geçerli"). Ürün orada
+    // 10'arlı sepetlerle toplanıyor. Montajda AÇILMAZ — orada 1 basış = 1 parça,
+    // çarpan açık kalsa üretim 10 katına çıkardı. (Sunucu da aynı kuralı uygular:
+    // kapsam dışında paket_adedi 1'e sabitlenir, istemciye güvenilmez.)
     function paketAcikMi() {
       if (LOKASYON !== 'TK1') return false;
-      if (secilenBolum === 'montaj') return true;
       return secilenBolum === 'tel' && telHatAdimi(kayitHatAdi()) === 'Son Montaj';
     }
     function paketGoster(n) {

@@ -463,19 +463,46 @@ _KAPAMA_SAHA_CIHAZ = {
     'Kapama 21': 'Kapama 7',   'Kapama 19': 'Kapama 8',   'Kapama 20': 'Kapama 9',
     'Kapama 27': 'Kapama 10',  'Kapama 25': 'Kapama 11',  'Kapama 26': 'Kapama 12',
 }
-# TK1 MONTAJ: buton etiketi → firmware robot_no (kullanıcı 2026-08-19).
+# TK1 BUTON MODÜLLERİ: buton etiketi → firmware robot_no (kullanıcı 2026-08-19).
 # Modüller 'TK1-M1..M7' / 'YF1' olarak flash'lı; sahadaki butonlar MONTAJ - 1..5
 # diye etiketlendi. Yeniden flash GEREKMEZ, eşleme burada.
-# ⚠ MONTAJ - 1..4 ↔ TK1-M1..M4 sırası VARSAYIM (kullanıcı yalnız "YF butonu
-# MONTAJ - 5 olacak" dedi). Sahada her butona bir kez basıp sayacın doğru masada
-# arttığı DOĞRULANMALI; tutmuyorsa yalnız bu tablo düzeltilir.
+# 2026-08-20 SAHA DÜZENİ — 5 modül İKİ HATTA bölündü:
+#     MONTAJ hattı      : buton 1 · 2 · 3   (TK1-M1 · TK1-M2 · TK1-M3)
+#     TEL SON MONTAJ    : buton 4 · 5       (TK1-M4 · YF1)
+# ⚠ Buton↔modül sırası VARSAYIM (kullanıcı numaraları verdi, modül seri no'sunu
+# değil). Sahada her butona bir kez basıp sayacın doğru hatta arttığı
+# DOĞRULANMALI; tutmuyorsa yalnız bu tablo düzeltilir.
 _TK1_MONTAJ_BUTON_CIHAZ = {
+    # MONTAJ bölümünün kullandığı 3 buton: 1 · 2 · 3 (kullanıcı 2026-08-20)
     'MONTAJ - 1': 'TK1-M1',
     'MONTAJ - 2': 'TK1-M2',
     'MONTAJ - 3': 'TK1-M3',
+    # 4 ve 5 numaralı slotlar montaj listesinden ÇIKTI — bu iki modül artık tel
+    # SON MONTAJ hattında. Eşlemeler burada KALIR: 2026-08-19'dan beri yazılmış
+    # eski montaj kayıtlarının sayacı hâlâ bunlarla çözülüyor.
     'MONTAJ - 4': 'TK1-M4',
-    'MONTAJ - 5': 'YF1',      # sahaya ilk konan deneme modülü
+    'MONTAJ - 5': 'YF1',
+    # TEL SON MONTAJ (kullanıcı 2026-08-20): "son montaj hattındaki cihazlar
+    # MONTAJ - 4 ve MONTAJ - 5 olmalı … son montaj hattında 2 buton modülü olacak
+    # (buton 4 - buton 5)". Modüller ETİKETLERİYLE BİRLİKTE taşındı → hat adı
+    # sahadaki buton numarasını taşır, yeniden flash GEREKMEZ:
+    #     buton 4 → MONTAJ-TK1-M4 modülü      buton 5 → MONTAJ-YF1 modülü (eski YF)
+    # ⚠ Sahada BİR KEZ doğrula: butona bas, sayaç 'Son Montaj 4/5'te mi artıyor.
+    #   Tutmuyorsa yalnız bu iki satır yer değiştirir (başka yer düzeltilmez).
+    'Son Montaj 4': 'TK1-M4',
+    'Son Montaj 5': 'YF1',
 }
+
+# Bu butonlar montaj bölümü listesinden ÇIKARILDI (tel son montajda kullanılıyor)
+# ama TK1_MONTAJ_HATLARI'nda POZİSYONLARI DURUR — liste kısalsaydı istasyon
+# numaraları kayar, 2026-08-19'dan beri yazılmış TK1 montaj kayıtları başka hattı
+# gösterirdi. Operatör listesinde gizlenirler (bkz. /api/kayit_hatlari).
+GIZLI_MONTAJ_HATLARI = frozenset({'MONTAJ - 4', 'MONTAJ - 5'})
+# Operatör listesinde GÖRÜNMEYEN tüm hat adları (emekli buton + kodu bekleyen slot).
+# İki yerde kullanılır: /api/kayit_hatlari (listeden düşür) ve /api/saha_cihazlari'nın
+# CİHAZ→HAT ters aramasında (taşınmış modül eski adıyla değil, BUGÜN çalıştığı hatla
+# etiketlenmeli — yoksa panelde 'MONTAJ - 5' yazar, cihaz aslında son montajdadır).
+GIZLI_HATLAR = TEL_GIZLI_HATLAR | GIZLI_MONTAJ_HATLARI
 # 'LF-LFP': 'YF1' GEÇMİŞ vardiyalar için kalıyor (hat listesinden çıktı ama eski
 # kayıtların sayacı hâlâ bu eşlemeyle çözülüyor). Aynı cihaza iki ad işaret
 # ediyor; ters arama listede BULUNAN adı seçtiği için karışmaz.
@@ -635,6 +662,20 @@ def test_cihaz_eslemesi(lokasyon, bolum, hat):
                  or []), True)
 
 
+# CİHAZIN FIRMWARE'DE BİLDİRDİĞİ BÖLÜM (kullanıcı 2026-08-20).
+# YF1 ve TK1-M4 modülleri montaj olarak flash'lı ve pilot.db'ye bolum='montaj'
+# yazıyor; ama artık TEL'in son montaj hattında kullanılıyorlar (butonlar 4 ve 5).
+# Sayım (bolum, robot_no) ikilisiyle yapıldığı için kaydın bölümü ('tel') ile
+# sorgulanırsa HİÇ PULSE BULUNAMAZ ve sayaç sessizce 0 okurdu.
+# Yeniden flash GEREKMESİN diye çeviri burada.
+_CIHAZ_FW_BOLUM = {'YF1': 'montaj', 'TK1-M4': 'montaj'}
+
+
+def _fw_bolum(bolum, cihaz):
+    """Pilot DB'de bu cihazın sinyalleri hangi bölüm adıyla duruyor?"""
+    return _CIHAZ_FW_BOLUM.get(cihaz, bolum)
+
+
 def _sayac_cihazi(bolum, robot_no, istasyon=0):
     """Vardiya hattı + üretim kaydı istasyonundan pilot.db CIHAZ robot_no'sunu bulur.
     - pres / plastik: hat sabit, MAKİNE istasyondan gelir (pres 1=Abkant 1 ... 10=Bros;
@@ -751,6 +792,7 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
     # istasyon=1 gönderir; filtre bırakılırsa istasyon=3 aranır ve hiç pulse bulunamazdı).
     if kayit_makine_ad(robot_no, istasyon):
         istasyon = 0
+    bolum = _fw_bolum(bolum, cihaz)   # cihaz başka bölüm adıyla yazıyor olabilir
     robot_no = cihaz
     pilot_db = _pilot_db_yolu()
     if not basla_ts:
@@ -783,6 +825,7 @@ def _pilot_son_pulse_dk(bolum, robot_no, gun=None, istasyon=0):
     10 dk duruş uyarısı için kullanılır. pres'te istasyon = operatörün o an
     çalıştığı makine (üretim kaydından gelir)."""
     robot_no = _sayac_cihazi(bolum, robot_no, istasyon)   # LF-LFP→YF1; pres: istasyon→makine
+    bolum = _fw_bolum(bolum, robot_no)   # cihaz başka bölüm adıyla yazıyor olabilir
     pilot_db = _pilot_db_yolu()
     if not os.path.exists(pilot_db):
         return None
@@ -965,15 +1008,13 @@ def _paket_carp(adet, paket):
 def _paket_acik_mi(bolum, lokasyon, hat):
     """Paket (montaj adet) çarpanı bu kayıtta anlamlı mı?
 
-    TK1'de montaj işi iki yerde yapılıyor: 'montaj' bölümü (MONTAJ - 1..5 butonlu
-    masalar) ve tel bölümünün 'Son Montaj' adımı. İkisinde de ürün 10'arlı
-    sepetlerle toplanıyor. Başka hiçbir yerde açılmaz — TK2 montajda 1 basış =
-    1 parça ve orada çarpan açık kalsa üretim 10 katına çıkardı."""
-    lok = (lokasyon or 'TK2').upper()
-    if lok != 'TK1':
+    YALNIZ tel bölümünün 'Son Montaj' adımı (kullanıcı 2026-08-20: "tk1 montaj
+    masalarında olmasın, sadece son montaj hatları için geçerli"). Ürün orada
+    10'arlı sepetlerle toplanıyor: operatör sepeti bitirince bir kez basıyor.
+    Başka hiçbir yerde açılmaz — TK1/TK2 montajda 1 basış = 1 parça, çarpan açık
+    kalsa üretim 10 katına çıkardı."""
+    if (lokasyon or 'TK2').upper() != 'TK1':
         return False
-    if (bolum or '') == 'montaj':
-        return True
     return (bolum or '') == 'tel' and tel_hat_adimi(hat) == 'Son Montaj'
 
 
@@ -3710,11 +3751,12 @@ def kayit_hatlari_api():
     bolum = (request.args.get('bolum') or '').strip()
     sh = sabit_hat_adi(lokasyon, bolum)
     etiket = {'tel': 'Proses Adımı', 'montaj': 'Hat'}.get(bolum, 'Makine')
-    # Saha kodu henüz verilmemiş kapama presleri listede GÖSTERİLMEZ (modülü yok,
-    # adı geçici). Pozisyonları listede DURUR → istasyon numaraları kaymaz.
+    # Kullanılmayan hatlar listede GÖSTERİLMEZ ama POZİSYONLARI listede DURUR
+    # (istasyon numaraları kaymasın): kodu bekleyen slotlar (TEL_GIZLI_HATLAR) ve
+    # tel son montaja devredilen montaj butonları (GIZLI_MONTAJ_HATLARI).
     hatlar = [{'no': i + 1, 'ad': ad}
               for i, ad in enumerate(HAT_MAKINELERI.get(sh, []))
-              if ad not in TEL_GIZLI_HATLAR] if sh else []
+              if ad not in GIZLI_HATLAR] if sh else []
     resp = jsonify({'sabit_hat': sh, 'etiket': etiket, 'hatlar': hatlar})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
@@ -3966,7 +4008,9 @@ def saha_cihazlari():
 
     Beklenen cihaz listesi sabit:
       - 9 robot:    ABB1-IO ... ABB9-IO       (bolum: kaynak, TK2)
-      - 12 montaj:  MONTAJ-M1 ... MONTAJ-M12  (bolum: montaj, TK2) + MONTAJ-YF1 (TK1)
+      - 12 montaj:  MONTAJ-M1 ... MONTAJ-M12  (bolum: montaj, TK2)
+                    + MONTAJ-TK1-M1..M3 (TK1 montaj butonları)
+                    (TK1-M4 ve YF1 butonları 2026-08-20'de 'tel' grubuna geçti)
       - 3 metal:    300T-IO, 400T-IO, 550T-IO (bolum: metal, TK2)
       - 10 pres:    ABKANT-A1/A2/A3, PRES-P1..P5,
                     PRES-HIDROLIK, PRES-BROS   (bolum: pres, TK2)
@@ -3984,16 +4028,17 @@ def saha_cihazlari():
     BEKLENEN = {
         'kaynak': [{'cihaz_id': f'ABB{i}-IO', 'robot_no': f'ABB{i}'} for i in range(1, 10)],
         'montaj': [{'cihaz_id': f'MONTAJ-M{i}', 'robot_no': f'M{i}'} for i in range(1, 13)]
-                  + [{'cihaz_id': 'MONTAJ-YF1', 'robot_no': 'YF1', 'lokasyon': 'TK1'}]
                   # TK1 montaj masaları (2026-07-31): cihaz_id/robot_no firmware ile
                   # birebir (generate.py DEVICES['montaj']).
-                  # TK1'de 5 BUTON var (kullanıcı 2026-08-19): MONTAJ - 1..4 =
-                  # TK1-M1..M4, MONTAJ - 5 = YF1 (yukarıdaki satır). Dolayısıyla
-                  # TK1-M5/M6/M7 buton DEĞİL → beklenenler listesinden çıkarıldı.
-                  # Sahada olmayan cihaz burada dururken panelde kalıcı "beklemede"
-                  # görünür ve GERÇEK arızayı gizler.
+                  # 2026-08-20: TK1 MONTAJ hattında 3 BUTON kaldı (MONTAJ - 1..3 =
+                  # TK1-M1..M3). 4 ve 5 numaralı modüller tel SON MONTAJ hattına
+                  # taşındı → aşağıda 'tel' grubunda izlenirler (cihaz, çalıştığı
+                  # bölümün panelinde görünmeli).
+                  # TK1-M5/M6/M7 buton DEĞİL → beklenenler listesinde YOK: sahada
+                  # olmayan cihaz burada dururken panelde kalıcı "beklemede" görünür
+                  # ve GERÇEK arızayı gizler.
                   + [{'cihaz_id': f'MONTAJ-TK1-M{i}', 'robot_no': f'TK1-M{i}',
-                      'lokasyon': 'TK1'} for i in range(1, 5)],
+                      'lokasyon': 'TK1'} for i in range(1, 4)],
         'metal':  [
             {'cihaz_id': '300T-IO', 'robot_no': '300T'},
             {'cihaz_id': '400T-IO', 'robot_no': '400T'},
@@ -4033,6 +4078,15 @@ def saha_cihazlari():
             # "beklemede" görünür.
             {'cihaz_id': 'TEL-HAZIRLIK', 'robot_no': 'Otomatik Hazirlik',
              'lokasyon': 'TK1'},
+            # 2026-08-20 SON MONTAJ butonları — montaj hattından taşınan iki modül
+            # (buton 4 = TK1-M4, buton 5 = YF1). cihaz_id/robot_no firmware'de
+            # MONTAJ-* olarak KALDI (yeniden flash YOK) ve pilot.db'ye bolum='montaj'
+            # yazarlar — çeviri _CIHAZ_FW_BOLUM'da. Panelde 'tel' altındalar çünkü
+            # sayaç sıfırlama referansı (aktif vardiya / operatör baseline) TEL
+            # vardiyasından gelmeli; montaj grubunda kalsalardı tel vardiyası açıkken
+            # bile 0 sayarlardı.
+            {'cihaz_id': 'MONTAJ-TK1-M4', 'robot_no': 'TK1-M4', 'lokasyon': 'TK1'},
+            {'cihaz_id': 'MONTAJ-YF1',    'robot_no': 'YF1',    'lokasyon': 'TK1'},
         ] + [
             {'cihaz_id': f'TEL-KAPAMA-{m}',
              'robot_no': f'Kapama {(m - 1) * 3 + kn}',
@@ -4189,7 +4243,12 @@ def saha_cihazlari():
             _sabit_hat, _hat_ad = '', ''
             # ÖNCE alias: cihaz 'Kapama 4' hattı 'Kapama 30'dur; ham adla arasak
             # listedeki 'Kapama 4' HATTINI (cihaz 'Kapama 3') yanlışlıkla bulurduk.
-            _aliaslar = [k for k, v in HAT_SAYAC_CIHAZI.items() if v == rno] or [rno]
+            # EMEKLİ adlar ATLANIR (2026-08-20): TK1-M4/YF1 modülleri hem eski
+            # 'MONTAJ - 4/5' hem yeni 'Son Montaj 4/5' adıyla eşleşir; gizli olanı
+            # elemezsek panel modülü hâlâ montaj masasındaymış gibi etiketler ve
+            # sayaç sıfırlama referansını YANLIŞ vardiyadan alır.
+            _aliaslar = [k for k, v in HAT_SAYAC_CIHAZI.items()
+                         if v == rno and k not in GIZLI_HATLAR] or [rno]
             for _sh in HAT_MAKINELERI:
                 for _al in _aliaslar:
                     _pi = kayit_ist_no(_sh, _al)

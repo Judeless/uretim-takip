@@ -36,11 +36,20 @@ ikisi arka arkaya uygulanmaz.
 | Yarı Otomatik | 1 | `Yarı Otomatik` |
 | Tam Otomatik | 1 | `Tam Otomatik` |
 | Kapama | **12** | `Kapama 1` … `Kapama 12` |
-| Son Montaj | 4 | `Son Montaj 1` … `Son Montaj 4` |
+| Son Montaj | **2** | `Son Montaj 4` · `Son Montaj 5` (sahadaki buton numaraları) |
 
 Tek makineli adımlarda numara yoktur. Yeni makine eklenirse **sona** eklenir ve
 adım adı korunur (`Kapama 13`) — sistem hat adının sonundaki numarayı atarak adım
 tipini bulur (`tel_hat_adimi`).
+
+> **Son Montaj 4 → 2 hat (2026-08-20):** son montaj işi, montaj hattından taşınan
+> **iki buton modülüyle** yapılıyor. Modüller etiketleriyle geldi, o yüzden hat adı
+> buton numarasını taşır: `Son Montaj 4` = `MONTAJ-TK1-M4`, `Son Montaj 5` =
+> `MONTAJ-YF1` (eski YF modülü). Yeniden flash YOK — modüller pilot.db'ye hâlâ
+> `bolum='montaj'` yazar, çeviri `app.py > _CIHAZ_FW_BOLUM`'da. Boşalan iki slot
+> (`Son Montaj 903/904`) listede DURUR ama gizlidir: liste kısalsaydı `Otomatik
+> Hazırlık` 23'ten 21'e kayar ve yazılmış kayıtlar başka hattı gösterirdi.
+> TK1 montaj hattında 3 buton kaldı (`MONTAJ - 1..3`).
 
 > **Kapama 4 → 12 (2026-08-07):** sayaç modülleri takılırken kapama hattındaki
 > gerçek pres sayısının 12 olduğu görüldü; ilk kayıttaki 4 rakamı eksikti.

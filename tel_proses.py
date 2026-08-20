@@ -77,7 +77,14 @@ TEL_HATLARI = (
     + ['Tam Otomatik']
     + ['Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30', 'Kapama 28', 'Kapama 29']
     + ['Kapama 21', 'Kapama 19', 'Kapama 20', 'Kapama 27', 'Kapama 25', 'Kapama 26']
-    + ['Son Montaj %d' % i for i in range(1, 5)]
+    # SON MONTAJ 2 HATTA DÜŞTÜ (kullanıcı 2026-08-20): sahada bu iş 4 ve 5 numaralı
+    # buton modülleriyle yapılıyor (eski YF modülü son montaja taşındı) → hat adı
+    # BUTON NUMARASINI taşır; operatör masasının üstünde yazan numarayı seçer
+    # (kapama preslerindeki saha kodu mantığının aynısı).
+    # 903/904 = kullanılmayan iki slot: SİLİNMEDİ çünkü liste kısalsaydı sonraki
+    # hat ('Otomatik Hazırlık') 23'ten 21'e kayar ve yazılmış kayıtlar başka hattı
+    # gösterirdi. Gizli tutulur (TEL_GIZLI_HATLAR), gerekirse adı değiştirilip açılır.
+    + ['Son Montaj 4', 'Son Montaj 5', 'Son Montaj 903', 'Son Montaj 904']
     # YENİ HAT HEP SONA (2026-08-19: otomatik hazırlık makinesi) — araya girmek
     # yazılmış kayıtların istasyon numaralarını başka hatta kaydırır.
     # Operatöre Türkçe görünür; sayaç cihazının robot_no'su ASCII 'Otomatik Hazirlik'
@@ -85,11 +92,11 @@ TEL_HATLARI = (
     + ['Otomatik Hazırlık']
 )
 
-# Saha kodu bekleyen (modülü henüz takılmamış) hatlar — operatör listesinde
-# gösterilmez. 2026-08-19'da 12 kapama presinin hepsi adlandırıldı → şu an BOŞ.
-# Mekanizma duruyor: yeni bir hat kodsuz devreye girerse geçici adıyla buraya
-# eklenir, kod gelince yalnız ADI değiştirilip buradan çıkarılır (POZİSYON SABİT).
-TEL_GIZLI_HATLAR = frozenset()
+# Kullanılmayan / kodu bekleyen hatlar — operatör listesinde gösterilmez ama
+# POZİSYONLARI listede DURUR (istasyon numaraları kaymasın). Adı verilince
+# yalnız ADI değiştirilip buradan çıkarılır.
+# 2026-08-20: son montaj 4 slottan 2'ye düştü, kalan iki slot burada.
+TEL_GIZLI_HATLAR = frozenset({'Son Montaj 903', 'Son Montaj 904'})
 
 _SON_NUMARA = re.compile(r'\s*\d+$')
 
