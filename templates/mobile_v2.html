@@ -5117,6 +5117,23 @@ window.__I18N_SOZLUK__ = {
     // Amaç: yanlış makineye kayıt açılmasın.
     // Liste filtresi bir ENGEL DEĞİL: operatör kodu elle yazıp yine kaydedebilir
     // (istisna durumları bloklamamak için bilinçli tercih).
+    // ── TEL: ADIM EKLİ KODLAR LİSTEDE GÖRÜNMESİN (kullanıcı 2026-08-20) ─────
+    // Her adım kaydedilince ek'li kod ('93.TK.709 YARI OTOMAT') referans listesine
+    // OTOMATİK ekleniyor ve sonra autocomplete'te seçenek olarak çıkıyor. Operatör
+    // haklı olarak "ek iki kez mi yazılıyor" diye kuşkulanıyor.
+    // (Veri bozulmuyor: tel_referans_kodu önce mevcut eki ayıklıyor. Sorun yalnız
+    //  görüntüde — ama yanlış adımın ekli kodunu seçmek de kafa karıştırıcı.)
+    // Operatör BASE kodu seçer, adım ekini sistem koyar.
+    var TEL_EK_DESEN = /\s+(HAZIRLIK|KESIM|YARI\s*OTOMAT|TAM\s*OTOMAT|KAPAMA|SON\s*MONTAJ)\s*$/i;
+    function telKodFiltresi(items) {
+      if (secilenBolum !== 'tel' || !items || !items.length) return items;
+      var suzulmus = items.filter(function (r) {
+        return !TEL_EK_DESEN.test(String(r.referans_kodu || '').trim());
+      });
+      // Hepsi elendiyse ham listeyi göster — operatör kilitlenmesin
+      return suzulmus.length ? suzulmus : items;
+    }
+
     var G_KODLU_MAKINELER = ['Yapistirma', 'Sizdirmazlik Test'];
     function makineKodFiltresi(items) {
       if (secilenBolum !== 'plastik' || !items || !items.length) return items;
@@ -5153,7 +5170,7 @@ window.__I18N_SOZLUK__ = {
           .then(function (r) { return r.json(); })
           .then(function (items) {
             if (seq !== _refACSeq) return;   // bayat yanit — atla
-            items = makineKodFiltresi(items);
+            items = telKodFiltresi(makineKodFiltresi(items));
             if (!items.length) { list.style.display = 'none'; return; }
             list.innerHTML = '';
             items.forEach(function (r) {

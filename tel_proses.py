@@ -142,8 +142,20 @@ _EK_DESEN = re.compile(
 
 
 def tel_ek_ayikla(referans_kodu):
-    """Koddaki ara-operasyon ekini atar: '93.TK.464 KESIM' → '93.TK.464'."""
-    return _EK_DESEN.sub('', str(referans_kodu or '').strip()).strip()
+    """Koddaki ara-operasyon ek(ler)ini atar: '93.TK.464 KESIM' → '93.TK.464'.
+
+    ÜST ÜSTE EKLERİ DE TEMİZLER (2026-08-20): desen sonda tek eşleşme attığı için
+    '… YARI OTOMAT YARI OTOMAT' gibi çiftlenmiş bir kod tek geçişte düzelmiyordu
+    ve kendini ASLA toparlamıyordu. Normal akışta böyle bir kod oluşmaz (kayıtta
+    ek eklenmeden önce ayıklanır) ama elle yazımla girebilir; girdiğinde de
+    sessizce yaşamasın."""
+    kod = str(referans_kodu or '').strip()
+    for _ in range(6):          # 6 = adım sayısı; sonsuz döngü olamaz
+        yeni = _EK_DESEN.sub('', kod).strip()
+        if yeni == kod:
+            return kod
+        kod = yeni
+    return kod
 
 
 # Ek → adım ters haritası. Rapor katmanı adımı KODDAN çözer (hat/istasyon
