@@ -608,9 +608,11 @@ TEST_CIHAZ_ESLEME = {
     # kendi ESP32 sayacı var → onlarda kutu HİÇ görünmez.
     ('TK1', 'plastik', 'Sizdirmazlik Test'): [12],          # Tank
     # TK1 tel — bu makinelere saha modülü TAKILMAYACAK (kullanıcı), adet doğrudan
-    # SVP'den gelir. Eşleme 2026-08-19'da kullanıcı tarafından DÜZELTİLDİ.
-    ('TK1', 'tel',     'Yarı Otomatik 1'):   [43],          # PP LINE 8 (Otomatik 2)
-    ('TK1', 'tel',     'Yarı Otomatik 2'):   [48],          # PP LINE 7 (Otomatik 1)
+    # SVP'den gelir. Yarı otomat ikilisi 2026-08-20'de sahada YER DEĞİŞTİRDİ
+    # (kullanıcı) — hangi makinenin hangi SVP cihazına bağlı olduğu ancak sahada
+    # görülüyor, bu yüzden eşleme kodda tek satırda tutuluyor.
+    ('TK1', 'tel',     'Yarı Otomatik 1'):   [48],          # PP LINE 7 (Otomatik 1)
+    ('TK1', 'tel',     'Yarı Otomatik 2'):   [43],          # PP LINE 8 (Otomatik 2)
     ('TK1', 'tel',     'Tam Otomatik'):      [41],          # PP OTOMATIK SPIRAL PRESLEME
 }
 
