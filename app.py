@@ -4011,6 +4011,100 @@ def operator_listesi_yonetim():
     return jsonify([dict(r) for r in rows])
 
 
+# Türkçe büyütme: Python'un upper()'ı 'i' harfini 'I' yapar ('YASIN'), oysa
+# listedeki isimler 'YASİN'. İki özel harf elle çevrilir, gerisini upper() halleder.
+def _ad_buyut(ad):
+    return str(ad or '').replace('i', 'İ').replace('ı', 'I').upper()
+
+
+def _ad_esitle(ad):
+    """Ad karşılaştırma anahtarı — Türkçe harfler sadeleşir (import_excel._ad_normal'in eşi).
+    'Ramazan Yasin Demir' ile 'RAMAZAN YASİN DEMİR' aynı kişidir; SQLite UNIQUE
+    büyük/küçük harfe duyarlı olduğu için mükerrer satır bu kontrolle önlenir."""
+    t = str(ad or '').strip().upper()
+    for a, b in (('İ', 'I'), ('Ş', 'S'), ('Ğ', 'G'), ('Ü', 'U'), ('Ö', 'O'), ('Ç', 'C')):
+        t = t.replace(a, b)
+    return ' '.join(t.split())
+
+
+@app.route('/api/operatorler', methods=['POST'])
+@panel_gerekli(izin='operatorler')
+def operator_ekle():
+    """Yeni operatör ekler (dashboard Operatör panelinden).
+
+    Body: {ad, bolum, pin?}  ·  lokasyon querystring'den gelir (dashboard fetch
+    sarmalayıcısı aktif tesisi her /api/ isteğine ekler), yoksa body'den.
+
+    NEDEN VAR (kullanıcı 2026-08-20): operatör listesi Excel'den içe aktarılıyordu
+    ve sunucuda Excel yok — tek kişi eklemek için dosyayı laptopa çekip düzenleyip
+    geri kopyalamak gerekiyordu. Bu uç nokta o zinciri kısaltır.
+
+    EXCEL'İ BOZMAZ: içe aktarma INSERT OR IGNORE ile çalışır ve hiçbir operatörü
+    SİLMEZ — buradan eklenen kişi bir sonraki Excel aktarımında yerinde kalır.
+    Excel yine de listenin ana kaynağıdır; kalıcı olması için kişi oraya da
+    yazılmalıdır (yoksa Excel ile veritabanı zamanla ayrışır)."""
+    data = request.get_json() or {}
+    ad = ' '.join(str(data.get('ad') or '').split())
+    if len(ad) < 3:
+        return jsonify({'hata': 'Ad soyad en az 3 karakter olmalı'}), 400
+    ad = _ad_buyut(ad)
+    bolum = (data.get('bolum') or '').strip()
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum or "(boş)"}'}), 400
+    lokasyon = (request.args.get('lokasyon') or data.get('lokasyon') or 'TK2').strip().upper()
+    if lokasyon not in ('TK1', 'TK2'):
+        return jsonify({'hata': f'Geçersiz lokasyon: {lokasyon}'}), 400
+    pin = (data.get('pin') or '0000').strip()
+    if len(pin) != 4 or not pin.isdigit():
+        return jsonify({'hata': "PIN 4 haneli rakam olmalı (boş bırakılırsa 0000)"}), 400
+
+    conn = get_db()
+    # Mükerrer kontrolü Türkçe-duyarsız: UNIQUE(ad,bolum,lokasyon) kısıtı harf
+    # büyüklüğüne duyarlı olduğundan 'Ali Şen' ile 'ALI SEN' iki satır olurdu.
+    hedef = _ad_esitle(ad)
+    for r in conn.execute(
+            "SELECT ad, bolum FROM operatorler WHERE COALESCE(lokasyon,'TK2')=?",
+            (lokasyon,)).fetchall():
+        if _ad_esitle(r['ad']) == hedef and (r['bolum'] or '') == bolum:
+            return jsonify({'hata': f"{r['ad']} zaten {lokasyon} · {bolum} listesinde kayıtlı"}), 409
+    # Aynı kişi başka bölümde varsa PIN'i ORADAN devral — "bir kişi = tek PIN"
+    # kuralı (operator_pin_guncelle ile aynı model); yeni satır 0000'a düşmesin.
+    for r in conn.execute(
+            "SELECT ad, COALESCE(pin,'0000') AS pin FROM operatorler "
+            "WHERE COALESCE(lokasyon,'TK2')=?", (lokasyon,)).fetchall():
+        if _ad_esitle(r['ad']) == hedef:
+            ad = r['ad']                    # mevcut yazımı koru (liste tek isim göstersin)
+            if pin == '0000':
+                pin = r['pin']
+            break
+    import sqlite3   # modül düzeyinde import YOK (dosya kalıbı: yerel import)
+    try:
+        cur = conn.execute(
+            "INSERT INTO operatorler (ad, bolum, pin, lokasyon) VALUES (?, ?, ?, ?)",
+            (ad, bolum, pin, lokasyon))
+        conn.commit()
+    except sqlite3.IntegrityError as e:
+        return jsonify({'hata': f'Eklenemedi (kayıt çakışması): {e}'}), 409
+
+    # TK1 TUZAĞI: TK1 operatörünün bölümü Excel aktarımında İSİMDEN türetiliyor
+    # (import_excel.tk1_operator_bolumu — montaj listesi SABİT, kalan herkes tel).
+    # Listede olmayan bir isim 'montaj' olarak eklenirse bir sonraki aktarım onu
+    # sessizce tel'e taşır. Engellemiyoruz ama söylüyoruz.
+    uyari = ''
+    if lokasyon == 'TK1' and bolum == 'montaj':
+        try:
+            from import_excel import tk1_operator_bolumu
+            if tk1_operator_bolumu(ad) != 'montaj':
+                uyari = (f'{ad} TK1 montaj listesinde tanımlı değil — bir sonraki '
+                         f'Excel içe aktarımı bu kişiyi TEL bölümüne taşır. Kalıcı '
+                         f'montaj için import_excel.TK1_MONTAJ_OPERATORLERI güncellenmeli.')
+        except Exception:
+            pass
+    return jsonify({'basarili': True, 'id': cur.lastrowid, 'ad': ad,
+                    'bolum': bolum, 'lokasyon': lokasyon, 'pin': pin,
+                    'uyari': uyari}), 201
+
+
 @app.route('/api/operator/oturum_ac', methods=['POST'])
 def operator_oturum_ac():
     """Operatör mobile'da PIN ile oturum açma.

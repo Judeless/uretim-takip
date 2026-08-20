@@ -2568,6 +2568,34 @@ window.__I18N_SOZLUK__ = {
     "en": "Practical use: Measure production speed with the Mode, verify it with the Median. If both are close to target, production is healthy. An Average much higher than the Mode and Median indicates a high concentration of downtime.",
     "it": "Uso pratico: Misura la velocità di produzione con la Moda, verificala con la Mediana. Se entrambe sono vicine all'obiettivo, la produzione è sana. Una Media molto più alta di Moda e Mediana indica un'alta concentrazione di fermi."
   },
+  "Operatör Ekle": {
+    "en": "Add Operator",
+    "it": "Aggiungi operatore"
+  },
+  "Ad Soyad": {
+    "en": "Full Name",
+    "it": "Nome e cognome"
+  },
+  "Ekleniyor...": {
+    "en": "Adding...",
+    "it": "Aggiunta in corso..."
+  },
+  "Kişi aktif tesise eklenir. PIN boş bırakılırsa 0000 olur; kişi başka bölümde kayıtlıysa mevcut PIN'ini devralır. Excel listenin ana kaynağıdır — kalıcı olması için kişiyi Excel'e de yazın, buradan eklenen kayıt içe aktarımda silinmez.": {
+    "en": "The person is added to the active facility. If the PIN is left blank it becomes 0000; if the person already exists in another department the existing PIN is inherited. Excel remains the master list \u2014 add the person there too to make it permanent, a record added here is never removed by the import.",
+    "it": "La persona viene aggiunta allo stabilimento attivo. Se il PIN resta vuoto diventa 0000; se la persona esiste gi\u00e0 in un altro reparto eredita il PIN esistente. Excel resta l'elenco principale \u2014 inserire la persona anche l\u00ec per renderla permanente, un record aggiunto qui non viene mai rimosso dall'importazione."
+  },
+  "Ad soyad en az 3 karakter olmalı": {
+    "en": "Full name must be at least 3 characters",
+    "it": "Il nome deve avere almeno 3 caratteri"
+  },
+  "PIN 4 haneli rakam olmalı": {
+    "en": "PIN must be 4 digits",
+    "it": "Il PIN deve avere 4 cifre"
+  },
+  "Eklenemedi": {
+    "en": "Could not add",
+    "it": "Impossibile aggiungere"
+  },
   "Operatör PIN Yönetimi": {
     "en": "Operator PIN Management",
     "it": "Gestione PIN operatore"
@@ -3520,8 +3548,8 @@ window.__I18N_SOZLUK__ = {
     "en": "No pulse data for this reference",
     "it": "Nessun dato impulsi per questo riferimento"
   },
-  "Henüz operatör kaydı yok. Excel'den içe aktarınız.": {
-    "en": "No operator records yet. Import from Excel.",
+  "Henüz operatör kaydı yok. Yukarıdan ekleyin ya da Excel'den içe aktarın.": {
+    "en": "No operator records yet. Add one above or import from Excel.",
     "it": "Nessuna registrazione operatore. Importare da Excel."
   },
   "4 hane": {
@@ -4895,6 +4923,44 @@ window.__I18N_SOZLUK__ = {
             <!-- ══════ SAYFA: OPERATÖRLER / PIN YÖNETİMİ (Tanımlar — eski dashboard modülü)
                         Lokasyon bağlamına uyar: TK1/TK2 listeleri backend'de filtrelidir ══════ -->
             <section class="page" id="page-operatorler">
+                <!-- Operatör ekleme (2026-08-20): liste Excel'den içe aktarılıyordu ve
+                     sunucuda Excel yok — tek kişi eklemek için dosyayı laptopa çekip
+                     düzenleyip geri kopyalamak gerekiyordu. Excel yine ana kaynak;
+                     buradan eklenen kişi aktarımda SİLİNMEZ (import INSERT OR IGNORE). -->
+                <div class="panel-card" style="margin-bottom:14px">
+                    <div class="panel-header">
+                        <h3>➕ Operatör Ekle</h3>
+                        <span class="adet-info" id="op-ekle-lok">—</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:16px 20px 6px">
+                        <div style="flex:2 1 260px">
+                            <label style="display:block;font-size:.72rem;color:var(--muted);font-weight:700;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">Ad Soyad</label>
+                            <input type="text" id="op-ekle-ad" autocomplete="off"
+                                   placeholder="ör. RAMAZAN YASİN DEMİR"
+                                   onkeydown="if(event.key=='Enter')operatorEkle()" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.86rem;color-scheme:dark">
+                        </div>
+                        <div style="flex:1 1 170px">
+                            <label style="display:block;font-size:.72rem;color:var(--muted);font-weight:700;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">Bölüm</label>
+                            <select id="op-ekle-bolum" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.86rem;color-scheme:dark"></select>
+                        </div>
+                        <div style="flex:0 1 120px">
+                            <label style="display:block;font-size:.72rem;color:var(--muted);font-weight:700;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">PIN</label>
+                            <input type="text" id="op-ekle-pin" inputmode="numeric" maxlength="4"
+                                   placeholder="0000" onkeydown="if(event.key=='Enter')operatorEkle()"
+                                   style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.9rem;text-align:center;color-scheme:dark">
+                        </div>
+                        <button id="op-ekle-btn" onclick="operatorEkle()"
+                                style="background:var(--grad-violet);color:#fff;border:0;border-radius:8px;padding:9px 20px;font-size:.84rem;font-weight:800;cursor:pointer;font-family:var(--font-main)">
+                            ➕ Ekle
+                        </button>
+                    </div>
+                    <!-- TEK SATIR: i18n motoru metin düğümünü trim edip sözlükte arar;
+                         satır sonu ya da inline <code> anahtarı bozar. -->
+                    <p style="padding:4px 20px 16px;margin:0;font-size:.75rem;color:var(--muted);line-height:1.55">
+                        Kişi aktif tesise eklenir. PIN boş bırakılırsa 0000 olur; kişi başka bölümde kayıtlıysa mevcut PIN'ini devralır. Excel listenin ana kaynağıdır — kalıcı olması için kişiyi Excel'e de yazın, buradan eklenen kayıt içe aktarımda silinmez.
+                    </p>
+                </div>
+
                 <div class="panel-card">
                     <div class="panel-header">
                         <h3>🔐 Operatör PIN Yönetimi</h3>
@@ -8861,15 +8927,69 @@ window.__I18N_SOZLUK__ = {
         // (eski dashboard modülü birebir; kabuk v2 — liste lokasyon
         //  bağlamına uyar, backend TK1/TK2 filtresini uygular)
         // ═══════════════════════════════════════════════════════
+        // Ekleme formunu aktif tesise göre hazırla — bölüm listesi lokasyona bağlı
+        // (TK1: montaj/plastik/tel · TK2: kaynak/montaj/metal/...). Tesis toggle'ı
+        // değişince yenilenmeli, o yüzden liste yüklemesiyle birlikte çağrılıyor.
+        function operatorEkleFormHazirla() {
+            const sel = document.getElementById('op-ekle-bolum');
+            const lokEl = document.getElementById('op-ekle-lok');
+            if (lokEl) lokEl.textContent = aktifLokasyon + ' tesisine eklenir';
+            if (!sel) return;
+            const bolumler = lokBolumleri(aktifLokasyon);
+            const secili = sel.value;
+            sel.innerHTML = bolumler.map(function (b) {
+                // bolumAdi() TK1'de ada ' (TK1)' ekliyor; burada gereksiz —
+                // tesis zaten başlıkta yazıyor, sade ad kullanılır.
+                var ad = (BOLUMLER[b] || {}).ad || b;
+                return '<option value="' + b + '">' + esc(ad) + '</option>';
+            }).join('');
+            if (bolumler.indexOf(secili) !== -1) sel.value = secili;
+        }
+
+        async function operatorEkle() {
+            const adEl = document.getElementById('op-ekle-ad');
+            const bolEl = document.getElementById('op-ekle-bolum');
+            const pinEl = document.getElementById('op-ekle-pin');
+            const btn = document.getElementById('op-ekle-btn');
+            const ad = (adEl.value || '').trim();
+            if (ad.length < 3) { toast('Ad soyad en az 3 karakter olmalı', 'error'); adEl.focus(); return; }
+            const pin = (pinEl.value || '').trim();
+            if (pin && !/^[0-9]{4}$/.test(pin)) { toast('PIN 4 haneli rakam olmalı', 'error'); pinEl.focus(); return; }
+            btn.disabled = true; btn.textContent = '⏳ Ekleniyor...';
+            try {
+                // lokasyon parametresini fetch sarmalayıcısı ekler (aktif tesis).
+                const res = await fetch('/api/operatorler', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ad: ad, bolum: bolEl.value, pin: pin || '0000' })
+                });
+                const d = await res.json();
+                if (!res.ok) { toast(d.hata || 'Eklenemedi', 'error'); return; }
+                adEl.value = ''; pinEl.value = '';
+                toast(d.ad + ' eklendi (' + d.lokasyon + ' - ' + d.bolum + ', PIN ' + d.pin + ')', 'success');
+                // Sunucu bir tuzağa dikkat çektiyse (TK1 montaj adı Excel'de tanımlı
+                // değil → aktarımda tel'e taşınır) toast'ta kaybolmasın.
+                if (d.uyari) { console.warn(d.uyari); alert(d.uyari); }
+                yukleOperatorlerYonetim();
+                adEl.focus();
+            } catch (e) {
+                toast('Bağlantı hatası', 'error');
+                console.error('operator ekle:', e);
+            } finally {
+                btn.disabled = false; btn.textContent = '➕ Ekle';
+            }
+        }
+
         async function yukleOperatorlerYonetim() {
             const statusEl = document.getElementById('op-yonetim-status');
             const tbody = document.getElementById('op-yonetim-tbody');
+            operatorEkleFormHazirla();
             statusEl.textContent = 'Yükleniyor...';
             try {
                 const res = await fetch('/api/operatorler/yonetim', { cache: 'no-store' });
                 const list = await res.json();
                 if (!list.length) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted);font-style:italic">Henüz operatör kaydı yok. Excel\'den içe aktarınız.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted);font-style:italic">Henüz operatör kaydı yok. Yukarıdan ekleyin ya da Excel\'den içe aktarın.</td></tr>';
                     statusEl.textContent = '';
                     return;
                 }
