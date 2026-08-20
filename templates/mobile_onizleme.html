@@ -2403,22 +2403,33 @@ window.__I18N_SOZLUK__ = {
     window.APP_DIL = DIL;
     var S = window.__I18N_SOZLUK__ || {};
     var HARF = /[0-9A-Za-zÇĞİÖŞÜçğıöşü]/;   // Türkçe harf/rakam
+    // Sözlük anahtarları TEK SATIR yazılır, HTML'de aynı cümle satırlara bölünmüş
+    // olabilir — satır sonu + girinti metin düğümünde KALIR ve birebir arama kaçar.
+    // Arama iç boşlukları tekilleştirerek de denenir; değiştirme yine ORİJİNAL
+    // metin üzerinden yapılır, biçim bozulmaz.
+    function bul(k){
+      var e = S[k];
+      if(e && e[DIL]) return e[DIL];
+      var nk = k.replace(/\s+/g, ' ');
+      if(nk !== k){ e = S[nk]; if(e && e[DIL]) return e[DIL]; }
+      return null;
+    }
     function cev(txt){
       if(DIL === 'tr' || !txt) return txt;
       var k = txt.trim();
       if(!k) return txt;
-      var e = S[k];
-      if(e && e[DIL]) return txt.replace(k, e[DIL]);
+      var c = bul(k);
+      if(c) return txt.replace(k, c);
       // baştaki ikon/emoji/sembol (+boşluk) önekini ayır, çekirdeği çevir
       var i = 0;
       while(i < k.length && !HARF.test(k[i])) i++;
       if(i > 0 && i < k.length){
         var cekirdek = k.slice(i).trim();
-        var e2 = S[cekirdek];
-        if(e2 && e2[DIL]) return txt.replace(cekirdek, e2[DIL]);
+        var c2 = bul(cekirdek);
+        if(c2) return txt.replace(cekirdek, c2);
       }
       var _si = k.indexOf(' · ');
-      if(_si > 0){ var _bas = k.slice(0, _si); var e3 = S[_bas]; if(e3 && e3[DIL]) return txt.replace(_bas, e3[DIL]); }
+      if(_si > 0){ var _bas = k.slice(0, _si); var c3 = bul(_bas); if(c3) return txt.replace(_bas, c3); }
       return txt;
     }
     function gez(node){

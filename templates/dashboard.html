@@ -2220,9 +2220,13 @@ window.__I18N_SOZLUK__ = {
     "en": "interference filtered out by the system (not counted)",
     "it": "interferenza filtrata dal sistema (non conteggiata)"
   },
-  "cihaz saydı ama merkeze ulaşmadı — 0 olmalı": {
-    "en": "device counted but did not reach the server — should be 0",
-    "it": "il dispositivo ha conteggiato ma non è arrivato al server — deve essere 0"
+  ": cihaz saydı ama merkeze ulaşmadı —": {
+    "en": ": device counted but did not reach the server —",
+    "it": ": il dispositivo ha conteggiato ma non è arrivato al server —"
+  },
+  "0 olmalı": {
+    "en": "should be 0",
+    "it": "deve essere 0"
   },
   "Analizi Yükle": {
     "en": "Load Analysis",
@@ -2292,17 +2296,29 @@ window.__I18N_SOZLUK__ = {
     "en": "Average (Arithmetic Mean)",
     "it": "Media (aritmetica)"
   },
-  "Tüm gap'lerin toplamı / pulse sayısı. Uzun duruşlardan etkilenir — bir 30 dakikalık duruş ortalamayı çok yukarı çeker. Genel verim için kullanışlı ama \"tipik cycle'ı\" yansıtmaz.": {
-    "en": "Sum of all gaps / number of pulses. Affected by long downtimes — a single 30-minute downtime pulls the average far up. Useful for overall efficiency but does not reflect the 'typical cycle'.",
-    "it": "Somma di tutti i gap / numero di impulsi. Influenzata dai fermi lunghi — un singolo fermo di 30 minuti alza molto la media. Utile per l'efficienza complessiva ma non riflette il 'ciclo tipico'."
+  "Tüm gap'lerin toplamı / pulse sayısı.": {
+    "en": "Sum of all gaps / number of pulses.",
+    "it": "Somma di tutti i gap / numero di impulsi."
+  },
+  "Uzun duruşlardan etkilenir": {
+    "en": "Affected by long downtimes",
+    "it": "Influenzata dai fermi lunghi"
+  },
+  "— bir 30 dakikalık duruş ortalamayı çok yukarı çeker. Genel verim için kullanışlı ama \"tipik cycle'ı\" yansıtmaz.": {
+    "en": "— a single 30-minute downtime pulls the average far up. Useful for overall efficiency but does not reflect the 'typical cycle'.",
+    "it": "— un singolo fermo di 30 minuti alza molto la media. Utile per l'efficienza complessiva ma non riflette il 'ciclo tipico'."
   },
   "Pulse'lar küçükten büyüğe sıralanıp tam ortadaki değer. Aşırı değerlerden (mola, parça bekleme) etkilenmez — gerçek üretim ritmini yansıtan en güvenilir metrik. Mola hariç pulse'ların %50'si bu değerden hızlı, %50'si daha yavaş gelmiş demektir.": {
     "en": "The middle value once the pulses are sorted from smallest to largest. Not affected by extreme values (breaks, waiting for parts) — the most reliable metric reflecting the real production rhythm. Excluding breaks, it means 50% of pulses arrived faster than this value and 50% slower.",
     "it": "Il valore centrale una volta ordinati gli impulsi dal più piccolo al più grande. Non influenzato da valori estremi (pause, attesa pezzi) — la metrica più affidabile che riflette il vero ritmo di produzione. Escluse le pause, significa che il 50% degli impulsi è arrivato più veloce di questo valore e il 50% più lento."
   },
-  "En sık tekrar eden gap (1 sn yuvarlanmış). Robotun veya makinenin \"alıştığı\" cycle süresi. Hedef cycle ile karşılaştırılır: Mod ≈ Hedef ise üretim disiplinli; Mod >> Hedef ise üretimde sürekli bir gecikme/sapma var demektir.": {
-    "en": "The most frequently recurring gap (rounded to 1 s). The cycle time the robot or machine is 'used to'. Compared against the target cycle: if Mode ≈ Target production is disciplined; if Mode >> Target there is a constant delay/deviation in production.",
-    "it": "Il gap che si ripete più frequentemente (arrotondato a 1 s). Il tempo ciclo a cui il robot o la macchina è 'abituato'. Confrontato con il ciclo obiettivo: se Moda ≈ Obiettivo la produzione è disciplinata; se Moda >> Obiettivo c'è un ritardo/scostamento costante nella produzione."
+  "En sık tekrar eden gap": {
+    "en": "The most frequently recurring gap",
+    "it": "Il gap che si ripete più frequentemente"
+  },
+  "(1 sn yuvarlanmış). Robotun veya makinenin \"alıştığı\" cycle süresi. Hedef cycle ile karşılaştırılır: Mod ≈ Hedef ise üretim disiplinli; Mod >> Hedef ise üretimde sürekli bir gecikme/sapma var demektir.": {
+    "en": "(rounded to 1 s). The cycle time the robot or machine is 'used to'. Compared against the target cycle: if Mode ≈ Target production is disciplined; if Mode >> Target there is a constant delay/deviation in production.",
+    "it": "(arrotondato a 1 s). Il tempo ciclo a cui il robot o la macchina è 'abituato'. Confrontato con il ciclo obiettivo: se Moda ≈ Obiettivo la produzione è disciplinata; se Moda >> Obiettivo c'è un ritardo/scostamento costante nella produzione."
   },
   "Min / Max": {
     "en": "Min / Max",
@@ -2320,9 +2336,13 @@ window.__I18N_SOZLUK__ = {
     "en": "Operator PIN Management",
     "it": "Gestione PIN operatore"
   },
-  "Her operatöre 4 haneli PIN tanımlanır. Operatör mobile'da bu PIN ile giriş yapar; başka operatörün vardiyasını düzenleyemez. Varsayılan PIN 0000 — ilk kullanım öncesi mutlaka değiştirin.": {
-    "en": "A 4-digit PIN is assigned to each operator. The operator logs into the mobile app with this PIN and cannot edit another operator's shift. The default PIN is 0000 — be sure to change it before first use.",
-    "it": "A ogni operatore viene assegnato un PIN di 4 cifre. L'operatore accede all'app mobile con questo PIN e non può modificare il turno di un altro operatore. Il PIN predefinito è 0000 — assicurati di cambiarlo prima del primo utilizzo."
+  "Her operatöre 4 haneli PIN tanımlanır. Operatör mobile'da bu PIN ile giriş yapar; başka operatörün vardiyasını düzenleyemez. Varsayılan PIN": {
+    "en": "A 4-digit PIN is assigned to each operator. The operator logs into the mobile app with this PIN and cannot edit another operator's shift. The default PIN is",
+    "it": "A ogni operatore viene assegnato un PIN di 4 cifre. L'operatore accede all'app mobile con questo PIN e non può modificare il turno di un altro operatore. Il PIN predefinito è"
+  },
+  "— ilk kullanım öncesi mutlaka değiştirin.": {
+    "en": "— be sure to change it before first use.",
+    "it": "— assicurati di cambiarlo prima del primo utilizzo."
   },
   "Operatör Listesi": {
     "en": "Operator List",
@@ -3798,16 +3818,27 @@ window.__I18N_SOZLUK__ = {
       window.APP_DIL = DIL;
       var S = window.__I18N_SOZLUK__ || {};
       var HARF = /[0-9A-Za-zÇĞİÖŞÜçğıöşü]/;
+      // Sözlük anahtarları TEK SATIR yazılır, HTML'de aynı cümle satırlara bölünmüş
+      // olabilir — satır sonu + girinti metin düğümünde KALIR ve birebir arama kaçar.
+      // Bu yüzden arama iç boşlukları tekilleştirerek de denenir. Değiştirme yine
+      // ORİJİNAL metin üzerinden yapılır, biçim bozulmaz.
+      function bul(k){
+        var e = S[k];
+        if(e && e[DIL]) return e[DIL];
+        var nk = k.replace(/\s+/g, ' ');
+        if(nk !== k){ e = S[nk]; if(e && e[DIL]) return e[DIL]; }
+        return null;
+      }
       function cev(txt){
         if(DIL === 'tr' || !txt) return txt;
         var k = txt.trim();
         if(!k) return txt;
-        var e = S[k];
-        if(e && e[DIL]) return txt.replace(k, e[DIL]);
+        var c = bul(k);
+        if(c) return txt.replace(k, c);
         var i = 0; while(i < k.length && !HARF.test(k[i])) i++;
-        if(i > 0 && i < k.length){ var ck = k.slice(i).trim(); var e2 = S[ck]; if(e2 && e2[DIL]) return txt.replace(ck, e2[DIL]); }
+        if(i > 0 && i < k.length){ var ck = k.slice(i).trim(); var c2 = bul(ck); if(c2) return txt.replace(ck, c2); }
         var _si = k.indexOf(' · ');
-        if(_si > 0){ var _bas = k.slice(0, _si); var e3 = S[_bas]; if(e3 && e3[DIL]) return txt.replace(_bas, e3[DIL]); }
+        if(_si > 0){ var _bas = k.slice(0, _si); var c3 = bul(_bas); if(c3) return txt.replace(_bas, c3); }
         return txt;
       }
       function gez(node){
@@ -4962,7 +4993,7 @@ window.__I18N_SOZLUK__ = {
                 <li>PIN sade bir kilit — paylaşılan tablette başka operatörün adına işlem yapılmasını önler</li>
                 <li>Operatörler PIN'ini bilmiyorsa "0000" varsayılan ile başlar; her zaman değiştirilebilir</li>
                 <li>Dashboard'dan yapılan değişiklikler PIN gerektirmez (bu ekran yönetici içindir)</li>
-                <li>Operatör <strong>vardiya boyunca</strong> oturum açık kalır; "Çıkış" tuşuyla manuel kapanır</li>
+                <li>Operatör vardiya boyunca oturum açık kalır; "Çıkış" tuşuyla manuel kapanır</li>
             </ul>
         </div>
     </div>
@@ -5065,7 +5096,7 @@ window.__I18N_SOZLUK__ = {
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center">
                 <button class="btn" style="background:#0f172a;color:#fff;font-weight:700;padding:11px 16px;border-radius:10px;border:none;cursor:pointer;font-size:.85rem" onclick="mailSimdiGonder()">📤 Bugünün Raporunu Şimdi Gönder</button>
                 <button class="btn" style="background:transparent;color:var(--muted);font-weight:600;padding:11px 14px;border-radius:10px;border:1px solid var(--line, #334155);cursor:pointer;font-size:.85rem" onclick="mailTestGonder()">✉️ Test Maili Gönder</button>
-                <span id="mail-yontem-not" style="font-size:.78rem; color:var(--muted)">Gönderim ayarı sunucudaki <b>mail_config.json</b> dosyasında tanımlıdır.</span>
+                <span id="mail-yontem-not" style="font-size:.78rem; color:var(--muted)">Gönderim ayarı sunucudaki mail_config.json dosyasında tanımlıdır.</span>
             </div>
         </div>
     </div><!-- #sekme-raporlar -->
