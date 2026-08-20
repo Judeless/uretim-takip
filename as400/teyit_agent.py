@@ -174,6 +174,31 @@ def _oturum_ayar():
         return {'etkin': False, 'kullanici': '', 'aralik_sn': 300}
 
 
+def _sessiz_sebep(rc, hata_cikti):
+    """oturum_ac.js HIC stdout uretmedi -> sebebi anlasilir yaz (2026-08-20).
+
+    NEDEN: burada stderr YAKALANIYOR ama HIC KULLANILMIYORDU (robot tarafinda
+    duzeltilmisti, gozcude atlanmis). Sonuc: /durum "BILINMEYEN, rc=0 | " diyordu
+    ve gercek hata gorunmuyordu. Sahada yasandi (2026-08-20): AS400 alt sistemi
+    kapatilinca Session B oldu, gozcu her 5 dk deniyor ama NEDEN basarisiz oldugu
+    hicbir yerde yazmiyordu.
+
+    oturum_ac.js kendi bildigi hatalarda 'SONUC=IPTAL' BASAR. Hic cikti yoksa
+    script daha ActiveXObject satirinda olmus demektir -> PCOMM yok/kapali."""
+    st = ' '.join((hata_cikti or '').split())[:300]
+    if 'ECL37110' in st or 'emulazione' in st.lower() or 'emulation interface' in st.lower():
+        return (f'rc={rc} | PCOMM emulasyon arayuzu YOK (ECL37110): PCOMM kurulu ama '
+                f'agentin kostugu Windows oturumunda ACIK emulator penceresi yok. '
+                f'RDP ile girip A+B pencerelerini acin. | {st}')
+    if (not st) or any(k in st for k in ('ActiveX', 'Automation', '80040154', '800401F3',
+                                         'PCOMM', 'autECL', 'SetConnectionByName', 'sunucu')):
+        return (f'rc={rc} | Session B ACILAMADI: PCOMM penceresi kapali ya da COM nesnesi '
+                f'olusturulamiyor. Sunucuda PCOMM A+B pencerelerini acip sign-on yapin '
+                f'(as400\\Robot_Tani.bat teshis eder). | '
+                + (st or 'stderr bos — cscript hic calismamis olabilir'))
+    return f'rc={rc} | {st}'
+
+
 def _oturum_kontrol_et(kullanici):
     """oturum_ac.js'i calistir. Doner: (sonuc_etiketi, son_satir).
     _KILIT ile korunur → teyit robotu kosarken ASLA araya girmez."""
@@ -193,12 +218,17 @@ def _oturum_kontrol_et(kullanici):
         except subprocess.TimeoutExpired:
             return ('TIMEOUT', 'oturum_ac.js 180 sn icinde bitmedi')
     cikti = (pr.stdout or b'').decode('cp1254', errors='replace')
+    hata_cikti = (pr.stderr or b'').decode('cp1254', errors='replace')
     satirlar = [l.strip() for l in cikti.splitlines() if l.strip()]
-    son = satirlar[-1] if satirlar else '(cikti yok)'
     for etiket in ('SONUC=OK', 'SONUC=ZATEN', 'SONUC=IPTAL'):
         if etiket in cikti:
             return (etiket.split('=')[1], ' | '.join(satirlar[-3:]))
-    return ('BILINMEYEN', f'rc={pr.returncode} | ' + ' | '.join(satirlar[-3:]))
+    # Buraya dusuldiyse SONUC satiri hic basilmamis -> sebep stderr'de.
+    # rc'ye GUVENME: cscript, JScript calisma hatasinda bile 0 ile cikabiliyor.
+    if not satirlar:
+        return ('BILINMEYEN', _sessiz_sebep(pr.returncode, hata_cikti))
+    return ('BILINMEYEN', f'rc={pr.returncode} | ' + ' | '.join(satirlar[-3:])
+            + (f' | stderr: {" ".join(hata_cikti.split())[:200]}' if hata_cikti.strip() else ''))
 
 
 def _gozcu_dongusu():
