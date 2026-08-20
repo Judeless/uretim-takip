@@ -820,6 +820,142 @@ def _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts=None):
         return None   # KILIT/HATA: 0 DONDURME — caller ok_adet'i sifirlamasin
 
 
+# ─────────────────────────────────────────────────────────────
+# SAYAÇ PAYLAŞIMI — bir makinede birden fazla operatör (kullanıcı 2026-08-20)
+# ─────────────────────────────────────────────────────────────
+# "Bir tel referansını iki operatör birden seçebilsin, ikisi de aynı presi
+#  seçsin, tek presten sayı alınsın. Üretim sonunda adedi ikiye bölmeye
+#  çalışmasınlar; sinyal üretildiğinde her operatör için yarım yarım saysın —
+#  fazla üretilmiş gibi yanılgıya düşülmesin."
+#
+# Eski davranış: iki kayıt da presin TÜM sinyallerini sayardı → aynı 100 parça
+# panelde 200 görünürdü. Yeni davranış: bir sinyal üretildiği ANDA o referansta
+# kaç kayıt canlıysa sinyal onlara eşit bölünür.
+#
+# ZAMAN DİLİMİ ÖNEMLİ: ikinci operatör işe sonradan katılabilir. Kaydın kendi
+# penceresini körü körüne 2'ye bölmek, ilk operatörün YALNIZ çalıştığı süreyi de
+# yarıya indirirdi (üretim kaybolurdu). Bu yüzden pencere, paylaşanların
+# başlangıçlarıyla DİLİMLERE ayrılır ve her dilim o dilimde canlı olan kayıt
+# sayısına bölünür.
+#
+# TAM SAYI'ya çevirirken KALAN DAĞITILIR (en büyük kesir yöntemi): 7 sinyal / 2
+# kişi → 4 + 3 = 7. Herkes aşağı yuvarlansaydı 3 + 3 = 6 olur, her tur bir parça
+# buharlaşırdı; yukarı yuvarlansaydı 8 olur, kullanıcının kaçınmak istediği
+# "fazla üretim" yanılgısı geri gelirdi.
+
+
+def _ref_normal(ref):
+    """Referans karşılaştırma anahtarı — SQL'deki UPPER(REPLACE(kod,' ','')) ile aynı."""
+    return str(ref or '').replace(' ', '').upper()
+
+
+def _sayac_anahtari(bolum, robot_no, istasyon):
+    """Kaydın beslendiği SİNYAL AKIŞININ kimliği: (pilot_bolum, cihaz, istasyon_filtresi).
+
+    _pilot_pulse_say'in sorgu filtresiyle BİREBİR aynı üçlü — aynı anahtara sahip
+    iki kayıt fiziksel olarak AYNI sensörden sayar. Buradaki çözüm sırası
+    değişirse _pilot_pulse_say de değişmeli, yoksa paylaşım yanlış kayıtları
+    eşleştirir."""
+    cihaz = _sayac_cihazi(bolum, robot_no, istasyon)
+    ist = 0 if kayit_makine_ad(robot_no, istasyon) else int(istasyon or 0)
+    return (_fw_bolum(bolum, cihaz), cihaz, ist)
+
+
+def _canli_auto_kayitlar(conn, vardiya_id):
+    """Bu vardiyanın GÜNÜNDEKİ açık vardiyalarda canlı olan ESP32 sayaç kayıtları.
+
+    Yalnız sayac_otomatik=1: vardiya kapanınca (bkz. vardiya kapatma) tüm kayıtlar
+    dondurulur, referans değişince önceki kayıt dondurulur → 'canlı' kümesi tam
+    olarak "şu an bu sensörden sayanlar"dır. Test cihazı kayıtları hariç: onların
+    sayacı pilot.db değil test_sonuclari."""
+    try:
+        return conn.execute(
+            "SELECT u.id, u.istasyon, u.sayac_baslangic_ts, u.referans_kodu, "
+            "       COALESCE(v.bolum,'kaynak') AS bolum, v.robot_no "
+            "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id "
+            "WHERE v.tarih = (SELECT tarih FROM vardiyalar WHERE id=?) "
+            "  AND COALESCE(v.durum,'acik') != 'kapali' "
+            "  AND u.sayac_otomatik = 1 AND u.sayac_baslangic_ts IS NOT NULL "
+            "  AND u.test_cihaz_id IS NULL",
+            (vardiya_id,)).fetchall()
+    except Exception as e:
+        print(f'[_canli_auto_kayitlar] hata: {e}')
+        return []
+
+
+def _paylasanlar(canli, bolum, robot_no, istasyon, ref):
+    """Aynı sensörü + aynı referansı paylaşan canlı kayıtlar: [(bas_ts, id), ...] artan.
+
+    Referans şartı bilinçli: paylaşım YALNIZ 'iki kişi aynı işi yapıyor' halinde
+    açılmalı. Aynı makinede farklı referansta canlı bir kayıt varsa (unutulmuş
+    açık vardiya gibi) bu kaydın adedi yarıya inmemeli."""
+    anahtar = _sayac_anahtari(bolum, robot_no, istasyon)
+    rn = _ref_normal(ref)
+    if not rn:
+        return []
+    grup = []
+    for r in canli:
+        if _ref_normal(r['referans_kodu']) != rn:
+            continue
+        if _sayac_anahtari(r['bolum'], r['robot_no'], r['istasyon'] or 0) != anahtar:
+            continue
+        grup.append((r['sayac_baslangic_ts'], r['id']))
+    grup.sort()
+    return grup
+
+
+def _paylasimli_pulse(bolum, robot_no, istasyon, kayit_id, grup, biti_ts=None):
+    """Paylaşımlı sinyal sayımı — bu kaydın TAM SAYI payı.
+
+    grup: _paylasanlar() çıktısı (en az 2 üye). Tek üye varsa çağıran zaten
+    _pilot_pulse_say'i doğrudan kullanır (ek sorgu yok, eski davranış aynen).
+    pilot.db okunamazsa None döner → çağıran ok_adet'i EZMEZ."""
+    sinirlar = sorted({g[0] for g in grup})
+    paylar = {kid: 0.0 for _, kid in grup}
+    toplam = 0
+    for i, bas in enumerate(sinirlar):
+        son = sinirlar[i + 1] if i + 1 < len(sinirlar) else biti_ts
+        adet = _pilot_pulse_say(bolum, robot_no, istasyon, bas, son)
+        if adet is None:
+            return None                      # okunamadı — hiçbir payı yazma
+        aktif = [kid for bts, kid in grup if bts <= bas]
+        if not aktif:
+            continue
+        toplam += adet
+        for kid in aktif:
+            paylar[kid] += adet / len(aktif)
+    # Kalan dağıtımı: tam sayıya inerken toplam KORUNUR (4+3=7, 3+3=6 değil).
+    # Sıralama (kesir, id) — deterministik: aynı veriyle her senkronda aynı sonuç.
+    tam = {kid: int(p) for kid, p in paylar.items()}
+    kalan = toplam - sum(tam.values())
+    if kalan > 0:
+        for kid in sorted(paylar, key=lambda k: (-(paylar[k] - int(paylar[k])), k))[:kalan]:
+            tam[kid] += 1
+    return tam.get(kayit_id, 0)
+
+
+def _sayac_oku(conn, vardiya_id, kayit_id, bolum, robot_no, istasyon, basla_ts, ref,
+               biti_ts=None, canli=None):
+    """Bir üretim kaydının sensör adedi — paylaşım varsa payı, yoksa tam sayım.
+
+    canli: _canli_auto_kayitlar() önceden çekilmişse (toplu senkron) geçilir;
+    yoksa burada çekilir. Paylaşan yoksa TEK sorgu yapılır — yaygın durumda
+    (herkes kendi makinesinde) ek maliyet yok."""
+    try:
+        if canli is None:
+            canli = _canli_auto_kayitlar(conn, vardiya_id)
+        grup = _paylasanlar(canli, bolum, robot_no, istasyon, ref)
+    except Exception as e:
+        print(f'[_sayac_oku] paylasim hatasi: {e}')
+        grup = []
+    # Kaydın kendisi grupta değilse (beklenmez; canlı küme ile kayıt arasında bir
+    # tutarsızlık olursa) paylaşıma GİRME — _paylasimli_pulse tanımadığı id için 0
+    # döner ve gerçek üretimi sıfırlardı.
+    if len(grup) < 2 or kayit_id not in {k for _, k in grup}:
+        return _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts)
+    return _paylasimli_pulse(bolum, robot_no, istasyon, kayit_id, grup, biti_ts)
+
+
 def _pilot_son_pulse_dk(bolum, robot_no, gun=None, istasyon=0):
     """Bu cihazdan en son pulse'tan bu yana geçen dakika. Hiç pulse yoksa None.
     10 dk duruş uyarısı için kullanılır. pres'te istasyon = operatörün o an
@@ -1133,6 +1269,10 @@ def _uretim_sayac_senkron(conn, vardiya_id):
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vardiya_id,)
         ).fetchall()
+        # Paylaşım adayları BİR KEZ çekilir (satır başına değil): bu senkron
+        # dashboard/andon her yenilendiğinde çalışır, satır başına sorgu maliyeti
+        # gereksiz yere katlanırdı.
+        canli = _canli_auto_kayitlar(conn, vardiya_id) if rows else []
         for r in rows:
             # Allowlist kontrolü SATIR bazlı: pres'te makine üretim kaydındadır
             # (istasyon), dolayısıyla desteklenirlik satırdan satıra değişebilir.
@@ -1142,8 +1282,11 @@ def _uretim_sayac_senkron(conn, vardiya_id):
                 cnt = _test_basari_say(conn, r['test_cihaz_id'], r['referans_kodu'],
                                        r['sayac_baslangic_ts'])
             elif robot_allow:
-                cnt = _pilot_pulse_say(v['bolum'], v['robot_no'], r['istasyon'] or 0,
-                                       r['sayac_baslangic_ts'])
+                # Aynı makinede aynı referansta başka canlı kayıt varsa sinyal
+                # PAYLAŞILIR (bkz. _sayac_oku) — yoksa tek sorgulu eski yol.
+                cnt = _sayac_oku(conn, vardiya_id, r['id'], v['bolum'], v['robot_no'],
+                                 r['istasyon'] or 0, r['sayac_baslangic_ts'],
+                                 r['referans_kodu'], canli=canli)
                 cnt = _bukum_bol(cnt, r['bukum_operasyon'])
             else:
                 cnt = None
@@ -2472,15 +2615,17 @@ def vardiya_hat_degistir(vid):
         # uretim_ekle'deki referans-değişimi dondurma mantığıyla aynı.
         simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         aktif = c.execute(
-            "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
+            "SELECT id, istasyon, sayac_baslangic_ts, referans_kodu, "
+            "       COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
             "       COALESCE(paket_adedi,1) AS paket_adedi "
             "FROM uretim_kayitlari "
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vid,)
         ).fetchall()
         for o in aktif:
-            fcnt = _pilot_pulse_say(v['bolum'], eski_robot, o['istasyon'] or 0,
-                                    o['sayac_baslangic_ts'], biti_ts=simdi)
+            fcnt = _sayac_oku(conn, vid, o['id'], v['bolum'], eski_robot,
+                              o['istasyon'] or 0, o['sayac_baslangic_ts'],
+                              o['referans_kodu'], biti_ts=simdi)
             # Dondurma da bölünmeli — yoksa kayıt kapanınca adet ham pulse'a fırlar
             fcnt = _paket_carp(_bukum_bol(fcnt, o['bukum_operasyon']), o['paket_adedi'])
             if fcnt is not None:
@@ -2620,12 +2765,17 @@ def uretim_ekle():
             # tekrarlanmaz — tel_referans_kodu önce mevcut eki ayıklar.
             if vardiya_bolum == 'tel' and ref:
                 ref = tel_referans_kodu(ref, kayit_hat)
-            # ── KAPAMA: BİR REFERANS = TEK OPERATÖR (kullanıcı 2026-08-04) ──────
-            # "Kapama hattında 1 referansı birden fazla operatör yapamaz — tek
-            # operatör tek iş." Aynı gün aynı referans için BAŞKA bir operatörün
-            # kapama kaydı varsa yeni kayıt reddedilir (kendi kaydını güncellemek
-            # serbest: PUT ayrı endpoint, burası yalnız YENİ kayıt).
-            # Kesim/otomat/son montaj bölünebilir — kısıt YALNIZ kapamaya özel.
+            # ── KAPAMA: AYNI REFERANS = AYNI PRES (kullanıcı 2026-08-20) ───────
+            # ESKİ KURAL (2026-08-04): "kapamada bir referansı tek operatör yapar"
+            # → ikinci operatör 409 ile reddediliyordu.
+            # YENİ KURAL: "Bir tel referansını iki operatör birden seçebilsin, fakat
+            # birisi hangi presi seçtiyse diğeri de AYNI presi seçsin. Tek presten
+            # sayı alınsın." Yani kısıt kalkmadı, YER DEĞİŞTİRDİ: artık engellenen
+            # şey ikinci operatör değil, AYNI referansın BAŞKA bir preste açılması.
+            # Sebep: sayaç payı sensör bazlı bölünüyor (bkz. _sayac_oku); iki ayrı
+            # preste açılan aynı referans iki ayrı sinyal akışından TAM sayardı ve
+            # üretim yine iki katı görünürdü.
+            # Kesim/otomat/son montaj serbest — kısıt YALNIZ kapamaya özel.
             if vardiya_bolum == 'tel' and tel_hat_adimi(kayit_hat) == 'Kapama' and ref:
                 # LIMIT YOK: aynı referansın o günkü TÜM tel kayıtları çekilir ve
                 # kapama olanlar Python'da süzülür. (LIMIT 1 ile ilk satır kesim/otomat
@@ -2640,12 +2790,17 @@ def uretim_ekle():
                 """, (vardiya_id_int, ref, vardiya_id_int)).fetchall()
                 # Karşı kaydın hattı da KAYITTAN çözülür (vardiya hattı artık sabit)
                 _cak_hat = {id(r): kayit_hatti(r['robot_no'], r['istasyon']) for r in _cak}
-                _baska = [r for r in _cak if tel_hat_adimi(_cak_hat[id(r)]) == 'Kapama']
+                # BAŞKA PRESTE olanlar engellenir; AYNI preste olan serbesttir
+                # (iki operatör tek presi paylaşıyor → sayaç ikiye bölünür).
+                _baska = [r for r in _cak
+                          if tel_hat_adimi(_cak_hat[id(r)]) == 'Kapama'
+                          and _cak_hat[id(r)] != kayit_hat]
                 if _baska:
                     return jsonify({'hata':
-                        f"Bu referansın kapaması bugün zaten {_baska[0]['operator_adi']} "
-                        f"({_cak_hat[id(_baska[0])]}) tarafından girilmiş. Kapamada bir referansı "
-                        f"tek operatör yapar — adet düzeltmesi gerekiyorsa o kaydı güncelleyin."}), 409
+                        f"Bu referansın kapaması bugün {_baska[0]['operator_adi']} tarafından "
+                        f"{_cak_hat[id(_baska[0])]} hattında girilmiş. Aynı referans iki ayrı "
+                        f"preste kapanamaz — birlikte çalışıyorsanız siz de "
+                        f"{_cak_hat[id(_baska[0])]} hattını seçin; sayaç ikinize eşit bölünür."}), 409
             ct_in = float(satir.get('cycle_time_sn', 0) or 0)
             # cycle_time gönderilmediyse ya da 0 ise referanslardan otomatik çek.
             # LOKASYON filtresi ŞART: composite UNIQUE sonrası aynı kod TK1+TK2'de
@@ -2697,15 +2852,19 @@ def uretim_ekle():
             elif auto:
                 # Aynı vardiya+istasyon önceki ESP32 auto kayıt(lar)ı dondur (test-cihazı hariç)
                 onceki = c.execute(
-                    "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
+                    "SELECT id, istasyon, sayac_baslangic_ts, referans_kodu, "
+                    "       COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
                     "       COALESCE(paket_adedi,1) AS paket_adedi "
                     "FROM uretim_kayitlari "
                     "WHERE vardiya_id=? AND istasyon=? AND sayac_otomatik=1 AND test_cihaz_id IS NULL",
                     (data['vardiya_id'], ist_val)
                 ).fetchall()
                 for o in onceki:
-                    fcnt = _pilot_pulse_say(vardiya_bolum, vardiya_robot, ist_val,
-                                            o['sayac_baslangic_ts'], biti_ts=simdi)
+                    # Dondurma da PAYLAŞIMLI okunur: kayıt kapanırken adet ham
+                    # sinyale fırlarsa paylaşım anlamını yitirirdi.
+                    fcnt = _sayac_oku(conn, data['vardiya_id'], o['id'], vardiya_bolum,
+                                      vardiya_robot, ist_val, o['sayac_baslangic_ts'],
+                                      o['referans_kodu'], biti_ts=simdi)
                     # Dondurma da bölünüp çarpılmalı (bkz. _bukum_bol / _paket_carp)
                     fcnt = _paket_carp(_bukum_bol(fcnt, o['bukum_operasyon']),
                                        o['paket_adedi'])
@@ -3754,9 +3913,17 @@ def kayit_hatlari_api():
     # Kullanılmayan hatlar listede GÖSTERİLMEZ ama POZİSYONLARI listede DURUR
     # (istasyon numaraları kaymasın): kodu bekleyen slotlar (TEL_GIZLI_HATLAR) ve
     # tel son montaja devredilen montaj butonları (GIZLI_MONTAJ_HATLARI).
-    hatlar = [{'no': i + 1, 'ad': ad}
+    hatlar = [{'no': i + 1, 'ad': ad, 'adim': tel_hat_adimi(ad) or ''}
               for i, ad in enumerate(HAT_MAKINELERI.get(sh, []))
               if ad not in GIZLI_HATLAR] if sh else []
+    # TEL: LİSTE SIRASI ≠ POZİSYON (kullanıcı 2026-08-20). Yeni makine listenin
+    # SONUNA eklenir (pozisyon = istasyon no, asla kaymamalı) ama operatör onu
+    # kendi proses adımının yanında görmeli — 'Soyma' kesimin altında, dropdown'ın
+    # dibinde değil. Çözüm: GÖNDERİM SIRASI proses sırasına göre, 'no' aynen kalır.
+    # Kayda giden değer 'no' olduğu için sıralama tamamen görsel, risksiz.
+    if bolum == 'tel':
+        _sira = {a: i for i, a in enumerate(TEL_ADIMLARI)}
+        hatlar.sort(key=lambda h: (_sira.get(h['adim'], len(_sira)), h['no']))
     resp = jsonify({'sabit_hat': sh, 'etiket': etiket, 'hatlar': hatlar})
     resp.headers['Cache-Control'] = 'no-store'
     return resp

@@ -3944,10 +3944,22 @@ window.__I18N_SOZLUK__ = {
       var lbl = document.getElementById('d-kayit-hat-lbl');
       if (!sel || !_kayitHat) return;
       if (lbl) lbl.textContent = _kayitHat.etiket || 'Hat';
+      // ADIM BAŞLIKLI GRUPLAMA (2026-08-20): liste sunucudan PROSES SIRASINDA gelir
+      // ve her hat kendi 'adim' alanını taşır. Aynı adımın makineleri tek başlık
+      // altında toplanır — 'Manuel Kesim' kesimin, 'Soyma' kendi başlığının altında
+      // görünür. Sunucu 'adim' göndermezse (tel dışı bölüm) düz liste basılır.
       var html = '<option value="0">— Seçin —</option>';
+      var acikGrup = '';
       (_kayitHat.hatlar || []).forEach(function (h) {
+        var grup = h.adim || '';
+        if (grup !== acikGrup) {
+          if (acikGrup) html += '</optgroup>';
+          if (grup) html += '<optgroup label="' + esc(grup) + '">';
+          acikGrup = grup;
+        }
         html += '<option value="' + h.no + '">' + esc(h.ad) + '</option>';
       });
+      if (acikGrup) html += '</optgroup>';
       sel.innerHTML = html;
     }
 
@@ -4119,10 +4131,17 @@ window.__I18N_SOZLUK__ = {
     // Kayıt sunucuda ara adımlarda '93.TK.464 KESIM' olarak yazılır (son adımda
     // base kod kalır). Operatör bunu KAYDETMEDEN ÖNCE görsün — sonradan raporda
     // "kod neden değişmiş" sorusu çıkmasın. Salt bilgi; kodu değiştirmez.
-    var TEL_EK = { 'Halat Kesme': 'KESIM', 'Yarı Otomatik': 'YARI OTOMAT',
+    // tel_proses.TEL_ADIM_EKI ile BİREBİR — yeni adım eklenince buraya da yazılmalı,
+    // yoksa operatör ek önizlemesini göremez (sunucu yine de doğru eki yazar).
+    var TEL_EK = { 'Halat Kesme': 'KESIM', 'Soyma': 'SOYMA',
+                   'Otomatik Hazırlık': 'HAZIRLIK', 'Yarı Otomatik': 'YARI OTOMAT',
                    'Tam Otomatik': 'TAM OTOMAT', 'Kapama': 'KAPAMA', 'Son Montaj': 'SON MONTAJ' };
+    // Hat adı adım kalıbına uymayan makineler (tel_proses.TEL_HAT_ADIM_ISTISNA'nın eşi):
+    // 'Manuel Kesim' operatöre kendi adıyla görünür ama Halat Kesme adımıdır.
+    var TEL_HAT_ISTISNA = { 'Manuel Kesim': 'Halat Kesme' };
     function telHatAdimi(hat) {
       var ad = String(hat || '').trim();
+      if (TEL_HAT_ISTISNA[ad]) return TEL_HAT_ISTISNA[ad];
       if (TEL_EK[ad]) return ad;
       var kok = ad.replace(/\s*\d+$/, '').trim();
       return TEL_EK[kok] ? kok : null;

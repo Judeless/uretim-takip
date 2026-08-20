@@ -31,14 +31,31 @@ import re
 # makinesi. KESİMDEN SONRA gelir (kullanıcı) → kesim ile otomat adımlarının
 # arasında. Bu tuple RAPOR KOLON SIRASINI belirler; mantık TEL_ADIM_SIRA
 # üyeliğine bakar, sayısal değere değil.
-TEL_ADIMLARI = ('Halat Kesme', 'Otomatik Hazırlık', 'Yarı Otomatik', 'Tam Otomatik',
-                'Kapama', 'Son Montaj')
+# 'Soyma' 2026-08-20'de eklendi (kullanıcı): "kesim yapılan ürünlerde soyma
+# yapılır, HER ÜRÜNE YAPILMAZ. Kesim bölümünün altında görünsün fakat kodun
+# yanında SOYMA olarak gelsin raporda." Bu yüzden AYRI adımdır (kendi kod eki +
+# kendi rapor sütunu) ama sırada kesimin hemen ardından gelir; operatör
+# listesinde de kesim makinelerinin yanında görünür (bkz. /api/kayit_hatlari).
+# KESIM ile aynı eki ALAMAZDI: soyma her ürüne yapılmadığı için aynı kodda
+# toplansalardı, soyulan ürünün kesimi ile soyması tek koda yığılır ve aynı 100
+# parça 200 üretim gibi görünürdü — adım ayrımının varlık sebebi tam olarak bu.
+TEL_ADIMLARI = ('Halat Kesme', 'Soyma', 'Otomatik Hazırlık',
+                'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
 
-# Sıra numarası: yarı ve tam otomatik AYNI adım sayılır (2) — biri diğerinin
+# Sıra numarası: yarı ve tam otomatik AYNI adım sayılır — biri diğerinin
 # alternatifi, ikisi arka arkaya uygulanmaz.
-TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Otomatik Hazırlık': 2,
-                 'Yarı Otomatik': 3, 'Tam Otomatik': 3,
-                 'Kapama': 4, 'Son Montaj': 5}
+# NOT: sayısal değer HİÇBİR YERDE kullanılmıyor (mantık ÜYELİĞE bakar); burada
+# prosesi okunur kılmak için duruyor. Bu yüzden araya adım eklemek güvenlidir.
+TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Soyma': 2, 'Otomatik Hazırlık': 3,
+                 'Yarı Otomatik': 4, 'Tam Otomatik': 4,
+                 'Kapama': 5, 'Son Montaj': 6}
+
+# HAT ADI → ADIM İSTİSNASI (kullanıcı 2026-08-20). Normalde hat adı adımın
+# kendisidir ya da sonuna numara alır ('Kapama 30' → 'Kapama'). 'Manuel Kesim'
+# bu kalıba UYMAZ: operatör listede makinenin gerçek adını görmeli ama sistem
+# bunu Halat Kesme saymalı (kod eki KESIM, raporda kesim sütunu) — kesim üretimi
+# iki ayrı sütuna bölünmesin.
+TEL_HAT_ADIM_ISTISNA = {'Manuel Kesim': 'Halat Kesme'}
 
 # FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
 # · kapama 12 · son montaj 4 = 22 hat. Tek makineli adımlarda numara YOK.
@@ -90,6 +107,15 @@ TEL_HATLARI = (
     # Operatöre Türkçe görünür; sayaç cihazının robot_no'su ASCII 'Otomatik Hazirlik'
     # (firmware/klasör adı kuralı) — eşleme app.HAT_SAYAC_CIHAZI'nda.
     + ['Otomatik Hazırlık']
+    # 2026-08-20 (kullanıcı): TK1'de bir MANUEL KESİM makinesi ve bir SOYMA
+    # makinesi var. Listenin SONUNA eklendiler — araya girmek yazılmış kayıtların
+    # istasyon numaralarını başka hatta kaydırırdı. Operatör listesinde yine de
+    # kendi adımlarının yanında görünürler: /api/kayit_hatlari listeyi PROSES
+    # SIRASINA göre sıralayıp gönderir, gönderilen değer POZİSYON numarasıdır.
+    #   'Manuel Kesim' → adım 'Halat Kesme' (TEL_HAT_ADIM_ISTISNA), kod eki KESIM
+    #   'Soyma'        → kendi adımı,                                kod eki SOYMA
+    # İkisinin de sayaç modülü YOK → adet elle girilir.
+    + ['Manuel Kesim', 'Soyma']
 )
 
 # Kullanılmayan / kodu bekleyen hatlar — operatör listesinde gösterilmez ama
@@ -110,6 +136,8 @@ def tel_hat_adimi(robot_no):
     ad = str(robot_no or '').strip()
     if not ad:
         return None
+    if ad in TEL_HAT_ADIM_ISTISNA:      # 'Manuel Kesim' → 'Halat Kesme'
+        return TEL_HAT_ADIM_ISTISNA[ad]
     if ad in TEL_ADIM_SIRA:
         return ad
     kok = _SON_NUMARA.sub('', ad).strip()
@@ -137,14 +165,17 @@ def tel_hat_adimi(robot_no):
 TEL_ADIM_EKI = {
     'Otomatik Hazırlık': 'HAZIRLIK',
     'Halat Kesme':   'KESIM',
+    'Soyma':         'SOYMA',
     'Yarı Otomatik': 'YARI OTOMAT',
     'Tam Otomatik':  'TAM OTOMAT',
     'Kapama':        'KAPAMA',
     'Son Montaj':    'SON MONTAJ',
 }
 # Ek zaten yazılmış mı? (operatör elle yazdıysa iki kez eklenmesin)
+# Yeni adım eklenince EKİ BURAYA DA yazılmalı — yoksa o ek ayıklanmaz ve kod
+# her kayıtta bir ek daha alır ('… SOYMA SOYMA').
 _EK_DESEN = re.compile(
-    r'\s+(HAZIRLIK|KESIM|YARI\s*OTOMAT|TAM\s*OTOMAT|KAPAMA|SON\s*MONTAJ)\s*$',
+    r'\s+(HAZIRLIK|KESIM|SOYMA|YARI\s*OTOMAT|TAM\s*OTOMAT|KAPAMA|SON\s*MONTAJ)\s*$',
     re.IGNORECASE)
 
 
@@ -157,7 +188,7 @@ def tel_ek_ayikla(referans_kodu):
     ek eklenmeden önce ayıklanır) ama elle yazımla girebilir; girdiğinde de
     sessizce yaşamasın."""
     kod = str(referans_kodu or '').strip()
-    for _ in range(6):          # 6 = adım sayısı; sonsuz döngü olamaz
+    for _ in range(8):          # > adım sayısı; sonsuz döngü olamaz
         yeni = _EK_DESEN.sub('', kod).strip()
         if yeni == kod:
             return kod

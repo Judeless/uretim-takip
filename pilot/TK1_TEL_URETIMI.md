@@ -28,19 +28,38 @@ hiç olmayabilir. O ürünlerde akış kapamada biter.
 **Yarı ve tam otomatik aynı sıradadır** (2. adım): biri diğerinin alternatifidir,
 ikisi arka arkaya uygulanmaz.
 
-### Hatlar (21)
+### Hatlar (25 pozisyon, 23'ü görünür)
 
 | Adım | Makine sayısı | Hat adları |
 |---|---|---|
-| Halat Kesme | 3 | `Halat Kesme 1` · `Halat Kesme 2` · `Halat Kesme 3` |
-| Yarı Otomatik | 1 | `Yarı Otomatik` |
+| Halat Kesme | 3 + 1 | `Halat Kesme 1..3` · **`Manuel Kesim`** |
+| Soyma | **1** | `Soyma` |
+| Otomatik Hazırlık | 1 | `Otomatik Hazırlık` |
+| Yarı Otomatik | 2 | `Yarı Otomatik 1` · `Yarı Otomatik 2` |
 | Tam Otomatik | 1 | `Tam Otomatik` |
-| Kapama | **12** | `Kapama 1` … `Kapama 12` |
+| Kapama | **12** | saha kodlarıyla (`Kapama 5`, `Kapama 12`, `Kapama 4` …) |
 | Son Montaj | **2** | `Son Montaj 4` · `Son Montaj 5` (sahadaki buton numaraları) |
+
+> **LİSTE SIRASI ≠ POZİSYON.** Yeni makine `TEL_HATLARI`'nın SONUNA eklenir
+> (pozisyon = `uretim_kayitlari.istasyon`, asla kaymamalı) ama operatör onu kendi
+> adımının yanında görmeli. `/api/kayit_hatlari` listeyi proses sırasına göre
+> sıralayıp her hattın `adim`'ıyla gönderir; mobil bunları `<optgroup>` başlıkları
+> altında toplar. Kayda giden değer yine POZİSYON numarasıdır.
 
 Tek makineli adımlarda numara yoktur. Yeni makine eklenirse **sona** eklenir ve
 adım adı korunur (`Kapama 13`) — sistem hat adının sonundaki numarayı atarak adım
 tipini bulur (`tel_hat_adimi`).
+
+> **Manuel Kesim + Soyma (2026-08-20, kullanıcı):** TK1'de bir manuel kesim ve bir
+> soyma makinesi var.
+> · `Manuel Kesim` operatöre kendi adıyla görünür ama **adımı Halat Kesme'dir**
+>   (`TEL_HAT_ADIM_ISTISNA`): kod eki `KESIM`, raporda kesim sütununda toplanır —
+>   kesim üretimi iki sütuna bölünmesin.
+> · `Soyma` **ayrı adımdır** (kod eki `SOYMA`, kendi rapor sütunu). Sebep kullanıcı
+>   ifadesiyle: "kesim yapılan ürünlerde soyma yapılır, HER ÜRÜNE YAPILMAZ."
+>   `KESIM` ekiyle aynı kodda toplansaydı, soyulan ürünün kesimi ile soyması tek
+>   koda yığılır ve aynı 100 parça 200 üretim gibi görünürdü.
+> · İkisinin de sayaç modülü YOK → adet elle girilir.
 
 > **Son Montaj 4 → 2 hat (2026-08-20):** son montaj işi, montaj hattından taşınan
 > **iki buton modülüyle** yapılıyor. Modüller etiketleriyle geldi, o yüzden hat adı
@@ -173,3 +192,42 @@ sıfırlamak diğer ikisini etkilemez (`istasyon` 1..3 ile reset).
 - **İş takibi** ve **AS400 teyidi** tel bölümünde yok (teyidi kalite departmanı verir).
 - Tel referanslarında **cycle time tanımlı değil** → OEE performans bileşeni 0 çıkar.
   Adım bazlı süre gerekirse (kesim 30 sn, kapama 60 sn…) ayrı tanım şart olur.
+
+---
+
+## Bir makinede birden fazla operatör (2026-08-20)
+
+Kullanıcı: *"Bir tel referansını iki operatör birden seçebilsin, fakat birisi hangi
+presi seçtiyse diğeri de aynı presi seçebilsin. Tek presten sayı alınsın. Üretim
+sonunda adedi ikiye bölmeye çalışmasınlar; sinyal üretildiğinde her operatör için
+yarım yarım saysın — fazla üretilmiş gibi yanılgıya düşülmesin."*
+
+**Kural değişikliği.** 2026-08-04'teki "kapamada bir referansı tek operatör yapar"
+kısıtı KALKMADI, **yer değiştirdi**: engellenen şey artık ikinci operatör değil,
+aynı referansın **başka bir preste** açılması. Aynı prese ikinci operatör serbest.
+
+**Sayım.** `app._sayac_oku` bir kaydın adedini yazmadan önce, aynı **sensöre**
+(`_sayac_anahtari` = pilot bölüm + cihaz + istasyon filtresi) ve aynı **referansa**
+bağlı başka **canlı** kayıt (`sayac_otomatik=1`, vardiya açık) var mı diye bakar.
+
+| Durum | Davranış |
+|---|---|
+| Paylaşan yok | Tek sorgu, eski davranış — ek maliyet yok |
+| Paylaşan var | Sinyal, üretildiği andaki canlı kayıt sayısına bölünür |
+
+**Zaman dilimi önemli.** İkinci operatör sonradan katılabilir. Kaydın penceresini
+körü körüne 2'ye bölmek, ilk operatörün YALNIZ çalıştığı süreyi de yarıya
+indirirdi. Bu yüzden pencere paylaşanların başlangıçlarıyla dilimlere ayrılır:
+
+```
+A 08:00 başladı, B 10:00 katıldı.  08–10 arası 10 sinyal, 10:00 sonrası 6 sinyal
+   A = 10  +  6/2 = 13        B = 6/2 = 3        toplam 16  (ham sinyal = 16 ✔)
+```
+
+**Kalan dağıtılır.** 7 sinyal / 2 kişi → **4 + 3 = 7**. Herkes aşağı yuvarlansaydı
+3+3=6 olur, her turda bir parça buharlaşırdı; yukarı yuvarlansaydı 8 olur ve tam da
+kaçınılmak istenen "fazla üretim" yanılgısı geri gelirdi.
+
+**Referans şartı bilinçli.** Aynı makinede FARKLI referansta canlı bir kayıt varsa
+(unutulmuş açık vardiya gibi) paylaşım açılmaz — masum bir kaydın adedi yarıya
+inmesin. Paylaşım yalnız "iki kişi aynı işi yapıyor" halinde devreye girer.

@@ -119,6 +119,10 @@ TK1_SAYFA = {
 # tanınmayan kolon sessizce YOK SAYILIR (yeni kolon eklenirse buraya da eklenmeli).
 TEL_ADIM_BASLIK = {
     'halat kesme': 'Halat Kesme', 'kesim': 'Halat Kesme', 'halat kesim': 'Halat Kesme',
+    'manuel kesim': 'Halat Kesme',   # makine adı ayrı, adım aynı (2026-08-20)
+    'soyma': 'Soyma',                # kesim yapılan her ürüne yapılmaz → AYRI adım
+    'otomatik hazırlık': 'Otomatik Hazırlık', 'otomatik hazirlik': 'Otomatik Hazırlık',
+    'hazırlık': 'Otomatik Hazırlık', 'hazirlik': 'Otomatik Hazırlık',
     'yarı otomatik': 'Yarı Otomatik', 'yari otomatik': 'Yarı Otomatik',
     'yarı otomat': 'Yarı Otomatik', 'yari otomat': 'Yarı Otomatik',
     'tam otomatik': 'Tam Otomatik', 'tam otomat': 'Tam Otomatik',
@@ -131,7 +135,10 @@ _TEL_ISARET = {'x', '1', 'evet', 'var', '✓', '✔', 'e', 'yes', 'true'}
 
 # Üretim sırası — tel_adimlar bu sıraya göre yazılır (app.TEL_ADIMLARI ile aynı).
 # Sıralı tutmak "son adım" hesabını kolaylaştırır ve panelde okunaklı gösterir.
-TEL_ADIM_SIRASI = ('Halat Kesme', 'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
+# 2026-08-20: 'Soyma' + 'Otomatik Hazırlık' eklendi — tel_proses.TEL_ADIMLARI ile
+# BİREBİR olmalı, yoksa Excel'de işaretlenen adım panelde sırasız/eksik görünür.
+TEL_ADIM_SIRASI = ('Halat Kesme', 'Soyma', 'Otomatik Hazırlık',
+                   'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
 
 
 def _tel_isaretli_mi(hucre):
