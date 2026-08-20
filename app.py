@@ -945,6 +945,76 @@ def _bukum_excel_yaz(ref, adet):
         print(f'[bukum] Excel sync hatasi ({ref}): {e}')
 
 
+def _paket_carp(adet, paket):
+    """Sayılan adedi PAKET ADEDİYLE çarpar (TK1 montaj: 1 buton = 10 ürün).
+
+    _bukum_bol'un TERSİ: o böler (N sinyal = 1 parça), bu çarpar (1 sinyal = N
+    parça). TK1'de tel ürünleri 10'arlı montajlanıyor — operatör sepeti bitirince
+    bir kez basıyor, sepette 10 adet var.
+    adet None (kaynak okunamadı) ise None döner: çağıran ok_adet'i EZMEZ.
+    paket <= 1 ise dokunmaz — tüm eski kayıtlar ve diğer bölümler etkilenmez."""
+    if adet is None:
+        return None
+    try:
+        n = int(paket or 1)
+    except (TypeError, ValueError):
+        n = 1
+    return adet if n <= 1 else adet * n
+
+
+def _paket_acik_mi(bolum, lokasyon, hat):
+    """Paket (montaj adet) çarpanı bu kayıtta anlamlı mı?
+
+    TK1'de montaj işi iki yerde yapılıyor: 'montaj' bölümü (MONTAJ - 1..5 butonlu
+    masalar) ve tel bölümünün 'Son Montaj' adımı. İkisinde de ürün 10'arlı
+    sepetlerle toplanıyor. Başka hiçbir yerde açılmaz — TK2 montajda 1 basış =
+    1 parça ve orada çarpan açık kalsa üretim 10 katına çıkardı."""
+    lok = (lokasyon or 'TK2').upper()
+    if lok != 'TK1':
+        return False
+    if (bolum or '') == 'montaj':
+        return True
+    return (bolum or '') == 'tel' and tel_hat_adimi(hat) == 'Son Montaj'
+
+
+def _paket_coz(c, gelen, ref, bolum, lokasyon, hat=None):
+    """Üretim kaydına yazılacak paket adedini belirler (_bukum_op_coz kalıbı).
+    Kapsam dışında her zaman 1 → özellik kapalı, hiçbir şey değişmez."""
+    if not _paket_acik_mi(bolum, lokasyon, hat):
+        return 1
+    kayitli = 1
+    try:
+        row = c.execute(
+            "SELECT COALESCE(paket_adedi,1) AS p FROM referans_listesi "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? LIMIT 1",
+            (ref, bolum, lokasyon)
+        ).fetchone()
+        if row:
+            kayitli = int(row['p'] or 1)
+    except Exception:
+        kayitli = 1
+
+    if gelen in (None, '', 0, '0'):
+        return max(1, kayitli)
+    try:
+        yeni = int(gelen)
+    except (TypeError, ValueError):
+        return max(1, kayitli)
+    yeni = max(1, min(999, yeni))   # 1..999 — sepet adedi büyük olabilir
+    if yeni != kayitli:
+        try:
+            c.execute(
+                "UPDATE referans_listesi SET paket_adedi=? "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=?",
+                (yeni, ref, bolum, lokasyon)
+            )
+        except Exception as e:
+            print(f'[paket] referans guncellenemedi ({ref}): {e}')
+    return yeni
+
+
 def _bukum_op_coz(c, gelen, ref, bolum, lokasyon, hat=None):
     """Üretim kaydına yazılacak "1 parça = kaç sinyal" sayısını belirler.
 
@@ -1016,7 +1086,8 @@ def _uretim_sayac_senkron(conn, vardiya_id):
             return
         rows = conn.execute(
             "SELECT id, istasyon, sayac_baslangic_ts, test_cihaz_id, referans_kodu, "
-            "       COALESCE(bukum_operasyon, 1) AS bukum_operasyon "
+            "       COALESCE(bukum_operasyon, 1) AS bukum_operasyon, "
+            "       COALESCE(paket_adedi, 1) AS paket_adedi "
             "FROM uretim_kayitlari "
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vardiya_id,)
@@ -1035,6 +1106,10 @@ def _uretim_sayac_senkron(conn, vardiya_id):
                 cnt = _bukum_bol(cnt, r['bukum_operasyon'])
             else:
                 cnt = None
+            # PAKET ÇARPANI en sona: sinyal sayısı önce parçaya çevrilir
+            # (büküm bölmesi), sonra sepet adediyle çarpılır. Test cihazı
+            # sayımında da geçerli — 1 başarılı test = 1 sepet olabilir.
+            cnt = _paket_carp(cnt, r['paket_adedi'])
             if cnt is not None:   # kaynak okunamadıysa ok_adet'i SIFIRLAMA (gerçek üretimi ezme)
                 conn.execute("UPDATE uretim_kayitlari SET ok_adet=? WHERE id=?", (cnt, r['id']))
         conn.commit()
@@ -2356,7 +2431,8 @@ def vardiya_hat_degistir(vid):
         # uretim_ekle'deki referans-değişimi dondurma mantığıyla aynı.
         simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         aktif = c.execute(
-            "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon "
+            "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
+            "       COALESCE(paket_adedi,1) AS paket_adedi "
             "FROM uretim_kayitlari "
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vid,)
@@ -2365,7 +2441,7 @@ def vardiya_hat_degistir(vid):
             fcnt = _pilot_pulse_say(v['bolum'], eski_robot, o['istasyon'] or 0,
                                     o['sayac_baslangic_ts'], biti_ts=simdi)
             # Dondurma da bölünmeli — yoksa kayıt kapanınca adet ham pulse'a fırlar
-            fcnt = _bukum_bol(fcnt, o['bukum_operasyon'])
+            fcnt = _paket_carp(_bukum_bol(fcnt, o['bukum_operasyon']), o['paket_adedi'])
             if fcnt is not None:
                 c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
                           (fcnt, o['id']))
@@ -2580,7 +2656,8 @@ def uretim_ekle():
             elif auto:
                 # Aynı vardiya+istasyon önceki ESP32 auto kayıt(lar)ı dondur (test-cihazı hariç)
                 onceki = c.execute(
-                    "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon "
+                    "SELECT id, istasyon, sayac_baslangic_ts, COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
+                    "       COALESCE(paket_adedi,1) AS paket_adedi "
                     "FROM uretim_kayitlari "
                     "WHERE vardiya_id=? AND istasyon=? AND sayac_otomatik=1 AND test_cihaz_id IS NULL",
                     (data['vardiya_id'], ist_val)
@@ -2588,8 +2665,9 @@ def uretim_ekle():
                 for o in onceki:
                     fcnt = _pilot_pulse_say(vardiya_bolum, vardiya_robot, ist_val,
                                             o['sayac_baslangic_ts'], biti_ts=simdi)
-                    # Dondurma da bölünmeli (bkz. _bukum_bol)
-                    fcnt = _bukum_bol(fcnt, o['bukum_operasyon'])
+                    # Dondurma da bölünüp çarpılmalı (bkz. _bukum_bol / _paket_carp)
+                    fcnt = _paket_carp(_bukum_bol(fcnt, o['bukum_operasyon']),
+                                       o['paket_adedi'])
                     if fcnt is not None:
                         c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
                                   (fcnt, o['id']))
@@ -2624,10 +2702,13 @@ def uretim_ekle():
             # sonradan değişse bile bu kaydın adedi retroaktif kaymasın.
             bop = _bukum_op_coz(c, satir.get('bukum_operasyon', data.get('bukum_operasyon')),
                                 ref, vardiya_bolum, vardiya_lokasyon, kayit_hat)
+            # Paket (montaj adet) çarpanı — TK1 montaj / tel Son Montaj dışında 1
+            pak = _paket_coz(c, satir.get('paket_adedi', data.get('paket_adedi')),
+                             ref, vardiya_bolum, vardiya_lokasyon, kayit_hat)
 
             c.execute('''
-                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id, bukum_operasyon)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id, bukum_operasyon, paket_adedi)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['vardiya_id'],
                 ref,
@@ -2642,7 +2723,8 @@ def uretim_ekle():
                 simdi if auto else None,
                 auto,
                 tc_id,
-                bop
+                bop,
+                pak
             ))
             eklenen += 1
 
@@ -2754,11 +2836,14 @@ def uretim_guncelle(uid):
             "       robot_no "
             "FROM vardiyalar WHERE id=?", (mevcut['vardiya_id'],)
         ).fetchone()
+        _duz_hat = kayit_hatti(v_bl['robot_no'] if v_bl else '',
+                               int(data.get('istasyon', 0) or 0))
         bop = _bukum_op_coz(c, data.get('bukum_operasyon'), ref,
                             v_bl['bolum'] if v_bl else 'kaynak',
-                            v_bl['lokasyon'] if v_bl else 'TK2',
-                            kayit_hatti(v_bl['robot_no'] if v_bl else '',
-                                        int(data.get('istasyon', 0) or 0)))
+                            v_bl['lokasyon'] if v_bl else 'TK2', _duz_hat)
+        pak = _paket_coz(c, data.get('paket_adedi'), ref,
+                         v_bl['bolum'] if v_bl else 'kaynak',
+                         v_bl['lokasyon'] if v_bl else 'TK2', _duz_hat)
 
         # TEL: kod eki KAYDIN hattından türer. Hat artık üretim kaydında seçildiği
         # için DÜZENLEMEDE de uygulanmalı — yoksa 'Kapama'dan 'Son Montaj'a alınan
@@ -2770,7 +2855,7 @@ def uretim_guncelle(uid):
 
         c.execute('''
             UPDATE uretim_kayitlari
-            SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?, sayac_otomatik=?, bukum_operasyon=?
+            SET referans_kodu=?, ok_adet=?, nok_adet=?, tamir_adet=?, hedef_adet=?, cycle_time_sn=?, istasyon=?, launch_adet=?, aciklama=?, sayac_otomatik=?, bukum_operasyon=?, paket_adedi=?
             WHERE id=?
         ''', (
             ref,
@@ -2784,6 +2869,7 @@ def uretim_guncelle(uid):
             (data.get('aciklama') or '').strip(),
             yeni_otomatik,
             bop,
+            pak,
             uid
         ))
         conn.commit()
@@ -3041,7 +3127,8 @@ def referans_listesi():
     lokasyon = request.args.get('lokasyon', '')
     conn = get_db()
     base = ("SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, "
-            "sure_teyit, sure_teyit_tarihi, COALESCE(bukum_operasyon,1) AS bukum_operasyon "
+            "sure_teyit, sure_teyit_tarihi, COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
+            "COALESCE(paket_adedi,1) AS paket_adedi "
             "FROM referans_listesi")
     sql = base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '')"
     params = [f'%{q}%']

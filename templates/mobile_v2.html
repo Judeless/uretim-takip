@@ -2794,6 +2794,20 @@ window.__I18N_SOZLUK__ = {
           </div>
         </div>
 
+        <!-- MONTAJ ADET SAYISI (kullanıcı 2026-08-20): TK1'de tel ürünleri 10'arlı
+             montajlanıyor — operatör sepeti bitirince BİR kez butona basıyor ama
+             10 adet üretilmiş oluyor. Büküm alanının TERSİ: o böler, bu ÇARPAR.
+             Yalnız TK1 montaj masaları ve tel 'Son Montaj' adımında görünür. -->
+        <div id="d-paket-wrap" style="display:none;margin-top:12px">
+          <label>Montaj Adet Sayısı</label>
+          <input type="number" id="d-paket" value="1" min="1" max="999"
+                 inputmode="numeric" pattern="[0-9]*" onchange="paketDegisti()">
+          <div style="font-size:.74rem;color:var(--muted);font-weight:500;margin-top:6px">
+            Bir kez butona basınca kaç adet sayılsın? Sayaç her sinyali
+            <b id="d-paket-n">1</b> adet sayar.
+          </div>
+        </div>
+
         <!-- Plastik Enjeksiyon: makine seçimi ÜRETİM KAYDI bazında (kullanıcı 2026-08-18:
              "makine seçimini referansı seçtikten sonra yapalım, yani abkant hattındaki gibi").
              Bu yüzden REFERANSIN HEMEN ALTINDA duruyor — operatör önce kodu, sonra makineyi
@@ -3839,6 +3853,7 @@ window.__I18N_SOZLUK__ = {
       // Büküm operasyon sayısı: yeni kayıt 1'den başlar, referans seçilince
       // referansın hatırlanan değeriyle dolar (bkz. secRef).
       bukumGoster(1);
+      paketGoster(1);   // referans seçilince hatırlanan değerle dolar (bkz. secRef)
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = 'none';  // yeni kayıtta sensör ipucu gizli
       var sifirla = document.getElementById('d-sayac-sifirla-wrap');
@@ -3951,6 +3966,7 @@ window.__I18N_SOZLUK__ = {
       telEkOnizleme();                            // kod eki hattan türüyor
       testCihazlariYukle(testCihazWrapGoster);    // cihaz eşlemesi hat bazlı
       bukumGoster(bukumDeger());                  // kapama seçilince basış alanı açılır
+      paketGoster(paketDeger());                  // son montaj seçilince paket alanı açılır
     }
 
     // ── PLASTİK ENJEKSİYON MAKİNE SEÇİMİ (2026-08-18) ──────────────────────
@@ -4829,7 +4845,7 @@ window.__I18N_SOZLUK__ = {
       var type = btn.dataset.type;
       if (type === 'u-edit') {
         var u = cacheUretim.find(function (x) { return x.id === id; });
-        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0, u.aciklama || '', u.istasyon || 0, u.launch_adet || 0, u.sayac_otomatik || 0, u.bukum_operasyon || 1);
+        if (u) uretimDuzenle(u.id, u.referans_kodu, u.ok_adet, u.nok_adet, u.hedef_adet, u.cycle_time_sn || 0, u.tamir_adet || 0, u.aciklama || '', u.istasyon || 0, u.launch_adet || 0, u.sayac_otomatik || 0, u.bukum_operasyon || 1, u.paket_adedi || 1);
       } else if (type === 'u-tamam') {
         var mevcutTamam = parseInt(btn.dataset.tamam || '0');
         fetch('/api/uretim_kayit/' + id + '/tamamlandi', {
@@ -4853,7 +4869,7 @@ window.__I18N_SOZLUK__ = {
     });
 
     // ── EKRAN D: ÜRETİM ──
-    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir, aciklama, istasyon, launch, sayacOtomatik, bukumOp) {
+    function uretimDuzenle(id, ref, ok, nok, hedef, ct, tamir, aciklama, istasyon, launch, sayacOtomatik, bukumOp, paketAd) {
       document.getElementById('d-uid').value = id;
       var ipucu = document.getElementById('d-sayac-ipucu');
       if (ipucu) ipucu.style.display = (sayacOtomatik == 1) ? 'block' : 'none';
@@ -4908,6 +4924,7 @@ window.__I18N_SOZLUK__ = {
       // Büküm operasyon sayısı: KAYDIN kendi değeri (referansın güncel varsayılanı
       // değil) — geçmiş kaydın adedi hangi bölenle hesaplandıysa o görünsün.
       bukumGoster(bukumOp || 1);
+      paketGoster(paketAd || 1);
       istasyonSec(parseInt(istasyon || 0) || 0);
       // Düzenlemede kaynak seçimi gösterilmez (test_cihaz_id sunucuda korunur)
       var ttw = document.getElementById('d-test-wrap');
@@ -4949,7 +4966,9 @@ window.__I18N_SOZLUK__ = {
         aciklama: acEl ? (acEl.value || '').trim() : '',
         // Büküm operasyon sayısı — pres dışında her zaman 1 (sunucu da pres dışını 1'e sabitler).
         // Sunucu bu değeri hem kayda yazar hem referansın varsayılanı olarak hatırlar.
-        bukum_operasyon: bukumDeger()
+        bukum_operasyon: bukumDeger(),
+        // Montaj adet sayısı (paket çarpanı) — kapsam dışında sunucu da 1'e sabitler
+        paket_adedi: paketDeger()
       };
       // Auto sayaç kaydında operatör OK alanını değiştirdiyse sayacı dondur (manuel düzeltme)
       if (window._dOkAcilis != null && String(okDeger) !== window._dOkAcilis) {
@@ -5182,7 +5201,7 @@ window.__I18N_SOZLUK__ = {
               div.innerHTML = '<b style="color:var(--c-blue)">' + r.referans_kodu + '</b>' +
                 (r.hedef_cycle_time_sn ? '<span style="float:right;font-size:.72rem;color:var(--dim)">' + Math.round(r.hedef_cycle_time_sn) + 'sn</span>' : '') +
                 acikSatir;
-              div.onclick = function () { secRef(r.referans_kodu, r.hedef_cycle_time_sn || 0, r.aciklama || '', r.bukum_operasyon || 1); };
+              div.onclick = function () { secRef(r.referans_kodu, r.hedef_cycle_time_sn || 0, r.aciklama || '', r.bukum_operasyon || 1, r.paket_adedi || 1); };
               list.appendChild(div);
             });
             list.style.display = 'block';
@@ -5233,6 +5252,43 @@ window.__I18N_SOZLUK__ = {
       inp.value = v;
       if (et) et.textContent = v;
     }
+    // ── MONTAJ ADET SAYISI (paket çarpanı) ─────────────────────────────────
+    // TK1'de montaj işi iki yerde: 'montaj' bölümü (MONTAJ - 1..5 butonlu masalar)
+    // ve tel bölümünün 'Son Montaj' adımı. İkisinde de ürün 10'arlı sepetlerle
+    // toplanıyor. Başka yerde AÇILMAZ — TK2 montajda 1 basış = 1 parça, çarpan
+    // açık kalsa üretim 10 katına çıkardı.
+    function paketAcikMi() {
+      if (LOKASYON !== 'TK1') return false;
+      if (secilenBolum === 'montaj') return true;
+      return secilenBolum === 'tel' && telHatAdimi(kayitHatAdi()) === 'Son Montaj';
+    }
+    function paketGoster(n) {
+      var wrap = document.getElementById('d-paket-wrap');
+      var inp = document.getElementById('d-paket');
+      if (!wrap || !inp) return;
+      wrap.style.display = paketAcikMi() ? 'block' : 'none';
+      var v = parseInt(n, 10);
+      if (!(v >= 1)) v = 1;
+      if (v > 999) v = 999;
+      inp.value = v;
+      paketDegisti();
+    }
+    function paketDegisti() {
+      var inp = document.getElementById('d-paket');
+      var et = document.getElementById('d-paket-n');
+      if (!inp) return;
+      var v = parseInt(inp.value, 10);
+      if (!(v >= 1)) v = 1;
+      if (v > 999) v = 999;
+      inp.value = v;
+      if (et) et.textContent = v;
+    }
+    function paketDeger() {
+      if (!paketAcikMi()) return 1;
+      var v = parseInt((document.getElementById('d-paket') || {}).value, 10);
+      return (v >= 1) ? Math.min(999, v) : 1;
+    }
+
     function bukumDeger() {
       if (!bukumAcikMi()) return 1;
       var inp = document.getElementById('d-bukum');
@@ -5240,7 +5296,7 @@ window.__I18N_SOZLUK__ = {
       return (v >= 1 && v <= 99) ? v : 1;
     }
 
-    function secRef(kod, ct, aciklama, bukumOp) {
+    function secRef(kod, ct, aciklama, bukumOp, paketAd) {
       var inp = document.getElementById('d-ref');
       inp.value = kod;
       inp.dataset.cycle = ct;
@@ -5251,6 +5307,7 @@ window.__I18N_SOZLUK__ = {
       refKodDegisti();
       // Referansın hatırlanan büküm operasyon sayısı hazır gelsin (operatör değiştirebilir)
       if (secilenBolum === 'pres' || secilenBolum === 'tel') bukumGoster(bukumOp || 1);
+      paketGoster(paketAd || 1);   // TK1 montaj/son montaj dışında zaten gizli
       // Pres: referansın Excel açıklaması alttaki Açıklama alanına gelir (operatör görsün).
       // Operatörün kendi yazdığı notu EZME — yalnız alan boşken ya da önceki otomatik
       // doldurma duruyorken yaz (başka referans seçilince güncellenir).

@@ -244,6 +244,28 @@ def init_db():
     except Exception:
         pass  # Kolon zaten var
 
+    # ── PAKET (MONTAJ) ADEDİ (kullanıcı 2026-08-20) ─────────────────────────
+    # TK1'de tel ürünleri 10'arlı montajlanıyor: operatör bir kez butona basıyor
+    # ama sepete 10 adet giriyor. bukum_operasyon'un TERSİ — o BÖLER (N sinyal =
+    # 1 parça), bu ÇARPAR (1 sinyal = N parça). AYRI KOLON bilinçli: aynı kolona
+    # iki zıt anlam yüklemek ileride mutlaka yanlış bölmeye/çarpmaya yol açar.
+    #   uretim_kayitlari.paket_adedi → O KAYIT için kullanılan çarpan
+    #   referans_listesi.paket_adedi → referansın HATIRLANAN varsayılanı
+    for _sql in (
+        "ALTER TABLE uretim_kayitlari ADD COLUMN paket_adedi INTEGER DEFAULT 1",
+        "ALTER TABLE referans_listesi ADD COLUMN paket_adedi INTEGER DEFAULT 1",
+    ):
+        try:
+            c.execute(_sql)
+        except Exception:
+            pass  # Kolon zaten var
+    for _t in ('uretim_kayitlari', 'referans_listesi'):
+        try:
+            c.execute(f"UPDATE {_t} SET paket_adedi=1 "
+                      f"WHERE paket_adedi IS NULL OR paket_adedi < 1")
+        except Exception:
+            pass
+
     # ── EOQ (kullanıcı 2026-08-19) ──────────────────────────────────────────
     # AS400'de (07/10/01 SITUAZIONE ARTICOLO) her ürün için tanımlı sipariş
     # miktarı. Kullanıcı: "kaynak referanslarında tanımlı EOQ'lar eski, hepsini
