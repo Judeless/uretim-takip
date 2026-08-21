@@ -15,10 +15,18 @@ KULLANIM (sunucuda, proje klasöründe):
     python as400\\teyit_denetim.py --tara            → son 14 gün, fazla teyitleri sırala
     python as400\\teyit_denetim.py --tara 30         → pencereyi değiştir
 
-OKUMA NOTU — PENCERE KENARI: teyit normalde ÜRETİMİN ERTESİ GÜNÜ girilir. Bu
-yüzden hareketler [baş, bit+3] aralığında toplanır. Pencerenin BAŞINDAN önceki
-üretimlerin teyidi pencere içine düşerse fazla görünür — bu yüzden tek referans
-dökümünde TÜM hareketler tarihiyle listelenir; kararı insan verir.
+YÖNTEM — GÜN BAZLI, PENCERE TOPLAMI DEĞİL. İlk sürüm pencere içindeki üretim
+toplamı ile hareket toplamını karşılaştırıyordu; pencerenin BAŞINDAN önceki
+üretimlerin teyidi içeri düşünce her referans "fazla" görünüyordu (ilk taramada
+43 referans / 6683 adet SAHTE fazlalık çıktı — 10.130.3680GAW'da 22.07 tarihli
+688'lik hareket 21.07 üretiminin teyidiydi, o üretim pencere dışındaydı).
+
+Artık her ÜRETİM GÜNÜ için sistemin kendi kararı sorulur (launch_esle
+._zaten_teyitli — regresyon testli, bkz. test_teyit.py):
+    kesin → o gün tam teyitli        olasi → o güne FAZLA teyit
+    kismi → günün bir kısmı teyitli  None  → o gün hiç teyit almamış
+Geçmiş penceresi 20 gün geriden başlar; aksi hâlde önceki günlerin teyidi bizim
+güne atfedilir ve aynı yanılgı geri gelir.
 """
 import os
 import sqlite3
@@ -135,6 +143,23 @@ def tek_referans(kod, gun=45):
     for h in tum:
         print(f"    {h['tarih']}  {h['adet']:>7g} adet   {h['tur']:<4} {h['launch']}")
 
+    # [4] Sistemin gün bazlı kararı — panelin gördüğü şey budur
+    if u:
+        gecmis = le.uretim_gecmisi(
+            (bas - timedelta(days=20)).isoformat(), bit_s).get(k, {})
+        print('\n[4] SİSTEMİN KARARI  (panelde bu satır ne görünüyor)')
+        for t in sorted(u):
+            durum, ilgili = le._zaten_teyitli(tum, t, u[t], gecmis)
+            kanit = sum(h['adet'] for h in ilgili)
+            etiket = {'kesin': '✓ tam teyitli', 'olasi': '⚠ FAZLA teyit',
+                      'kismi': '◐ kısmi teyitli', None: '· teyit almamış'}[durum]
+            ek = ''
+            if durum == 'kismi':
+                ek = f'  → kalan {u[t] - kanit:g}'
+            elif durum == 'olasi':
+                ek = f'  → fazla {kanit - u[t]:g}'
+            print(f'    {t}  üretim {u[t]:>7g} · kanıt {kanit:>7g}   {etiket}{ek}')
+
     print('\n' + '-' * 78)
     print(f'    ÜRETİM          : {u_top:g}')
     print(f'    ERP TEYİT       : {h_top:g}')
@@ -144,50 +169,72 @@ def tek_referans(kod, gun=45):
            '← eksik teyit' if fark < -0.001 else '✓ eşit'))
     print(f'    bunun {kendi_top:g} adedi PANELDEN gönderilmiş, '
           f'{h_top - kendi_top:g} adedi elle girilmiş görünüyor')
-    if fark > 0.001:
-        print('\n    NOT: pencere başından önceki bir üretimin teyidi bu aralığa')
-        print('    düşmüş olabilir. Yukarıdaki hareket tarihlerini üretim')
-        print('    tarihleriyle eşleştirip karar verin; --tara ile geniş pencere deneyin.')
+    if abs(fark) > 0.001:
+        print('\n    NOT: bu iki toplam KABA bir göstergedir — pencere başından önceki')
+        print('    üretimlerin teyidi bu aralığa düşerse fark şişer. GERÇEK karar')
+        print('    yukarıdaki [4] bölümündedir (gün bazlı, sistemin kendi mantığı).')
     print()
 
 
-def tara(gun=14):
+def _gun_karari(gun=14):
+    """Her (referans, üretim günü) için sistemin teyit kararı.
+    Döner: [(kod, tarih, adet, durum, kanit_toplam)]"""
     bit = date.today()
     bas = bit - timedelta(days=gun)
     bas_s, bit_s = bas.isoformat(), bit.isoformat()
     uretim, _ = _uretim(bas_s, bit_s)
     if not uretim:
+        return [], bas_s, bit_s
+    # GEÇMİŞ 20 GÜN GERİDEN: _zaten_teyitli önceki günlerin üretimini bilmezse
+    # o günlerin teyidini BİZİM güne kanıt sayar ve fazlalık gizlenir/uydurulur.
+    gecmis = le.uretim_gecmisi((bas - timedelta(days=20)).isoformat(), bit_s)
+    hrk = _hareketler(set(uretim.keys()))
+    out = []
+    for k, gunler in uretim.items():
+        hareketler = hrk.get(k, [])
+        for t, adet in sorted(gunler.items()):
+            if adet <= 0:
+                continue
+            durum, ilgili = le._zaten_teyitli(hareketler, t, adet, gecmis.get(k))
+            out.append((k, t, adet, durum, sum(h['adet'] for h in ilgili)))
+    return out, bas_s, bit_s
+
+
+def tara(gun=14):
+    kararlar, bas_s, bit_s = _gun_karari(gun)
+    if not kararlar:
         print('Bu aralıkta üretim kaydı yok.')
         return
-    hrk = _hareketler(set(uretim.keys()))
-    sinir = (bit + timedelta(days=3)).isoformat()
-
-    satir = []
-    for k, gunler in uretim.items():
-        u_top = sum(gunler.values())
-        if u_top <= 0:
-            continue
-        h_top = sum(h['adet'] for h in hrk.get(k, [])
-                    if bas_s <= h['tarih'] <= sinir)
-        satir.append((h_top - u_top, k, u_top, h_top))
-    satir.sort(reverse=True)
+    fazla = [k for k in kararlar if k[3] == 'olasi']
+    kismi = [k for k in kararlar if k[3] == 'kismi']
+    yok   = [k for k in kararlar if k[3] is None]
+    tam   = [k for k in kararlar if k[3] == 'kesin']
 
     print('=' * 78)
-    print(f'FAZLA TEYİT TARAMASI · {bas_s} → {bit_s}   ({len(satir)} referans)')
+    print(f'TEYİT DENETİMİ · {bas_s} → {bit_s}   ({len(kararlar)} referans-gün)')
     print('=' * 78)
-    print(f'{"FARK":>8}  {"ÜRETİM":>8}  {"TEYİT":>8}   REFERANS')
-    print('-' * 78)
-    fazla = [s for s in satir if s[0] > 0.001]
-    for fark, k, u, h in fazla[:25]:
-        print(f'{fark:>+8g}  {u:>8g}  {h:>8g}   {k}')
-    if not fazla:
-        print('  ✓ fazla teyit görünmüyor')
-    print('-' * 78)
-    print(f'  {len(fazla)} referansta teyit üretimden fazla · '
-          f'toplam fazlalık {sum(s[0] for s in fazla):g} adet')
+    print(f'  ✓ tam teyitli      : {len(tam)}')
+    print(f'  ⚠ FAZLA teyit      : {len(fazla)}')
+    print(f'  ◐ kısmi teyitli    : {len(kismi)}')
+    print(f'  · teyit almamış    : {len(yok)}')
+
+    if fazla:
+        print('\n⚠ FAZLA TEYİT — o güne üretilenden çok teyit hareketi var')
+        print(f'{"FAZLA":>8}  {"ÜRETİM":>8}  {"TEYİT":>8}  TARİH        REFERANS')
+        print('-' * 78)
+        for k, t, adet, _d, kanit in sorted(fazla, key=lambda x: -(x[4] - x[2])):
+            print(f'{kanit - adet:>+8g}  {adet:>8g}  {kanit:>8g}  {t}   {k}')
+        print('-' * 78)
+        print(f'  toplam fazlalık {sum(k[4] - k[2] for k in fazla):g} adet')
+
+    if kismi:
+        print('\n◐ KISMİ TEYİTLİ — kalan adet henüz girilmemiş')
+        print(f'{"KALAN":>8}  {"ÜRETİM":>8}  {"TEYİTLİ":>8}  TARİH        REFERANS')
+        print('-' * 78)
+        for k, t, adet, _d, kanit in sorted(kismi, key=lambda x: -(x[2] - x[4]))[:25]:
+            print(f'{adet - kanit:>8g}  {adet:>8g}  {kanit:>8g}  {t}   {k}')
+
     print('\n  Ayrıntı için:  python as400\\teyit_denetim.py <REFERANS>')
-    print('  UYARI: pencere kenarı yanılgısı — pencereden ÖNCEKİ üretimin teyidi')
-    print('  içeri düşerse fazla görünür. Tek referans dökümünde tarihlere bakın.')
     print()
 
 
