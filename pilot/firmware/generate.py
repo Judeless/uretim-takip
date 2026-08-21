@@ -128,15 +128,34 @@ DEVICES = {
     'tel_hazirlik': [
         ('TEL-HAZIRLIK', 'Otomatik Hazirlik', {'BOLUM': 'tel'}),
     ],
+    # ESIK/GAP tel_kapama'da KANAL BAZLI verilebilir (KANAL_ESIK / KANAL_GAP):
+    # ayni panodaki uc presin cevrimi ayni degil. Verilmezse INTEG_ESIK_MS /
+    # MIN_GAP_MS scalar'i tum kanallara uygulanir. tel_kapama'nin tarihsel
+    # degerleri 75ms / 1000ms — generate.py varsayilani (600) DEGIL, bu yuzden
+    # her modulde ACIKCA yaziliyor (unutulursa gap sessizce 600'e duserdi).
     'tel_kapama': [
         ('TEL-KAPAMA-1', ['Kapama 1',  'Kapama 2',  'Kapama 3'],
-         {'HB_ROBOT_NO': 'Kapama 1-3'}),
+         {'HB_ROBOT_NO': 'Kapama 1-3', 'INTEG_ESIK_MS': 75, 'MIN_GAP_MS': 1000}),
         ('TEL-KAPAMA-2', ['Kapama 4',  'Kapama 5',  'Kapama 6'],
-         {'HB_ROBOT_NO': 'Kapama 4-6'}),
+         {'HB_ROBOT_NO': 'Kapama 4-6', 'INTEG_ESIK_MS': 75, 'MIN_GAP_MS': 1000}),
         ('TEL-KAPAMA-3', ['Kapama 7',  'Kapama 8',  'Kapama 9'],
-         {'HB_ROBOT_NO': 'Kapama 7-9'}),
+         {'HB_ROBOT_NO': 'Kapama 7-9', 'INTEG_ESIK_MS': 75, 'MIN_GAP_MS': 1000}),
+        # KANAL 1 = cihaz 'Kapama 10' = SAHA KODU 27 PRESI (bkz. app._KAPAMA_SAHA_CIHAZ).
+        # Kullanici 2026-08-21: "27. preste 1 urun icin ardi ardina 2 pres yapmak
+        # gerekiyor fakat arka arkaya yapilan kisa sureli preslerde sayac sayim
+        # yapmiyor." Iki ayri filtre birden eliyordu:
+        #   · 75ms esik  -> kisa basis esigi tutturamiyor (hic sayilmiyor)
+        #   · 1000ms gap -> tuttursa bile ikinci basis "role cirpinmasi" sayiliyor
+        # Yalniz BU KANAL gevsetildi; digerlerinde gurultu toleransi aynen kaliyor.
+        # 1 urun = 2 sinyal donusumu SUNUCUDA: operatör referans kartinda
+        # "Prese Basis Sayisi = 2" secer (uretim_kayitlari.bukum_operasyon).
+        # ⚠ SAHADA DOGRULA: heartbeat TANI akisinda bu kanal icin KISA olayi
+        #   cikiyorsa esik hala buyuk, tani_erken artiyorsa gap hala buyuk.
+        #   Olcum: python pilot	ani_analiz.py "Kapama 10"
         ('TEL-KAPAMA-4', ['Kapama 10', 'Kapama 11', 'Kapama 12'],
-         {'HB_ROBOT_NO': 'Kapama 10-12'}),
+         {'HB_ROBOT_NO': 'Kapama 10-12',
+          'KANAL_ESIK': [25, 75, 75],       # kanal1 = saha 27: kisa basis yakalansin
+          'KANAL_GAP':  [300, 1000, 1000]}),  # kanal1 = saha 27: ardisik iki basis gecsin
     ],
 }
 
@@ -191,6 +210,11 @@ def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
                          geri donus sinyali sayilmasin. Varsayilan 600.
                          OLCUM: python pilot	ani_analiz.py "<makine>" — gap
                          dagilimi iki tepeliyse kisa tepe geri donustur.
+      KANAL_ESIK       : COK KANALLI modulde kanal basina INTEG_ESIK_MS listesi
+                         ([25, 75, 75] gibi). Verilmeyen kanal scalar'a duser.
+      KANAL_GAP        : ayni sekilde kanal basina MIN_GAP_MS listesi. Ayni
+                         panodaki presler ayni cevrimde calismadigi icin gerekli
+                         (bkz. TEL-KAPAMA-4 kanal 1 = saha kodu 27 presi).
     Placeholder'i olmayan template'lerde replace no-op'tur."""
     ek = ekstra or {}
     coklu = isinstance(robot_no, (list, tuple))
@@ -212,8 +236,19 @@ def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
              # Sayim esikleri — cihaz bazli (varsayilanlar v2.7 davranisini korur)
              .replace('__INTEG_ESIK_MS__', str(ek.get('INTEG_ESIK_MS', 75)))
              .replace('__MIN_GAP_MS__', str(ek.get('MIN_GAP_MS', 600))))
+    # KANAL BAZLI esik/gap (cok kanalli sablonlar). Liste verilmezse scalar
+    # degerler tum kanallara uygulanir; liste kisa kalirsa kalan kanallar scalar'a
+    # duser (sessiz KeyError yerine ongorulebilir davranis).
+    _esik_s = ek.get('INTEG_ESIK_MS', 75)
+    _gap_s  = ek.get('MIN_GAP_MS', 600)
+    _esikler = list(ek.get('KANAL_ESIK') or [])
+    _gaplar  = list(ek.get('KANAL_GAP') or [])
     for i, ad in enumerate(kanallar, start=1):
         metin = metin.replace(f'__ROBOT_NO_{i}__', ad)
+        _e = _esikler[i - 1] if i <= len(_esikler) else _esik_s
+        _g = _gaplar[i - 1] if i <= len(_gaplar) else _gap_s
+        metin = (metin.replace(f'__INTEG_ESIK_MS_{i}__', str(_e))
+                      .replace(f'__MIN_GAP_MS_{i}__', str(_g)))
     # __ROBOT_NO__ EN SONA: '__ROBOT_NO_1__' bunu icerir, once o doldurulmali
     return metin.replace('__ROBOT_NO__', kanallar[0])
 

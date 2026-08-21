@@ -77,13 +77,41 @@ const char* NVS_SENT[KANAL_SAYISI]   = { "sent_i1",  "sent_i2",  "sent_i3"  };
 
 const int PIN_LED = 2;
 
-// Pulse algilama: BLOKLAMAYAN INTEGRATOR debounce (abkant/pres ile ayni).
-// Her donguda pini ornekle -> LOW'da +1 / HIGH'da -1 (0..MAX). integ >= YUKSEK_ESIK
-// "gercek basis" (say); histerezisle DUSUK_ESIK'te biter. Tek glitch basisi oldurmez.
-const int  INTEG_YUKSEK_ESIK   = 15;   // ~75ms net LOW -> basis algilandi
-const int  INTEG_MAX           = 40;   // tavan (~200ms) — glitch toleransi tamponu
-const int  INTEG_DUSUK_ESIK    = 4;    // ~20ms HIGH -> basis bitti (histerezis)
-const unsigned long MIN_PULSE_GAP_MS = 1000;   // Kapama presi: iki cevrim arasi min (kullanici 2026-08-07). Bundan kisa gelen sinyal role cirpinmasi sayilir, ELENIR.
+// Pulse algilama: BLOKLAMAYAN INTEGRATOR debounce.
+// INTEGRATOR SURE TABANLI (v2.8, 2026-08-21) — pres sablonundan portlandi.
+// ESKISI DONGU SAYIYORDU: her loop() turunda +1/-1, "15 ornek ~= 75ms" VARSAYIMIYLA.
+// Loop suresi sabit degil (WiFi/HTTP isinde tur uzar) ve UC KANAL ayni turda
+// orneklendigi icin sapma daha da buyuktu: gercek bir basis esigi tutturamadan
+// bitebiliyordu. Artik gecen SURE (mikrosaniye) toplanir — esik ne yaziyorsa o
+// kadar millisaniyedir, dongu hizindan BAGIMSIZ.
+//
+// ESIK/GAP ARTIK KANAL BAZLI (kullanici 2026-08-21): ayni pano icindeki uc presin
+// cevrimi ayni degil. Saha kodu 27 olan preste bir urun icin ARDI ARDINA IKI kez
+// basiliyor; 1000ms'lik ortak gap ikinci basisi "role cirpinmasi" sayip eliyordu
+// ve kisa basislar 75ms esigini de tutturamiyordu -> o preste sayim HIC olusmuyordu.
+// Degerler generate.py'den gelir (cihaz + kanal bazli); belirtilmeyen kanal
+// v2.7 davranisini korur (75ms / 1000ms).
+//   INTEG_ESIK_MS_n : n. kanalda bir basisin sayilmasi icin gereken net LOW suresi
+//   MIN_GAP_MS_n    : n. kanalda iki sayim arasi en az sure
+// SAHA AYARI: heartbeat TANI'sina bak — tani_erken artiyorsa GAP cok buyuk,
+// KISA olaylari cikiyorsa ESIK cok buyuk, tani_parazit artiyorsa gurultu var.
+const unsigned long INTEG_ESIK_US[KANAL_SAYISI] = {
+  __INTEG_ESIK_MS_1__UL * 1000UL, __INTEG_ESIK_MS_2__UL * 1000UL, __INTEG_ESIK_MS_3__UL * 1000UL };
+const unsigned long MIN_PULSE_GAP_MS[KANAL_SAYISI] = {
+  __MIN_GAP_MS_1__UL, __MIN_GAP_MS_2__UL, __MIN_GAP_MS_3__UL };
+// ─── ISR KENAR SAYACI (v2.8) — SAYMAZ, yalniz OLCER ───────────────────────
+// Loop icindeki HTTP cagrilari 3sn'ye kadar BLOKLAR; o sure boyunca pin hic
+// okunmaz ve o pencereye denk gelen vurus GENISLIGINDEN BAGIMSIZ kaybolur.
+// Kesme blokede bile calisir -> gercek kenar sayisini verir. Ayrica esigi
+// tutturamayan (KISA) basislarin genisligini olcmemizi saglar: sahada "esik kac
+// olmali" sorusu tahminle degil OLCUMLE cevaplanir.
+// DIKKAT — 2026-06-01 REGRESYONU TEKRARLANMASIN: o zaman CHANGE interrupt'ta
+// digitalRead() ile kenar YONU tahmin ediliyordu; zayif pull-up yuzunden yavas
+// yukselen kenarda ISR hala LOW okuyup state machine'i kilitliyordu. Buradaki
+// ISR yalnizca FALLING'de tetiklenir ve SADECE sayac artirir: pin okumaz, yon
+// tahmin etmez, sayim kararina KARISMAZ. Sayim yolu aynen polling+integrator.
+volatile uint32_t      isrKenarSayisi[KANAL_SAYISI] = { 0, 0, 0 };
+volatile unsigned long isrKenarUs[KANAL_SAYISI]     = { 0, 0, 0 };
 
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
@@ -91,7 +119,7 @@ const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 2000;  // kesinti kuyrugu — UC KANAL ORTAK kullanir
 const int  RESEND_MAX_KANAL = BUFFER_MAX / KANAL_SAYISI;  // boot resend'de kanal basi tavan (bir kanal kuyrugu tek basina doldurmasin)
-const char* FIRMWARE_VER  = "2.7.2-__FW_SUFFIX__";   // 2.7.2 dayaniklilik paketi + 3 kanal
+const char* FIRMWARE_VER  = "2.8.0-__FW_SUFFIX__";   // 2.7.2 dayaniklilik paketi + 3 kanal
 
 // ─── TANI (diagnostic) — sayim filtresi kararlarini heartbeat ile gonderir ──
 // Tek kanalli sablonlarda 30/20; burada UC kanal ayni ringi paylasiyor, yani olay
@@ -175,15 +203,40 @@ uint32_t bootId = 0;
 
 // ─── Sayim kanali — integrator debounce durumu (kanal basina bir tane) ───
 struct Kanal {
-  int           integ;          // 0..INTEG_MAX
+  unsigned long integUs;        // 0..integMaxUs(kanal) — net LOW birikimi (SURE)
+  unsigned long sonOrnekUs;     // bir onceki ornegin micros() degeri
   bool          stableLow;      // debounced "basili" durumu
   int           lastRaw;        // ham pin durumu (gurultu kenar sayimi)
   unsigned long lastValidPulse; // son gecerli sayim (MIN_PULSE_GAP)
   bool          taniBekliyor;   // pulse devam ediyor; bitince SAYILDI push edilir
   unsigned long taniLowStart;
   uint32_t      taniBekleyenGap;
+  // KISA PULSE OLCUMU (v2.8): esigi tutturamayan basislari da olcup raporlar.
+  uint32_t      sonIslenenKenar;  // en son islenen isrKenarSayisi[kanal] degeri
+  bool          kisaTakip;        // bir kenar yakalandi, pulse suruyor mu izleniyor
+  unsigned long kisaBasUs;        // o kenarin ISR zamani
 };
-Kanal k[KANAL_SAYISI];
+// TUM ALANLAR SIFIR — setup() gercek baslangic degerlerini yazar. Pozisyonel
+// liste KULLANILMAZ: struct'a alan eklenince sessizce kayar ve yanlis alana yazar.
+Kanal k[KANAL_SAYISI] = {};
+
+// ISR govdeleri — struct'lardan SONRA (Arduino .ino otomatik-prototip ucu
+// prototipleri ILK fonksiyon tanimindan once ekler; struct'tan once bir govde
+// koymak "'Kanal' has not been declared" derleme hatasi uretir — 2026-08-21).
+// Kanal basina AYRI ISR: tek ortak ISR hangi pinin tetikledigini bilemezdi.
+void IRAM_ATTR isrKanal0() { isrKenarSayisi[0]++; isrKenarUs[0] = micros(); }
+void IRAM_ATTR isrKanal1() { isrKenarSayisi[1]++; isrKenarUs[1] = micros(); }
+void IRAM_ATTR isrKanal2() { isrKenarSayisi[2]++; isrKenarUs[2] = micros(); }
+
+// Tavan (glitch toleransi tamponu) ve histerezis esikten TURETILIR — kanal basina
+// ayri sabit tutmak, esik degisince guncellenmeyi unutturur.
+// BURADA (struct'lardan SONRA), sabitlerin yaninda DEGIL: Arduino .ino otomatik
+// prototip ucu, prototipleri dosyadaki ILK FONKSIYON TANIMINDAN once ekler.
+// Bu iki inline sabitlerin yaninda dursaydi ilk tanim en tepeye kayar ve asagida
+// tanimli struct'lari kullanan her prototip "has not been declared" ile duserdi
+// (ayni tuzak 2026-08-21'de pres sablonunda yasandi).
+inline unsigned long integMaxUs(uint8_t kn)   { return INTEG_ESIK_US[kn] * 3UL; }
+inline unsigned long integDusukUs(uint8_t kn) { return INTEG_ESIK_US[kn] / 4UL; }
 
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
@@ -364,13 +417,37 @@ void kanalGuncelle(uint8_t kanal, unsigned long now) {
   if (kk->lastRaw == HIGH && v == LOW) taniParazit++;   // ham gurultu kenar gostergesi
   kk->lastRaw = v;
 
-  if (v == LOW) { if (kk->integ < INTEG_MAX) kk->integ++; }
-  else          { if (kk->integ > 0)         kk->integ--; }
+  // KISA PULSE TAKIBI: esigi tutturamayan basisi da OLCUP raporlayabilmek icin
+  // dusen kenari ISR'den al (HTTP blokesinde bile yakalanir).
+  uint32_t kenarSim = isrKenarSayisi[kanal];       // volatile tek okuma
+  if (kenarSim != kk->sonIslenenKenar) {
+    kk->sonIslenenKenar = kenarSim;
+    if (!kk->stableLow) {                          // zaten sayilan bir basisin icinde degiliz
+      kk->kisaTakip = true;
+      kk->kisaBasUs = isrKenarUs[kanal];
+    }
+  }
 
-  if (!kk->stableLow && kk->integ >= INTEG_YUKSEK_ESIK) {
+  // Gecen SUREYI birikime kat (dongu hizindan bagimsiz).
+  unsigned long esikUs  = INTEG_ESIK_US[kanal];
+  unsigned long simdiUs = micros();
+  unsigned long dtUs    = simdiUs - kk->sonOrnekUs;   // unsigned: overflow'da da dogru
+  kk->sonOrnekUs = simdiUs;
+  // KOR PENCERE TAVANI — tek ornek esigi TEK BASINA dolduramaz.
+  // Loop HTTP'de 3sn bloklanabiliyor. Blok bitince pin LOW okunursa "3 saniyedir
+  // basili" DIYEMEYIZ: o pencerede ne oldugunu bilmiyoruz. Esigin dortte biriyle
+  // sinirlanir — gercek basis birkac ornekte yine dogrulanir, tek kor pencere
+  // asla tek basina sayim yaratmaz.
+  if (dtUs > esikUs / 4) dtUs = esikUs / 4;
+
+  unsigned long tavanUs = integMaxUs(kanal);
+  if (v == LOW) { kk->integUs = (kk->integUs + dtUs > tavanUs) ? tavanUs : kk->integUs + dtUs; }
+  else          { kk->integUs = (kk->integUs < dtUs) ? 0 : kk->integUs - dtUs; }
+
+  if (!kk->stableLow && kk->integUs >= esikUs) {
     kk->stableLow = true;
     unsigned long gap = now - kk->lastValidPulse;
-    if (gap >= MIN_PULSE_GAP_MS) {
+    if (gap >= MIN_PULSE_GAP_MS[kanal]) {
       kanalSinyali(kanal);
       kk->lastValidPulse  = now;
       taniSayildi++;
@@ -379,12 +456,32 @@ void kanalGuncelle(uint8_t kanal, unsigned long now) {
       kk->taniBekleyenGap = gap;
     } else {
       Serial.printf("[FILTRE] %s erken (gap=%lums < %lums) - SAYILMADI\n",
-                    KANAL_ROBOT[kanal], gap, MIN_PULSE_GAP_MS);
+                    KANAL_ROBOT[kanal], gap, MIN_PULSE_GAP_MS[kanal]);
       taniErken++;
       taniPush(2, gap, 0, kanal);
       kk->taniBekliyor = false;
     }
-  } else if (kk->stableLow && kk->integ <= INTEG_DUSUK_ESIK) {
+  }
+
+  // Kenar yakalanmisti ve pin HIGH'a dondu: basis SAYILMADAN bitti mi?
+  // Bu olay (tip 3 = KISA) sahada esigi ayarlamanin tek saglam yolu — genislik
+  // dagilimina bakilir, tahminle deger yazilmaz.
+  if (kk->kisaTakip && v == HIGH && !kk->stableLow) {
+    unsigned long genislikUs = simdiUs - kk->kisaBasUs;
+    kk->kisaTakip = false;
+    // 2ms ALTI RAPORLANMAZ: tek kanalli sablonda hepsi raporlanir, ama burada
+    // TANI ringi UC KANAL ORTAK (45 slot). Kontak sicramasi mikro-kenarlari
+    // ringi doldurup gercek SAYILDI olaylarini disari itiyordu — 2ms alti zaten
+    // hicbir gercek presi temsil etmez, kumulatif tani_parazit'te gorunur.
+    if (genislikUs >= 2000UL) {
+      taniPush(3, (uint32_t)(now - kk->lastValidPulse), (uint32_t)(genislikUs / 1000UL), kanal);
+      Serial.printf("[KISA] %s pulse %lu us (esik %lu us) - SAYILMADI\n",
+                    KANAL_ROBOT[kanal], genislikUs, esikUs);
+    }
+  }
+  if (kk->stableLow) kk->kisaTakip = false;      // sayildiysa takip gereksiz
+
+  if (kk->stableLow && kk->integUs <= integDusukUs(kanal)) {
     kk->stableLow = false;
     if (kk->taniBekliyor) {
       taniPush(0, kk->taniBekleyenGap, now - kk->taniLowStart, kanal);
@@ -448,6 +545,9 @@ void heartbeatGonder() {
   doc["tani_sayildi"] = taniSayildi;
   doc["tani_parazit"] = taniParazit;
   doc["tani_erken"]   = taniErken;
+  // ISR kenar sayisi: HTTP blogu dahil TUM dusen kenarlar (uc kanalin toplami).
+  // tani_parazit'ten belirgin BUYUKSE loop kor pencerede kenar kaciriyor demektir.
+  doc["isr_kenar"]    = isrKenarSayisi[0] + isrKenarSayisi[1] + isrKenarSayisi[2];
   int taniGonder = taniDolu;
   if (taniGonder > TANI_HEARTBEAT_N) taniGonder = TANI_HEARTBEAT_N;
   if (taniGonder > 0) {
@@ -498,17 +598,27 @@ void setup() {
 
   for (int i = 0; i < KANAL_SAYISI; i++) {
     pinMode(KANAL_PIN[i], INPUT_PULLUP);
-    k[i].integ          = 0;
+    k[i].integUs        = 0;
+    k[i].sonOrnekUs     = micros();     // ilk ornek zamani (dtUs ilk turda patlamasin)
     k[i].stableLow      = false;
     k[i].lastRaw        = digitalRead(KANAL_PIN[i]);
     k[i].lastValidPulse = 0;
     k[i].taniBekliyor   = false;
     k[i].taniLowStart   = 0;
     k[i].taniBekleyenGap = 0;
-    Serial.printf("  Kanal %d · GPIO%-2d -> %s\n", i + 1, KANAL_PIN[i], KANAL_ROBOT[i]);
+    k[i].sonIslenenKenar = 0;
+    k[i].kisaTakip      = false;
+    k[i].kisaBasUs      = 0;
+    Serial.printf("  Kanal %d · GPIO%-2d -> %s | esik=%lums gap=%lums\n",
+                  i + 1, KANAL_PIN[i], KANAL_ROBOT[i],
+                  INTEG_ESIK_US[i] / 1000UL, MIN_PULSE_GAP_MS[i]);
   }
-  Serial.printf("Min pulse araligi: %lums · MAC: %s\n",
-                MIN_PULSE_GAP_MS, WiFi.macAddress().c_str());
+  // ISR yalniz OLCER (sayim kararina KARISMAZ) - bkz. isrKanal0/1/2 aciklamasi.
+  // Kanal basina ayri ISR: tek ortak ISR hangi pinin tetikledigini bilemezdi.
+  attachInterrupt(digitalPinToInterrupt(KANAL_PIN[0]), isrKanal0, FALLING);
+  attachInterrupt(digitalPinToInterrupt(KANAL_PIN[1]), isrKanal1, FALLING);
+  attachInterrupt(digitalPinToInterrupt(KANAL_PIN[2]), isrKanal2, FALLING);
+  Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
   robotCalisiyor = false;
 
@@ -607,9 +717,11 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] Integrator debounce + TANI aktif — 3 kanal role sinyali bekleniyor...");
-  Serial.printf( "        (YUKSEK=%d/MAX=%d/DUSUK=%d · MIN_PULSE_GAP=%lums)\n\n",
-                 INTEG_YUKSEK_ESIK, INTEG_MAX, INTEG_DUSUK_ESIK, MIN_PULSE_GAP_MS);
+  Serial.println("[READY] SURE tabanli integrator + TANI aktif - 3 kanal role sinyali bekleniyor...");
+  for (int i = 0; i < KANAL_SAYISI; i++) {
+    Serial.printf( "        %s: esik=%lums gap=%lums\n",
+                   KANAL_ROBOT[i], INTEG_ESIK_US[i] / 1000UL, MIN_PULSE_GAP_MS[i]);
+  }
   ledYakBlink(3, 60);
 }
 
