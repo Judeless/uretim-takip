@@ -797,7 +797,11 @@ VARSAYILAN_AI = {
     'max_tokens': 8000,
     'effort': 'medium',
     'dil': 'Türkçe',
-    'gemini_model': 'gemini-2.5-flash',
+    # 'gemini-flash-latest' TAKMA AD: her zaman guncel flash modeline isaret
+    # eder. Sabit surum adi KULLANMAYIN — Google eski modelleri yeni hesaplara
+    # kapatiyor (2026-08-21: 'gemini-2.5-flash' listede gorunuyordu ama
+    # generateContent 404 'no longer available to new users' donuyordu).
+    'gemini_model': 'gemini-flash-latest',
     'ollama_url': 'http://localhost:11434',
     'ollama_model': 'qwen2.5:7b',
     'ollama_timeout_sn': 420,     # CPU'da 7B model bir özeti dakikalarca yazabilir
@@ -956,17 +960,29 @@ def _yorum_gemini(cfg, girdi):
     if not anahtar:
         return None, ('Gemini API anahtarı tanımlı değil (ai_config.json → api_anahtari). '
                       'Ücretsiz anahtar: aistudio.google.com → Get API key')
-    model = cfg.get('gemini_model') or 'gemini-2.5-flash'
+    model = (cfg.get('gemini_model') or 'gemini-flash-latest').strip()
     govde = {
         'systemInstruction': {'parts': [{'text': SISTEM_PROMPT}]},
         'contents': [{'role': 'user', 'parts': [{'text': girdi}]}],
         'generationConfig': {'maxOutputTokens': int(cfg.get('max_tokens') or 8000)},
     }
     t0 = datetime.now()
-    try:
-        r = requests.post(
-            f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+
+    def _cagri(m):
+        return requests.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent',
             params={'key': anahtar}, json=govde, timeout=120)
+
+    try:
+        r = _cagri(model)
+        # 404'TE TAKMA ADA DUS (2026-08-21): Google eski model adlarini yeni
+        # hesaplara KAPATIYOR — ListModels'ta gorunse bile generateContent 404
+        # 'no longer available to new users' donebiliyor. Config'de bayat bir ad
+        # kalsa da rapor uretilmeye devam etsin; kullanilan model yanit
+        # sozlesmesindeki 'model' alaninda zaten gorunur.
+        if r.status_code == 404 and model != 'gemini-flash-latest':
+            model = 'gemini-flash-latest'
+            r = _cagri(model)
     except requests.exceptions.ConnectionError:
         return None, 'Gemini bağlantısı kurulamadı (sunucunun internet erişimi var mı?)'
     except requests.exceptions.Timeout:
@@ -976,7 +992,9 @@ def _yorum_gemini(cfg, girdi):
     if r.status_code in (401, 403):
         return None, 'Gemini API anahtarı geçersiz ya da yetkisiz'
     if r.status_code == 404:
-        return None, f'Gemini modeli bulunamadı: {model} (ai_config.json → gemini_model)'
+        return None, (f'Gemini modeli bulunamadı: {model}. Google eski adları yeni '
+                      f'hesaplara kapatabiliyor — ai_config.json → gemini_model '
+                      f'değerini gemini-flash-latest yapın (her zaman güncel modele işaret eder)')
     if r.status_code != 200:
         try:
             mesaj = r.json()['error']['message']

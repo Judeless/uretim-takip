@@ -10,8 +10,10 @@
   "_api_anahtari": "anthropic: console.anthropic.com > API Keys. gemini: aistudio.google.com > Get API key (Google hesabi yeter, kredi karti istemez). ollama: anahtar GEREKMEZ, bos birakin.",
   "api_anahtari": "",
 
+  "_gemini_model_notu": "gemini-flash-latest TAKMA ADDIR, her zaman guncel flash modeline gider. Sabit surum adi (orn. gemini-2.5-flash) KULLANMAYIN — Google eskileri yeni hesaplara kapatiyor (404 verir).",
+
   "_gemini_notu": "DIKKAT: Gemini'ye giden ozet veride operator adlari ve referans kodlari VARDIR; ucretsiz katmanda Google bu veriyi urun gelistirmede kullanabilir. Sirket politikasina uygunluguna siz karar verin. Uygun degilse 'ollama' kullanin — veri hic cikmaz.",
-  "gemini_model": "gemini-2.5-flash",
+  "gemini_model": "gemini-flash-latest",
 
   "_ollama_notu": "Sunucuda kurulum: ollama.com'dan indir, sonra komut satirinda: ollama pull qwen2.5:7b  (Turkce icin iyi, ~5 GB). Daha hizli ama zayif: qwen2.5:3b. CPU'da bir ozet dakikalar surebilir — gunluk mail icin sorun degil.",
   "ollama_url": "http://localhost:11434",
