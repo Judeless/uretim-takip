@@ -389,7 +389,10 @@ def heartbeat():
 
         # Tani olay dizisi (firmware v2.4+) — varsa her birini idempotent ekle
         robot_no_hb = (d.get('robot_no') or '').strip()
-        TIP_AD = {0: 'SAYILDI', 1: 'PARAZIT', 2: 'ERKEN'}
+        # tip 3 = KISA (firmware v2.8+ pres): esik altinda kalip SAYILMAYAN pulse.
+        # Bu olay olmadan kacan vuruslarin GENISLIGI hic bilinemiyordu — sayilmayan
+        # pulse tani kanalina girmiyordu. Esigi veriye gore secmek icin sart.
+        TIP_AD = {0: 'SAYILDI', 1: 'PARAZIT', 2: 'ERKEN', 3: 'KISA'}
         for ev in (d.get('tani') or []):
             try:
                 # NOT: 0 gecerli deger (tip 0=SAYILDI, gap/low 0) → `or` KULLANMA, .get(k, default)

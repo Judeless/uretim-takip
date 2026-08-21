@@ -146,6 +146,27 @@ def detay(makine, gun=7):
                     'ERKEN':   'MIN_PULSE_GAP dolmadan geldi → SAYILMADI'}.get(t, '')
         print(f'    {t:<10} {n:>7}   {aciklama}')
 
+    # ── KAÇAN (eşik altı) PULSE'LAR — firmware v2.8+ ───────────────────────
+    # Asıl aranan cevap: sayılmayan vuruşlar NE KADAR KISAYDI? v2.8 öncesi bu
+    # olay hiç üretilmiyordu (sayılmayan pulse tanı kanalına girmiyordu), o
+    # yüzden eşik ancak tahminle seçilebiliyordu.
+    kisalar = sorted(x[0] for x in c.execute(
+        "SELECT low_ms FROM tani_olaylari WHERE robot_no=? AND tip='KISA' "
+        "AND ts >= ?", (makine, bas)))
+    if kisalar:
+        sayilan = tipler.get('SAYILDI', 0)
+        print()
+        print('[2A] ⚠ ESIK ALTI KALIP SAYILMAYAN PULSELAR')
+        print(f'    {len(kisalar)} kaçan vuruş · {sayilan} sayılan '
+              f'→ kayıp oranı %{len(kisalar) * 100 / max(sayilan + len(kisalar), 1):.1f}')
+        print(f'    genişlik: min {kisalar[0]:.0f} · %5 {_yuzdelik(kisalar,5):.0f} · '
+              f'medyan {_yuzdelik(kisalar,50):.0f} · %95 {_yuzdelik(kisalar,95):.0f} ms')
+        _histogram(kisalar, [2, 5, 10, 20, 40, 60, 75],
+                   ['<2 ms', '2-5', '5-10', '10-20', '20-40', '40-60', '60-75', '>75 ms'])
+        print('    EŞİK SEÇİMİ: <2 ms olanlar büyük ihtimalle kontak sıçraması/parazit,')
+        print('    SAYILMAMALI. Gerçek vuruşlar bunlardan belirgin şekilde uzunsa yeni')
+        print('    eşik ikisinin ARASINA konur (INTEG_ESIK_MS, generate.py).')
+
     lows = sorted(x[0] for x in c.execute(
         "SELECT low_ms FROM tani_olaylari WHERE robot_no=? AND tip='SAYILDI' "
         "AND ts >= ? AND low_ms > 0", (makine, bas)))

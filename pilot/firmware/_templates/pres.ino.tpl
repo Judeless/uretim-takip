@@ -87,8 +87,9 @@ const unsigned long MIN_PULSE_GAP_MS = __MIN_GAP_MS__UL;  // cihaz bazli (genera
 // yukselen kenarda ISR hala LOW okuyup state machine'i kilitliyordu. Buradaki
 // ISR yalnizca FALLING'de tetiklenir ve SADECE sayac artirir: pin okumaz, yon
 // tahmin etmez, sayim kararina KARISMAZ. Sayim yolu aynen polling+integrator.
-volatile uint32_t isrKenarSayisi = 0;
-void IRAM_ATTR isrDusenKenar() { isrKenarSayisi++; }
+volatile uint32_t      isrKenarSayisi = 0;
+volatile unsigned long isrKenarUs     = 0;   // son dusen kenarin micros() zamani
+void IRAM_ATTR isrDusenKenar() { isrKenarSayisi++; isrKenarUs = micros(); }
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
@@ -196,6 +197,10 @@ struct Kanal {
   bool          taniBekliyor;   // pulse devam ediyor; bitince SAYILDI (low_ms ile) push edilir
   unsigned long taniLowStart;
   uint32_t      taniBekleyenGap;
+  // KISA PULSE OLCUMU (v2.8): esigi tutturamayan pulse'lari da olcup raporlar.
+  uint32_t      sonIslenenKenar;  // en son islenen isrKenarSayisi degeri
+  bool          kisaTakip;        // bir kenar yakalandi, pulse suruyor mu izleniyor
+  unsigned long kisaBasUs;        // o kenarin ISR zamani
 };
 // ALAN SIRASI ONEMLI — struct'a alan eklenirse BURASI da guncellenmeli.
 // (2026-08-21: integUs/sonOrnekUs eklenince eski 7 degerli ilklendirici kayiyor
@@ -203,7 +208,8 @@ struct Kanal {
 // Designated initializer: sira degisse bile dogru alana yazar.
 Kanal k1 = { .integUs = 0, .sonOrnekUs = 0, .stableLow = false, .lastRaw = HIGH,
              .lastValidPulse = 0, .taniBekliyor = false, .taniLowStart = 0,
-             .taniBekleyenGap = 0 };
+             .taniBekleyenGap = 0, .sonIslenenKenar = 0, .kisaTakip = false,
+             .kisaBasUs = 0 };
 
 // Buzzer kapatma callback'i (esp_timer one-shot suresi dolunca buzzer'i sustur).
 // TUM struct'lardan SONRA tanimli olmali: Arduino .ino otomatik-prototip ucu, prototipleri
@@ -393,6 +399,21 @@ void kanalGuncelle(int pin, uint8_t istasyon, Kanal* k, unsigned long now) {
   if (k->lastRaw == HIGH && v == LOW) taniParazit++;   // ham gurultu kenar gostergesi
   k->lastRaw = v;
 
+  // ── KISA PULSE YAKALAMA (v2.8) ──────────────────────────────────────────
+  // Esigi tutturamayan pulse SAYILMIYOR ve tani kanalina da GIRMIYOR — yani
+  // "kacan vurus ne kadar kisaydi" sorusu simdiye kadar CEVAPSIZDI. Eksantrik
+  // preste sikayet tam bu: makine hizli vurunca saymiyor, cevrim yavaslatilinca
+  // sayiyor (kullanici 2026-08-21, Pres 4). Genisligi olcmeden esik secilemez.
+  // ISR kenari yakalar (HTTP blokesinde bile), loop pulse bitince sureyi olcer.
+  uint32_t kenarSim = isrKenarSayisi;          // volatile tek okuma
+  if (kenarSim != k->sonIslenenKenar) {
+    k->sonIslenenKenar = kenarSim;
+    if (!k->stableLow) {                       // zaten sayilan bir basisin icinde degiliz
+      k->kisaTakip = true;
+      k->kisaBasUs = isrKenarUs;
+    }
+  }
+
   // Gecen SUREYI birikime kat (dongu hizindan bagimsiz).
   unsigned long simdiUs = micros();
   unsigned long dtUs    = simdiUs - k->sonOrnekUs;   // unsigned: overflow'da da dogru
@@ -425,7 +446,21 @@ void kanalGuncelle(int pin, uint8_t istasyon, Kanal* k, unsigned long now) {
       taniPush(2, gap, 0);
       k->taniBekliyor = false;
     }
-  } else if (k->stableLow && k->integUs <= INTEG_DUSUK_US) {
+  }
+
+  // Kenar yakalanmisti ve pin HIGH'a dondu: basis SAYILMADAN bitti mi?
+  if (k->kisaTakip && v == HIGH && !k->stableLow) {
+    unsigned long genislikUs = simdiUs - k->kisaBasUs;
+    k->kisaTakip = false;
+    // Cok kisa olanlar (<2ms) kontak sicramasi/parazit olabilir; onlari da
+    // raporluyoruz ama tip ayni — dagilima bakip karar verilecek.
+    taniPush(3, (uint32_t)(now - k->lastValidPulse), (uint32_t)(genislikUs / 1000UL));
+    Serial.printf("[KISA] Ist.%d pulse %lu us (esik %lu us) - SAYILMADI\n",
+                  istasyon, genislikUs, INTEG_ESIK_US);
+  }
+  if (k->stableLow) k->kisaTakip = false;      // sayildiysa takip gereksiz
+
+  if (k->stableLow && k->integUs <= INTEG_DUSUK_US) {
     k->stableLow = false;
     if (k->taniBekliyor) {
       taniPush(0, k->taniBekleyenGap, now - k->taniLowStart);
