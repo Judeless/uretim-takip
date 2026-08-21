@@ -172,12 +172,72 @@ def detay(makine, gun=7):
         print('    ÇİFT SAYIM ARANIYORSA: dağılım İKİ TEPELİ mi? Kısa tepe = aynı')
         print('    çevrimin ikinci sinyali (broş iniş/çıkış), uzun tepe = gerçek çevrim.')
 
-    print('\n[4] SON 15 SAYIM (zaman sırasıyla)')
-    for r in c.execute(
-            "SELECT ts, low_ms, gap_ms FROM tani_olaylari WHERE robot_no=? AND tip='SAYILDI' "
-            "AND ts >= ? ORDER BY ts DESC LIMIT 15", (makine, bas)):
-        print(f"    {r['ts']}   pulse {r['low_ms'] or 0:>6.0f} ms   gap {r['gap_ms'] or 0:>8.0f} ms")
-    print()
+    # ts = SUNUCUYA ULAŞMA zamanı (heartbeat ile toplu gelir → aynı saniyede
+    # birden fazla olay görünür, sıra yanıltır). GERÇEK zaman cihazın uptime_ms'i.
+    print('\n[4] SON 20 SAYIM (cihaz saati — uptime)')
+    satirlar = list(c.execute(
+        "SELECT uptime_ms, low_ms, gap_ms FROM tani_olaylari WHERE robot_no=? AND tip='SAYILDI' "
+        "AND ts >= ? ORDER BY uptime_ms DESC LIMIT 20", (makine, bas)))
+    for r in satirlar:
+        print(f"    +{(r['uptime_ms'] or 0) / 1000.0:>10.1f} sn   "
+              f"pulse {r['low_ms'] or 0:>7.0f} ms   gap {r['gap_ms'] or 0:>8.0f} ms")
+
+    # ── ÇİFT SAYIM TESTİ ────────────────────────────────────────────────────
+    # Aynı çevrimde İKİ sinyal üretiliyorsa (broş iniş + çıkış) sayılan
+    # aralıklar KISA-UZUN-KISA-UZUN diye salınır. Tek tepeli dağılım, sayılan
+    # sinyallerde çift sayım OLMADIĞI anlamına gelir.
+    gs = [r['gap_ms'] or 0 for r in reversed(satirlar) if (r['gap_ms'] or 0) > 0]
+    if len(gs) >= 6:
+        medyan = _yuzdelik(sorted(gs), 50)
+        kisa = [g for g in gs if g < medyan * 0.6]
+        print('\n[5] ÇİFT SAYIM TESTİ')
+        if len(kisa) >= len(gs) * 0.3:
+            print(f'    ⚠ {len(kisa)}/{len(gs)} aralık medyanın (%{medyan:.0f} ms) çok altında — İKİ TEPELİ')
+            print(f'    Kısa aralıklar: {sorted(kisa)[:8]} ms')
+            print('    → MIN_GAP_MS bu değerlerin ÜSTÜNE, gerçek çevrimin ALTINA konmalı.')
+        else:
+            print(f'    ✓ Aralıklar tek tepeli (medyan {medyan:.0f} ms) — sayılan')
+            print('      sinyallerde çift sayım İZİ YOK.')
+            print('    Çift sayım şikâyeti sürüyorsa iki ihtimal kalır:')
+            print('      a) ikinci sinyal aynı LOW penceresi içinde → firmware zaten tek sayıyor')
+            print('      b) sorun sayaçta değil (makinenin kendi göstergesi / operatör girişi)')
+            print('    Kesin cevap: bu makinenin sinyal sayısını üretim kaydıyla karşılaştırın.')
+    # ── BELİRLEYİCİ TEST: sinyal sayısı ↔ kaydedilen üretim ─────────────────
+    # Çift sayım şikâyetinin tek kesin kanıtı budur: makine N parça üretmişken
+    # sayaç 2N sinyal ürettiyse çift sayıyor demektir. Gap dağılımı çift sayımı
+    # GÖSTERMEYEBİLİR (iki sinyal aynı LOW penceresinde kalırsa firmware zaten
+    # tek sayar), o yüzden üretimle karşılaştırma şart.
+    URETIM_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uretim.db')
+    sinyal = c.execute("SELECT COUNT(*) FROM sayac_olaylari WHERE robot_no=? AND ts >= ?",
+                       (makine, bas)).fetchone()[0]
+    if os.path.exists(URETIM_DB) and sinyal:
+        try:
+            u = sqlite3.connect(URETIM_DB)
+            gun_bas = bas[:10]
+            kayit = u.execute(
+                "SELECT COALESCE(SUM(k.ok_adet),0), COALESCE(SUM(k.nok_adet),0) "
+                "FROM uretim_kayitlari k JOIN vardiyalar v ON v.id = k.vardiya_id "
+                "WHERE v.tarih >= ? AND v.robot_no = ?", (gun_bas, makine)).fetchone()
+            u.close()
+            girilen = (kayit[0] or 0) + (kayit[1] or 0)
+            print('[6] SİNYAL ↔ ÜRETİM KARŞILAŞTIRMASI')
+            print(f'    Sayaç sinyali      : {sinyal}')
+            print(f'    Kaydedilen üretim  : {girilen}  (OK+NOK, vardiya hattı = {makine})')
+            if girilen > 0:
+                oran = sinyal / girilen
+                print(f'    Oran               : {oran:.2f} sinyal/parça')
+                if oran >= 1.7:
+                    print('    ⚠ ÇİFT SAYIM: her parça için ~2 sinyal geliyor.')
+                elif oran <= 0.6:
+                    print('    ⚠ EKSİK SAYIM: sinyallerin bir kısmı kaybolmuş olabilir.')
+                else:
+                    print('    ✓ Oran makul — sinyal başına ~1 parça.')
+            else:
+                print('    (bu makinede üretim kaydı yok — operatör hattı farklı seçmiş olabilir)')
+            print()
+        except Exception as e:
+            print(f'    (uretim karsilastirmasi yapilamadi: {e})')
+
     c.close()
 
 
