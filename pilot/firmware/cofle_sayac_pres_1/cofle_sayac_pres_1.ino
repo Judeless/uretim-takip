@@ -87,9 +87,14 @@ const unsigned long MIN_PULSE_GAP_MS = 600UL;  // cihaz bazli (generate.py)
 // yukselen kenarda ISR hala LOW okuyup state machine'i kilitliyordu. Buradaki
 // ISR yalnizca FALLING'de tetiklenir ve SADECE sayac artirir: pin okumaz, yon
 // tahmin etmez, sayim kararina KARISMAZ. Sayim yolu aynen polling+integrator.
+// DEGISKENLER burada, FONKSIYON TANIMI ASAGIDA (struct Kanal'dan SONRA):
+// Arduino .ino otomatik-prototip ucu prototipleri ILK FONKSIYON TANIMINDAN once
+// ekler. Buraya bir fonksiyon govdesi konursa kanalGuncelle(...,Kanal*,...)
+// prototipi struct Kanal'dan ONCE cikar ve derleme
+// "'Kanal' has not been declared" ile duser (2026-08-21'de yasandi).
 volatile uint32_t      isrKenarSayisi = 0;
 volatile unsigned long isrKenarUs     = 0;   // son dusen kenarin micros() zamani
-void IRAM_ATTR isrDusenKenar() { isrKenarSayisi++; isrKenarUs = micros(); }
+void IRAM_ATTR isrDusenKenar();              // tanim asagida
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
@@ -206,16 +211,25 @@ struct Kanal {
 // (2026-08-21: integUs/sonOrnekUs eklenince eski 7 degerli ilklendirici kayiyor
 //  ve stableLow HIGH=1 ile 'basili' baslıyordu — ilk vurus kaciyordu.)
 // Designated initializer: sira degisse bile dogru alana yazar.
-Kanal k1 = { .integUs = 0, .sonOrnekUs = 0, .stableLow = false, .lastRaw = HIGH,
-             .lastValidPulse = 0, .taniBekliyor = false, .taniLowStart = 0,
-             .taniBekleyenGap = 0, .sonIslenenKenar = 0, .kisaTakip = false,
-             .kisaBasUs = 0 };
+// TUM ALANLAR SIFIR — sonra setup() gercek baslangic degerlerini yazar
+// (k1.lastRaw = digitalRead(...), k1.sonOrnekUs = micros()).
+// POZISYONEL LISTE KULLANILMAZ: struct'a alan eklendiginde sessizce kayar ve
+// yanlis alana yazar (2026-08-21: eski 7 degerli liste stableLow'u HIGH=1 ile
+// baslatiyordu -> ilk vurus kaciyordu). Designated initializer da KULLANILMAZ:
+// C++20 oncesinde standart degil, ESP32 cekirdeginde derlenmeyebilir.
+// '{}' ikisinin de riskini taşımaz.
+Kanal k1 = {};
 
 // Buzzer kapatma callback'i (esp_timer one-shot suresi dolunca buzzer'i sustur).
 // TUM struct'lardan SONRA tanimli olmali: Arduino .ino otomatik-prototip ucu, prototipleri
 // ILK fonksiyon tanimindan once ekler; ilk fonksiyon struct Kanal'dan once olursa
 // kanalGuncelle(...,Kanal*,...) prototipi "'Kanal' has not been declared" hatasi verir.
 static void buzzerKapat(void* arg) { digitalWrite(PIN_BUZZER, LOW); }
+
+// ISR govdesi — AYNI GEREKCEYLE burada (struct'lardan sonra). Yalniz sayac
+// artirir ve zaman damgalar; pin OKUMAZ, yon tahmin ETMEZ, sayim kararina
+// KARISMAZ (bkz. 2026-06-01 interrupt regresyonu).
+void IRAM_ATTR isrDusenKenar() { isrKenarSayisi++; isrKenarUs = micros(); }
 
 // ════════════════════════════════════════════════════════════
 //   YARDIMCI FONKSIYONLAR
