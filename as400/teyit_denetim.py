@@ -176,10 +176,10 @@ def tek_referans(kod, gun=45):
     print()
 
 
-def _gun_karari(gun=14):
+def _gun_karari(gun=14, bit_str=None):
     """Her (referans, üretim günü) için sistemin teyit kararı.
     Döner: [(kod, tarih, adet, durum, kanit_toplam)]"""
-    bit = date.today()
+    bit = date.fromisoformat(bit_str) if bit_str else date.today()
     bas = bit - timedelta(days=gun)
     bas_s, bit_s = bas.isoformat(), bit.isoformat()
     uretim, _ = _uretim(bas_s, bit_s)
@@ -200,8 +200,8 @@ def _gun_karari(gun=14):
     return out, bas_s, bit_s
 
 
-def tara(gun=14):
-    kararlar, bas_s, bit_s = _gun_karari(gun)
+def tara(gun=14, bit_str=None):
+    kararlar, bas_s, bit_s = _gun_karari(gun, bit_str)
     if not kararlar:
         print('Bu aralıkta üretim kaydı yok.')
         return
@@ -214,18 +214,25 @@ def tara(gun=14):
     print(f'TEYİT DENETİMİ · {bas_s} → {bit_s}   ({len(kararlar)} referans-gün)')
     print('=' * 78)
     print(f'  ✓ tam teyitli      : {len(tam)}')
-    print(f'  ⚠ FAZLA teyit      : {len(fazla)}')
+    print(f'  ⚠ şüpheli (elle bak): {len(fazla)}')
     print(f'  ◐ kısmi teyitli    : {len(kismi)}')
     print(f'  · teyit almamış    : {len(yok)}')
 
     if fazla:
-        print('\n⚠ FAZLA TEYİT — o güne üretilenden çok teyit hareketi var')
-        print(f'{"FAZLA":>8}  {"ÜRETİM":>8}  {"TEYİT":>8}  TARİH        REFERANS')
+        # 'olasi' = kanıt hareketleri o günün adedinden ÇOK. Bu MUTLAKA fazla
+        # teyit demek DEĞİLDİR: bir ERP teyidi birden çok üretim gününü
+        # kapsayabiliyor (10.300.0999'da 3024'lük tek hareket, o günün üretimi
+        # 80) ve _zaten_teyitli o günden SONRAKİ hareketleri de kanıt sayıyor.
+        # Panelde bu satırlar "Dikkat gerektirir"e düşer — burada da aynı:
+        # KARAR LİSTESİ, suçlama listesi değil.
+        print('\n⚠ ŞÜPHELİ — kanıt hareketleri o günün adedinden çok (elle bakılmalı)')
+        print(f'{"FARK":>8}  {"ÜRETİM":>8}  {"KANIT":>8}  TARİH        REFERANS')
         print('-' * 78)
-        for k, t, adet, _d, kanit in sorted(fazla, key=lambda x: -(x[4] - x[2])):
+        for k, t, adet, _d, kanit in sorted(fazla, key=lambda x: -(x[4] - x[2]))[:25]:
             print(f'{kanit - adet:>+8g}  {adet:>8g}  {kanit:>8g}  {t}   {k}')
         print('-' * 78)
-        print(f'  toplam fazlalık {sum(k[4] - k[2] for k in fazla):g} adet')
+        print('  (fark MUTLAKA fazla teyit değildir — bir teyit birden çok günü')
+        print('   kapsayabilir; tek referans dökümünde tarihlere bakın)')
 
     if kismi:
         print('\n◐ KISMİ TEYİTLİ — kalan adet henüz girilmemiş')
@@ -245,7 +252,8 @@ if __name__ == '__main__':
         pass
     arg = sys.argv[1] if len(sys.argv) > 1 else '--tara'
     if arg == '--tara':
-        tara(int(sys.argv[2]) if len(sys.argv) > 2 else 14)
+        tara(int(sys.argv[2]) if len(sys.argv) > 2 else 14,
+             sys.argv[3] if len(sys.argv) > 3 else None)
     elif arg.startswith('-'):
         print(__doc__)
     else:
