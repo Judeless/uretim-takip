@@ -892,3 +892,72 @@ def yorum_uret(analiz, cfg=None):
         return None, 'API\'ye bağlanılamadı (sunucunun internet erişimi var mı?)'
     except Exception as e:
         return None, f'{type(e).__name__}: {e}'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  TANI / ELLE TEST
+# ═════════════════════════════════════════════════════════════════════════════
+# Sunucuda panel girişi yapmadan tüm zinciri sınamak için:
+#     python analiz.py                      → dün
+#     python analiz.py 2026-08-01 2026-08-21 → aralık
+# Yerel motoru çalıştırır, sonra AI katmanını dener ve NEREDE takıldığını yazar
+# (config yok / paket yok / anahtar geçersiz / internet yok / kredi yok).
+
+if __name__ == '__main__':
+    import sys
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
+    _bas = sys.argv[1] if len(sys.argv) > 1 else (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    _bit = sys.argv[2] if len(sys.argv) > 2 else _bas
+
+    print('=' * 70)
+    print(f'ANALİZ TANI  ·  {_bas} → {_bit}')
+    print('=' * 70)
+
+    # 1) Yerel motor
+    _t0 = datetime.now()
+    _a = analiz_yap(_bas, _bit, yorum=False)
+    _o = _a['ozet']
+    print(f"\n[1] YEREL MOTOR  ({(datetime.now() - _t0).total_seconds():.1f} sn)")
+    print(f"    vardiya={_o['vardiya']}  üretim={_bin(_o['toplam'])}  OEE=%{_o['oee']}  "
+          f"(A%{_o['availability']} P%{_o['performance']} Q%{_o['quality']})")
+    print(f"    bulgu: {_a['sayim']['kritik']} kritik · {_a['sayim']['uyari']} uyarı · "
+          f"{_a['sayim']['bilgi']} bilgi")
+    for _b_ in _a['bulgular'][:8]:
+        print(f"      [{_b_['siddet']:6s}] {_b_['baslik'][:80]}")
+    if not _o['vardiya']:
+        print('    ! Bu aralıkta vardiya yok — AI testi için veri olan bir tarih verin.')
+
+    # 2) Yapılandırma
+    _cfg = ai_config()
+    print('\n[2] AI YAPILANDIRMA')
+    print(f"    ai_config.json      : {'VAR' if os.path.exists(AI_CONFIG) else 'YOK  → ' + AI_CONFIG}")
+    print(f"    etkin               : {_cfg.get('etkin')}")
+    _anh = (_cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()
+    # Anahtarın KENDİSİ yazdırılmaz — yalnız var mı ve şekli doğru mu.
+    print(f"    api_anahtari        : {'var (' + _anh[:7] + '…' + str(len(_anh)) + ' karakter)' if _anh else 'YOK'}")
+    print(f"    model               : {_cfg.get('model')}   effort: {_cfg.get('effort')}")
+    try:
+        import anthropic as _ant
+        print(f"    anthropic paketi    : {_ant.__version__}")
+    except ImportError:
+        print('    anthropic paketi    : KURULU DEĞİL  → pip install anthropic')
+
+    # 3) Yorum katmanı
+    print('\n[3] AI YORUM DENEMESİ')
+    _t0 = datetime.now()
+    _y, _hata = yorum_uret(_a)
+    if _y:
+        print(f"    ✓ BAŞARILI  ·  {_y['model']}  ·  {_y['sure_sn']} sn  ·  "
+              f"{_y['girdi_token']} girdi + {_y['cikti_token']} çıktı token")
+        print('    ' + '-' * 66)
+        for _sat in _y['metin'].splitlines():
+            print('    ' + _sat)
+    else:
+        print(f"    ✗ ALINAMADI: {_hata}")
+        print(f"      ({(datetime.now() - _t0).total_seconds():.1f} sn sonra)")
+        print('      Bulgular etkilenmez — yalnız yönetici özeti yazılmaz.')
+    print()
