@@ -1075,6 +1075,45 @@ def _test_son_aktivite_dk(conn, vardiya_id):
         return None
 
 
+# ─────────────────────────────────────────────────────────────
+# MAKİNE BAŞINA SİNYAL BÖLENİ (kullanıcı 2026-08-21)
+# ─────────────────────────────────────────────────────────────
+# Bazı makineler BİR PARÇA için birden fazla röle sinyali üretir. Bu, referansın
+# değil MAKİNENİN özelliğidir — o makinedeki her referans için geçerlidir, o
+# yüzden referans bazlı bukum_operasyon ile çözülmez.
+#
+# BROŞ (saha ölçümü 2026-08-21): broş aşağı inip çekerken röle çekiyor, tekrar
+# ilk konuma çıkarken BİR KEZ DAHA çekiyor → 1 parça = 2 sinyal.
+# İki hareket AYNI SÜREDE olduğu için sinyaller birbirinden ayırt EDİLEMEZ:
+# tanı verisinde 406 sayımın tamamı ~25 sn aralıkla, pulse'lar 6,5-6,9 sn —
+# yani dağılım tek tepeli. Gerçek çevrim ~50 sn, biz yarısında bir sayıyoruz.
+# Kullanıcı doğruladı: "görülen adetin yarısı kadar üretim yapılmış oluyor."
+#
+# NEDEN FIRMWARE'DE DEĞİL SUNUCUDA:
+#   · Firmware'de "her ikinci sinyali gönder" demek PARİTE durumu tutmak demek;
+#     tek bir sinyal kaçarsa parite ters döner ve o andan sonra HEP yanlış sayar.
+#   · Sunucuda bölme ham TOPLAM üzerinden yapılır ve her senkronda yeniden
+#     hesaplanır — kaçan sinyal en fazla yarım parçalık sapma yaratır, kalıcı
+#     kaymaz. (Aynı gerekçe _bukum_bol'un taban bölmesinde de geçerli.)
+#   · OTA gerekmez; andon "makine çalışıyor" göstergesi ham sinyalle beslendiği
+#     için etkilenmez (makine gerçekten sinyal üretiyor).
+#
+# YENİ MAKİNE EKLERKEN: önce ÖLÇ (python pilot\tani_analiz.py "<makine>" →
+# [6] SİNYAL ↔ ÜRETİM oranı), tahminle değer yazma.
+MAKINE_SINYAL_BOLEN = {
+    'Bros': 2,      # broş: iniş + çıkış = 2 sinyal, 1 parça
+}
+
+
+def _sinyal_bolen(robot_no, istasyon, bukum_op):
+    """Ham sinyali parçaya çevirmek için TOPLAM bölen.
+
+    İki bölen ÇARPILIR çünkü bağımsızdırlar: makine bir parça için 2 sinyal
+    üretiyorsa ve referans 3 büküm istiyorsa, 1 parça = 6 sinyaldir."""
+    makine = kayit_makine_ad(robot_no, istasyon) or robot_no
+    return max(1, int(bukum_op or 1)) * MAKINE_SINYAL_BOLEN.get(makine, 1)
+
+
 def _bukum_bol(pulse, bukum_op):
     """Ham pulse sayısını ÜRETİLEN PARÇAYA çevirir (Pres Abkant büküm modeli).
 
@@ -1291,7 +1330,8 @@ def _uretim_sayac_senkron(conn, vardiya_id):
                 cnt = _sayac_oku(conn, vardiya_id, r['id'], v['bolum'], v['robot_no'],
                                  r['istasyon'] or 0, r['sayac_baslangic_ts'],
                                  r['referans_kodu'], canli=canli)
-                cnt = _bukum_bol(cnt, r['bukum_operasyon'])
+                cnt = _bukum_bol(cnt, _sinyal_bolen(v['robot_no'], r['istasyon'] or 0,
+                                                   r['bukum_operasyon']))
             else:
                 cnt = None
             # PAKET ÇARPANI en sona: sinyal sayısı önce parçaya çevrilir
@@ -2631,7 +2671,9 @@ def vardiya_hat_degistir(vid):
                               o['istasyon'] or 0, o['sayac_baslangic_ts'],
                               o['referans_kodu'], biti_ts=simdi)
             # Dondurma da bölünmeli — yoksa kayıt kapanınca adet ham pulse'a fırlar
-            fcnt = _paket_carp(_bukum_bol(fcnt, o['bukum_operasyon']), o['paket_adedi'])
+            fcnt = _paket_carp(_bukum_bol(fcnt, _sinyal_bolen(eski_robot, o['istasyon'] or 0,
+                                                              o['bukum_operasyon'])),
+                               o['paket_adedi'])
             if fcnt is not None:
                 c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
                           (fcnt, o['id']))
@@ -2870,7 +2912,8 @@ def uretim_ekle():
                                       vardiya_robot, ist_val, o['sayac_baslangic_ts'],
                                       o['referans_kodu'], biti_ts=simdi)
                     # Dondurma da bölünüp çarpılmalı (bkz. _bukum_bol / _paket_carp)
-                    fcnt = _paket_carp(_bukum_bol(fcnt, o['bukum_operasyon']),
+                    fcnt = _paket_carp(_bukum_bol(fcnt, _sinyal_bolen(vardiya_robot, ist_val,
+                                                                     o['bukum_operasyon'])),
                                        o['paket_adedi'])
                     if fcnt is not None:
                         c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
