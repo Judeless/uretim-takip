@@ -1,23 +1,32 @@
 {
   "_aciklama": "Analiz sayfasindaki AI yorum katmani. Bu dosya gitignore'dadir; her makinede ayri tutulur. Kopyalayin: ai_config.json",
 
-  "_kapali_da_calisir": "etkin=false iken YEREL analiz motoru calismaya devam eder (bulgular, operator performansi, sinyal karsilastirmasi). Kapanan tek sey Claude'un yazdigi yonetici ozeti.",
+  "_kapali_da_calisir": "etkin=false iken YEREL analiz motoru calismaya devam eder (bulgular, operator performansi, sinyal karsilastirmasi). Kapanan tek sey yonetici ozeti.",
   "etkin": false,
 
-  "_api_anahtari": "console.anthropic.com > API Keys. Bos birakilirsa ANTHROPIC_API_KEY ortam degiskeni denenir.",
+  "_saglayici": "UC SECENEK: 'anthropic' (Claude API — kredi ister, en kaliteli), 'gemini' (Google — UCRETSIZ katman, kredi karti gerekmez), 'ollama' (sunucuda yerel model — veri fabrikadan cikmaz, tamamen ucretsiz). gemini ve ollama icin sunucuya paket kurmak GEREKMEZ.",
+  "saglayici": "gemini",
+
+  "_api_anahtari": "anthropic: console.anthropic.com > API Keys. gemini: aistudio.google.com > Get API key (Google hesabi yeter, kredi karti istemez). ollama: anahtar GEREKMEZ, bos birakin.",
   "api_anahtari": "",
 
-  "_model": "claude-opus-5 (varsayilan, en yetenekli). Daha ucuz istenirse: claude-sonnet-5.",
+  "_gemini_notu": "DIKKAT: Gemini'ye giden ozet veride operator adlari ve referans kodlari VARDIR; ucretsiz katmanda Google bu veriyi urun gelistirmede kullanabilir. Sirket politikasina uygunluguna siz karar verin. Uygun degilse 'ollama' kullanin — veri hic cikmaz.",
+  "gemini_model": "gemini-2.5-flash",
+
+  "_ollama_notu": "Sunucuda kurulum: ollama.com'dan indir, sonra komut satirinda: ollama pull qwen2.5:7b  (Turkce icin iyi, ~5 GB). Daha hizli ama zayif: qwen2.5:3b. CPU'da bir ozet dakikalar surebilir — gunluk mail icin sorun degil.",
+  "ollama_url": "http://localhost:11434",
+  "ollama_model": "qwen2.5:7b",
+  "ollama_timeout_sn": 420,
+
+  "_model": "Yalniz saglayici=anthropic icin: claude-opus-5 (en yetenekli) | claude-sonnet-5 (daha ucuz).",
   "model": "claude-opus-5",
 
-  "_effort": "Dusunme derinligi + maliyet: low | medium | high | xhigh | max. Gunluk rapor icin medium yeterli.",
+  "_effort": "Yalniz anthropic: low | medium | high. Gunluk rapor icin medium yeterli.",
   "effort": "medium",
 
   "max_tokens": 8000,
 
-  "_veri": "Claude'a HAM uretim kaydi GITMEZ. Yalnizca ozet tablolar ve bulgular gonderilir: donem toplamlari, hat/operator OEE satirlari, referans kodlari ve bulgu metinleri. Bu veri Anthropic'e gider — sirket politikaniza uygun oldugundan emin olun.",
+  "_veri": "Hicbir saglayiciya HAM uretim kaydi gitmez. Gonderilen: donem toplamlari, hat/operator OEE satirlari, referans kodlari ve bulgu metinleri.",
 
-  "_maliyet": "Bir rapor ~15-25 bin girdi + ~1-2 bin cikti token. Opus 5 fiyatiyla gunde bir rapor ayda birkac dolar tutar.",
-
-  "_kurulum": "Sunucuda: pip install anthropic"
+  "_tani": "Sorun cikarsa sunucuda: python analiz.py  — yapilandirmayi ve gercek bir deneme cagrisini raporlar."
 }

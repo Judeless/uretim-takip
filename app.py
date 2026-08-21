@@ -7311,18 +7311,44 @@ def analiz_ai_durum():
     # Yorumcunun hangi python'u ve hangi hesabı kullandığını göstermek tek adımda
     # ayırt ettirir.
     import getpass, sys as _sys   # modül düzeyinde import YOK (dosya kalıbı)
+    # SAĞLAYICIYA GÖRE HAZIRLIK (2026-08-21, "kredi yüklemek istemiyorum"):
+    #   anthropic → paket + anahtar gerekir
+    #   gemini    → yalnız anahtar (requests hep kurulu, paket şartı YOK)
+    #   ollama    → ne paket ne anahtar; yerel servise erişilebilmeli
+    saglayici = (cfg.get('saglayici') or 'anthropic').strip().lower()
+    anahtar_var = bool((cfg.get('api_anahtari')
+                        or os.environ.get('ANTHROPIC_API_KEY' if saglayici == 'anthropic'
+                                          else 'GEMINI_API_KEY') or '').strip())
+    ollama_erisim = None
+    if saglayici == 'ollama':
+        try:
+            import requests as _rq
+            _r = _rq.get((cfg.get('ollama_url') or 'http://localhost:11434').rstrip('/')
+                         + '/api/version', timeout=2)
+            ollama_erisim = (_r.status_code == 200)
+        except Exception:
+            ollama_erisim = False
+    hazir = bool(cfg.get('etkin')) and (
+        (saglayici == 'anthropic' and paket and anahtar_var)
+        or (saglayici == 'gemini' and anahtar_var)
+        or (saglayici == 'ollama' and bool(ollama_erisim)))
+    etkin_model = {'anthropic': cfg.get('model'),
+                   'gemini': cfg.get('gemini_model'),
+                   'ollama': cfg.get('ollama_model')}.get(saglayici, cfg.get('model'))
     return jsonify({
         'config_var': os.path.exists(_an.AI_CONFIG),
         'config_hata': cfg_hata,          # JSON bozuksa/BOM'luysa sebebi
         'config_alanlar': cfg.get('_alanlar') or [],   # dosyada BULUNAN anahtar adları
         'python_yolu': _sys.executable,
         'servis_kullanici': (getpass.getuser() if hasattr(getpass, 'getuser') else ''),
+        'saglayici': saglayici,
+        'ollama_url': cfg.get('ollama_url') if saglayici == 'ollama' else None,
+        'ollama_erisim': ollama_erisim,
         'etkin': bool(cfg.get('etkin')),
         'paket_kurulu': paket,
-        'anahtar_var': bool((cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()),
-        'model': cfg.get('model'),
-        'hazir': bool(cfg.get('etkin')) and paket and bool(
-            (cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()),
+        'anahtar_var': anahtar_var,
+        'model': etkin_model,
+        'hazir': hazir,
     })
 
 

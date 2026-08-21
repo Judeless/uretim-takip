@@ -783,11 +783,24 @@ def gunluk_ozet(gun=None, lokasyon=None, conn=None):
 
 VARSAYILAN_AI = {
     'etkin': False,
+    # SAĞLAYICI (2026-08-21, kullanıcı: "kredi yüklemek istemiyorum"):
+    #   anthropic → Claude API (kredi ister, en kaliteli yorum)
+    #   gemini    → Google Gemini ücretsiz katman (aistudio.google.com'dan
+    #               anahtar, kredi kartı GEREKMEZ; veri Google'a gider ve
+    #               ücretsiz katmanda üründe kullanılabilir)
+    #   ollama    → sunucuda yerel model (veri fabrikadan ÇIKMAZ, tamamen
+    #               ücretsiz; RAM ister, CPU'da yavaştır)
+    # gemini/ollama YALNIZ requests kullanır — sunucuya paket kurmak gerekmez.
+    'saglayici': 'anthropic',
     'api_anahtari': '',
     'model': 'claude-opus-5',
     'max_tokens': 8000,
     'effort': 'medium',
     'dil': 'Türkçe',
+    'gemini_model': 'gemini-2.5-flash',
+    'ollama_url': 'http://localhost:11434',
+    'ollama_model': 'qwen2.5:7b',
+    'ollama_timeout_sn': 420,     # CPU'da 7B model bir özeti dakikalarca yazabilir
 }
 
 SISTEM_PROMPT = """Sen bir imalat tesisinin üretim analistisin. Sana bir dönemin
@@ -862,14 +875,34 @@ def _yorum_girdisi(analiz):
 
 
 def yorum_uret(analiz, cfg=None):
-    """Bulguları Claude'a yorumlatır. (metin, hata_mesaji) döner.
+    """Bulguları seçili sağlayıcıya yorumlatır. (sonuc, hata_mesaji) döner.
 
-    HER HATA YUTULUR: yorum katmanı analizin SÜSÜ, kendisi değil. API anahtarı
-    yoksa, paket kurulu değilse veya servis cevap vermezse yerel bulgular yine de
-    gösterilir — sadece 'yorum' boş kalır."""
+    HER HATA YUTULUR: yorum katmanı analizin SÜSÜ, kendisi değil. Sağlayıcı
+    hangi sebeple cevap veremezse versin, yerel bulgular yine de gösterilir.
+
+    Üç sağlayıcı da AYNI sistem promptunu ve AYNI özet girdiyi alır; dönüş
+    sözleşmesi de aynı: {'metin','model','sure_sn','girdi_token','cikti_token'}.
+    """
     cfg = cfg or ai_config()
     if not cfg.get('etkin'):
         return None, 'AI yorumu kapalı (ai_config.json → etkin: true yapın)'
+    girdi = ('Aşağıdaki analiz çıktısını yorumla:\n\n'
+             + json.dumps(_yorum_girdisi(analiz), ensure_ascii=False, indent=1))
+    saglayici = (cfg.get('saglayici') or 'anthropic').strip().lower()
+    try:
+        if saglayici == 'anthropic':
+            return _yorum_anthropic(cfg, girdi)
+        if saglayici == 'gemini':
+            return _yorum_gemini(cfg, girdi)
+        if saglayici == 'ollama':
+            return _yorum_ollama(cfg, girdi)
+        return None, f'Tanınmayan sağlayıcı: {saglayici} (anthropic | gemini | ollama)'
+    except Exception as e:
+        return None, f'{type(e).__name__}: {e}'
+
+
+def _yorum_anthropic(cfg, girdi):
+    """Claude API — kredi ister; en kaliteli yorum. Paket: pip install anthropic."""
     anahtar = (cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()
     if not anahtar:
         return None, 'API anahtarı tanımlı değil (ai_config.json → api_anahtari)'
@@ -877,18 +910,14 @@ def yorum_uret(analiz, cfg=None):
         import anthropic
     except ImportError:
         return None, "anthropic paketi kurulu değil — sunucuda: pip install anthropic"
-
     try:
         istemci = anthropic.Anthropic(api_key=anahtar, timeout=120.0)
         istek = {
             'model': cfg.get('model') or 'claude-opus-5',
             'max_tokens': int(cfg.get('max_tokens') or 8000),
             'system': SISTEM_PROMPT,
-            'messages': [{'role': 'user', 'content':
-                          'Aşağıdaki analiz çıktısını yorumla:\n\n'
-                          + json.dumps(_yorum_girdisi(analiz), ensure_ascii=False, indent=1)}],
+            'messages': [{'role': 'user', 'content': girdi}],
         }
-        # effort thinking derinliğini ve maliyeti belirler; config'den ayarlanabilir.
         if cfg.get('effort'):
             istek['output_config'] = {'effort': cfg['effort']}
         t0 = datetime.now()
@@ -896,10 +925,10 @@ def yorum_uret(analiz, cfg=None):
         if cevap.stop_reason == 'refusal':
             return None, 'Model isteği reddetti (güvenlik filtresi)'
         metin = '\n'.join(b.text for b in cevap.content if b.type == 'text').strip()
-        sure = (datetime.now() - t0).total_seconds()
         if not metin:
             return None, 'Model boş yanıt döndü'
-        return {'metin': metin, 'model': cevap.model, 'sure_sn': round(sure, 1),
+        return {'metin': metin, 'model': cevap.model,
+                'sure_sn': round((datetime.now() - t0).total_seconds(), 1),
                 'girdi_token': cevap.usage.input_tokens,
                 'cikti_token': cevap.usage.output_tokens}, ''
     except anthropic.AuthenticationError:
@@ -909,9 +938,105 @@ def yorum_uret(analiz, cfg=None):
     except anthropic.APIStatusError as e:
         return None, f'API hatası ({e.status_code}): {getattr(e, "message", e)}'
     except anthropic.APIConnectionError:
-        return None, 'API\'ye bağlanılamadı (sunucunun internet erişimi var mı?)'
-    except Exception as e:
-        return None, f'{type(e).__name__}: {e}'
+        return None, 'API bağlantısı kurulamadı (sunucunun internet erişimi var mı?)'
+
+
+def _yorum_gemini(cfg, girdi):
+    """Google Gemini — ÜCRETSİZ KATMAN (2026-08-21).
+
+    Anahtar aistudio.google.com'dan Google hesabıyla alınır, KREDİ KARTI
+    GEREKMEZ. Günlük kota günde-bir-rapor kullanımına fazlasıyla yeter.
+    ⚠ VERİ GOOGLE'A GİDER ve ücretsiz katmanda Google bu veriyi ürün
+    geliştirmede KULLANABİLİR. Gönderilen şey ham kayıt değil, özet tablolar +
+    bulgu metinleridir (operatör adları ve referans kodları dahil) — şirket
+    politikasına uygunluğuna kullanıcı karar verir.
+    Yalnız requests kullanır; sunucuya paket kurmak gerekmez."""
+    import requests
+    anahtar = (cfg.get('api_anahtari') or os.environ.get('GEMINI_API_KEY') or '').strip()
+    if not anahtar:
+        return None, ('Gemini API anahtarı tanımlı değil (ai_config.json → api_anahtari). '
+                      'Ücretsiz anahtar: aistudio.google.com → Get API key')
+    model = cfg.get('gemini_model') or 'gemini-2.5-flash'
+    govde = {
+        'systemInstruction': {'parts': [{'text': SISTEM_PROMPT}]},
+        'contents': [{'role': 'user', 'parts': [{'text': girdi}]}],
+        'generationConfig': {'maxOutputTokens': int(cfg.get('max_tokens') or 8000)},
+    }
+    t0 = datetime.now()
+    try:
+        r = requests.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+            params={'key': anahtar}, json=govde, timeout=120)
+    except requests.exceptions.ConnectionError:
+        return None, 'Gemini bağlantısı kurulamadı (sunucunun internet erişimi var mı?)'
+    except requests.exceptions.Timeout:
+        return None, 'Gemini zaman aşımı — birazdan tekrar deneyin'
+    if r.status_code == 429:
+        return None, 'Gemini kota/hız sınırı — ücretsiz katman dakikalık sınırlıdır, birazdan tekrar deneyin'
+    if r.status_code in (401, 403):
+        return None, 'Gemini API anahtarı geçersiz ya da yetkisiz'
+    if r.status_code == 404:
+        return None, f'Gemini modeli bulunamadı: {model} (ai_config.json → gemini_model)'
+    if r.status_code != 200:
+        try:
+            mesaj = r.json()['error']['message']
+        except Exception:
+            mesaj = r.text[:200]
+        return None, f'Gemini hatası ({r.status_code}): {mesaj}'
+    d = r.json()
+    adaylar = d.get('candidates') or []
+    metin = ''
+    if adaylar:
+        parcalar = (adaylar[0].get('content') or {}).get('parts') or []
+        metin = '\n'.join(p.get('text', '') for p in parcalar).strip()
+    if not metin:
+        sebep = ((adaylar[0].get('finishReason') if adaylar else None)
+                 or (d.get('promptFeedback') or {}).get('blockReason') or 'boş yanıt')
+        return None, f'Gemini içerik döndürmedi ({sebep})'
+    um = d.get('usageMetadata') or {}
+    return {'metin': metin, 'model': model,
+            'sure_sn': round((datetime.now() - t0).total_seconds(), 1),
+            'girdi_token': um.get('promptTokenCount') or 0,
+            'cikti_token': um.get('candidatesTokenCount') or 0}, ''
+
+
+def _yorum_ollama(cfg, girdi):
+    """Ollama — SUNUCUDA YEREL MODEL (2026-08-21).
+
+    Veri fabrikadan HİÇ ÇIKMAZ, tamamen ücretsiz, internet gerekmez.
+    Kurulum (sunucuda): ollama.com'dan indir → `ollama pull qwen2.5:7b`.
+    ⚠ CPU'da yavaştır: 7B model bir özeti dakikalarca yazabilir (günlük mail
+    için sorun değil; panelde bekletir). ~6-8 GB boş RAM ister."""
+    import requests
+    url = (cfg.get('ollama_url') or 'http://localhost:11434').rstrip('/')
+    model = cfg.get('ollama_model') or 'qwen2.5:7b'
+    govde = {'model': model, 'stream': False,
+             'messages': [{'role': 'system', 'content': SISTEM_PROMPT},
+                          {'role': 'user', 'content': girdi}],
+             'options': {'num_predict': int(cfg.get('max_tokens') or 8000)}}
+    t0 = datetime.now()
+    try:
+        r = requests.post(url + '/api/chat', json=govde,
+                          timeout=int(cfg.get('ollama_timeout_sn') or 420))
+    except requests.exceptions.ConnectionError:
+        return None, (f'Ollama çalışmıyor ({url}) — sunucuda kurulu ve açık olmalı '
+                      f'(ollama.com, sonra: ollama pull {model})')
+    except requests.exceptions.Timeout:
+        return None, ('Ollama zaman aşımı — CPU için model büyük olabilir; '
+                      'daha küçük model deneyin (örn. qwen2.5:3b) ya da '
+                      'ollama_timeout_sn değerini artırın')
+    if r.status_code == 404:
+        return None, f'Model yüklü değil — sunucuda: ollama pull {model}'
+    if r.status_code != 200:
+        return None, f'Ollama hatası ({r.status_code}): {r.text[:200]}'
+    d = r.json()
+    metin = ((d.get('message') or {}).get('content') or '').strip()
+    if not metin:
+        return None, 'Ollama boş yanıt döndü'
+    return {'metin': metin, 'model': model,
+            'sure_sn': round((datetime.now() - t0).total_seconds(), 1),
+            'girdi_token': d.get('prompt_eval_count') or 0,
+            'cikti_token': d.get('eval_count') or 0}, ''
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -961,15 +1086,24 @@ if __name__ == '__main__':
     elif os.path.exists(AI_CONFIG):
         print(f"    dosyadaki alanlar   : {', '.join(_cfg.get('_alanlar') or []) or '(yok)'}")
     print(f"    etkin               : {_cfg.get('etkin')}")
-    _anh = (_cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()
+    _sag = (_cfg.get('saglayici') or 'anthropic').strip().lower()
+    print(f"    saglayici           : {_sag}   (anthropic | gemini | ollama)")
+    _anh = (_cfg.get('api_anahtari') or os.environ.get(
+        'ANTHROPIC_API_KEY' if _sag == 'anthropic' else 'GEMINI_API_KEY') or '').strip()
     # Anahtarın KENDİSİ yazdırılmaz — yalnız var mı ve şekli doğru mu.
-    print(f"    api_anahtari        : {'var (' + _anh[:7] + '…' + str(len(_anh)) + ' karakter)' if _anh else 'YOK'}")
-    print(f"    model               : {_cfg.get('model')}   effort: {_cfg.get('effort')}")
-    try:
-        import anthropic as _ant
-        print(f"    anthropic paketi    : {_ant.__version__}")
-    except ImportError:
-        print('    anthropic paketi    : KURULU DEĞİL  → pip install anthropic')
+    if _sag != 'ollama':
+        print(f"    api_anahtari        : {'var (' + _anh[:7] + '…' + str(len(_anh)) + ' karakter)' if _anh else 'YOK'}")
+    if _sag == 'anthropic':
+        print(f"    model               : {_cfg.get('model')}   effort: {_cfg.get('effort')}")
+        try:
+            import anthropic as _ant
+            print(f"    anthropic paketi    : {_ant.__version__}")
+        except ImportError:
+            print('    anthropic paketi    : KURULU DEĞİL  → pip install anthropic')
+    elif _sag == 'gemini':
+        print(f"    model               : {_cfg.get('gemini_model')}   (ücretsiz anahtar: aistudio.google.com)")
+    else:
+        print(f"    model               : {_cfg.get('ollama_model')}   url: {_cfg.get('ollama_url')}")
 
     # 3) Yorum katmanı
     print('\n[3] AI YORUM DENEMESİ')

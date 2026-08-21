@@ -10558,23 +10558,40 @@ window.__I18N_SOZLUK__ = {
                 // Neden kullanılamadığını AÇIKÇA söyle — sessizce devre dışı kalırsa
                 // kullanıcı kutuyu işaretler, hiçbir şey olmaz ve sebebini bilemez.
                 kutu.disabled = true; kutu.checked = false;
-                var sebep = !d.config_var ? '<code>ai_config.json</code> dosyası yok — sunucuda <code>ai_config.json.example</code> dosyasını kopyalayıp API anahtarını girin'
-                          : !d.paket_kurulu ? ('sunucuda <code>anthropic</code> paketi kurulu değil.<br>' +
-                              'Servisin çalıştırdığı Python: <code>' + esc(d.python_yolu || '?') + '</code>' +
-                              (d.servis_kullanici ? ' · hesap: <code>' + esc(d.servis_kullanici) + '</code>' : '') +
-                              // DİKKAT: bu metinlerde KESME İŞARETİ KULLANMAYIN. Tek tırnaklı
-                              // JS string'i erken kapatır, script bloğunun TAMAMI ölür ve
-                              // dashboard komple donar (2026-08-21'de canlıda yaşandı).
-                              '<br>Kurulum <b>şu Python için</b> yapılmalı: <code>"' + esc(d.python_yolu || 'python') + '" -m pip install --ignore-installed anthropic</code>' +
-                              ' — pip kullanıcı klasörüne kurduysa servis hesabı göremez. Kurulumdan sonra <b>servisi yeniden başlatın</b>.')
-                          : !d.anahtar_var ? ('API anahtarı okunamadı.' +
-                              (d.config_hata ? '<br>Dosya hatası: <code>' + esc(d.config_hata) + '</code>' +
-                                               ' — JSON bozuk ya da Not Defteri BOM eklemiş olabilir.'
-                                             : '<br>Dosyada bulunan alanlar: <code>' +
-                                               esc((d.config_alanlar || []).join(', ') || '(yok)') + '</code>' +
-                                               ' — anahtar <code>api_anahtari</code> adıyla yazılmalı, ' +
-                                               '<code>_api_anahtari</code> satırı yalnızca açıklamadır.'))
-                          : 'kapalı (<code>ai_config.json</code> → <code>etkin: true</code>)';
+                // DİKKAT: bu metinlerde KESME İŞARETİ KULLANMAYIN. Tek tırnaklı
+                // JS stringini erken kapatır, script bloğunun TAMAMI ölür ve
+                // dashboard komple donar (2026-08-21 canlıda yaşandı).
+                var sag = d.saglayici || 'anthropic';
+                var sebep;
+                if (!d.config_var) {
+                    sebep = '<code>ai_config.json</code> dosyası yok — sunucuda <code>ai_config.json.example</code> dosyasını kopyalayıp doldurun';
+                } else if (d.config_hata && d.config_hata !== 'dosya yok') {
+                    sebep = 'dosya okunamadı: <code>' + esc(d.config_hata) + '</code> — JSON bozuk olabilir';
+                } else if (sag === 'ollama') {
+                    sebep = d.ollama_erisim === false
+                        ? ('Ollama sunucusuna ulaşılamadı (<code>' + esc(d.ollama_url || '') + '</code>) — ' +
+                           'sunucuda Ollama kurulu ve çalışıyor olmalı (ollama.com, sonra <code>ollama pull ' + esc(d.model || 'qwen2.5:7b') + '</code>)')
+                        : 'kapalı (<code>ai_config.json</code> → <code>etkin: true</code>)';
+                } else if (sag === 'gemini') {
+                    sebep = !d.anahtar_var
+                        ? ('Gemini API anahtarı tanımlı değil (<code>ai_config.json</code> → <code>api_anahtari</code>). ' +
+                           'Ücretsiz anahtar: <b>aistudio.google.com</b> → Get API key (kredi kartı gerekmez)')
+                        : 'kapalı (<code>ai_config.json</code> → <code>etkin: true</code>)';
+                } else if (!d.paket_kurulu) {
+                    sebep = 'sunucuda <code>anthropic</code> paketi kurulu değil.<br>' +
+                            'Servisin çalıştırdığı Python: <code>' + esc(d.python_yolu || '?') + '</code>' +
+                            (d.servis_kullanici ? ' · hesap: <code>' + esc(d.servis_kullanici) + '</code>' : '') +
+                            '<br>Kurulum <b>şu Python için</b> yapılmalı: <code>"' + esc(d.python_yolu || 'python') + '" -m pip install --ignore-installed anthropic</code>' +
+                            ' — pip kullanıcı klasörüne kurduysa servis hesabı göremez. Kurulumdan sonra <b>servisi yeniden başlatın</b>.';
+                } else if (!d.anahtar_var) {
+                    sebep = 'API anahtarı okunamadı.' +
+                            '<br>Dosyada bulunan alanlar: <code>' +
+                            esc((d.config_alanlar || []).join(', ') || '(yok)') + '</code>' +
+                            ' — anahtar <code>api_anahtari</code> adıyla yazılmalı, ' +
+                            '<code>_api_anahtari</code> satırı yalnızca açıklamadır.';
+                } else {
+                    sebep = 'kapalı (<code>ai_config.json</code> → <code>etkin: true</code>)';
+                }
                 not.innerHTML = '⚠️ AI yorum katmanı kullanılamıyor: ' + sebep +
                     '. Bulgular yine de çıkarılır — yorum katmanı yalnızca yönetici özetini yazar.';
                 not.style.display = 'block';
