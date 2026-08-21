@@ -331,7 +331,12 @@ def heartbeat():
             yeni_buffer,
             yeni_uptime,
             int(d.get('free_heap') or 0),
-            int(d.get('isr_count_ist1') or 0),
+            # 'isr_kenar' (firmware v2.8+ pres): ISR ile sayilan HAM dusen kenar.
+            # Eski interrupt firmware'inin bosalan 'isr_count_ist1' sutunu yeniden
+            # kullaniliyor — anlam ayni (ist.1 ISR kenar sayisi), migration gerekmez.
+            # tani_parazit LOOP'ta gorulen kenarlari sayar; ISR bloke sirasinda da
+            # calistigi icin ikisinin FARKI = loop'un kor pencerede kacirdigi kenar.
+            int(d.get('isr_count_ist1') or d.get('isr_kenar') or 0),
             int(d.get('isr_count_ist2') or 0),
             int(d.get('tani_sayildi') or 0),
             int(d.get('tani_parazit') or 0),

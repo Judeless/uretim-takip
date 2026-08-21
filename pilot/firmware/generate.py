@@ -181,6 +181,16 @@ def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
       BOLUM            : sunucuya bildirilen bolum ('pres' varsayilan). Sayim
                          sorgusu (bolum, robot_no) ikilisiyle yapildigi icin
                          YANLIS bolum = hic sayilmayan makine demektir.
+      INTEG_ESIK_MS    : bir vurusun sayilmasi icin gereken net LOW suresi (ms).
+                         KUCULT -> kisa/hizli role vuruslari da sayilir, ama
+                         gurultuye duyarlilik artar. BUYUT -> gurultu elenir,
+                         hizli makinede vurus KACAR. Varsayilan 75 (v2.7 davranisi).
+      MIN_GAP_MS       : iki sayim arasi en az sure (ms). Ayni cevrimde IKINCI bir
+                         sinyal ureten makinelerde (orn. bros: asagi inerken VE
+                         yukari cikarken) bu sure cevrim yarisindan BUYUK olmali ki
+                         geri donus sinyali sayilmasin. Varsayilan 600.
+                         OLCUM: python pilot	ani_analiz.py "<makine>" — gap
+                         dagilimi iki tepeliyse kisa tepe geri donustur.
     Placeholder'i olmayan template'lerde replace no-op'tur."""
     ek = ekstra or {}
     coklu = isinstance(robot_no, (list, tuple))
@@ -198,7 +208,10 @@ def template_uygula(template_metni, cihaz_id, robot_no, ekstra=None):
              .replace('__HB_ROBOT_NO__', ek.get('HB_ROBOT_NO', kanallar[0]))
              .replace('__BUZZER_AKTIF__', ek.get('BUZZER_AKTIF', 'true'))
              .replace('__BUZZER_BEEP_ADET__', ek.get('BUZZER_BEEP_ADET', '1'))
-             .replace('__BUZZER_BEEP_MS__', ek.get('BUZZER_BEEP_MS', '200')))
+             .replace('__BUZZER_BEEP_MS__', ek.get('BUZZER_BEEP_MS', '200'))
+             # Sayim esikleri — cihaz bazli (varsayilanlar v2.7 davranisini korur)
+             .replace('__INTEG_ESIK_MS__', str(ek.get('INTEG_ESIK_MS', 75)))
+             .replace('__MIN_GAP_MS__', str(ek.get('MIN_GAP_MS', 600))))
     for i, ad in enumerate(kanallar, start=1):
         metin = metin.replace(f'__ROBOT_NO_{i}__', ad)
     # __ROBOT_NO__ EN SONA: '__ROBOT_NO_1__' bunu icerir, once o doldurulmali

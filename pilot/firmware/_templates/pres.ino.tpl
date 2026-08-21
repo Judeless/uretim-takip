@@ -57,23 +57,44 @@ const unsigned long BUZZER_BEEP_MS = 200;  // onay beep suresi (SABIT, donanim t
 // Eski "15 ardisik ornek HEPSI LOW" (75ms) filtresi tek bir parazit HIGH ile
 // sifirlandigi icin, parazit basis aninda denk gelince basisi kaciriyordu (eksik sayim).
 // Integrator: her dongude pini ornekle -> LOW'da +1 / HIGH'da -1 (0..MAX).
-// integ >= YUKSEK_ESIK -> "gercek basis" (say); histerezisle DUSUK_ESIK'te biter.
+// integUs >= ESIK -> "gercek basis" (say); histerezisle DUSUK esiginde biter.
 // Esik eski 75ms ile ayni hassasiyette ama tek glitch artik basisi oldurmez.
-const int  INTEG_YUKSEK_ESIK   = 15;   // ~75ms net LOW -> basis algilandi (eski filtre ile ayni)
-const int  INTEG_MAX           = 40;   // tavan (~200ms) — glitch toleransi tamponu
-const int  INTEG_DUSUK_ESIK    = 4;    // ~20ms HIGH -> basis bitti (histerezis)
+// INTEGRATOR ARTIK SURE TABANLI (v2.8, 2026-08-21).
+// ESKISI DONGU SAYIYORDU: her loop() turunda +1/-1. Loop suresi sabit degil —
+// WiFi/HTTP islerinde tur uzayinca "15 ornek" 75ms degil SANIYELER surebiliyordu
+// ve gercek bir vurus esigi tutturamadan bitiyordu (eksantrik preste eksik sayim).
+// Artik gecen SURE (mikrosaniye) toplanir: esik ne yaziyorsa o kadar milisaniyedir,
+// dongu hizindan BAGIMSIZ.
+// SAHA AYARI (generate.py 'ekstra' ile cihaz bazli):
+//   INTEG_ESIK_MS  : bir vurusun sayilmasi icin gereken net LOW suresi
+//   MIN_GAP_MS     : iki sayim arasi en az sure (cift sayim/geri donus filtresi)
+const unsigned long INTEG_ESIK_US   = __INTEG_ESIK_MS__UL * 1000UL;  // net LOW -> basis
+const unsigned long INTEG_MAX_US    = INTEG_ESIK_US * 3;             // tavan: glitch toleransi
+const unsigned long INTEG_DUSUK_US  = INTEG_ESIK_US / 4;             // histerezis: basis bitti
 // PRES GAP: abkant 1500ms'tir (buk arasi uzun), ama eksantrik pres surekli modda
 // 60+ vurus/dk yapabilir — 1500ms filtre vurus KAYBETTIRIR. 600ms = en fazla 100
 // vurus/dk gecer; integrator (75ms) zaten kontak sicramasini eliyor.
 // SAHA AYARI: cift sayarsa buyut, hizli preste eksik sayarsa kucult (heartbeat
 // TANI: tani_erken artiyorsa GAP cok buyuk, tani_parazit artiyorsa gurultu var).
-const unsigned long MIN_PULSE_GAP_MS = 600;    // pres vurus araligi siniri (sahada ayarlanabilir)
+const unsigned long MIN_PULSE_GAP_MS = __MIN_GAP_MS__UL;  // cihaz bazli (generate.py)
+
+// ─── ISR KENAR SAYACI (v2.8) — SAYMAZ, yalniz OLCER ───────────────────────
+// Loop icindeki HTTP cagrilari 3sn'ye kadar BLOKLAR; o sure boyunca pin hic
+// okunmaz ve o pencereye denk gelen vurus genisliginden BAGIMSIZ kaybolur.
+// Kesme (interrupt) blokede bile calisir -> gercek kenar sayisini verir.
+// DIKKAT — 2026-06-01 REGRESYONU TEKRARLANMASIN: o zaman CHANGE interrupt'ta
+// digitalRead() ile kenar YONU tahmin ediliyordu; zayif pull-up yuzunden yavas
+// yukselen kenarda ISR hala LOW okuyup state machine'i kilitliyordu. Buradaki
+// ISR yalnizca FALLING'de tetiklenir ve SADECE sayac artirir: pin okumaz, yon
+// tahmin etmez, sayim kararina KARISMAZ. Sayim yolu aynen polling+integrator.
+volatile uint32_t isrKenarSayisi = 0;
+void IRAM_ATTR isrDusenKenar() { isrKenarSayisi++; }
 const int  HEARTBEAT_MS   = 30000;
 const int  RETRY_MS       = 3000;
 const int  WIFI_TIMEOUT_S = 30;
 const int  WDT_TIMEOUT_S  = 30;
 const int  BUFFER_MAX     = 2000;  // kesinti kuyrugu (eskiden 200) — elektrik varken gunlerce pulse tutar
-const char* FIRMWARE_VER  = "2.7.2-__FW_SUFFIX__";   // 2.7.2: WDT+OTA fix, non-blocking reconnect, retry backoff, WiFi-down hard reset, churn onleme
+const char* FIRMWARE_VER  = "2.8.0-__FW_SUFFIX__";   // 2.8.0: SURE tabanli integrator (dongu hizindan bagimsiz) + cihaz bazli esik/gap + ISR kenar olcumu
 
 // ─── TANI (diagnostic) — sayim filtresi kararlarini heartbeat ile gonderir ──
 const int TANI_MAX          = 30;   // RAM ring buffer
@@ -167,7 +188,8 @@ uint32_t bootId = 0;
 
 // ─── Sayim kanali — integrator debounce durumu ───
 struct Kanal {
-  int           integ;          // 0..INTEG_MAX
+  unsigned long integUs;        // 0..INTEG_MAX_US (net LOW birikimi)
+  unsigned long sonOrnekUs;     // bir onceki ornegin micros() degeri
   bool          stableLow;      // debounced "basili" durumu
   int           lastRaw;        // ham pin durumu (gurultu kenar sayimi)
   unsigned long lastValidPulse; // son gecerli sayim (MIN_PULSE_GAP)
@@ -175,7 +197,13 @@ struct Kanal {
   unsigned long taniLowStart;
   uint32_t      taniBekleyenGap;
 };
-Kanal k1 = { 0, false, HIGH, 0, false, 0, 0 };
+// ALAN SIRASI ONEMLI — struct'a alan eklenirse BURASI da guncellenmeli.
+// (2026-08-21: integUs/sonOrnekUs eklenince eski 7 degerli ilklendirici kayiyor
+//  ve stableLow HIGH=1 ile 'basili' baslıyordu — ilk vurus kaciyordu.)
+// Designated initializer: sira degisse bile dogru alana yazar.
+Kanal k1 = { .integUs = 0, .sonOrnekUs = 0, .stableLow = false, .lastRaw = HIGH,
+             .lastValidPulse = 0, .taniBekliyor = false, .taniLowStart = 0,
+             .taniBekleyenGap = 0 };
 
 // Buzzer kapatma callback'i (esp_timer one-shot suresi dolunca buzzer'i sustur).
 // TUM struct'lardan SONRA tanimli olmali: Arduino .ino otomatik-prototip ucu, prototipleri
@@ -365,10 +393,22 @@ void kanalGuncelle(int pin, uint8_t istasyon, Kanal* k, unsigned long now) {
   if (k->lastRaw == HIGH && v == LOW) taniParazit++;   // ham gurultu kenar gostergesi
   k->lastRaw = v;
 
-  if (v == LOW) { if (k->integ < INTEG_MAX) k->integ++; }
-  else          { if (k->integ > 0)         k->integ--; }
+  // Gecen SUREYI birikime kat (dongu hizindan bagimsiz).
+  unsigned long simdiUs = micros();
+  unsigned long dtUs    = simdiUs - k->sonOrnekUs;   // unsigned: overflow'da da dogru
+  k->sonOrnekUs = simdiUs;
+  // KOR PENCERE TAVANI — tek ornek esigi TEK BASINA dolduramaz.
+  // Loop HTTP'de 3sn bloklanabiliyor. Blok bitince pin LOW okunursa "3 saniyedir
+  // basili" DIYEMEYIZ: o pencerede ne oldugunu bilmiyoruz, role o an kapanmis da
+  // olabilir. Tam esik kadar kredi verilseydi her blok sonrasi SAHTE SAYIM
+  // uretilebilirdi. Esigin dortte biriyle sinirlanir: gercek bir basis birkac
+  // ornekte yine dogrulanir, tek kor pencere asla tek basina sayim yaratmaz.
+  if (dtUs > INTEG_ESIK_US / 4) dtUs = INTEG_ESIK_US / 4;
 
-  if (!k->stableLow && k->integ >= INTEG_YUKSEK_ESIK) {
+  if (v == LOW) { k->integUs = (k->integUs + dtUs > INTEG_MAX_US) ? INTEG_MAX_US : k->integUs + dtUs; }
+  else          { k->integUs = (k->integUs < dtUs) ? 0 : k->integUs - dtUs; }
+
+  if (!k->stableLow && k->integUs >= INTEG_ESIK_US) {
     k->stableLow = true;
     unsigned long gap = now - k->lastValidPulse;
     if (gap >= MIN_PULSE_GAP_MS) {
@@ -385,7 +425,7 @@ void kanalGuncelle(int pin, uint8_t istasyon, Kanal* k, unsigned long now) {
       taniPush(2, gap, 0);
       k->taniBekliyor = false;
     }
-  } else if (k->stableLow && k->integ <= INTEG_DUSUK_ESIK) {
+  } else if (k->stableLow && k->integUs <= INTEG_DUSUK_US) {
     k->stableLow = false;
     if (k->taniBekliyor) {
       taniPush(0, k->taniBekleyenGap, now - k->taniLowStart);
@@ -434,8 +474,11 @@ void heartbeatGonder() {
 
   // ─── TANI: kumulatif sayaclar + son olaylar ───
   doc["tani_sayildi"] = taniSayildi;
-  doc["tani_parazit"] = taniParazit;   // = ham gurultu kenar sayisi
+  doc["tani_parazit"] = taniParazit;   // = ham gurultu kenar sayisi (LOOP'ta gorulen)
   doc["tani_erken"]   = taniErken;
+  // ISR kenar sayisi: HTTP blogu dahil TUM dusen kenarlar. tani_parazit'ten
+  // belirgin BUYUKSE loop kor pencerede kenar kaciriyor demektir (bkz. isrDusenKenar).
+  doc["isr_kenar"]    = isrKenarSayisi;
   int taniGonder = taniDolu;
   if (taniGonder > TANI_HEARTBEAT_N) taniGonder = TANI_HEARTBEAT_N;
   if (taniGonder > 0) {
@@ -492,7 +535,8 @@ void setup() {
   Serial.printf("FW: %s · Bolum: %s · Makine: %s · PRES SAYAC ROLE MODU\n",
                 FIRMWARE_VER, BOLUM, ROBOT_NO);
   Serial.printf("Sayac role pini: GPIO%d (NO-COM kapaninca pulse)\n", PIN_IST1_SAYAC);
-  Serial.printf("Min pulse araligi: %lums (cift sayim siniri)\n", MIN_PULSE_GAP_MS);
+  Serial.printf("Min pulse araligi: %lums (cift sayim siniri) · esik %lums\n",
+                MIN_PULSE_GAP_MS, INTEG_ESIK_US / 1000UL);
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 
   pinMode(PIN_IST1_SAYAC,      INPUT_PULLUP);
@@ -596,9 +640,13 @@ void setup() {
   lastHeartbeat = millis();
   lastRetry = millis();
 
-  Serial.println("[READY] Integrator debounce + TANI aktif — pres sayac rolesi bekleniyor...");
-  Serial.printf( "        (YUKSEK=%d/MAX=%d/DUSUK=%d · MIN_PULSE_GAP=%lums)\n\n",
-                 INTEG_YUKSEK_ESIK, INTEG_MAX, INTEG_DUSUK_ESIK, MIN_PULSE_GAP_MS);
+  // ISR: yalniz FALLING, yalniz sayac (sayim karari LOOP'ta kalir — bkz. isrDusenKenar)
+  attachInterrupt(digitalPinToInterrupt(PIN_IST1_SAYAC), isrDusenKenar, FALLING);
+  k1.sonOrnekUs = micros();   // ilk ornek zamani (pres tek kanalli — k2 YOK)
+
+  Serial.println("[READY] Sure tabanli integrator + ISR kenar olcumu + TANI aktif...");
+  Serial.printf( "        (ESIK=%lums · MIN_PULSE_GAP=%lums)\n\n",
+                 INTEG_ESIK_US / 1000UL, MIN_PULSE_GAP_MS);
   ledYakBlink(3, 60);
 }
 
