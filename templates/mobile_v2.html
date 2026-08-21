@@ -4149,7 +4149,8 @@ window.__I18N_SOZLUK__ = {
                    'Tam Otomatik': 'TAM OTOMAT', 'Kapama': 'KAPAMA', 'Son Montaj': 'SON MONTAJ' };
     // Hat adı adım kalıbına uymayan makineler (tel_proses.TEL_HAT_ADIM_ISTISNA'nın eşi):
     // 'Manuel Kesim' operatöre kendi adıyla görünür ama Halat Kesme adımıdır.
-    var TEL_HAT_ISTISNA = { 'Manuel Kesim': 'Halat Kesme' };
+    var TEL_HAT_ISTISNA = { 'Manuel Kesim': 'Halat Kesme',
+                            'Otomatik Kesim Makinesi': 'Tam Otomatik' };
     function telHatAdimi(hat) {
       var ad = String(hat || '').trim();
       if (TEL_HAT_ISTISNA[ad]) return TEL_HAT_ISTISNA[ad];

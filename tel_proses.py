@@ -55,7 +55,12 @@ TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Soyma': 2, 'Otomatik Hazırlık': 3,
 # bu kalıba UYMAZ: operatör listede makinenin gerçek adını görmeli ama sistem
 # bunu Halat Kesme saymalı (kod eki KESIM, raporda kesim sütunu) — kesim üretimi
 # iki ayrı sütuna bölünmesin.
-TEL_HAT_ADIM_ISTISNA = {'Manuel Kesim': 'Halat Kesme'}
+TEL_HAT_ADIM_ISTISNA = {
+    'Manuel Kesim': 'Halat Kesme',
+    # Hat adi 'Otomatik Kesim Makinesi' ama proses adimi 'Tam Otomatik' KALIR:
+    # kod eki ('TAM OTOMAT') ve rapor sutunu degismesin (2026-08-21).
+    'Otomatik Kesim Makinesi': 'Tam Otomatik',
+}
 
 # FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
 # · kapama 12 · son montaj 4 = 22 hat. Tek makineli adımlarda numara YOK.
@@ -91,7 +96,11 @@ TEL_HAT_ADIM_ISTISNA = {'Manuel Kesim': 'Halat Kesme'}
 TEL_HATLARI = (
     ['Halat Kesme %d' % i for i in range(1, 4)]
     + ['Yarı Otomatik %d' % i for i in range(1, 3)]
-    + ['Tam Otomatik']
+    # AD DEGISTI, POZISYON AYNI (kullanici 2026-08-21): operator makinenin gercek
+    # adini gormeli. ADIM 'Tam Otomatik' KALIR (TEL_HAT_ADIM_ISTISNA) — adim adi
+    # degisseydi kod eki de degisirdi ('... TAM OTOMAT') ve o ekle yazilmis TUM
+    # gecmis kayitlar rapor kirilimindan duserdi.
+    + ['Otomatik Kesim Makinesi']
     + ['Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30', 'Kapama 28', 'Kapama 29']
     + ['Kapama 21', 'Kapama 19', 'Kapama 20', 'Kapama 27', 'Kapama 25', 'Kapama 26']
     # SON MONTAJ 2 HATTA DÜŞTÜ (kullanıcı 2026-08-20): sahada bu iş 4 ve 5 numaralı

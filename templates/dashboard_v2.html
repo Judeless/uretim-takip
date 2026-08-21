@@ -6332,7 +6332,7 @@ window.__I18N_SOZLUK__ = {
         // KAPAMA presleri SAHA KODUYLA (2026-08-18) — sıra tel_proses.TEL_HATLARI ile
         // BİREBİR olmalı, yoksa tel kayıtlarında yanlış pres adı gösterilir.
         var TEL_HATLARI = ['Halat Kesme 1', 'Halat Kesme 2', 'Halat Kesme 3',
-                           'Yarı Otomatik 1', 'Yarı Otomatik 2', 'Tam Otomatik',
+                           'Yarı Otomatik 1', 'Yarı Otomatik 2', 'Otomatik Kesim Makinesi',
                            'Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30',
                            'Kapama 28', 'Kapama 29',
                            'Kapama 21', 'Kapama 19', 'Kapama 20', 'Kapama 27',
@@ -7600,7 +7600,10 @@ window.__I18N_SOZLUK__ = {
           ${v.operator}<br>
           <span style="font-size:0.75rem;color:var(--muted);font-weight:600">${v.baslangic_saati || '?'} - ${v.bitis_saati || '?'}</span>
       </td>
-      <td><span class="badge badge-blue">${v.robot}</span></td>
+      <td><span class="badge badge-blue">${v.robot}</span>${(v.makineler && v.makineler.length)
+            ? '<div style="margin-top:3px;font-size:.72rem;color:var(--muted)">🔧 '
+              + v.makineler.map(esc).join(' · ') + '</div>'
+            : ''}</td>
       <td style="color:var(--success);font-weight:700">${v.ok}</td>
       <td style="color:${v.nok > 0 ? 'var(--danger)' : 'var(--muted)'}">${v.nok}</td>
       <td>${v.durus_dk} dk</td>

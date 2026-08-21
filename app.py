@@ -5634,15 +5634,40 @@ def ozet():
         param_vardiya
     ).fetchall()
 
+    # HANGİ MAKİNEDE ÜRETİLDİ (kullanıcı 2026-08-21) — TK1'de ve pres/plastik/
+    # lazer'de vardiyanın robot_no'su SABİT HAT adıdır ('Tel Üretimi',
+    # 'Pres Abkant'); gerçek makine her ÜRETİM KAYDINDA (istasyon) durur.
+    # Kayıtlar listesi bölüm adını gösterince "hangi makinede üretildi" bilgisi
+    # kayboluyordu. Bir vardiyada birden çok makine kullanılabildiği için TEKİL
+    # değil LİSTE döner (operatör gün içinde makine değiştirebiliyor).
+    vid_listesi = [r['id'] for r in son_vardiyalar]
+    makine_map = {}
+    if vid_listesi:
+        _yer = ','.join('?' * len(vid_listesi))
+        for _r in c.execute(
+                f"SELECT u.vardiya_id, v.robot_no, u.istasyon, SUM(COALESCE(u.ok_adet,0)) ok "
+                f"FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id "
+                f"WHERE u.vardiya_id IN ({_yer}) GROUP BY u.vardiya_id, u.istasyon",
+                vid_listesi).fetchall():
+            ad = kayit_makine_ad(_r['robot_no'], _r['istasyon'] or 0)
+            if not ad:
+                continue          # sabit hatlı değil → vardiyanın hattı zaten doğru
+            makine_map.setdefault(_r['vardiya_id'], []).append((ad, _r['ok'] or 0))
+    # En çok üretilen makine başa — listede ilk görünen o olsun
+    for _vid, _lst in makine_map.items():
+        _lst.sort(key=lambda x: -x[1])
+
     oee_listesi = []
     for row in son_vardiyalar:
         oee_data = hesapla_oee(row['id'])
         if oee_data:
+            _mak = [ad for ad, _ in makine_map.get(row['id'], [])]
             oee_listesi.append({
                 'vardiya_id': oee_data['vardiya_id'],
                 'tarih': oee_data['tarih'],
                 'vardiya': oee_data['vardiya_turu'],
                 'robot': oee_data['robot_no'],
+                'makineler': _mak,            # boşsa robot_no zaten makinedir
                 'operator': oee_data['operator'],
                 'baslangic_saati': oee_data.get('baslangic_saati', ''),
                 'bitis_saati': oee_data.get('bitis_saati', ''),
