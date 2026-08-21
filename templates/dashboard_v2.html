@@ -10425,6 +10425,14 @@ window.__I18N_SOZLUK__ = {
         // ═══════════════════════════════════════════════════════
         var raporChartInst = null;
 
+        // AS400 teyit — 'olasi' ve 'kismi' AYNI muameleyi görür: ikisi de asla
+        // otomatik gönderilmez, Dikkat kovasına düşer ve insan karar verir.
+        // 'kismi' (2026-08-21) = günün bir PARÇASI zaten teyit edilmiş; satırda
+        // kalan adet yazar. Kanıt hareketi bize ait olmayabileceği için kalan
+        // otomatik gönderilmez — 94.LTK.09'da 35 yerine 17 gitmeli, ama bunu
+        // insan onaylamalı.
+        function as4SupheliMi(durum) { return durum === 'olasi' || durum === 'kismi'; }
+
         // ═══════════════════════════════════════════════════════
         //  ANALİZ + OPERATÖR PERFORMANSI (2026-08-21)
         //  Hesabın tamamı sunucuda (analiz.py). Buradaki kod yalnız çizer.
@@ -12353,7 +12361,7 @@ window.__I18N_SOZLUK__ = {
                     var kesin = null, olasi = null;
                     ls.forEach(function (l) {
                         if (l.zaten_teyitli === 'kesin' && !kesin) kesin = l;
-                        if (l.zaten_teyitli === 'olasi' && !olasi) olasi = l;
+                        if (as4SupheliMi(l.zaten_teyitli) && !olasi) olasi = l;
                     });
                     if (kesin) { teyitli.push({ tarih: g.tarih, r: r, l: kesin }); return; }
                     // SATIR düzeyi teyit (2026-07-30): teyit KENDİ referans koduna
@@ -12370,15 +12378,15 @@ window.__I18N_SOZLUK__ = {
                     // ('➕ teyit ver' işareti HARİÇ — o kuyruğa girmek İÇİN konur)
                     if (r.isaret && !teyitVer) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: [] } }); return; }
                     // Satır düzeyi 'olasi' da şüphe: kısmi teyit olabilir → elle kontrol
-                    if (r.zaten_teyitli === 'olasi' && !teyitVer) {
-                        dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r,
+                    if (as4SupheliMi(r.zaten_teyitli) && !teyitVer) {
+                        dikkat.push({ tip: r.zaten_teyitli, tarih: g.tarih, r: r,
                                       l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } });
                         return;
                     }
                     var temiz = ls.filter(function (l) { return !l.zombi; });
                     if (!temiz.length) { dikkat.push({ tip: 'zombi', tarih: g.tarih, r: r, l: ls[0] }); return; }
                     // 'olasi' şüphesi ➕ teyit ver ile EZİLEBİLİR (karar insanın)
-                    if (olasi && !teyitVer) { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: olasi }); return; }
+                    if (olasi && !teyitVer) { dikkat.push({ tip: olasi.zaten_teyitli || 'olasi', tarih: g.tarih, r: r, l: olasi }); return; }
                     _as4Bekleyen.push({ tarih: g.tarih, r: r, launchlar: temiz, bugunMu: g.tarih === bugun });
                 });
                 (L.SUPHELI || []).forEach(function (r) {
@@ -12401,8 +12409,8 @@ window.__I18N_SOZLUK__ = {
                         return;
                     }
                     // Kısmi/uyuşmayan teyit → elle kontrol (ACIK ile aynı kural)
-                    if (r.zaten_teyitli === 'olasi' && !teyitVerS) {
-                        dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r,
+                    if (as4SupheliMi(r.zaten_teyitli) && !teyitVerS) {
+                        dikkat.push({ tip: r.zaten_teyitli, tarih: g.tarih, r: r,
                                       l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } });
                         return;
                     }
@@ -12417,7 +12425,7 @@ window.__I18N_SOZLUK__ = {
                 function dagit(r, kova, ek) {
                     if (sadeceHurda(r)) return;   // teyit edilecek adet yok → yalnız COP
                     if (r.zaten_teyitli === 'kesin') { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
-                    if (r.zaten_teyitli === 'olasi') { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
+                    if (as4SupheliMi(r.zaten_teyitli)) { dikkat.push({ tip: r.zaten_teyitli, tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
                     var kayit = { tarih: g.tarih, r: r };
                     if (ek) for (var kk in ek) kayit[kk] = ek[kk];
                     kova.push(kayit);
@@ -12431,7 +12439,7 @@ window.__I18N_SOZLUK__ = {
                     // '✓ kontrol' işaretli satır = elle ilgilenildi → robot kuyruğuna GİRMEZ
                     // ('➕ teyit ver' HARİÇ — o kuyruğa girmek İÇİN konur)
                     if (r.isaret && !teyitVer) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
-                    if (r.zaten_teyitli === 'olasi' && !teyitVer) { dikkat.push({ tip: 'olasi', tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
+                    if (as4SupheliMi(r.zaten_teyitli) && !teyitVer) { dikkat.push({ tip: r.zaten_teyitli, tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
                     _as4CfiBekleyen.push({ tarih: g.tarih, r: r, article: article || '', bugunMu: g.tarih === bugun });
                 }
                 (L.OPR10 || []).forEach(function (r) { cfiKuyruk(r, ((r.launchlar || [])[0] || {}).article); });
@@ -12703,6 +12711,10 @@ window.__I18N_SOZLUK__ = {
                     varyant: ['var(--warn)', 'Yazım/varyant farkı — referans kodunu AS400 koduna göre düzelt'],
                     zombi:   ['var(--danger)', 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — S ile kapatın; üretim sürecekse yeni launch alınmalı'],
                     olasi:   ['var(--warn)', 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin'],
+                    // 'kismi' (2026-08-21, 94.LTK.09): günün BİR PARÇASI zaten teyitli.
+                    // Adet sütununda kalan gösterilir — gün toplamı gönderilirse
+                    // teyitli kısım İKİNCİ KEZ gider ve ERP'ye fazla stok girer.
+                    kismi:   ['var(--danger)', 'KISMİ TEYİTLİ — yalnız KALAN adet girilmeli, gün toplamı DEĞİL'],
                     kapasite:['var(--danger)', 'ADET ŞÜPHELİ — vardiya süresinde bu kadar üretilemez']
                 };
                 // Kapasite aşımının gerekçesi satır bazlı (adet/cycle/saat) — sabit
@@ -12737,7 +12749,11 @@ window.__I18N_SOZLUK__ = {
                             as4IsaretBtn(x.r, x.tarih, 'kontrol') +
                             (x.tip !== 'zombi' ? as4IsaretBtn(x.r, x.tarih, 'teyit_ver') : '') +
                             '</div></td>' +
-                        '<td style="text-align:right">' + fmt(x.r.adet) + '</td>' +
+                        '<td style="text-align:right">' + fmt(x.r.adet) +
+                            (x.tip === 'kismi' && x.r.kalan_adet != null
+                              ? '<div style="font-size:.72rem;color:var(--lg-red);font-weight:800;white-space:nowrap">' +
+                                fmt(x.r.teyitli_adet) + ' teyitli · kalan ' + fmt(x.r.kalan_adet) + '</div>'
+                              : '') + '</td>' +
                         '<td style="font-size:.8rem">' + (l.article ? esc(l.article) + ' → ' + esc(l.launch || '') : '—') +
                         (hrk ? '<div style="font-size:.7rem;color:var(--dim)">' + esc(hrk) + '</div>' : '') + '</td>' +
                         '<td style="font-size:.76rem;color:' + t[0] + ';font-weight:700">' +

@@ -353,15 +353,29 @@ def _zaten_teyitli(hareketler, uretim_tarihi, adet, gecmis=None):
         teyit edilmis. 29.07 uretimi de 30 adet; 07-29'daki RPR 30 kanit olmasi
         gerekirken '24.07'nin teyidi' sayilip yok sayildi, satir teyitsiz gorundu
         ve 30.07'de IKINCI KEZ teyit gitti -> ERP'ye 30 adet FAZLA."""
-        for t, adl in gecmis.items():
-            if t != uretim_tarihi and t <= h['tarih'] and any(abs(a - h['adet']) < 0.001 for a in adl):
-                zaten = [x for x in hareketler
-                         if x is not h and t <= x['tarih'] < h['tarih']
-                         and any(abs(a - x['adet']) < 0.001 for a in adl)]
-                if zaten:
-                    continue          # o gun zaten karsilandi → baska gun ara
-                return True
-        return False
+        return id(h) in _aciklanan_kume
+
+    # ── AÇIKLANAN HAREKETLER — TEK GECISTE, GUN TUKETEREK (2026-08-21) ──────
+    # ESKI UYGULAMA: her hareket icin ayri ayri "bu adedi karsilayan DAHA ERKEN
+    # TARIHLI bir hareket var mi" diye bakiliyordu. Ayni GUN girilen hareketler
+    # icin bu kontrol HIC calismiyordu (x['tarih'] < h['tarih'] hicbir zaman
+    # dogru olmuyor) -> ayni gunlu hareketlerin HEPSI ayni gecmis gune atfedilip
+    # eleniyordu.
+    # GERCEK OLAY 94.LTK.215 (2026-08-21): 19.08 ve 20.08'de 100'er adet uretim,
+    # 20.08'de 3x100 hareket. Ucu de "19.08'in teyidi" sayildi -> 20.08 satiri
+    # teyitsiz gorundu -> tekrar gonderildi -> ERP'ye 100 adet FAZLA girdi.
+    # YENI: hareketler tarih sirasiyla gezilir, karsilanan gecmis gun TUKETILIR.
+    # Bir gecmis gun yalnizca BIR harekete sahip olabilir; kalanlar kanit sayilir.
+    _aciklanan_kume = set()
+    _tuketilen = set()
+    for h in sorted(hareketler, key=lambda x: x['tarih']):
+        for t in sorted(gecmis):
+            if t == uretim_tarihi or t in _tuketilen or t > h['tarih']:
+                continue
+            if any(abs(a - h['adet']) < 0.001 for a in gecmis[t]):
+                _aciklanan_kume.add(id(h))
+                _tuketilen.add(t)
+                break
 
     sonrakiler = [h for h in hareketler if h['tarih'] > uretim_tarihi]
     # 1) Sonraki gunlerde adet birebir esleyen hareket → bizim teyidimiz, kesin
@@ -389,6 +403,18 @@ def _zaten_teyitli(hareketler, uretim_tarihi, adet, gecmis=None):
         return 'kesin', kalanlar        # bolunmus teyit (orn 1+275=276)
     if toplam >= adet - 0.001:
         return 'olasi', kalanlar
+    # 4) KISMI TEYIT (2026-08-21) — gunun bir PARCASI teyit edilmis.
+    #    ESKIDEN None donuyordu, yani satir "hic teyit verilmemis" gorunuyor ve
+    #    panel GUNUN TAMAMINI oneriyordu.
+    #    GERCEK OLAY 94.LTK.09: 20.08'de iki kalem uretim (18 + 17 = 35), ertesi
+    #    gun yalniz 18 teyit edilmis. Satir 35 adetle "teyitsiz" cikti; gonderilse
+    #    ERP'ye 18 adet FAZLA girecekti.
+    #    Cagiran KALAN adedi kanit hareketlerinin toplamindan cikarir:
+    #        kalan = adet - sum(h['adet'] for h in ilgili)
+    #    'kismi' OTOMATIK GONDERILMEZ — 'olasi' gibi elle onay ister; kanit
+    #    hareketi bize ait olmayabilir, o zaman kalan yanlis hesaplanirdi.
+    if toplam > 0.001:
+        return 'kismi', kalanlar
     return None, kalanlar
 
 
@@ -755,6 +781,22 @@ def esle_coklu(tarihler):
             for t in tarihler}
 
 
+def _teyit_isle(hedef, durum, ilgili, adet):
+    """_zaten_teyitli ciktisini satira/launch'a yazar.
+
+    'kismi' (2026-08-21) icin KALAN adedi de hesaplar: panel gunun TAMAMINI
+    degil kalani onermeli. 94.LTK.09'da gunun 35 adedinin 18'i teyitliydi;
+    kalan hesaplanmadigi icin panel 35 oneriyordu ve gonderilse ERP'ye 18 adet
+    FAZLA girecekti."""
+    hedef['zaten_teyitli'] = durum          # None | 'kesin' | 'olasi' | 'kismi'
+    hedef['zaten_hareket'] = ilgili[:5]     # yalniz ilgili olanlar (JSON sismesin)
+    if durum == 'kismi':
+        teyitli = sum(h['adet'] for h in ilgili)
+        hedef['teyitli_adet'] = round(teyitli, 3)
+        hedef['kalan_adet'] = round(max(0.0, (adet or 0) - teyitli), 3)
+    return hedef
+
+
 def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None, gecmis_map=None):
     """Bir gunun satirlarini kategorize eder (onceden yuklenmis AS400 verisiyle)."""
     # OPR10 = OPR acilmis ama launch ALINMAMIS (durum 10) — planlamaya sinyal
@@ -808,8 +850,7 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
                 hareketler = hrk.get(kanonik(l['article']), [])
                 durum, ilgili = _zaten_teyitli(hareketler, tarih, r['adet'],
                                                gecmis_map.get(kanonik(r['referans'])))
-                l['zaten_teyitli'] = durum          # None | 'kesin' | 'olasi'
-                l['zaten_hareket'] = ilgili[:5]     # yalniz ilgili olanlar (JSON sismesin)
+                _teyit_isle(l, durum, ilgili, r['adet'])
             # SATIR duzeyi kontrol — KENDI referans kodunun hareketleri (2026-07-30).
             # ACIK/SUPHELI'de yalnizca launch'in ARTICLE'ina bakiliyordu; varyant
             # eslesmede (10.300.6175B -> launch article 10.300.6175W) teyit KENDI
@@ -822,8 +863,7 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
             if _ref_hrk:
                 _d, _i = _zaten_teyitli(_ref_hrk, tarih, r['adet'],
                                         gecmis_map.get(kanonik(r['referans'])))
-                r['zaten_teyitli'] = _d             # None | 'kesin' | 'olasi'
-                r['zaten_hareket'] = _i[:5]
+                _teyit_isle(r, _d, _i, r['adet'])
 
     # ── OPR10/KAPALI/YOK icin de SATIR duzeyinde hareket kontrolu (2026-07-20) ──
     # Sabah S ile kapatilan launch XPRO90'dan duser; ayni referansin YENI siparisi
@@ -837,8 +877,7 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
             if not hareketler and r['launchlar']:
                 hareketler = hrk.get(kanonik(r['launchlar'][0]['article']), [])
             durum, ilgili = _zaten_teyitli(hareketler, tarih, r['adet'], gecmis_map.get(anahtar))
-            r['zaten_teyitli'] = durum              # None | 'kesin' | 'olasi'
-            r['zaten_hareket'] = ilgili[:5]
+            _teyit_isle(r, durum, ilgili, r['adet'])
     return sonuc
 
 

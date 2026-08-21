@@ -7866,19 +7866,29 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
         # açılınca (26-150830 → 26-153549) anahtar değişiyor ve aynı üretim günü
         # İKİNCİ KEZ teyit alabiliyordu. Aynı gün + aynı referans için başarılı bir
         # launch teyidi varsa dur. Meşru bölünmüş teyit için 'zorla' ile aşılabilir.
+        # CFI GÖNDERİMLERİ DE SAYILIR (2026-08-21). Eskiden bu sorgu
+        # `yil NOT IN ('CF','CO')` ile CFI kayıtlarını DIŞLIYORDU; CFI tarafındaki
+        # eş kontrol de yalnız yil='CF' satırlarına bakıyordu. Yani iki gönderim
+        # yolu birbirini HİÇ görmüyordu ve aynı üretim bir kez CFI'dan, bir kez
+        # launch'tan teyit edilebiliyordu — 94.LTK.215'te ERP'de tam bu şekil var
+        # (2×RPR + 1×CFI, hepsi aynı gün). Artık 'CO' (COP/hurda — bağımsız bir
+        # depo hareketi) dışında her başarılı gönderim engel sayılır.
         if not zorla:
             var2 = conn.execute(
-                "SELECT id, launch_no, adet FROM as400_teyit_log "
-                "WHERE uretim_tarihi=? AND sonuc='ok' AND yil NOT IN ('CF','CO') "
+                "SELECT id, yil, launch_no, adet FROM as400_teyit_log "
+                "WHERE uretim_tarihi=? AND sonuc='ok' AND yil != 'CO' "
                 "AND UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ','')) LIMIT 1",
                 (u_tarih, referans)).fetchone()
             if var2:
+                _nereden = ('CFI olarak' if var2['yil'] == 'CF'
+                            else f'launch {var2["launch_no"]} ile')
                 sonuclar.append({**kayit, 'sonuc': 'atlandi',
                                  'mesaj': f'Bu üretim günü ({u_tarih}) için bu referansa zaten teyit '
-                                          f'verilmiş: launch {var2["launch_no"]}, {var2["adet"]} adet '
-                                          f'(log #{var2["id"]}). Launch numarası farklı olsa bile aynı '
-                                          f'üretim iki kez teyit edilmemeli — gerçekten bölünmüş teyit '
-                                          f'gerekiyorsa "zorla" ile gönderin.'})
+                                          f'verilmiş: {_nereden}, {var2["adet"]} adet '
+                                          f'(log #{var2["id"]}). Launch numarası farklı olsa ya da '
+                                          f'diğeri CFI\'dan gitmiş olsa bile aynı üretim iki kez teyit '
+                                          f'edilmemeli — gerçekten bölünmüş teyit gerekiyorsa '
+                                          f'"zorla" ile gönderin.'})
                 continue
         # Mükerrer koruması 2 (ASIL): ERP'nin GERÇEK teyit hareketleri —
         # operatörün ELLE girdiği teyitler de burada görünür. Frontend
@@ -8203,6 +8213,24 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
                              'mesaj': f'Bu koda bu gün için {int(adet)} adet CFI ZATEN gönderilmiş '
                                       f'(log #{var["id"]}). Farklı adet göndermek serbest.'})
             continue
+        # Mükerrer 1b — LAUNCH GÖNDERİMLERİ DE SAYILIR (2026-08-21, 94.LTK.215).
+        # Yukarıdaki kontrol yalnız yil='CF' satırlarına bakar; launch tarafındaki
+        # eş kontrol de CFI'yı dışlıyordu → aynı üretim bir kez launch'tan, bir kez
+        # CFI'dan teyit edilebiliyordu. İki yol artık birbirinin log'unu görüyor.
+        if not zorla:
+            var1b = conn.execute(
+                "SELECT id, yil, launch_no, adet FROM as400_teyit_log "
+                "WHERE uretim_tarihi=? AND sonuc='ok' AND yil NOT IN ('CF','CO') "
+                "AND UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ','')) LIMIT 1",
+                (u_tarih, referans)).fetchone()
+            if var1b:
+                sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                 'mesaj': f'Bu üretim günü ({u_tarih}) için bu referansa LAUNCH '
+                                          f'teyidi zaten verilmiş: {var1b["yil"]}-{var1b["launch_no"]}, '
+                                          f'{var1b["adet"]} adet (log #{var1b["id"]}). Aynı üretim hem '
+                                          f'launch hem CFI ile teyit edilmemeli — gerçekten gerekiyorsa '
+                                          f'"zorla" ile gönderin.'})
+                continue
         # Mükerrer 2: ERP hareketleri (RPR+CFI) — HEM article HEM üretim referansı
         # (2026-07-21 4082W dersi: launch teyidi gerçek article'a, CFI adayı çıplak
         # koda bakıyordu → aynı üretim iki kez gitti). Aynı-gün + geçmiş-açıklama kurallı.
