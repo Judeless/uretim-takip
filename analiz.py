@@ -809,16 +809,36 @@ Kurallar:
 - Emin olmadığın yerde "veri yetersiz" de. Kesin konuşmak zorunda değilsin."""
 
 
-def ai_config():
-    """ai_config.json — yoksa/bozuksa varsayılan (kapalı) döner."""
+def ai_config(hata_ile=False):
+    """ai_config.json — yoksa/bozuksa varsayılan (kapalı) döner.
+
+    utf-8-SIG BİLİNÇLİ (2026-08-21): Not Defteri "UTF-8" ile kaydederken dosya
+    başına BOM koyar; düz utf-8 ile okunduğunda json.load İLK KARAKTERDE patlar
+    ve config sessizce varsayılana düşer — panelde "API anahtarı tanımlı değil"
+    görünür, oysa anahtar dosyada durmaktadır. utf-8-sig BOM'u yutar, BOM'suz
+    dosyayı da aynı şekilde okur.
+
+    hata_ile=True → (cfg, hata_metni). Hatayı yutup sessizce varsayılana düşmek
+    tanıyı imkânsız kılıyordu; artık sebep panele kadar taşınabiliyor."""
     cfg = dict(VARSAYILAN_AI)
+    hata = ''
+    anahtarlar = []
     try:
-        if os.path.exists(AI_CONFIG):
-            with open(AI_CONFIG, encoding='utf-8') as f:
-                cfg.update({k: v for k, v in json.load(f).items() if not k.startswith('_')})
+        if not os.path.exists(AI_CONFIG):
+            hata = 'dosya yok'
+        else:
+            with open(AI_CONFIG, encoding='utf-8-sig') as f:
+                ham = json.load(f)
+            if not isinstance(ham, dict):
+                hata = 'dosyanın içeriği JSON nesnesi değil'
+            else:
+                anahtarlar = [k for k in ham if not k.startswith('_')]
+                cfg.update({k: v for k, v in ham.items() if not k.startswith('_')})
     except Exception as e:
+        hata = f'{type(e).__name__}: {e}'
         print(f'[analiz] ai_config.json okunamadı: {e}')
-    return cfg
+    cfg['_alanlar'] = anahtarlar
+    return (cfg, hata) if hata_ile else cfg
 
 
 def _yorum_girdisi(analiz):

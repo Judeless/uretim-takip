@@ -7299,7 +7299,7 @@ def analiz_ai_durum():
     """AI yorum katmanı kullanılabilir mi? (panelde butonun durumunu belirler)
     ANAHTAR DÖNDÜRÜLMEZ — yalnız var/yok bilgisi."""
     import analiz as _an
-    cfg = _an.ai_config()
+    cfg, cfg_hata = _an.ai_config(hata_ile=True)
     try:
         import anthropic  # noqa: F401
         paket = True
@@ -7313,6 +7313,8 @@ def analiz_ai_durum():
     import getpass, sys as _sys   # modül düzeyinde import YOK (dosya kalıbı)
     return jsonify({
         'config_var': os.path.exists(_an.AI_CONFIG),
+        'config_hata': cfg_hata,          # JSON bozuksa/BOM'luysa sebebi
+        'config_alanlar': cfg.get('_alanlar') or [],   # dosyada BULUNAN anahtar adları
         'python_yolu': _sys.executable,
         'servis_kullanici': (getpass.getuser() if hasattr(getpass, 'getuser') else ''),
         'etkin': bool(cfg.get('etkin')),
