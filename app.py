@@ -5375,6 +5375,41 @@ def veri_arsivle_simdi():
         return jsonify({'hata': str(e), 'basarili': False}), 500
 
 
+# ─────────────────────────────────────────────────────────────
+# EK DURUŞ SEBEPLERİ (Excel dışı)
+# ─────────────────────────────────────────────────────────────
+# Duruş listesi sunucudaki Excel'den okunur (data/Tk1 Veriler.xlsx → 'Duruş
+# Listesi'). Sunucuda Excel KURULU DEĞİL ve dosya git ile taşınmıyor (data/
+# gitignore'da) — yeni bir sebep eklemek için dosyayı RDP ile laptopa çekip
+# düzenleyip geri kopyalamak gerekiyor. Tek satırlık ekleme için ağır bir zincir.
+#
+# Buradaki liste Excel'den gelen sebeplerin ÜSTÜNE eklenir. Excel yine ana
+# kaynaktır: aynı sebep Excel'e de yazılırsa mükerrer GÖSTERİLMEZ (ad bazlı
+# tekilleştirme yapılır), yani ileride Excel'e taşınması sorun çıkarmaz.
+#
+# TİP SEÇİMİ OEE'Yİ DOĞRUDAN ETKİLER:
+#   'planli'  → net plan süresinden DÜŞÜLÜR, kullanılabilirliği düşürmez
+#   'plansiz' → kayıp olarak görünür, kullanılabilirliği DÜŞÜRÜR
+# Şüphede 'plansiz' seçilir: yanlış 'planli' gerçek bir kaybı GİZLER.
+EK_DURUS_SEBEPLERI = {
+    # (lokasyon, bolum) — bolum None ise o tesisin TÜM bölümlerinde görünür
+    ('TK1', None): [
+        # 2026-08-21 kullanıcı isteği. Plansız seçildi: kalıp bakımı planlı
+        # yapılıyorsa 'planli' yapılmalı (o zaman kullanılabilirliği düşürmez).
+        {'sebep': 'Kalıp Bakımı', 'tip': 'plansiz'},
+    ],
+}
+
+
+def _ek_durus_sebepleri(bolum, lokasyon):
+    """Excel dışı sebepler — (lokasyon, bolum) ve (lokasyon, None) birleşir."""
+    lok = (lokasyon or 'TK2').upper()
+    out = []
+    for anahtar in ((lok, bolum), (lok, None)):
+        out += EK_DURUS_SEBEPLERI.get(anahtar, [])
+    return out
+
+
 @app.route('/api/durus_sebepleri', methods=['GET'])
 def durus_sebepleri_api():
     """Bölüme göre duruş sebeplerini Excel'den okuyup döner.
@@ -5393,6 +5428,11 @@ def durus_sebepleri_api():
     if bolum not in GECERLI_BOLUMLER:
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
     sebepler = durus_sebepleri_yukle(bolum, lokasyon)
+    # Excel dışı sebepleri ekle — Excel'de zaten varsa TEKRARLAMA (ad bazlı).
+    _mevcut = {str(x.get('sebep', '')).strip().upper() for x in sebepler}
+    for _ek in _ek_durus_sebepleri(bolum, lokasyon):
+        if str(_ek['sebep']).strip().upper() not in _mevcut:
+            sebepler.append(dict(_ek))
     # BOŞ LİSTENİN SEBEBİNİ SÖYLE (2026-08-18). Eskiden boş dönerdi ve operatör
     # mobili sessizce 6 maddelik yedek listeye düşerdi: operatörler "duruşlarımız
     # azaldı" diyene kadar kimse fark etmiyor, o arada duruşlar YANLIŞ/GENEL
