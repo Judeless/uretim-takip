@@ -12985,7 +12985,18 @@ window.__I18N_SOZLUK__ = {
                 //     robot ekrana yazamaz ve tek satır hata verir (artık kuyruk da durmuyor).
                 // ERP'de karşılığı bulunan / kapasite reddi olan satırlarda TEKLİF EDİLMEZ:
                 // orada zorlamak ERP'ye gerçekten mükerrer hareket yazar.
-                var zorlanabilir = (s.sonuc === 'atlandi' && /ZATEN gönderilmiş|zaten gönderilmiş/i.test(s.mesaj || ''))
+                // ÖLÇÜT METİN DEĞİL, '(log #N)' İŞARETİ (2026-08-21). Eskiden mesajda
+                // "zaten gönderilmiş" aranıyordu; referans+gün koruması ise "zaten teyit
+                // VERİLMİŞ" diyor ve buton HİÇ çıkmıyordu — kullanıcı 94.LTK.09'un kalan
+                // 17 adedini gönderemedi, mesaj "zorla ile gönderin" derken arayüzde
+                // öyle bir şey yoktu. Türkçe ifadeye bağlanmak kırılgan; asıl ayrım şu:
+                //   · KENDİ gönderim log'umuza dayanan korumalar '(log #N)' yazar →
+                //     zorlanabilir (bölünmüş teyit meşru olabilir, adet farklıdır)
+                //   · ERP HAREKETİNE dayanan koruma log numarası yazmaz →
+                //     zorlanamaz (orada zorlamak ERP'ye gerçek mükerrer hareket yazar)
+                var zorlanabilir = (s.sonuc === 'atlandi'
+                                    && (/\(log #\d+\)/.test(s.mesaj || '')
+                                        || /ZATEN gönderilmiş|zaten gönderilmiş/i.test(s.mesaj || '')))
                                 || (s.sonuc === 'hata' && /böyle bir article YOK/i.test(s.mesaj || ''));
                 var btn = '';
                 if (zorlanabilir) {
@@ -13017,10 +13028,16 @@ window.__I18N_SOZLUK__ = {
                    'gönderilebilir (mükerrer hareket YAZILMAZ — yalnız kontrol atlanır).\n\n' +
                    'Kod gerçekten tanımsızsa robot ekrana yazamaz ve bu satır hata verir; ' +
                    'kuyruğun geri kalanı etkilenmez.\n\nDevam?')
+                // GEREKÇEYİ SUNUCUDAN AL (2026-08-21): sabit "AYNI ADET gönderilmiş"
+                // metni yalnız adet-eşleşmeli koruma için doğruydu. Referans+gün
+                // koruması FARKLI adette de durduruyor (94.LTK.09: 18 gönderilmiş,
+                // kalan 17 gönderilecek) — sabit metin orada yanlış bilgi veriyordu.
                 : ('MÜKERRER FRENİ ATLANACAK\n\n' + ortak +
-                   '\n\nBu koda bu gün için AYNI ADET zaten gönderilmiş görünüyor. Yine de göndermek ' +
-                   'ERP\'ye İKİNCİ bir hareket yazar.\n\nİki operatör aynı adedi ürettiyse doğrudur. ' +
-                   'Emin misin?');
+                   '\n\nSistemin gerekçesi:\n' + (s.mesaj || '') +
+                   '\n\nYine de göndermek ERP\'ye İKİNCİ bir hareket yazar. Bu ancak GERÇEKTEN ' +
+                   'bölünmüş teyitse doğrudur — aynı gün birden fazla kalem üretilmiş ve ' +
+                   'kalan adet henüz girilmemişse.\n\nERP\'de o güne ait hareketleri ' +
+                   'kontrol ettin mi? Emin misin?');
             if (!confirm(metin)) return;
             // COP / CFI / launch — satırın tipine göre doğru uç noktaya, zorla=true
             var url, govde;
