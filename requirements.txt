@@ -5,3 +5,4 @@ openpyxl==3.1.5
 odfpy==1.4.1
 requests==2.32.5
 pyxlsb==1.0.10          # kaynak_plan_kontrol: planlamanin .xlsb dosyasi
+anthropic>=1.0.0       # analiz.py AI yorum katmani (OPSIYONEL — kurulu degilse yerel analiz yine calisir)

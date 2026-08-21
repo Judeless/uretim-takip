@@ -1,0 +1,23 @@
+{
+  "_aciklama": "Analiz sayfasindaki AI yorum katmani. Bu dosya gitignore'dadir; her makinede ayri tutulur. Kopyalayin: ai_config.json",
+
+  "_kapali_da_calisir": "etkin=false iken YEREL analiz motoru calismaya devam eder (bulgular, operator performansi, sinyal karsilastirmasi). Kapanan tek sey Claude'un yazdigi yonetici ozeti.",
+  "etkin": false,
+
+  "_api_anahtari": "console.anthropic.com > API Keys. Bos birakilirsa ANTHROPIC_API_KEY ortam degiskeni denenir.",
+  "api_anahtari": "",
+
+  "_model": "claude-opus-5 (varsayilan, en yetenekli). Daha ucuz istenirse: claude-sonnet-5.",
+  "model": "claude-opus-5",
+
+  "_effort": "Dusunme derinligi + maliyet: low | medium | high | xhigh | max. Gunluk rapor icin medium yeterli.",
+  "effort": "medium",
+
+  "max_tokens": 8000,
+
+  "_veri": "Claude'a HAM uretim kaydi GITMEZ. Yalnizca ozet tablolar ve bulgular gonderilir: donem toplamlari, hat/operator OEE satirlari, referans kodlari ve bulgu metinleri. Bu veri Anthropic'e gider — sirket politikaniza uygun oldugundan emin olun.",
+
+  "_maliyet": "Bir rapor ~15-25 bin girdi + ~1-2 bin cikti token. Opus 5 fiyatiyla gunde bir rapor ayda birkac dolar tutar.",
+
+  "_kurulum": "Sunucuda: pip install anthropic"
+}

@@ -180,6 +180,10 @@ PANEL_SAYFALAR = [
     'ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
     'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
     'as400-teyit', 'kaynak-plan',
+    # 2026-08-21: operatör performansı KİŞİ SIRALAR — yeni sayfa olarak eklendi,
+    # mevcut kullanıcıların izin listesinde YOK (yalnız admin görür, yönetici
+    # tek tek yetki verir). 'analiz' de aynı gerekçeyle ayrı.
+    'operator-performans', 'analiz',
 ]
 
 def panel_kullanici():
@@ -7198,6 +7202,118 @@ def gunluk_rapor_detay():
         if 'conn' in locals():
             conn.close()
         return jsonify({'hata': f'Rapor hatasi: {str(e)}'}), 500
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  OPERATÖR PERFORMANSI + OTOMATİK ANALİZ (kullanıcı 2026-08-21)
+# ═════════════════════════════════════════════════════════════════════════════
+# Hesap analiz.py'de: app.py, mail_raporu.py ve dashboard aynı bulguları oradan
+# alır. Buradaki uç noktalar sadece parametre doğrulayıp JSON'a çevirir.
+
+def _analiz_araligi(varsayilan_gun=7):
+    """?bas=&bit= — verilmezse son N gün. Ters aralık gelirse düzeltilir."""
+    bit = (request.args.get('bit') or '').strip() or datetime.now().strftime('%Y-%m-%d')
+    bas = (request.args.get('bas') or '').strip()
+    if not bas:
+        bas = (datetime.strptime(bit, '%Y-%m-%d')
+               - timedelta(days=varsayilan_gun - 1)).strftime('%Y-%m-%d')
+    if bas > bit:
+        bas, bit = bit, bas
+    return bas, bit
+
+
+@app.route('/api/rapor/operator_performans', methods=['GET'])
+@panel_gerekli(izin='operator-performans')
+def operator_performans_api():
+    """Operatör bazlı performans + OEE tablosu.
+
+    'hat_farki' sütunu ADİL KARŞILAŞTIRMA için: ham OEE makineye çok bağlıdır
+    (yavaş hatta çalışan hep sonda çıkar), bu sütun kişinin kendi çalıştığı
+    hatların dönem ortalamasına göre kaç puan yukarıda/aşağıda olduğunu verir.
+    """
+    import analiz as _an
+    bas, bit = _analiz_araligi()
+    lokasyon = (request.args.get('lokasyon') or '').strip() or None
+    bolum = (request.args.get('bolum') or '').strip() or None
+    if bolum and bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    conn = get_db()
+    vardiyalar = _an.vardiya_metrikleri(conn, bas, bit, lokasyon, bolum)
+    resp = jsonify({
+        'donem': {'bas': bas, 'bit': bit, 'lokasyon': lokasyon or 'HEPSİ',
+                  'bolum': bolum or 'HEPSİ',
+                  'gun': len({v['tarih'] for v in vardiyalar})},
+        'ozet': _an._topla(vardiyalar),
+        'operatorler': _an.operator_performans(vardiyalar),
+        'hatlar': _an.hat_performans(vardiyalar),
+    })
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/analiz', methods=['GET'])
+@panel_gerekli(izin='analiz')
+def analiz_api():
+    """Dönem analizi: yerel bulgular (+ ?yorum=1 ise Claude yönetici özeti).
+
+    Yorum katmanı ai_config.json'a bağlıdır ve HATASI ANALİZİ DURDURMAZ —
+    'yorum_hata' alanında sebep döner, bulgular her hâlükârda gelir.
+    """
+    import analiz as _an
+    bas, bit = _analiz_araligi()
+    lokasyon = (request.args.get('lokasyon') or '').strip() or None
+    bolum = (request.args.get('bolum') or '').strip() or None
+    if bolum and bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    # Aralık üst sınırı: analiz her vardiyayı tek tek çözer; çok uzun aralık
+    # hem yavaşlar hem de bulguları anlamsızca genelleştirir.
+    if (datetime.strptime(bit, '%Y-%m-%d') - datetime.strptime(bas, '%Y-%m-%d')).days > 120:
+        return jsonify({'hata': 'En fazla 120 günlük aralık analiz edilebilir'}), 400
+    yorum = request.args.get('yorum') in ('1', 'true', 'evet')
+    sonuc = _an.analiz_yap(bas, bit, lokasyon, bolum, yorum=yorum, conn=get_db())
+    resp = jsonify(sonuc)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/analiz/gun_ozet', methods=['GET'])
+@panel_gerekli(izin='ozet')
+def analiz_gun_ozet_api():
+    """Fabrika özeti sayfasının alt bloğu: ÖNCEKİ GÜNÜN özeti + öne çıkanlar.
+    Yorum katmanı burada ÇALIŞMAZ (her sayfa açılışında çağrılır — ücret olurdu).
+    """
+    import analiz as _an
+    gun = (request.args.get('gun') or '').strip() or \
+        (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    lokasyon = (request.args.get('lokasyon') or '').strip() or None
+    sonuc = _an.gunluk_ozet(gun, lokasyon, conn=get_db())
+    sonuc['gun'] = gun
+    resp = jsonify(sonuc)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/analiz/ai_durum', methods=['GET'])
+@panel_gerekli(izin='analiz')
+def analiz_ai_durum():
+    """AI yorum katmanı kullanılabilir mi? (panelde butonun durumunu belirler)
+    ANAHTAR DÖNDÜRÜLMEZ — yalnız var/yok bilgisi."""
+    import analiz as _an
+    cfg = _an.ai_config()
+    try:
+        import anthropic  # noqa: F401
+        paket = True
+    except ImportError:
+        paket = False
+    return jsonify({
+        'config_var': os.path.exists(_an.AI_CONFIG),
+        'etkin': bool(cfg.get('etkin')),
+        'paket_kurulu': paket,
+        'anahtar_var': bool((cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()),
+        'model': cfg.get('model'),
+        'hazir': bool(cfg.get('etkin')) and paket and bool(
+            (cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()),
+    })
 
 
 @app.route('/api/rapor/vardiya_listesi', methods=['GET'])

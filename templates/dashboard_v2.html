@@ -2612,6 +2612,118 @@ window.__I18N_SOZLUK__ = {
     "en": "Could not add",
     "it": "Impossibile aggiungere"
   },
+  "Kişi bazlı üretim, hurda ve OEE — seçilen tarih aralığında": {
+    "en": "Per-person output, scrap and OEE — for the selected date range",
+    "it": "Produzione, scarti e OEE per persona — nell'intervallo di date selezionato"
+  },
+  "Analiz": {
+    "en": "Analysis",
+    "it": "Analisi"
+  },
+  "Üretim, duruş ve sensör verisini karşılaştırıp bulgu çıkarır": {
+    "en": "Cross-checks production, downtime and sensor data to surface findings",
+    "it": "Confronta produzione, fermi e dati dei sensori per far emergere anomalie"
+  },
+  "Dönem Özeti": {
+    "en": "Period Summary",
+    "it": "Riepilogo periodo"
+  },
+  "Hat / Makine Kırılımı": {
+    "en": "Line / Machine Breakdown",
+    "it": "Dettaglio linea / macchina"
+  },
+  "Getir": {
+    "en": "Load",
+    "it": "Carica"
+  },
+  "Analiz Et": {
+    "en": "Analyse",
+    "it": "Analizza"
+  },
+  "Analiz ediliyor...": {
+    "en": "Analysing...",
+    "it": "Analisi in corso..."
+  },
+  "Analiz + yorum...": {
+    "en": "Analysing + commentary...",
+    "it": "Analisi + commento..."
+  },
+  "AI yorumu": {
+    "en": "AI commentary",
+    "it": "Commento IA"
+  },
+  "Bulgular": {
+    "en": "Findings",
+    "it": "Anomalie"
+  },
+  "Tarih aralığı seçip Analiz Et'e basın": {
+    "en": "Pick a date range and press Analyse",
+    "it": "Seleziona un intervallo e premi Analizza"
+  },
+  "Dünün Özeti": {
+    "en": "Yesterday's Summary",
+    "it": "Riepilogo di ieri"
+  },
+  "Yönetici Özeti": {
+    "en": "Executive Summary",
+    "it": "Sintesi per la direzione"
+  },
+  "Kritik": {
+    "en": "Critical",
+    "it": "Critico"
+  },
+  "Uyarı": {
+    "en": "Warning",
+    "it": "Avviso"
+  },
+  "Bilgi": {
+    "en": "Info",
+    "it": "Info"
+  },
+  "Hat farkı": {
+    "en": "Line delta",
+    "it": "Delta linea"
+  },
+  "Kull.": {
+    "en": "Avail.",
+    "it": "Disp."
+  },
+  "Hurda": {
+    "en": "Scrap",
+    "it": "Scarti"
+  },
+  "Plansız duruş": {
+    "en": "Unplanned downtime",
+    "it": "Fermo non pianificato"
+  },
+  "Bu aralıkta eşik aşan bulgu yok.": {
+    "en": "No findings above threshold in this range.",
+    "it": "Nessuna anomalia oltre soglia in questo intervallo."
+  },
+  "Bu aralıkta vardiya kaydı yok": {
+    "en": "No shift records in this range",
+    "it": "Nessun turno registrato in questo intervallo"
+  },
+  "Dün eşik aşan bulgu yok.": {
+    "en": "No findings above threshold yesterday.",
+    "it": "Ieri nessuna anomalia oltre soglia."
+  },
+  "Tüm bulgular ve AI yorumu için Analiz sayfası →": {
+    "en": "All findings and AI commentary on the Analysis page →",
+    "it": "Tutte le anomalie e il commento IA nella pagina Analisi →"
+  },
+  "Hat farkı = kişinin OEE'si eksi aynı hatlarda o dönemde oluşan ortalama OEE. Ham OEE makineye çok bağlıdır (yavaş bir hatta çalışan hep sonda çıkar); kişileri karşılaştırırken bakılması gereken sütun budur. Artı değer, kendi makinelerinden beklenenden iyi demektir.": {
+    "en": "Line delta = the person's OEE minus the average OEE of the same lines over the period. Raw OEE depends heavily on the machine (whoever works a slow line always ranks last); this is the column to use when comparing people. A positive value means better than expected from their own machines.",
+    "it": "Delta linea = OEE della persona meno l'OEE medio delle stesse linee nel periodo. L'OEE grezzo dipende molto dalla macchina (chi lavora su una linea lenta risulta sempre ultimo); è questa la colonna da usare per confrontare le persone. Un valore positivo significa meglio del previsto per le sue macchine."
+  },
+  "Operatör Performansı (kişi bazlı OEE)": {
+    "en": "Operator Performance (per-person OEE)",
+    "it": "Prestazioni operatore (OEE per persona)"
+  },
+  "Analiz (otomatik bulgular)": {
+    "en": "Analysis (automatic findings)",
+    "it": "Analisi (anomalie automatiche)"
+  },
   "Operatör PIN Yönetimi": {
     "en": "Operator PIN Management",
     "it": "Gestione PIN operatore"
@@ -4305,6 +4417,10 @@ window.__I18N_SOZLUK__ = {
                 <div class="nav-group-govde">
                 <a class="nav-item" data-sayfa="raporlar" onclick="sayfaAc('raporlar')">
                     <span class="nav-icon">📈</span> Raporlar</a>
+                <a class="nav-item" data-sayfa="operator-performans" onclick="sayfaAc('operator-performans')">
+                    <span class="nav-icon">👷</span> Operatör Performansı</a>
+                <a class="nav-item" data-sayfa="analiz" onclick="sayfaAc('analiz')">
+                    <span class="nav-icon">🧠</span> Analiz</a>
                 <a class="nav-item" href="/rapor" target="_blank" rel="noopener" data-ext-izin="raporlar" title="Paylaşılabilir salt-okunur rapor sayfası (yeni sekme)">
                     <span class="nav-icon">📲</span> Rapor Paylaş <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
                 </div>
@@ -4438,6 +4554,18 @@ window.__I18N_SOZLUK__ = {
                     <div class="ft-hero" style="--hero-rgb:248,113,113"><span class="ft-deger" id="ft-durus">—</span><span class="ft-etiket">⏸ Duruş dk</span></div>
                 </div>
                 <div class="bolum-grid" id="bolum-grid"></div>
+
+                <!-- ÖNCEKİ GÜNÜN ÖZETİ (2026-08-21) — analiz motorunun bulguları burada
+                     karşılar; kimse rapor açmayı unutmasın diye özetin altında durur.
+                     AI yorumu BURADA ÇALIŞMAZ (her açılışta ücret olurdu) — yalnız
+                     yerel bulgular. Ayrıntı için Analiz sayfası. -->
+                <div class="panel-card" id="dun-ozet-kart" style="margin-top:16px;display:none">
+                    <div class="panel-header">
+                        <h3>🌙 Dünün Özeti</h3>
+                        <span class="adet-info" id="dun-ozet-tarih">—</span>
+                    </div>
+                    <div id="dun-ozet-govde" style="padding:14px 20px 18px"></div>
+                </div>
             </section>
 
             <!-- ══════ SAYFA: ÜRETİM & OEE (BÖLÜM DETAYI) ══════ -->
@@ -5596,6 +5724,95 @@ window.__I18N_SOZLUK__ = {
             </section>
 
             <!-- ══════ SAYFA: AS400 TEYIT (günün üretimi ↔ açık launch eşlemesi — canlı ERP okuması) ══════ -->
+            <!-- ══════ SAYFA: OPERATÖR PERFORMANSI ══════
+                 Kişi bazlı OEE. 'Hat farkı' sütunu kasıtlı olarak en sağda ve vurgulu:
+                 ham OEE makineye bağlıdır, kişileri onunla sıralamak haksızdır. -->
+            <section class="page" id="page-operator-performans">
+                <div class="ky-filtre" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
+                    <div>
+                        <div style="font-size:.95rem;font-weight:800">👷 Operatör Performansı</div>
+                        <div style="font-size:.74rem;color:var(--muted);margin-top:2px">Kişi bazlı üretim, hurda ve OEE — seçilen tarih aralığında</div>
+                    </div>
+                    <div style="flex:1"></div>
+                    <div><label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:4px">Başlangıç</label>
+                        <input type="date" id="op-perf-bas" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.84rem;color-scheme:dark"></div>
+                    <div><label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:4px">Bitiş</label>
+                        <input type="date" id="op-perf-bit" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.84rem;color-scheme:dark"></div>
+                    <div><label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:4px">Bölüm</label>
+                        <select id="op-perf-bolum" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.84rem;color-scheme:dark"></select></div>
+                    <button onclick="yukleOperatorPerformans()" style="background:var(--grad-violet);color:#fff;border:0;border-radius:8px;padding:9px 20px;font-size:.84rem;font-weight:800;cursor:pointer;font-family:var(--font-main)">Getir</button>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>Dönem Özeti</h3>
+                        <span class="adet-info" id="op-perf-durum">—</span>
+                    </div>
+                    <div id="op-perf-ozet" style="padding:14px 20px 4px"></div>
+                    <div class="table-wrap" style="margin-top:10px">
+                        <table class="admin-table">
+                            <thead><tr>
+                                <th>Operatör</th><th>Bölüm</th><th>Vardiya</th><th>Gün</th>
+                                <th>Üretim</th><th>Hurda</th><th>Kull.</th><th>Perf.</th>
+                                <th>Kalite</th><th>OEE</th><th>Hat farkı</th>
+                            </tr></thead>
+                            <tbody id="op-perf-tbody">
+                                <tr><td colspan="11"><div class="yukleniyor"><span class="spinner"></span></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="padding:12px 20px 16px;margin:0;font-size:.75rem;color:var(--muted);line-height:1.6">
+                        Hat farkı = kişinin OEE'si eksi aynı hatlarda o dönemde oluşan ortalama OEE. Ham OEE makineye çok bağlıdır (yavaş bir hatta çalışan hep sonda çıkar); kişileri karşılaştırırken bakılması gereken sütun budur. Artı değer, kendi makinelerinden beklenenden iyi demektir.
+                    </p>
+                </div>
+
+                <div class="panel-card" style="margin-top:14px">
+                    <div class="panel-header"><h3>Hat / Makine Kırılımı</h3></div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead><tr><th>Hat</th><th>Bölüm</th><th>Vardiya</th><th>Üretim</th><th>Plansız duruş</th><th>Kull.</th><th>Perf.</th><th>Kalite</th><th>OEE</th></tr></thead>
+                            <tbody id="op-perf-hat-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════ SAYFA: ANALİZ ══════
+                 Yerel motor (analiz.py) bulguları çıkarır; AI yorumu opsiyonel bir
+                 katmandır ve kapalıysa sayfa aynen çalışır. -->
+            <section class="page" id="page-analiz">
+                <div class="ky-filtre" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
+                    <div>
+                        <div style="font-size:.95rem;font-weight:800">🧠 Analiz</div>
+                        <div style="font-size:.74rem;color:var(--muted);margin-top:2px">Üretim, duruş ve sensör verisini karşılaştırıp bulgu çıkarır</div>
+                    </div>
+                    <div style="flex:1"></div>
+                    <div><label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:4px">Başlangıç</label>
+                        <input type="date" id="analiz-bas" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.84rem;color-scheme:dark"></div>
+                    <div><label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:4px">Bitiş</label>
+                        <input type="date" id="analiz-bit" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.84rem;color-scheme:dark"></div>
+                    <div><label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:4px">Bölüm</label>
+                        <select id="analiz-bolum" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.84rem;color-scheme:dark"></select></div>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;cursor:pointer;padding-bottom:8px"
+                           id="analiz-yorum-kutu" title="Bulguları Claude'a yorumlatır">
+                        <input type="checkbox" id="analiz-yorum" style="width:16px;height:16px;cursor:pointer"> AI yorumu
+                    </label>
+                    <button id="analiz-btn" onclick="analizCalistir()" style="background:var(--grad-violet);color:#fff;border:0;border-radius:8px;padding:9px 22px;font-size:.84rem;font-weight:800;cursor:pointer;font-family:var(--font-main)">Analiz Et</button>
+                </div>
+
+                <div id="analiz-ai-not" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:10px;border:1px solid rgba(251,191,36,0.28);background:rgba(251,191,36,0.07);font-size:.78rem;color:var(--muted);line-height:1.55"></div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>Bulgular</h3>
+                        <span class="adet-info" id="analiz-durum">Tarih aralığı seçip Analiz Et'e basın</span>
+                    </div>
+                    <div id="analiz-ozet" style="padding:14px 20px 0"></div>
+                    <div id="analiz-yorum-kutusu" style="display:none;margin:14px 20px 0;padding:16px 18px;border-radius:12px;border:1px solid rgba(167,139,250,0.3);background:rgba(167,139,250,0.06)"></div>
+                    <div id="analiz-bulgular" style="padding:14px 20px 20px"></div>
+                </div>
+            </section>
+
             <section class="page" id="page-as400-teyit">
                 <!-- 🌅 SABAH KONTROL (2026-07-27): oto TEYİT koşularının raporu.
                      2026-07-29: transfer iptali koşuları buradan çıkarılıp "02'den
@@ -6586,6 +6803,8 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'saha-cihazlari') ? 'page-saha-cihazlari'
                         : (sayfa === 'sinyal-analizi') ? 'page-sinyal-analizi'
                         : (sayfa === 'raporlar') ? 'page-raporlar'
+                        : (sayfa === 'operator-performans') ? 'page-operator-performans'
+                        : (sayfa === 'analiz') ? 'page-analiz'
                         : (sayfa === 'as400-teyit') ? 'page-as400-teyit'
                         : (sayfa === 'kaynak-plan') ? 'page-kaynak-plan'
                         : (sayfa === 'as400-transfer') ? 'page-as400-transfer'
@@ -6633,6 +6852,8 @@ window.__I18N_SOZLUK__ = {
             }
             if (sayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();
             if (sayfa === 'raporlar') initRaporlar();
+            if (sayfa === 'operator-performans') initOperatorPerformans();
+            if (sayfa === 'analiz') initAnaliz();
             if (sayfa === 'as400-teyit') initAS400Teyit();
             if (sayfa === 'kaynak-plan') kpYukle();
             // Transfer sayfası da oto koşu panelini yükler (2026-07-29: transfer
@@ -6964,6 +7185,7 @@ window.__I18N_SOZLUK__ = {
         }
 
         function yukleOzet() {
+            yukleDunOzet();          // özetin altındaki 'dün' bloğu (bağımsız, hatası özeti bozmaz)
             var istek = ++ozetIstekNo;
             var animYap = !girisAnimYapildi; // giriş animasyonu yalnız ilk yüklemede
             girisAnimYapildi = true;
@@ -10203,6 +10425,250 @@ window.__I18N_SOZLUK__ = {
         // ═══════════════════════════════════════════════════════
         var raporChartInst = null;
 
+        // ═══════════════════════════════════════════════════════
+        //  ANALİZ + OPERATÖR PERFORMANSI (2026-08-21)
+        //  Hesabın tamamı sunucuda (analiz.py). Buradaki kod yalnız çizer.
+        // ═══════════════════════════════════════════════════════
+        var SIDDET_RENK = { kritik: 'var(--lg-red)', uyari: 'var(--lg-amber)', bilgi: 'var(--lg-slate2)' };
+        var SIDDET_AD   = { kritik: 'Kritik', uyari: 'Uyarı', bilgi: 'Bilgi' };
+
+        function anYuzde(v) { return (v === null || v === undefined) ? '—' : (Math.round(v * 10) / 10) + '%'; }
+        function anSayi(v)  { return (v === null || v === undefined) ? '—' : Number(v).toLocaleString('tr-TR'); }
+
+        // Son N günü tarih inputlarına yazar (yalnız boşsa — kullanıcının seçimi ezilmesin)
+        function anTarihDoldur(basId, bitId, gun) {
+            var b = document.getElementById(basId), t = document.getElementById(bitId);
+            if (!b || !t || (b.value && t.value)) return;
+            var bugun = new Date();
+            var once = new Date(); once.setDate(once.getDate() - (gun - 1));
+            t.value = isoTarih(bugun); b.value = isoTarih(once);
+        }
+
+        // Bölüm seçicisi — aktif tesisin bölümleri + 'Hepsi'
+        function anBolumDoldur(id) {
+            var sel = document.getElementById(id);
+            if (!sel) return;
+            var secili = sel.value;
+            sel.innerHTML = '<option value="">Hepsi</option>' + lokBolumleri(aktifLokasyon).map(function (b) {
+                return '<option value="' + b + '">' + esc((BOLUMLER[b] || {}).ad || b) + '</option>';
+            }).join('');
+            sel.value = secili || '';
+        }
+
+        function anSorgu(basId, bitId, bolumId) {
+            var q = 'bas=' + encodeURIComponent(document.getElementById(basId).value || '') +
+                    '&bit=' + encodeURIComponent(document.getElementById(bitId).value || '');
+            var b = (document.getElementById(bolumId) || {}).value;
+            if (b) q += '&bolum=' + encodeURIComponent(b);
+            return q;   // lokasyon parametresini fetch sarmalayıcısı ekler
+        }
+
+        // ── Operatör performansı ──────────────────────────────────────────────
+        function initOperatorPerformans() {
+            anTarihDoldur('op-perf-bas', 'op-perf-bit', 7);
+            anBolumDoldur('op-perf-bolum');
+            yukleOperatorPerformans();
+        }
+
+        function anOzetSerit(o, donem) {
+            var kutu = function (etiket, deger, renk) {
+                return '<div style="flex:1 1 120px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg)">' +
+                    '<div style="font-size:.68rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">' + etiket + '</div>' +
+                    '<div style="font-size:1.25rem;font-weight:800;margin-top:3px;color:' + (renk || 'var(--text)') + '">' + deger + '</div></div>';
+            };
+            return '<div style="display:flex;flex-wrap:wrap;gap:10px">' +
+                kutu('OEE', anYuzde(o.oee), esikBilgi(o.oee).renk) +
+                kutu('Kullanılabilirlik', anYuzde(o.availability)) +
+                kutu('Performans', anYuzde(Math.min(o.performance, 100))) +
+                kutu('Kalite', anYuzde(o.quality)) +
+                kutu('Üretim', anSayi(o.toplam)) +
+                kutu('Hurda', anYuzde(o.hurda_oran)) +
+                kutu('Vardiya', anSayi(o.vardiya)) +
+                kutu('Plansız duruş', anSayi(o.plansiz_dk) + ' dk') +
+                '</div>';
+        }
+
+        async function yukleOperatorPerformans() {
+            var durum = document.getElementById('op-perf-durum');
+            var tbody = document.getElementById('op-perf-tbody');
+            durum.textContent = 'Yükleniyor...';
+            tbody.innerHTML = '<tr><td colspan="11"><div class="yukleniyor"><span class="spinner"></span></div></td></tr>';
+            try {
+                var res = await fetch('/api/rapor/operator_performans?' + anSorgu('op-perf-bas', 'op-perf-bit', 'op-perf-bolum'), { cache: 'no-store' });
+                var d = await res.json();
+                if (!res.ok) { durum.textContent = d.hata || 'Hata'; tbody.innerHTML = ''; return; }
+                document.getElementById('op-perf-ozet').innerHTML = anOzetSerit(d.ozet, d.donem);
+                durum.textContent = d.donem.bas + ' – ' + d.donem.bit + ' · ' + d.donem.gun + ' gün · ' + d.operatorler.length + ' operatör';
+                if (!d.operatorler.length) {
+                    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted);font-style:italic">Bu aralıkta vardiya kaydı yok</td></tr>';
+                } else {
+                    tbody.innerHTML = d.operatorler.map(function (o) {
+                        var farkRenk = o.hat_farki >= 5 ? 'var(--lg-green)' : (o.hat_farki <= -5 ? 'var(--lg-red)' : 'var(--muted)');
+                        var isaret = o.hat_farki > 0 ? '+' : '';
+                        return '<tr>' +
+                            '<td style="font-weight:700">' + esc(o.operator) + '</td>' +
+                            '<td style="font-size:.78rem;color:var(--muted)">' + esc(o.bolumler.map(function (b) { return (BOLUMLER[b] || {}).ad || b; }).join(', ')) + '</td>' +
+                            '<td>' + o.vardiya + '</td><td>' + o.gun + '</td>' +
+                            '<td style="font-weight:700">' + anSayi(o.toplam) + '</td>' +
+                            '<td>' + anYuzde(o.hurda_oran) + '</td>' +
+                            '<td>' + anYuzde(o.availability) + '</td>' +
+                            '<td>' + anYuzde(Math.min(o.performance, 100)) + '</td>' +
+                            '<td>' + anYuzde(o.quality) + '</td>' +
+                            '<td style="font-weight:800;color:' + esikBilgi(o.oee).renk + '">' + anYuzde(o.oee) + '</td>' +
+                            '<td style="font-weight:800;color:' + farkRenk + '" title="Aynı hatlarda beklenen: ' + anYuzde(o.beklenen_oee) + '">' + isaret + (Math.round(o.hat_farki * 10) / 10) + '</td>' +
+                            '</tr>';
+                    }).join('');
+                }
+                document.getElementById('op-perf-hat-tbody').innerHTML = (d.hatlar || []).map(function (h) {
+                    return '<tr><td style="font-weight:700">' + esc(h.hat) + '</td>' +
+                        '<td style="font-size:.78rem;color:var(--muted)">' + esc((BOLUMLER[h.bolum] || {}).ad || h.bolum) + ' · ' + esc(h.lokasyon) + '</td>' +
+                        '<td>' + h.vardiya + '</td><td style="font-weight:700">' + anSayi(h.toplam) + '</td>' +
+                        '<td>' + anSayi(h.plansiz_dk) + ' dk</td>' +
+                        '<td>' + anYuzde(h.availability) + '</td><td>' + anYuzde(Math.min(h.performance, 100)) + '</td>' +
+                        '<td>' + anYuzde(h.quality) + '</td>' +
+                        '<td style="font-weight:800;color:' + esikBilgi(h.oee).renk + '">' + anYuzde(h.oee) + '</td></tr>';
+                }).join('');
+            } catch (e) {
+                durum.textContent = 'Bağlantı hatası';
+                console.error('operator_performans:', e);
+            }
+        }
+
+        // ── Analiz ───────────────────────────────────────────────────────────
+        function initAnaliz() {
+            anTarihDoldur('analiz-bas', 'analiz-bit', 7);
+            anBolumDoldur('analiz-bolum');
+            analizAiDurum();
+        }
+
+        async function analizAiDurum() {
+            var not = document.getElementById('analiz-ai-not');
+            var kutu = document.getElementById('analiz-yorum');
+            try {
+                var d = await (await fetch('/api/analiz/ai_durum', { cache: 'no-store' })).json();
+                if (d.hazir) { not.style.display = 'none'; kutu.disabled = false; return; }
+                // Neden kullanılamadığını AÇIKÇA söyle — sessizce devre dışı kalırsa
+                // kullanıcı kutuyu işaretler, hiçbir şey olmaz ve sebebini bilemez.
+                kutu.disabled = true; kutu.checked = false;
+                var sebep = !d.config_var ? '<code>ai_config.json</code> dosyası yok — sunucuda <code>ai_config.json.example</code> dosyasını kopyalayıp API anahtarını girin'
+                          : !d.paket_kurulu ? 'sunucuda <code>anthropic</code> paketi kurulu değil (<code>pip install anthropic</code>)'
+                          : !d.anahtar_var ? 'API anahtarı tanımlı değil (<code>ai_config.json</code> → <code>api_anahtari</code>)'
+                          : 'kapalı (<code>ai_config.json</code> → <code>etkin: true</code>)';
+                not.innerHTML = '⚠️ AI yorum katmanı kullanılamıyor: ' + sebep +
+                    '. Bulgular yine de çıkarılır — yorum katmanı yalnızca yönetici özetini yazar.';
+                not.style.display = 'block';
+            } catch (e) { not.style.display = 'none'; }
+        }
+
+        function anBulguKart(b) {
+            var renk = SIDDET_RENK[b.siddet] || 'var(--lg-slate2)';
+            var sayisal = '';
+            var atla = { referanslar: 1, ornekler: 1 };
+            var satirlar = Object.keys(b.sayisal || {}).filter(function (k) { return !atla[k]; });
+            if (satirlar.length) {
+                sayisal = '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">' + satirlar.map(function (k) {
+                    return '<span style="font-size:.7rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--muted)"><b style="color:var(--text)">' + esc(k) + '</b> ' + esc(String(b.sayisal[k])) + '</span>';
+                }).join('') + '</div>';
+            }
+            // Liste alanları (örnek kayıtlar / referanslar) ayrı gösterilir
+            var liste = '';
+            ['referanslar', 'ornekler'].forEach(function (alan) {
+                var v = (b.sayisal || {})[alan];
+                if (!v || !v.length) return;
+                liste += '<div style="margin-top:8px;font-size:.72rem;color:var(--muted)">' +
+                    v.map(function (x) {
+                        return Object.keys(x).map(function (k) { return esc(String(x[k])); }).join(' · ');
+                    }).join('<br>') + '</div>';
+            });
+            return '<div style="border-left:3px solid ' + renk + ';background:var(--bg);border-radius:0 10px 10px 0;padding:12px 16px;margin-bottom:10px">' +
+                '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+                '<span style="background:' + renk + '22;color:' + renk + ';padding:2px 8px;border-radius:6px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em">' + SIDDET_AD[b.siddet] + '</span>' +
+                '<span style="font-weight:800;font-size:.9rem">' + esc(b.baslik) + '</span></div>' +
+                '<div style="margin-top:6px;font-size:.8rem;color:var(--muted);line-height:1.6">' + esc(b.detay) + '</div>' +
+                (b.oneri ? '<div style="margin-top:6px;font-size:.78rem;color:var(--text)">→ ' + esc(b.oneri) + '</div>' : '') +
+                sayisal + liste + '</div>';
+        }
+
+        async function analizCalistir() {
+            var btn = document.getElementById('analiz-btn');
+            var durum = document.getElementById('analiz-durum');
+            var kutusu = document.getElementById('analiz-yorum-kutusu');
+            var liste = document.getElementById('analiz-bulgular');
+            var yorumIste = document.getElementById('analiz-yorum').checked;
+            btn.disabled = true; btn.textContent = yorumIste ? 'Analiz + yorum...' : 'Analiz ediliyor...';
+            durum.textContent = 'Hesaplanıyor...';
+            liste.innerHTML = '<div class="yukleniyor"><span class="spinner"></span></div>';
+            kutusu.style.display = 'none';
+            try {
+                var url = '/api/analiz?' + anSorgu('analiz-bas', 'analiz-bit', 'analiz-bolum') + (yorumIste ? '&yorum=1' : '');
+                var res = await fetch(url, { cache: 'no-store' });
+                var d = await res.json();
+                if (!res.ok) { durum.textContent = d.hata || 'Hata'; liste.innerHTML = ''; return; }
+                document.getElementById('analiz-ozet').innerHTML = anOzetSerit(d.ozet, d.donem);
+                durum.innerHTML = d.donem.bas + ' – ' + d.donem.bit + ' · ' + d.donem.gun + ' gün · ' +
+                    ['kritik', 'uyari', 'bilgi'].filter(function (k) { return d.sayim[k]; }).map(function (k) {
+                        return '<span style="color:' + SIDDET_RENK[k] + ';font-weight:800">' + d.sayim[k] + ' ' + SIDDET_AD[k].toLowerCase() + '</span>';
+                    }).join(' · ') || 'bulgu yok';
+                if (d.yorum && d.yorum.metin) {
+                    kutusu.style.display = 'block';
+                    kutusu.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+                        '<span style="font-size:1.05rem">🧠</span><span style="font-weight:800">Yönetici Özeti</span>' +
+                        '<span style="margin-left:auto;font-size:.68rem;color:var(--muted)">' + esc(d.yorum.model) + ' · ' + d.yorum.sure_sn + ' sn · ' + anSayi(d.yorum.girdi_token + d.yorum.cikti_token) + ' token</span></div>' +
+                        '<div style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">' + esc(d.yorum.metin) + '</div>';
+                } else if (yorumIste && d.yorum_hata) {
+                    kutusu.style.display = 'block';
+                    kutusu.innerHTML = '<div style="font-size:.8rem;color:var(--lg-amber)">🧠 AI yorumu alınamadı: ' + esc(d.yorum_hata) + '</div>' +
+                        '<div style="font-size:.75rem;color:var(--muted);margin-top:4px">Aşağıdaki bulgular yerel motordan geldi, etkilenmedi.</div>';
+                }
+                liste.innerHTML = d.bulgular.length
+                    ? d.bulgular.map(anBulguKart).join('')
+                    : '<div style="padding:26px;text-align:center;color:var(--muted);font-style:italic">Bu aralıkta eşik aşan bulgu yok.</div>';
+            } catch (e) {
+                durum.textContent = 'Bağlantı hatası';
+                liste.innerHTML = '';
+                console.error('analiz:', e);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Analiz Et';
+            }
+        }
+
+        // ── Fabrika özeti altındaki 'dün' bloğu ──────────────────────────────
+        async function yukleDunOzet() {
+            var kart = document.getElementById('dun-ozet-kart');
+            if (!kart) return;
+            // İzni olmayan kullanıcıda 401/403 döner — kart hiç görünmesin
+            try {
+                var res = await fetch('/api/analiz/gun_ozet', { cache: 'no-store' });
+                if (!res.ok) { kart.style.display = 'none'; return; }
+                var d = await res.json();
+                var o = d.ozet;
+                if (!o.vardiya) { kart.style.display = 'none'; return; }
+                kart.style.display = '';
+                document.getElementById('dun-ozet-tarih').textContent = d.gun;
+                var mini = function (etiket, deger, renk) {
+                    return '<div style="flex:1 1 110px"><div style="font-size:.66rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">' + etiket + '</div>' +
+                        '<div style="font-size:1.15rem;font-weight:800;color:' + (renk || 'var(--text)') + '">' + deger + '</div></div>';
+                };
+                var bulgular = (d.bulgular || []);
+                document.getElementById('dun-ozet-govde').innerHTML =
+                    '<div style="display:flex;flex-wrap:wrap;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">' +
+                    mini('Üretim', anSayi(o.toplam)) + mini('OEE', anYuzde(o.oee), esikBilgi(o.oee).renk) +
+                    mini('Vardiya', anSayi(o.vardiya)) + mini('Plansız duruş', anSayi(o.plansiz_dk) + ' dk') +
+                    mini('Hurda', anYuzde(o.hurda_oran)) +
+                    '</div>' +
+                    (bulgular.length
+                        ? '<div style="margin-top:12px">' + bulgular.map(function (b) {
+                            return '<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:.8rem;line-height:1.5">' +
+                                '<span style="color:' + SIDDET_RENK[b.siddet] + ';font-weight:800;flex:0 0 auto">●</span>' +
+                                '<span>' + esc(b.baslik) + '</span></div>';
+                          }).join('') + '</div>'
+                        : '<div style="margin-top:12px;font-size:.8rem;color:var(--muted);font-style:italic">Dün eşik aşan bulgu yok.</div>') +
+                    '<div style="margin-top:12px"><a onclick="sayfaAc(\'analiz\')" style="cursor:pointer;font-size:.78rem;font-weight:700;color:var(--primary)">Tüm bulgular ve AI yorumu için Analiz sayfası →</a></div>';
+            } catch (e) {
+                kart.style.display = 'none';
+            }
+        }
+
         function initRaporlar() {
             // Tarih global topbar'dan (f-bas/f-bit) — modülün kendi tarih inputu yok.
             yukleRaporRobotListesi();
@@ -12909,13 +13375,14 @@ window.__I18N_SOZLUK__ = {
             'is-yonetimi': 'İş Yönetimi', 'fikstur': 'Fikstür', 'referanslar': 'Referanslar',
             'operatorler': 'Operatörler', 'saha-cihazlari': 'Saha Cihazları',
             'sinyal-analizi': 'Sinyal Analizi', 'andon-ayarlari': 'Andon Ayarları', 'raporlar': 'Raporlar',
+            'operator-performans': 'Operatör Performansı (kişi bazlı OEE)', 'analiz': 'Analiz (otomatik bulgular)',
             'as400-teyit': 'AS400 İşlemler (teyit + aktarım)',
             'kaynak-plan': 'Kaynak Planı (üretilebilirlik takibi)'
         };
         // Açılışta düşülecek öncelik sırası
         var PANEL_SAYFA_SIRA = ['ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
             'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
-            'as400-teyit', 'kullanicilar'];
+            'operator-performans', 'analiz', 'as400-teyit', 'kullanicilar'];
 
         function panelAdmin() { return !!(window.PANEL_KU && window.PANEL_KU.admin); }
         function panelIzinler() { return (window.PANEL_KU && window.PANEL_KU.izinler) || []; }

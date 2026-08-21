@@ -248,7 +248,44 @@ def _bolum_kirilimi(tarih, lokasyon=None):
     return sorted(ozet.values(), key=lambda x: -x['adet'])
 
 
-def _html_govde(tarih_tr, satir, toplam, kirilim):
+# ─────────────────────────────────────────────────────────────
+# ANALİZ BÖLÜMÜ (kullanıcı 2026-08-21: "her gün seçili kişilere rapor gitsin")
+# ─────────────────────────────────────────────────────────────
+# analiz.py yerel motoru bulguları çıkarır; ai_config.json hazırsa Claude bir de
+# yönetici özeti yazar. HER İKİSİ DE OPSİYONELDİR: analiz patlarsa mail yine
+# gider (sadece bu bölüm boş kalır) — günlük rapor akışı asla analize bağlanmaz.
+
+def analiz_topla(tarih, lokasyon=None, yorum=True):
+    """(ozet, bulgular, yorum_metni) — hata hâlinde (None, [], '')."""
+    try:
+        import analiz as _an
+    except Exception as e:
+        print(f'[MAIL] analiz modulu yuklenemedi: {e}')
+        return None, [], ''
+    try:
+        a = _an.gunluk_ozet(tarih, lokasyon)
+    except Exception as e:
+        print(f'[MAIL] analiz hatasi: {e}')
+        return None, [], ''
+    metin = ''
+    if yorum:
+        try:
+            y, hata = _an.yorum_uret(a)
+            if y:
+                metin = y.get('metin') or ''
+            elif hata:
+                print(f'[MAIL] AI yorumu atlandi: {hata}')
+        except Exception as e:
+            print(f'[MAIL] AI yorumu hatasi: {e}')
+    return a.get('ozet'), a.get('bulgular') or [], metin
+
+
+SIDDET_RENK_MAIL = {'kritik': '#DC2626', 'uyari': '#D97706', 'bilgi': '#4E4C63'}
+SIDDET_AD_MAIL = {'kritik': 'KRİTİK', 'uyari': 'UYARI', 'bilgi': 'BİLGİ'}
+
+
+def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
+                bulgular=None, yorum=''):
     """Mailin HTML gövdesi — Cofle Forge paleti (2026-07-30 kullanıcı isteği:
     "gunluk uretim raporu tasarimi ... yeni tasarimimiza gore").
 
@@ -312,6 +349,51 @@ def _html_govde(tarih_tr, satir, toplam, kirilim):
             f'color:{koyu};text-align:center;font-size:13px">'
             f'<b>{tarih_tr}</b> tarihinde sisteme kayıtlı üretim bulunmamaktadır.</td>'
             f'</tr></table>')
+
+    # ── ANALİZ BÖLÜMÜ ───────────────────────────────────────────────────────
+    # Üretim tablosunun ALTINA eklenir: önce ne üretildiği, sonra neyin ters
+    # gittiği. Bulgu yoksa bölüm hiç basılmaz (boş kutu gürültüdür).
+    analiz_html = ''
+    if analiz_ozet and (bulgular or yorum):
+        satirlar = ''.join(
+            f'<tr><td style="padding:7px 0;border-bottom:1px solid {cizgi};'
+            f'font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:{koyu};'
+            f'line-height:1.5" valign="top">'
+            f'<span style="display:inline-block;background:'
+            f'{SIDDET_RENK_MAIL.get(b["siddet"], gri)}18;color:'
+            f'{SIDDET_RENK_MAIL.get(b["siddet"], gri)};font-size:9px;font-weight:700;'
+            f'padding:1px 6px;border-radius:4px;letter-spacing:.4px">'
+            f'{SIDDET_AD_MAIL.get(b["siddet"], "")}</span> '
+            f'<b>{b["baslik"]}</b><br>'
+            f'<span style="color:{gri};font-size:11px">{b["detay"]}</span></td></tr>'
+            for b in (bulgular or [])[:6])
+        yorum_html = ''
+        if yorum:
+            yorum_html = (
+                f'<tr><td style="padding:12px 14px;background:#F5F3FF;'
+                f'border:1px solid #DDD6FE;border-radius:10px;'
+                f'font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:{koyu};'
+                f'line-height:1.65;white-space:pre-wrap">'
+                f'<div style="font-weight:800;color:{mor};padding-bottom:5px">'
+                f'Yönetici Özeti</div>{yorum}</td></tr>'
+                f'<tr><td style="height:12px"></td></tr>')
+        analiz_html = (
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px;'
+            f'margin-top:14px"><tr><td style="padding:14px 16px">'
+            f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:13px;'
+            f'font-weight:800;color:{koyu};padding-bottom:4px">Otomatik Analiz</div>'
+            f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:11px;'
+            f'color:{gri};padding-bottom:10px">'
+            f'OEE %{analiz_ozet.get("oee", 0)} · Kullanılabilirlik '
+            f'%{analiz_ozet.get("availability", 0)} · Performans '
+            f'%{min(analiz_ozet.get("performance", 0), 100)} · Kalite '
+            f'%{analiz_ozet.get("quality", 0)} · Plansız duruş '
+            f'{analiz_ozet.get("plansiz_dk", 0)} dk</div>'
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+            f'{yorum_html}{satirlar}</table>'
+            f'</td></tr></table>')
+        icerik = icerik + analiz_html
 
     return (
         f'<!DOCTYPE html><html><head><meta charset="utf-8">'
@@ -583,7 +665,19 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
             f'{tarih_tr} tarihinde sisteme kayıtlı üretim bulunmamaktadır.\n\n'
             f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
         )
-    html = _html_govde(tarih_tr, satir, toplam, kirilim)
+    # Analiz bölümü — hatası maili ENGELLEMEZ (analiz_topla kendi içinde yutar)
+    an_ozet, an_bulgular, an_yorum = analiz_topla(tarih, lokasyon) if satir else (None, [], '')
+    if an_bulgular or an_yorum:
+        govde += '\n\n' + '-' * 52 + '\nOTOMATİK ANALİZ\n' + '-' * 52 + '\n'
+        if an_ozet:
+            govde += (f'OEE %{an_ozet.get("oee", 0)} · Plansız duruş '
+                      f'{an_ozet.get("plansiz_dk", 0)} dk · Hurda '
+                      f'%{an_ozet.get("hurda_oran", 0)}\n\n')
+        if an_yorum:
+            govde += an_yorum + '\n\n'
+        for b in an_bulgular[:6]:
+            govde += f'  [{SIDDET_AD_MAIL.get(b["siddet"], "")}] {b["baslik"]}\n'
+    html = _html_govde(tarih_tr, satir, toplam, kirilim, an_ozet, an_bulgular, an_yorum)
 
     try:
         ek = dosya if satir else None
