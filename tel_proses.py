@@ -175,17 +175,50 @@ TEL_ADIM_EKI = {
     'Otomatik Hazırlık': 'HAZIRLIK',
     'Halat Kesme':   'KESIM',
     'Soyma':         'SOYMA',
-    'Yarı Otomatik': 'YARI OTOMAT',
-    'Tam Otomatik':  'TAM OTOMAT',
+    # Otomat adımlarının ekleri makine adını taşır (kullanıcı 2026-08-21):
+    # hat adı 'Otomatik Kesim Makinesi' olunca kodun yanında 'TAM OTOMAT'
+    # yazması anlamsız kalıyordu.
+    'Yarı Otomatik': 'YARI OTO. MAKİNE HATTI',
+    'Tam Otomatik':  'OTOMATİK MAKİNE HATTI',
     'Kapama':        'KAPAMA',
     'Son Montaj':    'SON MONTAJ',
 }
+
+# ── ESKİ EKLER — YALNIZ OKUMA (2026-08-21) ──────────────────────────────────
+# Kod eki değiştiğinde ESKİ ekle yazılmış kayıtlar ortada kalır: onların adımı
+# çözülemezse rapor kırılımından sessizce düşerler (aynı ürünün üretimi
+# "bilinmeyen adım"a gider). Bu yüzden eski ekler tanınmaya DEVAM eder; yalnız
+# artık YENİ kayıt üretmezler.
+# YENİ EK EKLERKEN: eskisini buraya taşı, silme.
+TEL_ADIM_EKI_ESKI = {
+    'TAM OTOMAT':  'Tam Otomatik',
+    'YARI OTOMAT': 'Yarı Otomatik',
+}
+
 # Ek zaten yazılmış mı? (operatör elle yazdıysa iki kez eklenmesin)
-# Yeni adım eklenince EKİ BURAYA DA yazılmalı — yoksa o ek ayıklanmaz ve kod
-# her kayıtta bir ek daha alır ('… SOYMA SOYMA').
-_EK_DESEN = re.compile(
-    r'\s+(HAZIRLIK|KESIM|SOYMA|YARI\s*OTOMAT|TAM\s*OTOMAT|KAPAMA|SON\s*MONTAJ)\s*$',
-    re.IGNORECASE)
+# DESEN ELLE YAZILMAZ — eklerden ÜRETİLİR. Elle yazıldığında yeni bir ek
+# eklenip desene yazılmayı unutmak sessiz hataya yol açıyordu: o ek ayıklanmaz
+# ve kod her kayıtta bir ek daha alırdı ('… SOYMA SOYMA').
+#
+# SIRA KRİTİK: uzun ekler ÖNCE denenmeli. Alternasyon ilk eşleşeni alır;
+# 'YARI OTO. MAKİNE HATTI' kısa bir alternatifle çakışırsa yanlış adım çözülür.
+#
+# TÜRKÇE BÜYÜK-İ: yeni ekler 'İ' içeriyor ve IGNORECASE Python'da dotted-İ ile
+# 'i' eşleşmesini güvenilir yapmaz. Bu yüzden desende hem yazıldığı hâli hem
+# casefold hâli bulunur; eşleşme her iki yazımda da çalışır.
+def _ek_deseni_kur():
+    ekler = list(TEL_ADIM_EKI.values()) + list(TEL_ADIM_EKI_ESKI.keys())
+    varyant = set()
+    for e in ekler:
+        varyant.add(e)
+        varyant.add(e.casefold())
+    # Boşluklar esnek (çift boşlukla yazılmış kodlar da tanınsın)
+    parcalar = [re.escape(v).replace(r'\ ', r'\s+') for v in
+                sorted(varyant, key=len, reverse=True)]
+    return re.compile(r'\s+(' + '|'.join(parcalar) + r')\s*$', re.IGNORECASE)
+
+
+_EK_DESEN = _ek_deseni_kur()
 
 
 def tel_ek_ayikla(referans_kodu):
@@ -207,7 +240,25 @@ def tel_ek_ayikla(referans_kodu):
 
 # Ek → adım ters haritası. Rapor katmanı adımı KODDAN çözer (hat/istasyon
 # gerekmez): mail_raporu.py app.py'yi import EDEMEZ ama kodu görebilir.
-_EK_ADIM = {ek: adim for adim, ek in TEL_ADIM_EKI.items()}
+def _ek_anahtar(ek):
+    """Ek karşılaştırma anahtarı — TÜRKÇE-DUYARSIZ.
+
+    str.upper() Türkçede güvenilmez: 'otomatik'.upper() → 'OTOMATIK' (NOKTASIZ I),
+    oysa yazılan ek 'OTOMATİK' (noktalı İ). İkisi eşleşmez ve kodun adımı
+    çözülemez. Bu yüzden Türkçe harfler ASCII karşılığına indirgenir; hem harita
+    anahtarları hem aranan değer AYNI fonksiyondan geçer."""
+    t = str(ek or '').strip()
+    for a, b in (('İ', 'I'), ('ı', 'I'), ('Ş', 'S'), ('ş', 'S'), ('Ğ', 'G'),
+                 ('ğ', 'G'), ('Ü', 'U'), ('ü', 'U'), ('Ö', 'O'), ('ö', 'O'),
+                 ('Ç', 'C'), ('ç', 'C')):
+        t = t.replace(a, b)
+    return ' '.join(t.upper().split())
+
+
+# Ek → adım ters haritası. ESKİ ekler de burada: o ekle yazılmış kayıtların
+# adımı çözülmeye devam etsin (yoksa raporda 'bilinmeyen adım'a düşerler).
+_EK_ADIM = {_ek_anahtar(ek): adim for adim, ek in TEL_ADIM_EKI.items()}
+_EK_ADIM.update({_ek_anahtar(ek): adim for ek, adim in TEL_ADIM_EKI_ESKI.items()})
 
 
 def tel_koddan_adim(referans_kodu):
@@ -219,9 +270,8 @@ def tel_koddan_adim(referans_kodu):
     m = _EK_DESEN.search(str(referans_kodu or ''))
     if not m:
         return None
-    # Ek yazımı esnek olabilir ('SON  MONTAJ') → boşlukları tekille, büyüt
-    ek = ' '.join(m.group(1).split()).upper()
-    return _EK_ADIM.get(ek)
+    # Ek yazımı esnek olabilir ('SON  MONTAJ', küçük harf, Türkçe İ/I karışımı)
+    return _EK_ADIM.get(_ek_anahtar(m.group(1)))
 
 
 def tel_referans_kodu(referans_kodu, robot_no):

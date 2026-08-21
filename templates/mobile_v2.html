@@ -4145,8 +4145,13 @@ window.__I18N_SOZLUK__ = {
     // tel_proses.TEL_ADIM_EKI ile BİREBİR — yeni adım eklenince buraya da yazılmalı,
     // yoksa operatör ek önizlemesini göremez (sunucu yine de doğru eki yazar).
     var TEL_EK = { 'Halat Kesme': 'KESIM', 'Soyma': 'SOYMA',
-                   'Otomatik Hazırlık': 'HAZIRLIK', 'Yarı Otomatik': 'YARI OTOMAT',
-                   'Tam Otomatik': 'TAM OTOMAT', 'Kapama': 'KAPAMA', 'Son Montaj': 'SON MONTAJ' };
+                   'Otomatik Hazırlık': 'HAZIRLIK',
+                   // Otomat ekleri makine adını taşır (2026-08-21). Eski ekler
+                   // ('TAM OTOMAT' / 'YARI OTOMAT') sunucuda OKUNMAYA devam
+                   // ediyor; burası yalnız operatöre gösterilen ÖNİZLEME.
+                   'Yarı Otomatik': 'YARI OTO. MAKİNE HATTI',
+                   'Tam Otomatik': 'OTOMATİK MAKİNE HATTI',
+                   'Kapama': 'KAPAMA', 'Son Montaj': 'SON MONTAJ' };
     // Hat adı adım kalıbına uymayan makineler (tel_proses.TEL_HAT_ADIM_ISTISNA'nın eşi):
     // 'Manuel Kesim' operatöre kendi adıyla görünür ama Halat Kesme adımıdır.
     var TEL_HAT_ISTISNA = { 'Manuel Kesim': 'Halat Kesme',
