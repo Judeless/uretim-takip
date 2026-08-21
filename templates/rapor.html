@@ -280,6 +280,9 @@
     <select id="rep-vardiya">
       <option value="">— Vardiya seçin —</option>
     </select>
+    <select id="rep-adim" style="display:none" onchange="yukleRapor()">
+      <option value="">Tüm adımlar</option>
+    </select>
     <button class="btn-yukle" onclick="yukleRapor()">🔄 Yükle</button>
   </div>
 
@@ -343,7 +346,9 @@ const aktifLokasyon = (function () {
 (function () {
   const bilgi = BOLUM_BILGI[aktifBolum];
   document.title = `${bilgi.ad} — Günlük Üretim Raporu`;
-  document.getElementById('rapor-baslik').textContent = `${bilgi.ad} — Günlük Rapor`;
+  const _adimEk = (document.getElementById('rep-adim') || {}).value || '';
+  document.getElementById('rapor-baslik').textContent =
+    `${bilgi.ad}${_adimEk ? ' · ' + _adimEk : ''} — Günlük Rapor`;
   const pill = document.getElementById('bolum-pill');
   pill.textContent = bilgi.ad.toUpperCase();
   pill.className = 'bolum-pill ' + aktifBolum;
@@ -445,7 +450,10 @@ async function yukleRapor(){
   ic.innerHTML = '<div class="durum"><div class="spinner"></div><br>Veriler yükleniyor...</div>';
 
   try {
-    const url = `/api/rapor/gunluk_detay?tarih=${encodeURIComponent(tarih)}&vardiya=${encodeURIComponent(vardiya)}&bolum=${encodeURIComponent(aktifBolum)}&lokasyon=${encodeURIComponent(aktifLokasyon)}`;
+    // ALT GRUP (2026-08-21): tel'de proses adımı bazlı ayrı rapor paylaşımı.
+    const adimSec = (document.getElementById('rep-adim') || {}).value || '';
+    let url = `/api/rapor/gunluk_detay?tarih=${encodeURIComponent(tarih)}&vardiya=${encodeURIComponent(vardiya)}&bolum=${encodeURIComponent(aktifBolum)}&lokasyon=${encodeURIComponent(aktifLokasyon)}`;
+    if (adimSec) url += `&adim=${encodeURIComponent(adimSec)}`;
     const res  = await fetch(url, { cache:'no-store' });
     const text = await res.text();
     let veri;
@@ -467,6 +475,21 @@ async function yukleRapor(){
 
 // ── Tablo render ──
 function renderTablo(veri, tarih, vardiya){
+  // ALT GRUP SEÇİCİSİ — yalnız o gün çalışılmış adımlar listelenir; seçenekler
+  // sunucudan SÜZÜLMEMİŞ satırlardan gelir, yoksa seçici tek seçeneğe çökerdi.
+  const adimSel = document.getElementById('rep-adim');
+  if (adimSel) {
+    const secenekler = veri.adim_secenekleri || [];
+    if (secenekler.length > 1) {
+      const mevcut = adimSel.value;
+      adimSel.innerHTML = '<option value="">Tüm adımlar</option>'
+        + secenekler.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+      adimSel.value = secenekler.indexOf(mevcut) !== -1 ? mevcut : '';
+      adimSel.style.display = '';
+    } else if (!adimSel.value) {
+      adimSel.style.display = 'none';
+    }
+  }
   const data = veri.data || {};
   const siralama = (Array.isArray(veri.siralama) && veri.siralama.length) ? veri.siralama : Object.keys(data);
   const bilgi = BOLUM_BILGI[aktifBolum];

@@ -7106,6 +7106,15 @@ def gunluk_rapor_detay():
     # (TK1 raporu isteyen istemciler — mobil/rapor sayfası — lokasyon=TK1 gönderir.)
     lokasyon = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
 
+    # ALT GRUP FILTRESI (kullanici 2026-08-21): "tel uretimi icin gunluk uretim
+    # paylasilirken alt grup ozelinde de rapor paylasilabilsin — tam otomatik
+    # makine icin ayri uretim raporu uretilebilsin."
+    # Deger PROSES ADIMI'dir ('Kapama', 'Tam Otomatik'...), hat adi DEGIL: bir
+    # adimin birden cok makinesi var (Kapama'da 12 pres) ve kullanici genelde
+    # adimin tamamini istiyor. Tek makine istenirse ?hat= ile daraltilir.
+    adim_filtre = (request.args.get('adim') or '').strip()
+    hat_filtre = (request.args.get('hat') or '').strip()
+
     if not tarih or not vardiya_turu:
         return jsonify({'hata': 'tarih ve vardiya parametreleri zorunludur'}), 400
 
@@ -7151,6 +7160,34 @@ def gunluk_rapor_detay():
             sql += " GROUP BY v.robot_no, v.operator_adi, u.referans_kodu ORDER BY v.robot_no, v.operator_adi"
         rows = conn.execute(sql, params).fetchall()
         conn.close()
+
+        # ── ALT GRUP SÜZGECİ (2026-08-21) ───────────────────────────────────
+        # Adım, kaydın istasyonundan türüyor (istasyon → makine → tel adımı);
+        # SQL'de çözülemez çünkü eşleme tel_proses'te. Satırlar kurulduktan
+        # sonra Python'da süzülür — hem 'adim' (Kapama, Tam Otomatik…) hem tek
+        # makine ('hat') destekli. ist_modu YOKSA (kaynak/metal gibi hattı
+        # vardiyada seçilen bölümler) süzgeç ANLAMSIZDIR, uygulanmaz.
+        # SEÇENEK LİSTESİ SÜZMEDEN ÖNCE hesaplanır — süzülmüş satırlardan
+        # üretilseydi seçici tek seçeneğe çöker ve kullanıcı geri dönemezdi.
+        _tum_adimlar = []
+        if ist_modu and bolum == 'tel':
+            for r in rows:
+                _a = tel_hat_adimi(kayit_hatti(r['robot_no'], r['istasyon']))
+                if _a and _a not in _tum_adimlar:
+                    _tum_adimlar.append(_a)
+            _tum_adimlar = ([a for a in TEL_ADIMLARI if a in _tum_adimlar]
+                            + [a for a in _tum_adimlar if a not in TEL_ADIMLARI])
+
+        if (adim_filtre or hat_filtre) and ist_modu:
+            _suzulmus = []
+            for r in rows:
+                _h = kayit_hatti(r['robot_no'], r['istasyon'])
+                if hat_filtre and _h != hat_filtre:
+                    continue
+                if adim_filtre and tel_hat_adimi(_h) != adim_filtre:
+                    continue
+                _suzulmus.append(r)
+            rows = _suzulmus
 
         # Bolume gore robot/hat/makine sirasi
         if bolum == 'kaynak':
@@ -7264,6 +7301,10 @@ def gunluk_rapor_detay():
             'bolum':   bolum,
             'siralama': robot_listesi,
             'adim_kirilimi': adim_kirilimi,
+            # Alt grup seçicisi için: o gün GERÇEKTEN çalışılmış adımlar
+            # (22 hattın tamamını listelemek seçiciyi kullanışsız yapar).
+            'adim_secenekleri': _tum_adimlar,
+            'adim_filtre': adim_filtre or hat_filtre or '',
             'data':    rapor_data,
         })
     except Exception as e:
