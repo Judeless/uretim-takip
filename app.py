@@ -7305,8 +7305,16 @@ def analiz_ai_durum():
         paket = True
     except ImportError:
         paket = False
+    # TANI ALANLARI (2026-08-21): "pip install yaptım ama hâlâ kurulu değil diyor"
+    # vakası. Sebep genelde pip'in KULLANICI klasörüne kurması ve servisin BAŞKA
+    # bir hesapla çalışması — o zaman paket ortada durur ama servis göremez.
+    # Yorumcunun hangi python'u ve hangi hesabı kullandığını göstermek tek adımda
+    # ayırt ettirir.
+    import getpass, sys as _sys   # modül düzeyinde import YOK (dosya kalıbı)
     return jsonify({
         'config_var': os.path.exists(_an.AI_CONFIG),
+        'python_yolu': _sys.executable,
+        'servis_kullanici': (getpass.getuser() if hasattr(getpass, 'getuser') else ''),
         'etkin': bool(cfg.get('etkin')),
         'paket_kurulu': paket,
         'anahtar_var': bool((cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()),

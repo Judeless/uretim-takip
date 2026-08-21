@@ -10559,7 +10559,11 @@ window.__I18N_SOZLUK__ = {
                 // kullanıcı kutuyu işaretler, hiçbir şey olmaz ve sebebini bilemez.
                 kutu.disabled = true; kutu.checked = false;
                 var sebep = !d.config_var ? '<code>ai_config.json</code> dosyası yok — sunucuda <code>ai_config.json.example</code> dosyasını kopyalayıp API anahtarını girin'
-                          : !d.paket_kurulu ? 'sunucuda <code>anthropic</code> paketi kurulu değil (<code>pip install anthropic</code>)'
+                          : !d.paket_kurulu ? ('sunucuda <code>anthropic</code> paketi kurulu değil.<br>' +
+                              'Servisin çalıştırdığı Python: <code>' + esc(d.python_yolu || '?') + '</code>' +
+                              (d.servis_kullanici ? ' · hesap: <code>' + esc(d.servis_kullanici) + '</code>' : '') +
+                              '<br>Kurulum <b>o Python'a</b> yapılmalı: <code>"' + esc(d.python_yolu || 'python') + '" -m pip install anthropic</code>' +
+                              ' — pip kullanıcı klasörüne kurduysa servis hesabı göremez. Kurulumdan sonra <b>servisi yeniden başlatın</b>.')
                           : !d.anahtar_var ? 'API anahtarı tanımlı değil (<code>ai_config.json</code> → <code>api_anahtari</code>)'
                           : 'kapalı (<code>ai_config.json</code> → <code>etkin: true</code>)';
                 not.innerHTML = '⚠️ AI yorum katmanı kullanılamıyor: ' + sebep +
