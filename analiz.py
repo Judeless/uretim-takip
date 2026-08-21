@@ -952,9 +952,14 @@ if __name__ == '__main__':
         print('    ! Bu aralıkta vardiya yok — AI testi için veri olan bir tarih verin.')
 
     # 2) Yapılandırma
-    _cfg = ai_config()
+    _cfg, _cfg_hata = ai_config(hata_ile=True)
     print('\n[2] AI YAPILANDIRMA')
     print(f"    ai_config.json      : {'VAR' if os.path.exists(AI_CONFIG) else 'YOK  → ' + AI_CONFIG}")
+    if _cfg_hata and _cfg_hata != 'dosya yok':
+        print(f"    ! DOSYA OKUNAMADI   : {_cfg_hata}")
+        print("      JSON bozuk olabilir. (Not Defteri BOM'u artık tolere ediliyor.)")
+    elif os.path.exists(AI_CONFIG):
+        print(f"    dosyadaki alanlar   : {', '.join(_cfg.get('_alanlar') or []) or '(yok)'}")
     print(f"    etkin               : {_cfg.get('etkin')}")
     _anh = (_cfg.get('api_anahtari') or os.environ.get('ANTHROPIC_API_KEY') or '').strip()
     # Anahtarın KENDİSİ yazdırılmaz — yalnız var mı ve şekli doğru mu.
