@@ -983,12 +983,27 @@ def _yorum_gemini(cfg, girdi):
         if r.status_code == 404 and model != 'gemini-flash-latest':
             model = 'gemini-flash-latest'
             r = _cagri(model)
+        # 503'TE ONCE BEKLE-TEKRARLA, SONRA LITE MODELE DUS (2026-08-21):
+        # ucretsiz katmanda "high demand" yogunluk hatasi geliyor ve genelde
+        # saniyeler icinde geciyor. Ayni anda lite model cogunlukla bos
+        # (canli olcum: flash-latest 503 verirken flash-lite-latest cevap verdi).
+        # Gunluk rapor icin lite'in kalitesi fazlasiyla yeterli; hicbir insanin
+        # beklemedigi 17:00 mail kosusunun bos donmemesi daha onemli.
+        if r.status_code == 503:
+            import time as _t
+            _t.sleep(4)
+            r = _cagri(model)
+        if r.status_code == 503 and model != 'gemini-flash-lite-latest':
+            model = 'gemini-flash-lite-latest'
+            r = _cagri(model)
     except requests.exceptions.ConnectionError:
         return None, 'Gemini bağlantısı kurulamadı (sunucunun internet erişimi var mı?)'
     except requests.exceptions.Timeout:
         return None, 'Gemini zaman aşımı — birazdan tekrar deneyin'
     if r.status_code == 429:
         return None, 'Gemini kota/hız sınırı — ücretsiz katman dakikalık sınırlıdır, birazdan tekrar deneyin'
+    if r.status_code == 503:
+        return None, 'Gemini şu an çok yoğun (ücretsiz katman) — birkaç dakika sonra tekrar deneyin'
     if r.status_code in (401, 403):
         return None, 'Gemini API anahtarı geçersiz ya da yetkisiz'
     if r.status_code == 404:
