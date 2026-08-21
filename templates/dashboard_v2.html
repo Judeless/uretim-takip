@@ -929,6 +929,85 @@
         .oee-bar { height: 100%; border-radius: 6px; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
         /* ── KAYITLAR SAYFASI: filtre şeridi + alt sekmeler ── */
+        /* ══ ZAMAN ÇİZELGESİ (2026-08-21) ══════════════════════════════════
+           Vardiya = bir şerit; duruşlar ve üretim referansları o şeridin üstünde
+           mutlak konumlu dilimler. Konum YÜZDEYLE verilir (px değil): şerit
+           genişliği ekrana/panele göre değişir, dilimler onunla birlikte kayar.
+           BİÇİM = ANLAM kuralı (palet notu #2): duruş tipi DOLU dilim rengiyle
+           (planlı amber / plansız kırmızı), üretim referansı ise mor OUTLINE
+           şeritle gösterilir — ikisi renk körlüğünde bile karışmaz.            */
+        .zc-satir {
+            display: grid; grid-template-columns: 190px 1fr; gap: 12px;
+            align-items: stretch; padding: 10px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .zc-satir:last-child { border-bottom: 0; }
+        .zc-etiket { min-width: 0; }
+        .zc-etiket .op { font-weight: 800; font-size: .82rem; color: var(--text);
+                         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .zc-etiket .alt { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+        .zc-track { position: relative; min-width: 0; }
+
+        /* Saat cetveli — tüm vardiyalar AYNI eksende çizilir ki iki hattın
+           duruşları göz kararıyla karşılaştırılabilsin.                        */
+        .zc-cetvel { position: relative; height: 20px; margin-left: 202px;
+                     border-bottom: 1px solid var(--border); }
+        .zc-cetvel span { position: absolute; top: 2px; transform: translateX(-50%);
+                          font-size: .64rem; color: var(--dim); font-weight: 700;
+                          font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+        .zc-cetvel i { position: absolute; top: 14px; width: 1px; height: 6px;
+                       background: var(--border); }
+
+        /* Vardiya şeridi (zemin) + üzerindeki dilimler */
+        .zc-bar { position: relative; height: 30px; border-radius: 8px;
+                  background: var(--surface-2); border: 1px solid var(--border-subtle);
+                  overflow: hidden; }
+        .zc-bar .calisma { position: absolute; top: 0; bottom: 0;
+                           background: rgba(21, 122, 60, 0.14); }
+        .zc-durus { position: absolute; top: 0; bottom: 0; cursor: pointer;
+                    border-left: 1px solid rgba(255,255,255,.55);
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: .62rem; font-weight: 800; color: #fff;
+                    overflow: hidden; white-space: nowrap;
+                    transition: filter .15s; }
+        .zc-durus:hover { filter: brightness(1.18); }
+        .zc-durus:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+        .zc-durus.plansiz { background: var(--danger); }
+        .zc-durus.planli  { background: var(--warn); }
+        /* Eşiğin ALTINDAKİ duruşlar: veri kaybolmasın diye çizilir ama
+           ince çentik olarak — "10 dk'dan uzun duruş barları" isteği bar
+           GÖRÜNÜMÜNÜ uzun duruşlara ayırır, kısaları silmez.                  */
+        .zc-durus.kisa { top: 20px; bottom: 0; min-width: 2px; opacity: .85; }
+
+        /* Üretim referansı şeridi */
+        .zc-uretim { position: relative; height: 16px; margin-top: 4px;
+                     border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+        .zc-ref { position: absolute; top: 0; bottom: 0;
+                  background: var(--primary-soft); border: 1px solid var(--primary-line);
+                  border-radius: 5px; font-size: .6rem; font-weight: 700;
+                  color: var(--primary); display: flex; align-items: center;
+                  padding: 0 4px; overflow: hidden; white-space: nowrap; }
+        .zc-ref.acik { border-style: dashed; }
+
+        /* Zaman aralığı çipleri — eşiği aşan duruşların saatleri BARIN ALTINDA
+           yazılı durur. Tooltip yetmiyordu: dokunmatik ekranda hover yok ve
+           kullanıcı "hangi duruş saat kaçta" sorusunu ekranda görmeli.        */
+        .zc-araliklar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+        .zc-aralik {
+            display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+            border: 1px solid var(--border-subtle); border-radius: 999px;
+            padding: 2px 9px; font-size: .66rem; font-weight: 600; color: var(--muted);
+            background: var(--card); font-family: var(--font-main);
+        }
+        .zc-aralik:hover { border-color: var(--primary-line); color: var(--text); }
+        .zc-aralik .nokta { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+        .zc-aralik .sa { font-family: 'JetBrains Mono', monospace; color: var(--text); font-weight: 700; }
+
+        .zc-lejant { display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+                     font-size: .7rem; color: var(--muted); margin-top: 14px; }
+        .zc-lejant b { display: inline-block; width: 12px; height: 12px;
+                       border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+
         .ky-filtre {
             display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
             background: var(--cam); border: 1px solid var(--card-border);
@@ -4399,6 +4478,8 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">📡</span> Saha Cihazları</a>
                 <a class="nav-item" data-sayfa="sinyal-analizi" onclick="sayfaAc('sinyal-analizi')">
                     <span class="nav-icon">📈</span> Sinyal Analizi</a>
+                <a class="nav-item" data-sayfa="zaman-cizelgesi" onclick="sayfaAc('zaman-cizelgesi')">
+                    <span class="nav-icon">🗓️</span> Zaman Çizelgesi</a>
                 <a class="nav-item" data-sayfa="andon-ayarlari" onclick="sayfaAc('andon-ayarlari')">
                     <span class="nav-icon">📺</span> Andon Ayarları</a>
                 </div>
@@ -5618,6 +5699,69 @@ window.__I18N_SOZLUK__ = {
                 </div>
             </section>
 
+            <!-- ══════ SAYFA: ZAMAN ÇİZELGESİ (kullanıcı 2026-08-21) ══════
+                 Vardiya barı üzerinde duruş dilimleri; dilime tıklayınca duruş
+                 bölünebiliyor ve sebebi değiştirilip yeniden atanabiliyor.
+                 Veri kaynağı TEK: /api/zaman_cizelgesi (damgalar duruslar/
+                 uretim_kayitlari.baslangic_ts-bitis_ts kolonlarından gelir). ══ -->
+            <section class="page" id="page-zaman-cizelgesi">
+                <div style="margin-bottom:18px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">🗓️ Zaman Çizelgesi</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                        Vardiya barları üzerinde duruşlar ve üretilen referanslar. Bir duruşa tıklayın: sebebini değiştirebilir ya da duruşu ikiye bölüp her parçaya ayrı sebep atayabilirsiniz.
+                    </p>
+                </div>
+
+                <div class="ky-filtre">
+                    <div class="f-group">
+                        <label>Tarih</label>
+                        <input type="date" id="zc-tarih" onchange="zcYukle()">
+                    </div>
+                    <div class="f-group">
+                        <label>Bölüm</label>
+                        <select id="zc-bolum" style="min-width:150px" onchange="zcYukle()"></select>
+                    </div>
+                    <div class="f-group">
+                        <label>Hat / Makine</label>
+                        <select id="zc-hat" style="min-width:150px" onchange="zcCiz()"></select>
+                    </div>
+                    <div class="f-group">
+                        <label>Duruş eşiği (dk)</label>
+                        <input type="number" id="zc-esik" value="10" min="0" max="480" step="5"
+                               style="width:90px" onchange="zcYukle()">
+                    </div>
+                    <button onclick="zcYukle()" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
+                        🔄 Yenile
+                    </button>
+                    <div id="zc-durum" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
+                </div>
+
+                <div class="panel-card">
+                    <div style="padding:16px 18px">
+                        <div id="zc-cetvel-wrap"></div>
+                        <div id="zc-liste"><div style="padding:20px;color:var(--muted);font-style:italic">Yükleniyor…</div></div>
+                        <div class="zc-lejant">
+                            <span><b style="background:rgba(21,122,60,.35)"></b>Çalışma</span>
+                            <span><b style="background:var(--danger)"></b>Plansız duruş</span>
+                            <span><b style="background:var(--warn)"></b>Planlı duruş / mola</span>
+                            <span><b style="background:var(--primary-soft);border:1px solid var(--primary-line)"></b>Üretim referansı</span>
+                            <span style="color:var(--dim)">İnce çentik = eşiğin altındaki kısa duruş</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zamanı türetilemeyen duruşlar (bozuk vardiya saati) -->
+                <div class="panel-card" id="zc-zamansiz-kart" style="display:none">
+                    <div style="padding:16px 18px">
+                        <h3 style="font-size:.95rem;font-weight:800;margin:0 0 4px">⏳ Zamanı belirsiz duruşlar</h3>
+                        <p style="font-size:.72rem;color:var(--muted);margin:0 0 10px">
+                            Bu kayıtların başlangıç saati çözülemedi (vardiya saati bozuk). Çizelgede yer alabilmeleri için saat atayın.
+                        </p>
+                        <div id="zc-zamansiz"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ══════ SAYFA: RAPORLAR (eski dashboard modülü — v2 kabuğunda)
                         Tarih aralığı topbar'daki global f-bas/f-bit'ten okunur (kendi tarih inputu yok).
                         Rapor tipi + robot/hat/makine filtresi + grafik + tablo + Günlük Üretim Raporu +
@@ -6160,6 +6304,66 @@ window.__I18N_SOZLUK__ = {
     </div>
 
     <!-- ══════ REFERANS MODAL (eski dashboard kalıbı — v2 modal kabuğunda) ══════ -->
+    <!-- Duruş düzenle / böl modalı (zaman çizelgesi) -->
+    <div class="modal-overlay" id="zc-modal" onclick="zcModalKapat(event)">
+        <div class="modal" style="max-width:460px">
+            <h3 id="zc-m-baslik">⏸️ Duruş</h3>
+            <div id="zc-m-ozet" style="font-size:.76rem;color:var(--muted);margin-bottom:14px;line-height:1.6"></div>
+
+            <div class="modal-form-row">
+                <label>Duruş sebebi</label>
+                <select id="zc-m-sebep"></select>
+            </div>
+            <div class="modal-form-row" style="margin-top:10px">
+                <label>Tip</label>
+                <select id="zc-m-tip">
+                    <option value="plansiz">Plansız</option>
+                    <option value="planli">Planlı</option>
+                </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+                <div>
+                    <label>Başlangıç</label>
+                    <input type="time" id="zc-m-bas">
+                </div>
+                <div>
+                    <label>Süre (dk)</label>
+                    <input type="number" id="zc-m-sure" min="1" max="1440">
+                </div>
+            </div>
+            <div class="modal-form-row" style="margin-top:10px">
+                <label>Açıklama</label>
+                <input type="text" id="zc-m-aciklama" placeholder="Opsiyonel">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="zcModalKapat()">Vazgeç</button>
+                <button class="btn btn-primary" onclick="zcDurusKaydet()">Kaydet</button>
+            </div>
+
+            <!-- ── BÖLME ── -->
+            <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border)">
+                <div style="font-size:.8rem;font-weight:800;color:var(--text);margin-bottom:4px">✂️ Duruşu böl</div>
+                <div style="font-size:.7rem;color:var(--muted);margin-bottom:10px">
+                    Duruş verilen saatte ikiye ayrılır; toplam süre değişmez. İkinci parçaya ayrı sebep atanır.
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:10px">
+                    <div>
+                        <label>Bölme saati</label>
+                        <input type="time" id="zc-m-bolme">
+                    </div>
+                    <div>
+                        <label>2. parçanın sebebi</label>
+                        <select id="zc-m-yeni-sebep"></select>
+                    </div>
+                </div>
+                <button class="btn" onclick="zcDurusBol()"
+                    style="width:100%;margin-top:12px;padding:10px;min-height:42px;border-radius:10px;border:1px solid var(--primary-line);background:var(--primary-soft);color:var(--primary);font-weight:800;cursor:pointer;font-family:var(--font-main)">
+                    ✂️ Bu saatte böl ve ata
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="ref-modal" onclick="refModalKapat(event)">
         <div class="modal">
             <h3 id="ref-modal-title">Yeni Referans Ekle</h3>
@@ -6340,7 +6544,10 @@ window.__I18N_SOZLUK__ = {
                            'Son Montaj 4', 'Son Montaj 5',       // sahadaki buton numaralari
                            'Son Montaj 903', 'Son Montaj 904',   // kullanilmiyor (gizli)
                            'Otomatik Hazırlık',                  // 2026-08-19
-                           'Manuel Kesim', 'Soyma'];             // 2026-08-20, HEP SONA eklenir
+                           'Manuel Kesim', 'Soyma',              // 2026-08-20, HEP SONA eklenir
+                           // 2026-08-21 spiral kesme makineleri (adim: Halat Kesme)
+                           'Otomatik Spiral Kesme 1', 'Otomatik Spiral Kesme 2',
+                           'Otomatik Spiral Kesme 3', 'Manuel Spiral Kesme'];
         // Sabit hat adı → o hattın makine/alt-hat listesi (app.HAT_MAKINELERI'nin eşi).
         var HAT_MAKINELERI = {
             'Pres Abkant': PRES_MAKINELERI,
@@ -6810,6 +7017,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'as400-transfer') ? 'page-as400-transfer'
                         : (sayfa === 'as400-planlama') ? 'page-as400-planlama'
                         : (sayfa === 'kullanicilar') ? 'page-kullanicilar'
+                        : (sayfa === 'zaman-cizelgesi') ? 'page-zaman-cizelgesi'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
             document.querySelectorAll('.page').forEach(function (p) {
                 p.classList.toggle('active', p.id === hedefId);
@@ -6851,6 +7059,7 @@ window.__I18N_SOZLUK__ = {
                 window._sahaCihazTimer = null;
             }
             if (sayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();
+            if (sayfa === 'zaman-cizelgesi') zcSekmeAcildi();
             if (sayfa === 'raporlar') initRaporlar();
             if (sayfa === 'operator-performans') initOperatorPerformans();
             if (sayfa === 'analiz') initAnaliz();
@@ -6889,6 +7098,9 @@ window.__I18N_SOZLUK__ = {
             } else if (aktifSayfa === 'sinyal-analizi') {
                 // Sinyal analizi kendi iç bölüm seçicisini taşır (v2 bölüm bağlamı zorlanmaz)
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Sinyal Analizi</b>';
+            } else if (aktifSayfa === 'zaman-cizelgesi') {
+                // Çizelge kendi bölüm/tarih seçicilerini taşır (v2 bağlamı zorlanmaz)
+                bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Zaman Çizelgesi</b>';
             } else if (aktifSayfa === 'raporlar') {
                 // Raporlar bölüme duyarlı (rapor bolum=aktifBolum ile çekilir)
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ ' + esc(bolumAdi(aktifBolum)) + ' ▸ <b>Raporlar</b>';
@@ -13447,7 +13659,8 @@ window.__I18N_SOZLUK__ = {
         };
         // Açılışta düşülecek öncelik sırası
         var PANEL_SAYFA_SIRA = ['ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
-            'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
+            'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'zaman-cizelgesi',
+            'andon-ayarlari', 'raporlar',
             'operator-performans', 'analiz', 'as400-teyit', 'kullanicilar'];
 
         function panelAdmin() { return !!(window.PANEL_KU && window.PANEL_KU.admin); }
@@ -13702,6 +13915,386 @@ window.__I18N_SOZLUK__ = {
                 alert('Şifre güncellendi. Kullanıcıya yeni geçici şifreyi iletin.');
                 yukleKullanicilar();
             }).catch(function () {});
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // ZAMAN ÇİZELGESİ (kullanıcı 2026-08-21)
+        // ═══════════════════════════════════════════════════════
+        // Vardiya barı + üzerinde duruş dilimleri. Dilime tıklanınca duruş
+        // düzenlenir ya da ikiye bölünüp ikinci parçaya ayrı sebep atanır.
+        //
+        // TEK ÖLÇEK: bütün vardiyalar AYNI zaman ekseninde çizilir (günün en
+        // erken başlangıcı → en geç bitişi). Her vardiya kendi ölçeğinde
+        // çizilseydi iki hattın 11:00'deki duruşu ekranda farklı yerlere düşer
+        // ve çizelgenin asıl işi olan KARŞILAŞTIRMA imkânsız olurdu.
+        var _zcVeri = null;          // son çekilen /api/zaman_cizelgesi yanıtı
+        var _zcEksen = null;         // { bas: Date, bit: Date } — ortak ölçek
+        var _zcSecili = null;        // modalda açık duruş {vid, durus}
+
+        function zcSekmeAcildi() {
+            var t = document.getElementById('zc-tarih');
+            if (t && !t.value) t.value = isoTarih(new Date());
+            zcBolumSecDoldur();
+            zcYukle();
+        }
+
+        function zcBolumSecDoldur() {
+            var sel = document.getElementById('zc-bolum');
+            if (!sel) return;
+            var onceki = sel.value;
+            var html = '<option value="">Tüm bölümler</option>';
+            lokBolumleri().forEach(function (b) {
+                html += '<option value="' + b + '">' + esc(bolumAdi(b)) + '</option>';
+            });
+            sel.innerHTML = html;
+            // Lokasyon değişince eski bölüm listede olmayabilir → 'tümü'ne düş
+            sel.value = (onceki && sel.querySelector('option[value="' + onceki + '"]')) ? onceki : '';
+        }
+
+        function zcYukle() {
+            var durum = document.getElementById('zc-durum');
+            var tarih = (document.getElementById('zc-tarih') || {}).value || isoTarih(new Date());
+            var bolum = (document.getElementById('zc-bolum') || {}).value || '';
+            var esik = parseInt((document.getElementById('zc-esik') || {}).value, 10);
+            if (!(esik >= 0)) esik = 10;
+            if (durum) durum.textContent = 'Yükleniyor…';
+            var q = '/api/zaman_cizelgesi?tarih=' + encodeURIComponent(tarih) +
+                    '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
+                    '&min_durus_dk=' + esik +
+                    (bolum ? '&bolum=' + encodeURIComponent(bolum) : '');
+            fetch(q, { cache: 'no-store' })
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+                .then(function (res) {
+                    if (!res.ok) { throw new Error(res.d.hata || 'Sunucu hatası'); }
+                    _zcVeri = res.d;
+                    zcHatSecDoldur();
+                    zcCiz();
+                    var n = _zcVeri.vardiyalar.length;
+                    var td = _zcVeri.vardiyalar.reduce(function (a, v) { return a + v.duruslar.length; }, 0);
+                    if (durum) durum.textContent = n + ' vardiya · ' + td + ' duruş';
+                })
+                .catch(function (e) {
+                    _zcVeri = null;
+                    document.getElementById('zc-liste').innerHTML =
+                        '<div style="padding:20px;color:var(--danger)">Yüklenemedi: ' + esc(e.message || '') + '</div>';
+                    if (durum) durum.textContent = '';
+                });
+        }
+
+        function zcHatSecDoldur() {
+            var sel = document.getElementById('zc-hat');
+            if (!sel || !_zcVeri) return;
+            var onceki = sel.value;
+            var hatlar = [];
+            _zcVeri.vardiyalar.forEach(function (v) {
+                if (v.hat && hatlar.indexOf(v.hat) === -1) hatlar.push(v.hat);
+            });
+            hatlar.sort();
+            sel.innerHTML = '<option value="">Tüm hatlar</option>' +
+                hatlar.map(function (h) { return '<option value="' + esc(h) + '">' + esc(h) + '</option>'; }).join('');
+            sel.value = (onceki && hatlar.indexOf(onceki) !== -1) ? onceki : '';
+        }
+
+        // 'YYYY-MM-DD HH:MM:SS' → Date. Tarayıcı ISO'yu UTC sanmasın diye
+        // parçalara ayırıp yerel Date kuruyoruz (boşluklu biçim Safari'de NaN).
+        function zcTs(t) {
+            if (!t) return null;
+            var m = String(t).replace('T', ' ').match(/^(\d{4})-(\d{2})-(\d{2})[ ](\d{2}):(\d{2})(?::(\d{2}))?/);
+            if (!m) return null;
+            return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+        }
+        function zcSaat(d) {
+            return d ? (pad2(d.getHours()) + ':' + pad2(d.getMinutes())) : '—';
+        }
+        function zcSureMetin(dk) {
+            dk = Math.max(0, Math.round(dk || 0));
+            return dk >= 60 ? (Math.floor(dk / 60) + 's ' + (dk % 60) + 'dk') : (dk + ' dk');
+        }
+
+        function zcCiz() {
+            var liste = document.getElementById('zc-liste');
+            if (!liste) return;
+            if (!_zcVeri || !_zcVeri.vardiyalar.length) {
+                document.getElementById('zc-cetvel-wrap').innerHTML = '';
+                liste.innerHTML = '<div style="padding:20px;color:var(--muted);font-style:italic">Bu tarihte vardiya kaydı yok.</div>';
+                zcZamansizCiz();
+                return;
+            }
+            var hatFiltre = (document.getElementById('zc-hat') || {}).value || '';
+            var vardiyalar = _zcVeri.vardiyalar.filter(function (v) {
+                return !hatFiltre || v.hat === hatFiltre;
+            });
+            if (!vardiyalar.length) {
+                liste.innerHTML = '<div style="padding:20px;color:var(--muted);font-style:italic">Seçilen hatta vardiya yok.</div>';
+                return;
+            }
+
+            // Ortak eksen: en erken başlangıç → en geç bitiş, tam saate yuvarlanır
+            var enBas = null, enBit = null;
+            vardiyalar.forEach(function (v) {
+                var b = zcTs(v.bas_ts), e = zcTs(v.bit_ts);
+                if (b && (!enBas || b < enBas)) enBas = b;
+                if (e && (!enBit || e > enBit)) enBit = e;
+            });
+            if (!enBas || !enBit || enBit <= enBas) {
+                liste.innerHTML = '<div style="padding:20px;color:var(--muted);font-style:italic">Vardiya saatleri okunamadı.</div>';
+                return;
+            }
+            enBas = new Date(enBas.getFullYear(), enBas.getMonth(), enBas.getDate(), enBas.getHours(), 0, 0);
+            enBit = new Date(enBit.getTime() + 59 * 60000);
+            enBit = new Date(enBit.getFullYear(), enBit.getMonth(), enBit.getDate(), enBit.getHours(), 0, 0);
+            _zcEksen = { bas: enBas, bit: enBit };
+            var toplamMs = enBit - enBas;
+            function yuzde(d) { return ((d - enBas) / toplamMs) * 100; }
+
+            // Saat cetveli
+            var cet = '<div class="zc-cetvel">';
+            for (var t = new Date(enBas); t <= enBit; t = new Date(t.getTime() + 3600000)) {
+                var x = yuzde(t);
+                cet += '<i style="left:' + x + '%"></i><span style="left:' + x + '%">' + pad2(t.getHours()) + ':00</span>';
+            }
+            cet += '</div>';
+            document.getElementById('zc-cetvel-wrap').innerHTML = cet;
+
+            var esik = _zcVeri.min_durus_dk;
+            var html = '';
+            vardiyalar.forEach(function (v) {
+                var vb = zcTs(v.bas_ts), ve = zcTs(v.bit_ts);
+                if (!vb || !ve) return;
+                var solV = yuzde(vb), genV = yuzde(ve) - solV;
+
+                var dilimler = '<div class="calisma" style="left:' + solV + '%;width:' + genV + '%"></div>';
+                (v.duruslar || []).forEach(function (d) {
+                    var db = zcTs(d.bas_ts), de = zcTs(d.bit_ts) || (db && new Date(db.getTime() + d.sure_dk * 60000));
+                    if (!db || !de) return;
+                    var sol = yuzde(db), gen = Math.max(0.15, yuzde(de) - sol);
+                    var uzun = d.sure_dk >= esik;
+                    var etiket = (uzun && gen > 5) ? esc(d.sebep) : '';
+                    var baslik = d.sebep + ' — ' + zcSaat(db) + '–' + zcSaat(de) +
+                                 ' (' + zcSureMetin(d.sure_dk) + ')' +
+                                 (d.aciklama ? '\n' + d.aciklama : '');
+                    dilimler += '<div class="zc-durus ' + (d.tip === 'planli' ? 'planli' : 'plansiz') +
+                        (uzun ? '' : ' kisa') + '" tabindex="0" role="button"' +
+                        ' style="left:' + sol + '%;width:' + gen + '%"' +
+                        ' title="' + esc(baslik) + '"' +
+                        ' onclick="zcDurusAc(' + v.id + ',' + d.id + ')"' +
+                        ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();zcDurusAc(' + v.id + ',' + d.id + ');}">' +
+                        etiket + '</div>';
+                });
+
+                // Üretim referansı şeridi — bitişi yoksa vardiya sonuna uzar (açık kayıt).
+                // ŞERİTLERE AYIRMA: aynı vardiyada iki referans AYNI ANDA açık olabilir
+                // (paylaşımlı sayaç: aynı makinede aynı kod iki operatörde). Hepsi tek
+                // sıraya çizilseydi üsttekiler alttakini örter ve kullanıcı bir referansı
+                // hiç göremezdi. Her kayıt, çakışmadığı İLK şeride yerleşir.
+                var seritler = [];      // her şeridin o ana kadarki en geç bitişi
+                var yerlesim = [];
+                (v.uretimler || []).forEach(function (u) {
+                    var ub = zcTs(u.bas_ts);
+                    if (!ub) return;
+                    var ue = zcTs(u.bit_ts) || ve;
+                    if (ue <= ub) ue = new Date(ub.getTime() + 60000);
+                    var k = 0;
+                    while (k < seritler.length && seritler[k] > ub) k++;
+                    seritler[k] = ue;
+                    yerlesim.push({ u: u, bas: ub, bit: ue, serit: k });
+                });
+                var refler = '';
+                yerlesim.forEach(function (y) {
+                    var sol = yuzde(y.bas), gen = Math.max(0.3, yuzde(y.bit) - sol);
+                    var ad = y.u.referans_kodu + (y.u.makine ? ' · ' + y.u.makine : '');
+                    refler += '<div class="zc-ref' + (y.u.acik ? ' acik' : '') + '"' +
+                        ' style="left:' + sol + '%;width:' + gen + '%;top:' + (y.serit * 18) + 'px;height:16px;bottom:auto"' +
+                        ' title="' + esc(ad + ' — ' + zcSaat(y.bas) + '–' + (y.u.acik ? 'devam ediyor' : zcSaat(y.bit)) +
+                                        ' · OK ' + y.u.ok_adet) + '">' +
+                        (gen > 6 ? esc(y.u.referans_kodu) : '') + '</div>';
+                });
+                var uretimYuk = seritler.length ? (seritler.length * 18 - 2) : 0;
+
+                // Eşiği aşan duruşların ZAMAN ARALIKLARI (kullanıcı: "zaman aralıkları
+                // olsun"). Çipe tıklamak barla aynı modalı açar — dar barlara isabet
+                // ettirmek zor olduğu için asıl tıklama hedefi çoğunlukla burasıdır.
+                var cipler = (v.duruslar || []).filter(function (d) {
+                    return d.sure_dk >= esik && d.bas_ts;
+                }).map(function (d) {
+                    var db = zcTs(d.bas_ts), de = zcTs(d.bit_ts) || new Date(db.getTime() + d.sure_dk * 60000);
+                    return '<span class="zc-aralik" tabindex="0" role="button"' +
+                        ' onclick="zcDurusAc(' + v.id + ',' + d.id + ')"' +
+                        ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();zcDurusAc(' + v.id + ',' + d.id + ');}">' +
+                        '<i class="nokta" style="background:' + (d.tip === 'planli' ? 'var(--warn)' : 'var(--danger)') + '"></i>' +
+                        '<b class="sa">' + zcSaat(db) + '–' + zcSaat(de) + '</b>' +
+                        esc(d.sebep) + ' · ' + zcSureMetin(d.sure_dk) + '</span>';
+                }).join('');
+
+                var toplamDurus = (v.duruslar || []).reduce(function (a, d) { return a + d.sure_dk; }, 0);
+                html += '<div class="zc-satir">' +
+                    '<div class="zc-etiket">' +
+                        '<div class="op">' + esc(v.operator_adi || '—') + '</div>' +
+                        '<div class="alt">' + esc(v.hat || '') + ' · ' + esc(v.bolum_ad || '') + '</div>' +
+                        '<div class="alt">' + zcSaat(vb) + '–' + (v.durum === 'kapali' ? zcSaat(ve) : 'açık') +
+                            ' · duruş ' + zcSureMetin(toplamDurus) + '</div>' +
+                    '</div>' +
+                    '<div class="zc-track">' +
+                        '<div class="zc-bar">' + dilimler + '</div>' +
+                        (refler ? '<div class="zc-uretim" style="height:' + uretimYuk + 'px">' + refler + '</div>' : '') +
+                        (cipler ? '<div class="zc-araliklar">' + cipler + '</div>' : '') +
+                    '</div>' +
+                '</div>';
+            });
+            liste.innerHTML = html;
+            zcZamansizCiz();
+        }
+
+        function zcZamansizCiz() {
+            var kart = document.getElementById('zc-zamansiz-kart');
+            var kutu = document.getElementById('zc-zamansiz');
+            if (!kart || !kutu) return;
+            var liste = (_zcVeri && _zcVeri.zamansiz) || [];
+            kart.style.display = liste.length ? '' : 'none';
+            kutu.innerHTML = liste.map(function (d) {
+                return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-subtle)">' +
+                    '<span style="font-weight:700;font-size:.8rem">' + esc(d.sebep) + '</span>' +
+                    '<span style="font-size:.74rem;color:var(--muted)">' + zcSureMetin(d.sure_dk) + '</span>' +
+                    '<button onclick="zcDurusAc(' + d.vardiya_id + ',' + d.id + ',true)" style="margin-left:auto;padding:5px 12px;border:1px solid var(--primary-line);background:var(--primary-soft);color:var(--primary);border-radius:8px;font-weight:700;font-size:.72rem;cursor:pointer;font-family:var(--font-main)">Saat ata</button>' +
+                '</div>';
+            }).join('');
+        }
+
+        // ── MODAL ──────────────────────────────────────────────────────────
+        function zcDurusBul(vid, did) {
+            if (!_zcVeri) return null;
+            var kaynak = (_zcVeri.zamansiz || []).filter(function (d) { return d.id === did; });
+            if (kaynak.length) return kaynak[0];
+            var v = _zcVeri.vardiyalar.filter(function (x) { return x.id === vid; })[0];
+            if (!v) return null;
+            return (v.duruslar || []).filter(function (d) { return d.id === did; })[0] || null;
+        }
+
+        function zcSebepDoldur(sel, secili) {
+            var liste = (_zcVeri && _zcVeri.sebepler) || [];
+            var html = liste.map(function (x) {
+                return '<option value="' + esc(x.sebep) + '">' + esc(x.sebep) + '</option>';
+            }).join('');
+            // Kayıtlı sebep listede yoksa (Excel'den kalkmış eski sebep) KAYBOLMASIN:
+            // başa eklenir, yoksa kaydet düğmesi sessizce sebebi değiştirirdi.
+            if (secili && liste.every(function (x) { return x.sebep !== secili; })) {
+                html = '<option value="' + esc(secili) + '">' + esc(secili) + ' (listede yok)</option>' + html;
+            }
+            sel.innerHTML = html;
+            if (secili) sel.value = secili;
+        }
+
+        // Sebebin TİPİ listeden gelir (planlı mola / plansız arıza). Kullanıcı
+        // sebebi değiştirdiğinde tip de kendiliğinden düzelmeli: 30dk'lık yemek
+        // molasından kesilen parçaya 'Bakım Çalışması' atanınca o parça PLANSIZ
+        // duruştur — tip elle değiştirilmediği için sessizce planlı kalıyordu ve
+        // OEE'de planlı duruş sayılıp kayıp gizleniyordu.
+        function zcSebepTipi(sebep, varsayilan) {
+            var liste = (_zcVeri && _zcVeri.sebepler) || [];
+            for (var i = 0; i < liste.length; i++) {
+                if (liste[i].sebep === sebep) return (liste[i].tip === 'planli') ? 'planli' : 'plansiz';
+            }
+            return varsayilan;
+        }
+
+        function zcDurusAc(vid, did, zamansiz) {
+            var d = zcDurusBul(vid, did);
+            if (!d) { toast('Duruş bulunamadı — listeyi yenileyin', 'error'); return; }
+            _zcSecili = { vid: vid, durus: d };
+            var bas = zcTs(d.bas_ts);
+            var bit = zcTs(d.bit_ts) || (bas && new Date(bas.getTime() + d.sure_dk * 60000));
+
+            document.getElementById('zc-m-baslik').textContent =
+                (d.tip === 'planli' ? '🟠 Planlı duruş' : '🔴 Plansız duruş');
+            document.getElementById('zc-m-ozet').innerHTML = zamansiz
+                ? 'Bu duruşun saati kayıtlı değil. Başlangıç saatini girip kaydedin.'
+                : ('<b>' + esc(d.sebep) + '</b><br>' + zcSaat(bas) + ' – ' + zcSaat(bit) +
+                   ' · ' + zcSureMetin(d.sure_dk) + (d.aciklama ? '<br>' + esc(d.aciklama) : ''));
+
+            var sSel = document.getElementById('zc-m-sebep');
+            zcSebepDoldur(sSel, d.sebep);
+            sSel.onchange = function () {
+                document.getElementById('zc-m-tip').value =
+                    zcSebepTipi(sSel.value, document.getElementById('zc-m-tip').value);
+            };
+            zcSebepDoldur(document.getElementById('zc-m-yeni-sebep'), d.sebep);
+            document.getElementById('zc-m-tip').value = (d.tip === 'planli') ? 'planli' : 'plansiz';
+            document.getElementById('zc-m-bas').value = bas ? zcSaat(bas) : '';
+            document.getElementById('zc-m-sure').value = d.sure_dk;
+            document.getElementById('zc-m-aciklama').value = d.aciklama || '';
+            // Bölme varsayılanı duruşun ORTASI — kullanıcı çoğunlukla oradan
+            // kaydırarak ayarlıyor, boş bırakmak fazladan tıklama demek.
+            document.getElementById('zc-m-bolme').value =
+                (bas && d.sure_dk >= 2) ? zcSaat(new Date(bas.getTime() + Math.floor(d.sure_dk / 2) * 60000)) : '';
+            document.getElementById('zc-modal').classList.add('open');
+        }
+
+        function zcModalKapat(e) {
+            if (e && e.target && e.target.id !== 'zc-modal') return;
+            document.getElementById('zc-modal').classList.remove('open');
+            _zcSecili = null;
+        }
+
+        // Duruşun GÜNÜNÜ korur: gece vardiyasında bar ertesi güne taşmış olabilir,
+        // saat alanı yalnız HH:MM taşıdığı için tarih mevcut damgadan alınır.
+        function zcTamDamga(saatMetni, capaTs) {
+            var m = String(saatMetni || '').match(/^(\d{2}):(\d{2})$/);
+            if (!m) return null;
+            var capa = zcTs(capaTs) || zcTs((_zcVeri || {}).tarih + ' 00:00:00') || new Date();
+            var d = new Date(capa.getFullYear(), capa.getMonth(), capa.getDate(), +m[1], +m[2], 0);
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+                   ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':00';
+        }
+
+        function zcDurusKaydet() {
+            if (!_zcSecili) return;
+            var d = _zcSecili.durus;
+            var sure = parseInt(document.getElementById('zc-m-sure').value, 10);
+            if (!(sure >= 1)) { toast('Süre en az 1 dk olmalı', 'error'); return; }
+            var saat = document.getElementById('zc-m-bas').value;
+            var basTs = zcTamDamga(saat, d.bas_ts);
+            if (!basTs) { toast('Başlangıç saati girin', 'error'); return; }
+            var govde = {
+                durus_sebebi: document.getElementById('zc-m-sebep').value,
+                durus_tipi: document.getElementById('zc-m-tip').value,
+                aciklama: document.getElementById('zc-m-aciklama').value,
+                sure_dk: sure,
+                baslangic_saati: saat,
+                baslangic_ts: basTs
+            };
+            fetch('/api/durus/' + d.id, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(govde)
+            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (res) {
+                if (!res.ok || res.j.hata) { toast(res.j.hata || 'Kaydedilemedi', 'error'); return; }
+                toast('Duruş güncellendi', 'success');
+                zcModalKapat(); zcYukle();
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
+        function zcDurusBol() {
+            if (!_zcSecili) return;
+            var d = _zcSecili.durus;
+            var saat = document.getElementById('zc-m-bolme').value;
+            var ts = zcTamDamga(saat, d.bas_ts);
+            if (!ts) { toast('Bölme saati girin', 'error'); return; }
+            var yeniSebep = document.getElementById('zc-m-yeni-sebep').value;
+            fetch('/api/durus/' + d.id + '/bol', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bolme_ts: ts,
+                    yeni_sebep: yeniSebep,
+                    // 2. parçanın tipi SEÇİLEN SEBEPTEN türer, formdaki tipten değil:
+                    // yemek molasından kesilen 'Bakım Çalışması' parçası planlı kalmasın.
+                    yeni_tip: zcSebepTipi(yeniSebep, document.getElementById('zc-m-tip').value)
+                })
+            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (res) {
+                if (!res.ok || res.j.hata) { toast(res.j.hata || 'Bölünemedi', 'error'); return; }
+                toast('Duruş bölündü: ' + res.j.parca1.sure_dk + ' dk + ' + res.j.parca2.sure_dk + ' dk', 'success');
+                zcModalKapat(); zcYukle();
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }
 
         // ═══════════════════════════════════════════════════════

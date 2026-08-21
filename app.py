@@ -184,6 +184,10 @@ PANEL_SAYFALAR = [
     # mevcut kullanıcıların izin listesinde YOK (yalnız admin görür, yönetici
     # tek tek yetki verir). 'analiz' de aynı gerekçeyle ayrı.
     'operator-performans', 'analiz',
+    # 2026-08-21 zaman çizelgesi: duruş sebebini DEĞİŞTİRİP yeniden atayabiliyor
+    # (rapor/OEE'yi doğrudan etkiler) → aynı gerekçeyle izin listesine kendisi
+    # eklenmez; yönetici tek tek yetki verir.
+    'zaman-cizelgesi',
 ]
 
 def panel_kullanici():
@@ -1448,17 +1452,28 @@ def _otomatik_mola_uygula(conn, vardiya):
                 break
         if hedef_id is not None:
             # BİRİKTİR: süreyi üzerine ekle, açıklamaya saati not düş
+            # Süre büyüdü → bitiş damgası da uzamalı; başlangıç damgası boşsa
+            # (elle girilmiş eski satır) molanın saatinden doldurulur.
+            _mb, _mbit = _durus_ts_hesapla(vardiya, mola_saati, mola_dk)
             conn.execute(
                 "UPDATE duruslar SET sure_dk = sure_dk + ?, "
-                "aciklama = CASE WHEN COALESCE(aciklama,'')='' THEN ? ELSE aciklama || ' + ' || ? END "
+                "aciklama = CASE WHEN COALESCE(aciklama,'')='' THEN ? ELSE aciklama || ' + ' || ? END, "
+                "baslangic_ts = COALESCE(baslangic_ts, ?), "
+                "bitis_ts = datetime(COALESCE(baslangic_ts, ?), "
+                "                    '+' || CAST(sure_dk + ? AS TEXT) || ' minutes') "
                 "WHERE id=?",
-                (mola_dk, f'Otomatik: {mola_saati} ({mola_dk}dk)', f'{mola_saati} ({mola_dk}dk)', hedef_id)
+                (mola_dk, f'Otomatik: {mola_saati} ({mola_dk}dk)', f'{mola_saati} ({mola_dk}dk)',
+                 _mb, _mb, mola_dk, hedef_id)
             )
         else:
+            # Damga: molanın saati BELLİ (mola_saati) → doğrudan türetilir.
+            # Zaman çizelgesinde çay/yemek molası da bar olarak görünür.
+            _mb, _mbit = _durus_ts_hesapla(vardiya, mola_saati, mola_dk)
             conn.execute(
-                "INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi) "
-                "VALUES (?, ?, ?, ?, ?, 'planli')",
-                (vardiya['id'], sebep, f'Otomatik: {mola_saati} ({mola_dk}dk)', mola_dk, mola_saati)
+                "INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi, baslangic_ts, bitis_ts) "
+                "VALUES (?, ?, ?, ?, ?, 'planli', ?, ?)",
+                (vardiya['id'], sebep, f'Otomatik: {mola_saati} ({mola_dk}dk)', mola_dk, mola_saati,
+                 _mb, _mbit)
             )
         yeni |= bit
     if yeni != bayrak:
@@ -2561,6 +2576,16 @@ def vardiya_kapat(vid):
     # yeni vardiyayla ÇİFT SAYIM olur.
     _uretim_sayac_senkron(conn, vid)
     c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE vardiya_id=? AND sayac_otomatik=1", (vid,))
+    # Hâlâ açık üretim kayıtlarının penceresi VARDİYANIN BİTİŞİNDE kapanır
+    # (kullanıcı 2026-08-21). 'now' DEĞİL: vardiya geriye dönük kapatılıyorsa
+    # (operatör unuttu, yönetici akşam kapattı) kayıtlar gerçekte olmadıkları
+    # saatlere kadar uzardı. Gece vardiyasında bitiş ertesi güne taşınır.
+    _kapanis_dt = _ts_parse(f"{vardiya['tarih']} {str(bitis)[:5]}")
+    if _kapanis_dt and _ts_parse(f"{vardiya['tarih']} {str(vardiya['baslangic_saati'])[:5]}") \
+            and _kapanis_dt < _ts_parse(f"{vardiya['tarih']} {str(vardiya['baslangic_saati'])[:5]}"):
+        _kapanis_dt += timedelta(days=1)
+    c.execute("UPDATE uretim_kayitlari SET bitis_ts=? WHERE vardiya_id=? AND bitis_ts IS NULL",
+              (_ts_metin(_kapanis_dt) or datetime.now().strftime('%Y-%m-%d %H:%M:%S'), vid))
     c.execute(
         "UPDATE vardiyalar SET durum='kapali', bitis_saati=?, toplam_sure_dk=? WHERE id=?",
         (bitis, fark_dk, vid)
@@ -2610,6 +2635,22 @@ def vardiya_ac(vid):
     if vardiya['durum'] != 'kapali':
         conn.close()
         return jsonify({'hata': 'Vardiya zaten açık'}), 400
+    # Vardiya yeniden açılıyor → KAPANIŞTA atılan üretim bitiş damgalarını geri al
+    # (2026-08-21). Yoksa kayıtlar 'kapanmış' kalır ve zaman çizelgesinde barları
+    # eski kapanış saatinde donardı. YALNIZ kapanışta atılanlar temizlenir:
+    #   · tamamlandi_ts dolu   → operatör bitirdi, damga KORUNUR
+    #   · bitis_ts ≠ kapanış anı → referans değişiminde donduruldu, KORUNUR
+    _eski_kapanis = _ts_metin(_ts_parse(f"{vardiya['tarih']} {str(vardiya['bitis_saati'] or '')[:5]}"))
+    _eski_kapanis_ertesi = None
+    if _eski_kapanis:
+        _b = _ts_parse(_eski_kapanis)
+        _eski_kapanis_ertesi = _ts_metin(_b + timedelta(days=1))   # gece vardiyası karşılığı
+    c.execute(
+        "UPDATE uretim_kayitlari SET bitis_ts=NULL "
+        "WHERE vardiya_id=? AND tamamlandi_ts IS NULL "
+        "  AND bitis_ts IS NOT NULL AND bitis_ts IN (?, ?)",
+        (vid, _eski_kapanis, _eski_kapanis_ertesi)
+    )
     c.execute(
         "UPDATE vardiyalar SET durum='aktif', bitis_saati=NULL, toplam_sure_dk=NULL WHERE id=?",
         (vid,)
@@ -2891,10 +2932,12 @@ def uretim_ekle():
                     fcnt = _test_basari_say(conn, tc_id, o['referans_kodu'],
                                             o['sayac_baslangic_ts'], biti_ts=simdi)
                     if fcnt is not None:
-                        c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
-                                  (fcnt, o['id']))
+                        c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0, "
+                                  "bitis_ts=COALESCE(bitis_ts, ?) WHERE id=?",
+                                  (fcnt, simdi, o['id']))
                     else:
-                        c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE id=?", (o['id'],))
+                        c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0, "
+                                  "bitis_ts=COALESCE(bitis_ts, ?) WHERE id=?", (simdi, o['id']))
             elif auto:
                 # Aynı vardiya+istasyon önceki ESP32 auto kayıt(lar)ı dondur (test-cihazı hariç)
                 onceki = c.execute(
@@ -2915,12 +2958,18 @@ def uretim_ekle():
                     fcnt = _paket_carp(_bukum_bol(fcnt, _sinyal_bolen(vardiya_robot, ist_val,
                                                                      o['bukum_operasyon'])),
                                        o['paket_adedi'])
+                    # DONDURMA ANI = O REFERANSIN BİTİŞİDİR (2026-08-21): operatör
+                    # aynı makinede yeni referansa geçti, öncekinin üretim penceresi
+                    # burada kapanır. bitis_ts zaten doluysa (tamamlandı işaretlenmiş)
+                    # KORUNUR — ilk kapanış anı doğru olandır.
                     if fcnt is not None:
-                        c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
-                                  (fcnt, o['id']))
+                        c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0, "
+                                  "bitis_ts=COALESCE(bitis_ts, ?) WHERE id=?",
+                                  (fcnt, simdi, o['id']))
                     else:
                         # pilot.db okunamadi — ok_adet'i SIFIRLAMA; mevcut degerle dondur (manuel'e al)
-                        c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE id=?", (o['id'],))
+                        c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0, "
+                                  "bitis_ts=COALESCE(bitis_ts, ?) WHERE id=?", (simdi, o['id']))
 
             # Referansı listeye otomatik ekle — VARDIYANIN bölümü VE lokasyonuyla etiketle
             # (montaj operatörü tanımsız bir kod girince montaj'a düşsün, kaynak'a değil;
@@ -2954,8 +3003,8 @@ def uretim_ekle():
                              ref, vardiya_bolum, vardiya_lokasyon, kayit_hat)
 
             c.execute('''
-                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id, bukum_operasyon, paket_adedi)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO uretim_kayitlari (vardiya_id, referans_kodu, ok_adet, nok_adet, tamir_adet, hedef_adet, cycle_time_sn, istasyon, launch_adet, aciklama, sayac_baslangic_ts, sayac_otomatik, test_cihaz_id, bukum_operasyon, paket_adedi, baslangic_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['vardiya_id'],
                 ref,
@@ -2971,7 +3020,11 @@ def uretim_ekle():
                 auto,
                 tc_id,
                 bop,
-                pak
+                pak,
+                # baslangic_ts: SAYAÇTAN BAĞIMSIZ (kullanıcı 2026-08-21). sayac_baslangic_ts
+                # yalnız otomatik sayaçlı kayıtlarda dolu; elle giren hatların tamamı
+                # NULL kalıyordu ve zaman çizelgesinde hiç görünmezlerdi.
+                simdi
             ))
             eklenen += 1
 
@@ -3161,6 +3214,98 @@ def uretim_ct_toplu_guncelle():
 
 
 # ─────────────────────────────────────────────────────────────
+# ZAMAN DAMGASI TÜRETME (kullanıcı 2026-08-21)
+# ─────────────────────────────────────────────────────────────
+# Duruş ve üretim kayıtlarına TAM damga ('YYYY-MM-DD HH:MM:SS') yazılır; zaman
+# çizelgesi sayfası bunlardan çizilir. Kurallar database.py'deki geriye-dönük
+# doldurma SQL'i ile BİREBİR aynı olmalı — biri değişirse eski ve yeni kayıtlar
+# aynı çizelgede farklı mantıkla yerleşir ve fark sessizce görünmez kalır.
+TS_FMT = '%Y-%m-%d %H:%M:%S'
+
+
+def _ts_metin(dt):
+    return dt.strftime(TS_FMT) if dt else None
+
+
+def _ts_parse(deger):
+    """'YYYY-MM-DD HH:MM[:SS]' (ya da ISO 'T' ayraçlı) metni datetime'a çevirir.
+    Bozuk/boş girdi None döner — çağıran 400 verir, HTML 500'e düşmez."""
+    t = str(deger or '').strip().replace('T', ' ')
+    if not t:
+        return None
+    for f in (TS_FMT, '%Y-%m-%d %H:%M'):
+        try:
+            return datetime.strptime(t[:len('2026-01-01 00:00:00') if f == TS_FMT else 16], f)
+        except ValueError:
+            continue
+    return None
+
+
+def _vardiya_pencere(vardiya):
+    """Vardiyanın (baslangic_dt, bitis_dt) penceresi.
+
+    Vardiya AÇIKSA bitiş = ŞİMDİ (çizelgede bar 'şu ana kadar' uzar).
+    GECE VARDİYASI: bitiş saati başlangıçtan küçükse ertesi güne taşınır —
+    22:00-06:00 vardiyası tek günde 'negatif uzunlukta' görünmesin."""
+    try:
+        tarih = str(vardiya['tarih'] or '')
+        bas = _ts_parse(f"{tarih} {str(vardiya['baslangic_saati'] or '')[:5]}")
+    except Exception:
+        bas = None
+    if bas is None:
+        return None, None
+    if (vardiya['durum'] or '') == 'kapali' and vardiya['bitis_saati']:
+        bit = _ts_parse(f"{tarih} {str(vardiya['bitis_saati'])[:5]}")
+        if bit and bit < bas:
+            bit += timedelta(days=1)
+    else:
+        bit = datetime.now()
+        if bit < bas:            # gelecek tarihli/hatalı vardiya — bar ters dönmesin
+            bit = bas
+    return bas, bit
+
+
+def _durus_ts_hesapla(vardiya, baslangic_saati, sure_dk, anchor_ts=None):
+    """Duruşun (baslangic_ts, bitis_ts) damgasını türetir.
+
+    İKİ KAYNAK, İKİ KURAL:
+      · Operatör SAAT yazdıysa  → başlangıç odur (vardiyanın gününe oturtulur;
+        vardiya başlangıcından önceki saat ERTESİ gündür — gece vardiyası).
+      · Saat YOKSA              → duruş girildiği ANDA bitmiştir kabul edilir:
+        bitiş = anchor (kaydın created_at'i / şimdi), başlangıç = bitiş − süre.
+        Kayıtların çoğunda saat boş (bkz. /api/sinyal_analiz notu) — bu kural
+        olmasaydı o duruşlar çizelgede hiç görünmezdi.
+    Vardiya penceresi çözülemezse (bozuk saat) (None, None) döner; kayıt yine
+    yazılır, çizelgede 'zamanı belirsiz' listesine düşer."""
+    try:
+        sure = max(0, int(sure_dk or 0))
+    except (TypeError, ValueError):
+        sure = 0
+    saat = str(baslangic_saati or '').strip()[:5]
+    bas = None
+    if len(saat) >= 4:
+        try:
+            v_bas = str(vardiya['baslangic_saati'] or '')[:5]
+            bas = _ts_parse(f"{vardiya['tarih']} {saat}")
+            if bas and v_bas and saat < v_bas:
+                bas += timedelta(days=1)      # gece vardiyası: ertesi güne taşı
+        except Exception:
+            bas = None
+    if bas is None:
+        bit_anchor = _ts_parse(anchor_ts) or datetime.now()
+        bas = bit_anchor - timedelta(minutes=sure)
+    return _ts_metin(bas), _ts_metin(bas + timedelta(minutes=sure))
+
+
+def _vardiya_satiri(conn, vardiya_id):
+    """Damga türetmek için gereken vardiya alanları (yoksa None)."""
+    return conn.execute(
+        "SELECT id, tarih, baslangic_saati, bitis_saati, durum FROM vardiyalar WHERE id=?",
+        (vardiya_id,)
+    ).fetchone()
+
+
+# ─────────────────────────────────────────────────────────────
 # DURUŞ API
 # ─────────────────────────────────────────────────────────────
 
@@ -3181,19 +3326,32 @@ def uretim_tamamlandi_guncelle(uid):
     # NOT: conn.close() KALDIRILDI — get_db() request-paylaşımlı (flask.g cache);
     # burada kapatmak aynı istekte sonra kullanan kodu düşürür (bkz. daha önce
     # decorator'da yaşanan prod 500).
+    # bitis_ts de burada kapanır (2026-08-21): "tamamlandı" işareti operatörün
+    # o referansı bitirdiğini söylediği andır. İşaret GERİ ALINIRSA damga da
+    # NULL'a döner — kayıt yeniden 'açık' sayılır ve çizelgede bar uzamaya devam
+    # eder (tamamlandi_ts ile aynı ömür, aynı gerekçe).
     conn.execute(
         "UPDATE uretim_kayitlari SET tamamlandi=?, "
-        "tamamlandi_ts = CASE WHEN ?=1 THEN datetime('now','localtime') ELSE NULL END "
-        "WHERE id=?", (deger, deger, uid))
+        "tamamlandi_ts = CASE WHEN ?=1 THEN datetime('now','localtime') ELSE NULL END, "
+        "bitis_ts      = CASE WHEN ?=1 THEN datetime('now','localtime') ELSE NULL END "
+        "WHERE id=?", (deger, deger, deger, uid))
     conn.commit()
     return jsonify({'basarili': True})
 
 @app.route('/api/durus', methods=['POST'])
 @operator_required
 def durus_ekle():
-    """Duruş kaydı ekle. Aynı vardiya + aynı durus_sebebi için zaten kayıt
-    varsa: yenisini eklemek yerine süreyi mevcut kayda ekler (toplama yapar).
-    Açıklama varsa eski açıklamaya ' | ' ile ayırarak sona eklenir."""
+    """Duruş kaydı ekle — HER GİRİŞ KENDİ SATIRI (kullanıcı 2026-08-21).
+
+    ESKİDEN aynı vardiya + aynı sebep TEK SATIRDA toplanıyordu. Toplam süre
+    doğruydu ama olayın NE ZAMAN olduğu kayboluyordu: sabah 09:10'daki 15dk'lık
+    arıza ile öğleden sonraki 40dk'lık arıza tek satırda '55dk' oluyordu. Zaman
+    çizelgesi tam olarak bu iki olayı ayrı barlar olarak göstermek için var —
+    birleştirme sürdükçe çizelge YANILTICI olurdu (kod içinde de böyle not
+    edilmişti: bkz. /api/sinyal_analiz 'duruslar tablosu ... TOPLAR' notu).
+
+    Toplam süreye bakan yerler etkilenmez: hepsi SUM(sure_dk) ile okuyor.
+    Duruş listesi artık aynı sebepten birden çok satır gösterebilir — istenen bu."""
     data = request.get_json() or {}
 
     if not data.get('vardiya_id') or not data.get('durus_sebebi'):
@@ -3216,7 +3374,9 @@ def durus_ekle():
         conn = get_db()
         c = conn.cursor()
         eklenen = 0
-        birlestirilen = 0
+        birlestirilen = 0          # geriye uyum: istemci bu alanı okuyor, artık hep 0
+        # Damga türetmek için vardiyanın tarihi/başlangıç saati gerekir (gece vardiyası)
+        vardiya_row = _vardiya_satiri(conn, durus_vid_int)
         for satir in satirlar:
             vid    = data['vardiya_id']
             sebep  = (satir.get('durus_sebebi') or data.get('durus_sebebi') or '').strip()
@@ -3227,31 +3387,23 @@ def durus_ekle():
             acikl  = (satir.get('aciklama') or '').strip()
             tipi   = satir.get('durus_tipi', data.get('durus_tipi', 'plansiz'))
 
-            # Aynı vardiya + aynı sebep var mı?
-            mevcut = c.execute(
-                "SELECT id, sure_dk, aciklama FROM duruslar WHERE vardiya_id=? AND durus_sebebi=? LIMIT 1",
-                (vid, sebep)
-            ).fetchone()
+            # Zaman damgası: istemci açıkça gönderdiyse o, yoksa saat+süreden türet.
+            # (Zaman çizelgesi sayfası düzenlerken tam damga gönderebilir.)
+            bas_ts = _ts_metin(_ts_parse(satir.get('baslangic_ts', data.get('baslangic_ts'))))
+            bit_ts = _ts_metin(_ts_parse(satir.get('bitis_ts', data.get('bitis_ts'))))
+            if not bas_ts:
+                bas_ts, _tur_bit = _durus_ts_hesapla(vardiya_row, saat, sure)
+                if not bit_ts:
+                    bit_ts = _tur_bit
+            elif not bit_ts:
+                _b = _ts_parse(bas_ts)
+                bit_ts = _ts_metin(_b + timedelta(minutes=sure)) if _b else None
 
-            if mevcut:
-                yeni_sure = (mevcut['sure_dk'] or 0) + sure
-                # Açıklamaları birleştir (boş olanı atla)
-                eski_acikl = (mevcut['aciklama'] or '').strip()
-                if eski_acikl and acikl:
-                    yeni_acikl = eski_acikl + ' | ' + acikl
-                else:
-                    yeni_acikl = eski_acikl or acikl
-                c.execute(
-                    "UPDATE duruslar SET sure_dk=?, aciklama=?, durus_tipi=? WHERE id=?",
-                    (yeni_sure, yeni_acikl, tipi, mevcut['id'])
-                )
-                birlestirilen += 1
-            else:
-                c.execute('''
-                    INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (vid, sebep, acikl, sure, saat, tipi))
-                eklenen += 1
+            c.execute('''
+                INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, baslangic_saati, durus_tipi, baslangic_ts, bitis_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (vid, sebep, acikl, sure, saat, tipi, bas_ts, bit_ts))
+            eklenen += 1
 
         conn.commit()
         return jsonify({'basarili': True, 'eklenen': eklenen, 'birlestirilen': birlestirilen}), 201
@@ -3295,26 +3447,290 @@ def durus_guncelle(did):
         return jsonify({'hata': f"Süre sayısal olmalı: {data.get('sure_dk')!r}"}), 400
     conn = get_db()
     c = conn.cursor()
-    mevcut = c.execute('SELECT id FROM duruslar WHERE id = ?', (did,)).fetchone()
+    mevcut = c.execute(
+        'SELECT id, vardiya_id, created_at, baslangic_ts FROM duruslar WHERE id = ?', (did,)
+    ).fetchone()
     if not mevcut:
         conn.close()
         return jsonify({'hata': 'Kayit bulunamadi'}), 404
+
+    saat_val = data.get('baslangic_saati', '')
+    # Damga: istemci TAM damga gönderdiyse (zaman çizelgesi sayfası) o kullanılır;
+    # yoksa saat+süreden yeniden türetilir. Süre veya saat değişince damganın da
+    # değişmesi ŞART — yoksa çizelgedeki bar listedeki süreyle tutmaz.
+    bas_ts = _ts_metin(_ts_parse(data.get('baslangic_ts')))
+    bit_ts = _ts_metin(_ts_parse(data.get('bitis_ts')))
+    if not bas_ts:
+        v_row = _vardiya_satiri(conn, mevcut['vardiya_id'])
+        # Saat boşsa eski davranışa düşmeden ÖNCE mevcut damgayı çapa al: kullanıcı
+        # yalnız sebebi değiştirdiğinde duruş çizelgede yerinden OYNAMASIN.
+        capa = mevcut['baslangic_ts'] or mevcut['created_at']
+        if str(saat_val or '').strip()[:5] and len(str(saat_val).strip()) >= 4:
+            bas_ts, _tb = _durus_ts_hesapla(v_row, saat_val, sure_dk_val)
+        elif mevcut['baslangic_ts']:
+            bas_ts, _tb = mevcut['baslangic_ts'], None
+        else:
+            bas_ts, _tb = _durus_ts_hesapla(v_row, '', sure_dk_val, anchor_ts=capa)
+        if not bit_ts:
+            _b = _ts_parse(bas_ts)
+            bit_ts = _ts_metin(_b + timedelta(minutes=sure_dk_val)) if _b else _tb
+    elif not bit_ts:
+        _b = _ts_parse(bas_ts)
+        bit_ts = _ts_metin(_b + timedelta(minutes=sure_dk_val)) if _b else None
+
     c.execute('''
         UPDATE duruslar
-        SET durus_sebebi=?, aciklama=?, sure_dk=?, baslangic_saati=?, durus_tipi=?
+        SET durus_sebebi=?, aciklama=?, sure_dk=?, baslangic_saati=?, durus_tipi=?,
+            baslangic_ts=?, bitis_ts=?
         WHERE id=?
     ''', (
         data.get('durus_sebebi'),
         data.get('aciklama', ''),
         sure_dk_val,
-        data.get('baslangic_saati', ''),
+        saat_val,
         data.get('durus_tipi', 'plansiz'),
+        bas_ts,
+        bit_ts,
         did
     ))
     conn.commit()
     conn.close()
-    return jsonify({'basarili': True})
+    return jsonify({'basarili': True, 'baslangic_ts': bas_ts, 'bitis_ts': bit_ts})
 
+
+
+# ─────────────────────────────────────────────────────────────
+# ZAMAN ÇİZELGESİ (kullanıcı 2026-08-21)
+# ─────────────────────────────────────────────────────────────
+# "dashboardda ayrı sayfa oluşturup bir zaman çizelgesi üzerinde bar üzerinden
+#  duruşları görebilelim. vardiya barı üzerinden 10 dk dan uzun duruş barları,
+#  ve zaman aralıkları olsun. tıklayınca duruş zamanı bölünebilsin ve duruş
+#  değiştirilip atanabilsin."
+#
+# Bu uç nokta çizelgenin TEK veri kaynağıdır: vardiya barı + üzerindeki duruş
+# ve üretim-referansı dilimleri. Süreler DAMGADAN (baslangic_ts/bitis_ts) gelir,
+# sure_dk'dan değil — bölme/yeniden atama sonrası ikisi ayrışırsa çizelge ile
+# rapor birbirini tutmaz; damga tek doğru kabul edilir ve sure_dk ona göre
+# yeniden yazılır (bkz. durus_bol).
+
+
+@app.route('/api/zaman_cizelgesi', methods=['GET'])
+def zaman_cizelgesi_api():
+    """Bir günün vardiya/duruş/üretim penceresi — zaman çizelgesi sayfası için.
+
+    ?tarih=YYYY-MM-DD (varsayılan bugün) &bolum= &lokasyon=TK2 &hat= &operator=
+    Dönen: {'vardiyalar': [...], 'sebepler': [...], 'zamansiz': [...]}
+
+    KISA duruşlar da döner ('uzun' bayrağıyla): eşik yalnız GÖRSEL bir ayrımdır.
+    Filtrelenip atılsalardı 40dk'lık bir duruş 35+5 diye bölündüğünde 5dk'lık
+    parça ekrandan kaybolur, kullanıcı da onu bir daha düzenleyemezdi.
+    """
+    tarih    = (request.args.get('tarih') or datetime.now().strftime('%Y-%m-%d')).strip()
+    bolum    = (request.args.get('bolum') or '').strip()
+    lokasyon = (request.args.get('lokasyon') or '').strip()
+    hat      = (request.args.get('hat') or '').strip()
+    operator = (request.args.get('operator') or '').strip()
+    try:
+        esik_dk = max(0, int(request.args.get('min_durus_dk', 10) or 10))
+    except (TypeError, ValueError):
+        esik_dk = 10
+
+    if bolum and bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+
+    conn = get_db()
+    kosul = ["v.tarih = ?"]
+    parm  = [tarih]
+    if bolum:
+        kosul.append("COALESCE(v.bolum,'kaynak') = ?"); parm.append(bolum)
+    if lokasyon:
+        kosul.append("COALESCE(v.lokasyon,'TK2') = ?"); parm.append(lokasyon)
+    if hat:
+        kosul.append("v.robot_no = ?"); parm.append(hat)
+    if operator:
+        kosul.append("v.operator_adi = ?"); parm.append(operator)
+
+    vardiyalar = conn.execute(
+        "SELECT * FROM vardiyalar v WHERE " + " AND ".join(kosul) +
+        " ORDER BY v.baslangic_saati, v.robot_no, v.id", parm
+    ).fetchall()
+
+    # AÇIK vardiyaların otomatik molalarını da işle: çizelge açılır açılmaz
+    # çay/yemek barları görünsün (vardiya kapanmayı beklemesin).
+    for v in vardiyalar:
+        try:
+            _otomatik_mola_uygula(conn, v)
+        except Exception as _e:
+            print(f'[zaman_cizelgesi] mola uygula hata (vardiya {v["id"]}): {_e}')
+    conn.commit()
+
+    vids = [v['id'] for v in vardiyalar]
+    duruslar_map, uretim_map = {}, {}
+    zamansiz = []
+    if vids:
+        ph = ','.join('?' * len(vids))
+        for d in conn.execute(
+                f"SELECT * FROM duruslar WHERE vardiya_id IN ({ph}) "
+                f"ORDER BY COALESCE(baslangic_ts,'9999'), id", vids).fetchall():
+            _bas, _bit = d['baslangic_ts'], d['bitis_ts']
+            kayit = {
+                'id':        d['id'],
+                'vardiya_id': d['vardiya_id'],
+                'sebep':     d['durus_sebebi'] or '',
+                'tip':       d['durus_tipi'] or 'plansiz',
+                'aciklama':  d['aciklama'] or '',
+                'sure_dk':   int(d['sure_dk'] or 0),
+                'bas_ts':    _bas,
+                'bit_ts':    _bit,
+                'uzun':      int(d['sure_dk'] or 0) >= esik_dk,
+            }
+            if not _bas:
+                # Damgası türetilememiş kayıt (bozuk vardiya saati). Ekranda ayrı
+                # listede gösterilir ki kullanıcı zamanını elle atayabilsin.
+                zamansiz.append(kayit)
+            else:
+                duruslar_map.setdefault(d['vardiya_id'], []).append(kayit)
+
+        for u in conn.execute(
+                f"SELECT * FROM uretim_kayitlari WHERE vardiya_id IN ({ph}) "
+                f"ORDER BY COALESCE(baslangic_ts, created_at), id", vids).fetchall():
+            uretim_map.setdefault(u['vardiya_id'], []).append(u)
+
+    cikti = []
+    for v in vardiyalar:
+        bas, bit = _vardiya_pencere(v)
+        v_bolum = (v['bolum'] if 'bolum' in v.keys() else 'kaynak') or 'kaynak'
+        satirlar = []
+        for u in uretim_map.get(v['id'], []):
+            u_bas = u['baslangic_ts'] or u['sayac_baslangic_ts'] or u['created_at']
+            satirlar.append({
+                'id':            u['id'],
+                'referans_kodu': u['referans_kodu'],
+                'makine':        kayit_makine_ad(v['robot_no'], u['istasyon'] or 0),
+                'ok_adet':       int(u['ok_adet'] or 0),
+                'nok_adet':      int(u['nok_adet'] or 0),
+                'bas_ts':        u_bas,
+                'bit_ts':        u['bitis_ts'],
+                'acik':          not u['bitis_ts'],
+            })
+        cikti.append({
+            'id':           v['id'],
+            'operator_adi': v['operator_adi'],
+            'hat':          v['robot_no'],
+            'bolum':        v_bolum,
+            'bolum_ad':     BOLUM_AD.get(v_bolum, v_bolum),
+            'lokasyon':     (v['lokasyon'] if 'lokasyon' in v.keys() else 'TK2') or 'TK2',
+            'vardiya_turu': v['vardiya_turu'],
+            'durum':        v['durum'] or 'aktif',
+            'bas_ts':       _ts_metin(bas),
+            'bit_ts':       _ts_metin(bit),
+            'sure_dk':      int((bit - bas).total_seconds() // 60) if (bas and bit) else 0,
+            'duruslar':     duruslar_map.get(v['id'], []),
+            'uretimler':    satirlar,
+        })
+
+    # Yeniden atama listesi: sayfada bölüm seçilmişse o bölümün sebepleri.
+    # Bölüm seçilmemişse çizelgedeki vardiyaların bölümlerinden birleştirilir —
+    # kullanıcı bölüm filtresi koymadan da sebep değiştirebilsin.
+    sebepler, gorulen = [], set()
+    for b, lk in ({(bolum, lokasyon or 'TK2')} if bolum
+                  else {(c['bolum'], c['lokasyon']) for c in cikti}):
+        try:
+            liste = durus_sebepleri_yukle(b, lk) + list(_ek_durus_sebepleri(b, lk))
+        except Exception as _e:
+            print(f'[zaman_cizelgesi] sebep listesi hata ({b}/{lk}): {_e}')
+            continue
+        for x in liste:
+            ad = str(x.get('sebep', '')).strip()
+            if ad and ad.upper() not in gorulen:
+                gorulen.add(ad.upper())
+                sebepler.append({'sebep': ad, 'tip': x.get('tip', 'plansiz')})
+
+    return jsonify({
+        'tarih':        tarih,
+        'min_durus_dk': esik_dk,
+        'vardiyalar':   cikti,
+        'zamansiz':     zamansiz,
+        'sebepler':     sebepler,
+    })
+
+
+@app.route('/api/durus/<int:did>/bol', methods=['POST'])
+@operator_required
+def durus_bol(did):
+    """Bir duruşu verilen ANDA ikiye böler; ikinci parçaya istenirse başka sebep atar.
+
+    Body: {'bolme_ts': 'YYYY-MM-DD HH:MM', 'yeni_sebep': ..., 'yeni_tip': ...,
+           'yeni_aciklama': ...}
+
+    NEDEN: operatör 40dk'lık tek bir "Arıza" giriyor ama gerçekte 10dk kalıp
+    değişimi + 30dk elektrik arızasıydı. Çizelgede bara tıklanıp bölünür ve her
+    parçaya doğru sebep atanır — OEE ve duruş Pareto'su gerçeği gösterir.
+
+    SÜRE DAMGADAN yeniden hesaplanır (sure_dk'ya güvenilmez): bölme noktası
+    kullanıcının çizelgede gördüğü BAR üzerinden geliyor, bar da damgadan
+    çiziliyor. İkisi ayrışırsa ekranda gördüğüyle kaydedilen tutmazdı."""
+    ok, hata = _vardiya_sahibi_kontrol(_durus_vardiya_bul(did) or 0)
+    if not ok:
+        return jsonify({'hata': hata}), 403
+
+    data = request.get_json(silent=True) or {}
+    conn = get_db()
+    d = conn.execute('SELECT * FROM duruslar WHERE id=?', (did,)).fetchone()
+    if not d:
+        return jsonify({'hata': 'Duruş bulunamadı'}), 404
+
+    bas = _ts_parse(d['baslangic_ts'])
+    bit = _ts_parse(d['bitis_ts'])
+    if bas and not bit:
+        bit = bas + timedelta(minutes=int(d['sure_dk'] or 0))
+    if not bas or not bit:
+        return jsonify({'hata': 'Bu duruşun zamanı belirsiz — önce başlangıç/bitiş atayın'}), 400
+
+    kesim = _ts_parse(data.get('bolme_ts'))
+    if not kesim:
+        return jsonify({'hata': "bolme_ts 'YYYY-MM-DD HH:MM' biçiminde olmalı"}), 400
+    # Saniyeler atılır: çizelge dakika çözünürlüğünde, iki parçanın toplamı
+    # orijinal süreyi TAM tutmalı (yuvarlama farkı dakika kaçırırdı).
+    kesim = kesim.replace(second=0, microsecond=0)
+    if not (bas < kesim < bit):
+        return jsonify({'hata': 'Bölme noktası duruşun İÇİNDE olmalı'}), 400
+
+    # TOPLAM SÜRE DEĞİŞMEZ. Bölme bir RAPORLAMA düzeltmesidir: aynı duruşun
+    # sebebini ayrıştırır, süresini değil. p2 = toplam − p1 diye hesaplanır;
+    # iki parçayı damgadan AYRI AYRI yuvarlamak toplamdan dakika kaçırıyordu
+    # (10:53:51 başlayan 30dk'lık duruş 14+15=29 oluyordu) ve OEE her bölmede
+    # sessizce iyileşirdi.
+    toplam_dk = int(d['sure_dk'] or 0) or int(round((bit - bas).total_seconds() / 60))
+    if toplam_dk < 2:
+        return jsonify({'hata': f'{toplam_dk} dakikalık duruş bölünemez (en az 2 dk gerekir)'}), 400
+    p1_dk = int(round((kesim - bas).total_seconds() / 60))
+    p1_dk = max(1, min(toplam_dk - 1, p1_dk))
+    p2_dk = toplam_dk - p1_dk
+
+    yeni_sebep = (data.get('yeni_sebep') or d['durus_sebebi'] or '').strip()
+    yeni_tip   = (data.get('yeni_tip') or d['durus_tipi'] or 'plansiz').strip()
+    yeni_acikl = (data.get('yeni_aciklama') or '').strip()
+
+    conn.execute(
+        "UPDATE duruslar SET sure_dk=?, bitis_ts=? WHERE id=?",
+        (p1_dk, _ts_metin(kesim), did)
+    )
+    cur = conn.execute(
+        "INSERT INTO duruslar (vardiya_id, durus_sebebi, aciklama, sure_dk, "
+        "                      baslangic_saati, durus_tipi, baslangic_ts, bitis_ts) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (d['vardiya_id'], yeni_sebep, yeni_acikl, p2_dk, kesim.strftime('%H:%M'),
+         yeni_tip, _ts_metin(kesim), _ts_metin(bit))
+    )
+    conn.commit()
+    return jsonify({
+        'basarili': True,
+        'parca1': {'id': did, 'sure_dk': p1_dk,
+                   'bas_ts': _ts_metin(bas), 'bit_ts': _ts_metin(kesim)},
+        'parca2': {'id': cur.lastrowid, 'sure_dk': p2_dk, 'sebep': yeni_sebep,
+                   'bas_ts': _ts_metin(kesim), 'bit_ts': _ts_metin(bit)},
+    }), 201
 
 
 # ─────────────────────────────────────────────────────────────

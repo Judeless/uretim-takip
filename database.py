@@ -226,6 +226,114 @@ def init_db():
     except Exception:
         pass  # Kolon zaten var
 
+    # ── ZAMAN ÇİZELGESİ: DURUŞ BAŞLANGIÇ/BİTİŞ (kullanıcı 2026-08-21) ───────
+    # "operatörlerin giriş yaptığı duruşları … başlangıç ve bitiş tarihlerini
+    #  kayıt edelim … zaman çizelgesi üzerinde bar üzerinden görebilelim."
+    #
+    # NEDEN baslangic_saati YETMİYOR: o kolon 'HH:MM' METNİ ve kayıtların büyük
+    # kısmında BOŞ (bkz. /api/sinyal_analiz'deki not). Tarih taşımadığı için
+    # gece vardiyasında hangi güne ait olduğu da belirsiz. Zaman çizelgesi TAM
+    # damga ister → 'YYYY-MM-DD HH:MM:SS' iki yeni kolon.
+    # ESKİ KOLON KALIYOR: mobil ekran hâlâ onu yazıyor/okuyor ve geçmiş kayıtlar
+    # ona dayanıyor. Yeni kolonlar ondan TÜRETİLİR (app._durus_ts_hesapla).
+    for _sql in (
+        "ALTER TABLE duruslar ADD COLUMN baslangic_ts TEXT",
+        "ALTER TABLE duruslar ADD COLUMN bitis_ts TEXT",
+    ):
+        try:
+            c.execute(_sql)
+        except Exception:
+            pass  # Kolon zaten var
+
+    # ── ÜRETİM REFERANSI BAŞLANGIÇ/BİTİŞ (kullanıcı 2026-08-21) ─────────────
+    # Aynı istek: "üretim referanslarını başlangıç ve bitiş tarihlerini kayıt
+    # edelim". Mevcut kolonlar YETMİYOR:
+    #   created_at         → satırın YAZILDIĞI an; toplu/geçmiş girişte üretimle
+    #                        ilgisi yok ve hiç güncellenmez.
+    #   sayac_baslangic_ts → YALNIZ otomatik sayaçlı kayıtlarda dolu (elle giren
+    #                        hatların tamamı NULL).
+    #   tamamlandi_ts      → operatörün "tamamlandı" İŞARETİ; işaretlemeden
+    #                        başka referansa geçilirse hiç dolmaz.
+    # baslangic_ts/bitis_ts BU KAYDIN üretim penceresidir: satır açılınca başlar,
+    # aynı makinede yeni kayıt açılınca / tamamlandı işaretlenince / vardiya
+    # kapanınca biter.
+    for _sql in (
+        "ALTER TABLE uretim_kayitlari ADD COLUMN baslangic_ts TEXT",
+        "ALTER TABLE uretim_kayitlari ADD COLUMN bitis_ts TEXT",
+    ):
+        try:
+            c.execute(_sql)
+        except Exception:
+            pass  # Kolon zaten var
+
+    # ── GERİYE DÖNÜK DOLDURMA (idempotent: yalnız NULL satırlara dokunur) ───
+    # Amaç: zaman çizelgesi ilk açıldığında GEÇMİŞ de dolu görünsün. Türetme
+    # kuralları app._durus_ts_hesapla ile AYNI olmalı — burası SQL karşılığı.
+    #   duruş, saat YAZILMIŞSA  : bas = vardiya.tarih + saat, bit = bas + süre
+    #   duruş, saat YOKSA       : bit = created_at (girildiği an), bas = bit - süre
+    #   üretim                  : bas = sayac_baslangic_ts ya da created_at
+    #                             bit = tamamlandi_ts (yoksa NULL = hâlâ açık)
+    # GECE VARDİYASI: saatli türetmede vardiya başlangıcından ÖNCEKİ saat ertesi
+    # güne alınır (23:00'te açılan vardiyanın 01:00 duruşu ertesi gündedir).
+    try:
+        c.execute("""
+            UPDATE duruslar SET
+              baslangic_ts = (
+                SELECT datetime(v.tarih || ' ' || substr(d2.baslangic_saati,1,5) || ':00',
+                                CASE WHEN substr(d2.baslangic_saati,1,5) < substr(v.baslangic_saati,1,5)
+                                     THEN '+1 day' ELSE '+0 day' END)
+                FROM duruslar d2 JOIN vardiyalar v ON v.id = d2.vardiya_id
+                WHERE d2.id = duruslar.id
+              )
+            WHERE baslangic_ts IS NULL
+              AND COALESCE(baslangic_saati,'') <> ''
+              AND length(baslangic_saati) >= 4
+        """)
+        c.execute("""
+            UPDATE duruslar SET
+              baslangic_ts = datetime(COALESCE(created_at, datetime('now','localtime')),
+                                      '-' || CAST(COALESCE(sure_dk,0) AS TEXT) || ' minutes')
+            WHERE baslangic_ts IS NULL
+        """)
+        c.execute("""
+            UPDATE duruslar SET
+              bitis_ts = datetime(baslangic_ts, '+' || CAST(COALESCE(sure_dk,0) AS TEXT) || ' minutes')
+            WHERE bitis_ts IS NULL AND baslangic_ts IS NOT NULL
+        """)
+    except Exception as e:
+        print(f'[MIGRATION] duruslar zaman damgasi doldurma hata: {e}')
+
+    try:
+        c.execute("""
+            UPDATE uretim_kayitlari
+               SET baslangic_ts = COALESCE(sayac_baslangic_ts, created_at)
+             WHERE baslangic_ts IS NULL
+        """)
+        c.execute("""
+            UPDATE uretim_kayitlari
+               SET bitis_ts = tamamlandi_ts
+             WHERE bitis_ts IS NULL AND tamamlandi_ts IS NOT NULL
+        """)
+        # KAPANMIŞ vardiyanın kayıtları vardiya bitişinde kapanır — app.vardiya_kapat
+        # bundan sonra bunu kendisi yapıyor, burası GEÇMİŞE aynı kuralı uygular.
+        # Yapılmazsa eski kayıtların hepsi 'hâlâ üretimde' görünür ve çizelgede
+        # kesikli (açık) bar olarak günün sonuna kadar uzarlar.
+        # AÇIK vardiyalar DIŞARIDA: onların kayıtları gerçekten sürüyor.
+        c.execute("""
+            UPDATE uretim_kayitlari SET bitis_ts = (
+                SELECT datetime(v.tarih || ' ' || substr(v.bitis_saati,1,5) || ':00',
+                                CASE WHEN substr(v.bitis_saati,1,5) < substr(v.baslangic_saati,1,5)
+                                     THEN '+1 day' ELSE '+0 day' END)
+                FROM vardiyalar v WHERE v.id = uretim_kayitlari.vardiya_id
+            )
+            WHERE bitis_ts IS NULL AND vardiya_id IN (
+                SELECT id FROM vardiyalar
+                 WHERE durum = 'kapali' AND COALESCE(bitis_saati,'') <> ''
+                   AND length(bitis_saati) >= 4 AND length(COALESCE(baslangic_saati,'')) >= 4)
+        """)
+    except Exception as e:
+        print(f'[MIGRATION] uretim zaman damgasi doldurma hata: {e}')
+
     # istasyon kolonu yoksa ekle (mevcut DB icin migration)
     try:
         c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN istasyon INTEGER DEFAULT 0")

@@ -60,6 +60,13 @@ TEL_HAT_ADIM_ISTISNA = {
     # Hat adi 'Otomatik Kesim Makinesi' ama proses adimi 'Tam Otomatik' KALIR:
     # kod eki ('TAM OTOMAT') ve rapor sutunu degismesin (2026-08-21).
     'Otomatik Kesim Makinesi': 'Tam Otomatik',
+    # SPIRAL KESME (kullanici 2026-08-21): TK1'de halat kesmenin YANINDA 3 otomatik
+    # + 1 manuel spiral kesme makinesi var. Kullanici karari: AYRI ADIM DEGIL,
+    # 'Halat Kesme' adimina DAHIL -> kod eki KESIM, raporda tek kesim sutunu.
+    # Operator listede makinenin gercek adini gorur ('Manuel Kesim' kalibinin ayni).
+    # Numarali adlar da cozulur: tel_hat_adimi son numarayi atip burada tekrar arar.
+    'Otomatik Spiral Kesme': 'Halat Kesme',
+    'Manuel Spiral Kesme': 'Halat Kesme',
 }
 
 # FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
@@ -125,6 +132,15 @@ TEL_HATLARI = (
     #   'Soyma'        → kendi adımı,                                kod eki SOYMA
     # İkisinin de sayaç modülü YOK → adet elle girilir.
     + ['Manuel Kesim', 'Soyma']
+    # 2026-08-21 (kullanici): "halat kesme haricinde 3 adet otomatik spiral kesme
+    # ve 1 adet manuel spiral kesme makinesi". Yine SONA eklendi (pozisyon = istasyon
+    # no, asla kaymaz); operator listesinde kesim makinelerinin yaninda gorunurler
+    # cunku /api/kayit_hatlari listeyi PROSES SIRASINA gore siralar ve bu dordunun
+    # adimi 'Halat Kesme'dir (TEL_HAT_ADIM_ISTISNA).
+    # Kod eki KESIM -> raporda ayri sutun ACILMAZ, kesim uretimine eklenir.
+    # Ikisinin de sayac modulu YOK -> adet elle girilir.
+    + ['Otomatik Spiral Kesme %d' % i for i in range(1, 4)]
+    + ['Manuel Spiral Kesme']
 )
 
 # Kullanılmayan / kodu bekleyen hatlar — operatör listesinde gösterilmez ama
@@ -150,6 +166,12 @@ def tel_hat_adimi(robot_no):
     if ad in TEL_ADIM_SIRA:
         return ad
     kok = _SON_NUMARA.sub('', ad).strip()
+    # NUMARA ATILDIKTAN SONRA DA ISTISNAYA BAK (2026-08-21): 'Otomatik Spiral
+    # Kesme 1' gibi HEM numarali HEM istisnali hat adlari icin sart. Eskiden
+    # istisna yalnizca TAM ADLA aranirdi; numarali bir istisna hattinin adimi
+    # sessizce None dondu ve o hattin uretimi rapor kiriliminden duserdi.
+    if kok in TEL_HAT_ADIM_ISTISNA:
+        return TEL_HAT_ADIM_ISTISNA[kok]
     return kok if kok in TEL_ADIM_SIRA else None
 
 

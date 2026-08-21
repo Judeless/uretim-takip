@@ -120,6 +120,10 @@ TK1_SAYFA = {
 TEL_ADIM_BASLIK = {
     'halat kesme': 'Halat Kesme', 'kesim': 'Halat Kesme', 'halat kesim': 'Halat Kesme',
     'manuel kesim': 'Halat Kesme',   # makine adı ayrı, adım aynı (2026-08-20)
+    # Spiral kesme (2026-08-21): 3 otomatik + 1 manuel makine, adım Halat Kesme
+    # (kullanıcı kararı: ayrı sütun değil, kesime dahil).
+    'spiral kesme': 'Halat Kesme', 'spiral kesim': 'Halat Kesme',
+    'otomatik spiral kesme': 'Halat Kesme', 'manuel spiral kesme': 'Halat Kesme',
     'soyma': 'Soyma',                # kesim yapılan her ürüne yapılmaz → AYRI adım
     'otomatik hazırlık': 'Otomatik Hazırlık', 'otomatik hazirlik': 'Otomatik Hazırlık',
     'hazırlık': 'Otomatik Hazırlık', 'hazirlik': 'Otomatik Hazırlık',

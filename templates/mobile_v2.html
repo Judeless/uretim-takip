@@ -2969,13 +2969,20 @@ window.__I18N_SOZLUK__ = {
         <div class="grid-2" style="margin-top:14px">
           <div>
             <label>Süre (dk)</label>
-            <input type="number" id="e-sure" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
+            <input type="number" id="e-sure" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*"
+                   oninput="durusZamanOnizleme()">
           </div>
           <div>
             <label>Saat (HH:MM)</label>
-            <input type="time" id="e-saat">
+            <input type="time" id="e-saat" onchange="durusZamanOnizleme()" oninput="durusZamanOnizleme()">
           </div>
         </div>
+        <!-- Kaydedilen ZAMAN ARALIĞI operatöre gösterilir (2026-08-21): duruşlar
+             artık başlangıç/bitiş damgasıyla saklanıyor ve panelde zaman çizelgesine
+             çiziliyor. Saat boş bırakılırsa duruş "az önce bitti" varsayılır —
+             operatör bunu kaydetmeden ÖNCE görsün, sonradan çizelgede yanlış saatte
+             görünen bir bar için kimse kaydı aramasın. -->
+        <div id="e-zaman-bilgi" style="font-size:.74rem;color:var(--muted);margin-top:8px;line-height:1.5"></div>
 
         <label>Açıklama <span style="font-weight:400;text-transform:none">(opsiyonel)</span></label>
         <textarea id="e-aciklama" placeholder="Detay..."></textarea>
@@ -4155,12 +4162,18 @@ window.__I18N_SOZLUK__ = {
     // Hat adı adım kalıbına uymayan makineler (tel_proses.TEL_HAT_ADIM_ISTISNA'nın eşi):
     // 'Manuel Kesim' operatöre kendi adıyla görünür ama Halat Kesme adımıdır.
     var TEL_HAT_ISTISNA = { 'Manuel Kesim': 'Halat Kesme',
-                            'Otomatik Kesim Makinesi': 'Tam Otomatik' };
+                            'Otomatik Kesim Makinesi': 'Tam Otomatik',
+                            // 2026-08-21 spiral kesme: kesim adimina dahil (kod eki KESIM)
+                            'Otomatik Spiral Kesme': 'Halat Kesme',
+                            'Manuel Spiral Kesme': 'Halat Kesme' };
     function telHatAdimi(hat) {
       var ad = String(hat || '').trim();
       if (TEL_HAT_ISTISNA[ad]) return TEL_HAT_ISTISNA[ad];
       if (TEL_EK[ad]) return ad;
       var kok = ad.replace(/\s*\d+$/, '').trim();
+      // Numara atildiktan SONRA da istisnaya bak ('Otomatik Spiral Kesme 1'):
+      // tel_proses.tel_hat_adimi ile ayni sira — yoksa onizleme sessizce kapanir.
+      if (TEL_HAT_ISTISNA[kok]) return TEL_HAT_ISTISNA[kok];
       return TEL_EK[kok] ? kok : null;
     }
     function telEkOnizleme() {
@@ -4193,6 +4206,7 @@ window.__I18N_SOZLUK__ = {
       document.getElementById('e-saat').value = '';
       document.getElementById('e-aciklama').value = '';
       document.getElementById('e-baslik').textContent = '⏸️ Yeni Duruş Kaydı';
+      durusZamanOnizleme();          // form boşaldı → önceki kaydın aralığı ekranda kalmasın
       document.querySelectorAll('#e-cats .durus-cat').forEach(function (x) { x.classList.remove('selected'); });
       // Excel'de yapılan duruş güncellemelerini her seferinde yakala (cache'siz)
       if (typeof durusKategorileriniYukle === 'function') {
@@ -5109,10 +5123,34 @@ window.__I18N_SOZLUK__ = {
       document.getElementById('e-saat').value = saat;
       document.getElementById('e-aciklama').value = aciklama;
       document.getElementById('e-baslik').textContent = '✏️ Duruş Kaydını Düzenle';
+      durusZamanOnizleme();
       document.querySelectorAll('#e-cats .durus-cat').forEach(function (x) {
         x.classList.toggle('selected', x.textContent === sebep);
       });
       gitEkran('E');
+    }
+
+    // Kaydedilecek zaman aralığını hesaplayıp gösterir (sunucudaki türetmenin
+    // aynısı: saat varsa ondan başlar, yoksa 'şimdi bitti' kabul edilir).
+    function durusZamanOnizleme() {
+      var el = document.getElementById('e-zaman-bilgi');
+      if (!el) return;
+      var sure = parseInt((document.getElementById('e-sure') || {}).value || 0, 10);
+      var saat = (document.getElementById('e-saat') || {}).value || '';
+      if (!(sure > 0)) { el.textContent = ''; return; }
+      function ss(d) { return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+      var bas;
+      if (/^\d{2}:\d{2}$/.test(saat)) {
+        var p = saat.split(':'), n = new Date();
+        bas = new Date(n.getFullYear(), n.getMonth(), n.getDate(), +p[0], +p[1], 0);
+        el.innerHTML = '🕒 Kaydedilecek: <b>' + ss(bas) + ' → ' +
+                       ss(new Date(bas.getTime() + sure * 60000)) + '</b>';
+      } else {
+        var simdi = new Date();
+        bas = new Date(simdi.getTime() - sure * 60000);
+        el.innerHTML = '🕒 Saat girilmedi → duruş <b>az önce bitti</b> kabul edilir: <b>' +
+                       ss(bas) + ' → ' + ss(simdi) + '</b>';
+      }
     }
 
     function durusKaydet() {
@@ -5135,14 +5173,10 @@ window.__I18N_SOZLUK__ = {
         .then(function (res) {
           var d = res.body;
           if (!res.ok || d.hata) { toast(d.hata || ('Sunucu hatası: ' + (res.status||'')), 'error'); return; }
-          var mesaj;
-          if (did) {
-            mesaj = 'Duruş güncellendi';
-          } else if (d.birlestirilen && d.birlestirilen > 0) {
-            mesaj = 'Aynı duruş bulundu — süre eklendi';
-          } else {
-            mesaj = 'Duruş kaydedildi';
-          }
+          // NOT (2026-08-21): sunucu artık aynı sebepli duruşları BİRLEŞTİRMİYOR —
+          // her giriş kendi başlangıç/bitiş damgasıyla ayrı satır. 'birlestirilen'
+          // alanı geriye uyum için hâlâ dönüyor ama daima 0.
+          var mesaj = did ? 'Duruş güncellendi' : 'Duruş kaydedildi';
           toast(mesaj, 'success');
           gitEkran('C');
           setTimeout(refreshOEE, 300);
