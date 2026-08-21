@@ -10562,7 +10562,10 @@ window.__I18N_SOZLUK__ = {
                           : !d.paket_kurulu ? ('sunucuda <code>anthropic</code> paketi kurulu değil.<br>' +
                               'Servisin çalıştırdığı Python: <code>' + esc(d.python_yolu || '?') + '</code>' +
                               (d.servis_kullanici ? ' · hesap: <code>' + esc(d.servis_kullanici) + '</code>' : '') +
-                              '<br>Kurulum <b>o Python'a</b> yapılmalı: <code>"' + esc(d.python_yolu || 'python') + '" -m pip install anthropic</code>' +
+                              // DİKKAT: bu metinlerde KESME İŞARETİ KULLANMAYIN. Tek tırnaklı
+                              // JS string'i erken kapatır, script bloğunun TAMAMI ölür ve
+                              // dashboard komple donar (2026-08-21'de canlıda yaşandı).
+                              '<br>Kurulum <b>şu Python için</b> yapılmalı: <code>"' + esc(d.python_yolu || 'python') + '" -m pip install --ignore-installed anthropic</code>' +
                               ' — pip kullanıcı klasörüne kurduysa servis hesabı göremez. Kurulumdan sonra <b>servisi yeniden başlatın</b>.')
                           : !d.anahtar_var ? 'API anahtarı tanımlı değil (<code>ai_config.json</code> → <code>api_anahtari</code>)'
                           : 'kapalı (<code>ai_config.json</code> → <code>etkin: true</code>)';
