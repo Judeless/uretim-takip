@@ -668,7 +668,13 @@ TEST_CIHAZ_ESLEME = {
     # görülüyor, bu yüzden eşleme kodda tek satırda tutuluyor.
     ('TK1', 'tel',     'Yarı Otomatik 1'):   [48],          # PP LINE 7 (Otomatik 1)
     ('TK1', 'tel',     'Yarı Otomatik 2'):   [43],          # PP LINE 8 (Otomatik 2)
-    ('TK1', 'tel',     'Tam Otomatik'):      [41],          # PP OTOMATIK SPIRAL PRESLEME
+    # HAT ADI 2026-08-21'de 'Tam Otomatik' → 'Otomatik Kesim Makinesi' oldu
+    # (tel_proses.TEL_HATLARI). Bu sözlük ADIMLA değil HAT ADIYLA aranıyor
+    # (test_cihaz_eslemesi → kayit_hatti sonucu) — anahtar güncellenmediği için
+    # o makinede SVP cihazı otomatik seçili GELMİYORDU. Eski anahtar ulaşılamaz
+    # hale geldi (kayit_makine_ad her zaman GÜNCEL listeden okur), o yüzden
+    # bırakılmadı. HAT ADI DEĞİŞTİRİLİRSE BURASI DA DEĞİŞMELİ.
+    ('TK1', 'tel',     'Otomatik Kesim Makinesi'): [41],   # PP OTOMATIK SPIRAL PRESLEME
 }
 
 
@@ -960,6 +966,21 @@ def _paylasimli_pulse(bolum, robot_no, istasyon, kayit_id, grup, biti_ts=None):
         for kid in sorted(paylar, key=lambda k: (-(paylar[k] - int(paylar[k])), k))[:kalan]:
             tam[kid] += 1
     return tam.get(kayit_id, 0)
+
+
+def _devir_ekle(cnt, devir):
+    """Sayaçtan gelen adede DEVİR ADEDİNİ ekler (kaldığı yerden devam).
+
+    Devir, kayıt 'tamamlandı'dan geri alınıp yeniden sayılmaya başlandığında
+    o ana kadar birikmiş adettir (bkz. uretim_tamamlandi_guncelle). PARÇA
+    cinsindendir → bölen/çarpan uygulandıktan SONRA eklenir.
+    cnt None ise (pilot.db okunamadı) None döner: çağıran ok_adet'i EZMEZ."""
+    if cnt is None:
+        return None
+    try:
+        return cnt + max(0, int(devir or 0))
+    except (TypeError, ValueError):
+        return cnt
 
 
 def _sayac_oku(conn, vardiya_id, kayit_id, bolum, robot_no, istasyon, basla_ts, ref,
@@ -1331,7 +1352,8 @@ def _uretim_sayac_senkron(conn, vardiya_id):
         rows = conn.execute(
             "SELECT id, istasyon, sayac_baslangic_ts, test_cihaz_id, referans_kodu, "
             "       COALESCE(bukum_operasyon, 1) AS bukum_operasyon, "
-            "       COALESCE(paket_adedi, 1) AS paket_adedi "
+            "       COALESCE(paket_adedi, 1) AS paket_adedi, "
+            "       COALESCE(sayac_devir_adet, 0) AS sayac_devir_adet "
             "FROM uretim_kayitlari "
             "WHERE vardiya_id=? AND sayac_otomatik=1 AND sayac_baslangic_ts IS NOT NULL",
             (vardiya_id,)
@@ -1362,6 +1384,8 @@ def _uretim_sayac_senkron(conn, vardiya_id):
             # (büküm bölmesi), sonra sepet adediyle çarpılır. Test cihazı
             # sayımında da geçerli — 1 başarılı test = 1 sepet olabilir.
             cnt = _paket_carp(cnt, r['paket_adedi'])
+            # DEVİR en sonda: 'tamamlandı'dan geri alınan kayıt kaldığı yerden devam eder
+            cnt = _devir_ekle(cnt, r['sayac_devir_adet'])
             if cnt is not None:   # kaynak okunamadıysa ok_adet'i SIFIRLAMA (gerçek üretimi ezme)
                 conn.execute("UPDATE uretim_kayitlari SET ok_adet=? WHERE id=?", (cnt, r['id']))
         conn.commit()
@@ -2949,13 +2973,16 @@ def uretim_ekle():
             if auto and tc_id:
                 # Aynı test cihazında önceki auto kayıt(lar)ı dondur (referans değişti)
                 onceki = c.execute(
-                    "SELECT id, sayac_baslangic_ts, referans_kodu FROM uretim_kayitlari "
+                    "SELECT id, sayac_baslangic_ts, referans_kodu, "
+                    "       COALESCE(sayac_devir_adet,0) AS sayac_devir_adet "
+                    "FROM uretim_kayitlari "
                     "WHERE vardiya_id=? AND test_cihaz_id=? AND sayac_otomatik=1",
                     (data['vardiya_id'], tc_id)
                 ).fetchall()
                 for o in onceki:
                     fcnt = _test_basari_say(conn, tc_id, o['referans_kodu'],
                                             o['sayac_baslangic_ts'], biti_ts=simdi)
+                    fcnt = _devir_ekle(fcnt, o['sayac_devir_adet'])
                     if fcnt is not None:
                         c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0, "
                                   "bitis_ts=COALESCE(bitis_ts, ?) WHERE id=?",
@@ -2968,7 +2995,8 @@ def uretim_ekle():
                 onceki = c.execute(
                     "SELECT id, istasyon, sayac_baslangic_ts, referans_kodu, "
                     "       COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
-                    "       COALESCE(paket_adedi,1) AS paket_adedi "
+                    "       COALESCE(paket_adedi,1) AS paket_adedi, "
+                    "       COALESCE(sayac_devir_adet,0) AS sayac_devir_adet "
                     "FROM uretim_kayitlari "
                     "WHERE vardiya_id=? AND istasyon=? AND sayac_otomatik=1 AND test_cihaz_id IS NULL",
                     (data['vardiya_id'], ist_val)
@@ -2983,6 +3011,7 @@ def uretim_ekle():
                     fcnt = _paket_carp(_bukum_bol(fcnt, _sinyal_bolen(vardiya_robot, ist_val,
                                                                      o['bukum_operasyon'])),
                                        o['paket_adedi'])
+                    fcnt = _devir_ekle(fcnt, o['sayac_devir_adet'])
                     # DONDURMA ANI = O REFERANSIN BİTİŞİDİR (2026-08-21): operatör
                     # aynı makinede yeni referansa geçti, öncekinin üretim penceresi
                     # burada kapanır. bitis_ts zaten doluysa (tamamlandı işaretlenmiş)
@@ -3077,8 +3106,11 @@ def uretim_sayac_sifirla(uid):
     conn = get_db()
     try:
         simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # DEVİR DE SIFIRLANIR: bu buton "her şeyi sıfırla"dır; devir kalsaydı
+        # operatör 0 beklerken eski adet geri gelirdi.
         cur = conn.execute(
-            "UPDATE uretim_kayitlari SET sayac_baslangic_ts=?, ok_adet=0, sayac_otomatik=1 WHERE id=?",
+            "UPDATE uretim_kayitlari SET sayac_baslangic_ts=?, ok_adet=0, "
+            "sayac_otomatik=1, sayac_devir_adet=0 WHERE id=?",
             (simdi, uid)
         )
         conn.commit()
@@ -3360,8 +3392,38 @@ def uretim_tamamlandi_guncelle(uid):
         "tamamlandi_ts = CASE WHEN ?=1 THEN datetime('now','localtime') ELSE NULL END, "
         "bitis_ts      = CASE WHEN ?=1 THEN datetime('now','localtime') ELSE NULL END "
         "WHERE id=?", (deger, deger, deger, uid))
+
+    # ── İŞARET GERİ ALINDI → SAYAÇ KALDIĞI YERDEN DEVAM ETSİN ────────────
+    # (kullanıcı 2026-08-24: "tamamlandı işaretleyip tekrar devam etmek için
+    #  açınca sayaç saymaya devam etmiyor")
+    # Operatör referansı bitirip başka referansa geçtiğinde bu kayıt DONMUŞ olur
+    # (sayac_otomatik=0 — uretim_ekle'deki dondurma). Geri dönüp işareti
+    # kaldırmak onu çözmüyordu. Artık çözülüyor:
+    #   · devir   = o ana kadarki ok_adet (kaybolmasın)
+    #   · pencere = ŞİMDİ (aradaki pulse'lar başka referansa aitti, sayılmamalı)
+    #   · auto    = 1
+    # SADECE sayaçla beslenebilen kayıtlarda: makinesi allowlist'te değilse ya da
+    # test cihazı yoksa kayıt ELLE giriştir; otomatiğe çevirmek adedi bozardı.
+    sonuc = {'basarili': True, 'sayac_surduruldu': False}
+    if deger == 0:
+        u = conn.execute(
+            "SELECT u.id, u.istasyon, u.ok_adet, u.sayac_otomatik, u.sayac_baslangic_ts, "
+            "       u.test_cihaz_id, COALESCE(v.bolum,'kaynak') AS bolum, v.robot_no, "
+            "       COALESCE(v.durum,'acik') AS durum "
+            "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id "
+            "WHERE u.id=?", (uid,)).fetchone()
+        if (u and u['durum'] != 'kapali' and not u['sayac_otomatik']
+                and u['sayac_baslangic_ts']       # baştan sayaçlı açılmış bir kayıt
+                and (u['test_cihaz_id']
+                     or _sayac_destekli(u['bolum'], u['robot_no'], u['istasyon'] or 0))):
+            simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute(
+                "UPDATE uretim_kayitlari SET sayac_otomatik=1, sayac_baslangic_ts=?, "
+                "sayac_devir_adet=? WHERE id=?",
+                (simdi, max(0, int(u['ok_adet'] or 0)), uid))
+            sonuc['sayac_surduruldu'] = True
     conn.commit()
-    return jsonify({'basarili': True})
+    return jsonify(sonuc)
 
 @app.route('/api/durus', methods=['POST'])
 @operator_required
@@ -5850,6 +5912,12 @@ EK_DURUS_SEBEPLERI = {
         # yapılıyorsa 'planli' yapılmalı (o zaman kullanılabilirliği düşürmez).
         {'sebep': 'Kalıp Bakımı', 'tip': 'plansiz'},
     ],
+    ('TK1', 'tel'): [
+        # 2026-08-24 kullanıcı isteği: tel hattında halat taşlama duruşu.
+        # 'plansiz' seçildi (modülün kuralı: şüphede plansız — yanlış 'planli'
+        # gerçek bir kaybı GİZLER). Planlı bir operasyonsa tipi değiştirilmeli.
+        {'sebep': 'Halat Taşlama', 'tip': 'plansiz'},
+    ],
 }
 
 
@@ -6195,10 +6263,19 @@ def ozet():
         ORDER BY v.robot_no, d.sure_dk DESC
     ''', param_vardiya).fetchall()
 
-    # Son 50 vardiya kayıtları (OEE trendi için)
+    # Vardiya kayıtları (OEE listesi). LİMİT VAR çünkü her satır için hesapla_oee
+    # ayrı sorgu kümesi çalıştırıyor — sınırsız aralık paneli dondurur.
+    # ?vardiya_limit= ile yükseltilebilir (Kayıtlar sayfası yükseltir): eski sabit
+    # 50, geniş tarih aralığında ARANAN VARDİYAYI LİSTEDEN DÜŞÜRÜYORDU ve
+    # kullanıcı "sil butonu çıkmıyor" diye bildiriyordu — satırın kendisi yoktu.
+    try:
+        _v_limit = int(request.args.get('vardiya_limit', 50) or 50)
+    except (TypeError, ValueError):
+        _v_limit = 50
+    _v_limit = max(1, min(1000, _v_limit))
     son_vardiyalar = c.execute(
-        f'SELECT v.id FROM vardiyalar v WHERE {sart_vardiya} ORDER BY v.tarih DESC, v.id DESC LIMIT 50',
-        param_vardiya
+        f'SELECT v.id FROM vardiyalar v WHERE {sart_vardiya} ORDER BY v.tarih DESC, v.id DESC LIMIT ?',
+        param_vardiya + [_v_limit]
     ).fetchall()
 
     # HANGİ MAKİNEDE ÜRETİLDİ (kullanıcı 2026-08-21) — TK1'de ve pres/plastik/

@@ -7794,7 +7794,13 @@ window.__I18N_SOZLUK__ = {
 
             try {
                 // Özet verisi
-                let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}&bolum=${encodeURIComponent(aktifBolum)}`;
+                // LOKASYON ŞART: /api/ozet lokasyonsuz istekte HİÇ filtrelemez —
+                // TK1 montaj listesi TK2'nin M1..M12 vardiyalarıyla karışıyordu.
+                // vardiya_limit: varsayılan 50, geniş aralıkta aranan vardiya
+                // listeden düşüyordu ("sil butonu çıkmıyor" şikâyeti bundandı).
+                let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}` +
+                          `&lokasyon=${encodeURIComponent(aktifLokasyon)}` +
+                          `&bolum=${encodeURIComponent(aktifBolum)}&vardiya_limit=400`;
                 if (robot) url += `&robot=${robot}`;
                 const res = await fetch(url);
                 const veri = await res.json();

@@ -2126,6 +2126,22 @@ window.__I18N_SOZLUK__ = {
     "en": "Ongoing",
     "it": "In corso"
   },
+  "✓ Bitir": {
+    "en": "✓ Finish",
+    "it": "✓ Termina"
+  },
+  "↩ Geri Al": {
+    "en": "↩ Undo",
+    "it": "↩ Annulla"
+  },
+  "Kayıt yeniden açıldı — sayaç kaldığı yerden devam ediyor": {
+    "en": "Record reopened — the counter continues from where it left off",
+    "it": "Registrazione riaperta — il contatore riprende da dove era rimasto"
+  },
+  "Kayıt yeniden açıldı": {
+    "en": "Record reopened",
+    "it": "Registrazione riaperta"
+  },
   "dakikadır makineden sinyal yok": {
     "en": "No signal from the machine for … minutes",
     "it": "Nessun segnale dalla macchina da … minuti"
@@ -4669,7 +4685,14 @@ window.__I18N_SOZLUK__ = {
             }
             var tamam = u.tamamlandi ? 1 : 0;
             var tamamCls = tamam ? 'ki-btn-tamam is-tamam' : 'ki-btn-tamam is-devam';
-            var tamamBtnTxt = tamam ? '✓ Tamam' : 'Devam';
+            // BUTON METNİ = YAPILACAK EYLEM, kaydın DURUMU DEĞİL (kullanıcı 2026-08-24).
+            // Eskiden bitmemiş kayıtta 'Devam' yazıyordu: operatör bunu durum
+            // etiketi sanıp "işi bitirdim" demek için tıklaması gerektiğini
+            // anlamıyordu. Durum zaten satırın üstü çizili/soluk halinden belli.
+            var tamamBtnTxt = tamam ? '↩ Geri Al' : '✓ Bitir';
+            var tamamBtnTitle = tamam
+              ? 'Kaydı yeniden aç — sayaç kaldığı yerden devam eder'
+              : 'Bu referansı bitirdim olarak işaretle';
             // HTML escape (XSS koruması) — basit
             var ackEsc = (u.aciklama || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             var aciklamaSatiri = ackEsc ? ('<div class="ki-detail" style="font-style:italic;color:var(--c-amber);margin-top:3px">📝 ' + ackEsc + '</div>') : '';
@@ -4680,7 +4703,7 @@ window.__I18N_SOZLUK__ = {
               '<div class="ki-detail">' + makineTxt + 'OK: ' + u.ok_adet + sayacBadge + nokTxt + ctTxt + isDkTxt + '</div>' +
               aciklamaSatiri +
               '</div><div class="ki-actions">' +
-              '<button class="' + tamamCls + '" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>' +
+              '<button class="' + tamamCls + '" title="' + tamamBtnTitle + '" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>' +
               '<button class="ki-btn ki-btn-edit" data-id="' + u.id + '" data-type="u-edit">✏️</button>' +
               '<button class="ki-btn ki-btn-del" data-id="' + u.id + '" data-type="u-del">🗑</button>' +
               '</div></div>';
@@ -4926,7 +4949,13 @@ window.__I18N_SOZLUK__ = {
         }).then(function (r) { return r.json().then(function(j){ return {ok:r.ok, status:r.status, body:j}; }).catch(function(){ return {ok:r.ok, status:r.status, body:{}}; }); })
           .then(function (res) {
             if (!res.ok || res.body.hata) { toast(res.body.hata || ('Sunucu hatası: ' + (res.status||'')), 'error'); return; }
-            toast(mevcutTamam ? 'Devam Ediyor olarak işaretlendi' : '✓ Tamamlandı olarak işaretlendi', 'success');
+            // Sunucu sayacı sürdürdüyse operatöre söyle: adet kaldığı yerden
+            // devam edecek, sıfırlanmayacak (en sık sorulan soru buydu).
+            toast(mevcutTamam
+              ? (res.body.sayac_surduruldu
+                  ? 'Kayıt yeniden açıldı — sayaç kaldığı yerden devam ediyor'
+                  : 'Kayıt yeniden açıldı')
+              : '✓ Tamamlandı olarak işaretlendi', 'success');
             yukleAktifVardiya();
           }).catch(function () { toast('Hata oluştu', 'error'); });
       } else if (type === 'u-del') {

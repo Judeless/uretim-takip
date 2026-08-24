@@ -644,6 +644,17 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
     except Exception as e:
         return {'basarili': False, 'mesaj': f'Excel oluşturulamadı: {e}'}
 
+    # ── ÜRETİMSİZ GÜNDE MAIL GÖNDERİLMEZ (kullanıcı 2026-08-24) ──────────
+    # Hafta sonu/tatilde herkese "üretim bulunmamaktadır" maili gidiyordu; bu
+    # maillerin okunmaması, günün birinde GERÇEK raporun da atlanmasına yol açar.
+    # İSTİSNA: test maili (zorla_alicilar) — SMTP kurulumu üretimsiz günde de
+    # doğrulanabilmeli. mail_config.json'a "bos_gun_gonder": true yazılırsa eski
+    # davranış geri gelir.
+    if not satir and not zorla_alicilar and not cfg.get('bos_gun_gonder'):
+        print(f'[MAIL] {tarih}: uretim yok — mail gonderilmedi')
+        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
+                'mesaj': f'{_tarih_tr(tarih)} tarihinde üretim yok — mail gönderilmedi.'}
+
     tarih_tr = _tarih_tr(tarih)
     konu = f'Cofle Forge — Günlük Üretim Raporu ({tarih_tr})'
     kirilim = _bolum_kirilimi(tarih, lokasyon) if satir else []

@@ -419,6 +419,23 @@ def init_db():
     except Exception:
         pass
 
+    # ── SAYAÇ DEVİR ADEDİ (kullanıcı 2026-08-24) ────────────────────────────
+    # Operatör bir referansı "tamamlandı" işaretleyip başka referansa geçiyor
+    # (o an kayıt DONDURULUYOR: sayac_otomatik=0). Sonra o referansa GERİ DÖNÜP
+    # işareti kaldırınca sayaç saymaya devam etmiyordu — çünkü kayıt donmuş
+    # kalıyordu ve tekrar açmak onu çözmüyordu.
+    #
+    # Sayaç modeli ok_adet'i HER SENKRONDA baştan hesaplar (sayac_baslangic_ts'ten
+    # şimdiye kadarki pulse). Bu yüzden "kaldığı yerden devam" için sadece
+    # yeniden aktifleştirmek YETMEZ: yeni pencere sıfırdan sayar ve önceki adet
+    # SİLİNİRDİ. sayac_devir_adet o ana kadar birikmiş adedi taşır:
+    #     ok_adet = sayac_devir_adet + (yeni pencerede sayılan)
+    # Devir PARÇA cinsindendir (bölen/çarpan UYGULANDIKTAN sonra eklenir).
+    try:
+        c.execute("ALTER TABLE uretim_kayitlari ADD COLUMN sayac_devir_adet INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
     # Test cihazı sayaç kaynağı (2026-06): operatör harici test cihazı (Cofle/wicow) ile
     # çalışıyorsa bu kolon o cihazın id'sini tutar. Dolu ise sayaç ESP32 pulse yerine
     # test_sonuclari'ndaki başarılı testlerden beslenir (bkz. cofle_test.py).
