@@ -520,6 +520,26 @@ HAT_SAYAC_CIHAZI = {'LF-LFP': 'YF1',
                     'Otomatik Hazırlık': 'Otomatik Hazirlik',
                     **_TK1_MONTAJ_BUTON_CIHAZ, **_KAPAMA_SAHA_CIHAZ}
 
+# ── ROBOT KAYNAK MAKİNELERİ (kullanıcı 2026-08-21: Punta Kaynak eklendi) ──
+# Kaynak bölümünde hat VARDİYADA seçilir (robot_no) — tel/pres'in aksine üretim
+# kaydında değil. Liste eskiden /api/robotlar içinde satır-içi üretiliyordu
+# (f'ABB{i}'); punta kaynak eklenince tek kaynak buraya alındı.
+#
+# İSTASYON SAYISI MAKİNENİN ÖZELLİĞİ: ABB robotlarında operatör bir istasyonda
+# söktak yaparken robot diğerinde kaynak yapar (bkz. oee.pair_cycle_hesapla) —
+# 2 istasyon. PUNTA KAYNAK TEK İSTASYONLU (kullanıcı): orada 'İst. 2' seçeneği
+# operatöre gösterilmez, yoksa var olmayan bir istasyona kayıt açılır ve o kayıt
+# raporda hiçbir yere oturmaz.
+KAYNAK_ROBOTLARI = [f'ABB{i}' for i in range(1, 10)] + ['Punta Kaynak']
+TEK_ISTASYONLU_KAYNAK = frozenset({'Punta Kaynak'})
+
+
+def kaynak_istasyon_sayisi(robot_no):
+    """Kaynak makinesinin istasyon sayısı (varsayılan 2, punta 1).
+    Kaynak dışı bölümlerde anlamsızdır — çağıran bölümü kontrol eder."""
+    return 1 if str(robot_no or '').strip() in TEK_ISTASYONLU_KAYNAK else 2
+
+
 # ── PRES (Pres Abkant) MAKİNE MODELİ (kullanıcı 2026-07-28) ──
 # Operatör gün içinde makine değiştirerek çalışıyor → makine VARDİYADA DEĞİL, her
 # ÜRETİM KAYDINDA seçilir (lazer modelinin aynısı). Vardiya hattı tek ve sabittir:
@@ -2420,8 +2440,13 @@ def vardiya_detay(vid):
         son_pulse_dk = test_dk if son_pulse_dk is None else min(son_pulse_dk, test_dk)
     conn.close()
 
+    # Kaynakta istasyon sayısı MAKİNEYE bağlı (punta kaynak tek istasyonlu).
+    # Mobil bunu vardiya yükünden okur — ayrı istek atmaz, kendi listesini tutmaz.
+    _v_dict = dict(vardiya)
+    _v_dict['kaynak_istasyon_sayisi'] = kaynak_istasyon_sayisi(vardiya['robot_no'])
+
     return jsonify({
-        'vardiya': dict(vardiya),
+        'vardiya': _v_dict,
         'uretim': [dict(r) for r in uretim],
         'duruslar': [dict(r) for r in duruslar],
         'son_pulse_dk': son_pulse_dk,
@@ -4257,7 +4282,18 @@ def robot_listesi():
         if not robotlar:
             robotlar = [DINAMIK_VARSAYILAN[bolum]]
     else:
-        robotlar = [f'ABB{i}' for i in range(1, 10)]
+        # kaynak — sabit liste + o bölümde GEÇMİŞTE kullanılmış adlar (eski kayıtlar
+        # filtrelerden düşmesin). Sabit liste app.KAYNAK_ROBOTLARI'dır: punta kaynak
+        # gibi yeni makineler tek yerden eklenir.
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'kaynak')='kaynak' "
+            "AND COALESCE(lokasyon,'TK2')=? AND robot_no IS NOT NULL AND robot_no != '' "
+            "ORDER BY robot_no", (lokasyon or 'TK2',)
+        ).fetchall()
+        conn.close()
+        robotlar = KAYNAK_ROBOTLARI + [r['robot_no'] for r in rows
+                                       if r['robot_no'] not in KAYNAK_ROBOTLARI]
     return jsonify(robotlar)
 
 
@@ -5903,6 +5939,73 @@ def export_arsiv_endpoint():
 
 
 # ─────────────────────────────────────────────────────────────
+# SAHA SAYAÇ TOPLAMI (kullanıcı 2026-08-21)
+# ─────────────────────────────────────────────────────────────
+# "Dashboard'da makine sayaçlarından aldığımız total veriyi gösteren bir sayaç da
+#  koyalım ekranın bir köşesinde."
+#
+# HAM SİNYAL sayısıdır — üretim adedi DEĞİL. İkisi bilerek ayrı: üretim adedi
+# vardiyaya/referansa kapılı, bölenlerden (bukum_operasyon, MAKINE_SINYAL_BOLEN)
+# ve paket çarpanından geçer. Buradaki sayaç "saha modülleri bugün kaç kez
+# tetiklendi" sorusunu yanıtlar; sistemin canlı olduğunun tek bakışta kanıtıdır.
+# Bu yüzden vardiya kapısı da UYGULANMAZ (bkz. project_sayim_vardiya_kapisi):
+# vardiya açılmamışken gelen sinyal üretime yazılmaz ama BURADA görünür — zaten
+# aranan şey odur.
+
+
+@app.route('/api/sayac_toplam', methods=['GET'])
+def sayac_toplam_api():
+    """Saha sayaç modüllerinden BUGÜN gelen toplam sinyal (+ bölüm kırılımı).
+
+    ?lokasyon=TK1 verilirse yalnız o tesisin cihazları sayılır (pilot.db'de
+    lokasyon kolonu yok — TK1_ROBOT_NOLARI ile eşlenir, saha_cihazlari ile aynı
+    kalıp)."""
+    import sqlite3
+    lokasyon = (request.args.get('lokasyon') or '').strip().upper()
+    tarih = (request.args.get('tarih') or date.today().isoformat()).strip()
+    pilot_db = _pilot_db_yolu()
+    bos = {'tarih': tarih, 'toplam': 0, 'bolumler': [], 'cihaz_sayisi': 0, 'okunabildi': False}
+    if not os.path.exists(pilot_db):
+        return jsonify(bos)
+    try:
+        pc = sqlite3.connect(pilot_db, timeout=5.0)
+        pc.row_factory = sqlite3.Row
+        try:
+            pc.execute('PRAGMA busy_timeout=5000')
+            rows = pc.execute(
+                "SELECT bolum, robot_no, COUNT(*) AS n FROM sayac_olaylari "
+                "WHERE date(ts)=? GROUP BY bolum, robot_no", (tarih,)
+            ).fetchall()
+        finally:
+            pc.close()
+    except Exception as e:
+        print(f'[sayac_toplam] pilot.db okunamadı: {e}')
+        return jsonify(bos)
+
+    bolum_top, toplam, cihazlar = {}, 0, set()
+    for r in rows:
+        cihaz = r['robot_no']
+        if lokasyon:
+            tk1_mi = cihaz in TK1_ROBOT_NOLARI or cihaz in set(HAT_SAYAC_CIHAZI.values())
+            if (lokasyon == 'TK1') != bool(tk1_mi):
+                continue
+        n = int(r['n'] or 0)
+        b = r['bolum'] or '—'
+        bolum_top[b] = bolum_top.get(b, 0) + n
+        toplam += n
+        cihazlar.add(cihaz)
+    return jsonify({
+        'tarih': tarih,
+        'toplam': toplam,
+        'cihaz_sayisi': len(cihazlar),
+        'bolumler': sorted(
+            [{'bolum': b, 'ad': BOLUM_AD.get(b, b), 'sinyal': n} for b, n in bolum_top.items()],
+            key=lambda x: -x['sinyal']),
+        'okunabildi': True,
+    })
+
+
+# ─────────────────────────────────────────────────────────────
 # ÖZET / DASHBOARD VERİSİ
 # ─────────────────────────────────────────────────────────────
 
@@ -6053,6 +6156,14 @@ def ozet():
         WHERE {sart_vardiya}
         ORDER BY v.tarih DESC, u.referans_kodu ASC, v.robot_no ASC, v.operator_adi ASC
     ''', param_vardiya).fetchall()
+    # PROSES ADIMI (2026-08-21): 'Üretim Detayı' tablosu tel'de adım sütunu
+    # gösteriyor (eski 'Operatör Bazlı Üretim' paneli kaldırıldı, sütunu buraya
+    # taşındı). Adım hat adından türer — tel_proses tek kaynak, istemci kendi
+    # kopyasını tutmaz.
+    uretim_detay_listesi = [
+        {**dict(r), 'adim': tel_adim_etiketi(kayit_hatti(r['robot_no'], r['istasyon']))}
+        for r in uretim_detay_listesi
+    ]
 
     # Robot + Referans bazlı üretim kırılımı
     robot_referans_uretim = c.execute(f'''
@@ -6131,6 +6242,14 @@ def ozet():
                 'availability': oee_data['availability'],
                 'performance': oee_data['performance'],
                 'quality': oee_data['quality'],
+                # OEE BİLEŞENLERİ (2026-08-21): Fabrika Özeti'ndeki "Genel OEE"
+                # bölüm ortalamalarının ORTALAMASI OLARAK hesaplanamaz — 1
+                # vardiyalık bir bölüm 12 vardiyalık bölümle aynı ağırlığı taşır
+                # ve rakam anlamını yitirir. İstemci bu bileşenleri TÜM bölümler
+                # boyunca toplayıp formülü bir kez uygular (analiz._topla kalıbı).
+                'net_plan_dk': oee_data.get('net_plan_dk', 0),
+                'calisma_dk': oee_data.get('calisma_suresi_dk', 0),
+                'gercek_uretim_sn': oee_data.get('gercek_uretim_sn', 0),
                 'ok': oee_data['toplam_ok'],
                 'nok': oee_data['toplam_nok'],
                 'hedef': oee_data['toplam_hedef'],
@@ -6151,13 +6270,55 @@ def ozet():
         'robot_uretim': [dict(r) for r in robot_uretim],
         'referans_uretim': [dict(r) for r in referans_uretim],
         'operator_uretim': operator_uretim,   # operatör × hat/adım × referans (2026-08-04)
-        'uretim_detay_listesi': [dict(r) for r in uretim_detay_listesi],
+        'uretim_detay_listesi': uretim_detay_listesi,
         'robot_referans_uretim': [dict(r) for r in robot_referans_uretim],
         'durus_dagilim': [dict(r) for r in durus_dagilim],
         'durus_tipi_ozet': [dict(r) for r in durus_tipi_ozet],
         'robot_durus_kirilim': [dict(r) for r in robot_durus_kirilim],
         'vardiyalar': oee_listesi
     })
+
+
+# ─────────────────────────────────────────────────────────────
+# OPERATÖR SÜRE BİRLEŞTİRME (kullanıcı 2026-08-21)
+# ─────────────────────────────────────────────────────────────
+# Gerekçe ve kurallar analiz.py'de (bkz. _operator_zamani açıklaması). Burası
+# Raporlar sayfasının operatör tablosu için aynı hesabı yapar; formül tek yerde
+# dursun diye analiz.py'nin yardımcıları kullanılır.
+
+
+def _operator_sure_birlestir(conn, v_rows):
+    """(calisma_dk, planli_dk, plansiz_dk) — robot destekli paralel vardiyalarda
+    süre BİR KEZ sayılır. 'Robotla Çalışıyor' işaretsiz vardiyalarda toplama."""
+    import analiz as _an
+    kayitlar = []
+    for x in v_rows:
+        try:
+            robotlu = int(x['robotla_calisiyor'] or 0) == 1
+        except (KeyError, IndexError, TypeError):
+            robotlu = False       # eski DB (kolon yok) → eski davranış
+        kayitlar.append({
+            'tarih': x['tarih'],
+            'baslangic': x['baslangic_saati'],
+            'toplam_dk': _vardiya_efektif_dk(x),
+            'planli_dk': 0, 'plansiz_dk': 0, 'robotlu': robotlu, 'duruslar': [],
+            '_id': x['id'],
+        })
+    kmap = {k['_id']: k for k in kayitlar}
+    if kmap:
+        yer = ','.join('?' * len(kmap))
+        for d in conn.execute(
+                f"SELECT vardiya_id, COALESCE(sure_dk,0) AS sure_dk, durus_tipi, "
+                f"       baslangic_ts, bitis_ts FROM duruslar WHERE vardiya_id IN ({yer})",
+                list(kmap)).fetchall():
+            k = kmap.get(d['vardiya_id'])
+            if not k:
+                continue
+            tip = 'planli' if (d['durus_tipi'] or 'plansiz') == 'planli' else 'plansiz'
+            k[tip + '_dk'] += d['sure_dk']
+            k['duruslar'].append({'tip': tip, 'dk': d['sure_dk'],
+                                  'bas_ts': d['baslangic_ts'], 'bit_ts': d['bitis_ts']})
+    return _an._operator_zamani(kayitlar)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -6227,22 +6388,15 @@ def rapor_api():
                 f'SELECT v.* FROM vardiyalar v WHERE {v_sart}', vp
             ).fetchall()
             vids = [x['id'] for x in v_rows]
-            # Açık vardiyalarda "o ana kadar geçen süre" (canlı), kapalılarda gerçek süre
-            efektif_calisma_dk = sum(_vardiya_efektif_dk(x) for x in v_rows)
-
-            # Durus toplami
-            if vids:
-                placeholders = ','.join('?' * len(vids))
-                planli = c.execute(
-                    f"SELECT COALESCE(SUM(sure_dk),0) as t FROM duruslar WHERE vardiya_id IN ({placeholders}) AND durus_tipi='planli'",
-                    vids
-                ).fetchone()['t']
-                plansiz = c.execute(
-                    f"SELECT COALESCE(SUM(sure_dk),0) as t FROM duruslar WHERE vardiya_id IN ({placeholders}) AND durus_tipi='plansiz'",
-                    vids
-                ).fetchone()['t']
-            else:
-                planli = plansiz = 0
+            # ── 1 OPERATÖR ÷ 2 MAKİNE (kullanıcı 2026-08-21) ──────────────────
+            # Metal enjeksiyonda robot parçayı aldığı için bir operatör iki
+            # makineye bakabiliyor ve İKİ vardiya açıyor. Süreleri TOPLANIRSA
+            # 07:00-16:00 çalışan kişi 18 saat görünür; adet/saat ve performans
+            # yarıya iner. 'Robotla Çalışıyor' işaretli vardiyalarda süre ve duruş
+            # BİRLEŞTİRİLİR (union), toplanmaz. İşaretsiz vardiyalar eskisi gibi.
+            # Aynı kural analiz.py'de de var (_operator_zamani) — Operatör
+            # Performansı sayfası ile bu rapor aynı sayıyı göstermeli.
+            efektif_calisma_dk, planli, plansiz = _operator_sure_birlestir(conn, v_rows)
 
             # OEE ortalamasi
             oee_list = []

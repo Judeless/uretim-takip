@@ -1008,6 +1008,21 @@
         .zc-lejant b { display: inline-block; width: 12px; height: 12px;
                        border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
 
+        /* Saha sayaç rozeti (üst bar) — canlı ham sinyal toplamı */
+        .sayac-rozet {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 11px; border-radius: var(--r-pill, 999px);
+            background: var(--primary-soft); border: 1px solid var(--primary-line);
+            color: var(--primary); font-family: var(--font-main);
+            font-size: .78rem; font-weight: 800; cursor: pointer;
+            white-space: nowrap; transition: filter .15s;
+        }
+        .sayac-rozet:hover { filter: brightness(0.96); }
+        .sayac-rozet .sr-ikon { font-size: .9rem; line-height: 1; }
+        .sayac-rozet.sr-sessiz { background: var(--surface-2); border-color: var(--border);
+                                 color: var(--muted); }
+        @media (max-width: 720px) { .sayac-rozet .sr-ikon { display: none; } }
+
         .ky-filtre {
             display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
             background: var(--cam); border: 1px solid var(--card-border);
@@ -4582,6 +4597,15 @@ window.__I18N_SOZLUK__ = {
                     <!-- KOYU TEMA anahtarı (2026-07-30). Tercih localStorage'da
                          'app_tema' — giriş ekranıyla ORTAK, iki ekran arasında
                          tema atlaması olmaz. -->
+                    <!-- SAHA SAYAÇ TOPLAMI (kullanıcı 2026-08-21) — makine
+                         sayaçlarından bugün gelen HAM sinyal. Üretim adedi değildir
+                         (bölen/çarpan uygulanmaz, vardiya kapısı yoktur); sistemin
+                         canlı olduğunun tek bakışta kanıtı. Tıklayınca Saha Cihazları. -->
+                    <button type="button" class="sayac-rozet" id="sayac-rozet"
+                            onclick="sayfaAc('saha-cihazlari')" title="Yükleniyor…">
+                        <span class="sr-ikon">📡</span>
+                        <span class="sr-deger" id="sayac-rozet-deger">—</span>
+                    </button>
                     <button type="button" class="tema-anahtar" id="tema-anahtar"
                             onclick="temaDegistir()" title="Açık / koyu tema"
                             aria-label="Tema değiştir">🌙</button>
@@ -4633,6 +4657,12 @@ window.__I18N_SOZLUK__ = {
                     <div class="ft-hero" style="--hero-rgb:52,211,153"><span class="ft-deger" id="ft-ok">—</span><span class="ft-etiket">✅ Üretim (OK)</span></div>
                     <div class="ft-hero" style="--hero-rgb:167,139,250"><span class="ft-deger" id="ft-vardiya">—</span><span class="ft-etiket">👷 Vardiya</span></div>
                     <div class="ft-hero" style="--hero-rgb:248,113,113"><span class="ft-deger" id="ft-durus">—</span><span class="ft-etiket">⏸ Duruş dk</span></div>
+                    <!-- GENEL OEE (kullanıcı 2026-08-21: "overall oee'yi de görebileyim").
+                         Bölüm kartlarındaki halkalar bölüm bazlı; bu, TÜM bölümlerin
+                         vardiyaları havuzlanarak hesaplanan tek fabrika değeridir. -->
+                    <div class="ft-hero" style="--hero-rgb:124,58,237" id="ft-oee-kutu"
+                         title="Tüm bölümlerin vardiyaları havuzlanıp OEE formülü bir kez uygulanır (bölüm ortalamalarının ortalaması DEĞİL)">
+                        <span class="ft-deger" id="ft-oee">—</span><span class="ft-etiket">📊 Genel OEE</span></div>
                 </div>
                 <div class="bolum-grid" id="bolum-grid"></div>
 
@@ -4713,33 +4743,12 @@ window.__I18N_SOZLUK__ = {
                                 <div class="yukleniyor">Yükleniyor…</div>
                             </div>
                         </div>
-                        <!-- Operatör × iş kırılımı (2026-08-04). Tel üretiminde bir
-                             referans birden çok adımdan geçtiği için "kim ne iş yaptı"
-                             ayrı bir sorudur: ürünün toplam üretimi son adımdan sayılır
-                             ama her operatör KENDİ adımındaki adediyle burada görünür. -->
-                        <div class="panel-card">
-                            <div class="panel-header">
-                                <h3 id="operator-tablo-baslik">👷 Operatör Bazlı Üretim</h3>
-                                <span class="adet-info" id="operator-uretim-info"></span>
-                            </div>
-                            <div class="table-wrap">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Operatör</th>
-                                            <th id="op-th-hat">Hat</th>
-                                            <th id="op-th-adim" style="display:none">Proses</th>
-                                            <th>Referans</th>
-                                            <th style="text-align:right">OK</th>
-                                            <th style="text-align:right">NOK</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="operator-uretim-tbody">
-                                        <tr><td colspan="6"><div class="yukleniyor">Yükleniyor…</div></td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <!-- 'Operatör Bazlı Üretim' paneli KALDIRILDI (kullanıcı
+                             2026-08-21: "ikisinde de benzer bilgiler var, gereksiz
+                             kalabalık"). İki tablo da operatör × makine × referans
+                             kırılımıydı; tek fark tel'in 'Proses' sütunuydu. O sütun
+                             BURAYA taşındı, yani hiçbir bilgi kaybolmadı: tel'de bir
+                             referansın hangi adımını kimin yaptığı yine görünüyor. -->
                         <div class="panel-card">
                             <div class="panel-header">
                                 <h3>🏭 Üretim Detayı</h3>
@@ -4750,6 +4759,7 @@ window.__I18N_SOZLUK__ = {
                                     <thead>
                                         <tr>
                                             <th id="th-robot">Robot</th>
+                                            <th id="ud-th-adim" style="display:none">Proses</th>
                                             <th>Operatör</th>
                                             <th>Referans</th>
                                             <th style="text-align:right">OK</th>
@@ -4757,7 +4767,7 @@ window.__I18N_SOZLUK__ = {
                                         </tr>
                                     </thead>
                                     <tbody id="uretim-tbody">
-                                        <tr><td colspan="5"><div class="yukleniyor">Yükleniyor…</div></td></tr>
+                                        <tr><td colspan="6"><div class="yukleniyor">Yükleniyor…</div></td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -6772,50 +6782,6 @@ window.__I18N_SOZLUK__ = {
         }
 
         // ── Bölüm detayı: '(tekil) Bazlı Üretim' yatay bar grafiği ──
-        // ── OPERATÖR BAZLI ÜRETİM TABLOSU (2026-08-04) ────────────────────────
-        // Kaynak: /api/ozet → operator_uretim (operatör × hat × referans).
-        // TEL bölümünde ayrıca 'adim' alanı gelir ('Kapama 3' → 'Kapama') ve ayrı
-        // bir sütunda gösterilir: operatör hangi PROSESİ yaptı, hangi MAKİNEDE.
-        // Aynı operatör aynı referansı farklı adımlarda yapabilir → satırlar
-        // operatör+hat+referans kırılımındadır, TOPLANMAZ (yoksa kim ne yaptı kaybolur).
-        function operatorTablosuCiz(liste) {
-            var tbody = document.getElementById('operator-uretim-tbody');
-            var info  = document.getElementById('operator-uretim-info');
-            var thHat = document.getElementById('op-th-hat');
-            var thAdim = document.getElementById('op-th-adim');
-            if (!tbody) return;
-            var telMi = (aktifBolum === 'tel');
-            // Sütun başlıkları bölüme göre: tel'de "Makine" + "Proses", diğerlerinde bölümün tekili
-            if (thHat) thHat.textContent = telMi ? 'Makine' : ((BOLUMLER[aktifBolum] || {}).tekil || 'Hat');
-            if (thAdim) thAdim.style.display = telMi ? '' : 'none';
-            var kolonSayisi = telMi ? 6 : 5;
-
-            if (!liste.length) {
-                tbody.innerHTML = '<tr><td colspan="' + kolonSayisi + '">' +
-                    '<div class="empty"><span class="empty-icon">📭</span>Bu aralıkta kayıt yok</div></td></tr>';
-                if (info) info.textContent = '';
-                return;
-            }
-            // Operatör sayısı (satır değil) — "3 operatör · 12 kayıt"
-            var opSet = {};
-            liste.forEach(function (o) { if (o.operator_adi) opSet[o.operator_adi] = 1; });
-            if (info) info.textContent = Object.keys(opSet).length + ' operatör · ' + liste.length + ' satır';
-
-            tbody.innerHTML = liste.map(function (o) {
-                var nok = Number(o.toplam_nok) || 0;
-                var adimHucre = telMi
-                    ? '<td><span class="badge badge-blue">' + esc(o.adim || '—') + '</span></td>' : '';
-                return '<tr>' +
-                    '<td style="font-weight:700">' + esc(o.operator_adi || '—') + '</td>' +
-                    '<td>' + esc(o.robot_no || '—') + '</td>' +
-                    adimHucre +
-                    '<td>' + esc(o.referans_kodu || '—') + '</td>' +
-                    '<td style="text-align:right;color:var(--success);font-weight:800">' + fmt(o.toplam_ok) + '</td>' +
-                    '<td style="text-align:right;color:' + (nok > 0 ? 'var(--danger)' : 'var(--dim)') + ';font-weight:700">' + fmt(nok) + '</td>' +
-                    '</tr>';
-            }).join('');
-        }
-
         function robotGrafikCiz(robotU) {
             var kutu = document.getElementById('robot-grafik');
             var info = document.getElementById('robot-grafik-info');
@@ -6869,6 +6835,50 @@ window.__I18N_SOZLUK__ = {
         }
 
         // /api/ozet yanıtından kart/KPI metrikleri türet (savunmacı — alan yoksa null)
+        // ── GENEL (FABRİKA) OEE — kullanıcı 2026-08-21 ─────────────────────
+        // Bölüm ortalamalarının ORTALAMASI ALINMAZ: 1 vardiyalık bir bölüm 12
+        // vardiyalık bölümle aynı ağırlığı taşır ve rakam anlamını yitirirdi.
+        // Bunun yerine TÜM bölümlerin vardiya bileşenleri havuzlanır ve formül
+        // BİR KEZ uygulanır (analiz._topla ile aynı kural).
+        //   A = çalışma / net plan   P = üretim sn / (çalışma × 60)   Q = OK / toplam
+        // Bileşenleri sunucu gönderiyor (/api/ozet → vardiyalar[].net_plan_dk …).
+        // Eski backend bu alanları göndermiyorsa (henüz restart edilmemiş) değer
+        // '—' kalır; yanlış sayı göstermektense boş bırakılır.
+        function genelOeeCiz(sonuclar) {
+            var el = document.getElementById('ft-oee');
+            var kutu = document.getElementById('ft-oee-kutu');
+            if (!el) return;
+            var net = 0, cal = 0, sn = 0, ok = 0, nok = 0, n = 0, bilesenVar = false;
+            (sonuclar || []).forEach(function (d) {
+                if (!d || !Array.isArray(d.vardiyalar)) return;
+                d.vardiyalar.forEach(function (v) {
+                    if (typeof v.net_plan_dk === 'number') bilesenVar = true;
+                    net += Number(v.net_plan_dk) || 0;
+                    cal += Number(v.calisma_dk) || 0;
+                    sn  += Number(v.gercek_uretim_sn) || 0;
+                    ok  += Number(v.ok) || 0;
+                    nok += Number(v.nok) || 0;
+                    n++;
+                });
+            });
+            if (!n || !bilesenVar || net <= 0) {
+                el.textContent = '—';
+                if (kutu) kutu.title = n ? 'OEE bileşenleri gelmedi (sunucu güncellenmemiş olabilir)'
+                                        : 'Bu aralıkta vardiya yok';
+                return;
+            }
+            var a = cal / net;
+            var p = cal > 0 ? (sn / (cal * 60)) : 0;
+            var q = (ok + nok) > 0 ? (ok / (ok + nok)) : 0;
+            var oee = a * Math.min(p, 1) * q * 100;
+            el.textContent = oee.toFixed(1) + '%';
+            if (kutu) {
+                kutu.title = n + ' vardiya havuzlandı · Kullanılabilirlik ' + (a * 100).toFixed(1) +
+                    '% · Performans ' + (p * 100).toFixed(1) + '% · Kalite ' + (q * 100).toFixed(1) +
+                    '%' + '\n(Bölüm ortalamalarının ortalaması değil — bileşenler toplanıp formül bir kez uygulanır)';
+            }
+        }
+
         function ozetMetrik(d, bolum) {
             d = (d && typeof d === 'object') ? d : {};
             var vardiyalar = Array.isArray(d.vardiyalar) ? d.vardiyalar : [];
@@ -6917,8 +6927,14 @@ window.__I18N_SOZLUK__ = {
         function apiOzetUrl(bolum) {
             var bas = document.getElementById('f-bas').value;
             var bit = document.getElementById('f-bit').value;
+            // LOKASYON ŞART (2026-08-21): /api/ozet lokasyon gelmezse HİÇ
+            // filtrelemiyor — TK1'e geçilince 'montaj' kartı TK1+TK2 üretimini
+            // TOPLAYARAK gösteriyordu. Aynı kod iki tesiste olduğu için fark
+            // gözle yakalanmıyordu; kart "TK1 montajı" diyor, rakam ikisinin
+            // toplamıydı.
             return '/api/ozet?tarih_bas=' + encodeURIComponent(bas) +
                    '&tarih_bit=' + encodeURIComponent(bit) +
+                   '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
                    '&bolum=' + encodeURIComponent(bolum);
         }
 
@@ -7144,6 +7160,7 @@ window.__I18N_SOZLUK__ = {
             lokasyonGorunum();
             bolumGorunum();
             breadcrumbGuncelle();
+            sayacRozetYukle();      // rozet lokasyona kapalı — tesis değişince tazelensin
             if (aktifSayfa === 'ozet') yukleOzet();
             else if (aktifSayfa === 'bolum') yukleBolum();
             else if (aktifSayfa === 'kayitlar') yukleKayitlar();
@@ -7196,8 +7213,15 @@ window.__I18N_SOZLUK__ = {
         }
 
         // Karta tıklayınca: bölümü aktifle + detay sayfasını aç
+        //
+        // KAPI lokBolumleri() (kullanıcı 2026-08-21): eskiden BOLUM_SIRA'ya
+        // bakıyordu ve BOLUM_SIRA yalnız TK2'nin listesi. TK1'de 'tel' ve
+        // 'plastik' o listede olmadığı için kartlarına tıklandığında aktifBolum
+        // DEĞİŞMİYOR, sayfa bir önceki bölümle açılıyordu — "bölüme tıklayınca
+        // içine girmiyor" şikâyeti buydu. bolumDegistir aynı hatayı 2026-08-04'te
+        // düzeltmişti, burası atlanmış.
         function bolumSecVeAc(b) {
-            if (BOLUM_SIRA.indexOf(b) !== -1) {
+            if (lokBolumleri().indexOf(b) !== -1) {
                 aktifBolum = b;
                 localStorage.setItem('dbv2_bolum', b);
                 bolumGorunum();
@@ -7414,8 +7438,8 @@ window.__I18N_SOZLUK__ = {
                     '<span class="bk-ad">' + esc(bolumAdi(b)) + '</span>' + miniOeeHalka(null) + '</div>' +
                     '<div class="bk-yukleniyor">Yükleniyor…</div></div>';
             }).join('');
-            ['ft-ok', 'ft-vardiya', 'ft-durus'].forEach(function (id) {
-                document.getElementById(id).textContent = '—';
+            ['ft-ok', 'ft-vardiya', 'ft-durus', 'ft-oee'].forEach(function (id) {
+                var el = document.getElementById(id); if (el) el.textContent = '—';
             });
 
             var istekler = bolumler.map(function (b) {
@@ -7471,6 +7495,7 @@ window.__I18N_SOZLUK__ = {
                 document.getElementById('ft-ok').textContent = fmt(topOk);
                 document.getElementById('ft-vardiya').textContent = fmt(topVardiya);
                 document.getElementById('ft-durus').textContent = fmt(topDurus);
+                genelOeeCiz(sonuclar);
             });
         }
 
@@ -7551,18 +7576,28 @@ window.__I18N_SOZLUK__ = {
             robotGrafikCiz(d.robot_uretim);
             durusGrafikCiz(duruslar);
 
-            // ── Üretim Detayı tablosu
+            // ── Üretim Detayı tablosu (tek üretim tablosu — 2026-08-21)
+            // TEL: 'Proses' sütunu burada. Bir referans o gün kesim + otomat +
+            // kapama adımlarından geçtiyse, hangi adımı kimin yaptığı görünür;
+            // adım bilgisi sunucudan gelir (tel_proses tek kaynak).
             var tbody = document.getElementById('uretim-tbody');
+            var udThAdim = document.getElementById('ud-th-adim');
+            var telMi = (aktifBolum === 'tel');
+            if (udThAdim) udThAdim.style.display = telMi ? '' : 'none';
+            var udKolon = telMi ? 6 : 5;
             document.getElementById('uretim-adet-info').textContent = detay.length ? (detay.length + ' kayıt') : '';
             if (!detay.length) {
-                tbody.innerHTML = '<tr><td colspan="5">' + bosHtml + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="' + udKolon + '">' + bosHtml + '</td></tr>';
             } else {
                 tbody.innerHTML = detay.map(function (u) {
                     var nok = Number(u.nok_adet) || 0;
                     // Lazer/Pres: makine kaydın istasyonundan (robot_no sabit hat adıdır)
                     var makineAd = makineAdi(aktifBolum, u.istasyon, u.robot_no);
+                    var adimHucre = telMi
+                        ? '<td><span class="badge badge-blue">' + esc(u.adim || '—') + '</span></td>' : '';
                     return '<tr>' +
                         '<td><span class="badge badge-blue">' + esc(makineAd) + '</span></td>' +
+                        adimHucre +
                         '<td>' + esc(u.operator_adi || '—') + '</td>' +
                         '<td style="font-weight:700">' + esc(u.referans_kodu || '—') + '</td>' +
                         '<td style="text-align:right;color:var(--success);font-weight:800">' + fmt(u.ok_adet) + '</td>' +
@@ -7570,13 +7605,6 @@ window.__I18N_SOZLUK__ = {
                         '</tr>';
                 }).join('');
             }
-
-            // ── Operatör Bazlı Üretim tablosu (2026-08-04) ────────────────────
-            // "Kim ne iş yaptı" görünümü. Tel üretiminde kritik: bir referans o gün
-            // kesim + otomat + kapama adımlarından geçtiyse, KESİMİ yapan operatörün
-            // o referanstan kaç adet KESİM yaptığı burada görünür. Ürünün toplam
-            // üretimi (son adım) ayrı hesaplanır — bu tablo onu tekrarlamaz.
-            operatorTablosuCiz(d.operator_uretim || []);
 
             // ── Duruşlar listesi (mini bar)
             var dl = document.getElementById('durus-liste');
@@ -13918,6 +13946,43 @@ window.__I18N_SOZLUK__ = {
         }
 
         // ═══════════════════════════════════════════════════════
+        // SAHA SAYAÇ ROZETİ (kullanıcı 2026-08-21)
+        // ═══════════════════════════════════════════════════════
+        // Üst barda, her sayfada görünür: saha modüllerinden BUGÜN gelen ham
+        // sinyal toplamı. Üretim adedi DEĞİL (bölen/çarpan uygulanmaz, vardiya
+        // kapısı yoktur) — "sistem canlı mı" sorusunun tek bakışta cevabı.
+        // 60 sn'de bir tazelenir; hata olursa rozet sessiz görünüme düşer,
+        // sayfayı ASLA bozmaz.
+        function sayacRozetYukle() {
+            var el = document.getElementById('sayac-rozet-deger');
+            var kutu = document.getElementById('sayac-rozet');
+            if (!el || !kutu) return;
+            fetch('/api/sayac_toplam?lokasyon=' + encodeURIComponent(aktifLokasyon), { cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (!d || !d.okunabildi) {
+                        el.textContent = '—';
+                        kutu.classList.add('sr-sessiz');
+                        kutu.title = 'Saha sayaç verisi okunamadı (pilot servisi kapalı olabilir)';
+                        return;
+                    }
+                    el.textContent = fmt(d.toplam);
+                    kutu.classList.toggle('sr-sessiz', !d.toplam);
+                    var kirilim = (d.bolumler || []).map(function (b) {
+                        return '  ' + b.ad + ': ' + fmt(b.sinyal);
+                    }).join('\n');
+                    kutu.title = 'Saha sayaçları — bugün toplam ' + fmt(d.toplam) + ' sinyal' +
+                        ' (' + d.cihaz_sayisi + ' cihaz)\n' + kirilim +
+                        '\n\nHam sinyal sayısıdır, üretim adedi değildir.\nSaha Cihazları sayfası için tıklayın.';
+                })
+                .catch(function () {
+                    el.textContent = '—';
+                    kutu.classList.add('sr-sessiz');
+                    kutu.title = 'Saha sayaç verisi alınamadı';
+                });
+        }
+
+        // ═══════════════════════════════════════════════════════
         // ZAMAN ÇİZELGESİ (kullanıcı 2026-08-21)
         // ═══════════════════════════════════════════════════════
         // Vardiya barı + üzerinde duruş dilimleri. Dilime tıklanınca duruş
@@ -14308,6 +14373,8 @@ window.__I18N_SOZLUK__ = {
             lokasyonGorunum();
             bolumGorunum();
             navGruplariBaslat();   // sidebar grup açık/kapalı durumunu cihazdan geri yükle
+            sayacRozetYukle();
+            setInterval(sayacRozetYukle, 60000);
             // İzinli ilk sayfaya düş (admin → ozet). sayfaAc yetki kapısını da uygular.
             sayfaAc(panelIlkIzinliSayfa());
             // Geçici şifreyle giren kullanıcıyı şifre değiştirmeye yönlendir

@@ -103,7 +103,8 @@ def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
     """
     sql = ("SELECT id, tarih, vardiya_turu, robot_no, operator_adi, baslangic_saati, "
            "       toplam_sure_dk, durum, COALESCE(bolum,'kaynak') AS bolum, "
-           "       COALESCE(lokasyon,'TK2') AS lokasyon "
+           "       COALESCE(lokasyon,'TK2') AS lokasyon, "
+           "       COALESCE(robotla_calisiyor,0) AS robotla_calisiyor "
            "FROM vardiyalar WHERE tarih >= ? AND tarih <= ?")
     par = [bas, bit]
     if lokasyon:
@@ -123,12 +124,16 @@ def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
     durus_ayrinti = defaultdict(list)
     for d in conn.execute(
             f"SELECT vardiya_id, durus_sebebi, COALESCE(sure_dk,0) AS sure_dk, durus_tipi, "
-            f"       baslangic_saati FROM duruslar WHERE vardiya_id IN ({yer})", vid_list):
+            f"       baslangic_saati, baslangic_ts, bitis_ts "
+            f"FROM duruslar WHERE vardiya_id IN ({yer})", vid_list):
         tip = d['durus_tipi'] or durus_tipi_belirle(d['durus_sebebi'])
         durus_top[d['vardiya_id']]['planli' if tip == 'planli' else 'plansiz'] += d['sure_dk']
         durus_ayrinti[d['vardiya_id']].append(
             {'sebep': d['durus_sebebi'], 'dk': d['sure_dk'], 'tip': tip,
-             'saat': d['baslangic_saati']})
+             'saat': d['baslangic_saati'],
+             # Damgalar operatör zaman birleştirmesi için (bkz. _operator_zamani):
+             # iki makine AYNI ANDA moladaysa operatör 30 dk kaybetti, 60 değil.
+             'bas_ts': d['baslangic_ts'], 'bit_ts': d['bitis_ts']})
 
     # Üretim + cycle time çözümü.
     #
@@ -196,6 +201,10 @@ def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
             'operator': v['operator_adi'], 'hat': v['robot_no'],
             'bolum': v['bolum'], 'lokasyon': v['lokasyon'], 'durum': v['durum'] or 'kapali',
             'baslangic': v['baslangic_saati'],
+            # 'Robotla Çalışıyor' (metal, tam otomasyon): operatör bu vardiyada
+            # makineye sürekli bağlı DEĞİL — aynı anda başka makineye de bakıyor
+            # olabilir. Operatör toplamında süre bir kez sayılır.
+            'robotlu': int(v['robotla_calisiyor'] or 0) == 1,
             'toplam_dk': toplam_dk, 'planli_dk': planli, 'plansiz_dk': plansiz,
             'net_plan_dk': net_plan, 'calisma_dk': calisma,
             'ok': ok, 'nok': nok, 'toplam': ok + nok, 'hedef': hedef,
@@ -228,6 +237,7 @@ def _topla(vardiyalar):
         'planli_dk': sum(v['planli_dk'] for v in vardiyalar),
         'plansiz_dk': sum(v['plansiz_dk'] for v in vardiyalar),
         'net_plan_dk': net, 'calisma_dk': cal,
+        'gercek_uretim_sn': sn,
         'ok': ok, 'nok': nok, 'toplam': ok + nok,
         'hedef': sum(v['hedef'] for v in vardiyalar),
         'ct_yok_adet': sum(v['ct_yok_adet'] for v in vardiyalar),
@@ -240,6 +250,181 @@ def _topla(vardiyalar):
 # ═════════════════════════════════════════════════════════════════════════════
 #  OPERATÖR PERFORMANSI
 # ═════════════════════════════════════════════════════════════════════════════
+
+# ── 1 OPERATÖR ÷ 2 MAKİNE (kullanıcı 2026-08-21) ────────────────────────────
+# "Metal enjeksiyonda 1 operatör iki makineye birden bakıyorsa (makineler robotla
+#  parça alma yapıyorsa bu mümkün) OEE hesaplaması 2 operatör 2 makine gibi
+#  hesaplanmamalı — OEE düşük görünüyor."
+#
+# SORUN: operatör iki makine için İKİ vardiya açıyor. Operatör satırında bu iki
+# vardiyanın süresi TOPLANIYORDU: 07:00-16:00 çalışan kişi 18 saat görünüyor,
+# dolayısıyla adet/saat, performans ve OEE YARIYA iniyordu. Üretim iki katına
+# çıkmasına rağmen kişi tabloda en alta düşüyordu.
+#
+# ÇÖZÜM: operatör satırında SÜRE bir kez sayılır — vardiya pencereleri toplanmaz,
+# BİRLEŞTİRİLİR (union). Union hem eşzamanlı hem ardışık durumu doğru çözer:
+#   eşzamanlı 07-16 + 07-16 → 9 saat (bir kez)
+#   ardışık   07-11 + 11-16 → 9 saat (toplamla aynı)
+# Üretim (ok/nok/süre) TOPLANIR — gerçekten iki katı üretim çıkmıştır.
+#
+# KAPSAM: yalnız 'Robotla Çalışıyor' işaretli vardiyalar (kullanıcı kararı —
+# sinyal mevcut anahtardan gelir). İşaretsiz vardiyalar eskisi gibi toplanır;
+# yani hiçbir mevcut bölümün sayısı kendiliğinden değişmez.
+#
+# MAKİNE (hat) TARAFI DEĞİŞMEZ: her makinenin kendi OEE'si aynen durur — makine
+# performansını ölçen tek şey odur (kullanıcı kararı).
+
+
+def _birlesik_dk(araliklar):
+    """Çakışan (baslangic_dk, bitis_dk) aralıklarının BİRLEŞİMİNİN uzunluğu."""
+    temiz = [(b, s) for b, s in araliklar if b is not None and s is not None and s > b]
+    if not temiz:
+        return 0
+    temiz.sort()
+    toplam = 0
+    cb, cs = temiz[0]
+    for b, s in temiz[1:]:
+        if b > cs:
+            toplam += cs - cb
+            cb, cs = b, s
+        elif s > cs:
+            cs = s
+    return toplam + (cs - cb)
+
+
+def _dk_no(ts):
+    """'YYYY-MM-DD HH:MM:SS' → mutlak dakika (aralık karşılaştırması için)."""
+    if not ts:
+        return None
+    try:
+        d = datetime.strptime(str(ts)[:16].replace('T', ' '), '%Y-%m-%d %H:%M')
+    except ValueError:
+        return None
+    return int(d.timestamp() // 60)
+
+
+def _vardiya_penceresi(v):
+    """Vardiyanın (baslangic_dk, bitis_dk) penceresi; saat bozuksa None."""
+    bas = _dk_no(f"{v['tarih']} {str(v.get('baslangic') or '')[:5]}")
+    if bas is None:
+        return None
+    return (bas, bas + (v['toplam_dk'] or 0))
+
+
+def _cakisan_gruplar(gunun_vardiyalari):
+    """Aynı günün vardiyalarını ZAMANDA ÇAKIŞANLAR birlikte olacak şekilde gruplar.
+
+    Penceresi çözülemeyen (saati bozuk) vardiya kendi başına bir gruptur — eski
+    davranışa, yani toplamaya düşer."""
+    pencereli, tekil = [], []
+    for v in gunun_vardiyalari:
+        p = _vardiya_penceresi(v)
+        (pencereli if p else tekil).append((v, p))
+    pencereli.sort(key=lambda x: x[1][0])
+    gruplar = [[v] for v, _ in tekil]
+    aktif, son = [], None
+    for v, (b, s2) in pencereli:
+        if aktif and b < son:            # önceki grupla çakışıyor
+            aktif.append(v)
+            son = max(son, s2)
+        else:
+            if aktif:
+                gruplar.append(aktif)
+            aktif, son = [v], s2
+    if aktif:
+        gruplar.append(aktif)
+    return gruplar
+
+
+def _grup_zamani(grup):
+    """Çakışan vardiya grubunun BİRLEŞİK (toplam, planlı, plansız) dakikası."""
+    pencereler = [_vardiya_penceresi(v) for v in grup]
+    toplam = _birlesik_dk([p for p in pencereler if p])
+    toplam += sum(v['toplam_dk'] for v, p in zip(grup, pencereler) if not p)
+    sonuc = {}
+    for tip in ('planli', 'plansiz'):
+        araliklar, damgasiz = [], 0
+        for v in grup:
+            for d in v.get('duruslar', []):
+                if d.get('tip') != tip:
+                    continue
+                b, e = _dk_no(d.get('bas_ts')), _dk_no(d.get('bit_ts'))
+                if b is None or e is None:
+                    damgasiz += d.get('dk', 0)   # damgasız kayıt → eski davranış
+                else:
+                    araliklar.append((b, e))
+        sonuc[tip] = _birlesik_dk(araliklar) + damgasiz
+    return toplam, sonuc['planli'], sonuc['plansiz']
+
+
+def _operator_zamani(vs):
+    """Operatörün GERÇEK süresi: (toplam_dk, planli_dk, plansiz_dk).
+
+    BİRLEŞTİRME KOŞULU (2026-08-21, saha verisine göre): aynı gün ZAMANDA
+    ÇAKIŞAN en az iki vardiya + bunlardan EN AZ BİRİ 'Robotla Çalışıyor'.
+    "Hepsi robotlu olsun" demek YANLIŞ olurdu: operatör anahtarı yalnız robotun
+    parçayı aldığı makinede işaretliyor, fiziksel olarak başında durduğu ikinci
+    makinede işaretlemiyor. Gerçek kayıt (Serdar Göcük, 2026-07-22): 300T
+    07:03-16:23 robotlu=1 + 550T 08:12-16:23 robotlu=0 → toplasaydık 1051 dk
+    (17,5 saat) çıkardı; birleşince 560 dk (gerçek gün).
+
+    Çakışmayan vardiyalar (kişi sabah bir makinede, öğleden sonra başkasında)
+    TOPLANIR — orada süre gerçekten arka arkayadır."""
+    toplam = planli = plansiz = 0
+    gunler = defaultdict(list)
+    for v in vs:
+        gunler[v.get('tarih')].append(v)
+    for gunun in gunler.values():
+        for grup in _cakisan_gruplar(gunun):
+            if len(grup) >= 2 and any(v.get('robotlu') for v in grup):
+                t, pl, ps = _grup_zamani(grup)
+            else:
+                t = sum(v['toplam_dk'] for v in grup)
+                pl = sum(v['planli_dk'] for v in grup)
+                ps = sum(v['plansiz_dk'] for v in grup)
+            toplam += t
+            planli += pl
+            plansiz += ps
+    return toplam, planli, plansiz
+
+
+def _birlesen_vardiya_sayisi(vs):
+    """Süresi birleştirilen vardiya sayısı (tabloda 'çoklu makine' rozeti için)."""
+    n = 0
+    gunler = defaultdict(list)
+    for v in vs:
+        gunler[v.get('tarih')].append(v)
+    for gunun in gunler.values():
+        for grup in _cakisan_gruplar(gunun):
+            if len(grup) >= 2 and any(v.get('robotlu') for v in grup):
+                n += len(grup)
+    return n
+
+
+def _topla_operator(vs):
+    """_topla'nın operatör sürümü: ÜRETİM toplanır, SÜRE birleştirilir.
+
+    _topla DEĞİŞTİRİLMEDİ — o hat/makine tarafında kullanılıyor ve orada süre
+    gerçekten toplanmalı (iki makine iki ayrı kapasitedir)."""
+    t = _topla(vs)
+    toplam_dk, planli_dk, plansiz_dk = _operator_zamani(vs)
+    net = max(0, toplam_dk - planli_dk)
+    cal = max(0, net - plansiz_dk)
+    sn = t['gercek_uretim_sn'] if 'gercek_uretim_sn' in t else sum(v['gercek_uretim_sn'] for v in vs)
+    ok, nok = t['ok'], t['nok']
+    a = (cal / net) if net > 0 else 0
+    p = (sn / (cal * 60)) if cal > 0 else 0
+    q = (ok / (ok + nok)) if (ok + nok) > 0 else 0
+    t.update({
+        'toplam_dk': toplam_dk, 'planli_dk': planli_dk, 'plansiz_dk': plansiz_dk,
+        'net_plan_dk': net, 'calisma_dk': cal,
+        'availability': round(a * 100, 1), 'performance': round(p * 100, 1),
+        'quality': round(q * 100, 1), 'oee': round(a * min(p, 1.0) * q * 100, 1),
+        # Kaç vardiyanın süresi birleştirildi — tabloda "2 makine" rozeti için
+        'paralel_vardiya': _birlesen_vardiya_sayisi(vs),
+    })
+    return t
+
 
 def operator_performans(vardiyalar):
     """Operatör bazlı performans tablosu.
@@ -260,7 +445,9 @@ def operator_performans(vardiyalar):
 
     tablo = []
     for op, vs in op_grup.items():
-        t = _topla(vs)
+        # OPERATÖR toplamı: robot destekli paralel vardiyalarda süre BİR KEZ
+        # sayılır (bkz. _topla_operator). Hat tablosu _topla kullanmaya devam eder.
+        t = _topla_operator(vs)
         # Operatörün hat karışımına göre BEKLENEN OEE (hat ortalamalarının,
         # o hatta geçirdiği net süreyle ağırlıklı ortalaması)
         agirlik, beklenen = 0.0, 0.0

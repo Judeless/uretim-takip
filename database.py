@@ -711,7 +711,11 @@ def init_db():
 
     # Varsayılan robot satırlarını ekle (mevcut değilse) — 3 bölüm için
     # KAYNAK: ABB1..ABB9 (ABB9 default gizli)
-    for i, rno in enumerate(['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9']):
+    # 2026-08-21: 'Punta Kaynak' eklendi (tek istasyonlu, sayaç modülü yok).
+    # SONA eklenir — sıra numaraları andon dizilişidir, araya girmek mevcut
+    # robotların yerini kaydırırdı.
+    for i, rno in enumerate(['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9',
+                             'Punta Kaynak']):
         goster = 0 if rno == 'ABB9' else 1
         c.execute(
             'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
