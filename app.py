@@ -4260,30 +4260,63 @@ def kayitlar_uretim_excel():
     from openpyxl.styles import Font, Alignment, PatternFill
     import io as _io
 
+    # ÇOKLU (2026-08-25): 'bolum' virgüllü liste olabilir; 'makine'/'grup' de
+    # çoğul karşılıklarıyla ('makineler'/'gruplar') gelebilir. Tekil biçimler
+    # KORUNDU — eski bağlantılar ve dış çağrılar bozulmasın.
     bolum = (request.args.get('bolum') or 'kaynak').strip()
     lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper()
-    if bolum not in GECERLI_BOLUMLER:
-        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    bolumler = [b.strip() for b in bolum.split(',') if b.strip()] or ['kaynak']
+    gecersiz = [b for b in bolumler if b not in GECERLI_BOLUMLER]
+    if gecersiz:
+        return jsonify({'hata': f'Geçersiz bölüm: {", ".join(gecersiz)}'}), 400
     bugun = date.today().isoformat()
     t_bas = (request.args.get('tarih_bas') or bugun).strip()
     t_bit = (request.args.get('tarih_bit') or bugun).strip()
     robot = (request.args.get('robot') or '').strip()
-    grup_f = (request.args.get('grup') or '').strip()
     # 'makine' = ekrandaki makine/masa filtresi (2026-08-25). 'robot' vardiyanın
     # hattına bakar; hattı üretim kaydında seçilen bölümlerde o değer sabit
     # olduğundan süzmez — ekranla aynı küme insin diye ayrı parametre.
-    makine_f = (request.args.get('makine') or '').strip()
+    # ÇOĞUL BİÇİM: ekranda birden fazla makine/adım seçilebiliyor. Virgülle
+    # ayrılır; tekil 'grup'/'makine' de kabul edilir (eski bağlantılar).
+    def _csv(*adlar):
+        out = []
+        for a in adlar:
+            for p in (request.args.get(a) or '').split(','):
+                p = p.strip()
+                if p and p not in out:
+                    out.append(p)
+        return out
 
-    kosul = ["v.tarih BETWEEN ? AND ?", "COALESCE(v.bolum,'kaynak')=?",
+    grup_f = _csv('gruplar', 'grup')
+    makine_f = _csv('makineler', 'makine')
+
+    def _eslesir(secim, satir_bolum, deger):
+        """Seçim boşsa her şey geçer. Seçim 'bolum|ad' biçiminde de olabilir —
+        panel bölümlü biçimi gönderir ki iki bölümde aynı adlı makine varsa
+        biri diğerinin kayıtlarını da indirmesin. Düz ad da kabul edilir."""
+        if not secim:
+            return True
+        for p in secim:
+            if '|' in p:
+                b, d = p.split('|', 1)
+                if b == satir_bolum and d == deger:
+                    return True
+            elif p == deger:
+                return True
+        return False
+
+    kosul = ["v.tarih BETWEEN ? AND ?",
+             "COALESCE(v.bolum,'kaynak') IN (%s)" % ','.join('?' * len(bolumler)),
              "COALESCE(v.lokasyon,'TK2')=?"]
-    parm = [t_bas, t_bit, bolum, lokasyon]
+    parm = [t_bas, t_bit] + bolumler + [lokasyon]
     if robot:
         kosul.append("v.robot_no=?")
         parm.append(robot)
 
     conn = get_db()
     rows = conn.execute(
-        "SELECT v.tarih, v.vardiya_turu, v.robot_no, v.operator_adi, "
+        "SELECT v.tarih, v.vardiya_turu, v.robot_no, "
+        "       COALESCE(v.bolum,'kaynak') bolum, v.operator_adi, "
         "       COALESCE(u.istasyon,0) istasyon, u.referans_kodu, "
         "       COALESCE(u.ok_adet,0) ok_adet, COALESCE(u.nok_adet,0) nok_adet, "
         "       COALESCE(u.cycle_time_sn,0) ct, COALESCE(u.aciklama,'') aciklama "
@@ -4293,14 +4326,15 @@ def kayitlar_uretim_excel():
 
     satirlar = []
     for r in rows:
-        g = kayit_grubu(bolum, r['robot_no'], r['istasyon'])
-        if grup_f and g != grup_f:
+        g = kayit_grubu(r['bolum'], r['robot_no'], r['istasyon'])
+        if not _eslesir(grup_f, r['bolum'], g):
             continue
         mk = kayit_hatti(r['robot_no'], r['istasyon'])
-        if makine_f and mk != makine_f:
+        if not _eslesir(makine_f, r['bolum'], mk):
             continue
         satirlar.append({
-            'tarih': r['tarih'], 'vardiya': r['vardiya_turu'], 'grup': g,
+            'tarih': r['tarih'], 'vardiya': r['vardiya_turu'],
+            'bolum': BOLUM_AD.get(r['bolum'], r['bolum']), 'grup': g,
             'hat': mk,
             'operator': r['operator_adi'], 'ref': r['referans_kodu'],
             'ok': int(r['ok_adet']), 'nok': int(r['nok_adet']),
@@ -4310,7 +4344,7 @@ def kayitlar_uretim_excel():
     wb = Workbook()
     ws = wb.active
     ws.title = 'Üretim'
-    basliklar = ['Tarih', 'Vardiya', 'Grup', 'Makine / Hat', 'Operatör',
+    basliklar = ['Tarih', 'Vardiya', 'Bölüm', 'Grup', 'Makine / Hat', 'Operatör',
                  'Referans', 'OK', 'NOK', 'CT (sn)', 'Açıklama']
     ws.append(basliklar)
     _bf, _bd = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor='6D28D9')
@@ -4318,27 +4352,35 @@ def kayitlar_uretim_excel():
         h.font, h.fill = _bf, _bd
         h.alignment = Alignment(horizontal='center', vertical='center')
     for s in satirlar:
-        ws.append([s['tarih'], s['vardiya'], s['grup'], s['hat'], s['operator'],
-                   s['ref'], s['ok'], s['nok'], s['ct'], s['aciklama']])
+        ws.append([s['tarih'], s['vardiya'], s['bolum'], s['grup'], s['hat'],
+                   s['operator'], s['ref'], s['ok'], s['nok'], s['ct'], s['aciklama']])
     for i, _b in enumerate(basliklar, start=1):
         en = max([len(str(_b))] + [len(str(c.value or '')) for c in ws[chr(64 + i)]][:500])
         ws.column_dimensions[chr(64 + i)].width = min(max(en + 3, 10), 42)
     ws.freeze_panes = 'A2'
 
     # ── ÖZET: grup × gün (kullanıcının asıl istediği "bir arada gruplanmış" görünüm)
+    # ÇOKLU BÖLÜMDE anahtar 'Bölüm · Grup': 'Kapama' telde proses adımı, başka
+    # bölümde makine adı olabilir — tek adla toplansalar iki bölümün üretimi
+    # aynı satıra yığılırdı.
     ws2 = wb.create_sheet('Özet')
+    _cok_bolum = len({s['bolum'] for s in satirlar}) > 1
+    for s in satirlar:
+        s['ozet_ad'] = (f"{s['bolum']} · {s['grup']}" if _cok_bolum else s['grup'])
     gunler = sorted({s['tarih'] for s in satirlar})
-    gruplar = sorted({s['grup'] for s in satirlar})
-    ws2.append(['Grup'] + gunler + ['TOPLAM OK', 'TOPLAM NOK'])
+    gruplar = sorted({s['ozet_ad'] for s in satirlar})
+    ws2.append(['Bölüm · Grup' if _cok_bolum else 'Grup'] + gunler
+               + ['TOPLAM OK', 'TOPLAM NOK'])
     for h in ws2[1]:
         h.font, h.fill = _bf, _bd
         h.alignment = Alignment(horizontal='center', vertical='center')
     for g in gruplar:
         satir = [g]
         for gun in gunler:
-            satir.append(sum(s['ok'] for s in satirlar if s['grup'] == g and s['tarih'] == gun))
-        satir.append(sum(s['ok'] for s in satirlar if s['grup'] == g))
-        satir.append(sum(s['nok'] for s in satirlar if s['grup'] == g))
+            satir.append(sum(s['ok'] for s in satirlar
+                             if s['ozet_ad'] == g and s['tarih'] == gun))
+        satir.append(sum(s['ok'] for s in satirlar if s['ozet_ad'] == g))
+        satir.append(sum(s['nok'] for s in satirlar if s['ozet_ad'] == g))
         ws2.append(satir)
     if gruplar:
         gt = ['GENEL TOPLAM']
@@ -4349,16 +4391,29 @@ def kayitlar_uretim_excel():
         ws2.append(gt)
         for c in ws2[ws2.max_row]:
             c.font = Font(bold=True)
-    ws2.column_dimensions['A'].width = 26
+    ws2.column_dimensions['A'].width = 34
     ws2.freeze_panes = 'B2'
 
     bellek = _io.BytesIO()
     wb.save(bellek)
     bellek.seek(0)
-    _ek = f"_{grup_f.replace(' ', '_')}" if grup_f else ''
-    if makine_f:
-        _ek += '_' + makine_f.replace(' ', '_')
-    _ad = f"uretim_{lokasyon}_{bolum}{_ek}_{t_bas}_{t_bit}.xlsx"
+    # Dosya adı: tek seçimde adı yazılır, çoklu seçimde sayısı — 12 presin adı
+    # dosya adına sığmaz ve Windows'ta ad uzunluğu sınırına takılır.
+    def _ekle(deger, cogul_ad):
+        if not deger:
+            return ''
+        if len(deger) == 1:
+            # 'bolum|ad' geldiyse dosya adına yalnız ad girer: '|' Windows'ta
+            # geçersiz karakter, indirme adı bozulurdu.
+            ad = deger[0].split('|')[-1]
+            return '_' + ad.replace(' ', '_')
+        return f'_{len(deger)}{cogul_ad}'
+
+    _ek = _ekle(grup_f, 'adim') + _ekle(makine_f, 'makine')
+    # Çoklu bölümde adlar yerine sayı: virgüllü uzun ad hem çirkin hem de
+    # bölüm sayısı arttıkça Windows'un dosya adı sınırına yaklaşıyor.
+    _bad = bolumler[0] if len(bolumler) == 1 else f'{len(bolumler)}bolum'
+    _ad = f"uretim_{lokasyon}_{_bad}{_ek}_{t_bas}_{t_bit}.xlsx"
     return send_file(bellek, as_attachment=True, download_name=_ad,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -6281,21 +6336,33 @@ def ozet():
     robot = request.args.get('robot')
     bolum = request.args.get('bolum')
     lokasyon = request.args.get('lokasyon')
+    # ÇOKLU BÖLÜM (kullanıcı 2026-08-25): "birden fazla bölüm … seçilebilsin;
+    # TK1'de plastik enjeksiyon, montaj ve telin bazı hatlarını tek filtrede
+    # görebileyim." 'bolum' virgülle ayrılmış liste kabul eder; TEK değer
+    # verildiğinde davranış birebir eskisi gibidir (regresyon yok).
+    bolumler = [b.strip() for b in (bolum or '').split(',') if b.strip()]
 
     # Sorgu bugünü kapsıyorsa: açık vardiyaların auto sayaçlarını ÖNCE tazele —
     # dashboard performans/OEE'si canlı makine adetleriyle hesaplansın
     # (andon rozeti canlıyken performansın bayat kalması sorunu).
     if tarih_bas <= bugun <= tarih_bit:
-        _acik_auto_vardiyalari_senkronla(conn, bolum=bolum or None, lokasyon=lokasyon or None)
+        # Bölüm başına ayrı çağrı: fonksiyon tek bölüm alıyor ve None geçmek
+        # SEÇİLMEYEN bölümleri de senkronlardı (gereksiz yazma + yavaşlık).
+        for _b in (bolumler or [None]):
+            _acik_auto_vardiyalari_senkronla(conn, bolum=_b, lokasyon=lokasyon or None)
 
     param_vardiya = [tarih_bas, tarih_bit]
     sart_vardiya = 'tarih BETWEEN ? AND ?'
     if robot:
         sart_vardiya += ' AND robot_no = ?'
         param_vardiya.append(robot)
-    if bolum:
+    if len(bolumler) == 1:
         sart_vardiya += " AND COALESCE(v.bolum, 'kaynak') = ?"
-        param_vardiya.append(bolum)
+        param_vardiya.append(bolumler[0])
+    elif bolumler:
+        sart_vardiya += (" AND COALESCE(v.bolum, 'kaynak') IN (%s)"
+                         % ','.join('?' * len(bolumler)))
+        param_vardiya.extend(bolumler)
     if lokasyon:
         sart_vardiya += " AND COALESCE(v.lokasyon, 'TK2') = ?"
         param_vardiya.append(lokasyon)
@@ -6328,6 +6395,7 @@ def ozet():
     # bölümlerde makine — yani Fabrika Özeti kartındaki barlar adım/makine bazlı.
     _grup_ham = c.execute(f'''
         SELECT v.robot_no,
+               COALESCE(v.bolum, 'kaynak') AS bolum,
                COALESCE(u.istasyon, 0) AS istasyon,
                SUM(u.ok_adet)  AS toplam_ok,
                SUM(u.nok_adet) AS toplam_nok,
@@ -6335,13 +6403,18 @@ def ozet():
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
-        GROUP BY v.robot_no, COALESCE(u.istasyon, 0)
+        GROUP BY v.robot_no, COALESCE(v.bolum, 'kaynak'), COALESCE(u.istasyon, 0)
     ''', param_vardiya).fetchall()
+    # ÇOKLU BÖLÜMDE grup adı tek başına yetmez: 'Kapama' telde proses adımı,
+    # başka bölümde bir makine adı olabilir. Anahtar (bölüm, grup); satırda
+    # bölüm de döner ki panel başlığında yazabilsin.
     _grup_top = {}
     for _r in _grup_ham:
-        _g = kayit_grubu(bolum or 'kaynak', _r['robot_no'], _r['istasyon'])
-        _d = _grup_top.setdefault(_g, {'grup': _g, 'toplam_ok': 0, 'toplam_nok': 0,
-                                       'kayit_sayisi': 0, 'makineler': []})
+        _b = _r['bolum']
+        _g = kayit_grubu(_b, _r['robot_no'], _r['istasyon'])
+        _d = _grup_top.setdefault((_b, _g), {'grup': _g, 'bolum': _b,
+                                             'toplam_ok': 0, 'toplam_nok': 0,
+                                             'kayit_sayisi': 0, 'makineler': []})
         _d['toplam_ok'] += int(_r['toplam_ok'] or 0)
         _d['toplam_nok'] += int(_r['toplam_nok'] or 0)
         _d['kayit_sayisi'] += int(_r['kayit_sayisi'] or 0)
@@ -6381,6 +6454,7 @@ def ozet():
     operator_uretim = [dict(r) for r in c.execute(f'''
         SELECT v.operator_adi,
                v.robot_no,
+               COALESCE(v.bolum, 'kaynak') AS bolum,
                COALESCE(u.istasyon, 0) AS istasyon,
                u.referans_kodu,
                SUM(u.ok_adet)  as toplam_ok,
@@ -6389,7 +6463,8 @@ def ozet():
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
-        GROUP BY v.operator_adi, v.robot_no, COALESCE(u.istasyon, 0), u.referans_kodu
+        GROUP BY v.operator_adi, v.robot_no, COALESCE(v.bolum, 'kaynak'),
+                 COALESCE(u.istasyon, 0), u.referans_kodu
         ORDER BY toplam_ok DESC
     ''', param_vardiya).fetchall()]
     # Hattı ÜRETİM KAYDINDA seçilen bölümlerde (2026-08-18: TK1 montaj + tel,
@@ -6399,8 +6474,10 @@ def ozet():
         _o['hat'] = kayit_hatti(_o.get('robot_no'), _o.get('istasyon'))
     # Tel'de adım karşılığı da verilir ('Kapama 3' → 'Kapama') — frontend adım
     # bazlı gruplayabilsin, hat numarasını ayrıca gösterebilsin.
-    if (bolum or '') == 'tel':
+    if 'tel' in bolumler or not bolumler:
         for _o in operator_uretim:
+            if (_o.get('bolum') or '') != 'tel':
+                continue
             _o['adim'] = (tel_koddan_adim(_o.get('referans_kodu'))
                           or tel_hat_adimi(_o.get('hat')) or '')
 
@@ -6435,6 +6512,7 @@ def ozet():
         SELECT u.id as uretim_id,
                v.tarih,
                v.robot_no,
+               COALESCE(v.bolum, 'kaynak') as bolum,
                v.operator_adi,
                u.referans_kodu,
                u.ok_adet,
@@ -6459,11 +6537,13 @@ def ozet():
     # tutmuyordu; filtre de vardiyanın robot_no'suna baktığı için artık
     # kullanılmayan eski hat adları ('LF-LFP', 'Pull', 'Kapama 1') listede
     # kalıyordu. Diğer bölümlerde kayit_hatti zaten robot_no'yu döndürür → fark yok.
+    # grup/adim SATIRIN KENDİ bölümünden hesaplanır — çoklu bölüm seçiliyken
+    # istek parametresi tek bir bölümü göstermez.
     uretim_detay_listesi = [
         {**dict(r),
          'makine': kayit_hatti(r['robot_no'], r['istasyon']),
          'adim': tel_adim_etiketi(kayit_hatti(r['robot_no'], r['istasyon'])),
-         'grup': kayit_grubu(bolum or 'kaynak', r['robot_no'], r['istasyon'])}
+         'grup': kayit_grubu(r['bolum'], r['robot_no'], r['istasyon'])}
         for r in uretim_detay_listesi
     ]
 
@@ -6472,10 +6552,15 @@ def ozet():
     # bölümlerde v.robot_no sabit hattır — yalnız onunla gruplayınca bu tablo
     # 'Tel Üretimi' başlığı altında TEK öbek oluyordu. 'makine' alanı kaydın
     # gerçek makinesini taşır; panel başlığı ondan yazılır.
+    # 'grup' de eklenir: panel bu tabloyu üretim listesiyle AYNI süzgeçten
+    # geçiriyor (makine + proses adımı) — alanlar aynı adlarda olmalı.
     robot_referans_uretim = [
-        {**dict(r), 'makine': kayit_hatti(r['robot_no'], r['istasyon'])}
+        {**dict(r),
+         'makine': kayit_hatti(r['robot_no'], r['istasyon']),
+         'grup': kayit_grubu(r['bolum'], r['robot_no'], r['istasyon'])}
         for r in c.execute(f'''
         SELECT v.robot_no,
+               COALESCE(v.bolum, 'kaynak') as bolum,
                COALESCE(u.istasyon, 0) as istasyon,
                u.referans_kodu,
                SUM(u.ok_adet)  as toplam_ok,
@@ -6485,8 +6570,10 @@ def ozet():
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
-        GROUP BY v.robot_no, COALESCE(u.istasyon, 0), u.referans_kodu
-        ORDER BY v.robot_no, COALESCE(u.istasyon, 0), toplam_uretim DESC
+        GROUP BY v.robot_no, COALESCE(v.bolum, 'kaynak'),
+                 COALESCE(u.istasyon, 0), u.referans_kodu
+        ORDER BY COALESCE(v.bolum, 'kaynak'), v.robot_no,
+                 COALESCE(u.istasyon, 0), toplam_uretim DESC
     ''', param_vardiya).fetchall()]
 
     # Robot + Duruş bazlı kırılım (Güncellendi: Tekil kayıt - Düzenlenebilir)
@@ -6515,7 +6602,8 @@ def ozet():
         _v_limit = 50
     _v_limit = max(1, min(1000, _v_limit))
     son_vardiyalar = c.execute(
-        f'SELECT v.id FROM vardiyalar v WHERE {sart_vardiya} ORDER BY v.tarih DESC, v.id DESC LIMIT ?',
+        f"SELECT v.id, COALESCE(v.bolum,'kaynak') bolum FROM vardiyalar v "
+        f'WHERE {sart_vardiya} ORDER BY v.tarih DESC, v.id DESC LIMIT ?',
         param_vardiya + [_v_limit]
     ).fetchall()
 
@@ -6552,6 +6640,8 @@ def ozet():
                 'tarih': oee_data['tarih'],
                 'vardiya': oee_data['vardiya_turu'],
                 'robot': oee_data['robot_no'],
+                'bolum': row['bolum'],        # çoklu bölüm seçiliyken satır hangi bölüm
+
                 'makineler': _mak,            # boşsa robot_no zaten makinedir
                 'operator': oee_data['operator'],
                 'baslangic_saati': oee_data.get('baslangic_saati', ''),
@@ -6599,8 +6689,13 @@ def ozet():
         # Bu bölümde makine/hat ÜRETİM KAYDINDA mı seçiliyor? Panel filtresi ve
         # tablo başlığı buna göre kurulur (etiket boşsa hat vardiyada seçilir).
         'makine_etiketi': kayit_makine_etiketi(
-            lokasyon, bolum or 'kaynak',
+            lokasyon, (bolumler[0] if len(bolumler) == 1 else (bolum or 'kaynak')),
             [r['robot_no'] for r in robot_uretim]),
+        # Çoklu bölümde tek etiket anlamsız — her bölümün kendi terimi
+        # ('Masa' / 'Makine' / '' = hat vardiyada seçilir).
+        'makine_etiketleri': {_b: kayit_makine_etiketi(lokasyon, _b)
+                              for _b in (bolumler or [])},
+        'secili_bolumler': bolumler,
         'referans_uretim': [dict(r) for r in referans_uretim],
         'operator_uretim': operator_uretim,   # operatör × hat/adım × referans (2026-08-04)
         'uretim_detay_listesi': uretim_detay_listesi,
