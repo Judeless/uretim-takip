@@ -8201,6 +8201,9 @@ def operator_performans_api():
     resp = jsonify({
         'donem': {'bas': bas, 'bit': bit, 'lokasyon': lokasyon or 'HEPSİ',
                   'bolum': bolum or 'HEPSİ',
+                  # Bölüm seçilmediyse cycle süresi tanımsız bölümler hariç
+                  # (bkz. analiz.OEE_DISI_BOLUMLER) — ekranda yazılır.
+                  'haric_bolumler': ([] if bolum else list(_an.OEE_DISI_BOLUMLER)),
                   'gun': len({v['tarih'] for v in vardiyalar})},
         'ozet': _an._topla(vardiyalar),
         'operatorler': _an.operator_performans(vardiyalar),

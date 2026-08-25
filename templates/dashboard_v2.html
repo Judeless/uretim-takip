@@ -10958,7 +10958,34 @@ window.__I18N_SOZLUK__ = {
                 kutu('Hurda', anYuzde(o.hurda_oran)) +
                 kutu('Vardiya', anSayi(o.vardiya)) +
                 kutu('Plansız duruş', anSayi(o.plansiz_dk) + ' dk') +
-                '</div>';
+                '</div>' + anKapsamNotu(o, donem);
+        }
+
+        // ── RAKAMIN NEYİ KAPSADIĞI (2026-08-25) ───────────────────────────
+        // İki bilgi de OEE'yi doğru okumak için ŞART, ikisi de sessizce
+        // kaybolabilecek türden:
+        //  · haric_bolumler : cycle süresi tanımsız bölümler havuza girmedi
+        //                     (bölüm AÇIKÇA seçilirse hariç tutma yapılmaz)
+        //  · olcum_kapsami  : üretimin yüzde kaçının cycle süresi tanımlı.
+        //                     Düşükse OEE olduğundan DÜŞÜK çıkar — rakama ne
+        //                     kadar güvenileceği buradan anlaşılır.
+        function anKapsamNotu(o, donem) {
+            var parcalar = [];
+            var haric = (donem && donem.haric_bolumler) || [];
+            if (haric.length) {
+                parcalar.push('⛔ Hariç: <b>' + haric.map(function (b) { return esc(bolumAdi(b)); }).join(', ') +
+                              '</b> (cycle süresi tanımlı değil — bölüm filtresinden seçerek görebilirsiniz)');
+            }
+            if (typeof o.olcum_kapsami === 'number') {
+                var k = o.olcum_kapsami;
+                var renk = k >= 90 ? 'var(--success)' : (k >= 70 ? 'var(--warn)' : 'var(--danger)');
+                parcalar.push('📏 Ölçüm kapsamı: <b style="color:' + renk + '">%' + k.toFixed(1) +
+                              '</b> (üretimin bu kadarının cycle süresi tanımlı)' +
+                              (k < 90 ? ' — kalanı performansa katkı vermez, OEE olduğundan düşük görünür' : ''));
+            }
+            if (!parcalar.length) return '';
+            return '<div style="margin-top:8px;font-size:.72rem;color:var(--muted);line-height:1.7">' +
+                   parcalar.join('<br>') + '</div>';
         }
 
         async function yukleOperatorPerformans() {

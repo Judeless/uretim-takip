@@ -90,6 +90,23 @@ def _gecen_dk(vardiya):
     return dk
 
 
+# ── OEE HESABINA GİRMEYEN BÖLÜMLER (kullanıcı 2026-08-25) ───────────────────
+# "TK2'de genel oee hesaplama kısmına işleme bölümünü katmayalım çünkü süre
+#  tanımlamaları yapılı değil" → aynısı analiz ve operatör performansı için de
+#  istendi.
+# Cycle süresi tanımsız üretim performansa SIFIR katkı verir ama vardiyanın
+# çalışma süresi paydaya girer; sonuç fabrika/operatör OEE'sini olduğundan DÜŞÜK
+# gösterir (ölçüm: Temmuz TK2 genel OEE işleme dahil %78,3 — hariç %87,6).
+#
+# KURAL: bölüm AÇIKÇA seçilmişse hariç tutma YAPILMAZ. Yani işleme'yi incelemek
+# isteyen bölüm filtresinden seçer ve her şeyi olduğu gibi görür; hariç tutma
+# yalnız BÖLÜMLER ARASI (fabrika geneli) görünümde çalışır.
+#
+# Süreler tanımlanınca bu listeden ÇIKARILMALI — aksi hâlde gerçek üretim
+# sessizce analiz dışında kalır.
+OEE_DISI_BOLUMLER = ('isleme',)
+
+
 def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
     """Dönemdeki her vardiyanın OEE bileşenleri — TOPLU sorgularla.
 
@@ -111,8 +128,14 @@ def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
         sql += " AND COALESCE(lokasyon,'TK2') = ?"
         par.append(lokasyon)
     if bolum:
+        # Bölüm AÇIKÇA seçildi → hariç tutma YOK (işleme de incelenebilsin)
         sql += " AND COALESCE(bolum,'kaynak') = ?"
         par.append(bolum)
+    elif OEE_DISI_BOLUMLER:
+        # Bölümler arası görünüm → cycle süresi tanımsız bölümler havuza girmez
+        sql += (" AND COALESCE(bolum,'kaynak') NOT IN ("
+                + ','.join('?' * len(OEE_DISI_BOLUMLER)) + ")")
+        par.extend(OEE_DISI_BOLUMLER)
     vardiyalar = conn.execute(sql, par).fetchall()
     if not vardiyalar:
         return []
@@ -951,6 +974,9 @@ def analiz_yap(bas, bit, lokasyon=None, bolum=None, yorum=False, conn=None):
         sonuc = {
             'donem': {'bas': bas, 'bit': bit, 'lokasyon': lokasyon or 'HEPSİ',
                       'bolum': bolum or 'HEPSİ',
+                      # Hangi bölümlerin dışarıda bırakıldığı EKRANDA yazsın:
+                      # sessiz eksiltme, yanlış sayıdan daha kötüdür.
+                      'haric_bolumler': ([] if bolum else list(OEE_DISI_BOLUMLER)),
                       'gun': len({v['tarih'] for v in vardiyalar})},
             'ozet': genel,
             'operatorler': op_tablo,
