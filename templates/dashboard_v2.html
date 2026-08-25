@@ -4662,7 +4662,9 @@ window.__I18N_SOZLUK__ = {
                          vardiyaları havuzlanarak hesaplanan tek fabrika değeridir. -->
                     <div class="ft-hero" style="--hero-rgb:124,58,237" id="ft-oee-kutu"
                          title="Tüm bölümlerin vardiyaları havuzlanıp OEE formülü bir kez uygulanır (bölüm ortalamalarının ortalaması DEĞİL)">
-                        <span class="ft-deger" id="ft-oee">—</span><span class="ft-etiket">📊 Genel OEE</span></div>
+                        <span class="ft-deger" id="ft-oee">—</span>
+                        <span class="ft-etiket">📊 Genel OEE</span>
+                        <span id="ft-oee-not" style="display:none;font-size:.62rem;opacity:.75;margin-top:2px"></span></div>
                 </div>
                 <div class="bolum-grid" id="bolum-grid"></div>
 
@@ -6892,12 +6894,28 @@ window.__I18N_SOZLUK__ = {
         // Bileşenleri sunucu gönderiyor (/api/ozet → vardiyalar[].net_plan_dk …).
         // Eski backend bu alanları göndermiyorsa (henüz restart edilmemiş) değer
         // '—' kalır; yanlış sayı göstermektense boş bırakılır.
-        function genelOeeCiz(sonuclar) {
+        // ── GENEL OEE'YE KATILMAYAN BÖLÜMLER (kullanıcı 2026-08-25) ────────
+        // "TK2'de genel oee hesaplama kısmına işleme bölümünü katmayalım çünkü
+        //  süre tanımlamaları yapılı değil."
+        // Cycle süresi tanımsız üretim performansa SIFIR katkı verir; havuza
+        // girince fabrika OEE'sini olduğundan DÜŞÜK gösterir (bkz. olcum_kapsami).
+        // Bölümün KENDİ kartı ve OEE halkası DEĞİŞMEZ — yalnız fabrika havuzuna
+        // girmez. Süreler tanımlanınca bu listeden çıkarılmalı.
+        var OEE_DISI_BOLUMLER = ['isleme'];
+
+        function genelOeeCiz(sonuclar, bolumler) {
             var el = document.getElementById('ft-oee');
             var kutu = document.getElementById('ft-oee-kutu');
             if (!el) return;
             var net = 0, cal = 0, sn = 0, ok = 0, nok = 0, n = 0, bilesenVar = false;
-            (sonuclar || []).forEach(function (d) {
+            var atlanan = [];
+            (sonuclar || []).forEach(function (d, i) {
+                var b = (bolumler || [])[i];
+                if (b && OEE_DISI_BOLUMLER.indexOf(b) !== -1) {
+                    // Kartı yine çizilir; yalnız fabrika havuzuna girmez.
+                    if (d && Array.isArray(d.vardiyalar) && d.vardiyalar.length) atlanan.push(bolumAdi(b));
+                    return;
+                }
                 if (!d || !Array.isArray(d.vardiyalar)) return;
                 d.vardiyalar.forEach(function (v) {
                     if (typeof v.net_plan_dk === 'number') bilesenVar = true;
@@ -6922,12 +6940,18 @@ window.__I18N_SOZLUK__ = {
             var q = (ok + nok) > 0 ? (ok / (ok + nok)) : 0;
             var oee = a * Math.min(p, 1) * q * 100;
             el.textContent = oee.toFixed(1) + '%';
+            var notEl = document.getElementById('ft-oee-not');
+            if (notEl) {
+                notEl.style.display = atlanan.length ? '' : 'none';
+                notEl.textContent = atlanan.length ? (atlanan.join(', ') + ' hariç') : '';
+            }
             if (kutu) {
                 kutu.title = n + ' vardiya havuzlandı · Kullanılabilirlik ' + (a * 100).toFixed(1) +
                     '% · Performans ' + (p * 100).toFixed(1) + '% · Kalite ' + (q * 100).toFixed(1) + '%' +
                     '\nBölüm ortalamalarının ortalaması değil — bileşenler toplanıp formül bir kez uygulanır.' +
                     '\nÜretim süresi vardiya başına kırpılır: bir vardiya kendi çalışma süresinden' +
-                    '\nfazlasını üretmiş sayılmaz (yoksa cycle süresi cömert tanımlı vardiyalar toplamı şişirir).';
+                    '\nfazlasını üretmiş sayılmaz (yoksa cycle süresi cömert tanımlı vardiyalar toplamı şişirir).' +
+                    (atlanan.length ? '\nHARİÇ: ' + atlanan.join(', ') + ' (cycle süresi tanımlı değil)' : '');
             }
         }
 
@@ -7547,7 +7571,7 @@ window.__I18N_SOZLUK__ = {
                 document.getElementById('ft-ok').textContent = fmt(topOk);
                 document.getElementById('ft-vardiya').textContent = fmt(topVardiya);
                 document.getElementById('ft-durus').textContent = fmt(topDurus);
-                genelOeeCiz(sonuclar);
+                genelOeeCiz(sonuclar, bolumler);
             });
         }
 
