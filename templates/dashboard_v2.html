@@ -5035,6 +5035,11 @@ window.__I18N_SOZLUK__ = {
                     <div id="eksik-ref-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
                 </div>
 
+                <!-- Aktarımda okunan dosyanın kimliği (yalnız aktarımdan sonra görünür) -->
+                <div id="ref-kaynak-dosya" style="display:none;font-size:.75rem;color:var(--text);
+                     background:var(--primary-soft);border:1px solid var(--primary-line);
+                     border-radius:10px;padding:9px 13px;margin-bottom:12px;line-height:1.6"></div>
+
                 <!-- Referans listesi -->
                 <div class="panel-card">
                     <div class="panel-header">
@@ -5050,6 +5055,14 @@ window.__I18N_SOZLUK__ = {
                                     <th class="kaynak-only" style="text-align:right;display:none">Söktak (sn)</th>
                                     <th style="text-align:right">Toplam Cycle (sn)</th>
                                     <th class="kaynak-only" style="text-align:center;display:none;width:130px">Süre Teyit</th>
+                                    <!-- AS400 depo kodlari — yalniz TK1 plastik (kullanici 2026-08-25:
+                                         "2 depo tanimlamasini da gorebileyim"). Duzelt modalini
+                                         acmadan listede gorunur, boylece hangi urunun deposu
+                                         degistirilmis tek bakista anlasilir. -->
+                                    <th class="depo-only" style="text-align:center;display:none;width:90px"
+                                        title="AS400 Warehouse cd">Depo</th>
+                                    <th class="depo-only" style="text-align:center;display:none;width:110px"
+                                        title="AS400 Counterpart War.cd">Karşı Depo</th>
                                     <th style="width:100px;text-align:center">İşlem</th>
                                 </tr>
                             </thead>
@@ -8576,8 +8589,14 @@ window.__I18N_SOZLUK__ = {
             document.querySelectorAll('#ref-tbl-head .kaynak-only').forEach(el => {
                 el.style.display = isKaynak ? '' : 'none';
             });
+            // Depo kolonlari YALNIZ TK1 plastikte: baska bolumde AS400 depo kodu
+            // sabittir (01D) ve referans bazinda tanimlanmaz.
+            const depoVar = (aktifLokasyon === 'TK1' && aktifBolum === 'plastik');
+            document.querySelectorAll('#ref-tbl-head .depo-only').forEach(el => {
+                el.style.display = depoVar ? '' : 'none';
+            });
             document.getElementById('teyit-ozet-banner').style.display = isKaynak ? '' : 'none';
-            const colspan = isKaynak ? 7 : 4;
+            const colspan = (isKaynak ? 7 : 4) + (depoVar ? 2 : 0);
 
             // Filtre uygula (sadece kaynakta anlamlı)
             const liste = isKaynak ? data.filter(refFiltresinden) : data;
@@ -8632,6 +8651,16 @@ window.__I18N_SOZLUK__ = {
                                 : `<button onclick="refTeyitTogle('${r.referans_kodu}', 1)" style="background:rgba(251,191,36,0.12);color:var(--lg-amber);border:1px solid rgba(251,191,36,0.45);border-radius:6px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-weight:700">⏳ Teyit ver</button>`
                         }
                     </td>`) : '';
+                // Depo hucreleri: bos ise UYARI olarak gosterilir — o referansa AS400
+                // teyidi VERILMEZ (bkz. app._cfi_depo_kodlari), listede gorunsun.
+                const depoCells = depoVar ? (
+                    `<td style="text-align:center">${r.depo_kodu
+                        ? `<span class="badge badge-blue">${esc(r.depo_kodu)}</span>`
+                        : '<span style="color:var(--danger);font-weight:700;font-size:.72rem" title="Depo kodu yok — bu referansa AS400 teyidi verilmez">⚠ yok</span>'}</td>
+                     <td style="text-align:center">${r.karsi_depo_kodu
+                        ? `<span class="badge badge-blue">${esc(r.karsi_depo_kodu)}</span>`
+                        : '<span style="color:var(--danger);font-weight:700;font-size:.72rem" title="Karşı depo kodu yok — bu referansa AS400 teyidi verilmez">⚠ yok</span>'}</td>`
+                ) : '';
                 return `
                     <tr style="cursor:pointer" onclick="refDuzenle(${duzenleArgs})">
                         <td><b>${r.referans_kodu}</b></td>
@@ -8639,6 +8668,7 @@ window.__I18N_SOZLUK__ = {
                         ${sureCells}
                         <td style="text-align:right;font-weight:700">${ct || '0'} sn</td>
                         ${teyitCell}
+                        ${depoCells}
                         <td style="text-align:center;white-space:nowrap" onclick="event.stopPropagation()">
                             <button class="adm-btn duzenle" style="margin-right:4px" title="Düzenle"
                                     onclick="refDuzenle(${duzenleArgs})">✏️</button>
@@ -8767,6 +8797,14 @@ window.__I18N_SOZLUK__ = {
 
         function refModalAc() {
             refModalKaynakModuKur();
+            // TK1 plastikte depo kodlari VARSAYILAN 01/01 gelir (kullanici
+            // 2026-08-25: "ben degisecek kisimlari degistiririm"). Sunucu tarafinda
+            // da ayni varsayilan var (database.py migration) — elle eklenen ya da
+            // Excel'den gelen referanslar da 01/01 ile baslar.
+            var _d0 = document.getElementById('ref-depo');
+            var _k0 = document.getElementById('ref-karsi-depo');
+            if (_d0) _d0.value = '01';
+            if (_k0) _k0.value = '01';
             document.getElementById('ref-modal-title').textContent = 'Yeni Referans Ekle';
             document.getElementById('ref-kod').disabled = false;
             document.getElementById('ref-kod-degistir-btn').style.display = 'none';
@@ -9047,6 +9085,22 @@ window.__I18N_SOZLUK__ = {
                     if (data.program_eklenen !== undefined) mesaj += `, ${data.program_eklenen} program`;
                     if (data.fikstur_eklenen !== undefined) mesaj += `, ${data.fikstur_eklenen} fikstür`;
                     toast(mesaj, 'ok');
+                    // OKUNAN DOSYAYI SÖYLE (kullanıcı 2026-08-25). Aktarım
+                    // UYGULAMANIN YANINDAKİ data/ klasörünü okur; uygulama sunucuda
+                    // koştuğu için laptoptaki Excel'i düzenlemek hiçbir şey
+                    // değiştirmez. "Aktardım ama gelmedi" bir daha teşhis
+                    // gerektirmesin diye dosyanın yolu + değişme zamanı gösterilir.
+                    if (data.kaynak_dosya && data.kaynak_dosya.yol) {
+                        var kd = data.kaynak_dosya;
+                        var kutu = document.getElementById('ref-kaynak-dosya');
+                        if (kutu) {
+                            kutu.style.display = '';
+                            kutu.innerHTML = '📄 Okunan dosya: <b>' + esc(kd.yol) + '</b>' +
+                                (kd.degisme ? ' · son değişme <b>' + esc(kd.degisme) + '</b>' : '') +
+                                '<br><span style="color:var(--muted)">Bu dosya UYGULAMANIN KOŞTUĞU makinededir. ' +
+                                'Başka bir bilgisayardaki kopyayı düzenlemek aktarımı etkilemez.</span>';
+                        }
+                    }
                     if (aktifSayfa === 'referanslar') {
                         yukleReferanslar();
                     }

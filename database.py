@@ -374,6 +374,23 @@ def init_db():
         except Exception:
             pass
 
+    # VARSAYILAN 01 / 01 (kullanıcı 2026-08-25: "default olarak iki depoyu da 01
+    # ve 01 olarak tanımlayalım, ben değişecek kısımları değiştiririm").
+    # YALNIZ TK1 PLASTİK ve YALNIZ BOŞ olanlar: dolu bir kod ASLA ezilmez.
+    # Idempotent — her açılışta çalışır, yalnız yeni/boş satırlara dokunur.
+    # NOT: bu, "depo kodu boşsa teyit verme" frenini zayıflatır (artık boş
+    # kalmıyor). Kullanıcı bunu bilerek istedi; fren yerinde duruyor ve biri
+    # alanı KASITLI temizlerse yine devreye girer.
+    try:
+        c.execute("UPDATE referans_listesi SET depo_kodu='01' "
+                  "WHERE COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(bolum,'kaynak')='plastik' "
+                  "  AND COALESCE(depo_kodu,'')=''")
+        c.execute("UPDATE referans_listesi SET karsi_depo_kodu='01' "
+                  "WHERE COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(bolum,'kaynak')='plastik' "
+                  "  AND COALESCE(karsi_depo_kodu,'')=''")
+    except Exception as e:
+        print(f'[MIGRATION] TK1 plastik depo varsayilani hata: {e}')
+
     for _sql in (
         "ALTER TABLE uretim_kayitlari ADD COLUMN paket_adedi INTEGER DEFAULT 1",
         "ALTER TABLE referans_listesi ADD COLUMN paket_adedi INTEGER DEFAULT 1",

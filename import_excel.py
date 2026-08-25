@@ -670,9 +670,41 @@ def import_tk1(conn=None):
     # NOT: referans_kodu GLOBAL UNIQUE → TK2 ile çakışan TK1 kodları INSERT OR IGNORE ile
     # atlanır (atlanan = bu kodlar TK2'de var). Tam ayrışma için UNIQUE(referans_kodu,lokasyon)
     # migration gerekir (bkz. lokasyon denetimi). 'referanslar_guncellenen' UI mesajı için 0.
+    # ── TK1 PLASTİK DEPO VARSAYILANI 01/01 (kullanıcı 2026-08-25) ─────────
+    # database.py migration'ı da aynı işi yapar ama O YALNIZ AÇILIŞTA çalışır;
+    # aktarımla YENİ gelen referanslar bir sonraki yeniden başlatmaya kadar boş
+    # kalırdı ve o aralıkta AS400 teyidi verilemezdi. Boş olanlara dokunur,
+    # DOLU kodu ASLA ezmez.
+    try:
+        c.execute("UPDATE referans_listesi SET depo_kodu='01' "
+                  "WHERE COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(bolum,'kaynak')='plastik' "
+                  "  AND COALESCE(depo_kodu,'')=''")
+        c.execute("UPDATE referans_listesi SET karsi_depo_kodu='01' "
+                  "WHERE COALESCE(lokasyon,'TK2')='TK1' AND COALESCE(bolum,'kaynak')='plastik' "
+                  "  AND COALESCE(karsi_depo_kodu,'')=''")
+        conn.commit()
+    except Exception as _e:
+        print(f'[TK1] plastik depo varsayilani atlandi: {_e}')
+
+    # ── OKUNAN DOSYANIN KİMLİĞİ (kullanıcı 2026-08-25) ─────────────────────
+    # "Laptopumdaki Excel'de değişiklik yapmıştım, bundan dolayı olabilir mi?"
+    # EVET: aktarım UYGULAMANIN YANINDAKİ data/ klasörünü okur. Uygulama sunucuda
+    # koştuğu için okunan dosya SUNUCUDAKİ kopyadır; laptoptaki düzenleme oraya
+    # kendiliğinden GİTMEZ (data/ gitignore'da ve Guncelle.bat sunucudaki data/'yı
+    # bilerek korur). Hangi dosyanın okunduğu ve NE ZAMAN değiştiği artık yanıtta
+    # dönüyor — "aktardım ama değişmedi" bir daha teşhis gerektirmesin.
+    _dosya_bilgi = {'yol': TK1_EXCEL_YOL}
+    try:
+        import datetime as _dt
+        _st = os.stat(TK1_EXCEL_YOL)
+        _dosya_bilgi['degisme'] = _dt.datetime.fromtimestamp(_st.st_mtime).strftime('%Y-%m-%d %H:%M')
+        _dosya_bilgi['boyut'] = _st.st_size
+    except OSError:
+        pass
     return {'basarili': True, 'referanslar_eklenen': ref_eklenen,
             'referanslar_guncellenen': 0, 'referanslar_silinen': 0,
-            'operatorler_eklenen': op_eklenen}
+            'operatorler_eklenen': op_eklenen,
+            'kaynak_dosya': _dosya_bilgi}
 
 
 def import_data(bolum=None):
