@@ -3878,7 +3878,9 @@ def referans_listesi():
     conn = get_db()
     base = ("SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, "
             "sure_teyit, sure_teyit_tarihi, COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
-            "COALESCE(paket_adedi,1) AS paket_adedi "
+            "COALESCE(paket_adedi,1) AS paket_adedi, "
+            "COALESCE(depo_kodu,'') AS depo_kodu, "
+            "COALESCE(karsi_depo_kodu,'') AS karsi_depo_kodu "
             "FROM referans_listesi")
     sql = base + " WHERE REPLACE(referans_kodu, ' ', '') LIKE REPLACE(?, ' ', '')"
     params = [f'%{q}%']
@@ -3925,15 +3927,28 @@ def referans_ekle():
             "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=?",
             (ref, bolum, lokasyon)
         ).fetchone()
+        # AS400 depo kodları — GÖNDERİLMEDİYSE DOKUNULMAZ (None), gönderildiyse
+        # (boş string dahil) yazılır. Kod alanı serbest metin değil ERP kodu:
+        # büyük harfe çevrilip boşluklar atılır, 5 karakterle sınırlanır (ekran alanı).
+        def _depo(x):
+            if x is None:
+                return None
+            return str(x).strip().upper().replace(' ', '')[:5]
+        d_kod = _depo(data.get('depo_kodu'))
+        k_kod = _depo(data.get('karsi_depo_kodu'))
+
         if mevcut:
             conn.execute(
-                "UPDATE referans_listesi SET aciklama=?, hedef_cycle_time_sn=? WHERE id=?",
-                (desc, ct, mevcut['id'])
+                "UPDATE referans_listesi SET aciklama=?, hedef_cycle_time_sn=?, "
+                "depo_kodu=COALESCE(?, depo_kodu), "
+                "karsi_depo_kodu=COALESCE(?, karsi_depo_kodu) WHERE id=?",
+                (desc, ct, d_kod, k_kod, mevcut['id'])
             )
         else:
             conn.execute(
-                "INSERT INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, bolum, lokasyon) VALUES (?, ?, ?, ?, ?)",
-                (ref, desc, ct, bolum, lokasyon)
+                "INSERT INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, "
+                "bolum, lokasyon, depo_kodu, karsi_depo_kodu) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (ref, desc, ct, bolum, lokasyon, d_kod or '', k_kod or '')
             )
 
         # Geriye dönük: aynı referansın geçmiş üretim kayıtlarının cycle'ını güncelle —
@@ -4176,6 +4191,134 @@ def referans_excel_indir():
     wb.save(bellek)
     bellek.seek(0)
     _ad = f"referanslar_{bolum}_{lokasyon}_{date.today().isoformat()}.xlsx"
+    return send_file(bellek, as_attachment=True, download_name=_ad,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def kayit_grubu(bolum, robot_no, istasyon):
+    """Üretim kaydının GRUP etiketi — Kayıtlar sayfasındaki kırılım ve Excel için.
+
+    Kullanıcı 2026-08-25: "tk1'de tel üretimi kısmında kapama makineleri
+    üretimlerini bir arada gruplanmış şekilde görelim ve dilersek filtre ile
+    sadece kapama bölümünün üretim verilerini excel ile indirebilelim."
+
+    TEL'de grup = PROSES ADIMI ('Kapama 5' → 'Kapama'): 12 kapama presi tek
+    başlıkta toplanır, kullanıcı "kapama ne üretti" sorusunu tek bakışta görür.
+    Diğer bölümlerde grup = MAKİNE (pres/plastik/lazer'de makine üretim
+    kaydındadır); makinesiz bölümlerde (kaynak/montaj) vardiyanın hattı.
+    """
+    if bolum == 'tel':
+        adim = tel_adim_etiketi(kayit_hatti(robot_no, istasyon))
+        if adim:
+            return adim
+    return kayit_makine_ad(robot_no, istasyon) or str(robot_no or '').strip() or '—'
+
+
+@app.route('/api/kayitlar/uretim_excel', methods=['GET'])
+@panel_gerekli(izin='kayitlar')
+def kayitlar_uretim_excel():
+    """Kayıtlar sayfasındaki üretim listesini .xlsx olarak indirir.
+
+    Query: ?tarih_bas&tarih_bit&bolum&lokasyon&robot&grup
+    'grup' verilirse YALNIZ o grup (tel'de proses adımı, diğerlerinde makine)
+    dışa aktarılır — ekrandaki filtre ile birebir aynı küme iner.
+
+    İki sayfa: 'Üretim' (satır satır, grup sütunlu) + 'Özet' (grup × gün).
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
+    import io as _io
+
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper()
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    bugun = date.today().isoformat()
+    t_bas = (request.args.get('tarih_bas') or bugun).strip()
+    t_bit = (request.args.get('tarih_bit') or bugun).strip()
+    robot = (request.args.get('robot') or '').strip()
+    grup_f = (request.args.get('grup') or '').strip()
+
+    kosul = ["v.tarih BETWEEN ? AND ?", "COALESCE(v.bolum,'kaynak')=?",
+             "COALESCE(v.lokasyon,'TK2')=?"]
+    parm = [t_bas, t_bit, bolum, lokasyon]
+    if robot:
+        kosul.append("v.robot_no=?")
+        parm.append(robot)
+
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT v.tarih, v.vardiya_turu, v.robot_no, v.operator_adi, "
+        "       COALESCE(u.istasyon,0) istasyon, u.referans_kodu, "
+        "       COALESCE(u.ok_adet,0) ok_adet, COALESCE(u.nok_adet,0) nok_adet, "
+        "       COALESCE(u.cycle_time_sn,0) ct, COALESCE(u.aciklama,'') aciklama "
+        "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id=u.vardiya_id "
+        "WHERE " + " AND ".join(kosul) +
+        " ORDER BY v.tarih, u.referans_kodu", parm).fetchall()
+
+    satirlar = []
+    for r in rows:
+        g = kayit_grubu(bolum, r['robot_no'], r['istasyon'])
+        if grup_f and g != grup_f:
+            continue
+        satirlar.append({
+            'tarih': r['tarih'], 'vardiya': r['vardiya_turu'], 'grup': g,
+            'hat': kayit_makine_ad(r['robot_no'], r['istasyon']) or r['robot_no'],
+            'operator': r['operator_adi'], 'ref': r['referans_kodu'],
+            'ok': int(r['ok_adet']), 'nok': int(r['nok_adet']),
+            'ct': round(float(r['ct'] or 0), 1), 'aciklama': r['aciklama'],
+        })
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Üretim'
+    basliklar = ['Tarih', 'Vardiya', 'Grup', 'Makine / Hat', 'Operatör',
+                 'Referans', 'OK', 'NOK', 'CT (sn)', 'Açıklama']
+    ws.append(basliklar)
+    _bf, _bd = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor='6D28D9')
+    for h in ws[1]:
+        h.font, h.fill = _bf, _bd
+        h.alignment = Alignment(horizontal='center', vertical='center')
+    for s in satirlar:
+        ws.append([s['tarih'], s['vardiya'], s['grup'], s['hat'], s['operator'],
+                   s['ref'], s['ok'], s['nok'], s['ct'], s['aciklama']])
+    for i, _b in enumerate(basliklar, start=1):
+        en = max([len(str(_b))] + [len(str(c.value or '')) for c in ws[chr(64 + i)]][:500])
+        ws.column_dimensions[chr(64 + i)].width = min(max(en + 3, 10), 42)
+    ws.freeze_panes = 'A2'
+
+    # ── ÖZET: grup × gün (kullanıcının asıl istediği "bir arada gruplanmış" görünüm)
+    ws2 = wb.create_sheet('Özet')
+    gunler = sorted({s['tarih'] for s in satirlar})
+    gruplar = sorted({s['grup'] for s in satirlar})
+    ws2.append(['Grup'] + gunler + ['TOPLAM OK', 'TOPLAM NOK'])
+    for h in ws2[1]:
+        h.font, h.fill = _bf, _bd
+        h.alignment = Alignment(horizontal='center', vertical='center')
+    for g in gruplar:
+        satir = [g]
+        for gun in gunler:
+            satir.append(sum(s['ok'] for s in satirlar if s['grup'] == g and s['tarih'] == gun))
+        satir.append(sum(s['ok'] for s in satirlar if s['grup'] == g))
+        satir.append(sum(s['nok'] for s in satirlar if s['grup'] == g))
+        ws2.append(satir)
+    if gruplar:
+        gt = ['GENEL TOPLAM']
+        for gun in gunler:
+            gt.append(sum(s['ok'] for s in satirlar if s['tarih'] == gun))
+        gt.append(sum(s['ok'] for s in satirlar))
+        gt.append(sum(s['nok'] for s in satirlar))
+        ws2.append(gt)
+        for c in ws2[ws2.max_row]:
+            c.font = Font(bold=True)
+    ws2.column_dimensions['A'].width = 26
+    ws2.freeze_panes = 'B2'
+
+    bellek = _io.BytesIO()
+    wb.save(bellek)
+    bellek.seek(0)
+    _ek = f"_{grup_f.replace(' ', '_')}" if grup_f else ''
+    _ad = f"uretim_{lokasyon}_{bolum}{_ek}_{t_bas}_{t_bit}.xlsx"
     return send_file(bellek, as_attachment=True, download_name=_ad,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -6032,7 +6175,8 @@ def sayac_toplam_api():
     lokasyon = (request.args.get('lokasyon') or '').strip().upper()
     tarih = (request.args.get('tarih') or date.today().isoformat()).strip()
     pilot_db = _pilot_db_yolu()
-    bos = {'tarih': tarih, 'toplam': 0, 'bolumler': [], 'cihaz_sayisi': 0, 'okunabildi': False}
+    bos = {'tarih': tarih, 'toplam': 0, 'bugun': 0, 'ilk_gun': None,
+           'bolumler': [], 'cihaz_sayisi': 0, 'okunabildi': False}
     if not os.path.exists(pilot_db):
         return jsonify(bos)
     try:
@@ -6040,17 +6184,22 @@ def sayac_toplam_api():
         pc.row_factory = sqlite3.Row
         try:
             pc.execute('PRAGMA busy_timeout=5000')
+            # TOPLAM = BUGÜNE KADARKİ HER ŞEY (kullanıcı 2026-08-25: "sadece
+            # günlük olmasın"). Günlük değer ayrıca döner (rozet ipucunda).
             rows = pc.execute(
-                "SELECT bolum, robot_no, COUNT(*) AS n FROM sayac_olaylari "
-                "WHERE date(ts)=? GROUP BY bolum, robot_no", (tarih,)
+                "SELECT bolum, robot_no, COUNT(*) AS n, "
+                "       SUM(CASE WHEN date(ts)=? THEN 1 ELSE 0 END) AS bugun "
+                "FROM sayac_olaylari GROUP BY bolum, robot_no", (tarih,)
             ).fetchall()
+            ilk = pc.execute("SELECT MIN(date(ts)) FROM sayac_olaylari").fetchone()
+            ilk_gun = ilk[0] if ilk else None
         finally:
             pc.close()
     except Exception as e:
         print(f'[sayac_toplam] pilot.db okunamadı: {e}')
         return jsonify(bos)
 
-    bolum_top, toplam, cihazlar = {}, 0, set()
+    bolum_top, toplam, bugun_top, cihazlar = {}, 0, 0, set()
     for r in rows:
         cihaz = r['robot_no']
         if lokasyon:
@@ -6061,10 +6210,13 @@ def sayac_toplam_api():
         b = r['bolum'] or '—'
         bolum_top[b] = bolum_top.get(b, 0) + n
         toplam += n
+        bugun_top += int(r['bugun'] or 0)
         cihazlar.add(cihaz)
     return jsonify({
         'tarih': tarih,
-        'toplam': toplam,
+        'toplam': toplam,          # BUGÜNE KADARKİ tüm sinyaller
+        'bugun': bugun_top,        # yalnız bugün (ipucunda gösterilir)
+        'ilk_gun': ilk_gun,        # "… tarihinden beri" etiketi için
         'cihaz_sayisi': len(cihazlar),
         'bolumler': sorted(
             [{'bolum': b, 'ad': BOLUM_AD.get(b, b), 'sinyal': n} for b, n in bolum_top.items()],
@@ -6228,8 +6380,12 @@ def ozet():
     # gösteriyor (eski 'Operatör Bazlı Üretim' paneli kaldırıldı, sütunu buraya
     # taşındı). Adım hat adından türer — tel_proses tek kaynak, istemci kendi
     # kopyasını tutmaz.
+    # 'grup' = Kayıtlar sayfasındaki kırılım başlığı (tel'de proses adımı, diğer
+    # bölümlerde makine) — Excel indirmesiyle BİREBİR aynı kural (kayit_grubu).
     uretim_detay_listesi = [
-        {**dict(r), 'adim': tel_adim_etiketi(kayit_hatti(r['robot_no'], r['istasyon']))}
+        {**dict(r),
+         'adim': tel_adim_etiketi(kayit_hatti(r['robot_no'], r['istasyon'])),
+         'grup': kayit_grubu(bolum or 'kaynak', r['robot_no'], r['istasyon'])}
         for r in uretim_detay_listesi
     ]
 
@@ -6326,7 +6482,14 @@ def ozet():
                 # boyunca toplayıp formülü bir kez uygular (analiz._topla kalıbı).
                 'net_plan_dk': oee_data.get('net_plan_dk', 0),
                 'calisma_dk': oee_data.get('calisma_suresi_dk', 0),
-                'gercek_uretim_sn': oee_data.get('gercek_uretim_sn', 0),
+                # KIRPILMIŞ gönderilir (kullanıcı 2026-08-25): bir vardiya kendi
+                # çalışma süresinden fazlasını üretmiş sayılamaz. Ham değer
+                # gönderilseydi cycle time'ı cömert bir vardiya (%199) havuzda
+                # cycle'ı tanımsız vardiyaları sübvanse eder ve Genel OEE
+                # olduğundan ~30 puan yüksek çıkardı. Kural analiz._topla ile AYNI.
+                'gercek_uretim_sn': min(oee_data.get('gercek_uretim_sn', 0),
+                                        oee_data.get('calisma_suresi_dk', 0) * 60),
+                'gercek_uretim_sn_ham': oee_data.get('gercek_uretim_sn', 0),
                 'ok': oee_data['toplam_ok'],
                 'nok': oee_data['toplam_nok'],
                 'hedef': oee_data['toplam_hedef'],
@@ -9001,6 +9164,38 @@ def _as400_cfi_bugun(article, causal='CFI'):
         cn.close()
 
 
+# TK1 plastikte teyit AYNI DEPOYA gitmez: her urunun Warehouse cd ve
+# Counterpart War.cd'si farkli (kullanici 2026-08-25). Kodlar referans kartinda
+# tanimlanir (referans_listesi.depo_kodu / karsi_depo_kodu).
+# BOSSA TEYIT VERILMEZ (kullanici karari): yanlis depoya stok yazmak, gec
+# teyitten cok daha pahalidir ve fark edilmesi zordur.
+CFI_VARSAYILAN_DEPO = ('01D', '01D')      # TK2 davranisi — cfi_gir.js varsayilani
+CFI_DEPO_ZORUNLU_KAPSAM = {('TK1', 'plastik')}
+
+
+def _cfi_depo_kodlari(conn, referans, tesis, bolum):
+    """(warehouse, counterpart, hata_mesaji). Hata varsa satir GONDERILMEZ."""
+    kapsam = (str(tesis or '').upper(), str(bolum or ''))
+    if kapsam not in CFI_DEPO_ZORUNLU_KAPSAM:
+        return CFI_VARSAYILAN_DEPO[0], CFI_VARSAYILAN_DEPO[1], None
+    r = conn.execute(
+        "SELECT COALESCE(depo_kodu,'') d, COALESCE(karsi_depo_kodu,'') k "
+        "FROM referans_listesi "
+        "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+        "  AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? LIMIT 1",
+        (referans, kapsam[1], kapsam[0])).fetchone()
+    d = (r['d'] or '').strip() if r else ''
+    k = (r['k'] or '').strip() if r else ''
+    if not d:
+        return None, None, ('Depo kodu tanımlı değil — Referanslar sayfasında bu referansın '
+                            '"Warehouse cd" alanını doldurun (yanlış depoya stok yazılmasın diye '
+                            'teyit gönderilmedi).')
+    if not k:
+        return None, None, ('Counterpart War.cd tanımlı değil — Referanslar sayfasında doldurun '
+                            '(teyit gönderilmedi).')
+    return d, k, None
+
+
 def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
     """CFI depo girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
     ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
@@ -9099,7 +9294,16 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
         if gecersiz:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
             continue
-        cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet], 120)
+        # DEPO KODLARI — TK1 plastikte referanstan gelir, eksikse SATIR ATLANIR.
+        # 'zorla' bunu ATLAMAZ: eksik depo kodu bir kod-eşleşme şüphesi değil,
+        # bilginin HİÇ olmamasıdır; zorlamak yanlış depoya yazmak demektir.
+        _wh, _cp, _depo_hata = _cfi_depo_kodlari(
+            conn, referans, s.get('tesis'), s.get('bolum'))
+        if _depo_hata:
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': _depo_hata})
+            continue
+        _robot_arg = [article, adet, 'CFI', f'WH={_wh}', f'CP={_cp}']
+        cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', _robot_arg, 120)
         if robot_hata:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
             continue

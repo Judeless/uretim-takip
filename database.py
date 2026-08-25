@@ -359,6 +359,21 @@ def init_db():
     # iki zıt anlam yüklemek ileride mutlaka yanlış bölmeye/çarpmaya yol açar.
     #   uretim_kayitlari.paket_adedi → O KAYIT için kullanılan çarpan
     #   referans_listesi.paket_adedi → referansın HATIRLANAN varsayılanı
+    # ── AS400 DEPO KODLARI (kullanıcı 2026-08-25) ───────────────────────────
+    # TK1 plastik enjeksiyonda HER ÜRÜNÜN deposu farklı: AS400 'MOVIMENTI DI
+    # MAGAZZINO' ekranındaki Warehouse cd ve Counterpart War.cd ürün bazında
+    # değişiyor. TK2'de ikisi de sabit 01D olduğu için cfi_gir.js'e gömülüydü.
+    # Artık referans bazında tanımlanır; boşsa o referansa TEYİT VERİLMEZ
+    # (kullanıcı kararı — yanlış depoya stok yazmak geç teyitten pahalı).
+    for _sql in (
+        "ALTER TABLE referans_listesi ADD COLUMN depo_kodu TEXT DEFAULT ''",
+        "ALTER TABLE referans_listesi ADD COLUMN karsi_depo_kodu TEXT DEFAULT ''",
+    ):
+        try:
+            c.execute(_sql)
+        except Exception:
+            pass
+
     for _sql in (
         "ALTER TABLE uretim_kayitlari ADD COLUMN paket_adedi INTEGER DEFAULT 1",
         "ALTER TABLE referans_listesi ADD COLUMN paket_adedi INTEGER DEFAULT 1",

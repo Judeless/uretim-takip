@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // AS400 CFI DEPO GIRISI (launch'siz uretim) — Session B, 07>01>F1 ekrani.
-// Kullanim: cscript //nologo cfi_gir.js <article> <adet> [DRYRUN]
+// Kullanim: cscript //nologo cfi_gir.js <article> <adet> [CFI|COP] [WH=01D] [CP=01D] [DRYRUN]
 //   ornek:  ... cfi_gir.js "10.130.5420GRW" 53
 // Akis (kullanici 2026-07-20 ogretti; 5420GRW 53 adet elle girilerek kanitlandi):
 //   07 > 01 > F1 → "2-Variation" giris ekrani.
@@ -11,7 +11,7 @@
 // Log: as400\teyit_loglari\<zaman>_CFI_<kod>.txt
 // ═══════════════════════════════════════════════════════════════════
 var args = WScript.Arguments;
-if (args.length < 2) { WScript.Echo("HATA: arguman eksik (article adet [CFI|COP] [DRYRUN])"); WScript.Echo("SONUC=IPTAL"); WScript.Quit(2); }
+if (args.length < 2) { WScript.Echo("HATA: arguman eksik (article adet [CFI|COP] [WH=..] [CP=..] [DRYRUN])"); WScript.Echo("SONUC=IPTAL"); WScript.Quit(2); }
 var OTURUM = "B";
 var ARTICLE = ("" + args(0)).replace(/^\s+|\s+$/g, "");
 var ADET = "" + args(1);
@@ -20,8 +20,23 @@ var ADET = "" + args(1);
 var CAUSAL = (args.length >= 3 && ("" + args(2)).toUpperCase() !== "DRYRUN")
     ? ("" + args(2)).toUpperCase() : "CFI";
 var DRYRUN = false;
-for (var ai = 2; ai < args.length; ai++)
-    if (("" + args(ai)).toUpperCase() === "DRYRUN") DRYRUN = true;
+// DEPO KODLARI (kullanici 2026-08-25) — TK1 plastikte her urunun deposu farkli.
+// Varsayilan 01D/01D: TK2 davranisi AYNEN korunur, cagiran gondermezse hicbir sey
+// degismez. Bicim: WH=xxx / CP=xxx (CP= bos gonderilirse counterpart TEMIZLENIR).
+var WAREHOUSE = "01D";
+var COUNTERPART = "01D";
+var CP_VERILDI = false;
+for (var ai = 2; ai < args.length; ai++) {
+    var a = "" + args(ai);
+    if (a.toUpperCase() === "DRYRUN") { DRYRUN = true; continue; }
+    if (a.toUpperCase().indexOf("WH=") === 0) WAREHOUSE = a.substring(3).replace(/^\s+|\s+$/g, "").toUpperCase();
+    if (a.toUpperCase().indexOf("CP=") === 0) { COUNTERPART = a.substring(3).replace(/^\s+|\s+$/g, "").toUpperCase(); CP_VERILDI = true; }
+}
+// Depo kodu ekran alanina yazilir: bosluk/kose parantez/uzun deger ekrani bozar.
+if (!/^[A-Za-z0-9]{1,5}$/.test(WAREHOUSE) || (COUNTERPART !== "" && !/^[A-Za-z0-9]{1,5}$/.test(COUNTERPART))) {
+    WScript.Echo("HATA: gecersiz depo kodu (WH='" + WAREHOUSE + "' CP='" + COUNTERPART + "')");
+    WScript.Echo("SONUC=IPTAL"); WScript.Quit(2);
+}
 // ARTICLE FILTRESI (2026-07-31 duzeltmesi) — eskiden beyaz listeydi:
 //   ^[A-Za-z0-9.\-\/]{5,20}$   → ALT CIZGI listede YOK.
 // Sonuc: "10.300.1992A_LK" icin COP "gecersiz parametre" ile IPTAL oluyordu;
@@ -165,7 +180,10 @@ var cpSat = satirBul(sat, "Counterpart War.cd");
 if (whSat < 0 || caSat < 0 || arSat < 0 || qtSat < 0 || cpSat < 0)
     iptal("Alan etiketleri bulunamadi (wh=" + whSat + " ca=" + caSat + " ar=" + arSat + " qt=" + qtSat + " cp=" + cpSat + ")");
 // Deger sutunu: Warehouse satirindaki '01D' konumundan; yoksa varsayilan 25.
-var kol = sat[whSat - 1].indexOf("01D") + 1;
+// Deger sutunu: ekranda YAZILI olan depo kodundan bulunur. Once beklenen kod,
+// sonra 01D (onceki girdiden kalmis olabilir) denenir; ikisi de yoksa varsayilan.
+var kol = sat[whSat - 1].indexOf(WAREHOUSE) + 1;
+if (kol <= 0) kol = sat[whSat - 1].indexOf("01D") + 1;
 if (kol <= 0) kol = 25;
 log("G1: alan haritasi — wh@" + whSat + " ca@" + caSat + " ar@" + arSat + " qty@" + qtSat + " cp@" + cpSat + " kolon=" + kol);
 
@@ -257,7 +275,7 @@ function alanYaz(satir, deger, etiket) {
     if (geri.toUpperCase() !== deger.toUpperCase())
         iptal(etiket + " yazilamadi (yanki: '" + geri + "')");
 }
-if (alanOku(whSat) !== "01D") alanYaz(whSat, "01D", "Warehouse cd");
+if (alanOku(whSat) !== WAREHOUSE) alanYaz(whSat, WAREHOUSE, "Warehouse cd");
 if (alanOku(caSat) !== CAUSAL) alanYaz(caSat, CAUSAL, "Causal cd");
 if (CAUSAL === "COP") {
     // HURDA: Counterpart War.cd BOS OLMALI (kullanici 2026-07-23). Onceki CFI
@@ -269,7 +287,13 @@ if (CAUSAL === "COP") {
         log("COP: Counterpart War.cd temizlendi (bos)");
     }
 } else {
-    if (alanOku(cpSat) !== "01D") alanYaz(cpSat, "01D", "Counterpart War.cd");
+    // CP= bos verildiyse counterpart TEMIZLENIR (COP'taki temizleme kalibi)
+    if (CP_VERILDI && COUNTERPART === "") {
+        if (alanOku(cpSat) !== "") { alanYaz(cpSat, "   ", "Counterpart War.cd (temizle)"); }
+        if (alanOku(cpSat) !== "") iptal("Counterpart War.cd temizlenemedi: '" + alanOku(cpSat) + "'");
+    } else if (alanOku(cpSat) !== COUNTERPART) {
+        alanYaz(cpSat, COUNTERPART, "Counterpart War.cd");
+    }
 }
 
 // GUVENLIK: Causal beklenenle birebir ayni olmali (yanlis hareket girilmesin)

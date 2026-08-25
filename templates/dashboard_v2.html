@@ -4813,7 +4813,21 @@ window.__I18N_SOZLUK__ = {
                             <option value="">Tümü</option>
                         </select>
                     </div>
+                    <!-- GRUP FİLTRESİ (kullanıcı 2026-08-25): tel'de proses adımı
+                         (12 kapama presi tek başlıkta), diğer bölümlerde makine.
+                         Seçenekler yüklenen veriden türetilir — sabit liste tutulmaz. -->
+                    <div class="f-group">
+                        <label id="f-grup-label" for="f-grup">Grup</label>
+                        <select id="f-grup" onchange="kayitGrupDegisti()">
+                            <option value="">Tümü</option>
+                        </select>
+                    </div>
                     <button class="btn btn-primary" onclick="yukleKayitlar()">🔍 Filtrele</button>
+                    <button class="btn" onclick="kayitlarExcelIndir()" id="ky-excel-btn"
+                        title="Ekrandaki filtrelerle aynı küme iner (grup seçiliyse yalnız o grup)"
+                        style="padding:9px 16px;min-height:40px;border:1px solid var(--primary-line);background:var(--primary-soft);color:var(--primary);border-radius:10px;font-weight:800;font-size:.82rem;cursor:pointer;font-family:var(--font-main)">
+                        ⬇ Excel
+                    </button>
                 </div>
 
                 <div class="alt-sekme-bar" id="ky-sekme-bar" role="tablist" aria-label="Kayıt sekmeleri">
@@ -6410,6 +6424,27 @@ window.__I18N_SOZLUK__ = {
                         💡 Toplam = Kaynak + Söktak (otomatik hesaplanır)
                     </div>
                 </div>
+                <!-- AS400 DEPO KODLARI — yalnız TK1 plastik (kullanıcı 2026-08-25).
+                     Bu bölümde her ürünün deposu farklı; teyit robotu bu değerleri
+                     'MOVIMENTI DI MAGAZZINO' ekranına yazar. BOŞSA TEYİT VERİLMEZ. -->
+                <div class="modal-form-row" id="ref-depo-row" style="display:none">
+                    <label>AS400 Depo Kodları</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                        <div>
+                            <input type="text" id="ref-depo" placeholder="Warehouse cd" maxlength="5"
+                                   style="text-transform:uppercase">
+                            <div style="font-size:.68rem;color:var(--muted);margin-top:3px">Warehouse cd</div>
+                        </div>
+                        <div>
+                            <input type="text" id="ref-karsi-depo" placeholder="Counterpart" maxlength="5"
+                                   style="text-transform:uppercase">
+                            <div style="font-size:.68rem;color:var(--muted);margin-top:3px">Counterpart War.cd</div>
+                        </div>
+                    </div>
+                    <div style="font-size:.7rem;color:var(--warn);margin-top:5px">
+                        ⚠ Boş bırakılırsa bu referansa AS400 teyidi verilmez (yanlış depoya stok yazılmasın).
+                    </div>
+                </div>
                 <div class="modal-form-row" id="ref-teyit-row" style="display:none">
                     <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:10px">
                         <input type="checkbox" id="ref-teyit-cb" style="width:18px;height:18px;cursor:pointer">
@@ -6855,6 +6890,8 @@ window.__I18N_SOZLUK__ = {
                     if (typeof v.net_plan_dk === 'number') bilesenVar = true;
                     net += Number(v.net_plan_dk) || 0;
                     cal += Number(v.calisma_dk) || 0;
+                    // gercek_uretim_sn sunucudan VARDİYA BAŞINA KIRPILMIŞ gelir —
+                    // burada tekrar kırpma YOK, kural tek yerde (bkz. /api/ozet).
                     sn  += Number(v.gercek_uretim_sn) || 0;
                     ok  += Number(v.ok) || 0;
                     nok += Number(v.nok) || 0;
@@ -6874,8 +6911,10 @@ window.__I18N_SOZLUK__ = {
             el.textContent = oee.toFixed(1) + '%';
             if (kutu) {
                 kutu.title = n + ' vardiya havuzlandı · Kullanılabilirlik ' + (a * 100).toFixed(1) +
-                    '% · Performans ' + (p * 100).toFixed(1) + '% · Kalite ' + (q * 100).toFixed(1) +
-                    '%' + '\n(Bölüm ortalamalarının ortalaması değil — bileşenler toplanıp formül bir kez uygulanır)';
+                    '% · Performans ' + (p * 100).toFixed(1) + '% · Kalite ' + (q * 100).toFixed(1) + '%' +
+                    '\nBölüm ortalamalarının ortalaması değil — bileşenler toplanıp formül bir kez uygulanır.' +
+                    '\nÜretim süresi vardiya başına kırpılır: bir vardiya kendi çalışma süresinden' +
+                    '\nfazlasını üretmiş sayılmaz (yoksa cycle süresi cömert tanımlı vardiyalar toplamı şişirir).';
             }
         }
 
@@ -7807,8 +7846,9 @@ window.__I18N_SOZLUK__ = {
                 if (istek !== kayitlarIstekNo) return; // bayat yanıt — at
                 kyOzetData = veri;
 
-                // Üretim kayıtları
-                guncelleUretimDetay(kyOzetData.uretim_detay_listesi || []);
+                // Grup seçenekleri yüklenen veriden — sonra AKTİF filtre uygulanır
+                kayitGrupSecenekleri(kyOzetData.uretim_detay_listesi || []);
+                guncelleUretimDetay(kayitGrupSuz(kyOzetData.uretim_detay_listesi || []));
                 // Duruş kırılımı
                 guncelleDurusKirilim(kyOzetData.durus_dagilim || [], kyOzetData.durus_tipi_ozet || []);
                 // Robot bazlı kırılımlar
@@ -7826,6 +7866,49 @@ window.__I18N_SOZLUK__ = {
                 console.error(e);
                 toast('Veri yüklenemedi: ' + e.message, 'err');
             }
+        }
+
+        // ── KAYITLAR: GRUP FİLTRESİ (2026-08-25) ──────────────────────────
+        // Seçenekler yüklenen veriden türetilir (sabit liste YOK — yeni makine
+        // eklenince kendiliğinden gelir). Filtre SADECE istemcide uygulanır;
+        // Excel indirmesi aynı grubu sunucuya parametre olarak geçirir.
+        function kayitGrupSecenekleri(liste) {
+            var sel = document.getElementById('f-grup');
+            var lbl = document.getElementById('f-grup-label');
+            if (!sel) return;
+            if (lbl) lbl.textContent = (aktifBolum === 'tel') ? 'Proses' : 'Makine';
+            var onceki = sel.value;
+            var gruplar = [];
+            (liste || []).forEach(function (u) {
+                var g = u.grup || '';
+                if (g && gruplar.indexOf(g) === -1) gruplar.push(g);
+            });
+            gruplar.sort(function (a, b) { return a.localeCompare(b, 'tr'); });
+            sel.innerHTML = '<option value="">Tümü</option>' + gruplar.map(function (g) {
+                return '<option value="' + esc(g) + '">' + esc(g) + '</option>';
+            }).join('');
+            sel.value = (onceki && gruplar.indexOf(onceki) !== -1) ? onceki : '';
+        }
+        function kayitGrupSuz(liste) {
+            var g = (document.getElementById('f-grup') || {}).value || '';
+            return g ? (liste || []).filter(function (u) { return (u.grup || '') === g; }) : (liste || []);
+        }
+        function kayitGrupDegisti() {
+            // Yeniden istek ATMAZ — veri zaten elde; yalnız tablo süzülür
+            guncelleUretimDetay(kayitGrupSuz((kyOzetData && kyOzetData.uretim_detay_listesi) || []));
+        }
+        function kayitlarExcelIndir() {
+            var bas = document.getElementById('f-bas').value;
+            var bit = document.getElementById('f-bit').value;
+            var robot = (document.getElementById('f-robot') || {}).value || '';
+            var grup = (document.getElementById('f-grup') || {}).value || '';
+            var u = '/api/kayitlar/uretim_excel?tarih_bas=' + encodeURIComponent(bas) +
+                    '&tarih_bit=' + encodeURIComponent(bit) +
+                    '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
+                    '&bolum=' + encodeURIComponent(aktifBolum) +
+                    (robot ? '&robot=' + encodeURIComponent(robot) : '') +
+                    (grup ? '&grup=' + encodeURIComponent(grup) : '');
+            window.location.href = u;
         }
 
         // ── VARDİYA KAYITLARI TABLOSU ──
@@ -7985,8 +8068,11 @@ window.__I18N_SOZLUK__ = {
             // kolay olsun." Backend artık tarih → REFERANS → robot sırasıyla
             // gönderiyor; burada aynı referans bloğu görsel olarak gruplanıyor
             // ve blok birden fazla satırsa altına toplam ekleniyor.
-            const grupAnahtar = u => (u.tarih || '') + '|' + (u.referans_kodu || '');
-            let html = '', blok = [], oncekiTarih = null;
+            // GRUP KIRILIMI (2026-08-25): satırlar önce GRUBA göre öbeklenir
+            // (tel'de proses adımı — 12 kapama presi tek başlık altında; diğer
+            // bölümlerde makine). Her grubun başında başlık, sonunda ara toplam.
+            const grupAnahtar = u => (u.grup || '') + '|' + (u.tarih || '') + '|' + (u.referans_kodu || '');
+            let html = '', blok = [], oncekiTarih = null, oncekiGrup = null, grupBirikim = [];
 
             function blokYaz() {
                 if (!blok.length) return;
@@ -8027,16 +8113,47 @@ window.__I18N_SOZLUK__ = {
                 blok = [];
             }
 
-            data.forEach(u => {
+            function grupToplamiYaz() {
+                if (!grupBirikim.length || grupBirikim.length === 0) { grupBirikim = []; return; }
+                const gOk = grupBirikim.reduce((a, u) => a + (u.ok_adet || 0), 0);
+                const gNok = grupBirikim.reduce((a, u) => a + (u.nok_adet || 0), 0);
+                html += `<tr style="background:var(--primary-soft);border-bottom:2px solid var(--primary-line)">
+                    <td colspan="4" style="text-align:right;font-size:.8rem;color:var(--primary);font-weight:800">
+                        ${esc(oncekiGrup || '—')} toplamı (${grupBirikim.length} kayıt) →</td>
+                    <td style="text-align:right;color:var(--primary);font-weight:900">${gOk}</td>
+                    <td style="text-align:right;color:${gNok > 0 ? 'var(--danger)' : 'var(--muted)'};font-weight:900">${gNok}</td>
+                    <td colspan="2"></td>
+                </tr>`;
+                grupBirikim = [];
+            }
+
+            // Gruba göre öbekle; grup içinde tarih → referans sırası korunur
+            const sirali = data.slice().sort((a, b) =>
+                String(a.grup || '').localeCompare(String(b.grup || ''), 'tr') ||
+                String(a.tarih || '').localeCompare(String(b.tarih || '')) ||
+                String(a.referans_kodu || '').localeCompare(String(b.referans_kodu || ''), 'tr'));
+
+            sirali.forEach(u => {
                 if (blok.length && grupAnahtar(blok[0]) !== grupAnahtar(u)) blokYaz();
+                if (oncekiGrup !== null && oncekiGrup !== (u.grup || '')) {
+                    grupToplamiYaz();
+                    oncekiTarih = null;
+                }
+                if (oncekiGrup !== (u.grup || '')) {
+                    html += `<tr><td colspan="8" style="background:var(--surface-2);border-top:2px solid var(--primary-line);padding:7px 10px;font-weight:800;color:var(--primary);font-size:.82rem">
+                        ▸ ${esc(u.grup || '—')}</td></tr>`;
+                    oncekiGrup = u.grup || '';
+                }
                 // Gün değişiminde ayırıcı — tarih sütunu yalnız blok başında yazılıyor
                 if (oncekiTarih !== null && oncekiTarih !== u.tarih && !blok.length) {
                     html += `<tr><td colspan="8" style="padding:2px 0;background:var(--border-subtle)"></td></tr>`;
                 }
                 oncekiTarih = u.tarih;
                 blok.push(u);
+                grupBirikim.push(u);
             });
             blokYaz();
+            grupToplamiYaz();
             tbody.innerHTML = html;
         }
 
@@ -8495,7 +8612,12 @@ window.__I18N_SOZLUK__ = {
                 const teyit = (r.sure_teyit == 1);
                 const teyitTarihi = r.sure_teyit_tarihi ? r.sure_teyit_tarihi.slice(0, 10) : '';
                 const aciklamaEscaped = (r.aciklama || '').replace(/'/g, "\\'");
-                const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}, ${teyit ? 1 : 0}`;
+                // Depo kodları (TK1 plastik) — tek tırnak kaçışı aciklamaEscaped kalıbıyla aynı
+                // Sunucu depo kodunu [A-Za-z0-9]{1,5}e indirger; yine de onclick
+                // icine gomuldugu icin tek tirnak kacirilir.
+                const _dp = String(r.depo_kodu || '').replace(/'/g, "\\'");
+                const _kd = String(r.karsi_depo_kodu || '').replace(/'/g, "\\'");
+                const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}, ${teyit ? 1 : 0}, '${_dp}', '${_kd}'`;
                 const sureCells = isKaynak
                     ? `<td style="text-align:right;font-weight:700;color:var(--lg-amber)">${k || '—'}</td>
                        <td style="text-align:right;font-weight:700;color:var(--primary)">${s || '—'}</td>`
@@ -8627,6 +8749,11 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('ref-modal-soktak-row').style.display = isKaynak ? '' : 'none';
             document.getElementById('ref-cycle-info').style.display = isKaynak ? '' : 'none';
             document.getElementById('ref-teyit-row').style.display = isKaynak ? '' : 'none';
+            // AS400 depo kodları YALNIZ TK1 plastikte: orada her ürünün deposu
+            // farklı. Diğer bölümlerde sabit 01D (cfi_gir.js varsayılanı).
+            var depoRow = document.getElementById('ref-depo-row');
+            if (depoRow) depoRow.style.display =
+                (aktifLokasyon === 'TK1' && aktifBolum === 'plastik') ? '' : 'none';
             document.getElementById('ref-cycle').readOnly = isKaynak;  // Kaynak modunda hesaplı, elle değişmez
             document.getElementById('ref-cycle-label').textContent =
                 isKaynak ? 'Toplam Cycle (Kaynak + Söktak — otomatik)' : 'Hedef Cycle Time (saniye/parça)';
@@ -8647,7 +8774,7 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('ref-modal').classList.add('open');
         }
 
-        function refDuzenle(kod, desc, ct, kaynak, soktak, teyit) {
+        function refDuzenle(kod, desc, ct, kaynak, soktak, teyit, depo, karsiDepo) {
             refModalKaynakModuKur();
             document.getElementById('ref-modal-title').textContent = 'Referans Düzenle';
             document.getElementById('ref-kod').value = kod;
@@ -8660,13 +8787,18 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('ref-cycle').value = ct || 0;
             const teyitCb = document.getElementById('ref-teyit-cb');
             if (teyitCb) teyitCb.checked = (teyit == 1);
+            var dEl = document.getElementById('ref-depo');
+            var kEl = document.getElementById('ref-karsi-depo');
+            if (dEl) dEl.value = depo || '';
+            if (kEl) kEl.value = karsiDepo || '';
             document.getElementById('ref-modal').classList.add('open');
         }
 
         function refModalKapat(e) {
             if (!e || e.target === document.getElementById('ref-modal')) {
                 document.getElementById('ref-modal').classList.remove('open');
-                ['ref-kod', 'ref-aciklama', 'ref-cycle', 'ref-kaynak-sn', 'ref-soktak-sn'].forEach(id => {
+                ['ref-kod', 'ref-aciklama', 'ref-cycle', 'ref-kaynak-sn', 'ref-soktak-sn',
+                 'ref-depo', 'ref-karsi-depo'].forEach(id => {
                     const el = document.getElementById(id);
                     if(el) el.value = '';
                 });
@@ -8758,7 +8890,13 @@ window.__I18N_SOZLUK__ = {
                         bolum: aktifBolum,
                         // LOKASYON ZORUNLU (2026-07-29): backend lokasyon yoksa TK2 varsayıyor →
                         // TK1'deyken kaydedilen referans TK2 satırının üstüne yazıyordu.
-                        lokasyon: aktifLokasyon
+                        lokasyon: aktifLokasyon,
+                        // Depo kodları YALNIZ TK1 plastikte gönderilir. Diğer bölümlerde
+                        // alan gönderilmez → sunucu mevcut değere DOKUNMAZ (COALESCE).
+                        ...((aktifLokasyon === 'TK1' && aktifBolum === 'plastik') ? {
+                            depo_kodu: (document.getElementById('ref-depo') || {}).value || '',
+                            karsi_depo_kodu: (document.getElementById('ref-karsi-depo') || {}).value || ''
+                        } : {})
                     })
                 });
                 if (!res.ok) {
@@ -13332,7 +13470,8 @@ window.__I18N_SOZLUK__ = {
             } else {
                 url = '/api/as400/cfi_gonder';
                 govde = { zorla: true, satirlar: [{ referans: s.referans, article: s.article,
-                          adet: s.adet, uretim_tarihi: s.uretim_tarihi }] };
+                          adet: s.adet, uretim_tarihi: s.uretim_tarihi,
+                          tesis: s.tesis, bolum: s.bolum }] };
             }
             toast('🤖 Zorla gönderiliyor — robot çalışıyor, bekleyin…', 'info');
             try {
@@ -13370,8 +13509,15 @@ window.__I18N_SOZLUK__ = {
                 if (!cb || !cb.checked) return;
                 var adet = parseInt((document.getElementById('as4-cfi-adet-' + i) || {}).value) || 0;
                 if (adet <= 0) return;
+                // tesis/bolum ŞART (2026-08-25): sunucu depo kodunu (Warehouse /
+                // Counterpart) bu ikisiyle çözüyor. TK1 plastikte her ürünün deposu
+                // farklı; gönderilmezse TK2 varsayılanı (01D) kullanılır ve stok
+                // YANLIŞ depoya yazılırdı.
                 cfiSec.push({ uretim_tarihi: b.tarih, referans: b.r.referans,
                               article: b.article || b.r.referans, adet: adet,
+                              tesis: b.r.tesis, bolum: b.r.bolum,
+                              depo_kodu: b.r.depo_kodu || '',
+                              karsi_depo_kodu: b.r.karsi_depo_kodu || '',
                               hurda: (b.r.hurda || 0) });
             });
             if (!launchSec.length && !cfiSec.length) { toast('Gönderilecek satır seçilmedi', 'error'); return; }
@@ -13386,8 +13532,14 @@ window.__I18N_SOZLUK__ = {
                 }).join('\n') + (kapatilacak.length ? '\n  ⚠️ ' + kapatilacak.length + ' LAUNCH KAPATILACAK (S) — bir daha teyit alamaz!' : ''));
             }
             if (cfiSec.length) {
-                bolumler.push('📦 ' + cfiSec.length + ' CFI girişi (launch\'sız — 01D/CFI/01D):\n' + cfiSec.map(function (s) {
-                    return '  · [' + s.uretim_tarihi + '] ' + s.article + ' → ' + s.adet + ' adet' +
+                bolumler.push('📦 ' + cfiSec.length + ' CFI girişi (launch\'sız):\n' + cfiSec.map(function (s) {
+                    // Depo kodu satır bazında değişir (TK1 plastik) — onayda
+                    // GÖRÜNSÜN ki yanlış depo gönderilmeden önce fark edilsin.
+                    var depo = (s.depo_kodu || s.karsi_depo_kodu)
+                        ? ((s.depo_kodu || '?') + '/CFI/' + (s.karsi_depo_kodu || '?'))
+                        : '01D/CFI/01D';
+                    return '  · [' + s.uretim_tarihi + '] ' + s.article + ' → ' + s.adet +
+                        ' adet  (' + depo + ')' +
                         (s.hurda > 0 ? ' (♻ hurda ' + s.hurda + ' → COP)' : '');
                 }).join('\n'));
             }
@@ -13977,8 +14129,9 @@ window.__I18N_SOZLUK__ = {
                     var kirilim = (d.bolumler || []).map(function (b) {
                         return '  ' + b.ad + ': ' + fmt(b.sinyal);
                     }).join('\n');
-                    kutu.title = 'Saha sayaçları — bugün toplam ' + fmt(d.toplam) + ' sinyal' +
-                        ' (' + d.cihaz_sayisi + ' cihaz)\n' + kirilim +
+                    kutu.title = 'Saha sayaçları — TOPLAM ' + fmt(d.toplam) + ' sinyal' +
+                        (d.ilk_gun ? ' (' + d.ilk_gun + ' tarihinden beri)' : '') +
+                        '\nBugün: ' + fmt(d.bugun || 0) + ' sinyal · ' + d.cihaz_sayisi + ' cihaz\n' + kirilim +
                         '\n\nHam sinyal sayısıdır, üretim adedi değildir.\nSaha Cihazları sayfası için tıklayın.';
                 })
                 .catch(function () {

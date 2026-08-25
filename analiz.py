@@ -225,12 +225,23 @@ def _topla(vardiyalar):
     taşır ve tek bir kısa kayıt tüm tabloyu yanıltırdı."""
     net = sum(v['net_plan_dk'] for v in vardiyalar)
     cal = sum(v['calisma_dk'] for v in vardiyalar)
-    sn  = sum(v['gercek_uretim_sn'] for v in vardiyalar)
+    # ── ÜRETİM SÜRESİ VARDİYA BAŞINA KIRPILIR (kullanıcı 2026-08-25) ────────
+    # Bir vardiya kendi çalışma süresinden FAZLASINI üretmiş sayılamaz. Kırpma
+    # eskiden yalnız EN SONDA (min(P,1)) yapılıyordu; havuzda bu ÇOK GEÇ:
+    # cycle time'ı cömert tanımlanmış bir vardiya %199 performansla katkı verip,
+    # cycle time'ı TANIMSIZ olduğu için 0 sn üreten vardiyaları SÜBVANSE ediyordu.
+    # Ölçüm (2026-07 TK2, 358 vardiya): 123'ü %100 üstü (ort. %199), 97'si %0 →
+    # havuz OEE 93.0 çıkıyordu; vardiya başına kırpınca 66.4. Kullanıcı "%98
+    # çıkıyor, o kadar yüksek olamaz" derken tam bu sapmayı görüyordu.
+    # TEK VARDİYADA fark yok (min(P,1) ile aynı) — sapma yalnız TOPLAMDA oluşur.
+    sn  = sum(min(v['gercek_uretim_sn'], v['calisma_dk'] * 60) for v in vardiyalar)
     ok  = sum(v['ok'] for v in vardiyalar)
     nok = sum(v['nok'] for v in vardiyalar)
     a = (cal / net) if net > 0 else 0
     p = (sn / (cal * 60)) if cal > 0 else 0
     q = (ok / (ok + nok)) if (ok + nok) > 0 else 0
+    ad_top = sum(v['toplam'] for v in vardiyalar)
+    ad_yok = sum(v['ct_yok_adet'] for v in vardiyalar)
     return {
         'vardiya': len(vardiyalar),
         'toplam_dk': sum(v['toplam_dk'] for v in vardiyalar),
@@ -244,6 +255,11 @@ def _topla(vardiyalar):
         'availability': round(a * 100, 1), 'performance': round(p * 100, 1),
         'quality': round(q * 100, 1), 'oee': round(a * min(p, 1.0) * q * 100, 1),
         'hurda_oran': round((nok / (ok + nok) * 100), 2) if (ok + nok) > 0 else 0.0,
+        # ÖLÇÜM KAPSAMI: üretimin yüzde kaçının cycle time'ı tanımlı. Düşükse
+        # performans (dolayısıyla OEE) YANILTICIDIR — tanımsız üretim performansa
+        # hiç katkı vermez, OEE olduğundan düşük çıkar. Paneller bunu OEE'nin
+        # yanında gösterir ki rakama ne kadar güvenileceği görünsün.
+        'olcum_kapsami': round((ad_top - ad_yok) / ad_top * 100, 1) if ad_top > 0 else 0.0,
     }
 
 

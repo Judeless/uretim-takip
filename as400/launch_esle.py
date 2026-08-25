@@ -191,6 +191,52 @@ def as400_launchlar():
 LAUNCH_BOLUMLERI = ('kaynak', 'metal', 'montaj', 'lazer', 'pres')
 LOKASYON = 'TK2'
 
+# ── TEYIT KAPSAMI: (tesis, bolumler) — kullanici 2026-08-25 ──────────────────
+# TK1 PLASTIK EKLENDI. O bolumde launch ALINMIYOR, dolayisiyla satirlar dogal
+# olarak 'YOK' kategorisine (= CFI kuyrugu) duser; kullanici da "cfi ile teyit
+# veririz" dedi. Diger TK1 bolumleri (montaj/tel) HALA DISARIDA.
+TEYIT_KAPSAMI = (
+    ('TK2', LAUNCH_BOLUMLERI),
+    ('TK1', ('plastik',)),
+)
+
+# app.PLASTIK_MAKINELERI ile BIREBIR olmali — sira = uretim_kayitlari.istasyon.
+# app.py bu listeyi cagirmadan once dogrular (_le_kapsam_dogrula); tutmuyorsa
+# konsola UYARI basar, cunku sira kaymasi yanlis makineyi teyit disi birakir.
+PLASTIK_MAKINELERI = ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']
+
+# TEYIT VERILMEYEN MAKINELER (kullanici 2026-08-25):
+# "yapistirma yapilan urun ile test makinesinde test edilen urunun kodu ayni
+#  oldugu icin iki makinede de uretilene teyit vermeye gerek yok — test
+#  cihazinda uretilen urunlere teyit vermeyelim."
+# Satir kuyruktan SILINMEZ, 'HARIC' kategorisine duser ve gerekce yazilir:
+# uretimin kayda gectigi gorunsun, mukerrer teyit olmasin.
+TEYIT_DISI_MAKINE = {('TK1', 'plastik', 'Sizdirmazlik Test')}
+
+
+def _kapsam_where(alias='v'):
+    """TEYIT_KAPSAMI'ni SQL kosuluna cevirir: (tesis,bolum) ciftlerinin OR'u."""
+    parcalar, parm = [], []
+    for tesis, bolumler in TEYIT_KAPSAMI:
+        yer = ','.join('?' * len(bolumler))
+        parcalar.append(f"(COALESCE({alias}.lokasyon,'TK2') = ? "
+                        f"AND COALESCE({alias}.bolum,'kaynak') IN ({yer}))")
+        parm.append(tesis)
+        parm.extend(bolumler)
+    return '(' + ' OR '.join(parcalar) + ')', parm
+
+
+def makine_adi(tesis, bolum, istasyon):
+    """Uretim kaydinin makinesi (plastik/TK1). Bilinmiyorsa ''."""
+    if bolum == 'plastik':
+        try:
+            i = int(istasyon or 0)
+        except (TypeError, ValueError):
+            return ''
+        if 1 <= i <= len(PLASTIK_MAKINELERI):
+            return PLASTIK_MAKINELERI[i - 1]
+    return ''
+
 
 def article_tanimli(kodlar):
     """ERP article master'inda (BARTF0.A0ARTI) TANIMLI olan kodlarin kumesi.
@@ -498,13 +544,21 @@ def ayni_isi_birlestir(satirlar):
     tek vardiyanin suresine bolunup yanlis 'asim' verir)."""
     grup = {}
     for r in satirlar:
-        anahtar = (r.get('tesis'), r.get('bolum'), kanonik(r.get('referans')))
+        # 'teyit_disi' ANAHTARA DAHIL (2026-08-25): op-kurali base koda cevirdikten
+        # sonra teyit disi satir (test cihazi) teyit verilecek satirla ayni base
+        # koda dusuyor ve BIRLESIYORDU -> hem HARIC ayrimi kayboluyor hem adet
+        # toplanip ERP'ye iki kat stok giriyordu.
+        anahtar = (r.get('tesis'), r.get('bolum'), kanonik(r.get('referans')),
+                   bool(r.get('teyit_disi')))
         g = grup.get(anahtar)
         if g is None:
             grup[anahtar] = dict(r)
             continue
         g['adet'] += r.get('adet', 0)
         g['hurda'] = g.get('hurda', 0) + r.get('hurda', 0)
+        for _m in (r.get('makineler') or []):
+            if _m not in g.setdefault('makineler', []):
+                g['makineler'].append(_m)
         # vardiya sureleri: id bazli tekille (ayni vardiya iki satirda gecebilir)
         gv = g.setdefault('_vardiyalar', {})
         gv.update(r.get('_vardiyalar') or {})
@@ -558,7 +612,7 @@ def son_uretim_gunleri(adet=3, bugun_haric=True, azami_geri_gun=45):
         parametresi 7 ile sinirli) — yalniz elle tarih filtresiyle bulunabildi.
     Uretim yapilan gunleri secince ara/hafta sonu/tatil pencereyi kaydirmaz.
 
-    Kapsam gun_uretimi ile AYNI (LOKASYON + LAUNCH_BOLUMLERI): TK1'de veya teyit
+    Kapsam gun_uretimi ile AYNI (TEYIT_KAPSAMI): kapsam disi bir tesiste/teyit
     disi bir bolumde uretim yapilan gun kuyruga girmez, aksi halde bos gun icin
     bosuna AS400 sorgusu atilirdi.
 
@@ -570,6 +624,7 @@ def son_uretim_gunleri(adet=3, bugun_haric=True, azami_geri_gun=45):
         bugun = date.today()
         alt_sinir = (bugun - timedelta(days=azami_geri_gun)).isoformat()
         ust_sinir = (bugun - timedelta(days=1)).isoformat() if bugun_haric else bugun.isoformat()
+        _kap_sql2, _kap_parm2 = _kapsam_where('v')
         conn = sqlite3.connect(URETIM_DB)
         try:
             rows = conn.execute(f"""
@@ -578,10 +633,9 @@ def son_uretim_gunleri(adet=3, bugun_haric=True, azami_geri_gun=45):
                 WHERE v.tarih BETWEEN ? AND ?
                   AND COALESCE(u.ok_adet,0) > 0
                   AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
-                  AND COALESCE(v.lokasyon,'TK2') = ?
-                  AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})
+                  AND {_kap_sql2}
                 ORDER BY v.tarih DESC LIMIT ?""",
-                (alt_sinir, ust_sinir, LOKASYON) + LAUNCH_BOLUMLERI + (int(adet),)).fetchall()
+                [alt_sinir, ust_sinir] + _kap_parm2 + [int(adet)]).fetchall()
         finally:
             conn.close()
         return [r[0] for r in rows]
@@ -591,7 +645,7 @@ def son_uretim_gunleri(adet=3, bugun_haric=True, azami_geri_gun=45):
 
 
 def gun_uretimi(tarih):
-    """O gunun referans+adet listesi — yalniz launch'li bolumler + TK2.
+    """O gunun referans+adet listesi — TEYIT_KAPSAMI (TK2 launch bolumleri + TK1 plastik).
     Rework kayitlari (aciklama/referans 'rework' varyanti) haric tutulur."""
     conn = sqlite3.connect(URETIM_DB)
     conn.row_factory = sqlite3.Row
@@ -607,34 +661,60 @@ def gun_uretimi(tarih):
     # UNIQUE(referans_kodu,bolum,lokasyon) bu duplikeyi ENGELLEMEZ: kısıt HAM kodda,
     # eşleşme ise normalize (UPPER+REPLACE) yapılıyor.
     # Skalar alt-sorgu satır ÇOĞALTMAZ; tam-eş yazım öncelikli, sonra dolu ct.
+    _kap_sql, _kap_parm = _kapsam_where('v')
     rows = conn.execute(f"""
         SELECT COALESCE(v.lokasyon,'TK2') tesis, COALESCE(v.bolum,'kaynak') bolum,
                u.referans_kodu referans, COALESCE(u.ok_adet,0) ok,
                COALESCE(u.nok_adet,0) nok, COALESCE(u.aciklama,'') aciklama,
+               COALESCE(u.istasyon,0) istasyon,
                (SELECT MAX(rl.hedef_cycle_time_sn) FROM referans_listesi rl
                  WHERE UPPER(REPLACE(rl.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
                    AND COALESCE(rl.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
                    AND COALESCE(rl.lokasyon,'TK2') = COALESCE(v.lokasyon,'TK2')) ct,
+               -- AS400 DEPO KODLARI (TK1 plastik): her urunun deposu farkli.
+               -- Skalar alt-sorgu (LEFT JOIN DEGIL): ayni koda normalize dusen
+               -- birden fazla satir uretim kaydini COGALTIR, adet katlanir.
+               (SELECT MAX(rl2.depo_kodu) FROM referans_listesi rl2
+                 WHERE UPPER(REPLACE(rl2.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
+                   AND COALESCE(rl2.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
+                   AND COALESCE(rl2.lokasyon,'TK2') = COALESCE(v.lokasyon,'TK2')) depo_kodu,
+               (SELECT MAX(rl3.karsi_depo_kodu) FROM referans_listesi rl3
+                 WHERE UPPER(REPLACE(rl3.referans_kodu,' ','')) = UPPER(REPLACE(u.referans_kodu,' ',''))
+                   AND COALESCE(rl3.bolum,'kaynak') = COALESCE(v.bolum,'kaynak')
+                   AND COALESCE(rl3.lokasyon,'TK2') = COALESCE(v.lokasyon,'TK2')) karsi_depo_kodu,
                v.id vardiya_id, COALESCE(v.toplam_sure_dk,0) sure_dk,
                COALESCE(v.baslangic_saati,'') bas_saat, COALESCE(v.bitis_saati,'') bit_saat
         FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE v.tarih = ? AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
-          AND COALESCE(v.lokasyon,'TK2') = ?
-          AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})
+          AND {_kap_sql}
         ORDER BY tesis, bolum, u.referans_kodu""",
-        (tarih, LOKASYON) + LAUNCH_BOLUMLERI).fetchall()
+        [tarih] + _kap_parm).fetchall()
     conn.close()
     # Grupla — rework kayitlarini ATLA (kayit bazli; ayni referansin normal uretimi kalir)
     grup = {}
     for r in rows:
         if rework_mi(r['aciklama'], r['referans']):
             continue
-        key = (r['tesis'], r['bolum'], r['referans'])
+        # TEYIT DISI BAYRAGI ANAHTARA GIRER (kullanici 2026-08-25).
+        # Yapistirma ile sizdirmazlik testinin kodu AYNI: ayni satirda birleserlerse
+        # (a) test kaydi yapistirmanin icinde kaybolur, 'teyit gerekmez' ayrimi
+        # yapilamaz, (b) adet TOPLANIR ve ERP'ye IKI KAT stok girer.
+        # Anahtar MAKINE degil BAYRAK: 320T + 407T + Yapistirma ayni kodu
+        # uretiyorsa TEK satirda toplanmalari DOGRU (hepsine teyit verilir);
+        # ayrilmasi gereken yalniz teyit disi makinedir.
+        _mak = makine_adi(r['tesis'], r['bolum'], r['istasyon'])
+        _disi = (r['tesis'], r['bolum'], _mak) in TEYIT_DISI_MAKINE
+        key = (r['tesis'], r['bolum'], r['referans'], _disi)
         g = grup.get(key)
         if g is None:
             g = grup[key] = {'tesis': r['tesis'], 'bolum': r['bolum'],
                              'referans': r['referans'], 'adet': 0, 'hurda': 0,
-                             'ct': None, '_vardiyalar': {}}
+                             'ct': None, '_vardiyalar': {}, 'teyit_disi': _disi,
+                             'makineler': [],
+                             'depo_kodu': (r['depo_kodu'] or '').strip(),
+                             'karsi_depo_kodu': (r['karsi_depo_kodu'] or '').strip()}
+        if _mak and _mak not in g['makineler']:
+            g['makineler'].append(_mak)
         g['adet']  += r['ok']
         g['hurda'] += r['nok']
         # Cycle time: ilk dolu deger (ayni referans+bolum tek satir olmali)
@@ -682,6 +762,7 @@ def uretim_gecmisi(bas_tarih, son_tarih):
     conn = sqlite3.connect(URETIM_DB)
     conn.row_factory = sqlite3.Row
     ara = collections.defaultdict(float)   # (tarih, ref_raw) -> toplam ok (rework haric)
+    _kap_sql3, _kap_parm3 = _kapsam_where('v')
     try:
         for r in conn.execute(f"""
             SELECT v.tarih tarih, u.referans_kodu ref, COALESCE(u.ok_adet,0) ok,
@@ -689,9 +770,8 @@ def uretim_gecmisi(bas_tarih, son_tarih):
             FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id
             WHERE v.tarih >= ? AND v.tarih <= ?
               AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
-              AND COALESCE(v.lokasyon,'TK2') = ?
-              AND COALESCE(v.bolum,'kaynak') IN ({','.join('?'*len(LAUNCH_BOLUMLERI))})""",
-                (bas_tarih, son_tarih, LOKASYON) + LAUNCH_BOLUMLERI).fetchall():
+              AND {_kap_sql3}""",
+                [bas_tarih, son_tarih] + _kap_parm3).fetchall():
             if rework_mi(r['aciklama'], r['ref']):
                 continue
             ara[(r['tarih'], r['ref'])] += r['ok']
@@ -807,6 +887,15 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
     sonuc = {'ACIK': [], 'SUPHELI': [], 'OPR10': [], 'KAPALI': [], 'YOK': [], 'ARAOP': [], 'HARIC': []}
     sonuc['ARAOP'] = [{**r, 'launchlar': []} for r in ara_oplar]
     for u in satirlar:
+        # TEYIT DISI MAKINE (kullanici 2026-08-25): sizdirmazlik test cihazinda
+        # uretilen urunun kodu yapistirmadakiyle AYNI — ikisine de teyit verilirse
+        # ERP'ye iki kat stok girer. Satir listede KALIR (uretim gorunsun), fakat
+        # HARIC olur ve gerekcesi yazilir.
+        if u.get('teyit_disi'):
+            sonuc['HARIC'].append({**u, 'launchlar': [],
+                                   'haric_sebep': 'Test cihazı — teyit yapıştırmada verilir '
+                                                  '(aynı kod, mükerrer olmasın)'})
+            continue
         if kanonik(u['referans']) in haric_set:
             sonuc['HARIC'].append({**u, 'launchlar': []})
             continue
