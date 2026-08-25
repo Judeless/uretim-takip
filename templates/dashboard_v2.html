@@ -8370,10 +8370,13 @@ window.__I18N_SOZLUK__ = {
                 count.textContent = ''; return;
             }
             count.textContent = data.length + ' satır';
+            // Öbek başlığı KAYDIN MAKİNESİ (2026-08-25) — sabit hatlı bölümlerde
+            // robot_no tek değer olduğu için tüm tablo tek öbeğe yığılıyordu.
             let prevRobot = null;
             tbody.innerHTML = data.map(r => {
-                const isNew = r.robot_no !== prevRobot;
-                prevRobot = r.robot_no;
+                const ad = r.makine || r.robot_no;
+                const isNew = ad !== prevRobot;
+                prevRobot = ad;
                 const toplam = r.toplam_uretim || 0;
                 const ok = r.toplam_ok || 0;
                 const kalite = toplam > 0 ? ((ok / toplam) * 100).toFixed(1) : '—';
@@ -8382,7 +8385,7 @@ window.__I18N_SOZLUK__ = {
                     : 'var(--lg-slate)';
                 return `<tr style="${isNew ? 'border-top:2px solid var(--border)' : ''}">
                     <td style="font-weight:${isNew ? '800' : '400'};color:${isNew ? 'var(--primary)' : 'transparent'}">
-                        ${isNew ? '🤖 ' + r.robot_no : '↳'}
+                        ${isNew ? '🤖 ' + esc(ad) : '↳'}
                     </td>
                     <td><b>${r.referans_kodu}</b></td>
                     <td style="text-align:right;font-weight:700">${toplam}</td>

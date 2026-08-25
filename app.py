@@ -6468,8 +6468,15 @@ def ozet():
     ]
 
     # Robot + Referans bazlı üretim kırılımı
-    robot_referans_uretim = c.execute(f'''
+    # İSTASYON DA KIRILIMA GİRER (2026-08-25): hattı üretim kaydında seçilen
+    # bölümlerde v.robot_no sabit hattır — yalnız onunla gruplayınca bu tablo
+    # 'Tel Üretimi' başlığı altında TEK öbek oluyordu. 'makine' alanı kaydın
+    # gerçek makinesini taşır; panel başlığı ondan yazılır.
+    robot_referans_uretim = [
+        {**dict(r), 'makine': kayit_hatti(r['robot_no'], r['istasyon'])}
+        for r in c.execute(f'''
         SELECT v.robot_no,
+               COALESCE(u.istasyon, 0) as istasyon,
                u.referans_kodu,
                SUM(u.ok_adet)  as toplam_ok,
                SUM(u.nok_adet) as toplam_nok,
@@ -6478,9 +6485,9 @@ def ozet():
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
-        GROUP BY v.robot_no, u.referans_kodu
-        ORDER BY v.robot_no, toplam_uretim DESC
-    ''', param_vardiya).fetchall()
+        GROUP BY v.robot_no, COALESCE(u.istasyon, 0), u.referans_kodu
+        ORDER BY v.robot_no, COALESCE(u.istasyon, 0), toplam_uretim DESC
+    ''', param_vardiya).fetchall()]
 
     # Robot + Duruş bazlı kırılım (Güncellendi: Tekil kayıt - Düzenlenebilir)
     robot_durus_kirilim = c.execute(f'''
@@ -6597,7 +6604,7 @@ def ozet():
         'referans_uretim': [dict(r) for r in referans_uretim],
         'operator_uretim': operator_uretim,   # operatör × hat/adım × referans (2026-08-04)
         'uretim_detay_listesi': uretim_detay_listesi,
-        'robot_referans_uretim': [dict(r) for r in robot_referans_uretim],
+        'robot_referans_uretim': robot_referans_uretim,
         'durus_dagilim': [dict(r) for r in durus_dagilim],
         'durus_tipi_ozet': [dict(r) for r in durus_tipi_ozet],
         'robot_durus_kirilim': [dict(r) for r in robot_durus_kirilim],
