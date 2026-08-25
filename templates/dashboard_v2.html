@@ -4805,7 +4805,7 @@ window.__I18N_SOZLUK__ = {
                     <span class="bolum-pill" id="ky-bolum-pill" style="align-self:center">—</span>
                     <div class="f-group">
                         <label id="f-robot-label" for="f-robot">Robot</label>
-                        <select id="f-robot">
+                        <select id="f-robot" onchange="kayitRobotDegisti()">
                             <option value="">Tümü</option>
                         </select>
                     </div>
@@ -6832,13 +6832,18 @@ window.__I18N_SOZLUK__ = {
         }
 
         // ── Bölüm detayı: '(tekil) Bazlı Üretim' yatay bar grafiği ──
-        function robotGrafikCiz(robotU) {
+        // KIRILIM KAYNAĞI: grup_uretim (tel'de proses adımı, diğerlerinde makine),
+        // yoksa eski robot_uretim. Fabrika Özeti kartıyla AYNI kural — iki ekran
+        // aynı bölüm için farklı sayıda bar göstermesin (bkz. kartMiniGrafik).
+        function robotGrafikCiz(d) {
             var kutu = document.getElementById('robot-grafik');
             var info = document.getElementById('robot-grafik-info');
             var bilgi = BOLUMLER[aktifBolum] || BOLUMLER.kaynak;
-            var rows = (Array.isArray(robotU) ? robotU : []).map(function (r) {
+            var grupU = (d && Array.isArray(d.grup_uretim)) ? d.grup_uretim : [];
+            var robotU = (d && Array.isArray(d.robot_uretim)) ? d.robot_uretim : [];
+            var rows = (grupU.length ? grupU : robotU).map(function (r) {
                 return {
-                    no: String((r && r.robot_no) || '—'),
+                    no: String((r && (r.grup || r.robot_no)) || '—'),
                     ok: Number(r && r.toplam_ok) || 0,
                     nok: Number(r && r.toplam_nok) || 0
                 };
@@ -7464,16 +7469,31 @@ window.__I18N_SOZLUK__ = {
         // Kartın mini bar grafiği — en çok üreten 5 hat/makine
         // (veri /api/ozet yanıtındaki robot_uretim'den; ek istek yok)
         function kartMiniGrafik(d, bilgi) {
+            // KIRILIM KAYNAĞI (2026-08-25): önce grup_uretim (tel'de PROSES ADIMI,
+            // diğer bölümlerde makine), yoksa eski robot_uretim.
+            // Kullanıcı: "tel üretiminde 10 vardiya açık görünüyor fakat tek bar
+            // var ve tek toplam yazıyor; o adete kesim, kapama, otomatik pres, son
+            // montaj dahil — işe yarar bir veri olmuyor." Sebep: robot_uretim
+            // v.robot_no ile grupluyor, telde o değer HEP 'Tel Üretimi'.
+            var grupU = (d && Array.isArray(d.grup_uretim)) ? d.grup_uretim : [];
             var robotU = (d && Array.isArray(d.robot_uretim)) ? d.robot_uretim : [];
-            var rows = robotU.map(function (r) {
-                return { no: String((r && r.robot_no) || '—'), ok: Number(r && r.toplam_ok) || 0 };
-            }).filter(function (r) { return r.ok > 0; })
+            var kaynak = grupU.length
+                ? grupU.map(function (r) {
+                    return { no: String((r && r.grup) || '—'), ok: Number(r && r.toplam_ok) || 0 };
+                  })
+                : robotU.map(function (r) {
+                    return { no: String((r && r.robot_no) || '—'), ok: Number(r && r.toplam_ok) || 0 };
+                  });
+            // Grup kırılımında adım sayısı 5'i geçebiliyor (tel: 7 adım) — kesmek
+            // "kalan adımlar hiç üretmemiş" izlenimi verirdi.
+            var enFazla = grupU.length ? 8 : 5;
+            var rows = kaynak.filter(function (r) { return r.ok > 0; })
               .sort(function (a, b) { return b.ok - a.ok; })
-              .slice(0, 5);
+              .slice(0, enFazla);
             if (!rows.length) return '<div class="bk-grafik"><span class="bk-grafik-bos">—</span></div>';
             var satirlar = rows.map(function (r) {
                 return {
-                    etiket: kisalt(r.no, 9),
+                    etiket: kisalt(r.no, 13),
                     deger: r.ok,
                     degerYazi: fmt(r.ok),
                     renk: bilgi.mark, // grafik-mark tonu (koyu zeminde doğrulanmış)
@@ -7484,7 +7504,7 @@ window.__I18N_SOZLUK__ = {
             });
             // minH = 5 satırlık yükseklik: az satırlı kartlar da aynı ölçekte çizilsin
             return '<div class="bk-grafik">' +
-                yatayBarSvg(satirlar, { genislik: 320, solPad: 58, rowH: 19, barH: 11, ustPad: 3, altPad: 3, minH: 101 }) +
+                yatayBarSvg(satirlar, { genislik: 320, solPad: 86, rowH: 19, barH: 11, ustPad: 3, altPad: 3, minH: 101 }) +
                 '</div>';
         }
 
@@ -7556,7 +7576,15 @@ window.__I18N_SOZLUK__ = {
                         govde =
                             kartMiniGrafik(d, bilgi) +
                             '<div class="bk-metrikler">' +
-                            '<div class="bk-metrik"><span class="bk-m-deger">' + fmt(m.ok) + '</span><span class="bk-m-etiket">✅ Üretim (OK)</span></div>' +
+                            // TEL: rakam BİTMİŞ ÜRÜN DEĞİL — kesim, kapama, otomatik
+                            // pres ve son montaj adetleri aynı toplamda. Kullanıcı
+                            // 2026-08-25: "hepsi bitmiş ürün değil, işe yarar bir veri
+                            // olmuyor." Etiket bunu söylesin, kırılım de altındaki
+                            // barlarda adım adım görünsün.
+                            '<div class="bk-metrik"><span class="bk-m-deger">' + fmt(m.ok) + '</span>' +
+                            (b === 'tel'
+                                ? '<span class="bk-m-etiket" title="Tüm proses adımlarının toplamı — bitmiş ürün adedi değil">✅ İşlem (tüm adımlar)</span>'
+                                : '<span class="bk-m-etiket">✅ Üretim (OK)</span>') + '</div>' +
                             '<div class="bk-metrik"><span class="bk-m-deger">' + fmt(m.aktifVardiya) + '</span><span class="bk-m-etiket">👷 Vardiya</span></div>' +
                             '<div class="bk-metrik"><span class="bk-m-deger">' + fmt(m.durusDk) + '</span><span class="bk-m-etiket">⏸ Duruş dk</span></div>' +
                             '</div>' +
@@ -7649,7 +7677,7 @@ window.__I18N_SOZLUK__ = {
             oeeGosterge(m.oee);
 
             // ── Grafikler
-            robotGrafikCiz(d.robot_uretim);
+            robotGrafikCiz(d);
             durusGrafikCiz(duruslar);
 
             // ── Üretim Detayı tablosu (tek üretim tablosu — 2026-08-21)
@@ -7774,6 +7802,18 @@ window.__I18N_SOZLUK__ = {
         let kyOzetData = null;          // eski 'ozetData' — vardiyaDuzenle tür listesi buradan
         var kayitlarIstekNo = 0;        // bayat yanıt koruması (Kayıtlar)
         var kyRobotAnahtar = null;      // robot dropdown hangi bölüm+lokasyon için dolu
+        // ── FİLTRE MODELİ (2026-08-25) ────────────────────────────────────
+        // İki mod var, kaynağı backend'in 'makine_etiketi' alanı:
+        //   '' → hat VARDİYADA seçilir (kaynak/metal/TK2 montaj…): 1. filtre
+        //        vardiyanın robot_no'su, SUNUCUDA süzülür (eski davranış).
+        //   dolu → hat/makine ÜRETİM KAYDINDA seçilir (TK1 montaj/tel, plastik,
+        //        pres): 1. filtre OPERATÖRÜN SEÇTİĞİ makine, İSTEMCİDE süzülür.
+        // Neden değişti (kullanıcı): makine modundaki bölümlerde dropdown
+        // vardiyaların robot_no'sundan dolduruluyordu; orada artık kullanılmayan
+        // eski hat adları ('LF-LFP', 'Pull', 'Kapama 1') duruyordu ve seçilen ad
+        // operatörün ekranda gördüğü adla ('MONTAJ - 3', 'Kapama 5') tutmuyordu.
+        var kyMakineEtiketi = '';       // '' = hat modu
+        var kyRobotYenile = true;       // 1. filtre yeniden doldurulmalı mı?
 
         // Alt sekme geçişi (eski innerSecme'nin Kayıtlar'a inen üç sekmesi)
         function kySekmeSec(sekme, btn) {
@@ -7796,6 +7836,10 @@ window.__I18N_SOZLUK__ = {
                 var el = document.getElementById(id);
                 if (el) el.textContent = bilgi.tekil;
             });
+            // Üretim tablosunun ilk sütunu artık KAYDIN makinesini gösteriyor —
+            // başlık da onu söylesin ('Proses Adımı' yazıp 'Kapama 5' göstermesin).
+            var thU = document.getElementById('ky-th-robot-uretim');
+            if (thU && kyMakineEtiketi) thU.textContent = kyMakineEtiketi;
             var rrB = document.getElementById('ky-robot-ref-baslik');
             if (rrB) rrB.textContent = '🤖 ' + bilgi.tekil + ' Bazlı Ürün Kırılımı';
             var rdB = document.getElementById('ky-robot-durus-baslik');
@@ -7803,6 +7847,8 @@ window.__I18N_SOZLUK__ = {
         }
 
         // Bölüme göre robot/hat/makine dropdown'unu ve etiketi yenile (eski yukleRobotListesi)
+        // YALNIZ HAT MODUNDA çağrılır; makine modunda liste yüklenen veriden
+        // türetilir (bkz. kayitMakineSecenekleri).
         async function yukleRobotListesi() {
             const sel = document.getElementById('f-robot');
             const lbl = document.getElementById('f-robot-label');
@@ -7859,7 +7905,10 @@ window.__I18N_SOZLUK__ = {
             const anahtar = aktifBolum + '|' + aktifLokasyon;
             if (kyRobotAnahtar !== anahtar) {
                 kyRobotAnahtar = anahtar;
-                yukleRobotListesi();
+                kyMakineEtiketi = '';                    // mod yanıtla belirlenir
+                kyRobotYenile = true;
+                var _fr = document.getElementById('f-robot');
+                if (_fr) _fr.innerHTML = '<option value="">Tümü</option>';
             }
             const bas = document.getElementById('f-bas').value;
             const bit = document.getElementById('f-bit').value;
@@ -7877,15 +7926,33 @@ window.__I18N_SOZLUK__ = {
                 let url = `/api/ozet?tarih_bas=${bas}&tarih_bit=${bit}` +
                           `&lokasyon=${encodeURIComponent(aktifLokasyon)}` +
                           `&bolum=${encodeURIComponent(aktifBolum)}&vardiya_limit=400`;
-                if (robot) url += `&robot=${robot}`;
+                // MAKİNE MODUNDA GÖNDERİLMEZ: 'robot' sunucuda v.robot_no'ya bakar,
+                // o bölümlerde ise sabit hattır ('TK1 Montaj') — makine adıyla
+                // sorulsa hiçbir vardiya eşleşmez ve tablo boş dönerdi.
+                if (robot && !kyMakineEtiketi) url += `&robot=${encodeURIComponent(robot)}`;
                 const res = await fetch(url);
                 const veri = await res.json();
                 if (istek !== kayitlarIstekNo) return; // bayat yanıt — at
                 kyOzetData = veri;
 
-                // Grup seçenekleri yüklenen veriden — sonra AKTİF filtre uygulanır
+                // Filtre modu YANITTAN gelir; dropdown'lar da yüklenen veriden
+                // türetilir (sabit liste yok — yeni makine kendiliğinden gelir).
+                var yeniEtiket = kyOzetData.makine_etiketi || '';
+                var modDegisti = (yeniEtiket !== kyMakineEtiketi);
+                kyMakineEtiketi = yeniEtiket;
+                if (kyMakineEtiketi) {
+                    // Makine modunda liste HER YANITTA tazelenir: seçenekler
+                    // yüklenen kayıtlardan gelir, tarih aralığı değişince değişir.
+                    kayitMakineSecenekleri(kyOzetData.uretim_detay_listesi || []);
+                } else if (kyRobotYenile || modDegisti) {
+                    // Hat modunda liste /api/robotlar'dan gelir — bölüm/lokasyon
+                    // değişmedikçe sabit; her yanıtta yeniden istemek gereksiz.
+                    yukleRobotListesi();
+                }
+                kyRobotYenile = false;
+                kyGorunum();                              // başlık etiketi moda göre
                 kayitGrupSecenekleri(kyOzetData.uretim_detay_listesi || []);
-                guncelleUretimDetay(kayitGrupSuz(kyOzetData.uretim_detay_listesi || []));
+                guncelleUretimDetay(kayitSuz(kyOzetData.uretim_detay_listesi || []));
                 // Duruş kırılımı
                 guncelleDurusKirilim(kyOzetData.durus_dagilim || [], kyOzetData.durus_tipi_ozet || []);
                 // Robot bazlı kırılımlar
@@ -7909,30 +7976,69 @@ window.__I18N_SOZLUK__ = {
         // Seçenekler yüklenen veriden türetilir (sabit liste YOK — yeni makine
         // eklenince kendiliğinden gelir). Filtre SADECE istemcide uygulanır;
         // Excel indirmesi aynı grubu sunucuya parametre olarak geçirir.
+        // Ortak doldurucu: listedeki DISTINCT değerlerden dropdown kurar,
+        // önceki seçim hâlâ varsa korur.
+        function _secenekDoldur(sel, degerler, onceki) {
+            degerler.sort(function (a, b) { return a.localeCompare(b, 'tr', { numeric: true }); });
+            sel.innerHTML = '<option value="">Tümü</option>' + degerler.map(function (g) {
+                return '<option value="' + esc(g) + '">' + esc(g) + '</option>';
+            }).join('');
+            sel.value = (onceki && degerler.indexOf(onceki) !== -1) ? onceki : '';
+        }
+        // 1. FİLTRE — MAKİNE MODU: operatörün üretim kaydında seçtiği makine/masa.
+        function kayitMakineSecenekleri(liste) {
+            var sel = document.getElementById('f-robot');
+            var lbl = document.getElementById('f-robot-label');
+            if (!sel) return;
+            if (lbl) lbl.textContent = kyMakineEtiketi || 'Makine';
+            var mk = [];
+            (liste || []).forEach(function (u) {
+                var m = u.makine || u.robot_no || '';
+                if (m && mk.indexOf(m) === -1) mk.push(m);
+            });
+            _secenekDoldur(sel, mk, sel.value);
+        }
+        // 2. FİLTRE — GRUP. Tel'de grup = PROSES ADIMI (12 kapama presi tek
+        // başlıkta), diğer bölümlerde grup = makine → 1. filtrenin AYNISI olur,
+        // o yüzden yalnız tel'de gösterilir (iki özdeş dropdown kafa karıştırıyordu).
         function kayitGrupSecenekleri(liste) {
             var sel = document.getElementById('f-grup');
             var lbl = document.getElementById('f-grup-label');
+            var kutu = sel ? sel.closest('.f-group') : null;
             if (!sel) return;
-            if (lbl) lbl.textContent = (aktifBolum === 'tel') ? 'Proses' : 'Makine';
-            var onceki = sel.value;
+            var goster = (aktifBolum === 'tel');
+            if (kutu) kutu.style.display = goster ? '' : 'none';
+            if (!goster) { sel.innerHTML = '<option value="">Tümü</option>'; sel.value = ''; return; }
+            if (lbl) lbl.textContent = 'Proses Adımı';
             var gruplar = [];
             (liste || []).forEach(function (u) {
                 var g = u.grup || '';
                 if (g && gruplar.indexOf(g) === -1) gruplar.push(g);
             });
-            gruplar.sort(function (a, b) { return a.localeCompare(b, 'tr'); });
-            sel.innerHTML = '<option value="">Tümü</option>' + gruplar.map(function (g) {
-                return '<option value="' + esc(g) + '">' + esc(g) + '</option>';
-            }).join('');
-            sel.value = (onceki && gruplar.indexOf(onceki) !== -1) ? onceki : '';
+            _secenekDoldur(sel, gruplar, sel.value);
         }
-        function kayitGrupSuz(liste) {
+        // Her iki filtre de İSTEMCİDE uygulanır (veri zaten elde).
+        function kayitSuz(liste) {
             var g = (document.getElementById('f-grup') || {}).value || '';
-            return g ? (liste || []).filter(function (u) { return (u.grup || '') === g; }) : (liste || []);
+            var m = kyMakineEtiketi ? ((document.getElementById('f-robot') || {}).value || '') : '';
+            return (liste || []).filter(function (u) {
+                if (g && (u.grup || '') !== g) return false;
+                if (m && (u.makine || u.robot_no || '') !== m) return false;
+                return true;
+            });
         }
         function kayitGrupDegisti() {
             // Yeniden istek ATMAZ — veri zaten elde; yalnız tablo süzülür
-            guncelleUretimDetay(kayitGrupSuz((kyOzetData && kyOzetData.uretim_detay_listesi) || []));
+            guncelleUretimDetay(kayitSuz((kyOzetData && kyOzetData.uretim_detay_listesi) || []));
+        }
+        // Makine modunda süzme istemcide → yeni istek gerekmez. Hat modunda
+        // filtre SUNUCUDA uygulandığı için veriyi yeniden çekmek şart.
+        function kayitRobotDegisti() {
+            if (kyMakineEtiketi) {
+                guncelleUretimDetay(kayitSuz((kyOzetData && kyOzetData.uretim_detay_listesi) || []));
+            } else {
+                yukleKayitlar();
+            }
         }
         function kayitlarExcelIndir() {
             var bas = document.getElementById('f-bas').value;
@@ -7943,7 +8049,7 @@ window.__I18N_SOZLUK__ = {
                     '&tarih_bit=' + encodeURIComponent(bit) +
                     '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
                     '&bolum=' + encodeURIComponent(aktifBolum) +
-                    (robot ? '&robot=' + encodeURIComponent(robot) : '') +
+                    (robot ? (kyMakineEtiketi ? '&makine=' : '&robot=') + encodeURIComponent(robot) : '') +
                     (grup ? '&grup=' + encodeURIComponent(grup) : '');
             window.location.href = u;
         }
@@ -8120,12 +8226,21 @@ window.__I18N_SOZLUK__ = {
                         : `<span style="color:var(--lg-amber);font-size:.75rem">—</span>`;
                     // Aynı blokta referansı YALNIZ ilk satırda yaz; devamı girintili
                     // görünsün ki "bunlar aynı ürün" bakışta anlaşılsın.
-                    const refHucre = (i === 0)
+                    let refHucre = (i === 0)
                         ? `<b>${u.referans_kodu}</b>` + (cok ? ` <span style="color:var(--dim);font-size:.72rem">×${blok.length}</span>` : '')
                         : `<span style="color:var(--dim)">↳</span>`;
+                    // MAKİNE KODUN YANINDA (kullanıcı 2026-08-25): "proses seçilip
+                    // filtrelendiğinde makine bilgileri de görünsün filtrelenen
+                    // kodların yanında." Grup başlığı adımı söylüyor ('▸ Kapama'),
+                    // hangi presin ürettiği ise satırda kalıyordu; kod bloğu birden
+                    // çok makineye yayıldığında bakışta ayırt edilmiyordu.
+                    // Grup zaten makine ise (kaynak/pres…) tekrar yazılmaz.
+                    if (u.makine && u.makine !== u.grup) {
+                        refHucre += ` <span style="font-size:.7rem;color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary-line);border-radius:6px;padding:1px 6px;white-space:nowrap">${esc(u.makine)}</span>`;
+                    }
                     html += `<tr${cok ? ' style="background:var(--surface-2)"' : ''}>
                     <td>${i === 0 ? u.tarih : ''}</td>
-                    <td><span class="badge badge-blue">${u.robot_no}</span></td>
+                    <td><span class="badge badge-blue">${esc(u.makine || u.robot_no)}</span></td>
                     <td style="font-size:.8rem">${u.operator_adi}</td>
                     <td>${refHucre}</td>
                     <td style="text-align:right;color:var(--success);font-weight:700">${u.ok_adet}</td>

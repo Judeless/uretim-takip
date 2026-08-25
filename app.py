@@ -603,6 +603,37 @@ HAT_MAKINELERI = {
 }
 
 
+# Kayıtlar sayfasında makine filtresinin ETİKETİ — operatörün ekranda gördüğü
+# kavramın adı. Kullanıcı 2026-08-25: "operatör ekranındaki isim ile aynı olsun."
+# TK1 montajda operatör bir MASA (buton) seçiyor, tel/plastik/preste bir MAKİNE.
+KAYIT_MAKINE_ETIKETI = {
+    TK1_MONTAJ_SABIT_HAT: 'Masa',
+    TEL_SABIT_HAT:        'Makine',
+    PLASTIK_SABIT_HAT:    'Makine',
+    PRES_SABIT_HAT:       'Makine',
+}
+
+
+def kayit_makine_etiketi(lokasyon, bolum, hatlar=None):
+    """Bölümün makine filtresi etiketi; hattı vardiyada seçilen bölümlerde ''.
+
+    LOKASYON BOŞ GELEBİLİR: /api/ozet lokasyonsuz da çağrılabiliyor. O hâlde
+    sabit_hat_adi TK2'ye düşer ve TK1'e özgü bölümler (tel, plastik, TK1 montaj)
+    sessizce 'hat modu'na kayardı — panel yine eski hat adlarını gösterirdi.
+    Lokasyonsuz istekte karar TAHMİNLE değil VERİYLE verilir: çağıran, dönen
+    kayıtların vardiya hatlarını 'hatlar' ile geçirir; içlerinden biri sabit hat
+    ise (KAYIT_MAKINE_ETIKETI'nde varsa) o bölüm makine modundadır. 'montaj' gibi
+    iki tesiste de olan bir bölümde lokasyon tahmini yanlış tarafı seçebilirdi."""
+    lok = (lokasyon or '').strip().upper()
+    if lok:
+        return KAYIT_MAKINE_ETIKETI.get(sabit_hat_adi(lok, bolum), '')
+    for h in (hatlar or ()):
+        e = KAYIT_MAKINE_ETIKETI.get(str(h or '').strip())
+        if e:
+            return e
+    return ''
+
+
 def sabit_hat_adi(lokasyon, bolum):
     """(lokasyon, bolum) → vardiyada seçilecek sabit hat adı; yoksa '' (hat vardiyada seçilir)."""
     return KAYITTA_HAT.get(((lokasyon or 'TK2').upper(), (bolum or '').strip()), '')
@@ -4238,6 +4269,10 @@ def kayitlar_uretim_excel():
     t_bit = (request.args.get('tarih_bit') or bugun).strip()
     robot = (request.args.get('robot') or '').strip()
     grup_f = (request.args.get('grup') or '').strip()
+    # 'makine' = ekrandaki makine/masa filtresi (2026-08-25). 'robot' vardiyanın
+    # hattına bakar; hattı üretim kaydında seçilen bölümlerde o değer sabit
+    # olduğundan süzmez — ekranla aynı küme insin diye ayrı parametre.
+    makine_f = (request.args.get('makine') or '').strip()
 
     kosul = ["v.tarih BETWEEN ? AND ?", "COALESCE(v.bolum,'kaynak')=?",
              "COALESCE(v.lokasyon,'TK2')=?"]
@@ -4261,9 +4296,12 @@ def kayitlar_uretim_excel():
         g = kayit_grubu(bolum, r['robot_no'], r['istasyon'])
         if grup_f and g != grup_f:
             continue
+        mk = kayit_hatti(r['robot_no'], r['istasyon'])
+        if makine_f and mk != makine_f:
+            continue
         satirlar.append({
             'tarih': r['tarih'], 'vardiya': r['vardiya_turu'], 'grup': g,
-            'hat': kayit_makine_ad(r['robot_no'], r['istasyon']) or r['robot_no'],
+            'hat': mk,
             'operator': r['operator_adi'], 'ref': r['referans_kodu'],
             'ok': int(r['ok_adet']), 'nok': int(r['nok_adet']),
             'ct': round(float(r['ct'] or 0), 1), 'aciklama': r['aciklama'],
@@ -4318,6 +4356,8 @@ def kayitlar_uretim_excel():
     wb.save(bellek)
     bellek.seek(0)
     _ek = f"_{grup_f.replace(' ', '_')}" if grup_f else ''
+    if makine_f:
+        _ek += '_' + makine_f.replace(' ', '_')
     _ad = f"uretim_{lokasyon}_{bolum}{_ek}_{t_bas}_{t_bit}.xlsx"
     return send_file(bellek, as_attachment=True, download_name=_ad,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -6279,6 +6319,37 @@ def ozet():
         ORDER BY v.robot_no
     ''', param_vardiya).fetchall()
 
+    # ── GRUP BAZLI ÜRETİM (2026-08-25) ────────────────────────────────────
+    # robot_uretim v.robot_no ile gruplar; hattı üretim kaydında seçilen
+    # bölümlerde bu TEK satır demek ('Tel Üretimi' 10 vardiya → tek bar, tek
+    # rakam). Kullanıcı: "toplam bir adet yazıyor fakat o adete kesim, kapama,
+    # otomatik pres, son montaj dahil, o yüzden işe yarar bir veri olmuyor."
+    # Burada kırılım kayit_grubu ile yapılır: tel'de PROSES ADIMI, diğer
+    # bölümlerde makine — yani Fabrika Özeti kartındaki barlar adım/makine bazlı.
+    _grup_ham = c.execute(f'''
+        SELECT v.robot_no,
+               COALESCE(u.istasyon, 0) AS istasyon,
+               SUM(u.ok_adet)  AS toplam_ok,
+               SUM(u.nok_adet) AS toplam_nok,
+               COUNT(*)        AS kayit_sayisi
+        FROM uretim_kayitlari u
+        JOIN vardiyalar v ON v.id = u.vardiya_id
+        WHERE {sart_vardiya}
+        GROUP BY v.robot_no, COALESCE(u.istasyon, 0)
+    ''', param_vardiya).fetchall()
+    _grup_top = {}
+    for _r in _grup_ham:
+        _g = kayit_grubu(bolum or 'kaynak', _r['robot_no'], _r['istasyon'])
+        _d = _grup_top.setdefault(_g, {'grup': _g, 'toplam_ok': 0, 'toplam_nok': 0,
+                                       'kayit_sayisi': 0, 'makineler': []})
+        _d['toplam_ok'] += int(_r['toplam_ok'] or 0)
+        _d['toplam_nok'] += int(_r['toplam_nok'] or 0)
+        _d['kayit_sayisi'] += int(_r['kayit_sayisi'] or 0)
+        _m = kayit_hatti(_r['robot_no'], _r['istasyon'])
+        if _m and _m not in _d['makineler']:
+            _d['makineler'].append(_m)
+    grup_uretim = sorted(_grup_top.values(), key=lambda x: -x['toplam_ok'])
+
     # Referans bazlı üretim
     referans_uretim = c.execute(f'''
         SELECT u.referans_kodu,
@@ -6382,8 +6453,15 @@ def ozet():
     # kopyasını tutmaz.
     # 'grup' = Kayıtlar sayfasındaki kırılım başlığı (tel'de proses adımı, diğer
     # bölümlerde makine) — Excel indirmesiyle BİREBİR aynı kural (kayit_grubu).
+    # 'makine' = OPERATÖRÜN SEÇTİĞİ ad (2026-08-25). Hattı üretim kaydında
+    # seçilen bölümlerde v.robot_no sabit hattır ('TK1 Montaj', 'Tel Üretimi') ve
+    # ekranda onu göstermek operatörün gördüğü adla ('MONTAJ - 3', 'Kapama 5')
+    # tutmuyordu; filtre de vardiyanın robot_no'suna baktığı için artık
+    # kullanılmayan eski hat adları ('LF-LFP', 'Pull', 'Kapama 1') listede
+    # kalıyordu. Diğer bölümlerde kayit_hatti zaten robot_no'yu döndürür → fark yok.
     uretim_detay_listesi = [
         {**dict(r),
+         'makine': kayit_hatti(r['robot_no'], r['istasyon']),
          'adim': tel_adim_etiketi(kayit_hatti(r['robot_no'], r['istasyon'])),
          'grup': kayit_grubu(bolum or 'kaynak', r['robot_no'], r['istasyon'])}
         for r in uretim_detay_listesi
@@ -6508,6 +6586,14 @@ def ozet():
         'vardiya_sayisi': vardiya_sayisi,
         'ort_oee': ort_oee,
         'robot_uretim': [dict(r) for r in robot_uretim],
+        # Kırılım için robot_uretim yerine BUNU kullanın: hattı üretim kaydında
+        # seçilen bölümlerde robot_uretim tek satırdır (bkz. grup_uretim açıklaması).
+        'grup_uretim': grup_uretim,
+        # Bu bölümde makine/hat ÜRETİM KAYDINDA mı seçiliyor? Panel filtresi ve
+        # tablo başlığı buna göre kurulur (etiket boşsa hat vardiyada seçilir).
+        'makine_etiketi': kayit_makine_etiketi(
+            lokasyon, bolum or 'kaynak',
+            [r['robot_no'] for r in robot_uretim]),
         'referans_uretim': [dict(r) for r in referans_uretim],
         'operator_uretim': operator_uretim,   # operatör × hat/adım × referans (2026-08-04)
         'uretim_detay_listesi': uretim_detay_listesi,
