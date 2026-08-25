@@ -8919,16 +8919,42 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
                 "AND UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ','')) LIMIT 1",
                 (u_tarih, referans)).fetchone()
             if var2:
+                # ── ADEDE DUYARLI FREN (kullanıcı 2026-08-25) ────────────────
+                # Eski hâli ADEDE HİÇ BAKMIYORDU: o güne bir kez teyit verildiyse
+                # ikinci parça ASLA gönderilemiyor, meşru bölünmüş teyit için her
+                # seferinde "yine de gönder" gerekiyordu — ve o düğme freni TAMAMEN
+                # kaldırdığı için gerçek mükerrerlik de aynı düğmeden geçiyordu.
+                # Yeni ölçüt: GÜNÜN ÜRETİMİNİ AŞIYOR MUYUZ?
+                #   gönderilen + gönderilecek <= o gün üretilen  → MEŞRU, izin ver
+                #   aşıyorsa                                     → dur (asıl risk bu)
+                # Gerçek olay (10.300.2756W, 2026-08-21): gün 98 üretti (16+10+41+31),
+                # 41'i gönderilmişti; panel 98 daha öneriyordu → 139 olurdu.
+                _gonderilen = _gun_ref_gonderilen(conn, u_tarih, referans)
+                _uretilen = _gun_ref_uretim(u_tarih, referans)
                 _nereden = ('CFI olarak' if var2['yil'] == 'CF'
                             else f'launch {var2["launch_no"]} ile')
-                sonuclar.append({**kayit, 'sonuc': 'atlandi',
-                                 'mesaj': f'Bu üretim günü ({u_tarih}) için bu referansa zaten teyit '
-                                          f'verilmiş: {_nereden}, {var2["adet"]} adet '
-                                          f'(log #{var2["id"]}). Launch numarası farklı olsa ya da '
-                                          f'diğeri CFI\'dan gitmiş olsa bile aynı üretim iki kez teyit '
-                                          f'edilmemeli — gerçekten bölünmüş teyit gerekiyorsa '
-                                          f'"zorla" ile gönderin.'})
-                continue
+                if _uretilen is None:
+                    # Üretim okunamadı → ESKİ katı davranış (emniyetli taraf)
+                    sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                     'mesaj': f'Bu üretim günü ({u_tarih}) için bu referansa zaten teyit '
+                                              f'verilmiş: {_nereden}, {var2["adet"]} adet (log #{var2["id"]}). '
+                                              f'Günün üretimi okunamadığı için bölünmüş teyit kontrolü '
+                                              f'yapılamadı — emin olduğunuz durumda "zorla" ile gönderin.'})
+                    continue
+                if _gonderilen + adet > _uretilen:
+                    _kalan = max(0, int(round(_uretilen - _gonderilen)))
+                    sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                     'mesaj': f'ÜRETİMİ AŞIYOR — {u_tarih} günü bu referanstan '
+                                              f'{int(_uretilen)} adet üretildi, {int(_gonderilen)} adedi '
+                                              f'zaten teyit edildi ({_nereden}, log #{var2["id"]}). '
+                                              f'{adet} daha gönderilirse ERP\'ye toplam '
+                                              f'{int(_gonderilen + adet)} yazılır. '
+                                              + (f'Gönderilebilecek kalan: {_kalan} adet.'
+                                                 if _kalan else 'Bu günün teyidi TAMAMLANMIŞ.')})
+                    continue
+                # Aşmıyor → MEŞRU bölünmüş teyit, engelleme yok (loga düş)
+                print(f'[TEYIT] bölünmüş teyit: {referans} {u_tarih} — '
+                      f'gönderilen {int(_gonderilen)} + {adet} <= üretim {int(_uretilen)}')
         # Mükerrer koruması 2 (ASIL): ERP'nin GERÇEK teyit hareketleri —
         # operatörün ELLE girdiği teyitler de burada görünür. Frontend
         # atlansa/eski liste gönderilse bile burada yakalanır.
@@ -9238,6 +9264,48 @@ def _cfi_depo_kodlari(conn, referans, tesis, bolum):
         return None, None, ('Counterpart War.cd tanımlı değil — Referanslar sayfasında doldurun '
                             '(teyit gönderilmedi).')
     return d, k, None
+
+
+def _gun_ref_gonderilen(conn, uretim_tarihi, referans):
+    """Bu ÜRETİM GÜNÜ + referans için BİZİM başarıyla gönderdiğimiz toplam adet.
+    COP (yil='CO') sayılmaz — hurda ayrı bir depo hareketidir, üretim teyidi değil."""
+    r = conn.execute(
+        "SELECT COALESCE(SUM(CAST(adet AS REAL)),0) t FROM as400_teyit_log "
+        "WHERE uretim_tarihi=? AND sonuc='ok' AND yil != 'CO' "
+        "AND UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ',''))",
+        (uretim_tarihi, referans)).fetchone()
+    return float(r['t'] or 0) if r else 0.0
+
+
+def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
+    """O günün o referans için ÜRETİLEN toplamı (rework hariç).
+
+    launch_esle.gun_uretimi ile AYNI kuralları kullanır (rework ayıklama, tesis/
+    bölüm kapsamı) — burada ayrı bir SQL yazmak iki kuralın zamanla ayrışması
+    demekti. Gün başına bir kez okunur, sonuç önbelleğe alınır."""
+    if uretim_tarihi not in _onbellek:
+        try:
+            import sys as _sys
+            _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+            if _d not in _sys.path:
+                _sys.path.insert(0, _d)
+            import launch_esle as _le
+            harita = {}
+            for u in _le.gun_uretimi(uretim_tarihi):
+                harita[_le.kanonik(u.get('referans'))] = (
+                    harita.get(_le.kanonik(u.get('referans')), 0) + (u.get('adet') or 0))
+            _onbellek[uretim_tarihi] = harita
+        except Exception as e:
+            print(f'[_gun_ref_uretim] okunamadi ({uretim_tarihi}): {e}')
+            _onbellek[uretim_tarihi] = None
+    harita = _onbellek.get(uretim_tarihi)
+    if harita is None:
+        return None            # okunamadı → çağıran ESKİ (katı) davranışa düşer
+    try:
+        import launch_esle as _le
+        return harita.get(_le.kanonik(referans), 0)
+    except Exception:
+        return None
 
 
 def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):

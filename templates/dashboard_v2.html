@@ -13117,7 +13117,11 @@ window.__I18N_SOZLUK__ = {
                     var l0 = ls[0];
                     var gunU = b.bugunMu ? ' <span style="color:var(--lg-amber)" title="Gün bitmeden teyit önerilmez">⚠</span>' : '';
                     // ÖNERİ: bu teyit launch'ı tamamlıyor mu? (gönderilecek >= kalan-1) → S öner
-                    var onerS = (r.adet >= l0.kalan - 1);
+                    // Bu satirda GONDERILECEK adet: kalan (bolunmus teyit) ya da gunun tamami.
+                    var onerAdet = (r.kalan_gonderilecek != null ? r.kalan_gonderilecek : r.adet);
+                    // Bayrak onerisi onerAdet ile kiyaslanmali: kutuda 57 varken 98'e gore
+                    // S (KAPAT) onermek launch'i erken kapatirdi.
+                    var onerS = (onerAdet >= l0.kalan - 1);
                     sKuyruk += '<tr>' +
                         '<td><input type="checkbox" id="as4-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
@@ -13128,7 +13132,17 @@ window.__I18N_SOZLUK__ = {
                         '<td style="text-align:right">' + fmt(l0.qty) + '</td>' +
                         '<td style="text-align:right">' + fmt(l0.teyitli) + '</td>' +
                         '<td style="text-align:right;font-weight:700' + (onerS ? ';color:var(--lg-amber)' : '') + '">' + fmt(l0.kalan) + '</td>' +
-                        '<td style="text-align:right"><input type="number" id="as4-adet-' + i + '" value="' + r.adet + '" min="1" class="rt-row-input" style="width:80px;text-align:right" onchange="as4BayrakOner(' + i + ')"></td>' +
+                        '<td style="text-align:right">' +
+                            // VARSAYILAN = KALAN (2026-08-25): parçalı üretimde günün
+                            // bir kısmına zaten teyit verilmiş olabilir. Günün tamamını
+                            // önermek ERP'ye fazla stok yazdırıyordu (10.300.2756W:
+                            // 41 gönderilmişken 98 daha öneriliyordu → 139).
+                            '<input type="number" id="as4-adet-' + i + '" value="' +
+                            onerAdet +
+                            '" min="1" class="rt-row-input" style="width:80px;text-align:right" onchange="as4BayrakOner(' + i + ')">' +
+                            (r.gonderilmis_adet ? '<div style="font-size:.68rem;color:var(--warn);margin-top:2px" title="Bu üretim günü için daha önce gönderilen adet düşüldü">' +
+                                fmt(r.adet) + ' üretim − ' + fmt(r.gonderilmis_adet) + ' gönderilmiş</div>' : '') +
+                            '</td>' +
                         '<td><select id="as4-bayrak-' + i + '" class="rt-row-select" onchange="as4BayrakElle(' + i + ')" style="font-weight:800' + (onerS ? ';color:var(--lg-red);border-color:color-mix(in srgb,var(--lg-red) 53%,transparent)' : '') + '">' +
                             '<option value="A"' + (onerS ? '' : ' selected') + '>A · devam</option>' +
                             '<option value="S"' + (onerS ? ' selected' : '') + '>S · KAPAT</option></select></td>' +

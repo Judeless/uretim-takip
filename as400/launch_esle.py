@@ -790,6 +790,40 @@ def ref_uretim_gecmisi(referans, uretim_tarihi, gun=10):
     return uretim_gecmisi(bas, uretim_tarihi).get(kanonik(referans), {})
 
 
+def bizim_gonderilenler(tarihler):
+    """(tarih, kanonik referans) -> BIZIM basariyla gonderdigimiz toplam adet.
+
+    NEDEN (kullanici 2026-08-25, 10.300.2756W olayi): parcali uretimde gunun
+    uretimi birden cok kayitta olusuyor (16+10+41+31 = 98) ve teyit de parca
+    parca veriliyor. Panel gunun TAMAMINI oneriyordu; 41 zaten gonderilmisken
+    98 daha gondermek ERP'ye 41 adet FAZLA stok yazardi. Artik kalan onerilir.
+
+    COP (yil='CO') SAYILMAZ: hurda ayri bir depo hareketidir, uretim teyidi degil.
+    Basarisiz denemeler de sayilmaz — ERP'ye yazilmadilar."""
+    if not tarihler:
+        return {}
+    conn = sqlite3.connect(URETIM_DB)
+    out = collections.defaultdict(float)
+    try:
+        yer = ','.join('?' * len(tarihler))
+        for r in conn.execute(
+                f"SELECT uretim_tarihi, referans, adet FROM as400_teyit_log "
+                f"WHERE uretim_tarihi IN ({yer}) AND sonuc='ok' AND yil != 'CO'",
+                list(tarihler)).fetchall():
+            try:
+                out[(r[0], kanonik(r[1]))] += float(r[2] or 0)
+            except (TypeError, ValueError):
+                continue
+    except Exception as e:
+        # Tablo yok / okunamadi -> bos don. Kalan hesabi yapilmaz, panel eski
+        # davranisa (gunun tamami) duser; mukerrer freni yine yerinde.
+        print(f'[launch_esle] bizim_gonderilenler okunamadi: {e}')
+        return {}
+    finally:
+        conn.close()
+    return dict(out)
+
+
 def kalici_haric_set():
     """Kalici 'teyit gerekmez' isaretli referanslarin kanonik seti (2026-07-20).
     Kullanici teyit ekranindan bir referansi 'gerek_yok' isaretlerse (orn 6343a ara
@@ -857,6 +891,19 @@ def esle_coklu(tarihler):
         gecmis_map = uretim_gecmisi(bas, max(tarihler))
     except Exception:
         gecmis_map = {}
+    # BIZIM daha once gonderdigimiz adet (bolunmus teyit) — satira yazilir ki
+    # panel gunun TAMAMINI degil KALANI onersin.
+    try:
+        gonderilmis = bizim_gonderilenler(tarihler)
+    except Exception as _e:
+        print(f'[launch_esle] gonderilmis hesabi atlandi: {_e}')
+        gonderilmis = {}
+    for t in tarihler:
+        for u in hazir[t][0]:
+            g = gonderilmis.get((t, kanonik(u.get('referans'))), 0.0)
+            if g > 0:
+                u['gonderilmis_adet'] = round(g, 3)
+                u['kalan_gonderilecek'] = max(0, int(round((u.get('adet') or 0) - g)))
     return {t: _kategorize(t, hazir[t][0], hazir[t][1], tam, gev, kokm, hrk, haric, gecmis_map)
             for t in tarihler}
 
