@@ -10,6 +10,11 @@
 // Neden var (kullanici 2026-08-17): sunucudaki Session B uzun sure islem
 // yapilmayinca dusuyor (QINACTITV / baglanti kopmasi) ve teyit robotu bir daha
 // calisamiyor. Kullanici izinde oldugunda elle sign-on yapacak kimse yok.
+//
+// 2026-08-25: OTURUM DUSTUGUNDE BAGLANTI ACIK KALABILIYOR ('Fine del lavoro'
+// ekrani). O halde StartCommunication CALISTIRILMAZDI ve script "dokunmadim"
+// deyip cikardi — teyit yine verilemiyordu. Artik olu oturum algilanip
+// StopCommunication + StartCommunication (Disconnetti + Connetti) yapiliyor.
 // NOT: bu, kurulum kilavuzundaki "sign-on INSAN isi" kuralini bilerek gevsetir —
 // kullanicinin acik istegi. Sifre yine kasada (keyring), kodda/dosyada DEGIL.
 //
@@ -82,6 +87,51 @@ function signOnMu(e) {
     return e.indexOf("Utente") >= 0 && e.indexOf("Parola") >= 0;
 }
 function anaMenuMu(e) { return e.indexOf("Menu S.I. CofleTk") >= 0 || e.indexOf("MenuIniziale") >= 0; }
+
+// ── OLU OTURUM (kullanici 2026-08-25) ────────────────────────────────────────
+// "AS400 bazen uzun sure islem yapilmadiginda dusebiliyor. Az once teyit vermek
+//  istedim bundan dolayi veremedim."
+// BAGLANTI ACIK KALIR (CommStarted=true) ama IS OLMUSTUR; ekranda:
+//     Fine del lavoro
+//     Lavoro: PRG00002   Utente: EMREDTK   Numero: 535267
+//     Il sottosistema sta chiudendo in modo immediato.
+// Bu ekranda tus gondermek ise yaramaz; kullanicinin elle yaptigi da budur:
+// Comunicazioni > Disconnetti, sonra Connetti, sonra sign-on.
+//
+// ⚠ DIKKAT: bu ekran "Utente:" ICERIR ama "Parola" ICERMEZ — signOnMu() yanlis
+// pozitif VERMEZ. Yine de bu kontrol signOnMu'dan ONCE calisir; sirasi degismesin.
+function oturumOlmusMu(e) {
+    var t = e.toLowerCase();
+    return t.indexOf("fine del lavoro") >= 0
+        || t.indexOf("sottosistema sta chiudendo") >= 0
+        || t.indexOf("lavoro terminato") >= 0
+        || t.indexOf("fine sessione") >= 0;
+}
+
+// StopCommunication + StartCommunication = Comunicazioni > Disconnetti > Connetti.
+// BIR KEZ denenir: ikinci kez ayni yere gelmek "host vermiyor" demektir, sonsuz
+// dongude AS400'u dovmek yerine durup gozcunun bir sonraki turunu beklemek dogru.
+var yenidenBaglandi = false;
+function commStarted() { try { return !!s.CommStarted; } catch (e) { return false; } }
+function yenidenBagla() {
+    if (yenidenBaglandi)
+        iptal("Yeniden baglanma ZATEN denendi, ekran hala kullanilabilir degil — elle bakin.");
+    yenidenBaglandi = true;
+    log("Baglanti kesiliyor (StopCommunication = Comunicazioni > Disconnetti)...");
+    try { s.StopCommunication(); } catch (e1) { log("  uyari: StopCommunication: " + e1.message); }
+    for (var i = 0; i < 20 && commStarted(); i++) WScript.Sleep(500);
+    WScript.Sleep(1500);
+    log("Baglanti yeniden kuruluyor (StartCommunication = Comunicazioni > Connetti)...");
+    try { s.StartCommunication(); } catch (e2) { iptal("Yeniden baglanmada StartCommunication basarisiz: " + e2.message); }
+    for (var j = 0; j < 40 && !commStarted(); j++) WScript.Sleep(500);
+    if (!commStarted()) iptal("Yeniden baglanti kurulamadi (20 sn)");
+    // bizBagladik BILEREK set EDILMEZ: burada var olan bir oturum KURTARILIYOR,
+    // gecici baglanti kurulmuyor. Hata yolunda baglanti kapatilirsa oturum
+    // buttun gider ve gozcunun bir sonraki turu de bos ekran bulur.
+    log("Yeniden baglandi — ekranin gelmesi bekleniyor.");
+    try { oia.WaitForAppAvailable(10000); } catch (e3) {}
+    WScript.Sleep(2500);
+}
 // Satirdaki ilk GIRIS alani (korumasiz) — kolon varsaymak yerine ekrandan okunur
 function ilkGirisAlani(satir) {
     try {
@@ -128,24 +178,47 @@ function bizimBaglantiyiKapat() {
     }
 }
 try { oia.WaitForAppAvailable(10000); } catch (e0) {}
-var e = "", dolu = 0;
-for (var w = 0; w < EKRAN_BEKLE_SN * 2; w++) {
-    e = ekranStr();
+function ekranBekle() {
+    var t = "";
+    for (var w = 0; w < EKRAN_BEKLE_SN * 2; w++) {
+        t = ekranStr();
+        if (t.replace(/\s/g, "").length > 20) return t;
+        WScript.Sleep(500);
+    }
+    return t;
+}
+var e = ekranBekle();
+var dolu = e.replace(/\s/g, "").length;
+
+// ── 2b) OTURUM OLMUS MU / EKRAN BOS MU -> DISCONNETTI + CONNETTI ──────
+// Bagli gorunup is olmusse ya da bagliyken ekran hic boyanmadiysa tek care
+// baglantiyi kesip yeniden kurmaktir (kullanicinin elle yaptigi adim).
+if (oturumOlmusMu(e) || dolu <= 20) {
+    log(oturumOlmusMu(e)
+        ? "OLU OTURUM ekrani algilandi (is bitmis, baglanti acik) — yeniden baglanilacak."
+        : "Ekran " + EKRAN_BEKLE_SN + " sn boyunca BOS kaldi — yeniden baglanilacak.");
+    log("  Ekranin ilk satiri: " + ekran()[0].replace(/\s+$/, ""));
+    if (DRYRUN) {
+        log("DRYRUN: yeniden baglanma YAPILMADI (hicbir baglanti islemi).");
+        log("SONUC=DRYRUN-OK"); logKapat(); WScript.Quit(0);
+    }
+    yenidenBagla();
+    e = ekranBekle();
     dolu = e.replace(/\s/g, "").length;
-    if (dolu > 20) break;
-    WScript.Sleep(500);
 }
 if (dolu <= 20) {
     // Bagli ama BOS ekran: host oturum acmadi (cihaz baska yerde kilitli, profil
     // sorunu, 5250 anlasmasi yarim). "Sorun yok" DEME — bu bir arizadir.
     bizimBaglantiyiKapat();
-    iptal("Baglanti var ama ekran " + EKRAN_BEKLE_SN + " sn boyunca BOS kaldi — host oturum vermedi. "
+    iptal("Yeniden baglandiktan sonra da ekran " + EKRAN_BEKLE_SN + " sn BOS kaldi — host oturum vermedi. "
           + "Session B'yi elle kontrol edin (cihaz/WorkStationID cakismasi olabilir).");
 }
 if (anaMenuMu(e)) { log("Oturum ZATEN acik (ana menu) — sign-on gerekmedi."); log("SONUC=ZATEN"); logKapat(); WScript.Quit(0); }
 if (!signOnMu(e)) {
     // Sign-on degil, ana menu de degil: teyit robotu bir ekranda birakmis olabilir.
     // DOKUNMA — yanlis ekranda tus gondermek veri girisi riskidir.
+    // NOT: olu oturum ekrani ('Fine del lavoro') artik YUKARIDA yakalanip yeniden
+    // baglaniliyor; buraya dusen ekran gercekten "robot bir ekranda birakmis"tir.
     log("Ekran ne sign-on ne ana menu — DOKUNULMADI (robot baska ekranda birakmis olabilir).");
     log("Ilk satir: " + ekran()[0]);
     log("SONUC=ZATEN"); logKapat(); WScript.Quit(0);

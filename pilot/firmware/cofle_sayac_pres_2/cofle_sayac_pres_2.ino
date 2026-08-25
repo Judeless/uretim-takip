@@ -466,11 +466,18 @@ void kanalGuncelle(int pin, uint8_t istasyon, Kanal* k, unsigned long now) {
   if (k->kisaTakip && v == HIGH && !k->stableLow) {
     unsigned long genislikUs = simdiUs - k->kisaBasUs;
     k->kisaTakip = false;
-    // Cok kisa olanlar (<2ms) kontak sicramasi/parazit olabilir; onlari da
-    // raporluyoruz ama tip ayni — dagilima bakip karar verilecek.
-    taniPush(3, (uint32_t)(now - k->lastValidPulse), (uint32_t)(genislikUs / 1000UL));
-    Serial.printf("[KISA] Ist.%d pulse %lu us (esik %lu us) - SAYILMADI\n",
-                  istasyon, genislikUs, INTEG_ESIK_US);
+    // 2ms ALTI RAPORLANMAZ (kullanici 2026-08-25, PRES-P4 olcumu). Eskiden hepsi
+    // raporlaniyordu: Pres 4'te TEK GUNDE 1000+ KISA olayi dustu (low_ms 0-5,
+    // medyan 2) ve TANI RINGINI DOLDURUP gercek SAYILDI olaylarini disari itti —
+    // "bu pres kac saydi" sorusu tani akisindan CEVAPLANAMAZ hale geldi.
+    // 2ms alti hicbir gercek pres cevrimini temsil etmez (role kapanmasi onlarca
+    // ms surer); kontak sicramasidir ve kumulatif tani_parazit sayacinda zaten
+    // gorunur. Ayni esik tel_kapama sablonunda da var.
+    if (genislikUs >= 2000UL) {
+      taniPush(3, (uint32_t)(now - k->lastValidPulse), (uint32_t)(genislikUs / 1000UL));
+      Serial.printf("[KISA] Ist.%d pulse %lu us (esik %lu us) - SAYILMADI\n",
+                    istasyon, genislikUs, INTEG_ESIK_US);
+    }
   }
   if (k->stableLow) k->kisaTakip = false;      // sayildiysa takip gereksiz
 

@@ -8678,6 +8678,39 @@ def _as400_robot_calistir(script_dosya, args, timeout_sn):
                     '32-bit cscript şart (PCOMM COM 32-bit).')
 
 
+# ── SESSION B ÖN KONTROLÜ (kullanıcı 2026-08-25) ────────────────────────────
+# "AS400 bazen uzun süre işlem yapılmadığında düşebiliyor. Az önce teyit vermek
+#  istedim bundan dolayı veremedim."
+# Oturum düştüğünde BAĞLANTI AÇIK KALABİLİYOR ('Fine del lavoro' ekranı), yani
+# robot bağlanır ama menüye giremez ve satır satır hata verir. Gözcü bunu 5
+# dakikada bir düzeltiyor — kullanıcı o 5 dakikayı beklemesin diye TOPLU GÖNDERİM
+# BAŞLARKEN bir kez kontrol edilir. oturum_ac.js sağlıklıysa 'ZATEN' deyip hemen
+# döner; ölü oturumda Disconnetti + Connetti + sign-on yapar.
+#
+# ⚠ ASLA GÖNDERİMİ ENGELLEMEZ: agent kapalıysa / şifre kasada yoksa bu kontrol
+# başarısız olur, ama satırlar yine denenir ve kendi hata mesajlarını üretir.
+# Engelleseydi, çalışan bir kurulumda tek bir yan koşul tüm teyidi durdururdu.
+def _as400_oturum_hazirla():
+    """Session B'yi doğrula/kurtar. Döner: (durum, mesaj) — durum: OK|ZATEN|None."""
+    try:
+        import requests
+        r = requests.get(_TEYIT_AGENT_URL + '/durum', timeout=2)
+        kullanici = ((r.json() or {}).get('gozcu') or {}).get('kullanici') or ''
+    except Exception as e:
+        return None, f'agent durumu okunamadı ({e}) — oturum ön kontrolü atlandı'
+    if not kullanici:
+        return None, 'oturum_config.json içinde kullanıcı tanımlı değil — ön kontrol atlandı'
+    cikti, hata = _as400_robot_calistir('oturum_ac.js', [kullanici], 180)
+    if hata:
+        return None, f'oturum kontrolü çalıştırılamadı: {hata}'
+    if 'SONUC=OK' in cikti:
+        return 'OK', 'Session B düşmüştü — yeniden bağlanıp giriş yapıldı.'
+    if 'SONUC=ZATEN' in cikti:
+        return 'ZATEN', 'Session B sağlıklı.'
+    son = ' | '.join(l.strip() for l in cikti.splitlines() if l.strip())[-300:]
+    return None, f'oturum kurtarılamadı: {son}'
+
+
 def _as400_launch_durum(yil, no):
     """BPROF0'dan launch'ın (teyitli Q0QTRI, durum Q0AVAN) — bağımsız doğrulama.
     Döner: (teyitli:float|None, durum:int|None)."""
@@ -8808,6 +8841,14 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
     DEVAM edilir (kullanıcı 2026-07-20: hata alınca ilk sayfaya çıkıp sıradaki
     launch'tan devam et). Robot her çağrıda G0'da B'yi temizler + record-lock kurtarır."""
     sonuclar = []
+    # Session B ön kontrolü (bkz. _as400_oturum_hazirla) — ölü oturumda
+    # launch teyitleri de satır satır hata veriyordu.
+    _od, _om = _as400_oturum_hazirla()
+    if _od == 'OK':
+        print(f'[TEYIT] {_om}')
+    elif _od is None:
+        print(f'[TEYIT] oturum ön kontrolü: {_om}')
+
     for idx, s in enumerate(satirlar):
         # NAZIK DURDURMA: kullanıcı "Durdur"a bastıysa kalan satırlara GEÇME (çalışan
         # cscript öldürülMEZ; mevcut satır zaten bittiğinde bu kontrole geliriz).
@@ -9209,6 +9250,12 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
     if _d not in _sys.path:
         _sys.path.insert(0, _d)
     import launch_esle as _le
+    # Session B ön kontrolü — ölü oturumda her satır tek tek hata verirdi
+    _od, _om = _as400_oturum_hazirla()
+    if _od == 'OK':
+        print(f'[CFI] {_om}')
+    elif _od is None:
+        print(f'[CFI] oturum ön kontrolü: {_om}')
     for idx, s in enumerate(satirlar):
         if _AS400_DURDUR.is_set():
             for kalan in satirlar[idx:]:
