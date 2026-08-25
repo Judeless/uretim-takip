@@ -187,9 +187,17 @@ def _sessiz_sebep(rc, hata_cikti):
     script daha ActiveXObject satirinda olmus demektir -> PCOMM yok/kapali."""
     st = ' '.join((hata_cikti or '').split())[:300]
     if 'ECL37110' in st or 'emulazione' in st.lower() or 'emulation interface' in st.lower():
+        # PENCERELER ACIK OLMASI YETERLI DEGIL (2026-08-17 olayi, bkz.
+        # SERVER_AS400_KURULUM.md): iki pcsws.exe ayni oturumda calisiyor ve sign-on
+        # yapilmisken autECLConnList 0 baglanti goruyordu — pencereler otomasyon
+        # katmanina KAYITLI DEGILDI. Bu yuzden mesaj OLCULEBILIR dogrulamayi soyler.
         return (f'rc={rc} | PCOMM emulasyon arayuzu YOK (ECL37110): PCOMM kurulu ama '
-                f'agentin kostugu Windows oturumunda ACIK emulator penceresi yok. '
-                f'RDP ile girip A+B pencerelerini acin. | {st}')
+                f'agentin kostugu Windows oturumunda otomasyona KAYITLI emulator '
+                f'oturumu yok. DOGRULA: as400 klasorunde Robot_Tani.bat calistir — '
+                f'otomasyonun gordugu baglanti sayisi 2, adlar [A] ve [B] olmali. '
+                f'0 ise: TUM PCOMM pencerelerini kapat, promanage oturumunda '
+                f'YONETICI OLMADAN once A sonra B ac, sign-on yap, taniyi tekrarla. '
+                f'RDP oturumunu Disconnect et, LOGOFF ETME. | {st}')
     if (not st) or any(k in st for k in ('ActiveX', 'Automation', '80040154', '800401F3',
                                          'PCOMM', 'autECL', 'SetConnectionByName', 'sunucu')):
         return (f'rc={rc} | Session B ACILAMADI: PCOMM penceresi kapali ya da COM nesnesi '
