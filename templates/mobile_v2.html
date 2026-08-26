@@ -4188,7 +4188,7 @@ window.__I18N_SOZLUK__ = {
     // "kod neden değişmiş" sorusu çıkmasın. Salt bilgi; kodu değiştirmez.
     // tel_proses.TEL_ADIM_EKI ile BİREBİR — yeni adım eklenince buraya da yazılmalı,
     // yoksa operatör ek önizlemesini göremez (sunucu yine de doğru eki yazar).
-    var TEL_EK = { 'Halat Kesme': 'KESIM', 'Soyma': 'SOYMA',
+    var TEL_EK = { 'Halat/Spiral Kesme': 'KESIM', 'Soyma': 'SOYMA',
                    'Otomatik Hazırlık': 'HAZIRLIK',
                    // Otomat ekleri makine adını taşır (2026-08-21). Eski ekler
                    // ('TAM OTOMAT' / 'YARI OTOMAT') sunucuda OKUNMAYA devam
@@ -4198,11 +4198,16 @@ window.__I18N_SOZLUK__ = {
                    'Kapama': 'KAPAMA', 'Son Montaj': 'SON MONTAJ' };
     // Hat adı adım kalıbına uymayan makineler (tel_proses.TEL_HAT_ADIM_ISTISNA'nın eşi):
     // 'Manuel Kesim' operatöre kendi adıyla görünür ama Halat Kesme adımıdır.
-    var TEL_HAT_ISTISNA = { 'Manuel Kesim': 'Halat Kesme',
-                            'Otomatik Kesim Makinesi': 'Tam Otomatik',
+    // 2026-08-26: makine adlari degisti, ADIM adlari (ve kod ekleri) ayni kaldi.
+    var TEL_HAT_ISTISNA = { 'Manuel Kesim': 'Halat/Spiral Kesme',
+                            'Halat Kesme': 'Halat/Spiral Kesme',
+                            'Otomatik Pres Makinesi': 'Tam Otomatik',
+                            'Otomatik Kesim Makinesi': 'Tam Otomatik',  // eski ad
+                            'Hidrolik Pres': 'Kapama',
+                            'Kapama': 'Kapama',                          // eski ad
                             // 2026-08-21 spiral kesme: kesim adimina dahil (kod eki KESIM)
-                            'Otomatik Spiral Kesme': 'Halat Kesme',
-                            'Manuel Spiral Kesme': 'Halat Kesme' };
+                            'Otomatik Spiral Kesme': 'Halat/Spiral Kesme',
+                            'Manuel Spiral Kesme': 'Halat/Spiral Kesme' };
     function telHatAdimi(hat) {
       var ad = String(hat || '').trim();
       if (TEL_HAT_ISTISNA[ad]) return TEL_HAT_ISTISNA[ad];

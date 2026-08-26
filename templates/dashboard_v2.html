@@ -6671,12 +6671,15 @@ window.__I18N_SOZLUK__ = {
                                   'MONTAJ - 4', 'MONTAJ - 5'];
         // KAPAMA presleri SAHA KODUYLA (2026-08-18) — sıra tel_proses.TEL_HATLARI ile
         // BİREBİR olmalı, yoksa tel kayıtlarında yanlış pres adı gösterilir.
+        // 2026-08-26 (kullanıcı): kapama presleri 'Hidrolik Pres N' (etiket
+        // numaraları korundu), otomat 'Otomatik Pres Makinesi'. SIRA DEĞİŞMEDİ —
+        // pozisyon = uretim_kayitlari.istasyon.
         var TEL_HATLARI = ['Halat Kesme 1', 'Halat Kesme 2', 'Halat Kesme 3',
-                           'Yarı Otomatik 1', 'Yarı Otomatik 2', 'Otomatik Kesim Makinesi',
-                           'Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30',
-                           'Kapama 28', 'Kapama 29',
-                           'Kapama 21', 'Kapama 19', 'Kapama 20', 'Kapama 27',
-                           'Kapama 25', 'Kapama 26',
+                           'Yarı Otomatik 1', 'Yarı Otomatik 2', 'Otomatik Pres Makinesi',
+                           'Hidrolik Pres 5', 'Hidrolik Pres 12', 'Hidrolik Pres 4',
+                           'Hidrolik Pres 30', 'Hidrolik Pres 28', 'Hidrolik Pres 29',
+                           'Hidrolik Pres 21', 'Hidrolik Pres 19', 'Hidrolik Pres 20',
+                           'Hidrolik Pres 27', 'Hidrolik Pres 25', 'Hidrolik Pres 26',
                            'Son Montaj 4', 'Son Montaj 5',       // sahadaki buton numaralari
                            'Son Montaj 903', 'Son Montaj 904',   // kullanilmiyor (gizli)
                            'Otomatik Hazırlık',                  // 2026-08-19
@@ -6753,11 +6756,15 @@ window.__I18N_SOZLUK__ = {
         function pad2(n) { return (n < 10 ? '0' : '') + n; }
         function isoTarih(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
 
-        function bolumAdi(b) {
+        function bolumAdi(b, lokasyon) {
             var ad = (BOLUMLER[b] || {}).ad || b;
             // TK1'de aynı bölüm adları TK2'de de var (montaj, ileride başkaları) —
             // hangi tesise baktığın başlıktan anlaşılsın diye tesis eki konur.
-            return (aktifLokasyon === 'TK1') ? (ad + ' (TK1)') : ad;
+            // SATIRIN KENDİ TESİSİ ÖNCELİKLİ (kullanıcı 2026-08-26): AS400 teyit
+            // sayfası İKİ TESİSİ BİRDEN listeliyor; ek aktif toggle'a bakınca TK1
+            // seçiliyken TK2'nin 'Pres Abkant' satırı da '(TK1)' etiketi alıyordu.
+            var lok = String(lokasyon || '').trim() || aktifLokasyon;
+            return (lok === 'TK1') ? (ad + ' (TK1)') : ad;
         }
 
         // ═══════════════════════════════════════════════════════
@@ -8457,15 +8464,10 @@ window.__I18N_SOZLUK__ = {
                     let refHucre = (i === 0)
                         ? `<b>${u.referans_kodu}</b>` + (cok ? ` <span style="color:var(--dim);font-size:.72rem">×${blok.length}</span>` : '')
                         : `<span style="color:var(--dim)">↳</span>`;
-                    // MAKİNE KODUN YANINDA (kullanıcı 2026-08-25): "proses seçilip
-                    // filtrelendiğinde makine bilgileri de görünsün filtrelenen
-                    // kodların yanında." Grup başlığı adımı söylüyor ('▸ Kapama'),
-                    // hangi presin ürettiği ise satırda kalıyordu; kod bloğu birden
-                    // çok makineye yayıldığında bakışta ayırt edilmiyordu.
-                    // Grup zaten makine ise (kaynak/pres…) tekrar yazılmaz.
-                    if (u.makine && u.makine !== u.grup) {
-                        refHucre += ` <span style="font-size:.7rem;color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary-line);border-radius:6px;padding:1px 6px;white-space:nowrap">${esc(u.makine)}</span>`;
-                    }
+                    // NOT: kodun yanındaki makine rozeti KALDIRILDI (kullanıcı
+                    // 2026-08-26): "her üretim için 2 adet makine etiketi bulunuyor,
+                    // parça kodunun yanındakini kaldıralım." Makine zaten satırın
+                    // ilk sütununda yazıyor; ikinci kopya gürültüydü.
                     html += `<tr${cok ? ' style="background:var(--surface-2)"' : ''}>
                     <td>${i === 0 ? u.tarih : ''}</td>
                     <td><span class="badge badge-blue">${esc(u.makine || u.robot_no)}</span></td>
@@ -8476,6 +8478,7 @@ window.__I18N_SOZLUK__ = {
                     <td style="text-align:right">${ctStr}</td>
                     <td style="text-align:right;">
                         <button onclick="duzenleUretim(${u.uretim_id}, '${u.referans_kodu}', ${u.ok_adet}, ${u.nok_adet}, ${u.hedef_adet || 0}, ${u.cycle_time_sn || 0})" class="adm-btn duzenle">✏️ Düzenle</button>
+                        <button onclick="silUretim(${u.uretim_id}, '${u.referans_kodu}', ${u.ok_adet})" class="adm-btn sil" title="Bu üretim kaydını sil">🗑</button>
                     </td>
                 </tr>`;
                 });
@@ -8772,6 +8775,29 @@ window.__I18N_SOZLUK__ = {
                 _refListCache = await r.json();
             } catch(e) { _refListCache = []; }
             return _refListCache;
+        }
+
+        // ÜRETİM KAYDI SİL (kullanıcı 2026-08-26: "kayıtlar kısmında görünen
+        // üretim verisini silebilmeliyim"). Uç nokta zaten vardı (DELETE
+        // /api/uretim/<id>), panelde düğmesi yoktu — yanlış girilen kayıt ancak
+        // operatör mobilinden silinebiliyordu.
+        // Onay metninde REFERANS + ADET yazılır: geri alınamayan bir işlemde
+        // "hangi satırdı?" sorusu tıklamadan ÖNCE cevaplanmalı.
+        async function silUretim(uid, ref, ok) {
+            if (!confirm('Bu üretim kaydı silinecek:\n\n' + ref + '  ·  ' + ok +
+                         ' adet\n\nGeri alınamaz. Silinsin mi?')) return;
+            try {
+                const res = await fetch('/api/uretim/' + uid, { method: 'DELETE' });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok || body.hata) {
+                    toast(body.hata || ('Sunucu hatası: ' + res.status), 'err');
+                    return;
+                }
+                toast('Üretim kaydı silindi', 'ok');
+                yukleKayitlar();
+            } catch (err) {
+                toast('Silinemedi: ' + err.message, 'err');
+            }
         }
 
         async function duzenleUretim(uid, ref, ok, nok, hdf, ct) {
@@ -13354,7 +13380,8 @@ window.__I18N_SOZLUK__ = {
                                 : ((ls[0] && ls[0].article) ? ls[0].article : r.referans);
                         _as4CopBekleyen.push({
                             tarih: g.tarih, referans: r.referans, article: art, adet: h,
-                            bolum: r.bolum || '', bugunMu: g.tarih === bugun,
+                            bolum: r.bolum || '', tesis: r.tesis || '',
+                            bugunMu: g.tarih === bugun,
                             supheli: (kat === 'SUPHELI'), verildi: !!copVer[copKey(g.tarih, art)],
                             // Önceki denemesi HATA ile bitmiş satır: ERP'ye girilmiş OLABİLİR
                             // (robot yazdı ama doğrulama tutmadı). Satırda uyarı gösterilir.
@@ -13475,7 +13502,7 @@ window.__I18N_SOZLUK__ = {
                     sKuyruk += '<tr>' +
                         '<td><input type="checkbox" id="as4-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
-                        '<td>' + esc(bolumAdi(r.bolum)) + '</td>' +
+                        '<td>' + esc(bolumAdi(r.bolum, r.tesis)) + '</td>' +
                         '<td style="font-weight:700">' + esc(r.referans) + orj + '</td>' +
                         '<td style="text-align:right;font-weight:800;color:var(--success)">' + fmt(r.adet) + '</td>' +
                         '<td style="font-size:.8rem">' + lsHtml + '</td>' +
@@ -13516,7 +13543,7 @@ window.__I18N_SOZLUK__ = {
                         sKuyruk += '<tr>' +
                             '<td><input type="checkbox" id="as4-cfi-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                             '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
-                            '<td>' + esc(bolumAdi(r.bolum)) + '</td>' +
+                            '<td>' + esc(bolumAdi(r.bolum, r.tesis)) + '</td>' +
                             '<td style="font-weight:700">' + esc(r.referans) +
                                 (r.hurda > 0 ? '<div style="font-size:.7rem;color:var(--lg-red);font-weight:700">♻ hurda ' + fmt(r.hurda) + ' → COP girilecek</div>' : '') +
                                 '<div style="margin-top:3px">' +
@@ -13571,7 +13598,7 @@ window.__I18N_SOZLUK__ = {
                     sCop += '<tr>' +
                         '<td><input type="checkbox" id="as4-cop-cb-' + i + '"' + (sec ? ' checked' : '') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(c.tarih)) + gunU + '</td>' +
-                        '<td>' + esc(bolumAdi(c.bolum)) + '</td>' +
+                        '<td>' + esc(bolumAdi(c.bolum, c.tesis)) + '</td>' +
                         '<td style="font-weight:700">' + esc(c.referans) + sadeceU + denemeU + '</td>' +
                         '<td><input type="text" id="as4-cop-art-' + i + '" value="' + esc(c.article) + '" class="rt-row-input" style="width:150px;font-size:.8rem' + (c.supheli ? ';border-color:var(--lg-amber)' : '') + '">' + uyari + '</td>' +
                         '<td style="text-align:right"><input type="number" id="as4-cop-adet-' + i + '" value="' + c.adet + '" min="1" class="rt-row-input" style="width:78px;text-align:right;color:var(--lg-red);font-weight:800"></td>' +
@@ -13625,7 +13652,7 @@ window.__I18N_SOZLUK__ = {
                     var hrk = (l.zaten_hareket || []).map(function (h) { return h.tarih + ': ' + fmt(h.adet) + ' (L' + h.launch + ')'; }).join(', ');
                     var isrD = x.r.isaret || {};
                     sDikkat += '<tr><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
-                        '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
+                        '<td>' + esc(bolumAdi(x.r.bolum, x.r.tesis)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
                             (isrD.durum === 'kontrol' ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
                              : isrD.durum === 'teyit_ver' ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">➕ teyit verilecek</span>' : '') +
@@ -13656,7 +13683,7 @@ window.__I18N_SOZLUK__ = {
                 teyitli.forEach(function (x) {
                     var hrk = (x.l.zaten_hareket || []).map(function (h) { return h.tarih + ' → ' + fmt(h.adet) + ' adet (L' + h.launch + ')'; }).join('<br>');
                     sTeyitli += '<tr style="opacity:.85"><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
-                        '<td>' + esc(bolumAdi(x.r.bolum)) + '</td>' +
+                        '<td>' + esc(bolumAdi(x.r.bolum, x.r.tesis)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
                             // İŞARETLİ SATIR TEK YÖNLÜ KAPI OLMASIN (2026-08-04).
                             // Bir satır "✓ kontrol" ile işaretlenince Dikkat'ten çıkıp buraya
@@ -13689,7 +13716,7 @@ window.__I18N_SOZLUK__ = {
                 if (haricList.length) {
                     sBilgi += '<div style="color:var(--lg-slate);font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez (kalıcı işaret) — robot dokunmaz:</div>';
                     haricList.forEach(function (x) {
-                        sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
+                        sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum, x.r.tesis)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
                             '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
                             'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'kalici\',\'gerek_yok\',\'\',true)" ' +
                             'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" title="Kalıcı işareti kaldır, tekrar teyit listesine gelsin">↩ geri al</button></div>';

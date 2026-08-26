@@ -39,14 +39,18 @@ import re
 # KESIM ile aynı eki ALAMAZDI: soyma her ürüne yapılmadığı için aynı kodda
 # toplansalardı, soyulan ürünün kesimi ile soyması tek koda yığılır ve aynı 100
 # parça 200 üretim gibi görünürdü — adım ayrımının varlık sebebi tam olarak bu.
-TEL_ADIMLARI = ('Halat Kesme', 'Soyma', 'Otomatik Hazırlık',
+# 'Halat Kesme' → 'Halat/Spiral Kesme' (kullanıcı 2026-08-26): adım altında
+# hem halat kesme hem spiral kesme makineleri var, adın ikisini de kapsaması
+# istendi. KOD EKİ 'KESIM' DEĞİŞMEDİ — değişseydi bu ekle yazılmış tüm geçmiş
+# kayıtlar rapor kırılımından düşerdi (bkz. TEL_ADIM_EKI_ESKI notu).
+TEL_ADIMLARI = ('Halat/Spiral Kesme', 'Soyma', 'Otomatik Hazırlık',
                 'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
 
 # Sıra numarası: yarı ve tam otomatik AYNI adım sayılır — biri diğerinin
 # alternatifi, ikisi arka arkaya uygulanmaz.
 # NOT: sayısal değer HİÇBİR YERDE kullanılmıyor (mantık ÜYELİĞE bakar); burada
 # prosesi okunur kılmak için duruyor. Bu yüzden araya adım eklemek güvenlidir.
-TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Soyma': 2, 'Otomatik Hazırlık': 3,
+TEL_ADIM_SIRA = {'Halat/Spiral Kesme': 1, 'Soyma': 2, 'Otomatik Hazırlık': 3,
                  'Yarı Otomatik': 4, 'Tam Otomatik': 4,
                  'Kapama': 5, 'Son Montaj': 6}
 
@@ -56,17 +60,27 @@ TEL_ADIM_SIRA = {'Halat Kesme': 1, 'Soyma': 2, 'Otomatik Hazırlık': 3,
 # bunu Halat Kesme saymalı (kod eki KESIM, raporda kesim sütunu) — kesim üretimi
 # iki ayrı sütuna bölünmesin.
 TEL_HAT_ADIM_ISTISNA = {
-    'Manuel Kesim': 'Halat Kesme',
-    # Hat adi 'Otomatik Kesim Makinesi' ama proses adimi 'Tam Otomatik' KALIR:
-    # kod eki ('TAM OTOMAT') ve rapor sutunu degismesin (2026-08-21).
+    'Manuel Kesim': 'Halat/Spiral Kesme',
+    # MAKINE ADI ADIM ADINDAN BAGIMSIZ (2026-08-26): kullanici makine adlarini
+    # sahadaki etiketlere gore degistirdi ama ADIM adlari (dolayisiyla kod ekleri
+    # ve rapor sutunlari) AYNI kaldi. Her yeni makine adi buraya bir satir ekler.
+    #   'Otomatik Pres Makinesi' -> adim 'Tam Otomatik'  (ek: OTOMATİK MAKİNE HATTI)
+    #   'Hidrolik Pres N'        -> adim 'Kapama'        (ek: KAPAMA)
+    #   'Halat Kesme N'          -> adim 'Halat/Spiral Kesme' (ek: KESIM)
+    'Otomatik Pres Makinesi': 'Tam Otomatik',
+    # ESKI AD — YALNIZ OKUMA: bu adla yazilmis vardiyalarin (robot_no) adimi
+    # cozulmeye devam etsin, yoksa gecmis kayitlar rapor kiriliminden duser.
     'Otomatik Kesim Makinesi': 'Tam Otomatik',
+    'Hidrolik Pres': 'Kapama',
+    'Kapama': 'Kapama',              # eski hat adi ('Kapama 5') — yalniz okuma
+    'Halat Kesme': 'Halat/Spiral Kesme',
     # SPIRAL KESME (kullanici 2026-08-21): TK1'de halat kesmenin YANINDA 3 otomatik
     # + 1 manuel spiral kesme makinesi var. Kullanici karari: AYRI ADIM DEGIL,
-    # 'Halat Kesme' adimina DAHIL -> kod eki KESIM, raporda tek kesim sutunu.
+    # kesim adimina DAHIL -> kod eki KESIM, raporda tek kesim sutunu.
     # Operator listede makinenin gercek adini gorur ('Manuel Kesim' kalibinin ayni).
     # Numarali adlar da cozulur: tel_hat_adimi son numarayi atip burada tekrar arar.
-    'Otomatik Spiral Kesme': 'Halat Kesme',
-    'Manuel Spiral Kesme': 'Halat Kesme',
+    'Otomatik Spiral Kesme': 'Halat/Spiral Kesme',
+    'Manuel Spiral Kesme': 'Halat/Spiral Kesme',
 }
 
 # FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
@@ -107,9 +121,20 @@ TEL_HATLARI = (
     # adini gormeli. ADIM 'Tam Otomatik' KALIR (TEL_HAT_ADIM_ISTISNA) — adim adi
     # degisseydi kod eki de degisirdi ('... TAM OTOMAT') ve o ekle yazilmis TUM
     # gecmis kayitlar rapor kirilimindan duserdi.
-    + ['Otomatik Kesim Makinesi']
-    + ['Kapama 5', 'Kapama 12', 'Kapama 4', 'Kapama 30', 'Kapama 28', 'Kapama 29']
-    + ['Kapama 21', 'Kapama 19', 'Kapama 20', 'Kapama 27', 'Kapama 25', 'Kapama 26']
+    # AD DEGISTI, POZISYON AYNI (kullanici 2026-08-26): 'Otomatik Kesim
+    # Makinesi' -> 'Otomatik Pres Makinesi'. Adim 'Tam Otomatik' KALIR.
+    + ['Otomatik Pres Makinesi']
+    # AD DEGISTI, SIRA AYNI (kullanici 2026-08-26): "kapama makinelerinin
+    # adlarini makine etiket numaralari kalacak sekilde hidrolik pres olarak
+    # degistirelim." Saha kodu (5, 12, 4 ...) KORUNDU; yalniz basindaki kelime
+    # degisti. Pozisyon = uretim_kayitlari.istasyon -> asla kaymaz.
+    # Cihaz adlari (firmware 'Kapama 1..12') DEGISMEDI, yeniden flash GEREKMEZ;
+    # esleme app._KAPAMA_SAHA_CIHAZ'da. Yan fayda: hat ve cihaz adlari artik
+    # birbirine benzemiyor, eski 'Kapama 12 hem hat hem cihaz' karisikligi bitti.
+    + ['Hidrolik Pres 5', 'Hidrolik Pres 12', 'Hidrolik Pres 4',
+       'Hidrolik Pres 30', 'Hidrolik Pres 28', 'Hidrolik Pres 29']
+    + ['Hidrolik Pres 21', 'Hidrolik Pres 19', 'Hidrolik Pres 20',
+       'Hidrolik Pres 27', 'Hidrolik Pres 25', 'Hidrolik Pres 26']
     # SON MONTAJ 2 HATTA DÜŞTÜ (kullanıcı 2026-08-20): sahada bu iş 4 ve 5 numaralı
     # buton modülleriyle yapılıyor (eski YF modülü son montaja taşındı) → hat adı
     # BUTON NUMARASINI taşır; operatör masasının üstünde yazan numarayı seçer
@@ -195,7 +220,7 @@ def tel_hat_adimi(robot_no):
 # kendiliğinden görünür — sabit bir proses tanımına ihtiyaç kalmaz.
 TEL_ADIM_EKI = {
     'Otomatik Hazırlık': 'HAZIRLIK',
-    'Halat Kesme':   'KESIM',
+    'Halat/Spiral Kesme': 'KESIM',
     'Soyma':         'SOYMA',
     # Otomat adımlarının ekleri makine adını taşır (kullanıcı 2026-08-21):
     # hat adı 'Otomatik Kesim Makinesi' olunca kodun yanında 'TAM OTOMAT'

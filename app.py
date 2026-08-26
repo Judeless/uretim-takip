@@ -463,13 +463,19 @@ TK1_ROBOT_NOLARI = ({'YF1', 'Pull', 'Push-Pull', 'Iveco', 'LF-LFP',
 # (modül 4 kanal 3 → hat 'Kapama 26'). Karışmaz çünkü arama tek yönlü ve tek adımdır:
 # ileri yön hat adıyla (HAT_SAYAC_CIHAZI['Kapama 12'] = 'Kapama 2'), geri yön
 # DEĞERLERDE arayarak (cihaz 'Kapama 12' → hat 'Kapama 26').
+# SOL = OPERATÖRÜN GÖRDÜĞÜ HAT ADI (2026-08-26'dan beri 'Hidrolik Pres N'),
+# SAĞ = FIRMWARE'DEKİ CİHAZ ADI ('Kapama N') — cihaz adları DEĞİŞMEDİ, yeniden
+# flash gerekmez. Adlar artık birbirine benzemediği için eski "'Kapama 12' hem
+# hat hem cihaz" karışıklığı da kalmadı.
 _KAPAMA_SAHA_CIHAZ = {
     # Modül 1-2 (2026-08-18)
-    'Kapama 5':  'Kapama 1',   'Kapama 12': 'Kapama 2',   'Kapama 4':  'Kapama 3',
-    'Kapama 30': 'Kapama 4',   'Kapama 28': 'Kapama 5',   'Kapama 29': 'Kapama 6',
+    'Hidrolik Pres 5':  'Kapama 1',   'Hidrolik Pres 12': 'Kapama 2',
+    'Hidrolik Pres 4':  'Kapama 3',   'Hidrolik Pres 30': 'Kapama 4',
+    'Hidrolik Pres 28': 'Kapama 5',   'Hidrolik Pres 29': 'Kapama 6',
     # Modül 3-4 (2026-08-19) — 12 presin tamamı adlandırıldı, gizli hat kalmadı
-    'Kapama 21': 'Kapama 7',   'Kapama 19': 'Kapama 8',   'Kapama 20': 'Kapama 9',
-    'Kapama 27': 'Kapama 10',  'Kapama 25': 'Kapama 11',  'Kapama 26': 'Kapama 12',
+    'Hidrolik Pres 21': 'Kapama 7',   'Hidrolik Pres 19': 'Kapama 8',
+    'Hidrolik Pres 20': 'Kapama 9',   'Hidrolik Pres 27': 'Kapama 10',
+    'Hidrolik Pres 25': 'Kapama 11',  'Hidrolik Pres 26': 'Kapama 12',
 }
 # TK1 BUTON MODÜLLERİ: buton etiketi → firmware robot_no (kullanıcı 2026-08-19).
 # Modüller 'TK1-M1..M7' / 'YF1' olarak flash'lı; sahadaki butonlar MONTAJ - 1..5
@@ -705,7 +711,7 @@ TEST_CIHAZ_ESLEME = {
     # o makinede SVP cihazı otomatik seçili GELMİYORDU. Eski anahtar ulaşılamaz
     # hale geldi (kayit_makine_ad her zaman GÜNCEL listeden okur), o yüzden
     # bırakılmadı. HAT ADI DEĞİŞTİRİLİRSE BURASI DA DEĞİŞMELİ.
-    ('TK1', 'tel',     'Otomatik Kesim Makinesi'): [41],   # PP OTOMATIK SPIRAL PRESLEME
+    ('TK1', 'tel',     'Otomatik Pres Makinesi'): [41],    # PP OTOMATIK SPIRAL PRESLEME
 }
 
 
@@ -927,20 +933,28 @@ def _sayac_anahtari(bolum, robot_no, istasyon):
 
 
 def _canli_auto_kayitlar(conn, vardiya_id):
-    """Bu vardiyanın GÜNÜNDEKİ açık vardiyalarda canlı olan ESP32 sayaç kayıtları.
+    """Bu vardiyanın GÜNÜNDEKİ tüm ESP32 sayaç kayıtları — DONMUŞ OLANLAR DAHİL.
 
-    Yalnız sayac_otomatik=1: vardiya kapanınca (bkz. vardiya kapatma) tüm kayıtlar
-    dondurulur, referans değişince önceki kayıt dondurulur → 'canlı' kümesi tam
-    olarak "şu an bu sensörden sayanlar"dır. Test cihazı kayıtları hariç: onların
-    sayacı pilot.db değil test_sonuclari."""
+    DONMUŞ KAYITLAR DA ALINIR (kullanıcı 2026-08-26 hata bildirimi): eskiden
+    yalnız sayac_otomatik=1 olanlar alınıyordu. İki operatör aynı makinede aynı
+    referansı paylaşırken BİRİ DURUNCA (vardiyası kapandı / başka referansa geçti)
+    o kayıt donuyor ve paylaşım kümesinden düşüyordu; kalan kaydın penceresi kendi
+    başlangıcından itibaren TEK BAŞINA sayılmaya başlıyordu, yani birlikte
+    çalıştıkları dönem İKİNCİ KEZ ona yazılıyordu. Sonuç: bir kayıt gerçeğin iki
+    katına fırlıyor, ikisinin toplamı makinenin ürettiğini aşıyordu.
+    Artık pencere bitişi (bitis_ts) de taşınır; paylaşım o ana kadar geçerli
+    sayılır — donmuş kayıt payını korur, canlı olan fazlasını almaz.
+
+    Test cihazı kayıtları hariç: onların sayacı pilot.db değil test_sonuclari.
+    canli=1 ise kayıt hâlâ sayıyor (bitişi YOK sayılır)."""
     try:
         return conn.execute(
-            "SELECT u.id, u.istasyon, u.sayac_baslangic_ts, u.referans_kodu, "
+            "SELECT u.id, u.istasyon, u.sayac_baslangic_ts, u.bitis_ts, "
+            "       u.referans_kodu, COALESCE(u.sayac_otomatik,0) AS canli, "
             "       COALESCE(v.bolum,'kaynak') AS bolum, v.robot_no "
             "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id "
             "WHERE v.tarih = (SELECT tarih FROM vardiyalar WHERE id=?) "
-            "  AND COALESCE(v.durum,'acik') != 'kapali' "
-            "  AND u.sayac_otomatik = 1 AND u.sayac_baslangic_ts IS NOT NULL "
+            "  AND u.sayac_baslangic_ts IS NOT NULL "
             "  AND u.test_cihaz_id IS NULL",
             (vardiya_id,)).fetchall()
     except Exception as e:
@@ -952,8 +966,12 @@ def _paylasanlar(canli, bolum, robot_no, istasyon, ref):
     """Aynı sensörü + aynı referansı paylaşan canlı kayıtlar: [(bas_ts, id), ...] artan.
 
     Referans şartı bilinçli: paylaşım YALNIZ 'iki kişi aynı işi yapıyor' halinde
-    açılmalı. Aynı makinede farklı referansta canlı bir kayıt varsa (unutulmuş
-    açık vardiya gibi) bu kaydın adedi yarıya inmemeli."""
+    açılmalı. Aynı makinede farklı referansta bir kayıt varsa (unutulmuş açık
+    vardiya gibi) bu kaydın adedi yarıya inmemeli.
+
+    DÖNÜŞ: [(bas_ts, bitis_ts|None, id), ...] — 'bitis_ts' None ise kayıt hâlâ
+    sayıyor. Bitişi taşımak ŞART: yoksa duran ortağın payı kalan kayda ikinci kez
+    yazılır (bkz. _canli_auto_kayitlar)."""
     anahtar = _sayac_anahtari(bolum, robot_no, istasyon)
     rn = _ref_normal(ref)
     if not rn:
@@ -964,8 +982,13 @@ def _paylasanlar(canli, bolum, robot_no, istasyon, ref):
             continue
         if _sayac_anahtari(r['bolum'], r['robot_no'], r['istasyon'] or 0) != anahtar:
             continue
-        grup.append((r['sayac_baslangic_ts'], r['id']))
-    grup.sort()
+        _k = r.keys()
+        _canli = r['canli'] if 'canli' in _k else 1
+        _bit = (r['bitis_ts'] if 'bitis_ts' in _k else None)
+        # Hâlâ sayan kaydın bitişi YOK sayılır: 'tamamlandı'dan geri alınmış bir
+        # kayıtta eski damga kalmış olabilir, pencereyi erken kapatmasın.
+        grup.append((r['sayac_baslangic_ts'], (None if _canli else _bit), r['id']))
+    grup.sort(key=lambda g: (g[0], g[2]))
     return grup
 
 
@@ -975,15 +998,19 @@ def _paylasimli_pulse(bolum, robot_no, istasyon, kayit_id, grup, biti_ts=None):
     grup: _paylasanlar() çıktısı (en az 2 üye). Tek üye varsa çağıran zaten
     _pilot_pulse_say'i doğrudan kullanır (ek sorgu yok, eski davranış aynen).
     pilot.db okunamazsa None döner → çağıran ok_adet'i EZMEZ."""
-    sinirlar = sorted({g[0] for g in grup})
-    paylar = {kid: 0.0 for _, kid in grup}
+    # DİLİM SINIRLARI: başlangıçlar + BİTİŞLER (2026-08-26). Bitişler olmadan,
+    # duran ortağın ayrıldığı an bir sınır oluşturmuyordu; o âna kadarki dönem
+    # kalan kayda bütün olarak yeniden yazılıyordu ("adet 2 katı" şikâyeti).
+    sinirlar = sorted({g[0] for g in grup} | {g[1] for g in grup if g[1]})
+    paylar = {g[2]: 0.0 for g in grup}
     toplam = 0
     for i, bas in enumerate(sinirlar):
         son = sinirlar[i + 1] if i + 1 < len(sinirlar) else biti_ts
         adet = _pilot_pulse_say(bolum, robot_no, istasyon, bas, son)
         if adet is None:
             return None                      # okunamadı — hiçbir payı yazma
-        aktif = [kid for bts, kid in grup if bts <= bas]
+        # Bu dilimde AKTİF olanlar: başlamış VE henüz bitmemiş kayıtlar.
+        aktif = [kid for bts, bit, kid in grup if bts <= bas and (not bit or bit > bas)]
         if not aktif:
             continue
         toplam += adet
@@ -1031,7 +1058,7 @@ def _sayac_oku(conn, vardiya_id, kayit_id, bolum, robot_no, istasyon, basla_ts, 
     # Kaydın kendisi grupta değilse (beklenmez; canlı küme ile kayıt arasında bir
     # tutarsızlık olursa) paylaşıma GİRME — _paylasimli_pulse tanımadığı id için 0
     # döner ve gerçek üretimi sıfırlardı.
-    if len(grup) < 2 or kayit_id not in {k for _, k in grup}:
+    if len(grup) < 2 or kayit_id not in {g[2] for g in grup}:
         return _pilot_pulse_say(bolum, robot_no, istasyon, basla_ts, biti_ts)
     return _paylasimli_pulse(bolum, robot_no, istasyon, kayit_id, grup, biti_ts)
 
@@ -2795,12 +2822,17 @@ def vardiya_hat_degistir(vid):
             fcnt = _paket_carp(_bukum_bol(fcnt, _sinyal_bolen(eski_robot, o['istasyon'] or 0,
                                                               o['bukum_operasyon'])),
                                o['paket_adedi'])
+            # BİTİŞ DAMGASI ŞART (2026-08-26): paylaşım hesabı pencereleri artık
+            # bitis_ts ile sınırlıyor. Damgasız donan kayıt "hâlâ paylaşıyor"
+            # sayılır ve ortağının payını gereksiz yere küçültürdü.
             if fcnt is not None:
-                c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0 WHERE id=?",
-                          (fcnt, o['id']))
+                c.execute("UPDATE uretim_kayitlari SET ok_adet=?, sayac_otomatik=0, "
+                          "bitis_ts=COALESCE(bitis_ts, ?) WHERE id=?",
+                          (fcnt, simdi, o['id']))
             else:
                 # pilot.db okunamadı — ok_adet'i SIFIRLAMA; mevcut değerle manuel'e al
-                c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE id=?", (o['id'],))
+                c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0, "
+                          "bitis_ts=COALESCE(bitis_ts, ?) WHERE id=?", (simdi, o['id']))
 
         c.execute("UPDATE vardiyalar SET robot_no=? WHERE id=?", (yeni_robot, vid))
         conn.commit()

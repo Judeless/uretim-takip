@@ -118,19 +118,25 @@ TK1_SAYFA = {
 # → sistemdeki adım adı. Başlık yazımı esnek olsun diye birkaç varyant tanınır;
 # tanınmayan kolon sessizce YOK SAYILIR (yeni kolon eklenirse buraya da eklenmeli).
 TEL_ADIM_BASLIK = {
-    'halat kesme': 'Halat Kesme', 'kesim': 'Halat Kesme', 'halat kesim': 'Halat Kesme',
-    'manuel kesim': 'Halat Kesme',   # makine adı ayrı, adım aynı (2026-08-20)
-    # Spiral kesme (2026-08-21): 3 otomatik + 1 manuel makine, adım Halat Kesme
+    # ADIM ADI 2026-08-26'da 'Halat/Spiral Kesme' oldu; Excel başlığı hangisi
+    # yazılırsa yazılsın AYNI adıma düşer (eski dosyalar bozulmasın).
+    'halat/spiral kesme': 'Halat/Spiral Kesme', 'halat spiral kesme': 'Halat/Spiral Kesme',
+    'halat kesme': 'Halat/Spiral Kesme', 'kesim': 'Halat/Spiral Kesme',
+    'halat kesim': 'Halat/Spiral Kesme',
+    'manuel kesim': 'Halat/Spiral Kesme',   # makine adı ayrı, adım aynı (2026-08-20)
+    # Spiral kesme (2026-08-21): 3 otomatik + 1 manuel makine, adım kesim
     # (kullanıcı kararı: ayrı sütun değil, kesime dahil).
-    'spiral kesme': 'Halat Kesme', 'spiral kesim': 'Halat Kesme',
-    'otomatik spiral kesme': 'Halat Kesme', 'manuel spiral kesme': 'Halat Kesme',
+    'spiral kesme': 'Halat/Spiral Kesme', 'spiral kesim': 'Halat/Spiral Kesme',
+    'otomatik spiral kesme': 'Halat/Spiral Kesme',
+    'manuel spiral kesme': 'Halat/Spiral Kesme',
     'soyma': 'Soyma',                # kesim yapılan her ürüne yapılmaz → AYRI adım
     'otomatik hazırlık': 'Otomatik Hazırlık', 'otomatik hazirlik': 'Otomatik Hazırlık',
     'hazırlık': 'Otomatik Hazırlık', 'hazirlik': 'Otomatik Hazırlık',
     'yarı otomatik': 'Yarı Otomatik', 'yari otomatik': 'Yarı Otomatik',
     'yarı otomat': 'Yarı Otomatik', 'yari otomat': 'Yarı Otomatik',
     'tam otomatik': 'Tam Otomatik', 'tam otomat': 'Tam Otomatik',
-    'kapama': 'Kapama',
+    'otomatik pres': 'Tam Otomatik', 'otomatik pres makinesi': 'Tam Otomatik',
+    'kapama': 'Kapama', 'hidrolik pres': 'Kapama',   # makine adı 2026-08-26
     'son montaj': 'Son Montaj', 'montaj': 'Son Montaj',
 }
 # Hücre "bu adım var" mı diyor? X / x / 1 / EVET / VAR / ✓ kabul edilir.
@@ -141,7 +147,7 @@ _TEL_ISARET = {'x', '1', 'evet', 'var', '✓', '✔', 'e', 'yes', 'true'}
 # Sıralı tutmak "son adım" hesabını kolaylaştırır ve panelde okunaklı gösterir.
 # 2026-08-20: 'Soyma' + 'Otomatik Hazırlık' eklendi — tel_proses.TEL_ADIMLARI ile
 # BİREBİR olmalı, yoksa Excel'de işaretlenen adım panelde sırasız/eksik görünür.
-TEL_ADIM_SIRASI = ('Halat Kesme', 'Soyma', 'Otomatik Hazırlık',
+TEL_ADIM_SIRASI = ('Halat/Spiral Kesme', 'Soyma', 'Otomatik Hazırlık',
                    'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
 
 
