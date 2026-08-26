@@ -550,6 +550,50 @@ def _b(kod, siddet, baslik, detay, oneri='', **sayisal):
             'oneri': oneri, 'sayisal': sayisal}
 
 
+def ct_yok_kirilimi(vardiyalar):
+    """Hedef süresi TANIMSIZ üretimin referans kırılımı — adede göre azalan.
+
+    Kullanıcı 2026-08-26: "üretimin %32'sinde süre tanımlı değil uyarısı verip
+    bundan dolayı OEE düşük diyor, tıklayıp bu kodları görebileyim."
+    Uyarı doğruydu ama eyleme dönüşmüyordu: hangi kodların doldurulacağı
+    görünmeden 'referans listesini gözden geçirin' demek işe yaramaz.
+
+    Anahtar (kod, bölüm, lokasyon): aynı kod iki tesiste/bölümde ayrı referans
+    satırıdır ve süresi ayrı ayrı doldurulur — tek satırda toplanırsa hangisinin
+    eksik olduğu kaybolur. 'hatlar' ve 'operatorler' listeleri kimin nerede
+    ürettiğini gösterir (süreyi kim tanımlayacak sorusu buradan cevaplanır)."""
+    kirilim = {}
+    for v in vardiyalar:
+        for r in v['kayitlar']:
+            ct = r['guncel_ct'] if (r['guncel_ct'] and r['guncel_ct'] > 0) else (r['cycle_time_sn'] or 0)
+            if ct > 0:
+                continue
+            adet = (r['ok_adet'] or 0) + (r['nok_adet'] or 0)
+            if adet <= 0:
+                continue          # adetsiz satır 'eksik tanım' listesini şişirmesin
+            kod = (r['referans_kodu'] or '').strip() or '—'
+            anahtar = (kod, v['bolum'] or '', v['lokasyon'] or '')
+            d = kirilim.get(anahtar)
+            if d is None:
+                d = kirilim[anahtar] = {
+                    'referans': kod, 'bolum': v['bolum'] or '',
+                    'lokasyon': v['lokasyon'] or '', 'adet': 0, 'kayit_sayisi': 0,
+                    '_hatlar': set(), '_operatorler': set(), '_gunler': set()}
+            d['adet'] += adet
+            d['kayit_sayisi'] += 1
+            d['_hatlar'].add(v['hat'] or '')
+            d['_operatorler'].add(v['operator'] or '')
+            d['_gunler'].add(v['tarih'])
+    out = []
+    for d in kirilim.values():
+        out.append({**{k: x for k, x in d.items() if not k.startswith('_')},
+                    'hatlar': sorted(h for h in d['_hatlar'] if h),
+                    'operatorler': sorted(o for o in d['_operatorler'] if o),
+                    'gun_sayisi': len(d['_gunler'])})
+    out.sort(key=lambda x: (-x['adet'], x['referans']))
+    return out
+
+
 def _bulgu_cycle_tanimsiz(vardiyalar, hatlar):
     """SÜRESİ TANIMSIZ REFERANSLAR — en sinsi bulgu.
 
@@ -565,13 +609,11 @@ def _bulgu_cycle_tanimsiz(vardiyalar, hatlar):
     oran = ct_yok / toplam * 100
     if oran < 5:
         return []
-    kodlar = defaultdict(int)
-    for v in vardiyalar:
-        for r in v['kayitlar']:
-            ct = r['guncel_ct'] if (r['guncel_ct'] and r['guncel_ct'] > 0) else (r['cycle_time_sn'] or 0)
-            if ct <= 0:
-                kodlar[r['referans_kodu']] += (r['ok_adet'] or 0) + (r['nok_adet'] or 0)
-    ilk = sorted(kodlar.items(), key=lambda x: -x[1])[:8]
+    # Kırılım TEK YERDEN (ct_yok_kirilimi): panelin 'tıkla ve kodları gör'
+    # listesiyle bu bulgunun listesi aynı kaynaktan gelsin, zamanla ayrışmasın.
+    kirilim = ct_yok_kirilimi(vardiyalar)
+    kodlar = {(k['referans'], k['bolum'], k['lokasyon']): k['adet'] for k in kirilim}
+    ilk = [(k['referans'], k['adet']) for k in kirilim[:8]]
     return [_b('cycle_tanimsiz', 'kritik' if oran >= 20 else 'uyari',
                f'Üretimin %{oran:.0f}\'ında hedef süre tanımsız — OEE olduğundan düşük görünüyor',
                f'{_bin(ct_yok)} adet ({len(kodlar)} referans) hedef cycle time olmadan '

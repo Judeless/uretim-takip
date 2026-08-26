@@ -6397,6 +6397,21 @@ window.__I18N_SOZLUK__ = {
         </div>
     </div>
 
+    <!-- ══════ SÜRESİ TANIMSIZ REFERANSLAR (2026-08-26) ══════
+         'Ölçüm kapsamı %X' uyarısındaki düğme buraya açılır: hangi kodların
+         hedef süresi eksik, kaç adet üretilmiş, hangi hat/operatörle.
+         Uyarının kendisi vardı ama eyleme dönüşmüyordu. -->
+    <div id="ct-yok-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:20px"
+         onclick="if (event.target === this) ctYokKapat()">
+        <div style="width:100%;max-width:1000px;max-height:86vh;overflow-y:auto;background:var(--card,#14122e);border:1px solid var(--border,#2a2850);border-radius:16px;padding:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <h3 style="font-size:1.1rem">📏 Hedef süresi tanımsız referanslar</h3>
+                <button onclick="ctYokKapat()" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1">×</button>
+            </div>
+            <div id="ct-yok-govde"></div>
+        </div>
+    </div>
+
     <!-- ══════ VARDİYA DETAY PANELİ (Kayıtlar ▸ Vardiyalar satır tıklaması) ══════ -->
     <div class="detail-panel" id="detail-panel">
         <div class="detail-header">
@@ -11355,13 +11370,75 @@ window.__I18N_SOZLUK__ = {
             if (typeof o.olcum_kapsami === 'number') {
                 var k = o.olcum_kapsami;
                 var renk = k >= 90 ? 'var(--success)' : (k >= 70 ? 'var(--warn)' : 'var(--danger)');
+                // TIKLANABİLİR (kullanıcı 2026-08-26): "tıklayıp bu kodları
+                // görebileyim." Uyarı doğruydu ama eyleme dönüşmüyordu — hangi
+                // kodların süresi eksik görünmeden 'referansları gözden geçirin'
+                // demek işe yaramıyordu.
+                var eksik = (k < 100)
+                    ? ' <button type="button" onclick="ctYokAc()" style="border:1px solid var(--primary-line);' +
+                      'background:var(--primary-soft);color:var(--primary);border-radius:999px;' +
+                      'padding:1px 9px;font-size:.7rem;font-weight:800;cursor:pointer;' +
+                      'font-family:var(--font-main)">eksik kodları gör →</button>'
+                    : '';
                 parcalar.push('📏 Ölçüm kapsamı: <b style="color:' + renk + '">%' + k.toFixed(1) +
                               '</b> (üretimin bu kadarının cycle süresi tanımlı)' +
-                              (k < 90 ? ' — kalanı performansa katkı vermez, OEE olduğundan düşük görünür' : ''));
+                              (k < 90 ? ' — kalanı performansa katkı vermez, OEE olduğundan düşük görünür' : '') +
+                              eksik);
             }
             if (!parcalar.length) return '';
             return '<div style="margin-top:8px;font-size:.72rem;color:var(--muted);line-height:1.7">' +
                    parcalar.join('<br>') + '</div>';
+        }
+
+        // ── SÜRESİ TANIMSIZ REFERANSLAR (2026-08-26) ──────────────────────
+        // Aralık/filtre operatör performansı sayfasıyla AYNI parametrelerden
+        // okunur (anSorgu) — ekrandaki yüzde ile liste birebir aynı kümedir.
+        async function ctYokAc() {
+            var kutu = document.getElementById('ct-yok-modal');
+            var govde = document.getElementById('ct-yok-govde');
+            if (!kutu) return;
+            kutu.style.display = 'flex';
+            govde.innerHTML = '<div class="yukleniyor"><span class="spinner"></span></div>';
+            try {
+                var res = await fetch('/api/rapor/ct_yok?' +
+                    anSorgu('op-perf-bas', 'op-perf-bit', 'op-perf-bolum'), { cache: 'no-store' });
+                var d = await res.json();
+                if (!res.ok) { govde.innerHTML = '<div class="empty">' + esc(d.hata || 'Hata') + '</div>'; return; }
+                var liste = d.referanslar || [];
+                var bas = '<div style="font-size:.82rem;color:var(--muted);margin-bottom:12px;line-height:1.7">' +
+                    d.donem.bas + ' – ' + d.donem.bit + ' · <b>' + fmt(d.ct_yok_adet) + '</b> adet ' +
+                    '(' + liste.length + ' referans) hedef süresi tanımsız üretilmiş. ' +
+                    'Toplam üretim ' + fmt(d.toplam_adet) + ' · ölçüm kapsamı %' +
+                    (d.olcum_kapsami || 0).toFixed(1) + '.<br>' +
+                    'Bu adetler performans hesabına HİÇ girmiyor; süreleri doldurulunca OEE kendiliğinden düzelir.' +
+                    '</div>';
+                if (!liste.length) {
+                    govde.innerHTML = bas + '<div class="empty"><span class="empty-icon">✅</span>' +
+                        'Bu aralıkta süresi tanımsız üretim yok</div>';
+                    return;
+                }
+                govde.innerHTML = bas +
+                    '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                    '<th>Referans</th><th>Bölüm</th><th style="text-align:right">Adet</th>' +
+                    '<th>Hat / Makine</th><th>Operatör</th><th>Gün</th>' +
+                    '</tr></thead><tbody>' +
+                    liste.map(function (r) {
+                        return '<tr>' +
+                            '<td style="font-weight:700">' + esc(r.referans) + '</td>' +
+                            '<td style="font-size:.8rem">' + esc(bolumAdi(r.bolum, r.lokasyon)) + '</td>' +
+                            '<td style="text-align:right;font-weight:800;color:var(--danger)">' + fmt(r.adet) + '</td>' +
+                            '<td style="font-size:.78rem;color:var(--muted)">' + esc((r.hatlar || []).join(', ')) + '</td>' +
+                            '<td style="font-size:.78rem;color:var(--muted)">' + esc((r.operatorler || []).join(', ')) + '</td>' +
+                            '<td style="text-align:center">' + (r.gun_sayisi || 0) + '</td>' +
+                            '</tr>';
+                    }).join('') + '</tbody></table></div>';
+            } catch (e) {
+                govde.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>';
+            }
+        }
+        function ctYokKapat() {
+            var k = document.getElementById('ct-yok-modal');
+            if (k) k.style.display = 'none';
         }
 
         async function yukleOperatorPerformans() {

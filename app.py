@@ -2646,6 +2646,100 @@ def vardiya_bugun():
     return jsonify([dict(r) for r in rows])
 
 
+# Açık kalan vardiyaların otomatik kapatılacağı saat (kullanıcı 2026-08-26:
+# "16:30'dan sonra vardiya kapanmamış olursa açık olan vardiyaları kapat").
+# Vardiya bu saatte kapanır; operatör unutsa bile sayaç ertesi güne taşmaz.
+VARDIYA_OTO_KAPAT_SAAT = (16, 30)
+
+
+def _vardiya_kapat_uygula(conn, vardiya, bitis):
+    """Bir vardiyayı kapatır. (sure_dk, hata) döner; hata varsa kapatılmadı.
+
+    ORTAK GÖVDE: hem operatörün kapat düğmesi hem 16:30 otomatik işi buradan
+    geçer. Ayrı yazılsalardı biri güncellenip diğeri unutulurdu — kapanış
+    sırasında yapılan işler (mola kesinleştirme, sayaç dondurma, pencere
+    damgası) sessizce ayrışırdı."""
+    c = conn.cursor()
+    # Kapanmadan önce: vardiya boyunca geçen otomatik molaları kesinleştir
+    _otomatik_mola_uygula(c, vardiya)
+    # Saat parse KORUMALI: DB'de bozuk baslangic_saati varsa (eski/elle düzenlenmiş
+    # kayıt) veya bozuk bitiş gelirse vardiya SONSUZA dek kapatılamaz hâle gelmesin.
+    try:
+        bas = datetime.strptime(str(vardiya['baslangic_saati'])[:5], '%H:%M')
+        bit = datetime.strptime(str(bitis)[:5], '%H:%M')
+    except (ValueError, TypeError):
+        return None, (f"Saat formatı geçersiz (başlangıç='{vardiya['baslangic_saati']}', "
+                      f"bitiş='{bitis}') — HH:MM olmalı")
+    fark_dk = int((bit - bas).total_seconds() / 60)
+    if fark_dk < 0:
+        fark_dk += 1440
+    # Auto sayaç kayıtlarını KAPANIŞ DEĞERİNDE DONDUR: son sensör/test sayımını yaz,
+    # otomatik modu kapat. Yoksa kayıt sayac_otomatik=1 kaldığı için sonraki okumalar
+    # (mobil GET/OEE) vardiya KAPANDIKTAN sonraki pulse'ları da bu kayda yazar —
+    # yeni vardiyayla ÇİFT SAYIM olur.
+    _uretim_sayac_senkron(conn, vardiya['id'])
+    c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 "
+              "WHERE vardiya_id=? AND sayac_otomatik=1", (vardiya['id'],))
+    # Hâlâ açık üretim kayıtlarının penceresi VARDİYANIN BİTİŞİNDE kapanır
+    # (kullanıcı 2026-08-21). 'now' DEĞİL: vardiya geriye dönük kapatılıyorsa
+    # (operatör unuttu, yönetici akşam kapattı) kayıtlar gerçekte olmadıkları
+    # saatlere kadar uzardı. Gece vardiyasında bitiş ertesi güne taşınır.
+    _kapanis_dt = _ts_parse(f"{vardiya['tarih']} {str(bitis)[:5]}")
+    _bas_dt = _ts_parse(f"{vardiya['tarih']} {str(vardiya['baslangic_saati'])[:5]}")
+    if _kapanis_dt and _bas_dt and _kapanis_dt < _bas_dt:
+        _kapanis_dt += timedelta(days=1)
+    c.execute("UPDATE uretim_kayitlari SET bitis_ts=? WHERE vardiya_id=? AND bitis_ts IS NULL",
+              (_ts_metin(_kapanis_dt) or datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+               vardiya['id']))
+    c.execute("UPDATE vardiyalar SET durum='kapali', bitis_saati=?, toplam_sure_dk=? WHERE id=?",
+              (bitis, fark_dk, vardiya['id']))
+    conn.commit()
+    return fark_dk, None
+
+
+def vardiya_oto_kapat_job():
+    """16:30 — o güne ait AÇIK kalan tüm vardiyaları kapatır.
+
+    Neden gerekli (kullanıcı 2026-08-26): operatör vardiyasını kapatmayı
+    unuttuğunda kayıt AÇIK kalıyor; sayaç ertesi gün de o kayda yazmaya devam
+    ediyor ve hem üretim hem OEE bozuluyor. Kapanış saati sabittir; 'şimdi'
+    kullanılsaydı işin geç çalıştığı günlerde vardiya süresi şişerdi.
+
+    GECE VARDİYASI: başlangıcı bitişten SONRA olan vardiya (22:00 → 16:30)
+    ertesi güne taşan bir vardiyadır, otomatik kapatılmaz — 16:30'da kapatmak
+    onu 18,5 saatlik gösterirdi. Onlar kendi akışında kapanır."""
+    saat = '%02d:%02d' % VARDIYA_OTO_KAPAT_SAAT
+    conn = db_connect()
+    try:
+        bugun = date.today().isoformat()
+        acik = conn.execute(
+            "SELECT * FROM vardiyalar WHERE tarih=? AND COALESCE(durum,'acik') != 'kapali'",
+            (bugun,)).fetchall()
+        kapanan, atlanan = 0, []
+        for v in acik:
+            _b = _saat_to_time(v['baslangic_saati'])
+            if _b and (_b.hour, _b.minute) > VARDIYA_OTO_KAPAT_SAAT:
+                atlanan.append(f"{v['operator_adi']} ({v['baslangic_saati']} başladı)")
+                continue
+            sure, hata = _vardiya_kapat_uygula(conn, v, saat)
+            if hata:
+                atlanan.append(f"{v['operator_adi']}: {hata}")
+            else:
+                kapanan += 1
+                print(f"[OTO-KAPAT] {v['operator_adi']} / {v['robot_no']} "
+                      f"({v['baslangic_saati']}→{saat}, {sure} dk)")
+        if kapanan or atlanan:
+            print(f'[OTO-KAPAT] {kapanan} vardiya kapatıldı'
+                  + (f' | atlanan: {"; ".join(atlanan)}' if atlanan else ''))
+    except Exception as e:
+        print(f'[OTO-KAPAT] hata: {e}')
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 @app.route('/api/vardiya/<int:vid>/kapat', methods=['PATCH'])
 @operator_required
 def vardiya_kapat(vid):
@@ -2663,42 +2757,11 @@ def vardiya_kapat(vid):
     if not vardiya:
         conn.close()
         return jsonify({'hata': 'Vardiya bulunamadi'}), 404
-    # Kapanmadan önce: vardiya boyunca geçen otomatik molaları kesinleştir (rapor tam olsun)
-    _otomatik_mola_uygula(c, vardiya)
-    # Saat parse KORUMALI: DB'de bozuk baslangic_saati varsa (eski/elle düzenlenmiş kayıt)
-    # veya body'de bozuk bitis gelirse vardiya SONSUZA dek kapatılamaz hale gelmesin —
-    # 'HH:MM:SS' toleransı + hata durumunda 400 JSON.
-    try:
-        bas = datetime.strptime(str(vardiya['baslangic_saati'])[:5], '%H:%M')
-        bit = datetime.strptime(str(bitis)[:5], '%H:%M')
-    except (ValueError, TypeError):
-        conn.close()
-        return jsonify({'hata': f"Saat formatı geçersiz (başlangıç='{vardiya['baslangic_saati']}', bitiş='{bitis}') — HH:MM olmalı"}), 400
-    fark_dk = int((bit - bas).total_seconds() / 60)
-    if fark_dk < 0:
-        fark_dk += 1440
-    # Auto sayaç kayıtlarını KAPANIŞ DEĞERİNDE DONDUR: son sensör/test sayımını yaz,
-    # otomatik modu kapat. Yoksa kayıt sayac_otomatik=1 kaldığı için sonraki okumalar
-    # (mobil GET/OEE) vardiya KAPANDIKTAN sonraki pulse'ları da bu kayda yazar —
-    # yeni vardiyayla ÇİFT SAYIM olur.
-    _uretim_sayac_senkron(conn, vid)
-    c.execute("UPDATE uretim_kayitlari SET sayac_otomatik=0 WHERE vardiya_id=? AND sayac_otomatik=1", (vid,))
-    # Hâlâ açık üretim kayıtlarının penceresi VARDİYANIN BİTİŞİNDE kapanır
-    # (kullanıcı 2026-08-21). 'now' DEĞİL: vardiya geriye dönük kapatılıyorsa
-    # (operatör unuttu, yönetici akşam kapattı) kayıtlar gerçekte olmadıkları
-    # saatlere kadar uzardı. Gece vardiyasında bitiş ertesi güne taşınır.
-    _kapanis_dt = _ts_parse(f"{vardiya['tarih']} {str(bitis)[:5]}")
-    if _kapanis_dt and _ts_parse(f"{vardiya['tarih']} {str(vardiya['baslangic_saati'])[:5]}") \
-            and _kapanis_dt < _ts_parse(f"{vardiya['tarih']} {str(vardiya['baslangic_saati'])[:5]}"):
-        _kapanis_dt += timedelta(days=1)
-    c.execute("UPDATE uretim_kayitlari SET bitis_ts=? WHERE vardiya_id=? AND bitis_ts IS NULL",
-              (_ts_metin(_kapanis_dt) or datetime.now().strftime('%Y-%m-%d %H:%M:%S'), vid))
-    c.execute(
-        "UPDATE vardiyalar SET durum='kapali', bitis_saati=?, toplam_sure_dk=? WHERE id=?",
-        (bitis, fark_dk, vid)
-    )
-    conn.commit()
+    # Gövde ORTAK yardımcıda (16:30 otomatik kapatma işi de aynı yoldan geçer).
+    fark_dk, hata = _vardiya_kapat_uygula(conn, vardiya, bitis)
     conn.close()
+    if hata:
+        return jsonify({'hata': hata}), 400
     return jsonify({'basarili': True, 'sure_dk': fark_dk})
 
 
@@ -8433,6 +8496,38 @@ def operator_performans_api():
     return resp
 
 
+@app.route('/api/rapor/ct_yok', methods=['GET'])
+@panel_gerekli(izin='operator-performans')
+def ct_yok_api():
+    """Hedef süresi TANIMSIZ üretimin referans kırılımı (kullanıcı 2026-08-26).
+
+    Panelin 'ölçüm kapsamı %X' uyarısı buraya tıklanır: hangi kodların süresi
+    eksik, kaç adet üretilmiş, hangi hat/operatörle. Aralık ve filtreler
+    operatör performansı sayfasıyla AYNI parametrelerden okunur ki ekranda
+    görünen yüzde ile liste birebir aynı kümeyi anlatsın."""
+    import analiz as _an
+    bas, bit = _analiz_araligi()
+    lokasyon = (request.args.get('lokasyon') or '').strip() or None
+    bolum = (request.args.get('bolum') or '').strip() or None
+    if bolum and bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    conn = get_db()
+    vardiyalar = _an.vardiya_metrikleri(conn, bas, bit, lokasyon, bolum)
+    kirilim = _an.ct_yok_kirilimi(vardiyalar)
+    ozet = _an._topla(vardiyalar)
+    resp = jsonify({
+        'donem': {'bas': bas, 'bit': bit, 'lokasyon': lokasyon or 'HEPSİ',
+                  'bolum': bolum or 'HEPSİ',
+                  'haric_bolumler': ([] if bolum else list(_an.OEE_DISI_BOLUMLER))},
+        'olcum_kapsami': ozet.get('olcum_kapsami', 0),
+        'ct_yok_adet': ozet.get('ct_yok_adet', 0),
+        'toplam_adet': ozet.get('toplam', 0),
+        'referanslar': kirilim,
+    })
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 @app.route('/api/analiz', methods=['GET'])
 @panel_gerekli(izin='analiz')
 def analiz_api():
@@ -9464,8 +9559,40 @@ CFI_DEPO_ZORUNLU_KAPSAM = {('TK1', 'plastik')}
 
 
 def _cfi_depo_kodlari(conn, referans, tesis, bolum):
-    """(warehouse, counterpart, hata_mesaji). Hata varsa satir GONDERILMEZ."""
+    """(warehouse, counterpart, hata_mesaji). Hata varsa satir GONDERILMEZ.
+
+    KAPSAM EKSIKSE TAHMIN YOK (kullanici 2026-08-26 hata bildirimi): cagiran
+    tesis/bolum gondermeyi unutunca kapsam ('', 'plastik') gibi cikiyor, zorunlu
+    kapsamla eslesmiyor ve SESSIZCE TK2 varsayilanina (01D) dusuyordu. Tek bir
+    eksik alan, ERP'ye yanlis depoya stok yazilmasina yetti. Artik eksik alan
+    REFERANS KARTINDAN cozulur; birden cok zorunlu kapsamda gorunuyorsa satir
+    GONDERILMEZ (yanlis depoya yazmaktansa gec teyit)."""
     kapsam = (str(tesis or '').upper(), str(bolum or ''))
+    if kapsam not in CFI_DEPO_ZORUNLU_KAPSAM and not (kapsam[0] and kapsam[1]):
+        try:
+            adaylar = {
+                (str(r['lok'] or '').upper(), str(r['bol'] or ''))
+                for r in conn.execute(
+                    "SELECT DISTINCT COALESCE(lokasyon,'TK2') lok, "
+                    "       COALESCE(bolum,'kaynak') bol FROM referans_listesi "
+                    "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+                    (referans,)).fetchall()}
+        except Exception as _e:
+            print(f'[CFI-DEPO] kapsam cozulemedi: {_e}')
+            adaylar = set()
+        # Verilen alanlarla daralt (yalniz biri gelmis olabilir)
+        if kapsam[0]:
+            adaylar = {a for a in adaylar if a[0] == kapsam[0]}
+        if kapsam[1]:
+            adaylar = {a for a in adaylar if a[1] == kapsam[1]}
+        zorunlu = sorted(adaylar & CFI_DEPO_ZORUNLU_KAPSAM)
+        if len(zorunlu) == 1:
+            kapsam = zorunlu[0]
+        elif len(zorunlu) > 1:
+            return None, None, (
+                'Bu referans birden fazla tesis/bölümde tanımlı, hangi deponun '
+                'kullanılacağı belirlenemedi — teyit gönderilmedi. '
+                f'Adaylar: {", ".join(a[0] + "/" + a[1] for a in zorunlu)}')
     if kapsam not in CFI_DEPO_ZORUNLU_KAPSAM:
         return CFI_VARSAYILAN_DEPO[0], CFI_VARSAYILAN_DEPO[1], None
     r = conn.execute(
@@ -10811,9 +10938,14 @@ def _oto_kuyruk_olustur(conn, tarihler):
         _adet = int(round(float(r.get('adet') or 0)))
         if _adet <= 0:
             return
+        # TESİS DE ŞART (kullanıcı 2026-08-26 hata bildirimi): depo kodu
+        # (lokasyon, bolum) ikilisiyle çözülüyor. Burada yalnız 'bolum'
+        # gönderiliyordu; kapsam ('', 'plastik') olarak çıkıp zorunlu kapsamla
+        # eşleşmiyor ve TK2 varsayılanına (01D) düşüyordu — TK1 plastik
+        # teyitleri YANLIŞ DEPOYA yazıldı.
         cfiQ.append({'referans': r['referans'], 'article': (article or r['referans']),
                      'adet': _adet, 'uretim_tarihi': t,
-                     'bolum': r.get('bolum', '')})
+                     'tesis': r.get('tesis', ''), 'bolum': r.get('bolum', '')})
 
     def kapasite_asti(t, r):
         """Kapasite aşımı → oto koşuda HİÇBİR kuyruğa girmez, sabah kontrole düşer.
@@ -11098,8 +11230,10 @@ def _mutabakat_uygula(conn, tarih, kullanici='oto-mutabakat'):
                             'adet': f['fark'], 'bayrak': 'A'})
             rapor.append({**f, 'karar': f'EKSİK TEYİT → launch {l["launch"]} ile {f["fark"]} adet gönderildi'})
         else:
+            # tesis/bolum ŞART — depo kodu bunlarla çözülür (bkz. _cfi_depo_kodlari)
             cfiQ.append({'uretim_tarihi': tarih, 'referans': r['referans'],
-                         'article': r['referans'], 'adet': f['fark']})
+                         'article': r['referans'], 'adet': f['fark'],
+                         'tesis': r.get('tesis', ''), 'bolum': r.get('bolum', '')})
             rapor.append({**f, 'karar': f'EKSİK TEYİT → CFI ile {f["fark"]} adet gönderildi'})
     sonuclar = []
     if launchQ:
@@ -11447,6 +11581,11 @@ if __name__ == '__main__':
                 _ekd = max(1, int((_ocfg.get('erken_teyit') or {}).get('kontrol_dk') or 2))
             except (TypeError, ValueError):
                 _ekd = 2
+            # 16:30 — açık kalan vardiyaları kapat (kullanıcı 2026-08-26).
+            # AS400 transfer iptalinden (16:45) ÖNCE: teyit kuyruğu kapanmış
+            # vardiyaların adetleriyle çalışsın, açık kayıtla değil.
+            _ek.append((VARDIYA_OTO_KAPAT_SAAT[0], VARDIYA_OTO_KAPAT_SAAT[1],
+                        vardiya_oto_kapat_job, 'Açık Vardiyaları Kapat'))
             start_scheduler(ek_gorevler=_ek,
                             periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit')])
         except Exception as _e:
