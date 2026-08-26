@@ -1014,6 +1014,17 @@ def init_db():
         )
     ''')
 
+    # ── ALICI BAŞINA TESİS SEÇİMİ (kullanıcı 2026-08-26) ──
+    # "Mail gönderilecek kişilere TK1 ve TK2 kutucukları olsun, kişi bazlı
+    #  hangi fabrika raporları gönderilecek onu seçebileyim."
+    # Virgüllü liste ('TK1,TK2'). BOŞ = HEPSİ: eski kayıtlar ve yeni eklenen
+    # alıcılar sessizce rapor almayı kesmesin — kutucuk işaretlemeyi unutmak
+    # raporun hiç gitmemesinden iyidir.
+    try:
+        c.execute("ALTER TABLE mail_alicilari ADD COLUMN lokasyonlar TEXT DEFAULT ''")
+    except Exception:
+        pass
+
     # ── Composite UNIQUE migration (TK1/TK2 tam ayrışma) ──
     _migrate_composite_unique(c)
     # ── Bölüm-composite UNIQUE migration (çoklu bölüm: işleme/lazer/pres genişlemesi) ──

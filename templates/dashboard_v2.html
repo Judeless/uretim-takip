@@ -5960,10 +5960,12 @@ window.__I18N_SOZLUK__ = {
                         <div class="table-wrap">
                             <table id="mail-alicilar-table">
                                 <thead>
-                                    <tr><th style="text-align:left">E-posta</th><th style="text-align:left">Ad</th><th style="width:90px">Durum</th><th style="width:80px">İşlem</th></tr>
+                                    <tr><th style="text-align:left">E-posta</th><th style="text-align:left">Ad</th>
+                                        <th style="width:150px" title="Hangi tesisin raporu bu kişiye gitsin? İkisi de seçiliyse İKİ AYRI mail (iki ayrı Excel) gider.">Rapor</th>
+                                        <th style="width:90px">Durum</th><th style="width:80px">İşlem</th></tr>
                                 </thead>
                                 <tbody id="mail-alicilar-tbody">
-                                    <tr><td colspan="4" style="text-align:center; padding:16px; color:var(--muted)">Yükleniyor…</td></tr>
+                                    <tr><td colspan="5" style="text-align:center; padding:16px; color:var(--muted)">Yükleniyor…</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -11708,7 +11710,7 @@ window.__I18N_SOZLUK__ = {
                 const tb = document.getElementById('mail-alicilar-tbody');
                 if (!tb) return;
                 if (!Array.isArray(list) || !list.length) {
-                    tb.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--muted)">Henüz alıcı yok — yukarıdan ekleyin.</td></tr>';
+                    tb.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--muted)">Henüz alıcı yok — yukarıdan ekleyin.</td></tr>';
                     return;
                 }
                 tb.innerHTML = list.map(a => {
@@ -11716,9 +11718,20 @@ window.__I18N_SOZLUK__ = {
                     const durumBtn = aktif
                         ? `<button onclick="mailAliciDurum(${a.id},0)" title="Duraklat" style="background:var(--success-soft);color:var(--success);border:1px solid rgba(21,122,60,0.22);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">● Aktif</button>`
                         : `<button onclick="mailAliciDurum(${a.id},1)" title="Etkinleştir" style="background:var(--surface-2);color:var(--muted);border:1px solid var(--line-strong);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">○ Pasif</button>`;
+                    // TESİS KUTUCUKLARI (2026-08-26): boş seçim = HER İKİSİ.
+                    // Eski kayıtlarda kolon boş; ikisi de işaretli görünmesi
+                    // doğrudur — o kişiler bugüne kadar tüm raporu alıyordu.
+                    const secili = (a.lokasyonlar || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+                    const kutu = (kod) => {
+                        const isaretli = !secili.length || secili.indexOf(kod) !== -1;
+                        return `<label style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;cursor:pointer;font-size:.78rem;font-weight:700">
+                            <input type="checkbox" data-alici="${a.id}" data-lok="${kod}"${isaretli ? ' checked' : ''}
+                                   onchange="mailAliciTesis(${a.id})" style="width:15px;height:15px;cursor:pointer">${kod}</label>`;
+                    };
                     return `<tr>
                         <td style="text-align:left">${mailEsc(a.email)}</td>
                         <td style="text-align:left; color:var(--muted)">${mailEsc(a.ad || '—')}</td>
+                        <td style="text-align:center;white-space:nowrap">${kutu('TK2')}${kutu('TK1')}</td>
                         <td style="text-align:center">${durumBtn}</td>
                         <td style="text-align:center"><button onclick="mailAliciSil(${a.id}, '${mailEsc(a.email)}')" title="Sil" style="background:transparent;color:var(--lg-red);border:none;cursor:pointer;font-size:1rem">🗑</button></td>
                     </tr>`;
@@ -11733,7 +11746,8 @@ window.__I18N_SOZLUK__ = {
             if (!email) { toast('E-posta giriniz', 'error'); return; }
             fetch('/api/mail/alicilar', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email: email, ad: (adEl.value || '').trim()})
+                body: JSON.stringify({email: email, ad: (adEl.value || '').trim(),
+                                      lokasyonlar: 'TK2,TK1'})
             }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
                 if (!res.ok) { toast(res.body.hata || 'Eklenemedi', 'error'); return; }
                 emailEl.value = ''; adEl.value = '';
@@ -11749,6 +11763,24 @@ window.__I18N_SOZLUK__ = {
                     if (!res.ok) { toast('Silinemedi', 'error'); return; }
                     toast('Alıcı silindi', 'success'); mailPaneliYukle();
                 }).catch(() => toast('Bağlantı hatası', 'error'));
+        }
+
+        // TESİS SEÇİMİ KAYDET. İkisi de kaldırılırsa sunucu '' (=HEPSİ) yazar
+        // ve kişi yine tüm raporları alır; "hiç mail almayan alıcı" durumu
+        // kazara oluşmasın diye kullanıcı uyarılır.
+        function mailAliciTesis(id) {
+            const kutular = Array.from(document.querySelectorAll('input[data-alici="' + id + '"]'));
+            const secili = kutular.filter(k => k.checked).map(k => k.dataset.lok);
+            if (!secili.length) {
+                toast('En az bir tesis seçili olmalı — seçim yapılmayınca HER İKİ rapor gönderilir.', 'info');
+            }
+            fetch('/api/mail/alicilar/' + id, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({lokasyonlar: secili.join(',')})
+            }).then(r => r.json().then(j => ({ok: r.ok, body: j}))).then(res => {
+                if (!res.ok) { toast('Kaydedilemedi', 'error'); mailPaneliYukle(); return; }
+                toast(secili.length ? ('Rapor tesisi: ' + secili.join(' + ')) : 'Tüm tesisler', 'success');
+            }).catch(() => { toast('Bağlantı hatası', 'error'); mailPaneliYukle(); });
         }
 
         function mailAliciDurum(id, aktif) {

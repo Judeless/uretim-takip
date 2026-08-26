@@ -182,7 +182,10 @@ def kapsam_lokasyonlari(c=None):
       "HEPSI" / yok    → tek mail, tüm tesisler (ESKİ DAVRANIŞ — bozulmadı)
     """
     c = c or config_yukle() or {}
-    d = c.get('kapsam_lokasyon', 'HEPSI')
+    # VARSAYILAN 'AYRI' (2026-08-26): alıcı bazlı tesis seçimi geldiğinde tek
+    # birleşik rapor anlamını yitirdi. Config'te açıkça 'HEPSI' yazan kurulumlar
+    # eski davranışta kalır.
+    d = c.get('kapsam_lokasyon', 'AYRI')
     if isinstance(d, (list, tuple)):
         liste = [str(x).strip().upper() for x in d if str(x).strip()]
         return liste or ['HEPSI']
@@ -200,17 +203,42 @@ def _db(conn=None):
     return c, True
 
 
-def aktif_alicilar(conn=None):
-    """aktif=1 olan alıcı e-postalarının listesi."""
+def _alici_lokasyonlari(deger):
+    """Alıcının seçtiği tesisler. BOŞ = HEPSİ (bkz. database migration notu)."""
+    return [x.strip().upper() for x in str(deger or '').split(',') if x.strip()]
+
+
+def aktif_alicilar(conn=None, lokasyon=None):
+    """aktif=1 olan alıcı e-postaları. lokasyon verilirse YALNIZ o tesisi
+    seçmiş olanlar (hiç seçim yapmamışlar HER tesise dâhildir).
+
+    Kullanıcı 2026-08-26: "kişi bazlı hangi fabrika raporları gönderilecek onu
+    seçebileyim; 1 kişi 2 raporu da seçerse 2 ayrı excel gitsin." İkinci kısım
+    kendiliğinden çıkar: gönderim tesis başına bir kez döner, iki tesisi de
+    seçen kişi iki turda da listede olur → iki ayrı mail, iki ayrı Excel."""
     c, kapat = _db(conn)
     try:
         rows = c.execute(
-            "SELECT email FROM mail_alicilari WHERE COALESCE(aktif,1)=1 ORDER BY email"
+            "SELECT email, COALESCE(lokasyonlar,'') AS lokasyonlar "
+            "FROM mail_alicilari WHERE COALESCE(aktif,1)=1 ORDER BY email"
         ).fetchall()
-        return [r['email'] for r in rows]
+    except Exception:
+        # Kolon henüz eklenmemiş (eski DB) → tesis süzmesi yapmadan devam et
+        rows = c.execute(
+            "SELECT email, '' AS lokasyonlar FROM mail_alicilari "
+            "WHERE COALESCE(aktif,1)=1 ORDER BY email").fetchall()
     finally:
         if kapat:
             c.close()
+    if not lokasyon or _hepsi_mi(lokasyon):
+        return [r['email'] for r in rows]
+    hedef = str(lokasyon).upper()
+    out = []
+    for r in rows:
+        sec = _alici_lokasyonlari(r['lokasyonlar'])
+        if not sec or hedef in sec:
+            out.append(r['email'])
+    return out
 
 
 # ─────────────────────────────────────────────────────────────
@@ -293,8 +321,15 @@ def analiz_topla(tarih, lokasyon=None, yorum=True):
     except Exception as e:
         print(f'[MAIL] analiz modulu yuklenemedi: {e}')
         return None, [], ''
+    # 'HEPSI' BİR LOKASYON ADI DEĞİL (kullanıcı 2026-08-26 hata bildirimi):
+    # analiz.vardiya_metrikleri lokasyonu "COALESCE(lokasyon,'TK2') = ?" ile
+    # süzüyor; 'HEPSI' geçilince HİÇBİR vardiya eşleşmiyor ve mailin analiz
+    # bölümü "bu dönem için sisteme yansımış herhangi bir vardiya bulunmamaktadır"
+    # diyordu — aynı mailin üretim tablosunda 34 satır veri dururken.
+    # gunluk_veri bu ayrımı zaten yapıyordu, analiz yolu yapmıyordu.
+    _lok = None if _hepsi_mi(lokasyon) else str(lokasyon).upper()
     try:
-        a = _an.gunluk_ozet(tarih, lokasyon)
+        a = _an.gunluk_ozet(tarih, _lok)
     except Exception as e:
         print(f'[MAIL] analiz hatasi: {e}')
         return None, [], ''
@@ -775,16 +810,19 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
     if tarih is None:
         tarih = date.today().isoformat()
 
-    alicilar = zorla_alicilar if zorla_alicilar else aktif_alicilar()
-    if not alicilar:
+    if not zorla_alicilar and not aktif_alicilar():
         return {'basarili': False, 'mesaj': 'Aktif alıcı yok — dashboard\'dan e-posta ekleyin.', 'atlandi': True}
+
+    def _alicilar(lok):
+        # Test maili SEÇİMİ AŞAR: kurulum doğrulanırken tesis kutucuğu engel olmasın.
+        return zorla_alicilar if zorla_alicilar else aktif_alicilar(lokasyon=lok)
 
     # TESİS BAŞINA AYRI MAİL (2026-08-26). Tek kapsam varsa döngü bir kez döner
     # ve sonuç sözlüğü eskisiyle AYNI şekilde (düz) döner — panelin 'şimdi
     # gönder' ekranı ve testler bozulmasın.
     kapsamlar = kapsam_lokasyonlari(cfg)
     if len(kapsamlar) > 1:
-        sonuclar = [_tek_rapor_gonder(cfg, tarih, lok, alicilar, yontem, zorla_alicilar)
+        sonuclar = [_tek_rapor_gonder(cfg, tarih, lok, _alicilar(lok), yontem, zorla_alicilar)
                     for lok in kapsamlar]
         gonderilen = [r for r in sonuclar if r.get('basarili') and not r.get('atlandi')]
         hatali = [r for r in sonuclar if not r.get('basarili')]
@@ -793,13 +831,16 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
             'coklu': True,
             'kapsamlar': kapsamlar,
             'sonuclar': dict(zip(kapsamlar, sonuclar)),
-            'alici_sayisi': len(alicilar),
+            # Kapsamlar farklı alıcı kümelerine gidiyor — TEKİL kişi sayısı
+            # (iki raporu da alan biri bir kez sayılır).
+            'alici_sayisi': len({a for r in sonuclar for a in (r.get('alicilar') or [])}),
             'satir': sum(r.get('satir', 0) or 0 for r in sonuclar),
             'toplam_adet': sum(r.get('toplam_adet', 0) or 0 for r in sonuclar),
             'mesaj': ' | '.join(f'{k}: {r.get("mesaj", "")}' for k, r in zip(kapsamlar, sonuclar)),
             'atlandi': (not gonderilen and not hatali),
         }
-    return _tek_rapor_gonder(cfg, tarih, kapsamlar[0], alicilar, yontem, zorla_alicilar)
+    return _tek_rapor_gonder(cfg, tarih, kapsamlar[0], _alicilar(kapsamlar[0]),
+                             yontem, zorla_alicilar)
 
 
 def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=None):
@@ -807,6 +848,11 @@ def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=Non
 
     Gövde eskiden gunluk_mail_gonder içindeydi; TK1/TK2 ayrımı için buraya
     alındı — iki tesis için iki kez, ama AYNI kodla çalışsın."""
+    if not alicilar:
+        _k = '' if _hepsi_mi(lokasyon) else f' ({str(lokasyon).upper()})'
+        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
+                'lokasyon': lokasyon,
+                'mesaj': f'Bu tesisi{_k} seçen aktif alıcı yok — mail gönderilmedi.'}
     try:
         dosya, satir, toplam = excel_olustur(tarih, lokasyon)
     except Exception as e:

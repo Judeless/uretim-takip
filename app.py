@@ -7470,12 +7470,35 @@ def mail_durum():
         return jsonify({'config_var': False, 'etkin': False, 'hata': str(e)})
 
 
+def _mail_lokasyon_metni(deger):
+    """İstemciden gelen tesis seçimini kanonik metne çevirir: 'TK1,TK2'.
+
+    Boş/None → '' (= HEPSİ). Geçersiz değerler ATILIR: uydurma bir tesis adı
+    kaydedilirse o alıcı hiçbir rapora eşleşmez ve sessizce mail almaz."""
+    if deger is None:
+        return ''
+    if isinstance(deger, str):
+        parcalar = deger.split(',')
+    else:
+        parcalar = list(deger)
+    gecerli = []
+    for p in parcalar:
+        p = str(p or '').strip().upper()
+        if p in ('TK1', 'TK2') and p not in gecerli:
+            gecerli.append(p)
+    # İkisi de seçiliyse '' (HEPSİ) yazmak da olurdu ama AÇIK yazmak daha iyi:
+    # ileride üçüncü tesis eklenirse bu kişi otomatik ona da abone olmasın.
+    return ','.join(gecerli)
+
+
 @app.route('/api/mail/alicilar', methods=['GET'])
 @panel_gerekli(izin='raporlar')
 def mail_alicilar_listesi():
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, email, ad, COALESCE(aktif,1) as aktif, created_at FROM mail_alicilari ORDER BY email"
+        "SELECT id, email, ad, COALESCE(aktif,1) as aktif, "
+        "       COALESCE(lokasyonlar,'') as lokasyonlar, created_at "
+        "FROM mail_alicilari ORDER BY email"
     ).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
@@ -7491,7 +7514,12 @@ def mail_alici_ekle():
         return jsonify({'hata': 'Geçerli bir e-posta adresi giriniz.'}), 400
     conn = get_db()
     try:
-        conn.execute("INSERT INTO mail_alicilari (email, ad, aktif) VALUES (?, ?, 1)", (email, ad))
+        # Tesis seçimi (kullanıcı 2026-08-26): boş bırakılırsa HER tesisin
+        # raporu gider — kutucuk işaretlemeyi unutmak, raporun hiç gitmemesinden
+        # iyidir. Panel yeni alıcıyı varsayılan olarak iki tesisle ekler.
+        _lok = _mail_lokasyon_metni(data.get('lokasyonlar'))
+        conn.execute("INSERT INTO mail_alicilari (email, ad, aktif, lokasyonlar) "
+                     "VALUES (?, ?, 1, ?)", (email, ad, _lok))
         conn.commit()
     except Exception:
         conn.close()
@@ -7513,11 +7541,19 @@ def mail_alici_sil(aid):
 @app.route('/api/mail/alicilar/<int:aid>', methods=['PATCH'])
 @panel_gerekli(izin='raporlar')
 def mail_alici_guncelle(aid):
-    """aktif bayrağını aç/kapat (listeden silmeden geçici durdurma)."""
+    """Alıcıyı günceller: aktif bayrağı ve/veya tesis seçimi (TK1/TK2).
+
+    Alanlar AYRI AYRI opsiyonel: yalnız kutucuk değiştirildiğinde 'aktif'
+    gönderilmiyor ve eskiden gövdede olmayan alan 0 sayılıp alıcı sessizce
+    PASİFE düşerdi."""
     data = request.get_json() or {}
-    aktif = 1 if data.get('aktif') else 0
     conn = get_db()
-    conn.execute("UPDATE mail_alicilari SET aktif=? WHERE id=?", (aktif, aid))
+    if 'lokasyonlar' in data:
+        conn.execute("UPDATE mail_alicilari SET lokasyonlar=? WHERE id=?",
+                     (_mail_lokasyon_metni(data.get('lokasyonlar')), aid))
+    if 'aktif' in data:
+        conn.execute("UPDATE mail_alicilari SET aktif=? WHERE id=?",
+                     (1 if data.get('aktif') else 0, aid))
     conn.commit()
     conn.close()
     return jsonify({'basarili': True})
