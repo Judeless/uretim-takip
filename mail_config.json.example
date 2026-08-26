@@ -9,7 +9,7 @@
 
   "gonderim_saati": "17:00",
 
-  "_kapsam_lokasyon": "Hangi tesis(ler) icin rapor uretilecek. 'AYRI' = TK2 ve TK1 icin AYRI AYRI mail (2026-08-26 kullanici istegi; onerilen). Alternatifler: ['TK2','TK1'] ayni sey; 'TK1' sadece o tesis; 'HEPSI' iki tesis TEK mailde (eski davranis).",
+  "_kapsam_lokasyon": "RAPOR HER ZAMAN TESIS BAZLI AYRIDIR (2026-08-26) — birlesik tek rapor kaldirildi. Bu alan yalniz KAPSAMI DARALTIR: yok/'AYRI'/'HEPSI' -> TK2 ve TK1 icin ayri ayri mail; 'TK1' -> yalniz o tesis. Kime hangi raporun gidecegi PANELDEN kisi bazinda secilir (Raporlar > alici tablosu > Rapor sutunu).",
   "kapsam_lokasyon": "AYRI",
 
   "gonderen_ad": "Cofle Forge",

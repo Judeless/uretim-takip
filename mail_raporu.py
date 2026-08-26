@@ -157,6 +157,8 @@ def durum_ozeti():
         'kapsam_lokasyon': c.get('kapsam_lokasyon', 'HEPSI'),
         # Kaç ayrı mail gidecek (TK1/TK2 ayrımı panelde görünsün)
         'kapsamlar': kapsam_lokasyonlari(c),
+        # Tesis seçmediği için rapor ALMAYAN aktif alıcılar — panel uyarır
+        'raporsuz': raporsuz_alicilar(),
     }
 
 
@@ -168,31 +170,34 @@ def _hepsi_mi(lokasyon):
     return not lokasyon or str(lokasyon).strip().upper() == 'HEPSI'
 
 
+TESISLER = ('TK2', 'TK1')
+
+
 def kapsam_lokasyonlari(c=None):
     """Rapor hangi tesis(ler) için üretilecek — HER BİRİ AYRI MAİL.
 
-    Kullanıcı 2026-08-26: "TK1 ve TK2 üretim raporlarını ayrı atmalıyız."
-    Tek raporda iki tesis olunca her okuyan kendi tesisinin satırlarını
-    ayıklamak zorunda kalıyordu.
+    RAPOR HER ZAMAN TESİS BAZLI AYRIDIR (kullanıcı 2026-08-26). Birleşik tek
+    rapor seçeneği KALDIRILDI: alıcı bazlı TK1/TK2 seçimi gelince birleşik mod
+    hem seçimi anlamsız kılıyor hem de sessiz bir tuzak oluşturuyordu —
+    config'te eski 'HEPSI' değeri kalınca panelde kutucuklar ayarlanmış olsa
+    bile herkese tek birleşik rapor gidiyordu (kullanıcı: "tek kişi seçmeme
+    rağmen 6 kişiye gönderildi").
 
-    mail_config.json 'kapsam_lokasyon' değeri:
-      "AYRI"           → ['TK2', 'TK1']  (her tesis için ayrı mail — ÖNERİLEN)
-      ["TK2","TK1"]    → aynısı, açıkça
-      "TK1"            → yalnız TK1 (tek mail)
-      "HEPSI" / yok    → tek mail, tüm tesisler (ESKİ DAVRANIŞ — bozulmadı)
+    mail_config.json 'kapsam_lokasyon' artık yalnız KAPSAMI DARALTIR:
+      yok / "AYRI" / "HEPSI" → ['TK2', 'TK1'] (ikisi de, AYRI mail)
+      "TK1"                  → yalnız TK1
+      ["TK2","TK1"]          → açıkça listelenen tesisler
     """
     c = c or config_yukle() or {}
-    # VARSAYILAN 'AYRI' (2026-08-26): alıcı bazlı tesis seçimi geldiğinde tek
-    # birleşik rapor anlamını yitirdi. Config'te açıkça 'HEPSI' yazan kurulumlar
-    # eski davranışta kalır.
     d = c.get('kapsam_lokasyon', 'AYRI')
     if isinstance(d, (list, tuple)):
         liste = [str(x).strip().upper() for x in d if str(x).strip()]
-        return liste or ['HEPSI']
-    d = str(d or 'HEPSI').strip().upper()
-    if d == 'AYRI':
-        return ['TK2', 'TK1']
-    return [d]
+        liste = [x for x in liste if x in TESISLER]
+        return liste or list(TESISLER)
+    d = str(d or '').strip().upper()
+    if d in TESISLER:
+        return [d]
+    return list(TESISLER)
 
 
 def _db(conn=None):
@@ -210,12 +215,19 @@ def _alici_lokasyonlari(deger):
 
 def aktif_alicilar(conn=None, lokasyon=None):
     """aktif=1 olan alıcı e-postaları. lokasyon verilirse YALNIZ o tesisi
-    seçmiş olanlar (hiç seçim yapmamışlar HER tesise dâhildir).
+    SEÇMİŞ olanlar.
 
-    Kullanıcı 2026-08-26: "kişi bazlı hangi fabrika raporları gönderilecek onu
-    seçebileyim; 1 kişi 2 raporu da seçerse 2 ayrı excel gitsin." İkinci kısım
-    kendiliğinden çıkar: gönderim tesis başına bir kez döner, iki tesisi de
-    seçen kişi iki turda da listede olur → iki ayrı mail, iki ayrı Excel."""
+    KUTUCUK BELİRLEYİCİDİR (kullanıcı 2026-08-26): hiç tesis seçmemiş alıcıya
+    rapor GİTMEZ. Önce "boş = hepsi" varsayılmıştı; kullanıcı tek kişiyi
+    işaretleyip diğerlerinin kutucuklarını boşalttığında mail yine 6 kişiye
+    gitti. Ekranda işaretsiz duran bir kutunun "hepsi seçili" anlamına gelmesi
+    yanıltıcı — işaretsiz kutu 'hayır' demektir.
+    Rapor almayan alıcılar panelde AÇIKÇA uyarı olarak gösterilir, sessizce
+    listeden düşmüş gibi durmasınlar.
+
+    "1 kişi 2 raporu da seçerse 2 ayrı excel gitsin": gönderim tesis başına bir
+    kez döner, iki tesisi de seçen kişi iki turda da listede olur → iki ayrı
+    mail, iki ayrı Excel."""
     c, kapat = _db(conn)
     try:
         rows = c.execute(
@@ -233,12 +245,27 @@ def aktif_alicilar(conn=None, lokasyon=None):
     if not lokasyon or _hepsi_mi(lokasyon):
         return [r['email'] for r in rows]
     hedef = str(lokasyon).upper()
-    out = []
-    for r in rows:
-        sec = _alici_lokasyonlari(r['lokasyonlar'])
-        if not sec or hedef in sec:
-            out.append(r['email'])
-    return out
+    return [r['email'] for r in rows
+            if hedef in _alici_lokasyonlari(r['lokasyonlar'])]
+
+
+def raporsuz_alicilar(conn=None):
+    """Aktif ama HİÇBİR tesis seçmemiş alıcılar — bunlara rapor gitmez.
+
+    Panel bunu uyarı olarak gösterir: kutucuğu boş bırakmak artık 'hepsi'
+    değil 'hiçbiri' demek; sessiz kalırsa kişi raporu almayı kestiğini
+    fark etmez."""
+    c, kapat = _db(conn)
+    try:
+        rows = c.execute(
+            "SELECT email, COALESCE(lokasyonlar,'') AS lokasyonlar "
+            "FROM mail_alicilari WHERE COALESCE(aktif,1)=1 ORDER BY email").fetchall()
+    except Exception:
+        return []
+    finally:
+        if kapat:
+            c.close()
+    return [r['email'] for r in rows if not _alici_lokasyonlari(r['lokasyonlar'])]
 
 
 # ─────────────────────────────────────────────────────────────

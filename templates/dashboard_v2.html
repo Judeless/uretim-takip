@@ -5961,7 +5961,7 @@ window.__I18N_SOZLUK__ = {
                             <table id="mail-alicilar-table">
                                 <thead>
                                     <tr><th style="text-align:left">E-posta</th><th style="text-align:left">Ad</th>
-                                        <th style="width:150px" title="Hangi tesisin raporu bu kişiye gitsin? İkisi de seçiliyse İKİ AYRI mail (iki ayrı Excel) gider.">Rapor</th>
+                                        <th style="width:150px" title="Hangi tesisin raporu bu kişiye gitsin? İkisi de seçiliyse İKİ AYRI mail (iki ayrı Excel, iki ayrı analiz) gider. Hiçbiri seçili değilse o kişiye rapor GİTMEZ.">Rapor</th>
                                         <th style="width:90px">Durum</th><th style="width:80px">İşlem</th></tr>
                                 </thead>
                                 <tbody id="mail-alicilar-tbody">
@@ -11718,20 +11718,26 @@ window.__I18N_SOZLUK__ = {
                     const durumBtn = aktif
                         ? `<button onclick="mailAliciDurum(${a.id},0)" title="Duraklat" style="background:var(--success-soft);color:var(--success);border:1px solid rgba(21,122,60,0.22);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">● Aktif</button>`
                         : `<button onclick="mailAliciDurum(${a.id},1)" title="Etkinleştir" style="background:var(--surface-2);color:var(--muted);border:1px solid var(--line-strong);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.75rem">○ Pasif</button>`;
-                    // TESİS KUTUCUKLARI (2026-08-26): boş seçim = HER İKİSİ.
-                    // Eski kayıtlarda kolon boş; ikisi de işaretli görünmesi
-                    // doğrudur — o kişiler bugüne kadar tüm raporu alıyordu.
+                    // TESİS KUTUCUKLARI (2026-08-26): İŞARETSİZ = O RAPOR GİTMEZ.
+                    // Önce "boş = hepsi" idi; kullanıcı tek kişiyi işaretleyip
+                    // diğerlerini boşalttığında mail yine herkese gitti. Ekranda
+                    // boş duran bir kutunun 'hepsi' anlamına gelmesi yanıltıcıydı.
+                    // Hiç seçimi olmayan satır KIRMIZI uyarı ile işaretlenir ki
+                    // kimse sessizce rapor almayı kesmiş olmasın.
                     const secili = (a.lokasyonlar || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
                     const kutu = (kod) => {
-                        const isaretli = !secili.length || secili.indexOf(kod) !== -1;
+                        const isaretli = secili.indexOf(kod) !== -1;
                         return `<label style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;cursor:pointer;font-size:.78rem;font-weight:700">
                             <input type="checkbox" data-alici="${a.id}" data-lok="${kod}"${isaretli ? ' checked' : ''}
                                    onchange="mailAliciTesis(${a.id})" style="width:15px;height:15px;cursor:pointer">${kod}</label>`;
                     };
+                    const uyari = (aktif && !secili.length)
+                        ? `<div style="font-size:.68rem;color:var(--danger);font-weight:800;margin-top:3px">⚠ rapor gitmez</div>`
+                        : '';
                     return `<tr>
                         <td style="text-align:left">${mailEsc(a.email)}</td>
                         <td style="text-align:left; color:var(--muted)">${mailEsc(a.ad || '—')}</td>
-                        <td style="text-align:center;white-space:nowrap">${kutu('TK2')}${kutu('TK1')}</td>
+                        <td style="text-align:center;white-space:nowrap">${kutu('TK2')}${kutu('TK1')}${uyari}</td>
                         <td style="text-align:center">${durumBtn}</td>
                         <td style="text-align:center"><button onclick="mailAliciSil(${a.id}, '${mailEsc(a.email)}')" title="Sil" style="background:transparent;color:var(--lg-red);border:none;cursor:pointer;font-size:1rem">🗑</button></td>
                     </tr>`;
@@ -11772,7 +11778,7 @@ window.__I18N_SOZLUK__ = {
             const kutular = Array.from(document.querySelectorAll('input[data-alici="' + id + '"]'));
             const secili = kutular.filter(k => k.checked).map(k => k.dataset.lok);
             if (!secili.length) {
-                toast('En az bir tesis seçili olmalı — seçim yapılmayınca HER İKİ rapor gönderilir.', 'info');
+                toast('Bu alıcıya artık RAPOR GİTMEYECEK — en az bir tesis seçin.', 'info');
             }
             fetch('/api/mail/alicilar/' + id, {
                 method: 'PATCH', headers: {'Content-Type': 'application/json'},
