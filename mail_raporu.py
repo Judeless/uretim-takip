@@ -611,6 +611,24 @@ def _outlook_gonder(alicilar, konu, govde, ek_yol, html=None):
         pythoncom.CoUninitialize()
 
 
+def _sifre_temizle(host, sifre):
+    """Şifreyi giriş için hazırlar.
+
+    GOOGLE UYGULAMA ŞİFRESİ BOŞLUKLU GÖSTERİLİR: Google ekranda 16 haneyi
+    "abcd efgh ijkl mnop" diye dörtlü gruplar hâlinde yazar. Kopyalayıp
+    yapıştıranın elinde boşluklu bir metin kalıyor ve giriş '535 BadCredentials'
+    ile reddediliyor — sebebi görünmediği için "port mu yanlış" diye aranıyor
+    (kullanıcı 2026-08-26 tam bunu sordu). Google boşluğu şifrenin parçası
+    saymaz; burada temizlenir.
+    Diğer sunucularda YALNIZ baş/son boşluk alınır: oralarda iç boşluk gerçek
+    bir karakter olabilir, sessizce silmek girişi bozardı."""
+    s = str(sifre or '')
+    _h = str(host or '').lower()
+    if 'gmail' in _h or 'google' in _h:
+        return ''.join(s.split())
+    return s.strip()
+
+
 def _giris(srv, host, kullanici, sifre):
     """SMTP login — hata mesajını ANLAŞILIR hâle getirir.
 
@@ -619,16 +637,29 @@ def _giris(srv, host, kullanici, sifre):
     2 adımlı doğrulama açıkken üretilebilir. Ham hata ('535 5.7.8 Username and
     Password not accepted') panelde 'şifre yanlış' gibi okunup saatler
     kaybettirir; sebebi ve çözümü burada yazılır."""
+    _h = str(host or '').lower()
+    sifre = _sifre_temizle(host, sifre)
     try:
         srv.login(kullanici, sifre)
     except smtplib.SMTPAuthenticationError as e:
-        _h = str(host or '').lower()
         if 'gmail' in _h or 'google' in _h:
+            # UZUNLUK İPUCU: uygulama şifresi TAM 16 hane. Farklıysa büyük
+            # ihtimalle hesabın normal şifresi yazılmış — en sık hata bu.
+            _n = len(sifre)
+            _ipucu = ('Girilen şifre 16 hane DEĞİL (%d hane) — büyük ihtimalle hesabın '
+                      'normal şifresi yazılmış. ' % _n) if _n != 16 else (
+                     'Şifre 16 hane, biçim doğru görünüyor — şifre yanlış/iptal edilmiş '
+                     'olabilir ya da Workspace yöneticisi uygulama şifrelerini kapatmış '
+                     'olabilir. ')
             raise RuntimeError(
-                f'Gmail girişi reddedildi ({kullanici}). Gmail SMTP hesabın NORMAL '
-                f'şifresini kabul etmez: Google Hesabı > Güvenlik > 2 Adımlı Doğrulama '
-                f'açık olmalı, sonra "Uygulama şifreleri"nden 16 haneli bir şifre '
-                f'üretip mail_config.json içindeki "sifre" alanına onu yazın. '
+                f'Gmail girişi reddedildi ({kullanici}). '
+                f'PORT/SUNUCU AYARI SORUN DEĞİL — Google sunucusu yanıt verdi, '
+                f'reddedilen şey kimlik bilgisi. {_ipucu}'
+                f'Yapılacak: Google Hesabı > Güvenlik > 2 Adımlı Doğrulama AÇIK olmalı, '
+                f'sonra "Uygulama şifreleri"nden 16 haneli şifre üretip '
+                f'mail_config.json > "sifre" alanına yazın (boşluklar önemsiz, '
+                f'sistem temizler). Workspace hesabında bu seçenek yoksa yönetici '
+                f'engellemiştir; alternatif smtp-relay.gmail.com ile IP izinli röledir. '
                 f'Sunucu yanıtı: {e}') from e
         raise RuntimeError(f'SMTP girişi reddedildi ({kullanici}). Kullanıcı adı/şifre '
                            f'veya sunucu ayarı hatalı. Sunucu yanıtı: {e}') from e
