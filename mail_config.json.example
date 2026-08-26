@@ -8,12 +8,21 @@
   "sadece_host": "PROMANAGE",
 
   "gonderim_saati": "17:00",
-  "kapsam_lokasyon": "HEPSI",
+
+  "_kapsam_lokasyon": "Hangi tesis(ler) icin rapor uretilecek. 'AYRI' = TK2 ve TK1 icin AYRI AYRI mail (2026-08-26 kullanici istegi; onerilen). Alternatifler: ['TK2','TK1'] ayni sey; 'TK1' sadece o tesis; 'HEPSI' iki tesis TEK mailde (eski davranis).",
+  "kapsam_lokasyon": "AYRI",
+
   "gonderen_ad": "Cofle Forge",
 
   "_smtp": "yontem=smtp ise zorunlu. yontem=outlook ise (acik Outlook masaustu) hicbiri gerekmez.",
-  "smtp_host": "smtp.ornek.com",
+
+  "_gmail": "GOOGLE WORKSPACE / GMAIL (2026-08-26'da Yandex'ten gecildi): host smtp.gmail.com, port 587, guvenlik starttls. DIKKAT — hesabin NORMAL sifresi calismaz. Google Hesabi > Guvenlik > 2 Adimli Dogrulama'yi ACIN, sonra 'Uygulama sifreleri' bolumunden 16 haneli bir sifre uretip asagidaki 'sifre' alanina onu yazin (bosluksuz). 'gonderen' ile 'kullanici' ayni adres olmali; farkli bir adres adina gondermek icin Gmail'de 'Send mail as' tanimi gerekir.",
+  "smtp_host": "smtp.gmail.com",
   "smtp_port": 587,
+  "guvenlik": "starttls",
   "gonderen": "rapor@cofletk.com.tr",
-  "sifre": ""
+  "kullanici": "rapor@cofletk.com.tr",
+  "sifre": "",
+
+  "_eski_yandex": "Referans: Yandex icin smtp.yandex.com.tr / 465 / guvenlik 'ssl' idi. Gecis sonrasi silinebilir."
 }

@@ -11670,7 +11670,16 @@ window.__I18N_SOZLUK__ = {
                 const rozet = document.getElementById('mail-durum-rozet');
                 if (!rozet) return;
                 if (d.etkin) {
-                    rozet.textContent = '● Aktif · ' + (d.gonderim_saati || '17:00');
+                    // KAPSAM ROZETTE (2026-08-26): TK1 ve TK2 ayrı mail gidiyor;
+                    // kaç mail çıkacağı panelde görünsün, "ikinci mail neden geldi"
+                    // sorusu doğmasın.
+                    var kaps = d.kapsamlar || [];
+                    var kapsEt = (kaps.length > 1) ? ' · ' + kaps.join(' + ') + ' ayrı' : '';
+                    rozet.textContent = '● Aktif · ' + (d.gonderim_saati || '17:00') + kapsEt;
+                    rozet.title = (kaps.length > 1)
+                        ? kaps.length + ' ayrı mail gönderilir (her tesis için bir tane). '
+                          + 'mail_config.json → "kapsam_lokasyon".'
+                        : 'Tek mail gönderilir (kapsam: ' + (kaps[0] || 'HEPSİ') + ').';
                     rozet.style.background = 'rgba(52,211,153,.15)'; rozet.style.color = 'var(--success)';
                 } else if (d.config_hatasi) {
                     // dosya var ama JSON bozuk — "tanımlı değil" demek yanıltır

@@ -155,12 +155,43 @@ def durum_ozeti():
         'gonderen': c.get('gonderen', ''),
         'gonderim_saati': c.get('gonderim_saati', '17:00'),
         'kapsam_lokasyon': c.get('kapsam_lokasyon', 'HEPSI'),
+        # Kaç ayrı mail gidecek (TK1/TK2 ayrımı panelde görünsün)
+        'kapsamlar': kapsam_lokasyonlari(c),
     }
 
 
 # ─────────────────────────────────────────────────────────────
 # ALICILAR (mail_alicilari tablosu)
 # ─────────────────────────────────────────────────────────────
+def _hepsi_mi(lokasyon):
+    """Bu kapsam 'tüm tesisler' mi? (None / '' / 'HEPSI')"""
+    return not lokasyon or str(lokasyon).strip().upper() == 'HEPSI'
+
+
+def kapsam_lokasyonlari(c=None):
+    """Rapor hangi tesis(ler) için üretilecek — HER BİRİ AYRI MAİL.
+
+    Kullanıcı 2026-08-26: "TK1 ve TK2 üretim raporlarını ayrı atmalıyız."
+    Tek raporda iki tesis olunca her okuyan kendi tesisinin satırlarını
+    ayıklamak zorunda kalıyordu.
+
+    mail_config.json 'kapsam_lokasyon' değeri:
+      "AYRI"           → ['TK2', 'TK1']  (her tesis için ayrı mail — ÖNERİLEN)
+      ["TK2","TK1"]    → aynısı, açıkça
+      "TK1"            → yalnız TK1 (tek mail)
+      "HEPSI" / yok    → tek mail, tüm tesisler (ESKİ DAVRANIŞ — bozulmadı)
+    """
+    c = c or config_yukle() or {}
+    d = c.get('kapsam_lokasyon', 'HEPSI')
+    if isinstance(d, (list, tuple)):
+        liste = [str(x).strip().upper() for x in d if str(x).strip()]
+        return liste or ['HEPSI']
+    d = str(d or 'HEPSI').strip().upper()
+    if d == 'AYRI':
+        return ['TK2', 'TK1']
+    return [d]
+
+
 def _db(conn=None):
     if conn is not None:
         return conn, False
@@ -285,7 +316,7 @@ SIDDET_AD_MAIL = {'kritik': 'KRİTİK', 'uyari': 'UYARI', 'bilgi': 'BİLGİ'}
 
 
 def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
-                bulgular=None, yorum=''):
+                bulgular=None, yorum='', tesis=''):
     """Mailin HTML gövdesi — Cofle Forge paleti (2026-07-30 kullanıcı isteği:
     "gunluk uretim raporu tasarimi ... yeni tasarimimiza gore").
 
@@ -412,7 +443,10 @@ def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
         f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:800;'
         f'color:#FFFFFF;letter-spacing:.5px">COFLE FORGE</div>'
         f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:11px;color:#EDE4FE;'
-        f'padding-top:3px">Günlük Üretim Raporu · {tarih_tr}</div></td></tr>'
+        # TESİS BAŞLIKTA (2026-08-26): TK1 ve TK2 ayrı mail gidiyor, açan kişi
+        # hangi tesisin raporuna baktığını ilk satırda görsün.
+        f'padding-top:3px">Günlük Üretim Raporu'
+        + (f' · {tesis}' if tesis else '') + f' · {tarih_tr}</div></td></tr>'
         f'<tr><td style="background:#ECECF1;padding:20px 4px 4px">{icerik}</td></tr>'
         f'<tr><td style="padding:16px 4px 0;font-family:Segoe UI,Arial,sans-serif;'
         f'font-size:10px;color:{gri};border-top:1px solid {cizgi};margin-top:10px">'
@@ -430,7 +464,11 @@ def excel_olustur(tarih=None, lokasyon=None):
     rows = gunluk_veri(tarih, lokasyon)
 
     os.makedirs(RAPOR_DIR, exist_ok=True)
-    dosya = os.path.join(RAPOR_DIR, f'{tarih}_UretimRaporu.xlsx')
+    # TESİS DOSYA ADINDA (2026-08-26): TK1 ve TK2 raporları ayrı maille
+    # gidiyor; aynı ada yazsalardı ikinci rapor birincinin üstüne biner ve
+    # ekler karışırdı (aynı dakikada üretilirler).
+    _ek_ad = '' if _hepsi_mi(lokasyon) else f'_{str(lokasyon).upper()}'
+    dosya = os.path.join(RAPOR_DIR, f'{tarih}_UretimRaporu{_ek_ad}.xlsx')
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -573,6 +611,29 @@ def _outlook_gonder(alicilar, konu, govde, ek_yol, html=None):
         pythoncom.CoUninitialize()
 
 
+def _giris(srv, host, kullanici, sifre):
+    """SMTP login — hata mesajını ANLAŞILIR hâle getirir.
+
+    Gmail'e geçişte (2026-08-26) en sık takılınan yer: hesabın normal şifresi
+    SMTP'de ÇALIŞMAZ, 'Uygulama Şifresi' (App Password) gerekir ve o da ancak
+    2 adımlı doğrulama açıkken üretilebilir. Ham hata ('535 5.7.8 Username and
+    Password not accepted') panelde 'şifre yanlış' gibi okunup saatler
+    kaybettirir; sebebi ve çözümü burada yazılır."""
+    try:
+        srv.login(kullanici, sifre)
+    except smtplib.SMTPAuthenticationError as e:
+        _h = str(host or '').lower()
+        if 'gmail' in _h or 'google' in _h:
+            raise RuntimeError(
+                f'Gmail girişi reddedildi ({kullanici}). Gmail SMTP hesabın NORMAL '
+                f'şifresini kabul etmez: Google Hesabı > Güvenlik > 2 Adımlı Doğrulama '
+                f'açık olmalı, sonra "Uygulama şifreleri"nden 16 haneli bir şifre '
+                f'üretip mail_config.json içindeki "sifre" alanına onu yazın. '
+                f'Sunucu yanıtı: {e}') from e
+        raise RuntimeError(f'SMTP girişi reddedildi ({kullanici}). Kullanıcı adı/şifre '
+                           f'veya sunucu ayarı hatalı. Sunucu yanıtı: {e}') from e
+
+
 def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
     """Tek SMTP oturumunda maili kurar ve gönderir. Hata fırlatır (çağıran yakalar)."""
     msg = MIMEMultipart()
@@ -606,7 +667,7 @@ def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
         ctx = ssl.create_default_context()
         with smtplib.SMTP_SSL(host, port, timeout=30, context=ctx) as srv:
             if sifre:
-                srv.login(kullanici, sifre)
+                _giris(srv, host, kullanici, sifre)
             srv.sendmail(gonderen, alicilar, msg.as_string())
     else:
         with smtplib.SMTP(host, port, timeout=30) as srv:
@@ -615,7 +676,7 @@ def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
                 srv.starttls(context=ssl.create_default_context())
                 srv.ehlo()
             if sifre:
-                srv.login(kullanici, sifre)
+                _giris(srv, host, kullanici, sifre)
             srv.sendmail(gonderen, alicilar, msg.as_string())
 
 
@@ -633,12 +694,39 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
 
     if tarih is None:
         tarih = date.today().isoformat()
-    lokasyon = cfg.get('kapsam_lokasyon', 'HEPSI')
 
     alicilar = zorla_alicilar if zorla_alicilar else aktif_alicilar()
     if not alicilar:
         return {'basarili': False, 'mesaj': 'Aktif alıcı yok — dashboard\'dan e-posta ekleyin.', 'atlandi': True}
 
+    # TESİS BAŞINA AYRI MAİL (2026-08-26). Tek kapsam varsa döngü bir kez döner
+    # ve sonuç sözlüğü eskisiyle AYNI şekilde (düz) döner — panelin 'şimdi
+    # gönder' ekranı ve testler bozulmasın.
+    kapsamlar = kapsam_lokasyonlari(cfg)
+    if len(kapsamlar) > 1:
+        sonuclar = [_tek_rapor_gonder(cfg, tarih, lok, alicilar, yontem, zorla_alicilar)
+                    for lok in kapsamlar]
+        gonderilen = [r for r in sonuclar if r.get('basarili') and not r.get('atlandi')]
+        hatali = [r for r in sonuclar if not r.get('basarili')]
+        return {
+            'basarili': not hatali,
+            'coklu': True,
+            'kapsamlar': kapsamlar,
+            'sonuclar': dict(zip(kapsamlar, sonuclar)),
+            'alici_sayisi': len(alicilar),
+            'satir': sum(r.get('satir', 0) or 0 for r in sonuclar),
+            'toplam_adet': sum(r.get('toplam_adet', 0) or 0 for r in sonuclar),
+            'mesaj': ' | '.join(f'{k}: {r.get("mesaj", "")}' for k, r in zip(kapsamlar, sonuclar)),
+            'atlandi': (not gonderilen and not hatali),
+        }
+    return _tek_rapor_gonder(cfg, tarih, kapsamlar[0], alicilar, yontem, zorla_alicilar)
+
+
+def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=None):
+    """TEK bir kapsam için raporu üretir ve gönderir. Sonuç sözlüğü döner.
+
+    Gövde eskiden gunluk_mail_gonder içindeydi; TK1/TK2 ayrımı için buraya
+    alındı — iki tesis için iki kez, ama AYNI kodla çalışsın."""
     try:
         dosya, satir, toplam = excel_olustur(tarih, lokasyon)
     except Exception as e:
@@ -651,12 +739,17 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
     # doğrulanabilmeli. mail_config.json'a "bos_gun_gonder": true yazılırsa eski
     # davranış geri gelir.
     if not satir and not zorla_alicilar and not cfg.get('bos_gun_gonder'):
-        print(f'[MAIL] {tarih}: uretim yok — mail gonderilmedi')
+        _k = '' if _hepsi_mi(lokasyon) else f' ({str(lokasyon).upper()})'
+        print(f'[MAIL] {tarih}{_k}: uretim yok — mail gonderilmedi')
         return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
-                'mesaj': f'{_tarih_tr(tarih)} tarihinde üretim yok — mail gönderilmedi.'}
+                'lokasyon': lokasyon,
+                'mesaj': f'{_tarih_tr(tarih)}{_k} tarihinde üretim yok — mail gönderilmedi.'}
 
     tarih_tr = _tarih_tr(tarih)
-    konu = f'Cofle Forge — Günlük Üretim Raporu ({tarih_tr})'
+    # Tesis KONUDA: iki rapor aynı anda geldiğinde hangisinin hangisi olduğu
+    # gelen kutusunda açmadan görünsün.
+    _tesis_et = '' if _hepsi_mi(lokasyon) else f' — {str(lokasyon).upper()}'
+    konu = f'Cofle Forge — Günlük Üretim Raporu{_tesis_et} ({tarih_tr})'
     kirilim = _bolum_kirilimi(tarih, lokasyon) if satir else []
     if satir:
         govde = (
@@ -688,7 +781,8 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
             govde += an_yorum + '\n\n'
         for b in an_bulgular[:6]:
             govde += f'  [{SIDDET_AD_MAIL.get(b["siddet"], "")}] {b["baslik"]}\n'
-    html = _html_govde(tarih_tr, satir, toplam, kirilim, an_ozet, an_bulgular, an_yorum)
+    html = _html_govde(tarih_tr, satir, toplam, kirilim, an_ozet, an_bulgular, an_yorum,
+                       tesis=('' if _hepsi_mi(lokasyon) else str(lokasyon).upper()))
 
     try:
         ek = dosya if satir else None
@@ -699,9 +793,11 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
     except Exception as e:
         return {'basarili': False, 'mesaj': f'Gönderim hatası: {e}', 'alici_sayisi': len(alicilar)}
 
-    print(f'[MAIL] {tarih} raporu gonderildi -> {len(alicilar)} alici, {satir} satir, {toplam} adet')
+    print(f'[MAIL] {tarih}{_tesis_et} raporu gonderildi -> {len(alicilar)} alici, '
+          f'{satir} satir, {toplam} adet')
     return {
         'basarili': True,
+        'lokasyon': lokasyon,
         'mesaj': f'{len(alicilar)} alıcıya gönderildi ({satir} satır, {toplam} adet).',
         'alici_sayisi': len(alicilar),
         'satir': satir,
