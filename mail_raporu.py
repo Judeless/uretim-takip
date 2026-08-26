@@ -611,6 +611,44 @@ def _outlook_gonder(alicilar, konu, govde, ek_yol, html=None):
         pythoncom.CoUninitialize()
 
 
+# ── GÖNDERİM İZİ (kullanıcı 2026-08-26) ──────────────────────────────
+# "mail gönderildi dedi ama Outlook'ta göremedim." SMTP 250 yanıtı 'kabul
+# ettim' demektir, 'kullanıcının kutusuna düştü' demek DEĞİLDİR — arada spam
+# filtresi, yönlendirme kuralı, hatta MX taşınması varken eski posta kutusuna
+# bakıyor olmak var. Sunucunun son yanıtındaki KUYRUK KİMLİĞİ bu boşluğu
+# kapatır: Google Admin > Reporting > Email Log Search'te o kimlikle mesajın
+# nereye teslim edildiği birebir görülür.
+class _IzliSMTP(smtplib.SMTP):
+    son_yanit = None
+
+    def getreply(self):
+        kod, mesaj = super().getreply()
+        self.son_yanit = (kod, mesaj)
+        return kod, mesaj
+
+
+class _IzliSMTPSSL(smtplib.SMTP_SSL):
+    son_yanit = None
+
+    def getreply(self):
+        kod, mesaj = super().getreply()
+        self.son_yanit = (kod, mesaj)
+        return kod, mesaj
+
+
+def _yanit_metni(srv):
+    """Sunucunun son yanıtı — kuyruk kimliği burada geçer. Okunamazsa ''."""
+    try:
+        kod, mesaj = srv.son_yanit or (None, None)
+        if kod is None:
+            return ''
+        if isinstance(mesaj, bytes):
+            mesaj = mesaj.decode('utf-8', 'replace')
+        return f'{kod} {" ".join(str(mesaj).split())}'
+    except Exception:
+        return ''
+
+
 def _sifre_temizle(host, sifre):
     """Şifreyi giriş için hazırlar.
 
@@ -696,19 +734,30 @@ def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
 
     if mod == 'ssl':
         ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL(host, port, timeout=30, context=ctx) as srv:
+        with _IzliSMTPSSL(host, port, timeout=30, context=ctx) as srv:
             if sifre:
                 _giris(srv, host, kullanici, sifre)
-            srv.sendmail(gonderen, alicilar, msg.as_string())
+            red = srv.sendmail(gonderen, alicilar, msg.as_string())
+            iz = _yanit_metni(srv)
     else:
-        with smtplib.SMTP(host, port, timeout=30) as srv:
+        with _IzliSMTP(host, port, timeout=30) as srv:
             srv.ehlo()
             if mod == 'starttls':
                 srv.starttls(context=ssl.create_default_context())
                 srv.ehlo()
             if sifre:
                 _giris(srv, host, kullanici, sifre)
-            srv.sendmail(gonderen, alicilar, msg.as_string())
+            red = srv.sendmail(gonderen, alicilar, msg.as_string())
+            iz = _yanit_metni(srv)
+    # REDDEDİLEN ALICI SESSİZ KALMASIN: sendmail bir kısmı reddedilse bile
+    # istisna atmaz (hepsi reddedilirse atar). Eskiden bu durumda ekranda
+    # 'gönderildi' yazıyordu ve o adrese mail hiç gitmiyordu.
+    if red:
+        print(f'[MAIL] REDDEDILEN ALICI: {red}')
+    print(f'[MAIL] SMTP kabul etti -> {", ".join(alicilar)} | sunucu yaniti: {iz or "-"}')
+    return {'gonderilen': [a for a in alicilar if a not in (red or {})],
+            'reddedilen': {k: str(v) for k, v in (red or {}).items()},
+            'smtp_yanit': iz}
 
 
 def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
@@ -819,17 +868,29 @@ def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=Non
         ek = dosya if satir else None
         if yontem == 'outlook':
             _outlook_gonder(alicilar, konu, govde, ek, html)
+            iz = {}
         else:
-            _smtp_gonder(cfg, alicilar, konu, govde, ek, html)
+            iz = _smtp_gonder(cfg, alicilar, konu, govde, ek, html) or {}
     except Exception as e:
         return {'basarili': False, 'mesaj': f'Gönderim hatası: {e}', 'alici_sayisi': len(alicilar)}
 
     print(f'[MAIL] {tarih}{_tesis_et} raporu gonderildi -> {len(alicilar)} alici, '
           f'{satir} satir, {toplam} adet')
+    # Mesajda ADRESLER de yazar: 'gönderildi' deyip nereye gittiğini
+    # söylememek, mail gelmediğinde yanlış yerde aramaya yol açıyordu.
+    _kime = ', '.join(alicilar[:4]) + (f' (+{len(alicilar) - 4})' if len(alicilar) > 4 else '')
+    _red = iz.get('reddedilen') or {}
+    _mesaj = (f'{len(alicilar)} alıcıya gönderildi ({satir} satır, {toplam} adet) → {_kime}.'
+              + (f' REDDEDİLEN: {", ".join(_red)}' if _red else '')
+              + (f' [sunucu: {iz.get("smtp_yanit")}]' if iz.get('smtp_yanit') else ''))
     return {
         'basarili': True,
         'lokasyon': lokasyon,
-        'mesaj': f'{len(alicilar)} alıcıya gönderildi ({satir} satır, {toplam} adet).',
+        'mesaj': _mesaj,
+        'alicilar': alicilar,
+        'reddedilen': _red,
+        'smtp_yanit': iz.get('smtp_yanit', ''),
+        'gonderen': cfg.get('gonderen', ''),
         'alici_sayisi': len(alicilar),
         'satir': satir,
         'toplam_adet': toplam,
