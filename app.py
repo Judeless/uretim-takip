@@ -5353,7 +5353,7 @@ def saha_cihazlari():
     Eşleşme yoksa 'beklemede' (hiç bağlanmamış). ?lokasyon= ile tesise göre süzülür.
     """
     import os
-    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+    pilot_db = _pilot_db_yolu()   # yol TEK yerden (2026-08-28)
 
     # ?lokasyon= verilirse sadece o tesisin cihazları döner (saha cihazları + sinyal
     # analizi TK1/TK2'ye özel). Entry'de lokasyon yoksa 'TK2' varsayılır.
@@ -5433,6 +5433,7 @@ def saha_cihazlari():
     # Pilot DB'den mevcut cihaz_kayitlari + bugünün ist1/ist2 sayıları
     mevcut = {}
     reset_map = {}       # {(cihaz_id, istasyon): reset_ts}
+    kurtarma24 = {}      # {robot_no: {'toplam', 'kirilim'}} — pilot.db yoksa bos kalir
     if os.path.exists(pilot_db):
         import sqlite3
         c = sqlite3.connect(pilot_db)
@@ -5447,6 +5448,22 @@ def saha_cihazlari():
                 d = dict(r)
                 d['durum'] = 'offline' if (d.get('son_heartbeat_dk') or 0) > 2 else 'online'
                 mevcut[d['cihaz_id']] = d
+
+            # GERÇEK KURTARMALAR — son 24 saat (kullanıcı 2026-08-28: rapordan
+            # kalktı, "gerçekten sorun varsa dashboardda görelim"). 'baseline'
+            # HARİÇ: o, ~10 dk'da bir gelen rutin telemetri kalp atışıdır; sayılırsa
+            # her cihaz günde ~144 "kurtarma" yapmış görünür (eski raporun hatası).
+            try:
+                for r in c.execute(
+                        "SELECT robot_no, sebep, COUNT(*) n FROM saglik_olaylari "
+                        "WHERE sebep != 'baseline' "
+                        "AND ts >= datetime('now','localtime','-1 day') "
+                        "GROUP BY robot_no, sebep").fetchall():
+                    d2 = kurtarma24.setdefault(r['robot_no'], {'toplam': 0, 'kirilim': []})
+                    d2['toplam'] += r['n']
+                    d2['kirilim'].append(f"{r['sebep']} {r['n']}")
+            except Exception as _e:
+                print(f'[saha_cihazlari] kurtarma sorgusu: {_e}')
 
             # Manuel reset noktalari — dashboard'dan "sayaci sifirla" tıklayınca yazıldı
             # Sayım sırasında filtre olarak kullanılır (ts > reset_ts olanları say)
@@ -5734,6 +5751,10 @@ def saha_cihazlari():
                     'durum':              kayit.get('durum', 'offline'),
                     'ip_adresi':          kayit.get('ip_adresi', ''),
                     'wifi_rssi':          kayit.get('wifi_rssi', 0),
+                    # Son 24 saatteki GERÇEK kurtarma sayısı (reboot/radyo/buffer/
+                    # httpfail — baseline kalp atışı DEĞİL). 0 ise kart hiç göstermez.
+                    'kurtarma_24s':       (kurtarma24.get(rno) or {}).get('toplam', 0),
+                    'kurtarma_detay':     ' · '.join((kurtarma24.get(rno) or {}).get('kirilim', [])),
                     'son_heartbeat':      kayit.get('son_heartbeat', ''),
                     'son_heartbeat_dk':   kayit.get('son_heartbeat_dk', 0),
                     'firmware_ver':       kayit.get('firmware_ver', ''),
@@ -5762,6 +5783,11 @@ def saha_cihazlari():
                     'durum':              'beklemede',
                     'aktif_vardiya_ts':   vardiya_ts,
                     'aktif_referanslar':  aktif_referanslar,
+                    # Kurtarma alanlari bu dalda da olmali: kayit satiri silinmis/
+                    # yeniden eslenmemis bir cihazin gecmis kurtarmalari kaybolmasin
+                    # (panel iki daldan geleni ayni sablonla cizer).
+                    'kurtarma_24s':       (kurtarma24.get(rno) or {}).get('toplam', 0),
+                    'kurtarma_detay':     ' · '.join((kurtarma24.get(rno) or {}).get('kirilim', [])),
                     'kayitli':            False,
                 })
         sonuc[bolum] = liste
@@ -5797,7 +5823,7 @@ def saha_cihazlari_sayac_reset():
     if istasyon not in (0, 1, 2, 3):
         return jsonify({'hata': 'istasyon 0..3 olmalı'}), 400
 
-    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+    pilot_db = _pilot_db_yolu()   # yol TEK yerden (2026-08-28)
     if not os.path.exists(pilot_db):
         return jsonify({'hata': 'Pilot DB bulunamadı (pilot_app.py çalışıyor mu?)'}), 503
 
@@ -5900,7 +5926,7 @@ def pilot_sinyal_kalitesi():
     """
     import os, sqlite3
     lokasyon = request.args.get('lokasyon')   # TK1/TK2'ye göre cihaz filtresi (robot_no eşlemesi)
-    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+    pilot_db = _pilot_db_yolu()   # yol TEK yerden (2026-08-28)
     cihazlar, son_kararlar = [], []
     if not os.path.exists(pilot_db):
         return jsonify({'cihazlar': [], 'son_kararlar': [], 'hata': 'Pilot DB yok'}), 200
@@ -5986,7 +6012,7 @@ def pilot_sinyal_analiz():
         return jsonify({'hata': 'robot_no parametresi zorunlu'}), 400
 
     # ─── Pilot DB'den pulse'lar ───────────────────────────────────
-    pilot_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilot', 'pilot.db')
+    pilot_db = _pilot_db_yolu()   # yol TEK yerden (2026-08-28)
     olaylar = []
     if os.path.exists(pilot_db):
         pc = sqlite3.connect(pilot_db)

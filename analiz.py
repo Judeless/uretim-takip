@@ -887,20 +887,15 @@ def _bulgu_sinyal(vardiyalar, bas, bit):
         pc.row_factory = sqlite3.Row
         pc.execute('PRAGMA busy_timeout=5000')
         try:
-            # Cihaz sağlığı: dönemde tekrarlayan bağlantı kopmaları
-            saglik = pc.execute(
-                "SELECT robot_no, COUNT(*) AS n FROM saglik_olaylari "
-                "WHERE ts >= ? AND ts <= ? GROUP BY robot_no ORDER BY n DESC LIMIT 5",
-                (bas + ' 00:00:00', bit + ' 23:59:59')).fetchall()
-            for s in saglik:
-                if s['n'] < 5:
-                    continue
-                out.append(_b('cihaz_saglik', 'uyari',
-                              f'{s["robot_no"]} sayaç modülü dönemde {s["n"]} kez kendini kurtardı',
-                              'Sağlık olayı = modülün WiFi/bellek sorunundan yeniden başlaması. '
-                              'Her olayda o anki sinyaller gecikir veya kaybolur; adet eksik sayılabilir.',
-                              'Modülün sinyal gücüne ve besleme hattına bakın.',
-                              cihaz=s['robot_no'], olay=s['n']))
+            # 'cihaz_saglik' BULGUSU KALDIRILDI (kullanıcı 2026-08-28).
+            # YANLIŞ ALARMDI: saglik_olaylari'nın %96'sı sebep='baseline' — modülün
+            # ~10 dakikada bir gönderdiği RUTİN telemetri kalp atışı. Bulgu sebep
+            # ayırmadan COUNT(*) aldığı için her cihaz "günde ~146 kez kendini
+            # kurtardı" görünüyordu (144 kalp atışı + birkaç gerçek olay); LIMIT 5
+            # yüzünden de yalnız ilk beş cihaz listelenip "neden sadece bunlar?"
+            # sorusunu doğuruyordu. GERÇEK kurtarmalar (reboot/radyo/buffer/httpfail)
+            # artık Saha Cihazları kartlarında gösteriliyor (/api/saha_cihazlari →
+            # kurtarma_24s) — rapor değil, cihaz bakım ekranının işi.
 
             # Hayalet sayım: hiç vardiya olmayan günlerde gelen sinyal
             gunler = {v['tarih'] for v in vardiyalar}

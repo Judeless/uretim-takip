@@ -10726,6 +10726,7 @@ window.__I18N_SOZLUK__ = {
                 <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.72rem;margin-top:8px;color:var(--muted)">
                     <span>IP:</span>      <span style="font-family:monospace;color:var(--text)">${c.ip_adresi || '—'}</span>
                     <span>Sinyal:</span>  <span style="color:${rssiRenk};font-weight:700">${rssi ? rssi + ' dBm' : '—'}</span>
+                    ${(c.kurtarma_24s > 0) ? `<span>Kurtarma:</span> <span style="color:${c.kurtarma_24s >= 5 ? 'var(--danger)' : 'var(--warn)'};font-weight:800" title="Son 24 saatte modülün kendini toparlaması (${esc(c.kurtarma_detay || '')}). Rutin telemetri kalp atışları SAYILMAZ. Sıklaşıyorsa sinyal gücüne ve beslemeye bakın.">⚠ ${c.kurtarma_24s} / 24s</span>` : ''}
                     <span>Heartbeat:</span><span style="color:var(--text)">${heartbeatTxt}</span>
                     ${uptimeTxt ? `<span>Uptime:</span><span style="color:var(--text)">${uptimeTxt}</span>` : ''}
                     ${sayimHtml}
