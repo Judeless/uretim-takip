@@ -11813,11 +11813,14 @@ window.__I18N_SOZLUK__ = {
                     // kaç mail çıkacağı panelde görünsün, "ikinci mail neden geldi"
                     // sorusu doğmasın.
                     var kaps = d.kapsamlar || [];
-                    var kapsEt = (kaps.length > 1) ? ' · ' + kaps.join(' + ') + ' ayrı' : '';
+                    var kapsEt = (kaps.length > 1) ? ' · ' + kaps.join(' + ') : '';
                     rozet.textContent = '● Aktif · ' + (d.gonderim_saati || '17:00') + kapsEt;
+                    // BİRLEŞİK MODEL (2026-08-28): iki tesisi de seçen alıcıya iki
+                    // ayrı mail değil, 2 Excel ekli TEK mail gider.
                     rozet.title = (kaps.length > 1)
-                        ? kaps.length + ' ayrı mail gönderilir (her tesis için bir tane). '
-                          + 'mail_config.json → "kapsam_lokasyon".'
+                        ? 'Her tesisin raporu ayrı üretilir. Tek tesis seçen alıcıya o '
+                          + 'tesisin maili; iki tesisi de seçene 2 Excel ekli TEK '
+                          + 'birleşik mail gider. mail_config.json → "kapsam_lokasyon".'
                         : 'Tek mail gönderilir (kapsam: ' + (kaps[0] || 'HEPSİ') + ').';
                     rozet.style.background = 'rgba(52,211,153,.15)'; rozet.style.color = 'var(--success)';
                 } else if (d.config_hatasi) {

@@ -897,25 +897,55 @@ def _bulgu_sinyal(vardiyalar, bas, bit):
             # artık Saha Cihazları kartlarında gösteriliyor (/api/saha_cihazlari →
             # kurtarma_24s) — rapor değil, cihaz bakım ekranının işi.
 
-            # Hayalet sayım: hiç vardiya olmayan günlerde gelen sinyal
+            # Hayalet sayım: hiç vardiya olmayan günlerde gelen sinyal.
+            # SABİT HATLI BÖLÜMLER DÜZELTMESİ (kullanıcı 2026-08-28 "hangi makine?"
+            # diye sorunca ortaya çıktı): 2026-08-18'den beri tel/pres/plastik/TK1
+            # montajda VARDİYANIN hattı sabittir ('Tel Üretimi', 'Pres Abkant'...)
+            # ama sinyaller CİHAZ adıyla gelir ('Kapama 2', 'Pres 2', 'TK1-M1').
+            # Ad karşılaştırması bu bölümlerde HİÇ tutmuyor ve vardiya açıkken bile
+            # her sinyal 'vardiya yok' hayaleti sayılıyordu — 21 makine-gün / 9779
+            # sinyalin büyük kısmı buydu. Artık cihaz adı eşleşmezse (BÖLÜM, GÜN)
+            # düzeyinde bakılır: o gün o bölümde HERHANGİ bir vardiya açıksa sinyal
+            # hayalet değildir. (Buton devri istisnası: TK1-M4/YF1 cihazları
+            # firmware'de 'montaj' yazar ama tel hattında kullanılır → montaj
+            # cihazı için tel vardiyası da kapsam sayılır.)
             gunler = {v['tarih'] for v in vardiyalar}
             hayalet = pc.execute(
-                "SELECT robot_no, substr(ts,1,10) AS gun, COUNT(*) AS n FROM sayac_olaylari "
-                "WHERE ts >= ? AND ts <= ? GROUP BY robot_no, gun HAVING n > 20",
+                "SELECT robot_no, COALESCE(bolum,'') AS bolum, substr(ts,1,10) AS gun, "
+                "COUNT(*) AS n FROM sayac_olaylari "
+                "WHERE ts >= ? AND ts <= ? GROUP BY robot_no, bolum, gun HAVING n > 20",
                 (bas + ' 00:00:00', bit + ' 23:59:59')).fetchall()
             hat_gun = {(v['hat'], v['tarih']) for v in vardiyalar}
-            kayip = [h for h in hayalet if (h['robot_no'], h['gun']) not in hat_gun and h['gun'] in gunler]
+            bolum_gun = {(v['bolum'], v['tarih']) for v in vardiyalar}
+
+            def _kapsanmis(h):
+                if (h['robot_no'], h['gun']) in hat_gun:
+                    return True
+                if (h['bolum'], h['gun']) in bolum_gun:
+                    return True
+                if h['bolum'] == 'montaj' and ('tel', h['gun']) in bolum_gun:
+                    return True     # TK1-M4/YF1: cihaz montaj yazar, hat tel
+                return False
+
+            kayip = [h for h in hayalet if not _kapsanmis(h) and h['gun'] in gunler]
             if kayip:
                 top = sum(h['n'] for h in kayip)
+                ilk = sorted(kayip, key=lambda x: -x['n'])[:5]
+                # MAKİNELER METİNDE (kullanıcı: "bu uyarı hangi makine için?"):
+                # örnekler yalnız sayisal alandaydı, hiçbir ekran göstermiyordu.
+                _liste = ', '.join(f"{h['robot_no']} ({h['gun'][5:]} · {h['n']} sinyal)"
+                                   for h in ilk)
                 out.append(_b('sayilmayan_sinyal', 'uyari',
                               f'{len(kayip)} makine-günde sinyal var ama vardiya yok — {top} sinyal kayda geçmedi',
-                              'Sayaç sinyal üretmiş fakat o gün o hatta açılmış vardiya bulunamadı. '
-                              'Sayım aktif vardiyaya kapılı olduğu için bu üretim hiçbir rapora girmez.',
+                              f'Sayaç sinyal üretmiş fakat o gün o CİHAZIN BÖLÜMÜNDE açılmış vardiya '
+                              f'bulunamadı. Sayım aktif vardiyaya kapılı olduğu için bu üretim hiçbir '
+                              f'rapora girmez. En çok: {_liste}'
+                              + (f' — ve {len(kayip) - len(ilk)} makine-gün daha.' if len(kayip) > len(ilk) else '.'),
                               'Vardiya açılmadan çalışılıyorsa operatöre hatırlatın; '
                               'makine boşta sinyal üretiyorsa parazit olabilir.',
                               makine_gun=len(kayip), sinyal=top,
                               ornekler=[{'hat': h['robot_no'], 'gun': h['gun'], 'sinyal': h['n']}
-                                        for h in sorted(kayip, key=lambda x: -x['n'])[:5]]))
+                                        for h in ilk]))
 
             # ── Sinyal boşluğu ↔ duruş kaydı karşılaştırması ──────────────────
             # TEK SORGU: dönemin tüm sinyalleri bir kerede çekilip (makine, gün)

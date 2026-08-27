@@ -384,8 +384,8 @@ SIDDET_RENK_MAIL = {'kritik': '#DC2626', 'uyari': '#D97706', 'bilgi': '#4E4C63'}
 SIDDET_AD_MAIL = {'kritik': 'KRİTİK', 'uyari': 'UYARI', 'bilgi': 'BİLGİ'}
 
 
-def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
-                bulgular=None, yorum='', tesis='', yorum_hata=''):
+def _html_icerik(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
+                 bulgular=None, yorum='', tesis='', yorum_hata='', selamla=True):
     """Mailin HTML gövdesi — Cofle Forge paleti (2026-07-30 kullanıcı isteği:
     "gunluk uretim raporu tasarimi ... yeni tasarimimiza gore").
 
@@ -439,18 +439,22 @@ def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
                  f'border-bottom:1px solid {cizgi};font-family:Segoe UI,Arial,sans-serif;'
                  f'font-size:10px;font-weight:700;color:{gri};text-transform:uppercase;'
                  f'letter-spacing:.4px">Bölüm bazında</td></tr>{satirlar}</table>')
-        icerik = (
+        selam_html = ('' if not selamla else
             f'<p style="margin:0 0 14px;font-family:Segoe UI,Arial,sans-serif;font-size:13px;'
-            f'color:{koyu}">Merhaba,<br><b>{tarih_tr}</b> tarihli günlük üretim raporu ektedir.</p>'
-            f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            f'color:{koyu}">Merhaba,<br><b>{tarih_tr}</b> tarihli günlük üretim raporu ektedir.</p>')
+        icerik = (
+            selam_html
+            + f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             f'style="margin:0 -6px">{kartlar}</table>{tablo}'
             f'<p style="margin:16px 0 0;font-family:Segoe UI,Arial,sans-serif;font-size:12px;'
             f'color:{gri}">Operatör ve referans kırılımı ekteki Excel dosyasındadır.</p>')
     else:
-        icerik = (
+        selam_html = ('' if not selamla else
             f'<p style="margin:0 0 12px;font-family:Segoe UI,Arial,sans-serif;font-size:13px;'
-            f'color:{koyu}">Merhaba,</p>'
-            f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+            f'color:{koyu}">Merhaba,</p>')
+        icerik = (
+            selam_html
+            + f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
             f'style="background:#FFFFFF;border:1px solid {cizgi};border-radius:10px"><tr>'
             f'<td style="padding:18px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
             f'color:{koyu};text-align:center;font-size:13px">'
@@ -508,6 +512,16 @@ def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
             f'</td></tr></table>')
         icerik = icerik + analiz_html
 
+    return icerik
+
+
+def _html_sayfa(tarih_tr, icerik, tesis=''):
+    """Icerigi COFLE FORGE cerceveli tam HTML sayfaya sarar.
+
+    _html_icerik'ten AYRILDI (2026-08-28): birlesik mail iki tesisin icerigini
+    TEK cerceve icinde alt alta basar; cerceve tek yerde durursa iki bicim
+    (tekil / birlesik) zamanla ayrisamaz."""
+    mor, gri, cizgi = '#6D28D9', '#4E4C63', '#E1E1EA'
     return (
         f'<!DOCTYPE html><html><head><meta charset="utf-8">'
         f'<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -534,6 +548,16 @@ def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
         f'font-size:10px;color:{gri};border-top:1px solid {cizgi};margin-top:10px">'
         f'Bu e-posta Cofle Forge üretim takip sistemi tarafından otomatik gönderilmiştir.'
         f'</td></tr></table></td></tr></table></body></html>')
+
+
+def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
+                bulgular=None, yorum='', tesis='', yorum_hata=''):
+    """Tek tesisin tam HTML maili — icerik + cerceve (eski dis sozlesme)."""
+    return _html_sayfa(
+        tarih_tr,
+        _html_icerik(tarih_tr, satir, toplam, kirilim, analiz_ozet,
+                     bulgular, yorum, tesis, yorum_hata),
+        tesis)
 
 
 def excel_olustur(tarih=None, lokasyon=None):
@@ -686,8 +710,9 @@ def _outlook_gonder(alicilar, konu, govde, ek_yol, html=None):
             mail.HTMLBody = html   # Outlook HTMLBody atanınca Body'yi yok sayar
         else:
             mail.Body = govde
-        if ek_yol and os.path.exists(ek_yol):
-            mail.Attachments.Add(os.path.abspath(ek_yol))
+        for _e in ([ek_yol] if isinstance(ek_yol, str) else (ek_yol or [])):
+            if _e and os.path.exists(_e):
+                mail.Attachments.Add(os.path.abspath(_e))
         mail.Send()
     finally:
         pythoncom.CoUninitialize()
@@ -802,11 +827,14 @@ def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
     else:
         msg.attach(MIMEText(govde, 'plain', 'utf-8'))
 
-    if ek_yol and os.path.exists(ek_yol):
-        with open(ek_yol, 'rb') as f:
-            ek = MIMEApplication(f.read(), _subtype='vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            ek.add_header('Content-Disposition', 'attachment', filename=os.path.basename(ek_yol))
-            msg.attach(ek)
+    # BIRDEN COK EK (2026-08-28): birlesik mail TK2 + TK1 Excel'lerini birlikte
+    # tasir. str de liste de kabul edilir — tekil cagiranlar degismedi.
+    for _e in ([ek_yol] if isinstance(ek_yol, str) else (ek_yol or [])):
+        if _e and os.path.exists(_e):
+            with open(_e, 'rb') as f:
+                ek = MIMEApplication(f.read(), _subtype='vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                ek.add_header('Content-Disposition', 'attachment', filename=os.path.basename(_e))
+                msg.attach(ek)
 
     host = cfg['smtp_host']
     port = int(cfg['smtp_port'])
@@ -860,137 +888,133 @@ def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
     if not zorla_alicilar and not aktif_alicilar():
         return {'basarili': False, 'mesaj': 'Aktif alıcı yok — dashboard\'dan e-posta ekleyin.', 'atlandi': True}
 
-    def _alicilar(lok):
-        # Test maili SEÇİMİ AŞAR: kurulum doğrulanırken tesis kutucuğu engel olmasın.
-        return zorla_alicilar if zorla_alicilar else aktif_alicilar(lokasyon=lok)
-
-    # TESİS BAŞINA AYRI MAİL (2026-08-26). Tek kapsam varsa döngü bir kez döner
-    # ve sonuç sözlüğü eskisiyle AYNI şekilde (düz) döner — panelin 'şimdi
-    # gönder' ekranı ve testler bozulmasın.
+    # ALICI GRUPLARI (kullanıcı 2026-08-28): iki tesisi de seçen kişiye artık
+    # iki ayrı mail yerine TEK BİRLEŞİK mail gider — iki Excel eki + tesis
+    # başına ayrı özet tablosu ve ayrı analiz yazısı. Yalnız tek tesisi
+    # seçenlerin maili değişmedi. Malzeme (Excel + AI analizi) tesis başına
+    # BİR KEZ üretilir ve iki mail türü aynı paketi paylaşır.
     kapsamlar = kapsam_lokasyonlari(cfg)
-    if len(kapsamlar) > 1:
-        sonuclar = [_tek_rapor_gonder(cfg, tarih, lok, _alicilar(lok), yontem, zorla_alicilar)
-                    for lok in kapsamlar]
-        gonderilen = [r for r in sonuclar if r.get('basarili') and not r.get('atlandi')]
-        hatali = [r for r in sonuclar if not r.get('basarili')]
-        return {
-            'basarili': not hatali,
-            'coklu': True,
-            'kapsamlar': kapsamlar,
-            'sonuclar': dict(zip(kapsamlar, sonuclar)),
-            # Kapsamlar farklı alıcı kümelerine gidiyor — TEKİL kişi sayısı
-            # (iki raporu da alan biri bir kez sayılır).
-            'alici_sayisi': len({a for r in sonuclar for a in (r.get('alicilar') or [])}),
-            'satir': sum(r.get('satir', 0) or 0 for r in sonuclar),
-            'toplam_adet': sum(r.get('toplam_adet', 0) or 0 for r in sonuclar),
-            'mesaj': ' | '.join(f'{k}: {r.get("mesaj", "")}' for k, r in zip(kapsamlar, sonuclar)),
-            'atlandi': (not gonderilen and not hatali),
-        }
-    return _tek_rapor_gonder(cfg, tarih, kapsamlar[0], _alicilar(kapsamlar[0]),
-                             yontem, zorla_alicilar)
+    paketler = [_rapor_paketi(cfg, tarih, lok, zorla=bool(zorla_alicilar))
+                for lok in kapsamlar]
+    hatali_paket = next((p for p in paketler if p.get('hata')), None)
+    if hatali_paket:
+        return {'basarili': False, 'mesaj': hatali_paket['hata']}
+
+    if len(kapsamlar) == 1:
+        alicilar = zorla_alicilar if zorla_alicilar else aktif_alicilar(lokasyon=kapsamlar[0])
+        return _tek_rapor_gonder(cfg, tarih, paketler[0], alicilar, yontem)
+
+    if zorla_alicilar:
+        # Test maili SEÇİMİ AŞAR ve alıcı ne görecekse ONU doğrular: kapsamda
+        # iki tesis varsa test de birleşik biçimde (2 ek, 2 özet) gider.
+        return _birlesik_gonder(cfg, tarih, paketler, zorla_alicilar, yontem)
+
+    kitle = {lok: list(aktif_alicilar(lokasyon=lok)) for lok in kapsamlar}
+    a, b = kapsamlar[0], kapsamlar[1]
+    ortak = [x for x in kitle[a] if x in set(kitle[b])]
+    sadece = {a: [x for x in kitle[a] if x not in set(ortak)],
+              b: [x for x in kitle[b] if x not in set(ortak)]}
+
+    sonuclar = {}
+    for lok, p in zip(kapsamlar, paketler):
+        if sadece[lok]:
+            sonuclar[lok] = _tek_rapor_gonder(cfg, tarih, p, sadece[lok], yontem)
+        else:
+            sonuclar[lok] = {'basarili': True, 'atlandi': True, 'satir': 0,
+                             'toplam_adet': 0, 'lokasyon': lok,
+                             'mesaj': 'Yalnız bu tesisi seçen alıcı yok (tekil mail çıkmadı).'}
+    sonuclar[a + '+' + b] = _birlesik_gonder(cfg, tarih, paketler, ortak, yontem)
+
+    hepsi = list(sonuclar.values())
+    gonderilen = [r for r in hepsi if r.get('basarili') and not r.get('atlandi')]
+    hatali = [r for r in hepsi if not r.get('basarili')]
+    return {
+        'basarili': not hatali,
+        'coklu': True,
+        'kapsamlar': kapsamlar,
+        'sonuclar': sonuclar,
+        # TEKİL kişi sayısı: birleşik + tekil kitleler ayrık kümelerdir.
+        'alici_sayisi': len({x for r in hepsi for x in (r.get('alicilar') or [])}),
+        'satir': sum(p.get('satir', 0) or 0 for p in paketler),
+        'toplam_adet': sum(p.get('toplam', 0) or 0 for p in paketler),
+        'mesaj': ' | '.join(k + ': ' + (r.get('mesaj') or '') for k, r in sonuclar.items()),
+        'atlandi': (not gonderilen and not hatali),
+    }
 
 
-def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=None):
-    """TEK bir kapsam için raporu üretir ve gönderir. Sonuç sözlüğü döner.
+def _rapor_paketi(cfg, tarih, lokasyon, zorla=False):
+    """Bir tesisin rapor malzemesi: Excel + kırılım + analiz. GÖNDERMEZ.
 
-    Gövde eskiden gunluk_mail_gonder içindeydi; TK1/TK2 ayrımı için buraya
-    alındı — iki tesis için iki kez, ama AYNI kodla çalışsın."""
-    if not alicilar:
-        _k = '' if _hepsi_mi(lokasyon) else f' ({str(lokasyon).upper()})'
-        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
-                'lokasyon': lokasyon,
-                'mesaj': f'Bu tesisi{_k} seçen aktif alıcı yok — mail gönderilmedi.'}
+    Neden ayrı (2026-08-28): iki tesisi de seçen alıcıya artık TEK birleşik
+    mail gidiyor; malzeme mail başına değil TESİS başına bir kez üretilmeli —
+    yoksa aynı gün için Excel iki kez yazılır, AI analizi iki kez koşardı."""
     try:
         dosya, satir, toplam = excel_olustur(tarih, lokasyon)
     except Exception as e:
-        return {'basarili': False, 'mesaj': f'Excel oluşturulamadı: {e}'}
-
-    # ── ÜRETİMSİZ GÜNDE MAIL GÖNDERİLMEZ (kullanıcı 2026-08-24) ──────────
-    # Hafta sonu/tatilde herkese "üretim bulunmamaktadır" maili gidiyordu; bu
-    # maillerin okunmaması, günün birinde GERÇEK raporun da atlanmasına yol açar.
-    # İSTİSNA: test maili (zorla_alicilar) — SMTP kurulumu üretimsiz günde de
-    # doğrulanabilmeli. mail_config.json'a "bos_gun_gonder": true yazılırsa eski
-    # davranış geri gelir.
-    if not satir and not zorla_alicilar and not cfg.get('bos_gun_gonder'):
-        _k = '' if _hepsi_mi(lokasyon) else f' ({str(lokasyon).upper()})'
-        print(f'[MAIL] {tarih}{_k}: uretim yok — mail gonderilmedi')
-        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
-                'lokasyon': lokasyon,
-                'mesaj': f'{_tarih_tr(tarih)}{_k} tarihinde üretim yok — mail gönderilmedi.'}
-
-    tarih_tr = _tarih_tr(tarih)
-    # Tesis KONUDA: iki rapor aynı anda geldiğinde hangisinin hangisi olduğu
-    # gelen kutusunda açmadan görünsün.
-    _tesis_et = '' if _hepsi_mi(lokasyon) else f' — {str(lokasyon).upper()}'
-    konu = f'Cofle Forge — Günlük Üretim Raporu{_tesis_et} ({tarih_tr})'
-    kirilim = _bolum_kirilimi(tarih, lokasyon) if satir else []
+        return {'hata': f'Excel oluşturulamadı ({lokasyon}): {e}'}
+    p = {'lokasyon': str(lokasyon).upper(), 'dosya': dosya, 'satir': satir,
+         'toplam': toplam, 'kirilim': [], 'an_ozet': None, 'an_bulgular': [],
+         'an_yorum': '', 'an_yorum_hata': '', 'atlandi': False}
+    # ÜRETİMSİZ GÜN (kullanıcı 2026-08-24): tekil mail atılmaz. İSTİSNA: test
+    # maili / bos_gun_gonder. Birleşik mailde ise diğer tesis doluysa mail yine
+    # gider, boş tesis "üretim yok" bölümü olarak görünür.
+    if not satir and not zorla and not cfg.get('bos_gun_gonder'):
+        p['atlandi'] = True
+        return p
     if satir:
-        govde = (
-            f'Merhaba,\n\n'
-            f'{tarih_tr} tarihli günlük üretim raporu ektedir.\n\n'
-            f'Özet:\n'
-            f'  • Kayıt satırı : {satir}\n'
-            # TK1'de tel adetleri PROSES ADIMI (bitmiş ürün değil) — toplamın
-            # çoğunu onlar oluşturuyor, ad dürüst olsun (kullanıcı 2026-08-27).
-            + (f'  • Toplam işlem : {toplam:,} adet (tel tüm adımlarıyla dahil — '
-               f'bitmiş ürün adedi değildir)\n\n'
-               if str(lokasyon).upper() == 'TK1' else
-               f'  • Toplam üretim: {toplam:,} adet\n\n')
-            + (''.join(f'  • {k["tesis"]} · {BOLUM_AD.get(k["bolum"], k["bolum"])}: '
-                       f'{k["adet"]:,} adet\n' for k in kirilim) + '\n' if kirilim else '')
-            + f'Detaylar ekteki Excel dosyasındadır.\n\n'
-            f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
-        ).replace(',', '.')
+        p['kirilim'] = _bolum_kirilimi(tarih, lokasyon)
+        p['an_ozet'], p['an_bulgular'], p['an_yorum'], p['an_yorum_hata'] = (
+            analiz_topla(tarih, lokasyon))
+    return p
+
+
+def _paket_metin(p, tarih_tr):
+    """Bir tesisin DÜZ METİN bölümü (selamsız/imzasız — çağıran sarar)."""
+    lok = p['lokasyon']
+    if p['satir']:
+        m = (f'Özet:\n'
+             f'  • Kayıt satırı : {p["satir"]}\n'
+             + (f'  • Toplam işlem : {p["toplam"]:,} adet (tel tüm adımlarıyla '
+                f'dahil — bitmiş ürün adedi değildir)\n\n'
+                if lok == 'TK1' else
+                f'  • Toplam üretim: {p["toplam"]:,} adet\n\n')
+             + (''.join(f'  • {k["tesis"]} · {BOLUM_AD.get(k["bolum"], k["bolum"])}: '
+                        f'{k["adet"]:,} adet\n' for k in p['kirilim']) + '\n'
+                if p['kirilim'] else '')
+             ).replace(',', '.').replace('\n', chr(10))
     else:
-        govde = (
-            f'Merhaba,\n\n'
-            f'{tarih_tr} tarihinde sisteme kayıtlı üretim bulunmamaktadır.\n\n'
-            f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
-        )
-    # Analiz bölümü — hatası maili ENGELLEMEZ (analiz_topla kendi içinde yutar)
-    an_ozet, an_bulgular, an_yorum, an_yorum_hata = (
-        analiz_topla(tarih, lokasyon) if satir else (None, [], '', ''))
-    if an_bulgular or an_yorum or an_yorum_hata:
-        govde += '\n\n' + '-' * 52 + '\nOTOMATİK ANALİZ\n' + '-' * 52 + '\n'
-        # Özet üretilemediyse SEBEBİYLE söyle — sessiz kaybolunca "dün vardı
-        # bugün yok" bilmecesi doğuyordu (bkz. analiz_topla açıklaması).
-        if not an_yorum and an_yorum_hata:
-            govde += f'(Yönetici özeti bu koşuda üretilemedi: {an_yorum_hata})\n\n'
-        if an_ozet:
-            govde += (f'OEE %{an_ozet.get("oee", 0)} · Plansız duruş '
-                      f'{an_ozet.get("plansiz_dk", 0)} dk · Hurda '
-                      f'%{an_ozet.get("hurda_oran", 0)}\n\n')
-        if an_yorum:
-            govde += an_yorum + '\n\n'
-        for b in an_bulgular[:6]:
-            govde += f'  [{SIDDET_AD_MAIL.get(b["siddet"], "")}] {b["baslik"]}\n'
-    html = _html_govde(tarih_tr, satir, toplam, kirilim, an_ozet, an_bulgular, an_yorum,
-                       tesis=('' if _hepsi_mi(lokasyon) else str(lokasyon).upper()),
-                       yorum_hata=an_yorum_hata)
+        m = f'{tarih_tr} tarihinde bu tesiste kayıtlı üretim bulunmamaktadır.\n'
+    if p['an_bulgular'] or p['an_yorum'] or p['an_yorum_hata']:
+        m += '\n' + '-' * 52 + f'\nOTOMATİK ANALİZ — {lok}\n' + '-' * 52 + '\n'
+        if not p['an_yorum'] and p['an_yorum_hata']:
+            m += f'(Yönetici özeti bu koşuda üretilemedi: {p["an_yorum_hata"]})\n\n'
+        if p['an_ozet']:
+            m += (f'OEE %{p["an_ozet"].get("oee", 0)} · Plansız duruş '
+                  f'{p["an_ozet"].get("plansiz_dk", 0)} dk · Hurda '
+                  f'%{p["an_ozet"].get("hurda_oran", 0)}\n\n')
+        if p['an_yorum']:
+            m += p['an_yorum'] + '\n\n'
+        for b in p['an_bulgular'][:6]:
+            m += f'  [{SIDDET_AD_MAIL.get(b["siddet"], "")}] {b["baslik"]}\n'
+    return m.replace('\n', chr(10))
 
-    try:
-        ek = dosya if satir else None
-        if yontem == 'outlook':
-            _outlook_gonder(alicilar, konu, govde, ek, html)
-            iz = {}
-        else:
-            iz = _smtp_gonder(cfg, alicilar, konu, govde, ek, html) or {}
-    except Exception as e:
-        return {'basarili': False, 'mesaj': f'Gönderim hatası: {e}', 'alici_sayisi': len(alicilar)}
 
-    print(f'[MAIL] {tarih}{_tesis_et} raporu gonderildi -> {len(alicilar)} alici, '
-          f'{satir} satir, {toplam} adet')
-    # Mesajda ADRESLER de yazar: 'gönderildi' deyip nereye gittiğini
-    # söylememek, mail gelmediğinde yanlış yerde aramaya yol açıyordu.
+def _paket_icerik_html(p, tarih_tr, selamla):
+    return _html_icerik(tarih_tr, p['satir'], p['toplam'], p['kirilim'],
+                        p['an_ozet'], p['an_bulgular'], p['an_yorum'],
+                        tesis=p['lokasyon'], yorum_hata=p['an_yorum_hata'],
+                        selamla=selamla)
+
+
+def _sonuc_zarfi(cfg, alicilar, iz, satir, toplam, dosyalar, lokasyon):
     _kime = ', '.join(alicilar[:4]) + (f' (+{len(alicilar) - 4})' if len(alicilar) > 4 else '')
     _red = iz.get('reddedilen') or {}
-    _mesaj = (f'{len(alicilar)} alıcıya gönderildi ({satir} satır, {toplam} adet) → {_kime}.'
-              + (f' REDDEDİLEN: {", ".join(_red)}' if _red else '')
-              + (f' [sunucu: {iz.get("smtp_yanit")}]' if iz.get('smtp_yanit') else ''))
     return {
         'basarili': True,
         'lokasyon': lokasyon,
-        'mesaj': _mesaj,
+        'mesaj': (f'{len(alicilar)} alıcıya gönderildi ({satir} satır, {toplam} adet) → {_kime}.'
+                  + (f' REDDEDİLEN: {", ".join(_red)}' if _red else '')
+                  + (f' [sunucu: {iz.get("smtp_yanit")}]' if iz.get('smtp_yanit') else '')),
         'alicilar': alicilar,
         'reddedilen': _red,
         'smtp_yanit': iz.get('smtp_yanit', ''),
@@ -998,8 +1022,93 @@ def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=Non
         'alici_sayisi': len(alicilar),
         'satir': satir,
         'toplam_adet': toplam,
-        'dosya': os.path.basename(dosya),
+        'dosya': ' + '.join(os.path.basename(d) for d in dosyalar) if dosyalar else '',
     }
+
+
+def _tek_rapor_gonder(cfg, tarih, paket, alicilar, yontem):
+    """TEK tesisin raporunu kendi kitlesine gönderir. Paketi _rapor_paketi üretir."""
+    lokasyon = paket['lokasyon']
+    if not alicilar:
+        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
+                'lokasyon': lokasyon,
+                'mesaj': f'Bu tesisi ({lokasyon}) seçen aktif alıcı yok — mail gönderilmedi.'}
+    if paket.get('atlandi'):
+        print(f'[MAIL] {tarih} ({lokasyon}): uretim yok — mail gonderilmedi')
+        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
+                'lokasyon': lokasyon,
+                'mesaj': f'{_tarih_tr(tarih)} ({lokasyon}) tarihinde üretim yok — mail gönderilmedi.'}
+    tarih_tr = _tarih_tr(tarih)
+    konu = f'Cofle Forge — Günlük Üretim Raporu — {lokasyon} ({tarih_tr})'
+    govde = (f'Merhaba,\n\n{tarih_tr} tarihli günlük üretim raporu ektedir.\n\n'
+             + _paket_metin(paket, tarih_tr)
+             + f'\nDetaylar ekteki Excel dosyasındadır.\n\n'
+             f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
+             ).replace('\n', chr(10))
+    html = _html_sayfa(tarih_tr, _paket_icerik_html(paket, tarih_tr, selamla=True), lokasyon)
+    ekler = [paket['dosya']] if paket['satir'] else []
+    try:
+        if yontem == 'outlook':
+            _outlook_gonder(alicilar, konu, govde, ekler, html)
+            iz = {}
+        else:
+            iz = _smtp_gonder(cfg, alicilar, konu, govde, ekler, html) or {}
+    except Exception as e:
+        return {'basarili': False, 'mesaj': f'Gönderim hatası: {e}', 'alici_sayisi': len(alicilar)}
+    print(f'[MAIL] {tarih} — {lokasyon} raporu gonderildi -> {len(alicilar)} alici, '
+          f'{paket["satir"]} satir, {paket["toplam"]} adet')
+    return _sonuc_zarfi(cfg, alicilar, iz, paket['satir'], paket['toplam'], ekler, lokasyon)
+
+
+def _birlesik_gonder(cfg, tarih, paketler, alicilar, yontem):
+    """İKİ TESİSİ DE SEÇEN alıcılara TEK mail (kullanıcı 2026-08-28):
+    iki ayrı Excel eki + her tesis için ayrı özet tablosu ve ayrı analiz yazısı.
+    Eskiden bu kişilere iki ayrı mail gidiyordu."""
+    dolu = [p for p in paketler if not p.get('atlandi')]
+    if not alicilar:
+        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
+                'mesaj': 'İki tesisi birden seçen alıcı yok — birleşik mail çıkmadı.'}
+    if not dolu:
+        print(f'[MAIL] {tarih}: iki tesiste de uretim yok — birlesik mail gonderilmedi')
+        return {'basarili': True, 'atlandi': True, 'satir': 0, 'toplam_adet': 0,
+                'mesaj': f'{_tarih_tr(tarih)} tarihinde iki tesiste de üretim yok — mail gönderilmedi.'}
+    tarih_tr = _tarih_tr(tarih)
+    adlar = ' + '.join(p['lokasyon'] for p in paketler)
+    konu = f'Cofle Forge — Günlük Üretim Raporu — {adlar} ({tarih_tr})'
+
+    govde = (f'Merhaba,\n\n{tarih_tr} tarihli günlük üretim raporu ektedir '
+             f'({adlar} — her tesis ayrı Excel eki olarak).\n\n').replace('\n', chr(10))
+    icerikler = []
+    koyu = '#14122B'
+    for p in paketler:
+        govde += ('=' * 52 + chr(10) + p['lokasyon'] + chr(10) + '=' * 52 + chr(10)
+                  + _paket_metin(p, tarih_tr) + chr(10))
+        # Tesis başlık şeridi + içerik (selamsız — selam bir kez, en üstte HTML'de yok,
+        # tekil kalıptan farklı olarak başlıklar tesisi söylüyor)
+        icerikler.append(
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+            f'<tr><td style="padding:{"4" if p is paketler[0] else "22"}px 4px 8px">'
+            f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;'
+            f'font-weight:800;color:{koyu};border-left:4px solid #7C3AED;'
+            f'padding-left:10px">{p["lokasyon"]}</div></td></tr></table>'
+            + _paket_icerik_html(p, tarih_tr, selamla=False))
+    govde += (f'Detaylar ekteki Excel dosyalarındadır.{chr(10)}{chr(10)}'
+              f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.')
+    html = _html_sayfa(tarih_tr, ''.join(icerikler), adlar)
+    ekler = [p['dosya'] for p in dolu if p.get('satir')]
+    try:
+        if yontem == 'outlook':
+            _outlook_gonder(alicilar, konu, govde, ekler, html)
+            iz = {}
+        else:
+            iz = _smtp_gonder(cfg, alicilar, konu, govde, ekler, html) or {}
+    except Exception as e:
+        return {'basarili': False, 'mesaj': f'Gönderim hatası: {e}', 'alici_sayisi': len(alicilar)}
+    t_satir = sum(p['satir'] for p in paketler)
+    t_toplam = sum(p['toplam'] for p in paketler)
+    print(f'[MAIL] {tarih} — BIRLESIK ({adlar}) gonderildi -> {len(alicilar)} alici, '
+          f'{t_satir} satir, {t_toplam} adet, {len(ekler)} ek')
+    return _sonuc_zarfi(cfg, alicilar, iz, t_satir, t_toplam, ekler, adlar)
 
 
 def test_gonder(email, tarih=None):
