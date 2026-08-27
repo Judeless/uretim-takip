@@ -1063,6 +1063,120 @@ def _sayac_oku(conn, vardiya_id, kayit_id, bolum, robot_no, istasyon, basla_ts, 
     return _paylasimli_pulse(bolum, robot_no, istasyon, kayit_id, grup, biti_ts)
 
 
+def _pilot_pulse_zamanlari(bolum, robot_no, istasyon, basla_ts, biti_ts):
+    """Bu sensörün [basla_ts, biti_ts) arasındaki pulse ZAMANLARI (artan).
+
+    _pilot_pulse_say sayıyı verir; boşluk analizi için zamanların kendisi
+    gerekiyor. Filtre üçlüsü _pilot_pulse_say ile BİREBİR aynı olmalı, yoksa
+    'sinyal var' diyen sayım ile 'boşluk var' diyen liste çelişir.
+    pilot.db okunamazsa None (çağıran 'tespit yapılamadı' der, boş liste DEMEZ)."""
+    cihaz = _sayac_cihazi(bolum, robot_no, istasyon)
+    if kayit_makine_ad(robot_no, istasyon):
+        istasyon = 0
+    bolum = _fw_bolum(bolum, cihaz)
+    pilot_db = _pilot_db_yolu()
+    if not basla_ts or not os.path.exists(pilot_db):
+        return None
+    import sqlite3
+    try:
+        pc = sqlite3.connect(pilot_db, timeout=5.0)
+        try:
+            pc.execute('PRAGMA busy_timeout=5000')
+            q = ('SELECT ts FROM sayac_olaylari WHERE bolum=? AND robot_no=? '
+                 'AND ts >= ?')
+            par = [bolum, cihaz, basla_ts]
+            if biti_ts:
+                q += ' AND ts < ?'
+                par.append(biti_ts)
+            if istasyon and istasyon > 0:
+                q += ' AND istasyon=?'
+                par.append(istasyon)
+            return [r[0] for r in pc.execute(q + ' ORDER BY ts', par).fetchall()]
+        finally:
+            pc.close()
+    except Exception:
+        return None
+
+
+def _araliklari_cikar(parcalar, cikarilacaklar):
+    """[(bas, bit)] listesinden verilen aralıkları düşer. datetime ile çalışır."""
+    out = list(parcalar)
+    for c_bas, c_bit in cikarilacaklar:
+        if not c_bas or not c_bit or c_bit <= c_bas:
+            continue
+        yeni = []
+        for p_bas, p_bit in out:
+            if c_bit <= p_bas or c_bas >= p_bit:
+                yeni.append((p_bas, p_bit))          # kesişmiyor
+                continue
+            if c_bas > p_bas:
+                yeni.append((p_bas, c_bas))          # sol artık
+            if c_bit < p_bit:
+                yeni.append((c_bit, p_bit))          # sağ artık
+        out = yeni
+    return out
+
+
+def _tanimsiz_duruslar(vardiya_bolum, robot_no, istasyonlar, pencere, kayitli, esik_dk):
+    """Sayaç SUSMUŞ ama duruş KAYDI OLMAYAN aralıklar. (liste, durum) döner.
+
+    Kullanıcı 2026-08-27: "eşik dakikasından fazla yaşanan tanımsız duruşları
+    göster ki tıklayıp tanımlama yapılabilsin."
+
+    NEDEN GEREKLİ: kaydedilmeyen duruş, OEE'de ÇALIŞMA süresi sayılır — yani
+    kayıp görünmez olur ve kullanılabilirlik olduğundan yüksek çıkar. Analiz
+    sayfası bunu gün/hat toplamı olarak bildiriyordu; burada ARALIĞIN KENDİSİ
+    veriliyor ki üzerine tıklanıp sebep atanabilsin.
+
+    YALNIZ İKİ SİNYAL ARASI: vardiya başındaki/sonundaki sessizlik masum
+    olabilir (hazırlık, temizlik, makineye geç geçilmesi) — analiz.py'deki
+    _bulgu_sinyal ile AYNI kural, iki ekran çelişmesin.
+
+    ÇOK MAKİNE: operatör gün içinde tezgâh değiştirebiliyor. Boşluk, kullandığı
+    TÜM makinelerin sinyalleri BİRLEŞTİRİLEREK aranır; yoksa B'de çalışırken
+    A'nın sessizliği 'tanımsız duruş' diye raporlanırdı.
+
+    durum: 'ok' | 'sayac_yok' (bu makinede sayaç yok) | 'okunamadi' (pilot.db).
+    """
+    bas, bit = pencere
+    if not bas or not bit:
+        return [], 'okunamadi'
+    destekli = [i for i in (istasyonlar or [0])
+                if _sayac_destekli(vardiya_bolum, robot_no, i)]
+    if not destekli:
+        return [], 'sayac_yok'
+    zamanlar, okunamadi = [], False
+    for ist in destekli:
+        z = _pilot_pulse_zamanlari(vardiya_bolum, robot_no, ist,
+                                   _ts_metin(bas), _ts_metin(bit))
+        if z is None:
+            okunamadi = True
+            continue
+        zamanlar.extend(z)
+    if okunamadi and not zamanlar:
+        return [], 'okunamadi'
+    noktalar = sorted({_ts_parse(t) for t in zamanlar if _ts_parse(t)})
+    if len(noktalar) < 2:
+        # Tek/hiç sinyal → boşluk 'iki sinyal arası' tanımına girmez.
+        return [], 'ok'
+    adaylar = []
+    for i in range(1, len(noktalar)):
+        fark = (noktalar[i] - noktalar[i - 1]).total_seconds() / 60.0
+        if fark >= esik_dk:
+            adaylar.append((noktalar[i - 1], noktalar[i]))
+    if not adaylar:
+        return [], 'ok'
+    # Kayıtlı duruşları DÜŞ: zaten girilmiş olan boşluk tanımsız değildir.
+    kalan = _araliklari_cikar(adaylar, kayitli)
+    out = []
+    for k_bas, k_bit in sorted(kalan):
+        dk = int((k_bit - k_bas).total_seconds() // 60)
+        if dk >= esik_dk:
+            out.append({'bas_ts': _ts_metin(k_bas), 'bit_ts': _ts_metin(k_bit),
+                        'sure_dk': dk})
+    return out, 'ok'
+
+
 def _pilot_son_pulse_dk(bolum, robot_no, gun=None, istasyon=0):
     """Bu cihazdan en son pulse'tan bu yana geçen dakika. Hiç pulse yoksa None.
     10 dk duruş uyarısı için kullanılır. pres'te istasyon = operatörün o an
@@ -3851,7 +3965,22 @@ def zaman_cizelgesi_api():
                 'bit_ts':        u['bitis_ts'],
                 'acik':          not u['bitis_ts'],
             })
+        # TANIMSIZ DURUŞLAR (2026-08-27): sayaç susmuş ama duruş kaydı yok.
+        _ist = sorted({int(u['istasyon'] or 0) for u in uretim_map.get(v['id'], [])}) or [0]
+        _kayitli = [(_ts_parse(d['bas_ts']), _ts_parse(d['bit_ts']))
+                    for d in duruslar_map.get(v['id'], [])]
+        try:
+            _tanimsiz, _t_durum = _tanimsiz_duruslar(
+                v_bolum, v['robot_no'], _ist, (bas, bit), _kayitli, esik_dk)
+        except Exception as _e:
+            print(f'[zaman_cizelgesi] tanimsiz durus hata (vardiya {v["id"]}): {_e}')
+            _tanimsiz, _t_durum = [], 'okunamadi'
         cikti.append({
+            'tanimsiz_duruslar': _tanimsiz,
+            # Boş liste NEDEN boş: 'ok' gerçekten yok, 'sayac_yok' bu makinede
+            # tespit yapılamaz, 'okunamadi' pilot.db erişilemedi. Sessiz boşluk
+            # "sorun yok" diye okunurdu.
+            'tanimsiz_durum': _t_durum,
             'id':           v['id'],
             'operator_adi': v['operator_adi'],
             'hat':          v['robot_no'],

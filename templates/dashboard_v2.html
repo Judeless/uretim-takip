@@ -1003,6 +1003,25 @@
         .zc-aralik .nokta { width: 7px; height: 7px; border-radius: 50%; flex: none; }
         .zc-aralik .sa { font-family: 'JetBrains Mono', monospace; color: var(--text); font-weight: 700; }
 
+        /* TANIMSIZ DURUŞ (2026-08-27): sayaç susmuş ama duruş kaydı yok.
+           Kayıtlı duruşlardan GÖRSEL OLARAK AYRI durmalı — biri gerçeğin kaydı,
+           öteki 'burada bir şey oldu ama kimse yazmadı' demek. Taralı desen +
+           kesikli çerçeve: renk körlüğünde de ayırt edilir. */
+        .zc-tanimsiz {
+            position: absolute; top: 0; bottom: 0; cursor: pointer; z-index: 3;
+            border: 1px dashed var(--danger); border-radius: 3px; min-width: 3px;
+            background: repeating-linear-gradient(45deg,
+                        color-mix(in srgb, var(--danger) 26%, transparent) 0 5px,
+                        transparent 5px 10px);
+        }
+        .zc-tanimsiz:hover { background: repeating-linear-gradient(45deg,
+                        color-mix(in srgb, var(--danger) 42%, transparent) 0 5px,
+                        transparent 5px 10px); }
+        .zc-tanimsiz:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+        .zc-aralik.tanimsiz {
+            border-style: dashed; border-color: var(--danger); color: var(--danger);
+        }
+        .zc-aralik.tanimsiz:hover { background: var(--danger-soft); }
         .zc-lejant { display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
                      font-size: .7rem; color: var(--muted); margin-top: 14px; }
         .zc-lejant b { display: inline-block; width: 12px; height: 12px;
@@ -4543,24 +4562,22 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">📡</span> Saha Cihazları</a>
                 <a class="nav-item" data-sayfa="sinyal-analizi" onclick="sayfaAc('sinyal-analizi')">
                     <span class="nav-icon">📈</span> Sinyal Analizi</a>
-                <a class="nav-item" data-sayfa="zaman-cizelgesi" onclick="sayfaAc('zaman-cizelgesi')">
-                    <span class="nav-icon">🗓️</span> Zaman Çizelgesi</a>
-                <a class="nav-item" data-sayfa="andon-ayarlari" onclick="sayfaAc('andon-ayarlari')">
-                    <span class="nav-icon">📺</span> Andon Ayarları</a>
+                <!-- 2026-08-27 menü düzeni: 'Zaman Çizelgesi' buradan ÇIKTI —
+                     cihazla ilgisi yok, vardiya/duruş çözümlemesi (Analiz &
+                     Raporlar'a taşındı). 'Andon Ayarları' da ÇIKTI: ayarı,
+                     yapılandırdığı ekranların yanında dursun (Andon grubu). -->
                 </div>
             </div>
 
-            <div class="nav-group" id="ng-sistem" style="display:none">
-                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Sistem</span><span class="ok">▼</span></button>
-                <div class="nav-group-govde">
-                <a class="nav-item" data-sayfa="kullanicilar" data-admin-only="1" onclick="sayfaAc('kullanicilar')">
-                    <span class="nav-icon">👤</span> Kullanıcılar</a>
-                </div>
-            </div>
+            
 
             <div class="nav-group">
-                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Raporlar</span><span class="ok">▼</span></button>
+                <!-- Grup adı 'Raporlar' idi ve içinde yine 'Raporlar' vardı —
+                     hangisine bakıldığı karışıyordu (2026-08-27). -->
+                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Analiz &amp; Raporlar</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
+                <a class="nav-item" data-sayfa="zaman-cizelgesi" onclick="sayfaAc('zaman-cizelgesi')">
+                    <span class="nav-icon">🗓️</span> Zaman Çizelgesi</a>
                 <a class="nav-item" data-sayfa="raporlar" onclick="sayfaAc('raporlar')">
                     <span class="nav-icon">📈</span> Raporlar</a>
                 <a class="nav-item" data-sayfa="operator-performans" onclick="sayfaAc('operator-performans')">
@@ -4592,8 +4609,12 @@ window.__I18N_SOZLUK__ = {
             </div>
 
             <div class="nav-group">
-                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Andon Ekranları</span><span class="ok">▼</span></button>
+                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Andon</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
+                <!-- Ayar, yapılandırdığı ekranların YANINDA (2026-08-27): eskiden
+                     'Cihaz & Sinyal' altındaydı, ekranlar ise ayrı gruptaydı. -->
+                <a class="nav-item" data-sayfa="andon-ayarlari" onclick="sayfaAc('andon-ayarlari')">
+                    <span class="nav-icon">⚙️</span> Andon Ayarları</a>
                 <a class="nav-item" href="/andon" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Robot Kaynak andon (yeni sekme)">
                     <span class="andon-dot" style="background:var(--b-kaynak)"></span> Kaynak <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
                 <a class="nav-item" href="/andon_montaj" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Montaj andon (yeni sekme)">
@@ -4602,6 +4623,14 @@ window.__I18N_SOZLUK__ = {
                     <span class="andon-dot" style="background:var(--b-metal)"></span> Metal <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
                 <a class="nav-item" href="/andon_tk1" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="TK1 montaj andon (yeni sekme)">
                     <span class="andon-dot" style="background:var(--b-montaj);opacity:.6"></span> TK1 <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                </div>
+            </div>
+
+<div class="nav-group" id="ng-sistem" style="display:none">
+                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Sistem</span><span class="ok">▼</span></button>
+                <div class="nav-group-govde">
+                <a class="nav-item" data-sayfa="kullanicilar" data-admin-only="1" onclick="sayfaAc('kullanicilar')">
+                    <span class="nav-icon">👤</span> Kullanıcılar</a>
                 </div>
             </div>
 
@@ -5859,6 +5888,7 @@ window.__I18N_SOZLUK__ = {
                             <span><b style="background:rgba(21,122,60,.35)"></b>Çalışma</span>
                             <span><b style="background:var(--danger)"></b>Plansız duruş</span>
                             <span><b style="background:var(--warn)"></b>Planlı duruş / mola</span>
+                            <span><b style="border:1.5px dashed var(--danger);background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--danger) 26%,transparent) 0 4px,transparent 4px 8px)"></b>Tanımsız duruş (tıkla → sebep ata)</span>
                             <span><b style="background:var(--primary-soft);border:1px solid var(--primary-line)"></b>Üretim referansı</span>
                             <span style="color:var(--dim)">İnce çentik = eşiğin altındaki kısa duruş</span>
                         </div>
@@ -6431,6 +6461,41 @@ window.__I18N_SOZLUK__ = {
             <div class="modal-actions">
                 <button onclick="gemKapat()" class="btn btn-ghost">İptal</button>
                 <button id="gem-kaydet" class="btn btn-primary">💾 Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════ TANIMSIZ DURUŞA SEBEP ATA (2026-08-27) ══════
+         Sayaç susmuş ama duruş kaydı yok. Kaydedilmeyen duruş OEE'de ÇALIŞMA
+         sayıldığı için kayıp görünmez oluyordu; buradan sebep atanınca aralık
+         gerçek bir duruş kaydına dönüşür. Aralık BİREBİR korunur (bas/bit ts). -->
+    <div class="modal-overlay" id="zc-td-modal" onclick="if(event.target===this)zcTanimsizKapat()">
+        <div class="modal" style="max-width:440px">
+            <h3>➕ Tanımsız duruşa sebep ata</h3>
+            <div id="zc-td-ozet" style="font-size:.8rem;margin-bottom:6px;line-height:1.6"></div>
+            <div style="font-size:.7rem;color:var(--muted);margin-bottom:14px;line-height:1.6">
+                Sayaç bu aralıkta hiç sinyal üretmedi ama duruş kaydı yok. Kayıtsız duruş
+                OEE'de çalışma süresi sayılır — sebep atandığında kullanılabilirlik gerçeği
+                gösterir.
+            </div>
+            <div class="modal-form-row">
+                <label>Duruş sebebi</label>
+                <select id="zc-td-sebep"></select>
+            </div>
+            <div class="modal-form-row" style="margin-top:10px">
+                <label>Tip</label>
+                <select id="zc-td-tip">
+                    <option value="plansiz">Plansız</option>
+                    <option value="planli">Planlı</option>
+                </select>
+            </div>
+            <div class="modal-form-row" style="margin-top:10px">
+                <label>Açıklama</label>
+                <input type="text" id="zc-td-aciklama" placeholder="Opsiyonel">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="zcTanimsizKapat()">Vazgeç</button>
+                <button class="btn btn-primary" id="zc-td-kaydet" onclick="zcTanimsizKaydet()">Kaydet</button>
             </div>
         </div>
     </div>
@@ -14927,6 +14992,22 @@ window.__I18N_SOZLUK__ = {
                         etiket + '</div>';
                 });
 
+                // TANIMSIZ DURUŞLAR: sayaç susmuş ama kayıt yok. Kayıtlı duruşlardan
+                // SONRA çizilir ki üstte kalsın — asıl aksiyon gerektiren şey bu.
+                (v.tanimsiz_duruslar || []).forEach(function (t, ti) {
+                    var tb = zcTs(t.bas_ts), te = zcTs(t.bit_ts);
+                    if (!tb || !te) return;
+                    var sol = yuzde(tb), gen = Math.max(0.2, yuzde(te) - sol);
+                    dilimler += '<div class="zc-tanimsiz" tabindex="0" role="button"' +
+                        ' style="left:' + sol + '%;width:' + gen + '%"' +
+                        ' title="' + esc('TANIMSIZ DURUŞ — ' + zcSaat(tb) + '–' + zcSaat(te) +
+                                         ' (' + zcSureMetin(t.sure_dk) + ')\n' +
+                                         'Sayaç bu aralıkta hiç sinyal üretmedi ama duruş kaydı yok. ' +
+                                         'Tıklayıp sebep atayın.') + '"' +
+                        ' onclick="zcTanimsizAc(' + v.id + ',' + ti + ')"' +
+                        ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();zcTanimsizAc(' + v.id + ',' + ti + ');}"></div>';
+                });
+
                 // Üretim referansı şeridi — bitişi yoksa vardiya sonuna uzar (açık kayıt).
                 // ŞERİTLERE AYIRMA: aynı vardiyada iki referans AYNI ANDA açık olabilir
                 // (paylaşımlı sayaç: aynı makinede aynı kod iki operatörde). Hepsi tek
@@ -14969,6 +15050,19 @@ window.__I18N_SOZLUK__ = {
                         '<i class="nokta" style="background:' + (d.tip === 'planli' ? 'var(--warn)' : 'var(--danger)') + '"></i>' +
                         '<b class="sa">' + zcSaat(db) + '–' + zcSaat(de) + '</b>' +
                         esc(d.sebep) + ' · ' + zcSureMetin(d.sure_dk) + '</span>';
+                }).join('');
+
+                // Tanımsız aralıklar için de çip: dar barlara tıklamak zor.
+                cipler += (v.tanimsiz_duruslar || []).map(function (t, ti) {
+                    var tb = zcTs(t.bas_ts), te = zcTs(t.bit_ts);
+                    if (!tb || !te) return '';
+                    return '<span class="zc-aralik tanimsiz" tabindex="0" role="button"' +
+                        ' title="Sayaç bu aralıkta hiç sinyal üretmedi, duruş kaydı yok — tıklayıp sebep atayın"' +
+                        ' onclick="zcTanimsizAc(' + v.id + ',' + ti + ')"' +
+                        ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();zcTanimsizAc(' + v.id + ',' + ti + ');}">' +
+                        '<i class="nokta" style="background:transparent;border:1.5px dashed var(--danger)"></i>' +
+                        '<b class="sa">' + zcSaat(tb) + '–' + zcSaat(te) + '</b>' +
+                        'tanımsız · ' + zcSureMetin(t.sure_dk) + ' ➕</span>';
                 }).join('');
 
                 var toplamDurus = (v.duruslar || []).reduce(function (a, d) { return a + d.sure_dk; }, 0);
@@ -15040,6 +15134,72 @@ window.__I18N_SOZLUK__ = {
                 if (liste[i].sebep === sebep) return (liste[i].tip === 'planli') ? 'planli' : 'plansiz';
             }
             return varsayilan;
+        }
+
+        // ── TANIMSIZ DURUŞA SEBEP ATA (2026-08-27) ────────────────────────
+        // Kullanıcı: "eşik dakikasından fazla yaşanan tanımsız duruşları göster
+        // ki onlara tıklayıp tanımlama yapılabilsin."
+        // Kaydedilmeyen duruş OEE'de ÇALIŞMA sayılır: kayıp görünmez olur ve
+        // kullanılabilirlik olduğundan yüksek çıkar. Buradan atanan sebeple
+        // aralık gerçek bir duruş kaydına dönüşür ve OEE düzelir.
+        var _zcTanimsizSecili = null;
+
+        function zcTanimsizAc(vid, ti) {
+            var v = ((_zcVeri && _zcVeri.vardiyalar) || []).filter(function (x) {
+                return x.id === vid; })[0];
+            var t = v && (v.tanimsiz_duruslar || [])[ti];
+            if (!t) { toast('Aralık bulunamadı — listeyi yenileyin', 'error'); return; }
+            _zcTanimsizSecili = { vid: vid, t: t };
+            var tb = zcTs(t.bas_ts), te = zcTs(t.bit_ts);
+            document.getElementById('zc-td-ozet').innerHTML =
+                '<b>' + zcSaat(tb) + ' – ' + zcSaat(te) + '</b> · ' + zcSureMetin(t.sure_dk) +
+                '<br><span style="color:var(--muted)">' + esc(v.operator_adi || '') + ' · ' +
+                esc(v.hat || '') + '</span>';
+            var sel = document.getElementById('zc-td-sebep');
+            zcSebepDoldur(sel, '');
+            sel.onchange = function () {
+                document.getElementById('zc-td-tip').value =
+                    zcSebepTipi(sel.value, document.getElementById('zc-td-tip').value);
+            };
+            document.getElementById('zc-td-tip').value =
+                zcSebepTipi(sel.value, 'plansiz');
+            document.getElementById('zc-td-aciklama').value = '';
+            document.getElementById('zc-td-modal').classList.add('acik');
+        }
+
+        function zcTanimsizKapat() {
+            document.getElementById('zc-td-modal').classList.remove('acik');
+            _zcTanimsizSecili = null;
+        }
+
+        function zcTanimsizKaydet() {
+            var s = _zcTanimsizSecili;
+            if (!s) return;
+            var sebep = (document.getElementById('zc-td-sebep') || {}).value || '';
+            if (!sebep) { toast('Sebep seçin', 'error'); return; }
+            var btn = document.getElementById('zc-td-kaydet');
+            btn.disabled = true;
+            fetch('/api/durus', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    vardiya_id: s.vid,
+                    durus_sebebi: sebep,
+                    durus_tipi: (document.getElementById('zc-td-tip') || {}).value || 'plansiz',
+                    aciklama: (document.getElementById('zc-td-aciklama') || {}).value || '',
+                    sure_dk: s.t.sure_dk,
+                    // ARALIK BİREBİR KORUNUR: saat/süreden yeniden türetilirse
+                    // dakikalar kayar ve boşluk 'kapanmamış' görünmeye devam eder.
+                    baslangic_ts: s.t.bas_ts,
+                    bitis_ts: s.t.bit_ts
+                })
+            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, b: j }; }); })
+              .then(function (res) {
+                btn.disabled = false;
+                if (!res.ok || res.b.hata) { toast(res.b.hata || 'Kaydedilemedi', 'error'); return; }
+                toast('Duruş kaydedildi — ' + sebep, 'ok');
+                zcTanimsizKapat();
+                zcYukle();
+            }).catch(function () { btn.disabled = false; toast('Bağlantı hatası', 'error'); });
         }
 
         function zcDurusAc(vid, did, zamansiz) {
