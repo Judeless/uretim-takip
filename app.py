@@ -2642,8 +2642,33 @@ def vardiya_bugun():
     q += ' ORDER BY baslangic_saati DESC'
     conn = get_db()
     rows = conn.execute(q, params).fetchall()
+    # HANGİ OPERATÖR HANGİ MAKİNEDE (kullanıcı 2026-08-27): vardiyanın robot_no'su
+    # sabit hatlı bölümlerde ('TK1 Montaj', 'Tel Üretimi', 'Pres Abkant',
+    # 'Plastik Enjeksiyon') MAKİNEYİ SÖYLEMEZ — gerçek makine her ÜRETİM KAYDINDA
+    # (istasyon) durur. Operatör seçim ekranında herkes aynı hat adını görüyordu,
+    # kimin hangi tezgâhta olduğu ancak Kayıtlar sayfasından anlaşılıyordu.
+    # ÇOK MAKİNE OLABİLİR: operatör gün içinde tezgâh değiştirebiliyor → LİSTE.
+    # En çok üretileni başa: kartta ilk görünen o olsun.
+    sonuc = [dict(r) for r in rows]
+    vid_listesi = [r['id'] for r in sonuc]
+    if vid_listesi:
+        _yer = ','.join('?' * len(vid_listesi))
+        _mak = {}
+        for _r in conn.execute(
+                f"SELECT u.vardiya_id, v.robot_no, COALESCE(u.istasyon,0) istasyon, "
+                f"       SUM(COALESCE(u.ok_adet,0)) ok "
+                f"FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id "
+                f"WHERE u.vardiya_id IN ({_yer}) "
+                f"GROUP BY u.vardiya_id, COALESCE(u.istasyon,0)", vid_listesi).fetchall():
+            ad = kayit_makine_ad(_r['robot_no'], _r['istasyon'])
+            if not ad:
+                continue      # sabit hatlı değil → vardiyanın robot_no'su zaten makine
+            _mak.setdefault(_r['vardiya_id'], []).append((ad, _r['ok'] or 0))
+        for _v in sonuc:
+            _l = sorted(_mak.get(_v['id'], []), key=lambda x: -x[1])
+            _v['makineler'] = [ad for ad, _ in _l]
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    return jsonify(sonuc)
 
 
 # Açık kalan vardiyaların otomatik kapatılacağı saat (kullanıcı 2026-08-26:

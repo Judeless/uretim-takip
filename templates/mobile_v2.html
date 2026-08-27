@@ -4408,6 +4408,15 @@ window.__I18N_SOZLUK__ = {
               var kartHtml = '<div class="vardiya-kart" style="position:relative;' + _kartStyle + '" onclick="vardiyaSec(' + v.id + ')">' +
                 '<div class="ki-head"><div style="flex:1;min-width:0">' +
                 '<div class="vk-title">' + v.robot_no + ' \u2014 ' + v.operator_adi + _kendiRozet + '</div>' +
+                // HANGI MAKINE (2026-08-27): sabit hatli bolumlerde vardiyanin
+                // robot_no'su herkes icin AYNI ('Tel Uretimi', 'TK1 Montaj'...);
+                // operatorun sectigi tezgah ancak burada gorunur. Makinesi
+                // vardiyada olan bolumlerde (kaynak/metal) liste bos gelir ve
+                // satir hic cizilmez — gereksiz tekrar olmasin.
+                ((v.makineler && v.makineler.length)
+                  ? '<div class="vk-detail" style="color:var(--primary);font-weight:700">\ud83d\udd27 '
+                    + v.makineler.map(esc).join(' \u00b7 ') + '</div>'
+                  : '') +
                 '<div class="vk-detail">' + v.baslangic_saati + ' \u2192 ' + (v.bitis_saati || '?') + ' \u00b7 ' + v.vardiya_turu + '</div>' +
                 '<span class="vk-badge ' + (v.durum === 'acik' || v.durum === 'aktif' ? 'badge-acik' : 'badge-kapali') + '">' +
                 (v.durum === 'acik' || v.durum === 'aktif' ? '● Aktif' : 'Kapal\u0131') + '</span>' +
