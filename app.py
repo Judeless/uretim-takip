@@ -2350,6 +2350,30 @@ def web_manifest():
     listelenirdi). id alanı lokasyona göre farklı → iki tesis kısayolu aynı telefonda
     ayrı uygulama olarak yaşayabilir.
     """
+    # PANEL VARYANTI (kullanıcı 2026-08-27): dashboard ana ekrana eklendiğinde
+    # KENDİ manifesti olmalı. Yoksa kısayol operatör PWA'sının kapsamına
+    # ("scope": "/") düşüyor ve /dashboard operatör uygulamasının penceresinde,
+    # onun ayarlarıyla açılıyordu — "ölçeklendirme bozuk" şikâyetinin kaynağı.
+    # id/scope '/dashboard' → panel, telefonda AYRI uygulama olarak yaşar.
+    if (request.args.get('sayfa') or '') == 'panel':
+        return jsonify({
+            "id": "/dashboard",
+            "name": "Cofle Forge Panel",
+            "short_name": "Cofle Panel",
+            "description": "Cofle Forge Yönetici Paneli",
+            "start_url": "/dashboard",
+            "scope": "/dashboard",
+            "display": "standalone",
+            "orientation": "any",
+            "background_color": "#ECECF1",
+            "theme_color": "#ECECF1",
+            "lang": "tr",
+            "icons": [
+                {"src": "/static/pwa_icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                {"src": "/static/pwa_icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                {"src": "/static/pwa_icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+            ]
+        })
     lokasyon = (request.args.get('lokasyon') or 'TK2').upper()
     tk1 = (lokasyon == 'TK1')
     return jsonify({

@@ -3,10 +3,24 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cofle Forge — Yönetici Paneli (v2 Önizleme)</title>
+    <!-- viewport-fit=cover (2026-08-27): ana ekran kısayolundan standalone
+         açılışta çentikli telefonlarda içerik güvenli alana otursun (safe-area
+         padding aşağıda). maximum-scale KOYMUYORUZ — panelde yakınlaşma meşru. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Cofle Forge — Yönetici Paneli</title>
     <link rel="icon" type="image/png" href="/logo?tip=mark">
-    <meta name="theme-color" content="#0f172a">
+    <!-- theme-color KOYU TEMA ARTIĞIYDI (#0f172a): uygulama tezgâh paletine
+         (açık) geçti ama Android araç çubuğu/splash lacivert kalıyordu —
+         telefonda "renkler/ölçek bozuk" izleniminin bir parçası. -->
+    <meta name="theme-color" content="#ECECF1">
+    <!-- ANA EKRAN KISAYOLU (2026-08-27): panelin KENDİ manifesti — operatör
+         PWA'sının kapsamına düşmesin (bkz. /manifest.json panel varyantı). -->
+    <link rel="manifest" href="/manifest.json?sayfa=panel">
+    <link rel="apple-touch-icon" href="/logo?tip=mark">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Cofle Panel">
+    <meta name="color-scheme" content="light">
     <!-- Sinyal Analizi grafiği — eski paneldeki çizim kodu Chart.js + eklentilerini
          kullanır (annotation: duruş bantları, zoom: sürükle-yakınlaş). Aynen taşındı. -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -241,6 +255,18 @@
             color: var(--text);
             min-height: 100vh;
             -webkit-font-smoothing: antialiased;
+            /* Telefon tarayıcıları yatay taşma görünce metni kendince büyütüp
+               ölçeği bozuyordu (font inflation) — kapat, viewport zaten doğru. */
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+        /* Çentik/durum çubuğu güvenli alanı — yalnız standalone (kısayol)
+           açılışında değerler sıfırdan büyük olur, tarayıcıda etkisizdir. */
+        @supports (padding: env(safe-area-inset-top)) {
+            body { padding-top: env(safe-area-inset-top);
+                   padding-left: env(safe-area-inset-left);
+                   padding-right: env(safe-area-inset-right); }
+            .sidebar { padding-top: env(safe-area-inset-top); }
         }
 
         /* ── Işık küreleri: AÇIK TEMADA ÇOK KISIK ── Koyu temada "komuta merkezi"
