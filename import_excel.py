@@ -209,6 +209,57 @@ def tk1_operator_bolumu(ad):
     return 'montaj' if _ad_normal(ad) in _TK1_MONTAJ_NORMAL else 'tel'
 
 
+# ── SON BİLİNEN İYİ KOPYA (kullanıcı 2026-08-26 arıza bildirimi) ─────────
+# Sunucudaki data/uretim_verileri.xlsx bozuldu (zip açılamıyor:
+# "Error -3 while decompressing data") ve TK2'nin BÜTÜN bölümlerinde operatör
+# ekranı "duruş listesi sunucudan gelmedi" deyip 6 maddelik yedek listeye
+# düştü. Operatörler o listeyle duruş kaydetmeye devam ediyor → veri sessizce
+# bozuluyor (tam olarak 2026-08-18'de önlenmeye çalışılan durum, bu kez
+# dosyanın kendisi bozulduğu için).
+#
+# ÇÖZÜM: Excel her BAŞARILI okunduğunda dosyanın bir kopyası yedeklenir.
+# Ana dosya açılamazsa liste YEDEKTEN okunur — operatör tam listeyi görmeye
+# devam eder, panel/API ise durumu AÇIKÇA uyarı olarak bildirir.
+# Yedek asla otomatik geri yazılmaz: bozuk dosyayı sessizce onarmak, kimsenin
+# fark etmediği eski bir listeyle çalışmak demek olurdu.
+def _yedek_yolu(excel_yol):
+    kok, uzanti = os.path.splitext(excel_yol)
+    return kok + '.sonbilinen' + uzanti
+
+
+def _yedegi_tazele(excel_yol, ham):
+    """Başarıyla okunan dosyayı yedekle (aynıysa yazma)."""
+    try:
+        y = _yedek_yolu(excel_yol)
+        if os.path.exists(y) and os.path.getsize(y) == len(ham):
+            return
+        gecici = y + '.tmp'
+        with open(gecici, 'wb') as f:
+            f.write(ham)
+        os.replace(gecici, y)      # atomik: yarım yedek oluşmaz
+    except Exception as e:
+        print(f'[durus_sebepleri] yedek yazilamadi: {e}')
+
+
+def _yedekten_oku(excel_yol):
+    """(workbook, yedek_tarihi) ya da (None, '')."""
+    y = _yedek_yolu(excel_yol)
+    if not os.path.exists(y):
+        return None, ''
+    try:
+        with open(y, 'rb') as f:
+            wb = openpyxl.load_workbook(io.BytesIO(f.read()), data_only=True)
+        from datetime import datetime as _dt
+        return wb, _dt.fromtimestamp(os.path.getmtime(y)).strftime('%d.%m.%Y %H:%M')
+    except Exception as e:
+        print(f'[durus_sebepleri] yedek de okunamadi: {e}')
+        return None, ''
+
+
+# Son okumanın yedekten mi geldiği — /api/durus_sebepleri uyarı metnine koyar.
+SON_OKUMA_YEDEKTEN = {}
+
+
 def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
     """Bölüme (TK2) veya lokasyona (TK1) ait duruş sebeplerini Excel'den okur.
 
@@ -237,9 +288,21 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
         # Sahada yasandi: bozuk dosya ne tasinabildi ne degistirilebildi
         # ("baska bir islem tarafindan kullaniliyor"). BytesIO ile OS tutamagi
         # "with" bitince kapanir; bozuk dosya bile kendini kilitlemez.
-        with open(excel_yol, "rb") as _fh:
-            _veri = _fh.read()
-        wb = openpyxl.load_workbook(io.BytesIO(_veri), data_only=True)
+        SON_OKUMA_YEDEKTEN.pop(excel_yol, None)
+        try:
+            with open(excel_yol, "rb") as _fh:
+                _veri = _fh.read()
+            wb = openpyxl.load_workbook(io.BytesIO(_veri), data_only=True)
+            _yedegi_tazele(excel_yol, _veri)
+        except Exception as _ex:
+            # ANA DOSYA AÇILAMADI → son bilinen iyi kopyayı dene. Operatörün
+            # tam listeyi görmesi, 6 maddelik yedekle yanlış sebep kaydetmesinden
+            # iyidir; durum uyarı olarak yukarı taşınır.
+            wb, _ytar = _yedekten_oku(excel_yol)
+            if wb is None:
+                raise
+            SON_OKUMA_YEDEKTEN[excel_yol] = _ytar
+            print(f'[durus_sebepleri] ANA DOSYA BOZUK ({_ex}) — yedekten okundu ({_ytar})')
         if sayfa_adi not in wb.sheetnames:
             # Bölümün kendi duruş sayfası yoksa genel listeye düş (yeni bölümler:
             # işleme/lazer/pres — Excel'e kendi sayfaları eklenince otomatik geçilir).

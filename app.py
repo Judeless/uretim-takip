@@ -6290,7 +6290,18 @@ def durus_sebepleri_api():
     # mobili sessizce 6 maddelik yedek listeye düşerdi: operatörler "duruşlarımız
     # azaldı" diyene kadar kimse fark etmiyor, o arada duruşlar YANLIŞ/GENEL
     # sebeplerle kaydediliyordu. Artık neden boş olduğu API'de görünür.
+    # YEDEKTEN OKUNDU MU? Liste DOLU gelse bile ana dosya bozuksa bunu söyle —
+    # sessiz kurtarma, kimsenin fark etmediği eski bir listeyle çalışmak demek.
     uyari = ''
+    try:
+        import import_excel as _ie2
+        _yol2 = _ie2.TK1_EXCEL_YOL if (lokasyon or 'TK2').upper() == 'TK1' else _ie2.EXCEL_YOL
+        _ytar = (_ie2.SON_OKUMA_YEDEKTEN or {}).get(_yol2)
+        if _ytar:
+            uyari = (f'ANA EXCEL BOZUK — liste {_ytar} tarihli son bilinen iyi '
+                     f'kopyadan okundu. Dosyayı yenileyin: {_yol2}')
+    except Exception:
+        pass
     if not sebepler:
         try:
             import import_excel as _ie
