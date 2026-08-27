@@ -1489,7 +1489,14 @@
             .sidebar-backdrop.open { display: block; }
             .main { margin-left: 0; padding: 16px 14px 50px; }
             .hamburger { display: inline-flex; align-items: center; justify-content: center; }
-            .topbar { padding-right: 0; margin-top: 34px; }
+            /* ÜST BAR KOMPAKT (kullanıcı 2026-08-27: "düzensiz duruyor ve fazla
+               yer kaplamış"). Eski hâli: hamburger tek başına bir satır, sonra
+               tam genişlik topbar-right iki dağınık satıra sarıyordu; üstte de
+               kaldırılmış önizleme rozeti için 34px ölü boşluk vardı.
+               Yeni hâl: kontroller hamburgerin YANINA sağa yaslı akar; sığmayan
+               (dil grubu) alta yine sağa yaslı iner — en fazla 2 derli satır. */
+            .topbar { padding-right: 0; margin-top: 0; gap: 8px 10px; margin-bottom: 16px; }
+            .topbar-left { flex: 0 0 auto; }
             .breadcrumb { display: none; }
             .bolum-grid { grid-template-columns: 1fr; }
             .bolum-grid.tek-kart { grid-template-columns: 1fr; }
@@ -1498,9 +1505,20 @@
             .fab-toplam .ft-bas { padding-right: 14px; }
             .ft-hero { padding: 2px 14px; }
             .ft-hero .ft-deger { font-size: 1.75rem; }
-            .topbar-right { width: 100%; justify-content: space-between; }
+            .topbar-right { flex: 1 1 auto; width: auto; justify-content: flex-end;
+                            gap: 8px; }
+            /* Kontroller telefonda sıkılaştı — yükseklik 40px'te hizalı kalır,
+               yatay dolgular kısılır ki tek satıra mümkün olduğunca sığsınlar. */
+            .sayac-rozet { font-size: .72rem; padding: 4px 9px; min-height: 40px; }
+            .tema-anahtar { width: 40px; height: 40px; }
+            .lok-segment { padding: 4px; }
+            .lok-btn { min-height: 32px; padding: 6px 13px; font-size: .8rem; }
+            .dil-grup { padding: 3px; }
+            .dil-grup .dil-btn { padding: 6px 8px; min-height: 32px; }
+            /* Dar ekranda bayrak yeter — TR/EN/IT metni dolguyu şişiriyordu.
+               (Bayraklar SVG; başlık/aria etiketleri durduğu için erişilebilir.) */
+            .dil-grup .dil-btn span { display: none; }
             .hizli-btn, .tarih-grup input[type="date"] { min-height: 44px; }
-            .lok-btn { min-height: 44px; }
             .detail-panel { width: 100vw; right: -100vw; padding: 20px 16px; }
             .ky-filtre { padding: 12px 14px; }
             .ky-filtre .f-group { flex: 1; min-width: 0; }
