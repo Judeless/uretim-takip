@@ -4777,7 +4777,15 @@ window.__I18N_SOZLUK__ = {
                         <span class="ft-baslik">Fabrika Toplamı</span>
                         <span class="ft-tarih" id="ft-tarih">—</span>
                     </div>
-                    <div class="ft-hero" style="--hero-rgb:52,211,153"><span class="ft-deger" id="ft-ok">—</span><span class="ft-etiket">✅ Üretim (OK)</span></div>
+                    <!-- TK1'de etiket "Toplam İşlem" olur (kullanıcı 2026-08-27):
+                         tel adetleri BİTMİŞ ÜRÜN değil proses adımıdır; toplamın
+                         çoğunu onlar oluşturunca "Üretim (OK)" adı yanıltıyordu.
+                         Ad + not yukleOzet'te lokasyona göre yazılır. -->
+                    <div class="ft-hero" style="--hero-rgb:52,211,153"
+                         id="ft-ok-kutu">
+                        <span class="ft-deger" id="ft-ok">—</span>
+                        <span class="ft-etiket" id="ft-ok-etiket">✅ Üretim (OK)</span>
+                        <span id="ft-ok-not" style="display:none;font-size:.62rem;opacity:.75;margin-top:2px"></span></div>
                     <div class="ft-hero" style="--hero-rgb:167,139,250"><span class="ft-deger" id="ft-vardiya">—</span><span class="ft-etiket">👷 Vardiya</span></div>
                     <div class="ft-hero" style="--hero-rgb:248,113,113"><span class="ft-deger" id="ft-durus">—</span><span class="ft-etiket">⏸ Duruş dk</span></div>
                     <!-- GENEL OEE (kullanıcı 2026-08-21: "overall oee'yi de görebileyim").
@@ -7807,6 +7815,24 @@ window.__I18N_SOZLUK__ = {
                 }).join('');
                 gfxTooltipBagla(grid); // mini bar tooltip'i — delegasyon, tek bağlama
                 document.getElementById('ft-ok').textContent = fmt(topOk);
+                // ETİKET LOKASYONA GÖRE (kullanıcı 2026-08-27): TK1 toplamının
+                // büyük kısmı tel PROSES ADIMLARI — bitmiş ürün değil. Rakam
+                // toplamda KALIR (işin büyüklüğünü gösterir) ama adı dürüst olur;
+                // tel kartındaki 'İşlem (tüm adımlar)' diliyle aynı.
+                var ftEtiket = document.getElementById('ft-ok-etiket');
+                var ftNot = document.getElementById('ft-ok-not');
+                var telVar = bolumler.indexOf('tel') !== -1;
+                if (ftEtiket) ftEtiket.textContent = telVar ? '✅ Toplam İşlem (OK)' : '✅ Üretim (OK)';
+                if (ftNot) {
+                    ftNot.style.display = telVar ? '' : 'none';
+                    ftNot.textContent = telVar ? 'tel: tüm adımlar dahil — bitmiş ürün adedi değildir' : '';
+                }
+                var ftKutu = document.getElementById('ft-ok-kutu');
+                if (ftKutu) ftKutu.title = telVar
+                    ? 'Kaydedilen OK adetlerinin toplamı. Tel üretimi TÜM proses adımlarıyla '
+                      + 'dahildir (kesim + kapama + son montaj ayrı sayılır) — bu yüzden rakam '
+                      + 'bitmiş ürün adedi DEĞİL, yapılan toplam iştir.'
+                    : 'Kaydedilen OK adetlerinin toplamı.';
                 document.getElementById('ft-vardiya').textContent = fmt(topVardiya);
                 document.getElementById('ft-durus').textContent = fmt(topDurus);
                 genelOeeCiz(sonuclar, bolumler);

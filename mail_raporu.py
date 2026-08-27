@@ -406,8 +406,15 @@ def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
                 f'{deger}</div></td></tr></table></td>')
 
     if satir:
-        kartlar = ('<tr>' + hucre('Toplam üretim', f'{toplam:,}'.replace(',', '.'), mor)
+        # TK1: tel adetleri proses adımı — 'Toplam işlem' + açıklama (2026-08-27)
+        _t_etiket = 'Toplam işlem' if tesis == 'TK1' else 'Toplam üretim'
+        kartlar = ('<tr>' + hucre(_t_etiket, f'{toplam:,}'.replace(',', '.'), mor)
                    + hucre('Kayıt satırı', f'{satir}', koyu) + '</tr>')
+        if tesis == 'TK1':
+            kartlar += ('<tr><td colspan="2" style="padding:2px 14px 8px;'
+                        'font-family:Segoe UI,Arial,sans-serif;font-size:10.5px;'
+                        'color:#8A8798;font-style:italic">Tel üretimi tüm proses '
+                        'adımlarıyla dahildir — rakam bitmiş ürün adedi değildir.</td></tr>')
         satirlar = ''
         for k in kirilim:
             ad = BOLUM_AD.get(k['bolum'], k['bolum'])
@@ -570,11 +577,12 @@ def excel_olustur(tarih=None, lokasyon=None):
         c.border = kenar
 
     tarih_tr = _tarih_tr(tarih)
-    # TEL SATIRLARI GENEL TOPLAMA GİRMEZ (kullanıcı 2026-08-18): bir ürün kesim +
-    # otomat + kapama + son montaj adımlarından geçtiğinde adetleri toplamak aynı
-    # parçayı 4 kez saymaktır ("100 kapama + 100 son montaj = 200 ürün" yanılgısı).
-    # Adım adedi YAPILAN İŞTİR; ancak KENDİ İÇİNDE toplanabilir → tel için adım
-    # bazlı alt toplamlar ayrıca yazılır.
+    # TEL DE TOPLAMA GİRER (kullanıcı 2026-08-27 — 2026-08-18 kararını değiştirdi):
+    # eskiden tel satırları çift-sayım yanılgısı ("100 kapama + 100 son montaj =
+    # 200 ürün") yüzünden genel toplamdan dışlanıyordu ve TK1 toplamı gerçek işin
+    # çoğunu göstermiyordu. Yeni karar: rakam DAHİL, ama adı dürüst — tel varsa
+    # etiket 'TOPLAM İŞLEM' olur ve bitmiş ürün adedi olmadığı açıkça yazılır;
+    # adım bazlı alt toplamlar da durur (hangi adım ne üretti oradan okunur).
     toplam_adet = 0
     tel_adim_toplam = {}
     for r in rows:
@@ -583,8 +591,7 @@ def excel_olustur(tarih=None, lokasyon=None):
         adim = tel_koddan_adim(r['referans']) if tel_mi else None
         if tel_mi:
             tel_adim_toplam[adim or '—'] = tel_adim_toplam.get(adim or '—', 0) + adet
-        else:
-            toplam_adet += adet
+        toplam_adet += adet
         ws.append([
             tarih_tr,
             r['tesis'],
@@ -616,13 +623,13 @@ def excel_olustur(tarih=None, lokasyon=None):
             d.font = Font(bold=kalin)
             d.alignment = Alignment(horizontal='right')
 
-        _toplam_satiri('TOPLAM', toplam_adet)
+        _toplam_satiri('TOPLAM İŞLEM' if tel_adim_toplam else 'TOPLAM', toplam_adet)
         if tel_adim_toplam:
-            # Tel adımları AYRI AYRI — tek bir sayıda toplanmaz (bkz. yukarıdaki not)
             not_r = ws.max_row + 2
             nc = ws.cell(row=not_r, column=1,
-                         value='TEL ÜRETİMİ — adım bazlı (aynı ürün birden çok '
-                               'adımdan geçer, adımlar TOPLANMAZ):')
+                         value='TEL ÜRETİMİ — adım bazlı kırılım (aynı ürün birden '
+                               'çok adımdan geçer; üstteki toplam bitmiş ürün adedi '
+                               'DEĞİL, yapılan toplam iştir):')
             nc.font = Font(bold=True, italic=True)
             for adim, deger in tel_adim_toplam.items():
                 _toplam_satiri(adim, deger, kalin=False)
@@ -923,7 +930,12 @@ def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=Non
             f'{tarih_tr} tarihli günlük üretim raporu ektedir.\n\n'
             f'Özet:\n'
             f'  • Kayıt satırı : {satir}\n'
-            f'  • Toplam üretim: {toplam:,} adet\n\n'
+            # TK1'de tel adetleri PROSES ADIMI (bitmiş ürün değil) — toplamın
+            # çoğunu onlar oluşturuyor, ad dürüst olsun (kullanıcı 2026-08-27).
+            + (f'  • Toplam işlem : {toplam:,} adet (tel tüm adımlarıyla dahil — '
+               f'bitmiş ürün adedi değildir)\n\n'
+               if str(lokasyon).upper() == 'TK1' else
+               f'  • Toplam üretim: {toplam:,} adet\n\n')
             + (''.join(f'  • {k["tesis"]} · {BOLUM_AD.get(k["bolum"], k["bolum"])}: '
                        f'{k["adet"]:,} adet\n' for k in kirilim) + '\n' if kirilim else '')
             + f'Detaylar ekteki Excel dosyasındadır.\n\n'
