@@ -25,6 +25,7 @@ sahadan geri bildirim gelince tek yerden ayarlanır.
 import json
 import os
 import sqlite3
+import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -872,7 +873,32 @@ def _bulgu_veri_kalitesi(conn, vardiyalar, bas, bit):
     return out
 
 
-def _bulgu_sinyal(vardiyalar, bas, bit):
+def _sabit_hat_cihazlari():
+    """Sabit hatlı bölümlerin CİHAZ adı → (lokasyon, bölüm) haritası.
+
+    Hangi makine hangi tesise/bölüme ait olduğunu app.py'nin sabit hat modeli
+    bilir (KAYITTA_HAT + HAT_MAKINELERI + HAT_SAYAC_CIHAZI). Burada import
+    ETMİYORUZ, YÜKLÜYSE OKUYORUZ: app.py'yi import etmek modül gövdesindeki
+    init_db() migration'ını çalıştırır ve analiz.py'yi app'e döngüsel bağlardı.
+    Sunucuda app her zaman yüklüdür; analiz tek başına çalıştırılırsa None
+    döner ve kapsama kontrolü bölüm düzeyine iner — yanlış alarm ÜRETMEYEN taraf.
+    """
+    app = sys.modules.get('app')
+    if app is None:
+        return None
+    try:
+        esleme = getattr(app, 'HAT_SAYAC_CIHAZI', {}) or {}
+        out = {}
+        for (lok, bol), hat in app.KAYITTA_HAT.items():
+            for m in app.HAT_MAKINELERI.get(hat, ()):
+                out[esleme.get(m, m)] = (lok, bol)
+        return out or None
+    except Exception as e:
+        print(f'[ANALIZ] sabit hat haritasi okunamadi: {e}')
+        return None
+
+
+def _bulgu_sinyal(conn, vardiyalar, bas, bit, lokasyon=None):
     """SENSÖR ile KAYIT karşılaştırması — 'insanın yakalayamayacağı' kısım.
 
     Sayaç modülü olan bir hatta sinyal saatlerce gelmemişse makine durmuştur.
@@ -915,26 +941,75 @@ def _bulgu_sinyal(vardiyalar, bas, bit):
                 "COUNT(*) AS n FROM sayac_olaylari "
                 "WHERE ts >= ? AND ts <= ? GROUP BY robot_no, bolum, gun HAVING n > 20",
                 (bas + ' 00:00:00', bit + ' 23:59:59')).fetchall()
-            hat_gun = {(v['hat'], v['tarih']) for v in vardiyalar}
-            bolum_gun = {(v['bolum'], v['tarih']) for v in vardiyalar}
+
+            # KAPSAMA KÜMESİ TÜM TESİSLERİN VARDİYALARINDAN KURULUR (kullanıcı
+            # 2026-08-27: "13 makine sinyal var vardiya yok bildirimi doğru mu?"
+            # — DEĞİLDİ). Rapor tesis başına ayrı üretiliyor, dolayısıyla elimizdeki
+            # 'vardiyalar' yalnız O TESİSİN vardiyaları; sinyaller ise tesis bilgisi
+            # TAŞIMAZ (sayac_olaylari'nda lokasyon kolonu yok). Sonuç: TK1 raporunda
+            # TK2'nin bütün makineleri "vardiya yok" görünüyordu — 26.08'de ABB4,
+            # 400T ve Pres Abkant vardiyaları AÇIKKEN 13 makine-gün / 6354 sinyal
+            # hayalet sayıldı. Ayrıca vardiya listesi OEE dışı bölümleri (işleme) de
+            # elediği için o bölümler de sahte hayalet üretirdi. Kapsama artık
+            # lokasyon/bölüm filtresi UYGULANMAMIŞ tam listeyle yapılır.
+            tum_v = conn.execute(
+                "SELECT DISTINCT tarih, COALESCE(bolum,'kaynak') AS bolum, robot_no "
+                "FROM vardiyalar WHERE tarih >= ? AND tarih <= ?", (bas, bit)).fetchall()
+            hat_gun = {(v['robot_no'], v['tarih']) for v in tum_v}
+            bolum_gun = {(v['bolum'], v['tarih']) for v in tum_v}
+
+            # Makine → tesis: hattı vardiyada seçilen bölümlerde (kaynak/metal/TK2
+            # montaj) makine adı vardiya hattıdır; son 120 günün vardiyalarından
+            # okunur, en güncel kayıt kazanır. Sabit hatlı bölümlerin makineleri
+            # vardiyada hiç görünmediği için onlar app.py'nin hat modelinden gelir.
+            hat_lok = {}
+            for r in conn.execute(
+                    "SELECT robot_no, COALESCE(lokasyon,'TK2') AS lokasyon, MAX(tarih) AS t "
+                    "FROM vardiyalar WHERE tarih >= date(?, '-120 day') AND tarih <= ? "
+                    "GROUP BY robot_no, lokasyon ORDER BY t", (bas, bit)):
+                hat_lok[r['robot_no']] = r['lokasyon']
+            cihaz_yeri = _sabit_hat_cihazlari()
+
+            def _yer(h):
+                """Cihazın (lokasyon, bölüm) bilgisi — bilinmiyorsa (None, None)."""
+                y = (cihaz_yeri or {}).get(h['robot_no'])
+                if y:
+                    return y
+                return (hat_lok.get(h['robot_no']), None)
 
             def _kapsanmis(h):
                 if (h['robot_no'], h['gun']) in hat_gun:
-                    return True
-                if (h['bolum'], h['gun']) in bolum_gun:
-                    return True
-                if h['bolum'] == 'montaj' and ('tel', h['gun']) in bolum_gun:
-                    return True     # TK1-M4/YF1: cihaz montaj yazar, hat tel
+                    return True     # makine adı = vardiya hattı → o gün vardiya var
+                sabit_bolum = (cihaz_yeri or {}).get(h['robot_no'])
+                # SABİT HATLI BÖLÜM: makine adı hiçbir zaman vardiya hattı olmaz
+                # (tel/pres/plastik/TK1 montaj). O gün o bölümde vardiya açıksa
+                # sinyal kayda geçmiştir. cihaz_yeri okunamadıysa bu gevşek kural
+                # HERKESE uygulanır — bilmediğimiz için suçlamayız.
+                if cihaz_yeri is None or sabit_bolum:
+                    if sabit_bolum and (sabit_bolum[1], h['gun']) in bolum_gun:
+                        return True
+                    if (h['bolum'], h['gun']) in bolum_gun:
+                        return True
+                    if h['bolum'] == 'montaj' and ('tel', h['gun']) in bolum_gun:
+                        return True     # TK1-M4/YF1: cihaz montaj yazar, hat tel
                 return False
 
-            kayip = [h for h in hayalet if not _kapsanmis(h) and h['gun'] in gunler]
+            def _kapsam_disi_tesis(h):
+                # Tesis bazlı raporda ÖTEKİ tesisin makinesini şikâyet etme.
+                yer = _yer(h)[0]
+                return bool(lokasyon and yer and yer != lokasyon)
+
+            kayip = [h for h in hayalet
+                     if not _kapsanmis(h) and not _kapsam_disi_tesis(h)
+                     and h['gun'] in gunler]
             if kayip:
                 top = sum(h['n'] for h in kayip)
                 ilk = sorted(kayip, key=lambda x: -x['n'])[:5]
                 # MAKİNELER METİNDE (kullanıcı: "bu uyarı hangi makine için?"):
                 # örnekler yalnız sayisal alandaydı, hiçbir ekran göstermiyordu.
-                _liste = ', '.join(f"{h['robot_no']} ({h['gun'][5:]} · {h['n']} sinyal)"
-                                   for h in ilk)
+                _liste = ', '.join(
+                    f"{h['robot_no']} ({(_yer(h)[0] or h['bolum'] or '?')} · "
+                    f"{h['gun'][5:]} · {h['n']} sinyal)" for h in ilk)
                 out.append(_b('sayilmayan_sinyal', 'uyari',
                               f'{len(kayip)} makine-günde sinyal var ama vardiya yok — {top} sinyal kayda geçmedi',
                               f'Sayaç sinyal üretmiş fakat o gün o CİHAZIN BÖLÜMÜNDE açılmış vardiya '
@@ -1029,7 +1104,7 @@ def analiz_yap(bas, bit, lokasyon=None, bolum=None, yorum=False, conn=None):
             # OEE yorumlanmadan önce sayının güvenilir olup olmadığı bilinmeli.
             bulgular += _bulgu_cycle_tanimsiz(vardiyalar, hat_tablo)
             bulgular += _bulgu_veri_kalitesi(conn, vardiyalar, bas, bit)
-            bulgular += _bulgu_sinyal(vardiyalar, bas, bit)
+            bulgular += _bulgu_sinyal(conn, vardiyalar, bas, bit, lokasyon)
             bulgular += _bulgu_oee(hat_tablo, genel)
             bulgular += _bulgu_durus(vardiyalar)
             bulgular += _bulgu_kalite(vardiyalar)
