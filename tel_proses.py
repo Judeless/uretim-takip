@@ -43,16 +43,23 @@ import re
 # hem halat kesme hem spiral kesme makineleri var, adın ikisini de kapsaması
 # istendi. KOD EKİ 'KESIM' DEĞİŞMEDİ — değişseydi bu ekle yazılmış tüm geçmiş
 # kayıtlar rapor kırılımından düşerdi (bkz. TEL_ADIM_EKI_ESKI notu).
-TEL_ADIMLARI = ('Halat/Spiral Kesme', 'Soyma', 'Otomatik Hazırlık',
+# 'Ön Hazırlık' 2026-08-27'de eklendi (kullanıcı): TK1 telde 2 tezgâh.
+# KENDİ ADIMI — 'Otomatik Hazırlık'ın makinesi DEĞİL (kullanıcı kararı): kod eki
+# ve rapor sütunu ayrıdır, aynı ürünün ön hazırlığı ile otomatik hazırlığı ayrı
+# ayrı sayılır. Aynı eke bağlansalardı iki farklı operasyon tek kodda toplanır
+# ve 100 parçalık iş 200 üretim gibi görünürdü (Soyma'nın kesimden ayrılma
+# gerekçesinin aynısı). Sırada SOYMA'dan sonra, Otomatik Hazırlık'tan ÖNCE.
+TEL_ADIMLARI = ('Halat/Spiral Kesme', 'Soyma', 'Ön Hazırlık', 'Otomatik Hazırlık',
                 'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
 
 # Sıra numarası: yarı ve tam otomatik AYNI adım sayılır — biri diğerinin
 # alternatifi, ikisi arka arkaya uygulanmaz.
 # NOT: sayısal değer HİÇBİR YERDE kullanılmıyor (mantık ÜYELİĞE bakar); burada
 # prosesi okunur kılmak için duruyor. Bu yüzden araya adım eklemek güvenlidir.
-TEL_ADIM_SIRA = {'Halat/Spiral Kesme': 1, 'Soyma': 2, 'Otomatik Hazırlık': 3,
-                 'Yarı Otomatik': 4, 'Tam Otomatik': 4,
-                 'Kapama': 5, 'Son Montaj': 6}
+TEL_ADIM_SIRA = {'Halat/Spiral Kesme': 1, 'Soyma': 2,
+                 'Ön Hazırlık': 3, 'Otomatik Hazırlık': 4,
+                 'Yarı Otomatik': 5, 'Tam Otomatik': 5,
+                 'Kapama': 6, 'Son Montaj': 7}
 
 # HAT ADI → ADIM İSTİSNASI (kullanıcı 2026-08-20). Normalde hat adı adımın
 # kendisidir ya da sonuna numara alır ('Kapama 30' → 'Kapama'). 'Manuel Kesim'
@@ -166,6 +173,14 @@ TEL_HATLARI = (
     # Ikisinin de sayac modulu YOK -> adet elle girilir.
     + ['Otomatik Spiral Kesme %d' % i for i in range(1, 4)]
     + ['Manuel Spiral Kesme']
+    # 2026-08-27 (kullanici): TK1 telde 2 adet ON HAZIRLIK tezgahi. Yine SONA
+    # eklendi (pozisyon = istasyon no, asla kaymaz). Operator listesinde kendi
+    # adimlarinin yaninda gorunurler; /api/kayit_hatlari listeyi PROSES SIRASINA
+    # gore siralar ve bu ikisinin adimi 'On Hazirlik'tir.
+    # Adim adi hat adinin kokune esit oldugu icin ISTISNA GEREKMEZ:
+    # tel_hat_adimi('On Hazirlik 1') -> son numarayi atar -> 'On Hazirlik'.
+    # Sayac modulu YOK -> adet elle girilir.
+    + ['Ön Hazırlık %d' % i for i in range(1, 3)]
 )
 
 # Kullanılmayan / kodu bekleyen hatlar — operatör listesinde gösterilmez ama
@@ -219,6 +234,12 @@ def tel_hat_adimi(robot_no):
 # birden çok kez "üretim" sayılmaz ve hangi ürünün nerede bittiği raporda
 # kendiliğinden görünür — sabit bir proses tanımına ihtiyaç kalmaz.
 TEL_ADIM_EKI = {
+    # DİKKAT — 'ÖN HAZIRLIK' ile 'HAZIRLIK' iç içe geçiyor: '… ÖN HAZIRLIK'
+    # kodunda desen 'HAZIRLIK' ekini de görebilir. _ek_deseni_kur() ekleri
+    # UZUNDAN KISAYA sıralayıp alternasyona koyduğu için uzun olan kazanır.
+    # Bu bilinçli bir bağımlılık: sıralama kaldırılırsa ön hazırlık kayıtları
+    # sessizce 'Otomatik Hazırlık' adımına düşer (bkz. testler).
+    'Ön Hazırlık': 'ÖN HAZIRLIK',
     'Otomatik Hazırlık': 'HAZIRLIK',
     'Halat/Spiral Kesme': 'KESIM',
     'Soyma':         'SOYMA',
@@ -253,12 +274,36 @@ TEL_ADIM_EKI_ESKI = {
 # TÜRKÇE BÜYÜK-İ: yeni ekler 'İ' içeriyor ve IGNORECASE Python'da dotted-İ ile
 # 'i' eşleşmesini güvenilir yapmaz. Bu yüzden desende hem yazıldığı hâli hem
 # casefold hâli bulunur; eşleşme her iki yazımda da çalışır.
+def _ek_anahtar(ek):
+    """Ek karşılaştırma anahtarı — TÜRKÇE-DUYARSIZ.
+
+    str.upper() Türkçede güvenilmez: 'otomatik'.upper() → 'OTOMATIK' (NOKTASIZ I),
+    oysa yazılan ek 'OTOMATİK' (noktalı İ). İkisi eşleşmez ve kodun adımı
+    çözülemez. Bu yüzden Türkçe harfler ASCII karşılığına indirgenir; hem harita
+    anahtarları hem aranan değer AYNI fonksiyondan geçer."""
+    t = str(ek or '').strip()
+    for a, b in (('İ', 'I'), ('ı', 'I'), ('Ş', 'S'), ('ş', 'S'), ('Ğ', 'G'),
+                 ('ğ', 'G'), ('Ü', 'U'), ('ü', 'U'), ('Ö', 'O'), ('ö', 'O'),
+                 ('Ç', 'C'), ('ç', 'C')):
+        t = t.replace(a, b)
+    return ' '.join(t.upper().split())
+
+
 def _ek_deseni_kur():
     ekler = list(TEL_ADIM_EKI.values()) + list(TEL_ADIM_EKI_ESKI.keys())
     varyant = set()
     for e in ekler:
         varyant.add(e)
         varyant.add(e.casefold())
+        # ASCII-KATLANMIŞ HÂL DE DESENDE (2026-08-27): operatör kodu elle
+        # yazdığında Türkçe harfleri kullanmayabiliyor ('ÖN HAZIRLIK' yerine
+        # 'ON HAZIRLIK'). Katlanmış hâl desende yoksa uzun ek eşleşmez ve kod
+        # İÇİNDEKİ KISA EKE düşer: '… ON HAZIRLIK' sessizce 'HAZIRLIK' sayılıp
+        # Otomatik Hazırlık adımına yazılırdı — yanlış adımda üretim demek.
+        # (Ters harita _EK_ADIM zaten _ek_anahtar ile normalize arıyor.)
+        _a = _ek_anahtar(e)
+        varyant.add(_a)
+        varyant.add(_a.casefold())
     # Boşluklar esnek (çift boşlukla yazılmış kodlar da tanınsın)
     parcalar = [re.escape(v).replace(r'\ ', r'\s+') for v in
                 sorted(varyant, key=len, reverse=True)]
@@ -287,21 +332,6 @@ def tel_ek_ayikla(referans_kodu):
 
 # Ek → adım ters haritası. Rapor katmanı adımı KODDAN çözer (hat/istasyon
 # gerekmez): mail_raporu.py app.py'yi import EDEMEZ ama kodu görebilir.
-def _ek_anahtar(ek):
-    """Ek karşılaştırma anahtarı — TÜRKÇE-DUYARSIZ.
-
-    str.upper() Türkçede güvenilmez: 'otomatik'.upper() → 'OTOMATIK' (NOKTASIZ I),
-    oysa yazılan ek 'OTOMATİK' (noktalı İ). İkisi eşleşmez ve kodun adımı
-    çözülemez. Bu yüzden Türkçe harfler ASCII karşılığına indirgenir; hem harita
-    anahtarları hem aranan değer AYNI fonksiyondan geçer."""
-    t = str(ek or '').strip()
-    for a, b in (('İ', 'I'), ('ı', 'I'), ('Ş', 'S'), ('ş', 'S'), ('Ğ', 'G'),
-                 ('ğ', 'G'), ('Ü', 'U'), ('ü', 'U'), ('Ö', 'O'), ('ö', 'O'),
-                 ('Ç', 'C'), ('ç', 'C')):
-        t = t.replace(a, b)
-    return ' '.join(t.upper().split())
-
-
 # Ek → adım ters haritası. ESKİ ekler de burada: o ekle yazılmış kayıtların
 # adımı çözülmeye devam etsin (yoksa raporda 'bilinmeyen adım'a düşerler).
 _EK_ADIM = {_ek_anahtar(ek): adim for adim, ek in TEL_ADIM_EKI.items()}

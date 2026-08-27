@@ -130,6 +130,9 @@ TEL_ADIM_BASLIK = {
     'otomatik spiral kesme': 'Halat/Spiral Kesme',
     'manuel spiral kesme': 'Halat/Spiral Kesme',
     'soyma': 'Soyma',                # kesim yapılan her ürüne yapılmaz → AYRI adım
+    # Ön hazırlık (2026-08-27) — 'otomatik hazırlık'tan AYRI adım, başlık da ayrı
+    'ön hazırlık': 'Ön Hazırlık', 'on hazirlik': 'Ön Hazırlık',
+    'ön hazirlik': 'Ön Hazırlık', 'on hazırlık': 'Ön Hazırlık',
     'otomatik hazırlık': 'Otomatik Hazırlık', 'otomatik hazirlik': 'Otomatik Hazırlık',
     'hazırlık': 'Otomatik Hazırlık', 'hazirlik': 'Otomatik Hazırlık',
     'yarı otomatik': 'Yarı Otomatik', 'yari otomatik': 'Yarı Otomatik',
@@ -147,7 +150,7 @@ _TEL_ISARET = {'x', '1', 'evet', 'var', '✓', '✔', 'e', 'yes', 'true'}
 # Sıralı tutmak "son adım" hesabını kolaylaştırır ve panelde okunaklı gösterir.
 # 2026-08-20: 'Soyma' + 'Otomatik Hazırlık' eklendi — tel_proses.TEL_ADIMLARI ile
 # BİREBİR olmalı, yoksa Excel'de işaretlenen adım panelde sırasız/eksik görünür.
-TEL_ADIM_SIRASI = ('Halat/Spiral Kesme', 'Soyma', 'Otomatik Hazırlık',
+TEL_ADIM_SIRASI = ('Halat/Spiral Kesme', 'Soyma', 'Ön Hazırlık', 'Otomatik Hazırlık',
                    'Yarı Otomatik', 'Tam Otomatik', 'Kapama', 'Son Montaj')
 
 
