@@ -342,7 +342,12 @@ def _bolum_kirilimi(tarih, lokasyon=None):
 # gider (sadece bu bölüm boş kalır) — günlük rapor akışı asla analize bağlanmaz.
 
 def analiz_topla(tarih, lokasyon=None, yorum=True):
-    """(ozet, bulgular, yorum_metni) — hata hâlinde (None, [], '')."""
+    """(ozet, bulgular, yorum_metni, yorum_hata).
+
+    YORUM_HATA NEDEN DÖNÜYOR (kullanıcı 2026-08-27: "dün akşam raporda yönetici
+    özeti yoktu, test mailinde geldi — neden?"): AI çağrısı bilinçli olarak maili
+    ASLA engellemez; ama hata yalnız sunucu konsoluna yazılınca bölümün neden
+    kaybolduğu görünmez kalıyordu. Sebep artık maile de düşer."""
     try:
         import analiz as _an
     except Exception as e:
@@ -359,18 +364,20 @@ def analiz_topla(tarih, lokasyon=None, yorum=True):
         a = _an.gunluk_ozet(tarih, _lok)
     except Exception as e:
         print(f'[MAIL] analiz hatasi: {e}')
-        return None, [], ''
-    metin = ''
+        return None, [], '', f'analiz çalışmadı: {e}'
+    metin, yorum_hata = '', ''
     if yorum:
         try:
             y, hata = _an.yorum_uret(a)
             if y:
                 metin = y.get('metin') or ''
             elif hata:
+                yorum_hata = hata
                 print(f'[MAIL] AI yorumu atlandi: {hata}')
         except Exception as e:
+            yorum_hata = f'{type(e).__name__}: {e}'
             print(f'[MAIL] AI yorumu hatasi: {e}')
-    return a.get('ozet'), a.get('bulgular') or [], metin
+    return a.get('ozet'), a.get('bulgular') or [], metin, yorum_hata
 
 
 SIDDET_RENK_MAIL = {'kritik': '#DC2626', 'uyari': '#D97706', 'bilgi': '#4E4C63'}
@@ -378,7 +385,7 @@ SIDDET_AD_MAIL = {'kritik': 'KRİTİK', 'uyari': 'UYARI', 'bilgi': 'BİLGİ'}
 
 
 def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
-                bulgular=None, yorum='', tesis=''):
+                bulgular=None, yorum='', tesis='', yorum_hata=''):
     """Mailin HTML gövdesi — Cofle Forge paleti (2026-07-30 kullanıcı isteği:
     "gunluk uretim raporu tasarimi ... yeni tasarimimiza gore").
 
@@ -447,7 +454,7 @@ def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
     # Üretim tablosunun ALTINA eklenir: önce ne üretildiği, sonra neyin ters
     # gittiği. Bulgu yoksa bölüm hiç basılmaz (boş kutu gürültüdür).
     analiz_html = ''
-    if analiz_ozet and (bulgular or yorum):
+    if analiz_ozet and (bulgular or yorum or yorum_hata):
         satirlar = ''.join(
             f'<tr><td style="padding:7px 0;border-bottom:1px solid {cizgi};'
             f'font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:{koyu};'
@@ -461,6 +468,12 @@ def _html_govde(tarih_tr, satir, toplam, kirilim, analiz_ozet=None,
             f'<span style="color:{gri};font-size:11px">{b["detay"]}</span></td></tr>'
             for b in (bulgular or [])[:6])
         yorum_html = ''
+        if not yorum and yorum_hata:
+            yorum_html = (
+                f'<tr><td style="padding:8px 14px;font-family:Segoe UI,Arial,sans-serif;'
+                f'font-size:11px;color:#8A8798;font-style:italic">Yönetici özeti bu '
+                f'koşuda üretilemedi: {yorum_hata}</td></tr>'
+            )
         if yorum:
             yorum_html = (
                 f'<tr><td style="padding:12px 14px;background:#F5F3FF;'
@@ -923,9 +936,14 @@ def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=Non
             f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
         )
     # Analiz bölümü — hatası maili ENGELLEMEZ (analiz_topla kendi içinde yutar)
-    an_ozet, an_bulgular, an_yorum = analiz_topla(tarih, lokasyon) if satir else (None, [], '')
-    if an_bulgular or an_yorum:
+    an_ozet, an_bulgular, an_yorum, an_yorum_hata = (
+        analiz_topla(tarih, lokasyon) if satir else (None, [], '', ''))
+    if an_bulgular or an_yorum or an_yorum_hata:
         govde += '\n\n' + '-' * 52 + '\nOTOMATİK ANALİZ\n' + '-' * 52 + '\n'
+        # Özet üretilemediyse SEBEBİYLE söyle — sessiz kaybolunca "dün vardı
+        # bugün yok" bilmecesi doğuyordu (bkz. analiz_topla açıklaması).
+        if not an_yorum and an_yorum_hata:
+            govde += f'(Yönetici özeti bu koşuda üretilemedi: {an_yorum_hata})\n\n'
         if an_ozet:
             govde += (f'OEE %{an_ozet.get("oee", 0)} · Plansız duruş '
                       f'{an_ozet.get("plansiz_dk", 0)} dk · Hurda '
@@ -935,7 +953,8 @@ def _tek_rapor_gonder(cfg, tarih, lokasyon, alicilar, yontem, zorla_alicilar=Non
         for b in an_bulgular[:6]:
             govde += f'  [{SIDDET_AD_MAIL.get(b["siddet"], "")}] {b["baslik"]}\n'
     html = _html_govde(tarih_tr, satir, toplam, kirilim, an_ozet, an_bulgular, an_yorum,
-                       tesis=('' if _hepsi_mi(lokasyon) else str(lokasyon).upper()))
+                       tesis=('' if _hepsi_mi(lokasyon) else str(lokasyon).upper()),
+                       yorum_hata=an_yorum_hata)
 
     try:
         ek = dosya if satir else None

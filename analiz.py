@@ -1135,11 +1135,19 @@ def _yorum_girdisi(analiz):
     Tüm üretim kayıtlarını göndermek hem gereksiz (model zaten toplamları
     yorumlayacak) hem de dışarı çıkan veriyi büyütür. Referans kodları ve operatör
     adları bulgular için gerekli olduğundan kalır; başka kişisel veri yok."""
+    # YÖNETİCİ ÖZETİNE GİRMEYEN BULGULAR (kullanıcı 2026-08-27): sayaç modülünün
+    # kendini kurtarma sayıları ('cihaz_saglik') TEKNİK bakım bilgisidir; yorum
+    # katmanına verilince model üretim adetlerindeki her şüpheyi modüle bağlayıp
+    # ("TK1-M2 149 kez yeniden başladı, adetler eksik olabilir") yönetici özetini
+    # cihaz arıza raporuna çeviriyordu. Bulgu Analiz sayfasındaki listede DURUR —
+    # bakımcı görmeli; yalnız LLM girdisinden çıkarılır.
+    _yorum_disi = {'cihaz_saglik'}
     return {
         'donem': analiz['donem'],
         'ozet': analiz['ozet'],
         'bulgular': [{k: b[k] for k in ('kod', 'siddet', 'baslik', 'detay', 'sayisal')}
-                     for b in analiz['bulgular'][:25]],
+                     for b in analiz['bulgular'][:25]
+                     if b.get('kod') not in _yorum_disi],
         'operatorler': [{k: o[k] for k in ('operator', 'vardiya', 'toplam', 'oee',
                                            'beklenen_oee', 'hat_farki', 'hurda_oran')}
                         for o in analiz['operatorler'][:20]],
