@@ -329,6 +329,19 @@ def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None, bolu
     if bolum:
         query += " AND COALESCE(bolum, 'kaynak') = ?"
         params.append(bolum)
+    else:
+        # BÖLÜMSÜZ = GENEL görünüm → cycle süresi tanımsız bölümler (işleme)
+        # havuza girmez; her vardiyaları %0 performans üretip ortalamayı
+        # anlamsızca düşürüyordu. Bölüm AÇIKÇA istenirse yukarıdaki dal çalışır
+        # ve dahil edilir. Kaynak kural: analiz.OEE_DISI_BOLUMLER.
+        try:
+            from analiz import OEE_DISI_BOLUMLER as _disi
+        except Exception:
+            _disi = ('isleme',)
+        if _disi:
+            query += (" AND COALESCE(bolum, 'kaynak') NOT IN ("
+                      + ','.join('?' * len(_disi)) + ")")
+            params.extend(_disi)
     if lokasyon:
         query += " AND COALESCE(lokasyon, 'TK2') = ?"
         params.append(lokasyon)

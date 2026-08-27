@@ -6960,12 +6960,30 @@ def ozet():
 
     conn.close()
 
-    ort_oee = round(sum(o['oee'] for o in oee_listesi) / len(oee_listesi), 1) if oee_listesi else 0
+    # GENEL OEE'YE İŞLEME GİRMEZ (kullanıcı 2026-08-27 tekrar istedi; kural
+    # analiz.OEE_DISI_BOLUMLER ile AYNI): cycle süreleri tanımsız olduğu için
+    # işlemenin her vardiyası %0 performans üretir ve bölümsüz çağrıda ortalamayı
+    # aşağı çekerdi. Dashboard kahramanı bunu istemcide zaten dışlıyordu; burada
+    # sunucudaki ort_oee da aynı kurala bağlanır — iki taraf ayrışmasın.
+    # BÖLÜM AÇIKÇA SEÇİLDİYSE dahil: 'isleme'yi filtrede seçen kişi onun
+    # rakamını istemektedir; vardiya LİSTESİNE dokunulmaz (Kayıtlar satırları
+    # eksiksiz kalır), yalnız ortalama havuzu daralır.
+    try:
+        from analiz import OEE_DISI_BOLUMLER as _oee_disi
+    except Exception:
+        _oee_disi = ('isleme',)
+    _havuz = (oee_listesi if bolumler
+              else [o for o in oee_listesi if o.get('bolum') not in _oee_disi])
+    ort_oee = round(sum(o['oee'] for o in _havuz) / len(_havuz), 1) if _havuz else 0
 
     return jsonify({
         'tarih_aralik': {'bas': tarih_bas, 'bit': tarih_bit},
         'vardiya_sayisi': vardiya_sayisi,
         'ort_oee': ort_oee,
+        # ort_oee havuzundan dışlanan bölümler — panel dürüstçe yazabilsin
+        'ort_oee_haric': ([] if bolumler else
+                          sorted({o.get('bolum') for o in oee_listesi
+                                  if o.get('bolum') in _oee_disi})),
         'robot_uretim': [dict(r) for r in robot_uretim],
         # Kırılım için robot_uretim yerine BUNU kullanın: hattı üretim kaydında
         # seçilen bölümlerde robot_uretim tek satırdır (bkz. grup_uretim açıklaması).
