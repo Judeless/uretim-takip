@@ -11428,6 +11428,47 @@ window.__I18N_SOZLUK__ = {
         // insan onaylamalı.
         function as4SupheliMi(durum) { return durum === 'olasi' || durum === 'kismi'; }
 
+        // ── GÖNDERİLECEK ADET — tek kural (kullanıcı 2026-08-27) ──
+        // "kısmi teyit verilecek referanslar dikkat kısmına çıkıyor; teyit ver
+        //  deyip yukarı alınca kısmi adet değil TOPLAM adet geliyor."
+        // Günün üretiminden ZATEN TEYİTLİ olan kısım düşülmeli. İki bağımsız
+        // kanıt var, ikisi de eksik olabilir:
+        //   kalan_gonderilecek → BİZİM gönderim log'umuz (as400_teyit_log)
+        //   kalan_adet         → ERP hareketleri ('kismi' durumu; teyidi başkası
+        //                        de vermiş olabilir, log'umuzda görünmez)
+        // EN KÜÇÜĞÜ alınır: fazla göndermek ERP'ye olmayan stok yazar, eksik
+        // göndermek yalnız bir sonraki koşuda tamamlanır — asimetrik risk.
+        function as4GonderilecekAdet(r, l) {
+            var aday = [Number(r.adet) || 0];
+            if (r.kalan_gonderilecek != null) aday.push(Number(r.kalan_gonderilecek));
+            if (r.zaten_teyitli === 'kismi' && r.kalan_adet != null)
+                aday.push(Math.round(Number(r.kalan_adet)));
+            // KANIT LAUNCH'TA DA OLABİLİR: kısmi teyit satırın kendi kodunda değil,
+            // launch'ın article'ında görülmüş olabilir (backend _teyit_isle'yi hem
+            // satıra hem HER LAUNCH'a uygular). Bu atlanınca 'dikkat'ten gelen satır
+            // yine günün TAMAMIYLA öneriliyordu — kullanıcının bildirdiği hata.
+            if (l && l.zaten_teyitli === 'kismi' && l.kalan_adet != null)
+                aday.push(Math.round(Number(l.kalan_adet)));
+            aday = aday.filter(function (x) { return typeof x === 'number' && !isNaN(x); });
+            return Math.max(0, Math.min.apply(null, aday));
+        }
+
+        // Adet neden üretimden düşük? Satırın altına tek satırlık gerekçe.
+        function as4AdetNotu(r, l) {
+            var g = as4GonderilecekAdet(r, l);
+            if (g >= (Number(r.adet) || 0)) return '';
+            var kismi = (r.zaten_teyitli === 'kismi' && r.kalan_adet != null
+                         && Math.round(Number(r.kalan_adet)) === g) ? r
+                      : (l && l.zaten_teyitli === 'kismi' && l.kalan_adet != null
+                         && Math.round(Number(l.kalan_adet)) === g) ? l : null;
+            var sebep = kismi
+                ? fmt(Math.round(Number(kismi.teyitli_adet) || 0)) + ' ERP\'de teyitli'
+                : fmt(r.gonderilmis_adet || 0) + ' gönderilmiş';
+            return '<div style="font-size:.68rem;color:var(--warn);margin-top:2px" ' +
+                   'title="Bu üretim günü için zaten teyit edilmiş adet düşüldü">' +
+                   fmt(r.adet) + ' üretim − ' + sebep + '</div>';
+        }
+
         // ═══════════════════════════════════════════════════════
         //  ANALİZ + OPERATÖR PERFORMANSI (2026-08-21)
         //  Hesabın tamamı sunucuda (analiz.py). Buradaki kod yalnız çizer.
@@ -13959,7 +14000,7 @@ window.__I18N_SOZLUK__ = {
                     var gunU = b.bugunMu ? ' <span style="color:var(--lg-amber)" title="Gün bitmeden teyit önerilmez">⚠</span>' : '';
                     // ÖNERİ: bu teyit launch'ı tamamlıyor mu? (gönderilecek >= kalan-1) → S öner
                     // Bu satirda GONDERILECEK adet: kalan (bolunmus teyit) ya da gunun tamami.
-                    var onerAdet = (r.kalan_gonderilecek != null ? r.kalan_gonderilecek : r.adet);
+                    var onerAdet = as4GonderilecekAdet(r, l0);
                     // Bayrak onerisi onerAdet ile kiyaslanmali: kutuda 57 varken 98'e gore
                     // S (KAPAT) onermek launch'i erken kapatirdi.
                     var onerS = (onerAdet >= l0.kalan - 1);
@@ -13981,8 +14022,7 @@ window.__I18N_SOZLUK__ = {
                             '<input type="number" id="as4-adet-' + i + '" value="' +
                             onerAdet +
                             '" min="1" class="rt-row-input" style="width:80px;text-align:right" onchange="as4BayrakOner(' + i + ')">' +
-                            (r.gonderilmis_adet ? '<div style="font-size:.68rem;color:var(--warn);margin-top:2px" title="Bu üretim günü için daha önce gönderilen adet düşüldü">' +
-                                fmt(r.adet) + ' üretim − ' + fmt(r.gonderilmis_adet) + ' gönderilmiş</div>' : '') +
+                            as4AdetNotu(r, l0) +
                             '</td>' +
                         '<td><select id="as4-bayrak-' + i + '" class="rt-row-select" onchange="as4BayrakElle(' + i + ')" style="font-weight:800' + (onerS ? ';color:var(--lg-red);border-color:color-mix(in srgb,var(--lg-red) 53%,transparent)' : '') + '">' +
                             '<option value="A"' + (onerS ? '' : ' selected') + '>A · devam</option>' +
@@ -14017,7 +14057,10 @@ window.__I18N_SOZLUK__ = {
                             '<td style="text-align:right;font-weight:800;color:var(--success)">' + fmt(r.adet) + '</td>' +
                             '<td style="font-size:.8rem">' + esc(b.article || r.referans) +
                                 (b.article ? ' <span style="font-size:.7rem;color:var(--b-kaynak)">(OPR açık)</span>' : '') + '</td>' +
-                            '<td style="text-align:right"><input type="number" id="as4-cfi-adet-' + i + '" value="' + r.adet + '" min="1" class="rt-row-input" style="width:80px;text-align:right"></td>' +
+                            '<td style="text-align:right"><input type="number" id="as4-cfi-adet-' + i + '" value="' +
+                                as4GonderilecekAdet(r) +
+                                '" min="1" class="rt-row-input" style="width:80px;text-align:right">' +
+                                as4AdetNotu(r) + '</td>' +
                             '</tr>';
                     });
                     sKuyruk += '</tbody></table></div>';
