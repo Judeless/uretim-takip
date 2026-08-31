@@ -149,3 +149,63 @@ bekler) ve yalnız durum değişince ekrana yazar.
 **göstermez**. Ölçümde bağlantı kuruldu, OIA "hazır" dedi ama host 30 sn boyunca
 tek satır göndermedi. Robot bu yüzden kararını **ekran içeriğine** göre verir;
 bağlı-ama-boş ekranı arıza sayar ve kendi kurduğu yarım bağlantıyı kapatır.
+
+## 10. Sunucu yeniden başlayınca kendi kendine kalksın (2026-08-27)
+
+**Olay:** hafta sonu AS400 hataya geçti, pazartesi sabahı sistem bağlanmamış
+hâlde bulundu. Sebep gözcü değildi — gözcü yalnız **düşmüş Session B'yi** geri
+getirir. Kırılan halka daha yukarıdaydı: PCOMM ve teyit-agent **interaktif
+oturumda** yaşıyor. Sunucu yeniden başladığında (Windows güncellemesi, elektrik)
+kimse oturum açmadığı için ikisi de kalkmıyor; gözcü de agent'ın içinde olduğu
+için onunla birlikte ölüyor. Sonuç: kimse fark edene kadar hiçbir teyit gitmez —
+16:45 transfer ve 17:10 teyit koşuları "teyit-agent kapalı" diye atlanır.
+
+**Kurulan zincir:**
+
+```
+açılış → otomatik oturum açma → PCOMM A + PCOMM B → teyit-agent → gözcü sign-on
+                (Autologon)        (Başlangıç klasörü)          (≤5 dk içinde)
+```
+
+### Kurulum (promanage oturumunda, bir kez — yönetici olarak DEĞİL)
+
+```bat
+as400\Otomatik_Kalkis_Kur.bat
+```
+
+Betik `.ws` oturum profillerini arar (bulamazsa yollarını argüman olarak
+verebilirsin), Başlangıç klasörüne **PCOMM A**, **PCOMM B** ve **Cofle Teyit
+Agent** kısayollarını kurar, otomatik oturum açma durumunu raporlar. Kayıt
+defterine yazmaz, şifre istemez.
+
+### Otomatik oturum açma (elle, bir kez)
+
+Sysinternals **Autologon** ile kur
+(`learn.microsoft.com/sysinternals/downloads/autologon`): `Autologon64.exe` →
+kullanıcı + şifre → **Enable**. Şifreyi **LSA kasasında şifreli** tutar.
+
+> ⚠️ `netplwiz` veya elle `Winlogon\DefaultPassword` yazmak şifreyi kayıt
+> defterinde **düz metin** bırakır (okuyabilen herkes görür). Kurulum betiği
+> böyle bir girdi bulursa uyarır ve silme komutunu verir.
+>
+> ⚠️ Otomatik oturum açma, sunucuda **kimse girmeden açık bir masaüstü** demek —
+> fiziksel erişimi olan onu görür. Kullanıcı bunu 2026-08-27'de bilerek kabul
+> etti (sunucu kilitli alanda). Ekranı kilitlemek istersen **önce dene**:
+> kilitli oturumda PCOMM otomasyonu çalışmayabilir; kilidi açıp bir teyit
+> gönderisi ile doğrulamadan bu ayarı bırakma.
+
+### Agent artık kendini yeniden başlatır
+
+`Teyit_Agent_Baslat.bat` bir döngüye alındı: python süreci ölürse (PCOMM COM
+hatası, elle kapatma, çökme) 10 sn sonra yeniden kalkar. Her kalkış ekrana ve
+`as400\teyit_loglari\agent_kalkis.log` dosyasına yazılır. Durdurmak için
+pencereyi kapat.
+
+### Doğrulama
+
+Sunucuyu yeniden başlat, **hiçbir şeye dokunmadan** 5-6 dk bekle. Panelde AS400
+ayar bloğunda **"teyit-agent bağlı"** ve **"gözcü açık"** rozetlerini gör
+(rozetin üstüne gelince son kontrol saati ve son hata metni çıkar). Sonra bir
+satır teyit gönderip doğrula. Rozet "gözcü KAPALI" diyorsa `oturum_config.json`
+etkin değildir (bkz. §9); "Session B SORUNLU" diyorsa gözcü çalışıyor ama
+kurtaramıyor — sebep rozetin başlığında ve agent konsolundadır.
