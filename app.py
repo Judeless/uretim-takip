@@ -11160,6 +11160,12 @@ _OTO_VARSAYILAN = {
     # Sahada bir kez izlenmeden kendiliğinden başlamamalı (oto_config.json'da
     # etkin:true ile açılır, restart gerekmez — her turda taze okunur).
     'erken_teyit':    {'etkin': False, 'gecikme_dk': 5, 'kontrol_dk': 2},
+    # TEYİT-AGENT NÖBETİ (kullanıcı 2026-08-27): agent/PCOMM interaktif oturumda
+    # yaşadığı için sunucu yeniden başlarsa kimse fark etmeden günlerce ölü
+    # kalabiliyor (hafta sonu olayı). Nöbetçi bunu dakikalar içinde maille haber
+    # verir. 'alicilar' boşsa mail SMTP gönderen adresine (şirket kutusu) gider.
+    'agent_nobeti':   {'etkin': True, 'kontrol_dk': 10, 'hatirlatma_saat': 6,
+                       'alicilar': []},
 }
 
 
@@ -11194,6 +11200,134 @@ def _oto_config():
 def _oto_config_yaz(cfg):
     with open(_OTO_CONFIG_YOL, 'w', encoding='utf-8') as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
+# Nöbetin hafızası: aynı arıza için tekrar tekrar mail atılmasın.
+# 'sorun' None ise her şey yolunda. Süreç ömrü boyunca yaşar — app restart
+# olursa ilk turda arıza varsa yeniden bir uyarı gider (istenen davranış:
+# restart'tan sonra durumu bir kez daha duyurmak).
+_AGENT_NOBET = {'sorun': None, 'basladi': None, 'son_uyari': None}
+
+
+def _teknik_uyari_mail(konu, govde):
+    """Teknik (bakım) uyarısı gönderir. Günlük rapor alıcılarına DEĞİL:
+    'agent_nobeti.alicilar' listesine, o da boşsa SMTP gönderen adresine —
+    yönetim raporu okuyanların kutusuna teknik alarm düşmesin."""
+    try:
+        import mail_raporu as _mr
+        cfg = _mr.config_yukle()
+        if not cfg or not cfg.get('etkin'):
+            return False, 'mail yapılandırılmamış'
+        if not _mr.host_uygun(cfg):
+            return False, 'bu makine gönderim için yetkili değil (sadece_host)'
+        alicilar = [a for a in ((_oto_config().get('agent_nobeti') or {}).get('alicilar') or []) if a]
+        if not alicilar and cfg.get('gonderen'):
+            alicilar = [cfg['gonderen']]
+        if not alicilar:
+            return False, 'alıcı yok'
+        if _mr.yontem_al(cfg) == 'outlook':
+            _mr._outlook_gonder(alicilar, konu, govde, None, None)
+        else:
+            _mr._smtp_gonder(cfg, alicilar, konu, govde, None, None)
+        return True, ', '.join(alicilar)
+    except Exception as e:
+        return False, f'{type(e).__name__}: {e}'
+
+
+def _agent_sorunu():
+    """AS400 otomasyonunda ŞU AN bir arıza var mı? (kısa_ad, açıklama) | (None, '')"""
+    d = _teyit_agent_durum()
+    if not d['agent']:
+        return ('agent kapalı',
+                'teyit-agent (127.0.0.1:5010) yanıt vermiyor. PCOMM ve agent '
+                'promanage oturumunda yaşar; sunucu yeniden başladıysa ya da '
+                'oturum kapandıysa ikisi de ölmüştür.')
+    gz = d['gozcu'] or {}
+    if gz.get('thread_hata'):
+        return ('gözcü döngüsü hatalı',
+                f'Oturum gözcüsü istisna alıyor: {gz["thread_hata"]}')
+    if gz.get('etkin') and gz.get('son_durum') in ('IPTAL', 'TIMEOUT', 'KASA-BOS',
+                                                   'KASA-HATA', 'BILINMEYEN'):
+        return (f'Session B kurtarılamıyor ({gz["son_durum"]})',
+                f'Oturum gözcüsü çalışıyor ama Session B\'yi geri getiremiyor. '
+                f'Son kontrol {gz.get("son_zaman") or "?"} — {gz.get("son_detay") or ""}')
+    return (None, '')
+
+
+def agent_nobet_job():
+    """AS400 otomasyonu ayakta mı? Düşerse/dönerse mail atar (periyodik).
+
+    NEDEN (kullanıcı 2026-08-27): hafta sonu sunucu yeniden başladı, PCOMM+agent
+    kalkmadı ve bu pazartesi sabahına kadar FARK EDİLMEDİ — iki günün teyidi
+    gecikti. Panelde rozet var ama kimse bakmıyorsa işe yaramıyor; arıza kendini
+    haber vermeli. Uyarı ARIZA DEĞİŞİNCE gider (spam yok), sürerse
+    hatirlatma_saat'te bir tekrarlanır, düzelince 'geri geldi' maili atılır."""
+    cfg = (_oto_config().get('agent_nobeti') or {})
+    if not cfg.get('etkin'):
+        return
+    try:
+        sorun, aciklama = _agent_sorunu()
+        # TEK ÖLÇÜMLE ALARM VERME: agent kendini yeniden başlatırken (bkz.
+        # Teyit_Agent_Baslat.bat döngüsü) ~10 sn kapalı görünür. Yeni bir arıza
+        # ancak 20 sn sonra HÂLÂ duruyorsa gerçektir; aksi halde her agent
+        # yenilenmesi yanlış alarm üretirdi.
+        if sorun and sorun != _AGENT_NOBET['sorun']:
+            import time as _time      # app.py modül düzeyinde time import ETMEZ
+            _time.sleep(20)
+            sorun, aciklama = _agent_sorunu()
+    except Exception as e:
+        print(f'[AGENT-NOBET] durum okunamadı: {e}')
+        return
+    simdi = datetime.now()
+    onceki = _AGENT_NOBET['sorun']
+
+    if not sorun:
+        if onceki:
+            dk = int((simdi - (_AGENT_NOBET['basladi'] or simdi)).total_seconds() // 60)
+            ok, kime = _teknik_uyari_mail(
+                'Cofle Forge — AS400 otomasyonu geri geldi',
+                f'AS400 otomasyonu tekrar çalışıyor.\n\n'
+                f'Arıza      : {onceki}\n'
+                f'Süre       : yaklaşık {dk} dakika\n'
+                f'Düzelme    : {simdi.strftime("%d.%m.%Y %H:%M")}\n\n'
+                f'Bu süre boyunca gönderilemeyen teyitler kuyrukta duruyor; '
+                f'panelden gönderebilir ya da 17:10 koşusunu bekleyebilirsin.\n')
+            print(f'[AGENT-NOBET] düzeldi ({onceki}, {dk} dk) — mail: {ok} {kime}')
+        _AGENT_NOBET.update({'sorun': None, 'basladi': None, 'son_uyari': None})
+        return
+
+    yeni_ariza = (sorun != onceki)
+    try:
+        hatirlatma = max(1, int(cfg.get('hatirlatma_saat') or 6))
+    except (TypeError, ValueError):
+        hatirlatma = 6
+    tekrar_zamani = (_AGENT_NOBET['son_uyari'] is None
+                     or (simdi - _AGENT_NOBET['son_uyari']).total_seconds() >= hatirlatma * 3600)
+    if yeni_ariza:
+        _AGENT_NOBET.update({'sorun': sorun, 'basladi': simdi})
+    if not (yeni_ariza or tekrar_zamani):
+        return
+
+    sure = ''
+    if not yeni_ariza and _AGENT_NOBET['basladi']:
+        sure = f'\nSüre       : {int((simdi - _AGENT_NOBET["basladi"]).total_seconds() // 60)} dakikadır sürüyor'
+    ok, kime = _teknik_uyari_mail(
+        f'Cofle Forge — AS400 otomasyonu DURDU ({sorun})',
+        f'AS400 teyit otomasyonu şu anda çalışmıyor.\n\n'
+        f'Arıza      : {sorun}\n'
+        f'Zaman      : {simdi.strftime("%d.%m.%Y %H:%M")}{sure}\n\n'
+        f'{aciklama}\n\n'
+        f'ETKİSİ: bu sürede hiçbir teyit ERP\'ye gitmez — panelden gönderim de, '
+        f'16:45 transfer ve 17:10 teyit koşuları da atlanır.\n\n'
+        f'YAPILACAK (sunucuda, promanage oturumunda):\n'
+        f'  1. RDP ile bağlan (oturumu KAPATMA, çıkarken Disconnect).\n'
+        f'  2. PCOMM A ve B pencerelerini aç, sign-on yap.\n'
+        f'  3. Teyit-agent penceresi yoksa: as400\\Teyit_Agent_Baslat.bat\n'
+        f'  4. Doğrula: as400\\Robot_Tani.bat -> 2 bağlantı, [A] ve [B].\n'
+        f'  5. Panelde AS400 blogunda "teyit-agent bağlı" rozetini gör.\n\n'
+        f'Bu uyarı düzelene kadar {hatirlatma} saatte bir tekrarlanır.\n')
+    _AGENT_NOBET['son_uyari'] = simdi
+    print(f'[AGENT-NOBET] {"YENİ" if yeni_ariza else "sürüyor"}: {sorun} — mail: {ok} {kime}')
 
 
 def _oto_telafi_gerek_mi(kosu_turu):
@@ -12004,8 +12138,14 @@ if __name__ == '__main__':
             # vardiyaların adetleriyle çalışsın, açık kayıtla değil.
             _ek.append((VARDIYA_OTO_KAPAT_SAAT[0], VARDIYA_OTO_KAPAT_SAAT[1],
                         vardiya_oto_kapat_job, 'Açık Vardiyaları Kapat'))
+            # AGENT NÖBETİ: agent/gözcü düşerse mail (bkz. agent_nobet_job).
+            try:
+                _nbd = max(1, int((_ocfg.get('agent_nobeti') or {}).get('kontrol_dk') or 10))
+            except (TypeError, ValueError):
+                _nbd = 10
             start_scheduler(ek_gorevler=_ek,
-                            periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit')])
+                            periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit'),
+                                                (_nbd, agent_nobet_job, 'Teyit-Agent Nöbeti')])
         except Exception as _e:
             print(f'[SCHED] başlatılamadı: {_e}')
 

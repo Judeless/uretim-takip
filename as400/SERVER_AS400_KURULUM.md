@@ -218,3 +218,31 @@ ayar bloğunda **"teyit-agent bağlı"** ve **"gözcü açık"** rozetlerini gö
 satır teyit gönderip doğrula. Rozet "gözcü KAPALI" diyorsa `oturum_config.json`
 etkin değildir (bkz. §9); "Session B SORUNLU" diyorsa gözcü çalışıyor ama
 kurtaramıyor — sebep rozetin başlığında ve agent konsolundadır.
+
+### Nöbetçi — otomasyon düşerse haber verir (2026-08-27)
+
+Otomatik kalkış kurulsa bile bir şey ters gidebilir; asıl acı veren, **kimsenin
+fark etmemesiydi**. Uygulama servisi (Session 0, şifresiz) agent'ın sağlığını
+zaten görebiliyor — artık periyodik kontrol edip arıza çıkınca mail atıyor:
+
+- **Ne izleniyor:** teyit-agent yanıt veriyor mu; gözcü döngüsü hata alıyor mu;
+  gözcü çalışıyor ama Session B'yi kurtaramıyor mu (`IPTAL`/`TIMEOUT`/`KASA-*`).
+- **Yanlış alarm yok:** yeni bir arıza 20 sn sonra tekrar ölçülür; agent kendini
+  yeniden başlatırken (10 sn) mail çıkmaz. Gözcünün *ayarla kapatılmış* olması
+  arıza sayılmaz.
+- **Spam yok:** uyarı arıza değişince gider, sürerse `hatirlatma_saat`te bir
+  (varsayılan 6 saat) tekrarlanır, düzelince "geri geldi" maili gelir.
+- **Kime:** `as400\oto_config.json` → `agent_nobeti.alicilar`. Boşsa SMTP
+  gönderen adresine (şirket kutusu) gider — yönetim raporu okuyanlara teknik
+  alarm düşmez.
+- **Nerede:** yalnız canlı sunucuda (`mail_config.json` → `sadece_host`).
+  Laptopta agent zaten yok, oradan mail çıkmaz.
+
+Ayarlar (`oto_config.json`, restart gerekmez — `kontrol_dk` hariç):
+
+```json
+"agent_nobeti": { "etkin": true, "kontrol_dk": 10, "hatirlatma_saat": 6, "alicilar": [] }
+```
+
+Mailin gövdesi ne yapılacağını sırasıyla yazar (RDP → PCOMM A+B → agent →
+`Robot_Tani.bat` → panel rozeti).
