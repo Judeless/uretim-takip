@@ -173,10 +173,19 @@ açılış → otomatik oturum açma → PCOMM A + PCOMM B → teyit-agent → g
 as400\Otomatik_Kalkis_Kur.bat
 ```
 
-Betik `.ws` oturum profillerini arar (bulamazsa yollarını argüman olarak
-verebilirsin), Başlangıç klasörüne **PCOMM A**, **PCOMM B** ve **Cofle Teyit
-Agent** kısayollarını kurar, otomatik oturum açma durumunu raporlar. Kayıt
-defterine yazmaz, şifre istemez.
+**En kolayı: PCOMM A ve B açıkken çalıştır.** Betik PCOMM kısayolunu üç yolla
+bulmayı dener, sırayla:
+
+1. Argümanla verdiğin `.ws` yolları,
+2. **O anda çalışan `pcsws.exe` süreçleri** — emülatörü neyle başlattıysan
+   Başlangıç'a onun aynısını koyar (dosya aramaya gerek kalmaz, tahmin yok),
+3. Bilinen klasörlerde `*.ws` araması (`AppData\IBM`, `ProgramData\IBM`,
+   Belgeler, Masaüstü, `Program Files\IBM`…).
+
+Sonra **Cofle Teyit Agent** kısayolunu kurar, otomatik oturum açma durumunu
+raporlar ve Başlangıç klasörünün içeriğini listeler. Kayıt defterine yazmaz,
+şifre istemez. PCOMM kısayolu kurulamazsa durmaz — kalan adımları tamamlar ve
+ne yapman gerektiğini yazar.
 
 ### Otomatik oturum açma (elle, bir kez)
 

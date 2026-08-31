@@ -16,14 +16,27 @@ REM     otomatik oturum acma -> PCOMM A + B -> teyit-agent -> gozcu sign-on
 REM  Otomatik oturum acmayi betik YAPMAZ (sifre gerektirir) - durumunu
 REM  raporlar ve nasil kurulacagini yazar. Kisayollari kurar.
 REM
+REM  PCOMM kisayollari icin SIRAYLA denenir:
+REM     1) argumanla verilen .ws yollari
+REM     2) SU AN CALISAN pcsws.exe oturumlari  <- en guvenilir, tahmin yok
+REM     3) bilinen klasorlerde *.ws aramasi
+REM
 REM  Kullanim:
-REM     Otomatik_Kalkis_Kur.bat                 -> .ws profillerini arar
+REM     Otomatik_Kalkis_Kur.bat                 -> kendisi bulur
 REM     Otomatik_Kalkis_Kur.bat "A.ws" "B.ws"   -> profilleri sen verirsin
+REM
+REM  BAKIM NOTU: for /f ( '...' ) icindeki PowerShell komutunda VIRGUL ve
+REM  BORU KULLANMA. cmd ikisini de bozuyor: virgul komutu parcaliyor (cikti
+REM  bos doner), boru kacisi ^| PowerShell'e duz '^' argumani olarak geciyor
+REM  ("A positional parameter cannot be found that accepts argument '^'").
+REM  Dizi virgulle degil += ile kurulur, boru yerine foreach kullanilir.
 REM ===================================================================
 cd /d %~dp0
 if not defined COFLE_BASLANGIC set COFLE_BASLANGIC=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 set BASLANGIC=%COFLE_BASLANGIC%
 set PS=powershell -NoProfile -ExecutionPolicy Bypass -Command
+if not defined COFLE_PCOMM_EXE set COFLE_PCOMM_EXE=pcsws.exe
+set PCOMM_KURULDU=0
 
 echo.
 echo ==========================================================
@@ -41,21 +54,34 @@ if not exist "%BASLANGIC%" (
     exit /b 1
 )
 
-REM --- 1) PCOMM oturum profilleri (.ws) -----------------------------
-set A_WS=%~1
-set B_WS=%~2
-if not "%A_WS%"=="" goto kisayollar
+echo [1/4] PCOMM oturum kisayollari:
 
-echo [1/4] PCOMM oturum profilleri araniyor (*.ws)...
-REM DIKKAT: for /f ( '...' ) icindeki PowerShell komutunda VIRGUL ve BORU
-REM KULLANMA. cmd ikisini de bozuyor: virgul komutu parcaliyor (cikti bos
-REM doner), boru ^| kacisi PowerShell'e duz '^' argumani olarak geciyor
-REM ("A positional parameter cannot be found that accepts argument '^'").
-REM Bu yuzden dizi virgulle degil += ile kuruluyor ve boru yerine foreach var.
-REM Ayrica Get-ChildItem -Path'e COKLU yol verilip biri yoksa PS 5.1 hicbir
-REM sonuc dondurmuyor -> yollar tek tek Test-Path ile dolasiliyor.
+REM --- 1a) Yollar argumanla verildiyse -------------------------------
+if not "%~1"=="" (
+    call :kisayol "PCOMM A.lnk" "%~1" ""
+    call :kisayol "PCOMM B.lnk" "%~2" ""
+    set PCOMM_KURULDU=1
+    goto ajan
+)
+
+REM --- 1b) SU AN CALISAN PCOMM oturumlarindan ------------------------
+REM En guvenilir yol: emulator zaten aciksa onu NEYLE baslattiysak aynisini
+REM Baslangic'a koyariz - .ws dosyasini aramaya gerek kalmaz. Kisayolu
+REM PowerShell olusturur (for /f ayristirmasi yok), kac tane kurdugunu
+REM cikis koduyla bildirir.
+%PS% "$b='%BASLANGIC%'; $n=0; foreach($p in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)){ if($p.Name -eq '%COFLE_PCOMM_EXE%'){ $n=$n+1; $exe=$p.ExecutablePath; $ws=''; foreach($q in ($p.CommandLine -split [char]34)){ if($q -like '*.ws'){ $ws=$q.Trim() } }; $ad='PCOMM ' + $n; if($ws -ne ''){ $ad='PCOMM ' + [System.IO.Path]::GetFileNameWithoutExtension($ws) }; $s=(New-Object -ComObject WScript.Shell).CreateShortcut($b + '\' + $ad + '.lnk'); $s.TargetPath=$exe; if($ws -ne ''){ $s.Arguments=[char]34 + $ws + [char]34 }; $s.WorkingDirectory=[System.IO.Path]::GetDirectoryName($exe); $s.Save(); ('       OK: ' + $ad + '.lnk  ->  ' + $exe + ' ' + $ws) } }; exit $n"
+if %ERRORLEVEL% GEQ 1 (
+    set PCOMM_KURULDU=1
+    echo        Calisan %ERRORLEVEL% PCOMM oturumu Baslangic'a eklendi.
+    goto ajan
+)
+echo        PCOMM (%COFLE_PCOMM_EXE%) su an calismiyor - profil dosyasi araniyor...
+
+REM --- 1c) Bilinen klasorlerde *.ws aramasi -------------------------
+REM PS 5.1: Get-ChildItem -Path'e COKLU yol verilip biri yoksa -Recurse
+REM hicbir sonuc dondurmuyor -> yollar tek tek Test-Path ile dolasiliyor.
 set BULUNAN=0
-for /f "delims=" %%F in ('%PS% "$y=@(); $y+=$env:USERPROFILE+'\Documents'; $y+=$env:PUBLIC+'\Documents'; $y+=$env:APPDATA+'\IBM'; $y+=$env:ProgramData+'\IBM'; $n=0; foreach($p in $y){ if(Test-Path -LiteralPath $p){ foreach($f in @(Get-ChildItem -LiteralPath $p -Filter *.ws -Recurse -ErrorAction SilentlyContinue)){ if($n -lt 20){ $f.FullName; $n=$n+1 } } } }"') do (
+for /f "delims=" %%F in ('%PS% "$y=@(); $y+=$env:APPDATA+'\IBM'; $y+=$env:LOCALAPPDATA+'\IBM'; $y+=$env:ProgramData+'\IBM'; $y+=$env:USERPROFILE+'\Documents'; $y+=$env:USERPROFILE+'\Desktop'; $y+=$env:PUBLIC+'\Documents'; $y+=$env:PUBLIC+'\Desktop'; $y+=$env:ProgramFiles+'\IBM'; $y+='C:\Program Files (x86)\IBM'; $n=0; foreach($p in $y){ if(Test-Path -LiteralPath $p){ foreach($f in @(Get-ChildItem -LiteralPath $p -Filter *.ws -Recurse -ErrorAction SilentlyContinue)){ if($n -lt 20){ $f.FullName; $n=$n+1 } } } }"') do (
     if exist "%%F" (
         set /a BULUNAN+=1
         set "WS_!BULUNAN!=%%F"
@@ -64,12 +90,13 @@ for /f "delims=" %%F in ('%PS% "$y=@(); $y+=$env:USERPROFILE+'\Documents'; $y+=$
 )
 if %BULUNAN%==0 (
     echo.
-    echo    .ws profili bulunamadi. PCOMM'da A ve B oturumlarini acip
-    echo    "Dosya - Farkli kaydet" ile profilleri kaydet, sonra:
-    echo        Otomatik_Kalkis_Kur.bat "C:\yol\A.ws" "C:\yol\B.ws"
-    echo.
-    pause
-    exit /b 1
+    echo        .ws profili bulunamadi. Iki secenek:
+    echo          a^) PCOMM A ve B oturumlarini AC, betigi tekrar calistir -
+    echo             calisan oturumlardan kendisi kurar. EN KOLAYI BU.
+    echo          b^) Yolu kendin ver. Ogrenmek icin PCOMM'da "Dosya - Farkli
+    echo             kaydet" penceresine bak, sonra:
+    echo                Otomatik_Kalkis_Kur.bat "C:\yol\A.ws" "C:\yol\B.ws"
+    goto ajan
 )
 echo.
 set /p A_NO=   A oturumunun numarasi:
@@ -80,27 +107,20 @@ set "B_NO=%B_NO: =%"
 set "A_WS=!WS_%A_NO%!"
 set "B_WS=!WS_%B_NO%!"
 if not exist "!A_WS!" (
-    echo.
-    echo    HATA: %A_NO% numarali gecerli bir profil yok. Yollari kendin ver:
-    echo        Otomatik_Kalkis_Kur.bat "C:\yol\A.ws" "C:\yol\B.ws"
-    echo.
-    pause
-    exit /b 1
+    echo        HATA: %A_NO% numarali gecerli bir profil yok - kisayol kurulmadi.
+    goto ajan
 )
 if not exist "!B_WS!" (
-    echo.
-    echo    HATA: %B_NO% numarali gecerli bir profil yok. Yollari kendin ver:
-    echo        Otomatik_Kalkis_Kur.bat "C:\yol\A.ws" "C:\yol\B.ws"
-    echo.
-    pause
-    exit /b 1
+    echo        HATA: %B_NO% numarali gecerli bir profil yok - kisayol kurulmadi.
+    goto ajan
 )
+call :kisayol "PCOMM A.lnk" "!A_WS!" ""
+call :kisayol "PCOMM B.lnk" "!B_WS!" ""
+set PCOMM_KURULDU=1
 
-:kisayollar
+:ajan
 echo.
-echo [2/4] Baslangic kisayollari:
-call :kisayol "PCOMM A.lnk"           "%A_WS%"                      ""
-call :kisayol "PCOMM B.lnk"           "%B_WS%"                      ""
+echo [2/4] Teyit-agent kisayolu:
 call :kisayol "Cofle Teyit Agent.lnk" "%~dp0Teyit_Agent_Baslat.bat" "%~dp0"
 
 REM --- 3) Otomatik oturum acma durumu (SALT OKUNUR) ------------------
@@ -131,6 +151,10 @@ if "%DPW%"=="1" (
 REM --- 4) Ozet ------------------------------------------------------
 echo.
 echo [4/4] Sirada ne var:
+if "%PCOMM_KURULDU%"=="0" (
+    echo        - PCOMM kisayollari KURULMADI. En kolayi: emulator A+B acikken
+    echo          bu betigi tekrar calistir.
+)
 if not "%AAL%"=="1" (
     echo        - Otomatik oturum acmayi kur: Sysinternals "Autologon"
     echo          [learn.microsoft.com/sysinternals/downloads/autologon]
@@ -144,6 +168,9 @@ echo        - Bir satir teyit gonderip dogrula.
 echo.
 echo    NOT: oturumu KAPATMA (logoff) - PCOMM + agent olur.
 echo         RDP'den cikarken daima "Disconnect" kullan.
+echo.
+echo    Baslangic klasorunun icerigi:
+dir /b "%BASLANGIC%"
 echo.
 pause
 exit /b 0
