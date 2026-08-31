@@ -14178,12 +14178,22 @@ window.__I18N_SOZLUK__ = {
             if (araList.length || digerList.length || haricList.length) {
                 sBilgi += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--b-kaynak);font-weight:800;font-size:.9rem">ℹ️ Bilgi amaçlı — bunlara teyit verilmez: ara operasyon (' + araList.length + ') · teyit gerekmez (' + haricList.length + ') · diğer (' + digerList.length + ')</summary><div style="margin-top:8px;font-size:.82rem">';
                 if (haricList.length) {
-                    sBilgi += '<div style="color:var(--lg-slate);font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez (kalıcı işaret) — robot dokunmaz:</div>';
+                    sBilgi += '<div style="color:var(--lg-slate);font-weight:800;margin:8px 0 4px">⊘ Teyit gerekmez — robot dokunmaz:</div>';
                     haricList.forEach(function (x) {
+                        // GEREKÇE GÖRÜNSÜN (2026-08-27): hariç bırakma artık üç
+                        // sebepten olabiliyor — kalıcı işaret, test cihazı, ya da
+                        // referanstaki operatör eki (tamir/punta/rework). Sebebi
+                        // yazmazsak "bu satır neden teyit edilmedi" sorusu kalıyor.
+                        // '↩ geri al' YALNIZ kalıcı işarette anlamlı: otomatik
+                        // sebeplerde kaldırılacak bir işaret yok, buton yanıltırdı.
+                        var sbp = x.r.haric_sebep || '';
                         sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum, x.r.tesis)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
-                            '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
-                            'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'kalici\',\'gerek_yok\',\'\',true)" ' +
-                            'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" title="Kalıcı işareti kaldır, tekrar teyit listesine gelsin">↩ geri al</button></div>';
+                            (sbp
+                                ? '<span style="color:var(--muted);font-size:.78rem">— ' + esc(sbp) + '</span>'
+                                : '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
+                                  'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'kalici\',\'gerek_yok\',\'\',true)" ' +
+                                  'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" title="Kalıcı işareti kaldır, tekrar teyit listesine gelsin">↩ geri al</button>')
+                            + '</div>';
                     });
                 }
                 if (araList.length) {

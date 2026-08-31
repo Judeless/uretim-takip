@@ -9440,6 +9440,30 @@ def _kapasite_reddi(conn, referans, uretim_tarihi, adet):
     return None
 
 
+def _operator_eki_engeli(referans, article=''):
+    """Referansta tamir/punta/rework gibi operatör eki varsa gerekçe döner.
+
+    SON SAVUNMA HATTI (kullanıcı 2026-08-27): kuyruk motoru bu satırları zaten
+    HARİÇ'e ayırıyor, ama panel açık kalmış eski bir listeyi ya da elle
+    işaretlenmiş bir satırı gönderebilir. ERP'ye yazan üç çekirdek de burada
+    durur — kural tek yerde (launch_esle.teyit_disi_sebep) tanımlı."""
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+        ek = _le.operator_eki(referans, article) or (
+            'rework' if _le.rework_mi(referans, article) else '')
+    except Exception as e:
+        print(f'[TEYIT] operator eki kontrolu yapilamadi: {e}')
+        return ''
+    if not ek:
+        return ''
+    return (f'"{ek}" ekli referans — tamir/punta/rework üretimi ERP'
+            "'" f'ye teyit edilmez (kullanıcı kuralı 2026-08-27)')
+
+
 def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla=False,
                            sonuc_kanal=None):
     """Launch teyit satırlarını robotla işler — endpoint VE 17:10 oto koşusu ortak
@@ -9488,6 +9512,10 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
 
         if not (yil.isdigit() and len(yil) == 2 and no.isdigit() and 0 < adet <= 99999 and article and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+            continue
+        _engel = _operator_eki_engeli(referans, article)
+        if _engel:
+            sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _engel})
             continue
         # Mükerrer koruması 1: kendi gönderim log'umuz — ADET DAHİL (2026-08-06).
         # ESKİDEN gün+launch yeterliydi: o güne bir kez teyit verildiyse İKİNCİSİ
@@ -10054,6 +10082,12 @@ def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
             import launch_esle as _le
             harita = {}
             for u in _le.gun_uretimi(uretim_tarihi):
+                # TEYIT DISI SATIRLAR SAYILMAZ (2026-08-27): gun_uretimi artik
+                # rework/tamir/punta kayitlarini SILMIYOR, bayrakliyor. Burada
+                # elenmezlerse mutabakat onlari "teyit edilmemis uretim" sanip
+                # ERP'ye fark gonderirdi — tam da onlemeye calistigimiz sey.
+                if u.get('teyit_disi'):
+                    continue
                 harita[_le.kanonik(u.get('referans'))] = (
                     harita.get(_le.kanonik(u.get('referans')), 0) + (u.get('adet') or 0))
             _onbellek[uretim_tarihi] = harita
@@ -10108,6 +10142,10 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         kayit = {'referans': referans, 'article': article, 'adet': adet, 'uretim_tarihi': u_tarih}
         if not (article and 0 < adet <= 99999 and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+            continue
+        _engel = _operator_eki_engeli(referans, article)
+        if _engel:
+            sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _engel})
             continue
         # Mükerrer 1: kendi log'umuz (CFI kayıtları yil='CF', launch_no=article).
         # ADET DAHİL (2026-08-06) — bkz. launch tarafındaki aynı düzeltme: aynı gün
@@ -10329,6 +10367,10 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
                  'uretim_tarihi': u_tarih, 'bayrak': 'COP'}
         if not (article and 0 < adet <= 99999 and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
+            continue
+        _engel = _operator_eki_engeli(referans, article)
+        if _engel:
+            sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _engel})
             continue
         # Mükerrer: aynı üretim günü + article + AYNI ADET için COP girildiyse atla.
         # ADET DAHİL (2026-08-06) — launch/CFI ile aynı gerekçe: aynı gün iki

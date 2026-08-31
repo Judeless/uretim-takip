@@ -477,6 +477,52 @@ def rework_mi(*metinler):
     return any(m and REWORK_RE.search(m) for m in metinler)
 
 
+# OPERATOR EKLERI (kullanici 2026-08-27): "referanslarin sonuna operatorler
+# tarafindan tamir, rework, punta gibi yazilar yazildiysa bunlara teyit
+# vermeyecegiz." Bu kayitlar yeni urun DEGIL (yeniden isleme / ara islem);
+# teyit verilirse ERP'ye olmayan stok girer.
+#
+# KELIME SINIRI SART: '015-6112NUMUNE' gibi GERCEK kodlarda kelime kodun
+# PARCASIDIR. Lookbehind, alfanumerik karakterden hemen sonra gelen eslesmeyi
+# eler -> yalniz bosluk/nokta/tire ile AYRILMIS ek yakalanir:
+#   '10.300.6340 tamir'      -> YAKALAR
+#   '10.300.6344A somun punta' -> YAKALAR
+#   '015-6112PUNTA'          -> yakalamaz (kodun parcasi)
+# TURKCE KATLAMA: operator 'TAMIR' de 'TAMİR' de yazabilir; metin ASCII'ye
+# katlanip oyle aranir (tel_proses._ek_anahtar ile ayni ders).
+TEYIT_DISI_EKLER = ('tamir', 'onarim', 'punta')
+_TR_KATLA = str.maketrans('ÇĞİÖŞÜçğıöşü', 'CGIOSUcgiosu')
+_EK_DESEN = re.compile(r'(?<![0-9A-Za-z])(' + '|'.join(TEYIT_DISI_EKLER) + r')\w*', re.I)
+
+
+def operator_eki(*metinler):
+    """Referans/aciklama teyit engelleyen bir operator eki tasiyor mu?
+    Doner: eslesen kelime (orijinal yazimiyla) | ''."""
+    for m in metinler:
+        if not m:
+            continue
+        e = _EK_DESEN.search(m.translate(_TR_KATLA))
+        if e:
+            return m[e.start():e.end()]
+    return ''
+
+
+def teyit_disi_sebep(tesis, bolum, makine, referans, aciklama=''):
+    """Bu uretim kaydi neden teyit DISI? Sebep metni | '' (teyit edilir).
+
+    Tek karar noktasi: kuyruk motoru da gonderim de burayi cagirir, iki taraf
+    zamanla ayrisamaz."""
+    if (tesis, bolum, makine) in TEYIT_DISI_MAKINE:
+        return ('Test cihazı — teyit yapıştırmada verilir (aynı kod, mükerrer olmasın)')
+    if rework_mi(aciklama, referans):
+        return 'Rework kaydı — yeniden işleme, ERP\'ye stok girmez'
+    ek = operator_eki(referans, aciklama)
+    if ek:
+        return (f'Referansta "{ek}" eki var — tamir/punta gibi işlemler yeni ürün '
+                f'değildir, teyit edilmez')
+    return ''
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # KAPASITE MAKULLUK KONTROLU (2026-07-30)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -549,7 +595,7 @@ def ayni_isi_birlestir(satirlar):
         # koda dusuyor ve BIRLESIYORDU -> hem HARIC ayrimi kayboluyor hem adet
         # toplanip ERP'ye iki kat stok giriyordu.
         anahtar = (r.get('tesis'), r.get('bolum'), kanonik(r.get('referans')),
-                   bool(r.get('teyit_disi')))
+                   bool(r.get('teyit_disi')), r.get('teyit_disi_sebep') or '')
         g = grup.get(anahtar)
         if g is None:
             grup[anahtar] = dict(r)
@@ -690,11 +736,12 @@ def gun_uretimi(tarih):
         ORDER BY tesis, bolum, u.referans_kodu""",
         [tarih] + _kap_parm).fetchall()
     conn.close()
-    # Grupla — rework kayitlarini ATLA (kayit bazli; ayni referansin normal uretimi kalir)
+    # Grupla. TEYIT DISI kayitlar (test cihazi / rework / operator eki) SILINMEZ,
+    # bayraklanir: satir listede kalir (uretim gorunsun), HARIC kutusuna gerekcesiyle
+    # duser ve teyit kuyruguna GIRMEZ. Kayit bazlidir: ayni referansin normal
+    # uretimi teyit edilir, yalniz ekli/rework kismi ayrilir.
     grup = {}
     for r in rows:
-        if rework_mi(r['aciklama'], r['referans']):
-            continue
         # TEYIT DISI BAYRAGI ANAHTARA GIRER (kullanici 2026-08-25).
         # Yapistirma ile sizdirmazlik testinin kodu AYNI: ayni satirda birleserlerse
         # (a) test kaydi yapistirmanin icinde kaybolur, 'teyit gerekmez' ayrimi
@@ -703,13 +750,16 @@ def gun_uretimi(tarih):
         # uretiyorsa TEK satirda toplanmalari DOGRU (hepsine teyit verilir);
         # ayrilmasi gereken yalniz teyit disi makinedir.
         _mak = makine_adi(r['tesis'], r['bolum'], r['istasyon'])
-        _disi = (r['tesis'], r['bolum'], _mak) in TEYIT_DISI_MAKINE
-        key = (r['tesis'], r['bolum'], r['referans'], _disi)
+        _sebep = teyit_disi_sebep(r['tesis'], r['bolum'], _mak,
+                                  r['referans'], r['aciklama'])
+        _disi = bool(_sebep)
+        key = (r['tesis'], r['bolum'], r['referans'], _disi, _sebep)
         g = grup.get(key)
         if g is None:
             g = grup[key] = {'tesis': r['tesis'], 'bolum': r['bolum'],
                              'referans': r['referans'], 'adet': 0, 'hurda': 0,
                              'ct': None, '_vardiyalar': {}, 'teyit_disi': _disi,
+                             'teyit_disi_sebep': _sebep,
                              'makineler': [],
                              'depo_kodu': (r['depo_kodu'] or '').strip(),
                              'karsi_depo_kodu': (r['karsi_depo_kodu'] or '').strip()}
@@ -772,7 +822,9 @@ def uretim_gecmisi(bas_tarih, son_tarih):
               AND u.referans_kodu IS NOT NULL AND u.referans_kodu != ''
               AND {_kap_sql3}""",
                 [bas_tarih, son_tarih] + _kap_parm3).fetchall():
-            if rework_mi(r['aciklama'], r['ref']):
+            # Rework + operator ekli (tamir/punta) kayitlar hareket eslemesinde de
+            # sayilmaz: onlara teyit verilmedigi icin ERP'de karsiligi da yoktur.
+            if rework_mi(r['aciklama'], r['ref']) or operator_eki(r['ref'], r['aciklama']):
                 continue
             ara[(r['tarih'], r['ref'])] += r['ok']
     finally:
@@ -940,8 +992,8 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
         # HARIC olur ve gerekcesi yazilir.
         if u.get('teyit_disi'):
             sonuc['HARIC'].append({**u, 'launchlar': [],
-                                   'haric_sebep': 'Test cihazı — teyit yapıştırmada verilir '
-                                                  '(aynı kod, mükerrer olmasın)'})
+                                   'haric_sebep': u.get('teyit_disi_sebep')
+                                   or 'Teyit dışı üretim'})
             continue
         if kanonik(u['referans']) in haric_set:
             sonuc['HARIC'].append({**u, 'launchlar': []})
