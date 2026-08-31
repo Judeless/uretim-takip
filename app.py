@@ -9124,6 +9124,25 @@ def _teyit_agent_var():
         return False
 
 
+def _teyit_agent_durum():
+    """Agent + oturum gözcüsü sağlığı — panel rozetinin ayrıntılı hâli.
+
+    NEDEN (kullanıcı 2026-08-27: "hafta sonu AS400 hataya geçtiğinde bu sabah
+    geldiğimde otomatik bağlanmamıştı"): gözcünün açık olup olmadığı, en son ne
+    zaman kontrol ettiği ve NEDEN başarısız olduğu yalnızca sunucudaki agent
+    konsolunda görünüyordu — RDP'ye girmeden bilinemiyordu. Agent /durum bunu
+    zaten veriyor, panele taşımak teşhisi uzaktan yapılabilir kılar."""
+    try:
+        import requests
+        r = requests.get(_TEYIT_AGENT_URL + '/durum', timeout=1.5)
+        j = r.json() or {}
+        if r.status_code == 200 and j.get('agent') == 'cofle-teyit':
+            return {'agent': True, 'gozcu': j.get('gozcu') or {}}
+    except Exception:
+        pass
+    return {'agent': False, 'gozcu': {}}
+
+
 def _oturum_0_mi():
     """App bir Windows SERVİSİ olarak mı koşuyor (Session 0)? Sunucuda cofle-app
     NSSM servisi Session 0'dadır; PCOMM pencereleri promanage'ın RDP oturumunda.
@@ -11769,9 +11788,10 @@ def as400_oto_kosu():
 
     # config_hata: oto_config.json bozuksa panel bunu GOSTERIR. Aksi halde tek bir
     # eksik virgul tum ayarlari varsayilana dusurur ve kullanici farketmez.
+    _ajan = _teyit_agent_durum()
     return jsonify({'kosular': kosular, 'config': _oto_config(),
                     'config_hata': dict(_OTO_CONFIG_HATA),
-                    'agent': _teyit_agent_var()})
+                    'agent': _ajan['agent'], 'gozcu': _ajan['gozcu']})
 
 
 @app.route('/api/as400/oto_config', methods=['POST'])

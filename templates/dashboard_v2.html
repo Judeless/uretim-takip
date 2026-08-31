@@ -12901,6 +12901,74 @@ window.__I18N_SOZLUK__ = {
                 ';border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:800">' + txt + '</span>';
         }
 
+        // ══ AS400 parça gönderimi — ağ geçidi zaman aşımına dayanıklı ══
+        // KULLANICI 2026-08-27: "birkaç teyit verdikten sonra bot durdu" (iki kez).
+        //
+        // NE OLUYORDU: bir launch robotu 15-150 sn sürebiliyor, dolayısıyla 4
+        // satırlık bir parça isteği dakikaları buluyor. Sistem Cloudflare tüneli
+        // üzerinden yayınlandığı için ağ geçidi 100 sn'de yanıtı kesip 524
+        // döndürüyor; tarayıcı HTML gövdeyi JSON çözemeyip parçayı tekrar
+        // gönderiyor. AMA SUNUCU O SIRADA ROBOTU HÂLÂ KOŞUYOR: ikinci istek
+        // _AS400_KILIT'e takılıp 409 alıyor, 409 da 'başarısız' sayıldığı için
+        // TÜM AŞAMA duruyordu. Ekranda "bot durdu" görünürken sunucu teyitleri
+        // vermeye devam ediyordu — en yanıltıcı hâli.
+        //
+        // ŞİMDİ: 524/504/502 ve 409 = "sunucu meşgul" → koşunun bitmesi beklenir
+        // (teyit_durum yoklanır), sonra AYNI parça yeniden gönderilir. Mükerrer
+        // teyit RİSKİ YOK: sunucu aynı gün+launch+adet için gönderilmiş satırı
+        // 'atlandi' yazar (as400_teyit_log kontrolü).
+        var AS4_PARCA = 2;          // 4 → 2: parça çoğu zaman 100 sn'nin altında kalsın
+        var AS4_GECIT_KODLARI = [408, 502, 503, 504, 520, 521, 522, 523, 524, 525];
+
+        function as4Bekle(ms) { return new Promise(function (rs) { setTimeout(rs, ms); }); }
+
+        async function as4SunucuBosalsin(yaz, azamiSn) {
+            var bas = Date.now(), ardisikHata = 0;
+            while ((Date.now() - bas) < azamiSn * 1000) {
+                await as4Bekle(5000);
+                try {
+                    var d = await (await panelFetch('/api/as400/teyit_durum')).json();
+                    ardisikHata = 0;
+                    if (!d.calisiyor) return 'bos';
+                    yaz(' — bağlantı koptu ama SUNUCU ÇALIŞMAYA DEVAM EDİYOR, bitmesi bekleniyor (' +
+                        Math.round((Date.now() - bas) / 1000) + ' sn)');
+                } catch (e) {
+                    // Sunucuya hiç ulaşılamıyorsa beklemenin anlamı yok
+                    if (++ardisikHata >= 6) return 'ulasilamiyor';
+                }
+            }
+            return 'zaman_asimi';
+        }
+
+        async function as4ParcaGonder(url, parca, yaz) {
+            var deneme = 0;
+            while (true) {
+                yaz(deneme ? ' — tekrar gönderiliyor (' + deneme + ')' : '');
+                var r = null, d = null, kopuk = false;
+                try {
+                    r = await panelFetch(url, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ satirlar: parca })
+                    });
+                    if (AS4_GECIT_KODLARI.indexOf(r.status) >= 0) kopuk = true;
+                    else d = await r.json();
+                } catch (e) {
+                    if (e && e.message === 'oturum') throw e;   // 401 — panelFetch girişe yolladı
+                    kopuk = true;
+                }
+                if (!kopuk && r.status !== 409) return { r: r, d: d };
+                deneme++;
+                if (deneme > 5) {
+                    throw new Error(kopuk
+                        ? 'Bağlantı defalarca koptu — sunucu koşuyor olabilir, listeyi yenileyip kontrol edin'
+                        : 'Sunucu meşgul kaldı (önceki gönderim bitmedi)');
+                }
+                var durum = await as4SunucuBosalsin(yaz, 900);
+                if (durum === 'ulasilamiyor') throw new Error('Sunucuya ulaşılamıyor');
+                if (durum === 'zaman_asimi') throw new Error('Sunucudaki gönderim 15 dk\'da bitmedi');
+            }
+        }
+
         function as4DurumKontrol() {
             panelFetch('/api/as400/teyit_durum').then(function (r) { return r.json(); }).then(function (d) {
                 var btn = document.getElementById('as4-gonder-btn');
@@ -12971,9 +13039,36 @@ window.__I18N_SOZLUK__ = {
                       '<br>Dosyadaki ayarların HİÇBİRİ geçerli değil (aşağıda görünenler varsayılan). ' +
                       'JSON hatasını düzeltin: as400\oto_config.json</div></div>'
                     : '';
-                var ajanRozet = d.agent
+                // GÖZCÜ DURUMU ROZETTE (kullanıcı 2026-08-27: "hafta sonu AS400
+                // hataya geçtiğinde bu sabah otomatik bağlanmamıştı"). Gözcü yalnız
+                // DÜŞMÜŞ Session B'yi geri getirir; agent'ın kendisi RDP oturumunda
+                // yaşadığı için sunucu yeniden başlar/oturum kapanırsa gözcü de ölür
+                // ve kimse bağlanamaz. Rozet ikisini AYIRT ETTİRİR.
+                var gz = d.gozcu || {};
+                var gzMetin = '', gzRenk = 'var(--muted)', gzBaslik = '';
+                if (d.agent) {
+                    gzBaslik = 'Son kontrol: ' + (gz.son_zaman || '—') +
+                               ' · nabız: ' + (gz.dongu_zaman || '—') +
+                               (gz.son_detay ? '\n' + gz.son_detay : '');
+                    if (!gz.etkin) {
+                        gzMetin = '👁 oturum gözcüsü KAPALI — Session B düşerse elle bağlanmak gerekir';
+                        gzRenk = 'var(--warn)';
+                    } else if (gz.thread_hata) {
+                        gzMetin = '👁 gözcü döngüsü hata veriyor: ' + gz.thread_hata;
+                        gzRenk = 'var(--danger)';
+                    } else if (gz.son_durum && ['OK', 'ZATEN'].indexOf(gz.son_durum) < 0) {
+                        gzMetin = '👁 Session B SORUNLU (' + gz.son_durum + ') — gözcü kurtaramıyor';
+                        gzRenk = 'var(--danger)';
+                    } else {
+                        gzMetin = '👁 gözcü açık (' + ((gz.aralik_sn || 300) / 60) + ' dk)';
+                        gzRenk = 'var(--success)';
+                    }
+                }
+                var ajanRozet = (d.agent
                     ? '<span style="color:var(--success);font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
-                    : '<span style="color:var(--danger);font-weight:700;font-size:.74rem">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>';
+                    : '<span style="color:var(--danger);font-weight:700;font-size:.74rem" title="Agent promanage RDP oturumunda çalışır. Sunucu yeniden başladıysa ya da oturum kapandıysa PCOMM + agent ölür; kimse otomatik geri getiremez (sign-on insan işi).">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>')
+                    + (gzMetin ? '<span style="color:' + gzRenk + ';font-weight:700;font-size:.74rem" title="' +
+                                 esc(gzBaslik) + '">' + esc(gzMetin) + '</span>' : '');
 
                 // ── TEYİT paneli (Launch Kapama sayfası) ──
                 var erkenRozet = ek.etkin
@@ -14328,34 +14423,30 @@ window.__I18N_SOZLUK__ = {
             }
             // PARÇALI GÖNDERİM (2026-07-22): tek fetch ~5 dk'da tarayıcı tarafından
             // KOPARILIYOR (29 satırlık batch'te yaşandı — sunucu bitirdi, UI sonucu
-            // alamadı, CFI fazı hiç başlamadı). 4'erli parçalar ~2 dk'da döner.
+            // alamadı, CFI fazı hiç başlamadı). Parça boyutu AS4_PARCA.
             async function parti(url, satirlar, fazAd) {
                 var t = { ozet: { ok: 0, hata: 0, atlandi: 0 }, sonuclar: [], durduruldu: false, hata_mesaj: '' };
-                for (var p = 0; p < satirlar.length; p += 4) {
-                    var parca = satirlar.slice(p, p + 4);
-                    // Bağlantı kopmasına dayanıklılık (2026-07-23 "tekrar durdu" vakası):
-                    // parça fetch'i 3 kez denenir — sunucu dedup'u (log + ERP hareket)
-                    // yarım kalan parçanın tekrarında mükerrer göndermez, GÜVENLİ.
-                    var r = null, d = null, deneme = 0;
-                    while (true) {
-                        sonucEl.innerHTML = html + as4SonucSatirlari(t.sonuclar) +
-                            spinner(fazAd + ': ' + (p + 1) + '–' + Math.min(p + 4, satirlar.length) + ' / ' + satirlar.length + ' satır' +
-                                (deneme ? ' — bağlantı koptu, tekrar deneniyor (' + deneme + '/2)' : ''));
-                        try {
-                            r = await panelFetch(url, {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ satirlar: parca })
-                            });
-                            d = await r.json();
-                            break;
-                        } catch (eF) {
-                            deneme++;
-                            if (deneme > 2) throw eF;
-                            await new Promise(function (rs) { setTimeout(rs, 2500 * deneme); });
-                        }
+                for (var p = 0; p < satirlar.length; p += AS4_PARCA) {
+                    var son = Math.min(p + AS4_PARCA, satirlar.length);
+                    var parca = satirlar.slice(p, son);
+                    var yaz = (function (bas, bit) {
+                        return function (ek) {
+                            sonucEl.innerHTML = html + as4SonucSatirlari(t.sonuclar) +
+                                spinner(fazAd + ': ' + (bas + 1) + '–' + bit + ' / ' + satirlar.length + ' satır' + (ek || ''));
+                        };
+                    })(p, son);
+                    var res;
+                    try {
+                        res = await as4ParcaGonder(url, parca, yaz);
+                    } catch (eF) {
+                        t.hata_mesaj = eF && eF.message ? eF.message : 'bağlantı hatası';
+                        break;
                     }
-                    if (!r.ok) { t.hata_mesaj = d.hata || 'başarısız'; break; }
-                    var oz = d.ozet || {};
+                    if (!res.r.ok) {
+                        t.hata_mesaj = (res.d && res.d.hata) || ('sunucu hatası (HTTP ' + res.r.status + ')');
+                        break;
+                    }
+                    var d = res.d, oz = d.ozet || {};
                     t.ozet.ok += oz.ok || 0; t.ozet.hata += oz.hata || 0; t.ozet.atlandi += oz.atlandi || 0;
                     t.sonuclar = t.sonuclar.concat(d.sonuclar || []);
                     if (d.durduruldu) { t.durduruldu = true; break; }
@@ -14543,37 +14634,33 @@ window.__I18N_SOZLUK__ = {
             _as4GonderiSuruyor = true;
             btn.disabled = true;
             if (durBtn) { durBtn.style.display = ''; durBtn.disabled = false; durBtn.textContent = '⏹ Durdur'; }
-            // PARÇALI (4'erli) — tarayıcı fetch sınırı + o ana kadarki sonuçlar birikir.
+            // PARÇALI — tarayıcı/ağ geçidi sınırı + o ana kadarki sonuçlar birikir.
             var t = { ozet: { ok: 0, hata: 0, atlandi: 0 }, sonuclar: [], durduruldu: false, hata_mesaj: '' };
             try {
-                for (var p = 0; p < copSec.length; p += 4) {
-                    var parca = copSec.slice(p, p + 4);
-                    var r = null, d = null, deneme = 0;
-                    while (true) {
-                        sonucEl.innerHTML = as4SonucSatirlari(t.sonuclar) +
-                            '<div class="yukleniyor" style="padding:14px 0">🤖 Hurda COP: ' + (p + 1) + '–' + Math.min(p + 4, copSec.length) + ' / ' + copSec.length + ' satır' +
-                            (deneme ? ' — bağlantı koptu, tekrar (' + deneme + '/2)' : '') + ' (satır başına ~15-40 sn, dokunma). <b>⏹ Durdur</b> ile durdurabilirsin.</div>';
-                        try {
-                            r = await panelFetch('/api/as400/cop_gonder', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ satirlar: parca })
-                            });
-                            d = await r.json();
-                            break;
-                        } catch (eF) {
-                            deneme++;
-                            if (deneme > 2) throw eF;
-                            await new Promise(function (rs) { setTimeout(rs, 2500 * deneme); });
-                        }
+                for (var p = 0; p < copSec.length; p += AS4_PARCA) {
+                    var son = Math.min(p + AS4_PARCA, copSec.length);
+                    var parca = copSec.slice(p, son);
+                    var yaz = (function (bas, bit) {
+                        return function (ek) {
+                            sonucEl.innerHTML = as4SonucSatirlari(t.sonuclar) +
+                                '<div class="yukleniyor" style="padding:14px 0">🤖 Hurda COP: ' + (bas + 1) + '–' + bit +
+                                ' / ' + copSec.length + ' satır' + (ek || '') +
+                                ' (satır başına ~15-40 sn, dokunma). <b>⏹ Durdur</b> ile durdurabilirsin.</div>';
+                        };
+                    })(p, son);
+                    var res = await as4ParcaGonder('/api/as400/cop_gonder', parca, yaz);
+                    if (!res.r.ok) {
+                        t.hata_mesaj = (res.d && res.d.hata) || ('sunucu hatası (HTTP ' + res.r.status + ')');
+                        break;
                     }
-                    if (!r.ok) { t.hata_mesaj = (d && d.hata) || 'başarısız'; break; }
-                    var oz = d.ozet || {};
+                    var d = res.d, oz = d.ozet || {};
                     t.ozet.ok += oz.ok || 0; t.ozet.hata += oz.hata || 0; t.ozet.atlandi += oz.atlandi || 0;
                     t.sonuclar = t.sonuclar.concat(d.sonuclar || []);
                     if (d.durduruldu) { t.durduruldu = true; break; }
                 }
             } catch (e) {
-                t.hata_mesaj = 'Bağlantı hatası — o ana kadar işlenenler aşağıda; listeyi yenileyip kontrol et.';
+                t.hata_mesaj = (e && e.message ? e.message : 'Bağlantı hatası') +
+                    ' — o ana kadar işlenenler aşağıda; listeyi yenileyip kontrol et.';
             }
             _as4GonderiSuruyor = false;
             btn.disabled = false;
