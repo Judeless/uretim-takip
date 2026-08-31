@@ -47,11 +47,20 @@ set B_WS=%~2
 if not "%A_WS%"=="" goto kisayollar
 
 echo [1/4] PCOMM oturum profilleri araniyor (*.ws)...
+REM DIKKAT: for /f ( '...' ) icindeki PowerShell komutunda VIRGUL ve BORU
+REM KULLANMA. cmd ikisini de bozuyor: virgul komutu parcaliyor (cikti bos
+REM doner), boru ^| kacisi PowerShell'e duz '^' argumani olarak geciyor
+REM ("A positional parameter cannot be found that accepts argument '^'").
+REM Bu yuzden dizi virgulle degil += ile kuruluyor ve boru yerine foreach var.
+REM Ayrica Get-ChildItem -Path'e COKLU yol verilip biri yoksa PS 5.1 hicbir
+REM sonuc dondurmuyor -> yollar tek tek Test-Path ile dolasiliyor.
 set BULUNAN=0
-for /f "delims=" %%F in ('%PS% "Get-ChildItem -Path $env:USERPROFILE\Documents,$env:PUBLIC\Documents,$env:APPDATA\IBM,$env:PROGRAMDATA\IBM -Filter *.ws -Recurse -ErrorAction SilentlyContinue ^| Select-Object -First 20 -ExpandProperty FullName"') do (
-    set /a BULUNAN+=1
-    set "WS_!BULUNAN!=%%F"
-    echo        !BULUNAN!. %%F
+for /f "delims=" %%F in ('%PS% "$y=@(); $y+=$env:USERPROFILE+'\Documents'; $y+=$env:PUBLIC+'\Documents'; $y+=$env:APPDATA+'\IBM'; $y+=$env:ProgramData+'\IBM'; $n=0; foreach($p in $y){ if(Test-Path -LiteralPath $p){ foreach($f in @(Get-ChildItem -LiteralPath $p -Filter *.ws -Recurse -ErrorAction SilentlyContinue)){ if($n -lt 20){ $f.FullName; $n=$n+1 } } } }"') do (
+    if exist "%%F" (
+        set /a BULUNAN+=1
+        set "WS_!BULUNAN!=%%F"
+        echo        !BULUNAN!. %%F
+    )
 )
 if %BULUNAN%==0 (
     echo.
@@ -65,8 +74,27 @@ if %BULUNAN%==0 (
 echo.
 set /p A_NO=   A oturumunun numarasi:
 set /p B_NO=   B oturumunun numarasi:
+REM Bosluklari at: kullanici " 1" yazarsa WS_ 1 diye var olmayan degisken aranir
+set "A_NO=%A_NO: =%"
+set "B_NO=%B_NO: =%"
 set "A_WS=!WS_%A_NO%!"
 set "B_WS=!WS_%B_NO%!"
+if not exist "!A_WS!" (
+    echo.
+    echo    HATA: %A_NO% numarali gecerli bir profil yok. Yollari kendin ver:
+    echo        Otomatik_Kalkis_Kur.bat "C:\yol\A.ws" "C:\yol\B.ws"
+    echo.
+    pause
+    exit /b 1
+)
+if not exist "!B_WS!" (
+    echo.
+    echo    HATA: %B_NO% numarali gecerli bir profil yok. Yollari kendin ver:
+    echo        Otomatik_Kalkis_Kur.bat "C:\yol\A.ws" "C:\yol\B.ws"
+    echo.
+    pause
+    exit /b 1
+)
 
 :kisayollar
 echo.
@@ -78,14 +106,15 @@ call :kisayol "Cofle Teyit Agent.lnk" "%~dp0Teyit_Agent_Baslat.bat" "%~dp0"
 REM --- 3) Otomatik oturum acma durumu (SALT OKUNUR) ------------------
 echo.
 echo [3/4] Otomatik oturum acma (autologon):
-set AAL=
-set DUN=
-set DPW=
-for /f "tokens=1,2,3 delims=|" %%A in ('%PS% "$w='HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'; $p=Get-ItemProperty $w -ErrorAction SilentlyContinue; ('{0}|{1}|{2}' -f $p.AutoAdminLogon, $p.DefaultUserName, [int][bool]$p.DefaultPassword)"') do (
-    set "AAL=%%A"
-    set "DUN=%%B"
-    set "DPW=%%C"
-)
+REM Tek satirda coklu alan okumak kirilgan (bos alanlar birlesiyor, virgul
+REM komutu bozuyor) -> her deger AYRI sorgu. Cikti bossa varsayilan kalir.
+set W=HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+set AAL=0
+set DUN=(tanimsiz)
+set DPW=0
+for /f "delims=" %%A in ('%PS% "$p=Get-ItemProperty '%W%' -ErrorAction SilentlyContinue; if([string]$p.AutoAdminLogon -eq '1'){'1'}else{'0'}"') do set "AAL=%%A"
+for /f "delims=" %%A in ('%PS% "$p=Get-ItemProperty '%W%' -ErrorAction SilentlyContinue; [string]$p.DefaultUserName"') do set "DUN=%%A"
+for /f "delims=" %%A in ('%PS% "$p=Get-ItemProperty '%W%' -ErrorAction SilentlyContinue; if($p.DefaultPassword){'1'}else{'0'}"') do set "DPW=%%A"
 if "%AAL%"=="1" (
     echo        AutoAdminLogon : ACIK    kullanici: %DUN%
 ) else (
