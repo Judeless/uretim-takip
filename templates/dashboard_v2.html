@@ -12918,6 +12918,7 @@ window.__I18N_SOZLUK__ = {
         // teyit RİSKİ YOK: sunucu aynı gün+launch+adet için gönderilmiş satırı
         // 'atlandi' yazar (as400_teyit_log kontrolü).
         var AS4_PARCA = 2;          // 4 → 2: parça çoğu zaman 100 sn'nin altında kalsın
+        var AS4_IS_TAVAN = 200;     // sunucunun tek iş satır tavanı (is_baslat)
         var AS4_GECIT_KODLARI = [408, 502, 503, 504, 520, 521, 522, 523, 524, 525];
 
         function as4Bekle(ms) { return new Promise(function (rs) { setTimeout(rs, ms); }); }
@@ -12969,6 +12970,77 @@ window.__I18N_SOZLUK__ = {
             }
         }
 
+        // ══ Arka plan gönderim işi — panel yalnız ilerlemeyi yoklar ══
+        // Uzun robot koşusu artık HTTP isteğinin içinde beklemiyor: sunucu işi
+        // thread'de yürütür (bkz. app.py /api/as400/is_baslat). Bağlantı kopsa,
+        // sayfa yenilense, tarayıcı kapansa bile koşu devam eder; panel işe
+        // yeniden bağlanıp kaldığı yerden izler. Ağ geçidi zaman aşımı (524)
+        // artık gönderimi etkilemez — hiçbir istek uzun sürmüyor.
+        var AS4_FAZ_URL = { launch: '/api/as400/teyit_gonder',
+                            cfi: '/api/as400/cfi_gonder',
+                            cop: '/api/as400/cop_gonder' };
+
+        // ciz(ek, sonuclar): ekranı tazeleyen çağıran-tarafı çizici.
+        // Döner: sonuç nesnesi | null (sunucu bu ucu tanımıyor → eski parçalı yol).
+        async function as4IsKos(faz, satirlar, ciz, isId) {
+            var t = { ozet: { ok: 0, hata: 0, atlandi: 0 }, sonuclar: [], durduruldu: false, hata_mesaj: '' };
+            if (!isId) {
+                var b, bd = {};
+                try {
+                    b = await panelFetch('/api/as400/is_baslat', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ faz: faz, satirlar: satirlar })
+                    });
+                } catch (e) {
+                    if (e && e.message === 'oturum') throw e;
+                    t.hata_mesaj = 'Sunucuya ulaşılamadı — gönderim başlatılamadı';
+                    return t;
+                }
+                // Sunucu güncellenmemişse (app.py restart edilmedi) eski yola dön
+                if (b.status === 404 || b.status === 405) return null;
+                try { bd = await b.json(); } catch (e) { bd = {}; }
+                if (!b.ok) { t.hata_mesaj = bd.hata || ('gönderim başlatılamadı (HTTP ' + b.status + ')'); return t; }
+                isId = bd.id;
+            }
+            var off = 0, ardisikHata = 0;
+            while (true) {
+                await as4Bekle(2500);
+                var d = null;
+                try {
+                    var r = await panelFetch('/api/as400/is_durum?id=' + encodeURIComponent(isId) + '&offset=' + off);
+                    d = await r.json();
+                    ardisikHata = 0;
+                    if (r.status === 409) { t.hata_mesaj = d.hata || 'iş takip edilemiyor'; break; }
+                    if (!r.ok) { t.hata_mesaj = d.hata || ('durum okunamadı (HTTP ' + r.status + ')'); break; }
+                } catch (e) {
+                    if (e && e.message === 'oturum') throw e;
+                    // YOKLAMA HATASI GÖNDERİMİ DURDURMAZ: robot sunucuda koşuyor.
+                    // ~50 sn boyunca ulaşılamazsa vazgeçip kullanıcıyı uyarırız.
+                    if (++ardisikHata >= 20) {
+                        t.hata_mesaj = 'Sunucuya ulaşılamıyor — gönderim sunucuda DEVAM EDİYOR olabilir, ' +
+                                       'sayfayı yenileyip kontrol edin';
+                        break;
+                    }
+                    ciz(' — bağlantı koptu, sunucu çalışmaya devam ediyor (' + ardisikHata + ')', t.sonuclar);
+                    continue;
+                }
+                if (d.durum === 'bos') {
+                    t.hata_mesaj = 'Sunucu iş kaydını kaybetti (servis yeniden başlamış olabilir) — listeyi yenileyip kontrol edin';
+                    break;
+                }
+                (d.yeni || []).forEach(function (x) { t.sonuclar.push(x); });
+                off = t.sonuclar.length;
+                t.ozet = d.ozet || t.ozet;
+                ciz(': ' + (d.islenen || 0) + ' / ' + (d.toplam || satirlar.length) + ' satır işlendi', t.sonuclar);
+                if (d.durum !== 'calisiyor') {
+                    t.durduruldu = !!d.durduruldu;
+                    if (d.durum === 'hata') t.hata_mesaj = d.mesaj || 'iş hatası';
+                    break;
+                }
+            }
+            return t;
+        }
+
         function as4DurumKontrol() {
             panelFetch('/api/as400/teyit_durum').then(function (r) { return r.json(); }).then(function (d) {
                 var btn = document.getElementById('as4-gonder-btn');
@@ -12980,6 +13052,13 @@ window.__I18N_SOZLUK__ = {
                     durBtn.disabled = !!d.durduruluyor;
                     durBtn.textContent = d.durduruluyor ? '⏳ Durduruluyor…' : '⏹ Durdur';
                     if (btn) btn.disabled = true;
+                    // SÜREN İŞE YENİDEN BAĞLAN: sayfa yenilendiyse/tarayıcı kapanıp
+                    // açıldıysa gönderim sunucuda devam ediyor ama ekran boştu —
+                    // kullanıcı "durdu mu?" diye ikinci kez göndermeye kalkıyordu.
+                    if (d.is_durum === 'calisiyor' && !_as4GonderiSuruyor && !_as4IseBagli) {
+                        _as4IseBagli = true;
+                        as4IseBaglan(d.is_id, d.is_faz);
+                    }
                     _as4DurumTimer = setTimeout(as4DurumKontrol, 8000);
                 } else if (_as4GonderiSuruyor) {
                     // fazlar arası kısa kilit boşluğu — as4Gonder kendi yönetiyor, dokunma
@@ -12990,6 +13069,32 @@ window.__I18N_SOZLUK__ = {
                 }
             }).catch(function () {});
         }
+        var _as4IseBagli = false;
+
+        // Sunucuda süren bir gönderime ekranı yeniden bağlar (yukarıdaki hook çağırır).
+        async function as4IseBaglan(isId, faz) {
+            var sonucEl = document.getElementById('as4-gonder-sonuc');
+            if (!sonucEl) { _as4IseBagli = false; return; }
+            var ad = ({ launch: 'Launch teyitleri', cfi: 'CFI girişleri', cop: 'Hurda COP' })[faz] || 'Gönderim';
+            var bas = '<div style="margin:6px 0;font-weight:800">🔄 Sunucuda süren gönderime bağlanıldı — ' + ad + '</div>';
+            var ciz = function (ek, sonuclar) {
+                sonucEl.innerHTML = bas + as4SonucSatirlari(sonuclar || []) +
+                    '<div class="yukleniyor" style="padding:12px 0">🤖 ' + ad + (ek || '') + '</div>';
+            };
+            var t = null;
+            try { t = await as4IsKos(faz, [], ciz, isId); } catch (e) { }
+            _as4IseBagli = false;
+            if (!t) return;
+            var oz = '<div style="margin:10px 0;font-weight:800">' + ad + ' sonucu: ' +
+                '<span style="color:var(--lg-green)">' + t.ozet.ok + ' başarılı</span> · ' +
+                '<span style="color:var(--lg-red)">' + t.ozet.hata + ' hata</span> · ' +
+                '<span style="color:var(--lg-slate)">' + t.ozet.atlandi + ' atlandı</span>' +
+                (t.durduruldu ? ' <span style="color:var(--lg-amber)">· ⏹ durduruldu</span>' : '') + '</div>' +
+                (t.hata_mesaj ? '<div style="color:var(--lg-red);font-weight:700;padding:6px 0">⚠ ' + esc(t.hata_mesaj) + '</div>' : '');
+            sonucEl.innerHTML = bas + oz + as4SonucSatirlari(t.sonuclar);
+            setTimeout(as4Yukle, 1200);
+        }
+
         var _as4Yuklendi = false;
 
         function initAS400Teyit() { if (!_as4Yuklendi) as4Yukle(); as4SabahYukle(); }
@@ -14424,7 +14529,38 @@ window.__I18N_SOZLUK__ = {
             // PARÇALI GÖNDERİM (2026-07-22): tek fetch ~5 dk'da tarayıcı tarafından
             // KOPARILIYOR (29 satırlık batch'te yaşandı — sunucu bitirdi, UI sonucu
             // alamadı, CFI fazı hiç başlamadı). Parça boyutu AS4_PARCA.
-            async function parti(url, satirlar, fazAd) {
+            async function parti(faz, satirlar, fazAd) {
+                var t = { ozet: { ok: 0, hata: 0, atlandi: 0 }, sonuclar: [], durduruldu: false, hata_mesaj: '' };
+                // İŞ TAVANI (sunucu: en fazla 200 satır/iş). Eski parçalı yol
+                // sınırsız satır gönderebiliyordu; büyük kuyruk 400 ile duvara
+                // toslamasın diye dilimlenir. Pratikte tek dilim yeter.
+                for (var i = 0; i < satirlar.length; i += AS4_IS_TAVAN) {
+                    var dilim = satirlar.slice(i, i + AS4_IS_TAVAN);
+                    var birikmis = t.sonuclar;
+                    var ciz = function (ek, sonuclar) {
+                        sonucEl.innerHTML = html + as4SonucSatirlari(birikmis.concat(sonuclar || [])) +
+                            spinner(fazAd + (ek || ''));
+                    };
+                    var r = await as4IsKos(faz, dilim, ciz);
+                    if (!r) {
+                        // Sunucu is_baslat'ı tanımıyor (app.py restart edilmemiş) →
+                        // TÜM faz eski parçalı yoldan gider (yarım iş bırakma).
+                        if (i === 0) return await partiEski(AS4_FAZ_URL[faz], satirlar, fazAd);
+                        t.hata_mesaj = 'Sunucu arka plan işini tanımıyor — kalan satırlar gönderilmedi';
+                        break;
+                    }
+                    t.sonuclar = t.sonuclar.concat(r.sonuclar || []);
+                    t.ozet.ok += r.ozet.ok || 0; t.ozet.hata += r.ozet.hata || 0;
+                    t.ozet.atlandi += r.ozet.atlandi || 0;
+                    if (r.durduruldu) { t.durduruldu = true; break; }
+                    if (r.hata_mesaj) { t.hata_mesaj = r.hata_mesaj; break; }
+                }
+                return t;
+            }
+
+            // ESKİ PARÇALI YOL — yalnız sunucu is_baslat'ı tanımıyorsa (template
+            // canlıya geçti ama app.py henüz restart edilmedi) devreye girer.
+            async function partiEski(url, satirlar, fazAd) {
                 var t = { ozet: { ok: 0, hata: 0, atlandi: 0 }, sonuclar: [], durduruldu: false, hata_mesaj: '' };
                 for (var p = 0; p < satirlar.length; p += AS4_PARCA) {
                     var son = Math.min(p + AS4_PARCA, satirlar.length);
@@ -14456,7 +14592,7 @@ window.__I18N_SOZLUK__ = {
             try {
                 // AŞAMA 1: LAUNCH teyitleri (4'erli parçalar halinde)
                 if (launchSec.length) {
-                    const d1 = await parti('/api/as400/teyit_gonder', launchSec,
+                    const d1 = await parti('launch', launchSec,
                         (cfiSec.length ? '1/2 Launch' : 'Launch') + ' teyitleri');
                     ekle(d1, '🔁 Launch teyitleri');
                     if (d1.hata_mesaj) { html += '<div style="color:var(--lg-red);font-weight:700;padding:8px 0">⚠ Launch aşaması: ' + esc(d1.hata_mesaj) + '</div>'; genelHata = true; }
@@ -14467,7 +14603,7 @@ window.__I18N_SOZLUK__ = {
                         html += '<div style="color:var(--lg-amber);font-size:.82rem;padding:6px 0">📦 CFI aşamasına geçilmedi (' +
                             (durduruldu ? 'kullanıcı durdurdu' : 'launch aşaması hata verdi') + ') — listeyi yenileyip tekrar gönderebilirsin.</div>';
                     } else {
-                        const d2 = await parti('/api/as400/cfi_gonder', cfiSec,
+                        const d2 = await parti('cfi', cfiSec,
                             (launchSec.length ? '2/2 CFI' : 'CFI') + ' girişleri');
                         ekle(d2, '📦 CFI girişleri (launch\'sız)');
                         if (d2.hata_mesaj) html += '<div style="color:var(--lg-red);font-weight:700;padding:8px 0">⚠ CFI aşaması: ' + esc(d2.hata_mesaj) + '</div>';
@@ -14507,7 +14643,7 @@ window.__I18N_SOZLUK__ = {
                     var atlananHurda = hurdaliSecim.filter(function (s) { return !okSet[anahtar(s)]; });
                     hurdaSec.forEach(function (s) { copGonderildi[s.uretim_tarihi + '|' + s.referans] = 1; });
                     if (hurdaSec.length) {
-                        const d3 = await parti('/api/as400/cop_gonder', hurdaSec, 'Son faz: Hurda (COP)');
+                        const d3 = await parti('cop', hurdaSec, 'Son faz: Hurda (COP)');
                         ekle(d3, '♻ Hurda (COP) girişleri — en son');
                         if (d3.hata_mesaj) html += '<div style="color:var(--lg-red);font-weight:700;padding:8px 0">⚠ Hurda aşaması: ' + esc(d3.hata_mesaj) + '</div>';
                     }
@@ -14634,9 +14770,15 @@ window.__I18N_SOZLUK__ = {
             _as4GonderiSuruyor = true;
             btn.disabled = true;
             if (durBtn) { durBtn.style.display = ''; durBtn.disabled = false; durBtn.textContent = '⏹ Durdur'; }
-            // PARÇALI — tarayıcı/ağ geçidi sınırı + o ana kadarki sonuçlar birikir.
             var t = { ozet: { ok: 0, hata: 0, atlandi: 0 }, sonuclar: [], durduruldu: false, hata_mesaj: '' };
-            try {
+            var copCiz = function (ek, sonuclar) {
+                sonucEl.innerHTML = as4SonucSatirlari(sonuclar || []) +
+                    '<div class="yukleniyor" style="padding:14px 0">🤖 Hurda COP' + (ek || '') +
+                    ' (satır başına ~15-40 sn). <b>⏹ Durdur</b> ile durdurabilirsin.</div>';
+            };
+            var copIs = await as4IsKos('cop', copSec, copCiz);
+            if (copIs) { t = copIs; }
+            else try {
                 for (var p = 0; p < copSec.length; p += AS4_PARCA) {
                     var son = Math.min(p + AS4_PARCA, copSec.length);
                     var parca = copSec.slice(p, son);

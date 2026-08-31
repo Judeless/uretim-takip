@@ -9440,13 +9440,18 @@ def _kapasite_reddi(conn, referans, uretim_tarihi, adet):
     return None
 
 
-def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla=False):
+def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla=False,
+                           sonuc_kanal=None):
     """Launch teyit satırlarını robotla işler — endpoint VE 17:10 oto koşusu ortak
     çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar listesi.
     Her satır BAĞIMSIZ denenir — bir launch hata/iptal verirse SONRAKİ launch'lara
     DEVAM edilir (kullanıcı 2026-07-20: hata alınca ilk sayfaya çıkıp sıradaki
-    launch'tan devam et). Robot her çağrıda G0'da B'yi temizler + record-lock kurtarır."""
-    sonuclar = []
+    launch'tan devam et). Robot her çağrıda G0'da B'yi temizler + record-lock kurtarır.
+
+    sonuc_kanal: verilirse sonuçlar BU listeye yazılır. Arka plan işi (bkz.
+    _as400_is_calistir) aynı listeyi paylaşır ve satır satır ilerlemeyi okur —
+    append noktalarına hiç dokunmadan canlı ilerleme."""
+    sonuclar = sonuc_kanal if sonuc_kanal is not None else []
     # Session B ön kontrolü (bkz. _as400_oturum_hazirla) — ölü oturumda
     # launch teyitleri de satır satır hata veriyordu.
     _od, _om = _as400_oturum_hazirla()
@@ -9683,7 +9688,129 @@ def as400_teyit_gonder():
 def as400_teyit_durum():
     """Şu an bir AS400 gönderimi çalışıyor mu? (Gönder butonundan sonra Durdur'u
     doğru göstermek için sayfa açılışında sorulur.)"""
-    return jsonify({'calisiyor': _AS400_KILIT.locked(), 'durduruluyor': _AS400_DURDUR.is_set()})
+    return jsonify({'calisiyor': _AS400_KILIT.locked(), 'durduruluyor': _AS400_DURDUR.is_set(),
+                    # Arka plan işi varsa panel ona yeniden BAĞLANABİLİR (sayfa
+                    # yenilendi / tarayıcı kapandı senaryosu).
+                    'is_id': _AS400_IS['id'], 'is_durum': _AS400_IS['durum'],
+                    'is_faz': _AS400_IS['faz']})
+
+
+# ══ ARKA PLAN GÖNDERİM İŞİ (kullanıcı 2026-08-27) ═══════════════════════════
+# NEDEN: gönderim SENKRON bir HTTP isteğiydi. Bir launch robotu 15-150 sn sürdüğü
+# için istek dakikalarca açık kalıyor; sistem Cloudflare tünelinden yayınlandığı
+# için ağ geçidi 100 sn'de kesip 524 dönüyordu. Panel tekrar denediğinde sunucu
+# hâlâ meşgul olduğundan 409 alıyor ve gönderim "durmuş" görünüyordu — oysa robot
+# çalışmaya devam ediyordu (kullanıcı: "birkaç teyit verdikten sonra bot durdu").
+#
+# ŞİMDİ: iş sunucuda thread'de koşar, panel yalnız ilerlemeyi yoklar. Bağlantı
+# kopsa, sayfa yenilense, tarayıcı kapansa bile koşu devam eder ve panel tekrar
+# bağlanıp kaldığı yerden izler. HTTP isteklerinin hiçbiri uzun sürmez.
+#
+# TEK İŞ: Session B fiziksel olarak tek — aynı anda tek iş (_AS400_KILIT zaten
+# bunu garanti ediyor). Yeni iş, öncekinin sonucunu EZER; panel biten işi
+# 'id' ile takip ettiğinden yanlış işi okumaz (id uyuşmazsa 409).
+_AS400_IS = {
+    'id': '', 'faz': '', 'durum': 'bos',      # bos | calisiyor | bitti | hata
+    'toplam': 0, 'sonuclar': [], 'mesaj': '', 'durduruldu': False,
+    'baslangic': '', 'bitis': '', 'kullanici': '',
+}
+_AS400_FAZ_AD = {'launch': 'Launch teyidi', 'cfi': 'CFI girişi', 'cop': 'Hurda COP'}
+
+
+def _as400_is_calistir(faz, satirlar, kullanici, varsayilan_tarih, zorla, kanal):
+    """İş thread'i. conn THREAD'E ÖZEL (db_connect yeni bağlantı açar; flask.g
+    request-scoped olduğu için burada KULLANILAMAZ) ve sonunda kapatılır."""
+    conn = db_connect()
+    try:
+        if not _AS400_KILIT.acquire(blocking=False):
+            _AS400_IS.update({'durum': 'hata', 'mesaj': 'AS400 kilidi meşgul — iş başlatılamadı',
+                              'bitis': datetime.now().strftime('%H:%M:%S')})
+            return
+        try:
+            _AS400_DURDUR.clear()
+            if faz == 'launch':
+                _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih, zorla,
+                                       sonuc_kanal=kanal)
+            elif faz == 'cfi':
+                _cfi_gonder_calistir(conn, satirlar, kullanici, zorla, sonuc_kanal=kanal)
+            else:
+                _cop_gonder_calistir(conn, satirlar, kullanici, zorla, sonuc_kanal=kanal)
+            _AS400_IS['durduruldu'] = _AS400_DURDUR.is_set()
+            _AS400_IS['durum'] = 'bitti'
+            print(f'[AS400-IS] {faz} bitti — {len(kanal)}/{len(satirlar)} satır'
+                  + (' (durduruldu)' if _AS400_IS['durduruldu'] else ''))
+        except Exception as e:
+            # İŞLENMİŞ SATIRLAR KAYBOLMAZ: kanal paylaşımlı, o ana kadarki sonuçlar
+            # panelde zaten görünür. Burada yalnız sebep işaretlenir.
+            _AS400_IS.update({'durum': 'hata', 'mesaj': f'{type(e).__name__}: {e}'})
+            print(f'[AS400-IS] {faz} HATA: {e}')
+        finally:
+            _AS400_DURDUR.clear()
+            _AS400_KILIT.release()
+            _AS400_IS['bitis'] = datetime.now().strftime('%H:%M:%S')
+    finally:
+        conn.close()
+
+
+@app.route('/api/as400/is_baslat', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_is_baslat():
+    """Gönderimi arka planda başlatır. Body: {faz: launch|cfi|cop, satirlar, zorla?,
+    uretim_tarihi?}. Döner: {id, durum, toplam}. İlerleme /api/as400/is_durum'dan."""
+    d = request.get_json(silent=True) or {}
+    faz = str(d.get('faz') or '').strip().lower()
+    satirlar = d.get('satirlar') or []
+    if faz not in ('launch', 'cfi', 'cop'):
+        return jsonify({'hata': 'faz: launch | cfi | cop'}), 400
+    if not satirlar:
+        return jsonify({'hata': 'satirlar zorunlu'}), 400
+    # Sınır senkron uçtakinden yüksek (60 → 200): iş artık HTTP zaman aşımına
+    # bağlı değil, yalnız kaçak koşuya karşı bir tavan.
+    if len(satirlar) > 200:
+        return jsonify({'hata': 'Tek seferde en fazla 200 satır'}), 400
+    if _AS400_IS['durum'] == 'calisiyor' or _AS400_KILIT.locked():
+        return jsonify({'hata': 'Devam eden bir AS400 gönderimi var — bitmesini bekleyin'}), 409
+    kanal = []
+    _AS400_IS.update({
+        'id': datetime.now().strftime('%Y%m%d%H%M%S') + '-' + faz,
+        'faz': faz, 'durum': 'calisiyor', 'toplam': len(satirlar),
+        'sonuclar': kanal, 'mesaj': '', 'durduruldu': False,
+        'baslangic': datetime.now().strftime('%H:%M:%S'), 'bitis': '',
+        'kullanici': g.panel_ku['kullanici_adi'],
+    })
+    _threading.Thread(
+        target=_as400_is_calistir, daemon=True,
+        args=(faz, satirlar, g.panel_ku['kullanici_adi'],
+              (d.get('uretim_tarihi') or '').strip(), bool(d.get('zorla')), kanal)).start()
+    print(f'[AS400-IS] {faz} başladı — {len(satirlar)} satır ({_AS400_IS["kullanici"]})')
+    return jsonify({'id': _AS400_IS['id'], 'durum': 'calisiyor', 'toplam': len(satirlar)})
+
+
+@app.route('/api/as400/is_durum', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_is_durum():
+    """İşin ilerlemesi. ?id= (opsiyonel) + ?offset= (o satırdan sonrası).
+    id verilmez ise GÜNCEL iş döner — sayfa yenilendiğinde panel koşuya yeniden
+    bağlanabilsin (bağlantı kopsa da gönderim sürüyor)."""
+    try:
+        off = max(0, int(request.args.get('offset') or 0))
+    except (TypeError, ValueError):
+        off = 0
+    istenen = (request.args.get('id') or '').strip()
+    kanal = list(_AS400_IS['sonuclar'])      # anlık kopya (thread yazmaya devam eder)
+    if istenen and istenen != _AS400_IS['id']:
+        return jsonify({'hata': 'Bu iş artık takip edilmiyor — yeni bir gönderim başlamış',
+                        'id': _AS400_IS['id'], 'durum': _AS400_IS['durum']}), 409
+    return jsonify({
+        'id': _AS400_IS['id'], 'faz': _AS400_IS['faz'],
+        'faz_ad': _AS400_FAZ_AD.get(_AS400_IS['faz'], _AS400_IS['faz']),
+        'durum': _AS400_IS['durum'], 'toplam': _AS400_IS['toplam'],
+        'islenen': len(kanal),
+        'ozet': {k: sum(1 for r in kanal if r.get('sonuc') == k) for k in ('ok', 'hata', 'atlandi')},
+        'yeni': kanal[off:], 'mesaj': _AS400_IS['mesaj'],
+        'durduruldu': _AS400_IS['durduruldu'], 'baslangic': _AS400_IS['baslangic'],
+        'bitis': _AS400_IS['bitis'], 'kullanici': _AS400_IS['kullanici'],
+    })
 
 
 @app.route('/api/as400/teyit_durdur', methods=['POST'])
@@ -9943,14 +10070,15 @@ def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
         return None
 
 
-def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False):
+def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=None):
     """CFI depo girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
     ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
     Kullanıcı akışı (2026-07-20): Warehouse=01D, Causal=CFI, Counterpart=01D,
     kod + adet + Enter. Mükerrer koruması: (1) as400_teyit_log (yil='CF'),
     (2) BMMAF0 RPR+CFI hareketleri (_zaten_teyitli). Doğrulama: bugünkü CFI
-    hareketlerinde adet birebir aranır."""
-    sonuclar = []
+    hareketlerinde adet birebir aranır.
+    sonuc_kanal: bkz. _teyit_gonder_calistir (canlı ilerleme kanalı)."""
+    sonuclar = sonuc_kanal if sonuc_kanal is not None else []
     import sys as _sys
     _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
     if _d not in _sys.path:
@@ -10174,13 +10302,14 @@ def _plan_siparisler(cn, articles):
     return sonuc
 
 
-def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False):
+def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=None):
     """HURDA (COP) girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
     ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
     COP'lar EN SON faz (kullanıcı 2026-07-23: launch/CFI fazlarına ARAYA GİRMESİN;
     robot Rientro↔07>01 mekik dokuyordu). Tüm hurdalar ardışık girilir: B,
-    07>01>F1 ekranında kalır (alanlar kalıcı — hızlı)."""
-    sonuclar = []
+    07>01>F1 ekranında kalır (alanlar kalıcı — hızlı).
+    sonuc_kanal: bkz. _teyit_gonder_calistir (canlı ilerleme kanalı)."""
+    sonuclar = sonuc_kanal if sonuc_kanal is not None else []
     for idx, s in enumerate(satirlar):
         if _AS400_DURDUR.is_set():
             for kalan in satirlar[idx:]:
