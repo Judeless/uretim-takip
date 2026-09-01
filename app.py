@@ -260,6 +260,17 @@ def _html_no_cache(resp):
         if resp.mimetype == 'text/html':
             resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
             resp.headers['Pragma'] = 'no-cache'
+        # ── Güvenlik başlıkları (2026-09-01) ──
+        # nosniff: tarayıcı MIME tahminiyle içeriği script sanmasın.
+        # SAMEORIGIN: paneli başka site iframe'e gömüp clickjacking yapamasın
+        # (andon/panel hiçbir yerde iframe ile gömülmüyor — kırmaz).
+        # Referrer: dış linke tıklanırsa iç URL yapısı dışarı sızmasın.
+        # CSP YOK (bilinçli): şablonlar satır-içi script kullanıyor; aceleye
+        # getirilmiş bir CSP her sayfayı kırar. HSTS de YOK: yerel erişim HTTP
+        # (192.168.20.210:5000), TLS'i dış tarafta Cloudflare sağlıyor.
+        resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        resp.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        resp.headers.setdefault('Referrer-Policy', 'same-origin')
     except Exception:
         pass
     return resp
@@ -2033,22 +2044,63 @@ def dashboard_legacy_sayfasi():
 
 
 # ═══════════════════════ PANEL GİRİŞ / OTURUM ═══════════════════════
+# ── Giriş kaba-kuvvet freni (2026-09-01) ──
+# Sistem Cloudflare tüneliyle internete açık; şifre deneme saldırısını
+# yavaşlatacak hiçbir şey yoktu. (ip, kullanıcı) başına ardışık hata sayılır:
+# eşikte hesap O IP İÇİN kilitlenir. Anahtar (ip, kullanıcı) — yalnız IP olsa
+# fabrikadaki ortak NAT arkasından bir meraklı HERKESİ kilitleyebilirdi;
+# yalnız kullanıcı olsa dışarıdan bilinen bir adla içerideki gerçek kullanıcı
+# kilitlenebilirdi. Bellek-içi: restart'ta sıfırlanır, bu kabul edilebilir
+# (saldırıyı yavaşlatmak yeterli — sabit pencere + yanıt gecikmesi).
+_GIRIS_DENEME = {}                    # (ip, kullanici) -> {'n': ardisik_hata, 'kilit': ts}
+_GIRIS_ESIK, _GIRIS_KILIT_SN = 5, 300
+
+
+def _istemci_ip():
+    """Gerçek istemci IP'si. Cloudflare tüneli arkasında remote_addr yerel
+    görünür — CF-Connecting-IP başlığı gerçek adresi taşır."""
+    return (request.headers.get('CF-Connecting-IP')
+            or request.remote_addr or '?')
+
+
 @app.route('/api/panel/giris', methods=['POST'])
 def panel_giris():
     """Panel (dashboard) giriş. Body: {kullanici_adi, sifre}.
-    Başarılı → imzalı oturum cookie'si kurulur. 401 = hatalı/pasif."""
+    Başarılı → imzalı oturum cookie'si kurulur. 401 = hatalı/pasif.
+    5 ardışık hata → o IP+kullanıcı 5 dk kilit (429)."""
     data = request.get_json(silent=True) or {}
     ka = (data.get('kullanici_adi') or '').strip().lower()
     sifre = (data.get('sifre') or '')
     if not ka or not sifre:
         return jsonify({'hata': 'Kullanıcı adı ve şifre zorunlu'}), 400
+
+    import time as _t
+    anahtar = (_istemci_ip(), ka)
+    kayit = _GIRIS_DENEME.get(anahtar)
+    if kayit and kayit.get('kilit', 0) > _t.time():
+        kalan = int(kayit['kilit'] - _t.time())
+        return jsonify({'hata': f'Çok fazla hatalı deneme — {max(1, kalan // 60 + 1)} '
+                                f'dakika sonra tekrar deneyin'}), 429
+
     conn = get_db()
     row = conn.execute(
         "SELECT id, sifre_hash, aktif FROM panel_kullanicilari WHERE lower(kullanici_adi)=?",
         (ka,)
     ).fetchone()
     if not row or not check_password_hash(row['sifre_hash'], sifre):
+        d = _GIRIS_DENEME.setdefault(anahtar, {'n': 0, 'kilit': 0})
+        d['n'] += 1
+        if d['n'] >= _GIRIS_ESIK:
+            d['kilit'] = _t.time() + _GIRIS_KILIT_SN
+            d['n'] = 0
+            print(f'[GIRIS] kilit: {anahtar[1]} @ {anahtar[0]} ({_GIRIS_KILIT_SN} sn)')
+        # Sözlük şişmesin (dağıtık deneme): en eskileri at
+        if len(_GIRIS_DENEME) > 2000:
+            for k in list(_GIRIS_DENEME)[:1000]:
+                _GIRIS_DENEME.pop(k, None)
+        _t.sleep(0.4)      # her hatalı denemeye sabit bedel — otomasyonu yavaşlatır
         return jsonify({'hata': 'Kullanıcı adı veya şifre hatalı'}), 401
+    _GIRIS_DENEME.pop(anahtar, None)
     if not row['aktif']:
         return jsonify({'hata': 'Bu hesap pasif durumda. Yöneticinize başvurun.'}), 403
     conn.execute("UPDATE panel_kullanicilari SET son_giris=datetime('now','localtime') WHERE id=?", (row['id'],))
