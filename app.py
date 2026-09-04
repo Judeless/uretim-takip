@@ -7058,6 +7058,8 @@ def ozet():
         'tarih_aralik': {'bas': tarih_bas, 'bit': tarih_bit},
         'vardiya_sayisi': vardiya_sayisi,
         'ort_oee': ort_oee,
+        # Son günlük rapor maili gönderilemediyse Fabrika Özeti bandında görünür
+        'mail_uyari': _mail_uyari(),
         # ort_oee havuzundan dışlanan bölümler — panel dürüstçe yazabilsin
         'ort_oee_haric': ([] if bolumler else
                           sorted({o.get('bolum') for o in oee_listesi
@@ -7738,6 +7740,21 @@ def save_ayarlar():
 # ─────────────────────────────────────────────────────────────
 import re as _re
 _EMAIL_RE = _re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def _mail_uyari():
+    """Fabrika Özeti bandı için: son GERÇEK rapor gönderimi başarısızsa uyarı.
+
+    Yalnız kaynak='rapor' sayılır (test denemesi rozeti yönetir ama fabrika
+    bandını tetiklemez); 'atlandi' (üretim yok / alıcı yok) arıza değildir."""
+    try:
+        import mail_raporu
+        d = mail_raporu.son_gonderim_durumu()
+        if d and d.get('kaynak') == 'rapor' and not d.get('basarili') and not d.get('atlandi'):
+            return {'zaman': d.get('zaman') or '', 'mesaj': (d.get('mesaj') or '')[:220]}
+    except Exception:
+        pass
+    return None
 
 
 @app.route('/api/mail/durum', methods=['GET'])

@@ -129,6 +129,50 @@ def gonderim_saati():
         return 17, 0
 
 
+# ── SON GÖNDERİM DURUMU (kullanıcı 2026-09-04) ──────────────────────────────
+# "Mail bozulunca panelde uyarı görelim": Gmail uygulama şifresi 28.08'de iptal
+# olunca mailler 6 GÜN sessizce gitmedi — hata yalnızca sunucu konsolundaydı.
+# Son gerçek gönderim denemesinin sonucu belleğe ve diske yazılır; Raporlar
+# rozeti ile Fabrika Özeti bandı bunu okur. Mail ile uyarmak anlamsız (mail
+# zaten bozuk) — uyarı EKRANA. Disk kalıcılığı restart'a dayansın diye.
+_SON_GONDERIM = {}
+
+
+def _son_durum_yolu():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        'data', 'mail_son_durum.json')
+
+
+def _son_gonderim_kaydet(sonuc, kaynak, tarih):
+    d = {'zaman': datetime.now().strftime('%Y-%m-%d %H:%M'),
+         'kaynak': kaynak,                      # 'rapor' | 'test'
+         'tarih': str(tarih or ''),
+         'basarili': bool(sonuc.get('basarili')),
+         'atlandi': bool(sonuc.get('atlandi')),
+         'mesaj': str(sonuc.get('mesaj') or '')[:400]}
+    _SON_GONDERIM.clear()
+    _SON_GONDERIM.update(d)
+    try:
+        os.makedirs(os.path.dirname(_son_durum_yolu()), exist_ok=True)
+        with open(_son_durum_yolu(), 'w', encoding='utf-8') as f:
+            json.dump(d, f, ensure_ascii=False)
+    except Exception as e:
+        print(f'[MAIL] son gonderim durumu yazilamadi: {e}')
+
+
+def son_gonderim_durumu():
+    """Son gönderim denemesinin özeti — {} = hiç deneme yok/okunamadı."""
+    if _SON_GONDERIM:
+        return dict(_SON_GONDERIM)
+    try:
+        with open(_son_durum_yolu(), encoding='utf-8-sig') as f:
+            d = json.load(f) or {}
+        _SON_GONDERIM.update(d)
+        return dict(d)
+    except Exception:
+        return {}
+
+
 def durum_ozeti():
     """Dashboard göstergesi için maskelenmiş durum (şifre ASLA dönmez)."""
     c = config_yukle()
@@ -159,6 +203,8 @@ def durum_ozeti():
         'kapsamlar': kapsam_lokasyonlari(c),
         # Tesis seçmediği için rapor ALMAYAN aktif alıcılar — panel uyarır
         'raporsuz': raporsuz_alicilar(),
+        # Son gönderim denemesi — başarısızsa rozet kırmızıya döner
+        'son_gonderim': son_gonderim_durumu(),
     }
 
 
@@ -871,6 +917,22 @@ def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
 
 
 def gunluk_mail_gonder(tarih=None, zorla_alicilar=None):
+    """Günlük raporu üretip alıcılara gönderir — dış sözleşme değişmedi; her
+    denemenin sonucu panele işlenir (bkz. _son_gonderim_kaydet)."""
+    kaynak = 'test' if zorla_alicilar else 'rapor'
+    t = tarih or date.today().isoformat()
+    try:
+        sonuc = _gunluk_mail_gonder_ic(tarih, zorla_alicilar)
+    except Exception as e:
+        # Çökme de bir sonuçtur: konsolda kaybolmasın, rozet kırmızıya dönsün.
+        _son_gonderim_kaydet({'basarili': False,
+                              'mesaj': f'{type(e).__name__}: {e}'}, kaynak, t)
+        raise
+    _son_gonderim_kaydet(sonuc, kaynak, t)
+    return sonuc
+
+
+def _gunluk_mail_gonder_ic(tarih=None, zorla_alicilar=None):
     """Günlük raporu üretip alıcılara gönderir. scheduler ve 'şimdi gönder' bunu çağırır.
     zorla_alicilar verilirse (test) DB yerine o listeye gönderir.
     Döner: {basarili, mesaj, ...}

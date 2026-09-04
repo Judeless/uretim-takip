@@ -11542,6 +11542,15 @@ window.__I18N_SOZLUK__ = {
         //                     kadar güvenileceği buradan anlaşılır.
         function anKapsamNotu(o, donem) {
             var parcalar = [];
+            // MAİL ARIZA BANDI (kullanıcı 2026-09-04): günlük rapor maili
+            // gönderilemiyorsa Fabrika Özeti'nde — yani her gün bakılan yerde —
+            // görünsün; Raporlar sayfasına girilmese de ilk akşam fark edilsin.
+            if (o.mail_uyari) {
+                parcalar.push('<span style="color:var(--danger);font-weight:800">📪 Günlük rapor maili GÖNDERİLEMİYOR</span>' +
+                    ' — son deneme ' + esc(o.mail_uyari.zaman || '') + ': ' +
+                    esc((o.mail_uyari.mesaj || '').slice(0, 160)) +
+                    ' <span style="color:var(--muted)">· ayrıntı Raporlar sayfasında</span>');
+            }
             var haric = (donem && donem.haric_bolumler) || [];
             if (haric.length) {
                 parcalar.push('⛔ Hariç: <b>' + haric.map(function (b) { return esc(bolumAdi(b)); }).join(', ') +
@@ -11849,7 +11858,20 @@ window.__I18N_SOZLUK__ = {
             fetch('/api/mail/durum').then(r => r.json()).then(d => {
                 const rozet = document.getElementById('mail-durum-rozet');
                 if (!rozet) return;
-                if (d.etkin) {
+                // GÖNDERİM ARIZASI ROZETTE (kullanıcı 2026-09-04): Gmail şifresi
+                // iptal olunca mailler 6 gün sessizce gitmedi — hata yalnız sunucu
+                // konsolundaydı. Son deneme başarısızsa rozet KIRMIZI yanar; sebep
+                // üstüne gelince okunur. Sonraki başarılı gönderim (test dahil)
+                // durumu ezer ve rozet normale döner.
+                var sg = d.son_gonderim || {};
+                if (d.etkin && sg.zaman && sg.basarili === false && !sg.atlandi) {
+                    rozet.textContent = '● Mail GÖNDERİLEMİYOR · son deneme ' + sg.zaman;
+                    rozet.title = (sg.mesaj || 'Sebep kaydedilmemiş') +
+                        '\n\nDüzeltince "Test Maili Gönder" ile doğrulayın — başarılı ' +
+                        'gönderim bu uyarıyı temizler.';
+                    rozet.style.background = 'rgba(248,113,113,.15)';
+                    rozet.style.color = 'var(--danger)';
+                } else if (d.etkin) {
                     // KAPSAM ROZETTE (2026-08-26): TK1 ve TK2 ayrı mail gidiyor;
                     // kaç mail çıkacağı panelde görünsün, "ikinci mail neden geldi"
                     // sorusu doğmasın.
