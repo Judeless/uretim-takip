@@ -1,0 +1,12 @@
+{
+  "_aciklama": "Bakim sistemi (bakim.cofletk.com.tr) handoff entegrasyonu. Doldurup bakim_config.json olarak kaydet (gitignore'da). api_anahtari bakim yoneticisinden (Yonetim > Ayarlar > Cofle Forge Entegrasyonu). Restart GEREKMEZ - her istekte taze okunur.",
+  "etkin": false,
+  "api_url": "https://bakim.cofletk.com.tr",
+  "api_anahtari": "BURAYA-ANAHTAR",
+  "_eslesme_notu": "Forge makine adi -> bakim makine kodu (TKxxNN). Halil Bey'in Excel listesinden doldurulacak. Eslenmemis makinede buton gorunmez.",
+  "makine_eslesme": {
+    "ABB1": "",
+    "400T": "",
+    "Pres 1": ""
+  }
+}

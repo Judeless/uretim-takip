@@ -20,6 +20,7 @@ Tunel_Onar.bat
 .env
 *.env
 cofle_test_config.json
+bakim_config.json
 mail_config.json
 ai_config.json
 as400/oto_config.json

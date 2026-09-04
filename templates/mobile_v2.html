@@ -2746,6 +2746,7 @@ window.__I18N_SOZLUK__ = {
             <div style="font-size:.76rem;color:var(--muted);margin-top:2px" id="c-durus-uyari-detay">Bu süre için bir duruş tanımlayın.</div>
           </div>
           <button onclick="durusUyaridanTanimla()" style="background:var(--danger);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">⏸️ Duruş Tanımla</button>
+          <button id="c-durus-uyari-bakim" onclick="bakimHandoffSinyalYok()" style="display:none;background:var(--card);color:var(--danger);border:1px solid var(--danger);border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">🔧 Arıza Bildir</button>
         </div>
       </div>
 
@@ -2782,6 +2783,7 @@ window.__I18N_SOZLUK__ = {
 
       <div class="section-hd">
         <h3>⏸️ Duruş Kayıtları</h3>
+        <button class="section-add-btn" id="c-bakim-btn" style="display:none;background:var(--danger);color:#fff;margin-right:8px" onclick="bakimHandoff(null)">🔧 Arıza Bildir</button>
         <button class="section-add-btn" onclick="yeniDurusEkle()">+ Ekle</button>
       </div>
       <div class="kayit-list" id="c-durus-list">
@@ -4480,6 +4482,7 @@ window.__I18N_SOZLUK__ = {
         }
         aktifVardiyaId = id;
         aktifVardiyaData = data.vardiya;
+        bakimUygunKontrol();   // makine bakım sisteminde eşliyse 🔧 butonları göster
         // Bolum bilgisini set et (mevcut vardiyalardan)
         if (data.vardiya && data.vardiya.bolum) {
           secilenBolum = data.vardiya.bolum;
@@ -4743,6 +4746,7 @@ window.__I18N_SOZLUK__ = {
               '<div class="ki-kod">' + dr.durus_sebebi + '</div>' +
               '<div class="ki-detail">' + dr.sure_dk + ' dk' + saat + acik + '</div>' +
               '</div><div class="ki-actions">' +
+              (window._bakimUygun ? '<button class="ki-btn" title="Bakıma arıza bildir" data-id="' + dr.id + '" data-type="d-bakim">🔧</button>' : '') +
               '<button class="ki-btn ki-btn-edit" data-id="' + dr.id + '" data-type="d-edit">✏️</button>' +
               '<button class="ki-btn ki-btn-del" data-id="' + dr.id + '" data-type="d-del">🗑</button>' +
               '</div></div>';
@@ -4781,6 +4785,71 @@ window.__I18N_SOZLUK__ = {
           kapatBtn.style.opacity = '1';
         }
       }).catch(function () { toast('Veri yüklenemedi', 'error'); });
+    }
+
+    // ── BAKIM SİSTEMİNE GEÇİŞ (handoff — Halil Bilgin kılavuzu v0.9.6) ──
+    // "Arıza Bildir": sunucumuz bakım API'sinden tek kullanımlık bilet alır,
+    // tarayıcı o adrese AYNI SEKMEDE gider (tablet için kılavuz önerisi; dönüş
+    // donus_url ile bu sayfaya). Buton yalnız makinesi bakım sisteminde EŞLİ
+    // vardiyalarda görünür (/api/bakim/uygun) — eşlenmemiş makinede operatörü
+    // hata ekranına koşturmayız.
+    window._bakimUygun = false;
+    function bakimUygunKontrol() {
+      window._bakimUygun = false;
+      bakimButonGorunur();
+      var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
+      if (!mak) return;
+      fetch('/api/bakim/uygun?makine=' + encodeURIComponent(mak))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          window._bakimUygun = !!d.uygun;
+          bakimButonGorunur();
+        }).catch(function () {});
+    }
+    function bakimButonGorunur() {
+      var b1 = document.getElementById('c-bakim-btn');
+      if (b1) b1.style.display = window._bakimUygun ? '' : 'none';
+      var b2 = document.getElementById('c-durus-uyari-bakim');
+      if (b2) b2.style.display = window._bakimUygun ? '' : 'none';
+    }
+    function _bakimTsBicim(t) {
+      function iki(n) { return String(n).padStart(2, '0'); }
+      return t.getFullYear() + '-' + iki(t.getMonth() + 1) + '-' + iki(t.getDate()) +
+             ' ' + iki(t.getHours()) + ':' + iki(t.getMinutes()) + ':' + iki(t.getSeconds());
+    }
+    function bakimHandoff(dr) {
+      var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
+      if (!mak) { toast('Önce vardiya seçin', 'error'); return; }
+      var govde = {
+        makine: mak,
+        donus_url: window.location.href,
+        dil: (localStorage.getItem('app_dil') || 'tr')
+      };
+      if (dr) {
+        if (dr.id) govde.durus_id = dr.id;
+        if (dr.durus_sebebi) govde.durus_sebebi = dr.durus_sebebi;
+        if (dr.baslangic_ts) govde.baslangic_ts = dr.baslangic_ts;
+      }
+      toast('Bakım sistemine geçiliyor…', 'info');
+      fetch('/api/bakim/handoff', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(govde)
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.j.url) { toast(res.j.hata || 'Bakım sistemine geçilemedi', 'error'); return; }
+          window.location.href = res.j.url;
+        }).catch(function () { toast('Bağlantı hatası', 'error'); });
+    }
+    function bakimHandoffSinyalYok() {
+      // Sinyal-yok bandından: duruş kaydı henüz yok — başlık ve başlangıç
+      // sinyalin kesildiği andan kurulur, form dolu açılır.
+      var dr = null;
+      var dk = window._sonPulseDk;
+      if (dk != null && dk > 0) {
+        dr = { durus_sebebi: dk + ' dakikadır sinyal yok',
+               baslangic_ts: _bakimTsBicim(new Date(Date.now() - dk * 60000)) };
+      }
+      bakimHandoff(dr);
     }
 
     function refreshOEE() {
@@ -4977,6 +5046,9 @@ window.__I18N_SOZLUK__ = {
           }).catch(function () { toast('Hata oluştu', 'error'); });
       } else if (type === 'u-del') {
         uretimSil(id);
+      } else if (type === 'd-bakim') {
+        var drB = cacheDurus.find(function (x) { return x.id === id; });
+        if (drB) bakimHandoff(drB);
       } else if (type === 'd-edit') {
         var dr = cacheDurus.find(function (x) { return x.id === id; });
         if (dr) durusDuzenle(dr.id, dr.durus_sebebi, dr.sure_dk, dr.baslangic_saati || '', dr.aciklama || '', dr.durus_tipi || 'plansiz');

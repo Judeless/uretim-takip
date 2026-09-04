@@ -12190,6 +12190,160 @@ def as400_oto_config_degistir():
 
 
 # ─────────────────────────────────────────────────────────────
+# BAKIM SİSTEMİ HANDOFF (Halil Bilgin kılavuzu v0.9.6 — 2026-09-04)
+# ─────────────────────────────────────────────────────────────
+# Operatör "🔧 Arıza Bildir"e basar → BU SUNUCU bakım API'sinden tek
+# kullanımlık bilet alır (X-Api-Key yalnız burada; tarayıcıya asla inmez) →
+# operatörün tarayıcısı dönen url'e gider; bakım tarafında makine + bildiren
+# dolu form açılır. Ayrıntı: belgeler/Forge_MES_Handoff kılavuzu.
+
+_BAKIM_CONFIG_YOL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 'bakim_config.json')
+
+
+def _bakim_config():
+    """bakim_config.json — yoksa/bozuksa {} (entegrasyon kapalı sayılır)."""
+    try:
+        with open(_BAKIM_CONFIG_YOL, encoding='utf-8-sig') as f:
+            return json.load(f) or {}
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        print(f'[BAKIM] bakim_config.json okunamadı: {e}')
+        return {}
+
+
+def _bakim_hazir(cfg):
+    return bool(cfg.get('etkin') and cfg.get('api_url') and cfg.get('api_anahtari'))
+
+
+def _bakim_kodu(cfg, makine):
+    """Forge makine adı → bakım sistemindeki TKxxNN kodu (büyük/küçük duyarsız).
+
+    Eşleşme bakim_config.json → makine_eslesme sözlüğünden. Sözlükte olmayan
+    makinede buton hiç GÖSTERİLMEZ — operatörü 404'e koşturmayız."""
+    m = str(makine or '').strip().lower()
+    if not m:
+        return ''
+    for k, v in (cfg.get('makine_eslesme') or {}).items():
+        if str(k).strip().lower() == m:
+            return str(v or '').strip()
+    return ''
+
+
+_SICIL_TR = str.maketrans('ÇĞİÖŞÜçğıöşü', 'CGIOSUcgiosu')
+
+
+def _bakim_kullanici(conn, ad, lokasyon):
+    """Bakım tarafındaki hesap anahtarı: sicil_no varsa O, yoksa ad-slug'ı.
+
+    Slug deterministiktir ('Ahmet Yılmaz' → 'ahmet.yilmaz'): aynı kişi her
+    basışta aynı hesaba düşer. Sicil doldurulduğunda kalıcı kimliğe geçilir
+    (kılavuz 10. bölümdeki önerimiz)."""
+    sicil = ''
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(sicil_no,'') s FROM operatorler "
+            "WHERE ad=? AND COALESCE(lokasyon,'TK2')=? AND COALESCE(sicil_no,'')!='' "
+            "LIMIT 1", (ad, lokasyon or 'TK2')).fetchone()
+        sicil = (row['s'] if row else '').strip()
+    except Exception:
+        pass
+    if sicil:
+        return sicil
+    slug = ad.translate(_SICIL_TR).lower()
+    slug = re.sub(r'[^a-z0-9]+', '.', slug).strip('.')
+    return slug or 'operator'
+
+
+def _bakim_post(url, anahtar, govde):
+    """Bakım API çağrısı — testlerde taklit edilir diye ayrı fonksiyon."""
+    import requests
+    return requests.post(url, json=govde, timeout=(3, 10),
+                         headers={'Content-Type': 'application/json',
+                                  'X-Api-Key': anahtar})
+
+
+@app.route('/api/bakim/uygun', methods=['GET'])
+def bakim_uygun():
+    """Mobil buton görünürlüğü: bu makine için handoff mümkün mü?
+    Oturumsuz ve salt-bilgi — sır sızdırmaz (yalnız evet/hayır)."""
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return jsonify({'uygun': False})
+    return jsonify({'uygun': bool(_bakim_kodu(cfg, request.args.get('makine')))})
+
+
+@app.route('/api/bakim/handoff', methods=['POST'])
+@operator_required
+def bakim_handoff():
+    """Bakım sistemine geçiş bileti alır. Body: {makine, durus_id?, durus_sebebi?,
+    baslangic_ts?, donus_url?, dil?}. Döner: {url} → istemci oraya yönlenir.
+
+    PIN ŞART (operator_required): bilet almak bakım tarafında hesap açtırabilen
+    bir işlem — kimliksiz istek kabul edilmez (uç nokta internete açık)."""
+    if not g.operator_adi:
+        return jsonify({'hata': 'Operatör girişi gerekli — PIN ile giriş yapın'}), 401
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return jsonify({'hata': 'Bakım entegrasyonu bu sunucuda yapılandırılmamış'}), 503
+    data = request.get_json(silent=True) or {}
+    makine = str(data.get('makine') or '').strip()
+    kod = _bakim_kodu(cfg, makine)
+    if not kod:
+        return jsonify({'hata': f'"{makine}" bakım sisteminde eşlenmemiş — '
+                                f'bakim_config.json → makine_eslesme'}), 404
+
+    lokasyon = (g.operator_lokasyon or request.args.get('lokasyon') or 'TK2').upper()
+    conn = get_db()
+    kullanici = {
+        'username': _bakim_kullanici(conn, g.operator_adi, lokasyon),
+        'full_name': g.operator_adi,
+        'location': lokasyon,
+        'lang': (str(data.get('dil') or 'tr').lower()
+                 if str(data.get('dil') or 'tr').lower() in ('tr', 'en', 'it') else 'tr'),
+    }
+    govde = {'machine_code': kod, 'user': kullanici}
+
+    # Duruş bağlamı varsa gönder: external_id çift talebi önler, started_at
+    # arıza süresini doğru başlatır, sebep forma başlık olur (kılavuz 4. bölüm).
+    if data.get('durus_id'):
+        govde['external_id'] = f'durus-{data["durus_id"]}'
+    sebep = str(data.get('durus_sebebi') or '').strip()
+    if sebep:
+        govde['title'] = f'{makine} — {sebep}'[:120]
+    bas_ts = str(data.get('baslangic_ts') or '').strip()
+    if re.match(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}', bas_ts):
+        govde['started_at'] = bas_ts.replace('T', ' ')[:19]
+    donus = str(data.get('donus_url') or '').strip()
+    if donus.startswith(('http://', 'https://')):
+        govde['return_url'] = donus
+
+    try:
+        r = _bakim_post(cfg['api_url'].rstrip('/') + '/api/integrations/forge/handoff',
+                        cfg['api_anahtari'], govde)
+    except Exception as e:
+        print(f'[BAKIM] handoff ulaşılamadı: {e}')
+        return jsonify({'hata': 'Bakım sistemine ulaşılamadı — ağ/adres kontrolü gerekli'}), 502
+    try:
+        d = r.json() or {}
+    except Exception:
+        d = {}
+    if r.status_code != 200:
+        # Kılavuzdaki hata tablosu — operatöre anlaşılır Türkçe
+        mesaj = {400: 'Bakım sistemi isteği reddetti (eksik alan)',
+                 401: 'API anahtarı reddedildi — bakım yöneticisinden güncel anahtarı alın',
+                 403: 'Bakım sistemi izin vermedi (kullanıcı pasif ya da makine lokasyon dışı)',
+                 404: 'Makine kodu bakım sisteminde bulunamadı — eşlemeyi kontrol edin',
+                 }.get(r.status_code, f'Bakım sistemi hatası (HTTP {r.status_code})')
+        print(f'[BAKIM] handoff {r.status_code}: {d.get("error") or d}')
+        return jsonify({'hata': mesaj}), 502
+    print(f'[BAKIM] handoff OK: {g.operator_adi} → {kod} '
+          f'({govde.get("external_id") or "duruşsuz"})')
+    return jsonify({'url': d.get('url'), 'makine': (d.get('machine') or {}).get('name')})
+
+
+# ─────────────────────────────────────────────────────────────
 
 # BAŞLATMA
 # ─────────────────────────────────────────────────────────────

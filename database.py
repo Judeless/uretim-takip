@@ -597,6 +597,15 @@ def init_db():
     except Exception:
         pass
 
+    # Migration (2026-09-04, bakim sistemi entegrasyonu): sicil_no — bakim
+    # tarafinda hesap anahtari olarak DEGISMEYEN kimlik. Ad-soyad degisse de
+    # (evlilik, duzeltme) bakim hesabi ayni kalir. Bos birakilabilir; bossa
+    # handoff ad-soyaddan uretilmis slug kullanir (bkz. app._bakim_kullanici).
+    try:
+        c.execute("ALTER TABLE operatorler ADD COLUMN sicil_no TEXT")
+    except Exception:
+        pass
+
     # Varsayilan referanslar
     referanslar = [
         ('REF-001', 'On Panel', 45),
