@@ -213,34 +213,43 @@ PLASTIK_MAKINELERI = ['320T', '407T', 'Yapistirma', 'Sizdirmazlik Test']
 # uretimin kayda gectigi gorunsun, mukerrer teyit olmasin.
 TEYIT_DISI_MAKINE = {('TK1', 'plastik', 'Sizdirmazlik Test')}
 
-# ── TK2 MONTAJ: SONU 'A' ILE BITEN KODLARA TEYIT YOK (kullanici 2026-09-08) ──
+# ── TEYIT VERILMEYEN REFERANSLAR (kullanici 2026-09-08) ─────────────────────
 # OLAY: 94.PBL.83/10A uretimi ERP'ye 94.PBL.83/10 olarak teyit ediliyordu.
 # SEBEP: o koda ACIK LAUNCH yoksa esleme kok()'e duser; kok() sondaki harf ekini
 # atar ve BASKA bir urunun launch'ina baglar. kok() varyant ekleri icin
-# tasarlandi ('6343A' ~ '6343A-S'), ama TK2 montajda base kodun KENDISI de ayri
-# bir urun: 28 kodda birebir bu durum var (83/10A -> 83/10, 1217A -> 1217 ...).
-# Sonuc: uretim yanlis article'a stok yaziyordu.
-# KARAR: TK2 montajda sonu 'A' ile biten kodlara HIC teyit verilmez. Satir
-# kuyruktan SILINMEZ — 'HARIC' kategorisine duser ve gerekcesi yazilir, boylece
-# uretim panelde gorunmeye devam eder.
-# KAPSAM DAR TUTULDU: yalniz TK2 + montaj ve yalniz 'A'. Ayni yanlis eslesme
-# H/G/B/C ekli 113 kodda daha mumkun, fakat kullanici karari 'A' ile sinirli.
+# tasarlandi ('6343A' ~ '6343A-S'), ama burada base kodun KENDISI ayri bir urun
+# (94.PBL.83/10 gercek bir referans) -> uretim yanlis article'a stok yaziyordu.
 #
-# ISTISNA: asagidakiler gercek bitmis urun, teyit ALIRLAR (kullanici listesi).
-# Karsilastirma gevsek() ile: noktalama/harf farki yutulur, yani operator
-# '94,PBL.63A' ya da '94.pbl.63a' yazsa da istisna tutar.
-MONTAJ_A_ISTISNA_HAM = ('94.SBR.004A', '94.LTK.701A', '10.DTC.1374GA',
-                        '94.PBL.63A', '94.PBL.86A')
+# NEDEN DESEN DEGIL LISTE: ilk cozum "sonu 'A' ile biten kodlar" desenini
+# kullaniyordu; kullanici kontrol edince 57 kodun cogunun teyit ALMASI gerektigi
+# ortaya cikti (93.TK.1044A, 94.LAG.073A ... hepsi gercek urun). Desen yanlis
+# tarafa genisti. Artik yalnizca ASAGIDAKI kodlar teyit disidir; yeni bir kod
+# cikarsa listeye eklenir. Dikkat: '94.PBL.28A/20' gibi kodlar 'A' ile BITMIYOR
+# — yani kural bir ek/desen kurali degil, urun karari.
+#
+# BOLUM KAPSAMI YOK: bunlar benzersiz urun kodlari, hangi bolumde kaydedilirse
+# kaydedilsin teyit almamalilar. (Desen kuralinda kapsam sarti vardi, cunku
+# desen baska bolumlerdeki mesru kodlari da yakalayabilirdi.)
+#
+# Karsilastirma gevsek() ile: noktalama/buyuk-kucuk harf/bosluk farkini yutar,
+# yani operator '94,pbl.83/10 a' yazsa da tutar. Referans listesindeki 7 kodun
+# hicbirinin gevsek anahtari baska bir kodla cakismiyor (2026-09-08 kontrolu).
+TEYIT_DISI_REFERANSLAR = (
+    '94.PBL.28A/20',
+    '94.PBL.29A/20',
+    '94.PBL.57-20A',
+    '94.PBL.58-20A',
+    '94.PBL.83/10A',
+    '94.CV.025A/20',
+    '94.CV.026A/20',
+)
+_TEYIT_DISI_ANAHTAR = frozenset(gevsek(k) for k in TEYIT_DISI_REFERANSLAR)
 
 
-def montaj_a_eki(tesis, bolum, referans):
-    """TK2 montajda sonu 'A' ile biten (istisna disi) bir kod mu?"""
-    if (tesis or '') != 'TK2' or (bolum or '') != 'montaj':
-        return False
-    k = kanonik(referans)
-    if not k or not k.endswith('A'):
-        return False
-    return gevsek(referans) not in {gevsek(x) for x in MONTAJ_A_ISTISNA_HAM}
+def teyit_disi_kod(referans):
+    """Kullanicinin teyit disi tuttugu referanslardan biri mi?"""
+    g = gevsek(referans)
+    return bool(g) and g in _TEYIT_DISI_ANAHTAR
 
 
 def _kapsam_where(alias='v'):
@@ -543,9 +552,9 @@ def teyit_disi_sebep(tesis, bolum, makine, referans, aciklama=''):
     zamanla ayrisamaz."""
     if (tesis, bolum, makine) in TEYIT_DISI_MAKINE:
         return ('Test cihazı — teyit yapıştırmada verilir (aynı kod, mükerrer olmasın)')
-    if montaj_a_eki(tesis, bolum, referans):
-        return ('TK2 montajda "A" ekli koda teyit verilmez — eşleşme kodu base '
-                'ürüne bağlıyordu (kullanıcı kuralı 2026-09-08)')
+    if teyit_disi_kod(referans):
+        return ('Bu referansa teyit verilmez — eşleşme üretimi base ürünün '
+                'koduna bağlıyordu (kullanıcı listesi 2026-09-08)')
     if rework_mi(aciklama, referans):
         return 'Rework kaydı — yeniden işleme, ERP\'ye stok girmez'
     ek = operator_eki(referans, aciklama)
