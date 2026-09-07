@@ -12690,9 +12690,6 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
 
     govde = {
         'machine_code': kod,
-        'user': {'username': _bakim_kullanici(conn, kayit['operator_adi'], kayit['lokasyon']),
-                 'full_name': kayit['operator_adi'],
-                 'location': kayit['lokasyon'], 'lang': 'tr'},
         'external_id': f"ariza-{kayit['id']}",
         'title': f"{kayit['makine']} — {(kayit.get('aciklama') or '')[:90]}"[:120],
         'description': ((kayit.get('aciklama') or '') +
@@ -12704,13 +12701,46 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
     if kayit.get('baslangic_ts'):
         govde['started_at'] = str(kayit['baslangic_ts'])[:19].replace('T', ' ')
 
+    # KULLANICI BLOĞU (2026-09-08 saha: HTTP 403). Bakım sözleşmesi: user
+    # verilirse talep o kişi adına açılır (sicil/slug bakımda kullanıcı adı;
+    # hesap yoksa otomatik açılır), verilmezse "Cofle Forge (MES)" sistem
+    # kullanıcısı adına açılır. İki durumda user GÖNDERİLMEZ:
+    #   · operatör MES'in kendi sistem hesabı 'Admin' (PIN 9999): gerçek kişi
+    #     değil; slug'ı 'admin' bakımın yönetici hesabıyla çakışıyor → 403.
+    #   · bakım 403 dönerse (hesap pasif / lokasyon yetkisi yok): aynı talep
+    #     user'sız BİR KEZ daha denenir — üretim, bakım tarafındaki bir hesap
+    #     ayarı yüzünden beklemesin. Operatörün adı açıklamaya yazılır, kaybolmaz.
+    operator = str(kayit.get('operator_adi') or '').strip()
+    sistem_hesabi = (operator.lower() == 'admin')
+    if not sistem_hesabi:
+        govde['user'] = {'username': _bakim_kullanici(conn, operator, kayit['lokasyon']),
+                         'full_name': operator, 'location': kayit['lokasyon'], 'lang': 'tr'}
+    else:
+        govde['description'] = (govde['description'] +
+                                f"\nBildiren: {operator} (MES sistem hesabı)")[:2000]
+
     wo = (cfg.get('work_order_yolu') or '').strip()
     handoff = (wo.lower() == 'handoff')
     hedef = (cfg['api_url'].rstrip('/') +
              ('/api/integrations/forge/handoff' if handoff else (wo or BAKIM_WORK_ORDER_YOLU)))
+    yedek_not = ''
     try:
         r = _bakim_post(hedef, cfg['api_anahtari'], govde)
         d = r.json() if r.status_code < 500 else {}
+        if r.status_code == 403 and 'user' in govde:
+            # Hesap pasif ya da makine kullanıcının lokasyonunda değil → MES
+            # sistem kullanıcısı adına yeniden dene (bkz. yukarıdaki not).
+            print(f'[ARIZA] #{kayit.get("id")} bakım 403 ({govde["user"]["username"]}) '
+                  f'→ user\'sız yeniden deneniyor')
+            govde = dict(govde)
+            govde.pop('user')
+            govde['description'] = (govde['description'] +
+                                    f"\nBildiren operatör: {operator} "
+                                    f"(bakım hesabı pasif/yetkisiz — MES adına açıldı)")[:2000]
+            r = _bakim_post(hedef, cfg['api_anahtari'], govde)
+            d = r.json() if r.status_code < 500 else {}
+            if r.status_code == 200:
+                yedek_not = f' (operatör hesabı bakımda pasif/yetkisiz — MES adına açıldı: {operator})'
     except Exception as e:
         print(f'[ARIZA] bakım çağrısı hatası: {e}')
         return False, 'Bakım sistemine ulaşılamadı', ''
@@ -12730,7 +12760,7 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
         _bakim_durum_isle(conn, kayit['id'], d)
     except Exception as e:
         print(f'[ARIZA] talep no yazılamadı (#{kayit.get("id")}): {e}')
-    mesaj = ('Bakım sistemine iletildi' + (f' — talep {talep}' if talep else ''))
+    mesaj = ('Bakım sistemine iletildi' + (f' — talep {talep}' if talep else '') + yedek_not)
     if d.get('duplicate'):
         mesaj = 'Bu bildirim bakıma zaten iletilmişti' + (f' — talep {talep}' if talep else '')
     return True, mesaj, (d.get('url') or '')
