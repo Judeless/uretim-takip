@@ -12595,12 +12595,22 @@ def ariza_yukseltme_job():
 
 @app.route('/api/bakim/uygun', methods=['GET'])
 def bakim_uygun():
-    """Mobil buton görünürlüğü: bu makine için handoff mümkün mü?
-    Oturumsuz ve salt-bilgi — sır sızdırmaz (yalnız evet/hayır)."""
+    """Mobil buton görünürlüğü: operatör bu makinede arıza bildirebilir mi?
+
+    BAKIM API'SİNDEN BAĞIMSIZ (2026-09-07): amir onaylı akışta bildirim önce
+    MES'te toplanır; bakım sistemine iletim AMİR ADIMINDA gerekir. Buton
+    görünürlüğünü API anahtarına bağlamak, anahtar gelene kadar operatörün
+    hiç arıza bildirememesi demekti — akışın MES tarafı zaten çalışıyor.
+    Kural: bakim_config.json VARSA (özellik kurulmuş) ve ariza_bildirimi
+    kapatılmamışsa buton görünür. Makine eşlemesi ve API hazırlığı bilgi
+    olarak döner — amir tarafındaki uyarılar bunları kullanır.
+    Oturumsuz ve salt-bilgi: sır sızdırmaz."""
     cfg = _bakim_config()
-    if not _bakim_hazir(cfg):
+    if not cfg or cfg.get('ariza_bildirimi') is False:
         return jsonify({'uygun': False})
-    return jsonify({'uygun': bool(_bakim_kodu(cfg, request.args.get('makine')))})
+    return jsonify({'uygun': True,
+                    'bakim_eslesme': bool(_bakim_kodu(cfg, request.args.get('makine'))),
+                    'bakim_hazir': _bakim_hazir(cfg)})
 
 
 @app.route('/api/bakim/handoff', methods=['POST'])
