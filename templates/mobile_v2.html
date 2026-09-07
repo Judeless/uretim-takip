@@ -4518,7 +4518,6 @@ window.__I18N_SOZLUK__ = {
         }
         aktifVardiyaId = id;
         aktifVardiyaData = data.vardiya;
-        bakimUygunKontrol();   // makine bakım sisteminde eşliyse 🔧 butonları göster
         // Bolum bilgisini set et (mevcut vardiyalardan)
         if (data.vardiya && data.vardiya.bolum) {
           secilenBolum = data.vardiya.bolum;
@@ -4673,6 +4672,10 @@ window.__I18N_SOZLUK__ = {
       if (!aktifVardiyaId) return;
       fetch('/api/vardiya/' + aktifVardiyaId).then(function (r) { return r.json(); }).then(function (d) {
         aktifVardiyaData = d.vardiya;
+        // Arıza bildir butonu: ekran C'ye HER GİRİŞTE değerlendirilir. Kontrol
+        // önce yalnız vardiyaSec'teydi; yeni vardiya açarak, sayfa yenilenerek
+        // ya da masa/hat değiştirerek gelindiğinde buton görünmüyordu.
+        bakimUygunKontrol();
         yukleAtamalar();
 
         document.getElementById('c-baslik').textContent = d.vardiya.robot_no + ' — ' + d.vardiya.operator_adi;
