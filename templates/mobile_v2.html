@@ -991,7 +991,13 @@
       box-shadow: 0 14px 40px rgba(0,0,0,0.5), 0 0 30px rgba(167,139,250,0.18);
       opacity: 0; pointer-events: none;
       transition: all .25s cubic-bezier(.2,.8,.2,1);
-      z-index: 5000;
+      /* MODALLARIN USTUNDE (2026-09-07 saha hatasi): toast 5000'deydi, her
+         modal 9000-10000 arasinda -> modal acikken cikan HER uyari perdenin
+         arkasinda kaliyordu. Operator "Amire Gonder"e basip hicbir sey
+         olmadigini goruyordu; aslinda "Arizayi kisaca yazin" diyorduk.
+         Ayni sessizlik PIN modalinda ("PIN 4 haneli olmali") ve hat
+         modalinda da vardi. En yuksek modal 10000 -> toast 10500. */
+      z-index: 10500;
       max-width: 86vw;
     }
     .toast.show {
