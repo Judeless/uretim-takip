@@ -15805,15 +15805,19 @@ window.__I18N_SOZLUK__ = {
           panelFetch('/api/ariza/' + id + '/onayla', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(alanlar)
-          }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          }).then(function (r) {
+              // JSON gelmezse (HTML 500, oturum düşmesi, 524) kodu göster —
+              // "Bağlantı hatası" sebebi yutuyordu (2026-09-08).
+              return r.json().then(function (j) { return { ok: r.ok, j: j }; },
+                                   function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ') — sunucu logu: cofle-app.err.log' } }; });
+            })
             .then(function (res) {
               if (!res.ok) { toast(res.j.hata || 'İletilemedi', 'error'); return; }
-              toast('Bakıma iletildi', 'success');
-              // handoff yolu: bakım formu yeni sekmede açılır, amir eksikleri
-              // orada tamamlayıp gönderir (Halil Bey'in v0.9.6 akışı).
-              if (res.j.url) window.open(res.j.url, '_blank', 'noopener');
+              // Work-order yolu: talep no mesajda; bakım linki karta düşer
+              // (window.open popup engelleyiciye takılıyordu — kaldırıldı).
+              toast(res.j.mesaj || 'Bakıma iletildi', 'success');
               arizaKuyrukYukle();
-            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+            }).catch(function (e) { toast('Bağlantı hatası: ' + (e && e.message ? e.message : e), 'error'); });
         }
 
         function arizaReddet(id) {

@@ -13043,23 +13043,29 @@ def ariza_onayla(aid):
         return jsonify({'hata': f'Bu bildirim zaten işlenmiş ({r["durum"]})'}), 409
     d = request.get_json(silent=True) or {}
     amir = g.panel_ku['ad_soyad'] or g.panel_ku['kullanici_adi']
-    # Ekrandaki düzeltmeler (açıklama/makine/öncelik) ÖNCE kaydedilir: bakıma
-    # gönderim başarısız olsa bile amirin emeği kaybolmasın.
-    degisti, kayit = _ariza_duzelt_uygula(conn, dict(r), d, amir)
-    if degisti is None:
-        return jsonify({'hata': kayit}), 400
-    kayit['karar_notu'] = ' '.join(str(d.get('not') or '').split())[:500] or None
+    # HER HÂLDE JSON (2026-09-08 saha): bir istisna HTML 500 sayfası üretiyor,
+    # panel de "Bağlantı hatası" deyip sebebi yutuyordu. Sebep artık toast'ta.
+    try:
+        # Ekrandaki düzeltmeler (açıklama/makine/öncelik) ÖNCE kaydedilir: bakıma
+        # gönderim başarısız olsa bile amirin emeği kaybolmasın.
+        degisti, kayit = _ariza_duzelt_uygula(conn, dict(r), d, amir)
+        if degisti is None:
+            return jsonify({'hata': kayit}), 400
+        kayit['karar_notu'] = ' '.join(str(d.get('not') or '').split())[:500] or None
 
-    ok, mesaj, url = _ariza_bakima_gonder(conn, kayit, 'amir', amir)
-    if not ok:
-        return jsonify({'hata': mesaj}), 502
-    conn.execute(
-        "UPDATE ariza_bildirimleri SET durum='gonderildi', amir=?, oncelik=?, "
-        "karar_notu=?, karar_ts=datetime('now','localtime'), gonderim_yolu='amir' WHERE id=?",
-        (amir, kayit['oncelik'], kayit['karar_notu'], aid))
-    conn.commit()
-    print(f'[ARIZA] #{aid} onaylandı ({amir}) → bakım')
-    # url dolu ise (handoff yolu) amir bakım formunu açıp eksikleri tamamlar
+        ok, mesaj, url = _ariza_bakima_gonder(conn, kayit, 'amir', amir)
+        if not ok:
+            return jsonify({'hata': mesaj}), 502
+        conn.execute(
+            "UPDATE ariza_bildirimleri SET durum='gonderildi', amir=?, oncelik=?, "
+            "karar_notu=?, karar_ts=datetime('now','localtime'), gonderim_yolu='amir' WHERE id=?",
+            (amir, kayit['oncelik'], kayit['karar_notu'], aid))
+        conn.commit()
+    except Exception as e:
+        import traceback
+        print(f'[ARIZA] #{aid} onay HATASI: {e!r}\n{traceback.format_exc()}')
+        return jsonify({'hata': f'Sunucu hatası: {e!r}', 'asama': 'onay'}), 500
+    print(f'[ARIZA] #{aid} onaylandı ({amir}) -> bakım')
     return jsonify({'basarili': True, 'mesaj': mesaj, 'url': url})
 
 
