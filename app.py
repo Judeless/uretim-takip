@@ -176,6 +176,15 @@ app.config.update(
 # ── Panel yetki modeli ──
 # İzin verilebilen sayfa anahtarları (dashboard_v2 sidebar data-sayfa değerleri).
 # 'kullanicilar' burada YOK — o admin'e özeldir (rol ile korunur, izinle değil).
+# ── ÜST SİSTEM HATALARINDA HTTP KODU: 424, ASLA 502/504 (2026-09-08 saha) ──
+# AS400 / bakım sistemi gibi ÜST sistem cevap vermeyince eskiden 502 dönüyorduk.
+# coflemanage.online Cloudflare tüneli arkasında; Cloudflare, kaynaktan gelen
+# 502 ve 504'ü KENDİ HTML hata sayfasıyla DEĞİŞTİRİR — JSON'daki gerekçe
+# ("Bakım sistemi reddetti (HTTP 403 — …)") tarayıcıya hiç ulaşmıyordu, panel
+# "Sunucu JSON döndürmedi (HTTP 502)" diyordu. 424 Failed Dependency anlamca
+# aynı ("bağımlı olduğum sistem başarısız") ve Cloudflare'dan dokunulmadan geçer.
+# Kural: tarayıcıya giden uçlarda 502/504 KULLANMA.
+
 # ── VARSAYILAN ARAYÜZ DİLİ (2026-09-08) ────────────────────────────────
 # Dil seçimi tarayıcıda (localStorage 'app_dil') tutulur; ilk açılışta hangi
 # dilin geleceği eskiden şablonlarda 'tr' olarak sabitti. Demo/İtalya kurulumu
@@ -9039,7 +9048,7 @@ def as400_teyit_listesi():
             _sys.path.insert(0, _d)
         import launch_esle as _le
     except Exception as e:
-        return jsonify({'hata': f'AS400 modülü yüklenemedi: {e}'}), 502
+        return jsonify({'hata': f'AS400 modülü yüklenemedi: {e}'}), 424
     if tarih:
         tarihler = [tarih]
     else:
@@ -9062,7 +9071,7 @@ def as400_teyit_listesi():
         coklu = _le.esle_coklu(tarihler)
     except Exception as e:
         # AS400 kapalı/şifre yok/ağ hatası → paneli kırmadan anlaşılır mesaj
-        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 424
     conn = get_db()
     son_gonderimler = [dict(r) for r in conn.execute(
         "SELECT id, created_at, uretim_tarihi, yil, launch_no, referans, adet, sonuc, mesaj, olusturan "
@@ -10928,7 +10937,7 @@ def kaynak_plan_erpden_kur():
     try:
         cn = kp.erp_baglan()
     except Exception as e:
-        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 424
     try:
         opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk)
     finally:
@@ -10971,7 +10980,7 @@ def kaynak_plan_oprler():
     try:
         cn = kp.erp_baglan()
     except Exception as e:
-        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 424
     try:
         d = kp.opr_ihtiyaclari(cn, [kod]).get(kod) or {'satirlar': [], 'ihtiyac': 0}
     finally:
@@ -10991,7 +11000,7 @@ def kaynak_plan_yenile():
     try:
         sonuc = _kaynak_plan_olc(get_db(), kodlar)
     except Exception as e:
-        return jsonify({'hata': f'ERP ölçümü başarısız: {e}'}), 502
+        return jsonify({'hata': f'ERP ölçümü başarısız: {e}'}), 424
     return jsonify({'ok': True, **sonuc})
 
 
@@ -11020,7 +11029,7 @@ def as400_planlama():
         pw = _cfg.sifre_al()
         cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
     except Exception as e:
-        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 502
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 424
     try:
         # ÜST KODLAR — 3 seviyeye kadar implosion (iteratif; döngü/patlama korumalı)
         ustler = []          # [{kod, seviye, birim}]
@@ -11091,7 +11100,7 @@ def as400_planlama():
             'agac': agac,
         })
     except Exception as e:
-        return jsonify({'hata': f'AS400 planlama sorgusu başarısız: {e}'}), 502
+        return jsonify({'hata': f'AS400 planlama sorgusu başarısız: {e}'}), 424
     finally:
         cn.close()
 
@@ -11145,7 +11154,7 @@ def as400_acik_transferler():
         transferler = _acik_transferler_sorgula(gunler)
         return jsonify({'gunler': gunler, 'transferler': transferler})
     except Exception as e:
-        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 424
 
 
 def _transfer_kayit_duruyor_mu(kayit, satir):
@@ -13055,7 +13064,7 @@ def ariza_onayla(aid):
 
         ok, mesaj, url = _ariza_bakima_gonder(conn, kayit, 'amir', amir)
         if not ok:
-            return jsonify({'hata': mesaj}), 502
+            return jsonify({'hata': mesaj}), 424
         conn.execute(
             "UPDATE ariza_bildirimleri SET durum='gonderildi', amir=?, oncelik=?, "
             "karar_notu=?, karar_ts=datetime('now','localtime'), gonderim_yolu='amir' WHERE id=?",
@@ -13163,7 +13172,7 @@ def bakim_makine_tazele():
         return jsonify({'hata': 'Bakım entegrasyonu yapılandırılmamış (API anahtarı yok)'}), 503
     sonuc, hata = _bakim_katalog_tazele(get_db(), cfg)
     if hata:
-        return jsonify({'hata': hata}), 502
+        return jsonify({'hata': hata}), 424
     return jsonify({'basarili': True, **sonuc})
 
 
@@ -13230,7 +13239,7 @@ def bakim_deneme_durum():
     if kod == 404:
         return jsonify({'var': False, 'mesaj': 'Bakım tarafında external_id test-1 ile talep YOK — henüz açılmamış'})
     if kod != 200 or not isinstance(d, dict):
-        return jsonify({'hata': f'Durum okunamadı: HTTP {kod} {str(d)[:200]}'}), 502
+        return jsonify({'hata': f'Durum okunamadı: HTTP {kod} {str(d)[:200]}'}), 424
     alanlar = {k: d.get(k) for k in ('id', 'code', 'work_order_no', 'status', 'priority', 'machine_code',
                                      'opened_at', 'work_started_at', 'wait_reason', 'finished_at',
                                      'closed_at', 'url')}
@@ -13277,14 +13286,14 @@ def bakim_deneme():
         r = _bakim_post(hedef, cfg['api_anahtari'], govde)
         yanit = r.json() if r.status_code < 500 else {}
     except Exception as e:
-        return jsonify({'hata': f'Bakım sistemine ulaşılamadı: {e!r}'}), 502
+        return jsonify({'hata': f'Bakım sistemine ulaşılamadı: {e!r}'}), 424
     if r.status_code != 200:
         aciklama = {400: 'eksik alan', 401: 'API anahtarı reddedildi',
                     403: 'kullanıcı pasif ya da makine lokasyon dışı',
                     404: 'makine bakım sisteminde bulunamadı'}.get(r.status_code, '')
         return jsonify({'hata': f'Bakım sistemi reddetti (HTTP {r.status_code}'
                                 + (f' — {aciklama}' if aciklama else '') + ')',
-                        'yanit': str(yanit)[:300]}), 502
+                        'yanit': str(yanit)[:300]}), 424
     yanit = yanit or {}
     durum = _bakim_durum_sorgula(cfg, 'test-1') or {}
     print(f'[BAKIM] deneme talebi: {yanit.get("work_order_no") or yanit.get("code")} '
@@ -13323,11 +13332,11 @@ def bakim_ping():
             return jsonify({'hata': 'Anahtar biçimi hatalı: ' + '; '.join(bicim), **teshis}), 400
         kod, d = _bakim_get(cfg, BAKIM_PING_YOLU, timeout=(3, 10))
         if kod == 0:
-            return jsonify({'hata': 'Bakım sistemine ulaşılamadı (ağ/adres)', **teshis}), 502
+            return jsonify({'hata': 'Bakım sistemine ulaşılamadı (ağ/adres)', **teshis}), 424
         if kod == 401:
-            return jsonify({'hata': 'API anahtarı reddedildi (401) — anahtar yanlış ya da yenilenmiş', **teshis}), 502
+            return jsonify({'hata': 'API anahtarı reddedildi (401) — anahtar yanlış ya da yenilenmiş', **teshis}), 424
         if kod != 200 or not isinstance(d, dict) or not d.get('ok'):
-            return jsonify({'hata': f'Beklenmeyen yanıt: HTTP {kod} {str(d)[:200]}', **teshis}), 502
+            return jsonify({'hata': f'Beklenmeyen yanıt: HTTP {kod} {str(d)[:200]}', **teshis}), 424
         return jsonify({'basarili': True, 'system': d.get('system'), 'version': d.get('version'), **teshis})
     except Exception as e:
         # Panel "Bağlantı hatası" deyip sebebi yutmasın: her hata JSON döner.
@@ -13386,7 +13395,7 @@ def bakim_handoff():
                         cfg['api_anahtari'], govde)
     except Exception as e:
         print(f'[BAKIM] handoff ulaşılamadı: {e}')
-        return jsonify({'hata': 'Bakım sistemine ulaşılamadı — ağ/adres kontrolü gerekli'}), 502
+        return jsonify({'hata': 'Bakım sistemine ulaşılamadı — ağ/adres kontrolü gerekli'}), 424
     try:
         d = r.json() or {}
     except Exception:
@@ -13399,7 +13408,7 @@ def bakim_handoff():
                  404: 'Makine kodu bakım sisteminde bulunamadı — eşlemeyi kontrol edin',
                  }.get(r.status_code, f'Bakım sistemi hatası (HTTP {r.status_code})')
         print(f'[BAKIM] handoff {r.status_code}: {d.get("error") or d}')
-        return jsonify({'hata': mesaj}), 502
+        return jsonify({'hata': mesaj}), 424
     print(f'[BAKIM] handoff OK: {g.operator_adi} → {kod} '
           f'({govde.get("external_id") or "duruşsuz"})')
     return jsonify({'url': d.get('url'), 'makine': (d.get('machine') or {}).get('name')})
