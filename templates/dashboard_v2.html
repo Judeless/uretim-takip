@@ -14935,13 +14935,18 @@ window.__I18N_SOZLUK__ = {
             'sinyal-analizi': 'Sinyal Analizi', 'andon-ayarlari': 'Andon Ayarları', 'raporlar': 'Raporlar',
             'operator-performans': 'Operatör Performansı (kişi bazlı OEE)', 'analiz': 'Analiz (otomatik bulgular)',
             'as400-teyit': 'AS400 İşlemler (teyit + aktarım)',
-            'kaynak-plan': 'Kaynak Planı (üretilebilirlik takibi)'
+            'kaynak-plan': 'Kaynak Planı (üretilebilirlik takibi)',
+            // 2026-09-07: bu ikisi PANEL_SAYFALAR'da vardı ama BURADA YOKTU —
+            // kutucukları çıkmadığı için yöneticiler izni panelden veremiyordu
+            // (yalnız admin görebiliyordu). Arıza Onay eklenirken fark edildi.
+            'zaman-cizelgesi': 'Zaman Çizelgesi (duruş atama)',
+            'ariza-onay': 'Arıza Onay (operatör bildirimlerini bakıma iletme)'
         };
         // Açılışta düşülecek öncelik sırası
         var PANEL_SAYFA_SIRA = ['ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
             'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'zaman-cizelgesi',
             'andon-ayarlari', 'raporlar',
-            'operator-performans', 'analiz', 'as400-teyit', 'kullanicilar'];
+            'operator-performans', 'analiz', 'as400-teyit', 'ariza-onay', 'kullanicilar'];
 
         function panelAdmin() { return !!(window.PANEL_KU && window.PANEL_KU.admin); }
         function panelIzinler() { return (window.PANEL_KU && window.PANEL_KU.izinler) || []; }
