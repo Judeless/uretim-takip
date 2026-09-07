@@ -5047,6 +5047,9 @@ window.__I18N_SOZLUK__ = {
         var h = '<div style="font-weight:800;font-size:.82rem;margin-bottom:8px;padding-top:14px;border-top:1px solid var(--line)">Bildirimlerim (son 7 gün)</div>';
         liste.forEach(function (b) {
           var rz = rozet[b.durum] || ['—', 'var(--muted)'];
+          // Bakıma iletildiyse bakım tarafındaki aşama + talep no (v0.9.8)
+          if (b.durum === 'gonderildi' && b.bakim_etiket) rz = ['🔧 ' + b.bakim_etiket, 'var(--success)'];
+          if (b.durum === 'gonderildi' && b.bakim_talep_no) rz = [rz[0] + ' · ' + b.bakim_talep_no, rz[1]];
           h += '<div style="padding:8px 0;border-bottom:1px dashed var(--line)">' +
                '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">' +
                '<span style="font-weight:700;font-size:.84rem">' + (b.makine || '') + '</span>' +

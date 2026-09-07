@@ -5261,6 +5261,7 @@ window.__I18N_SOZLUK__ = {
                             <option value="TK1">Yalnız TK1</option>
                         </select>
                         <button class="btn btn-ghost" onclick="arizaKuyrukYukle()">↻ Yenile</button>
+                        <button class="btn btn-ghost" onclick="bakimPing()" title="API anahtarı ve bağlantı testi (ping)">📡 Bağlantı testi</button>
                         <button class="btn btn-ghost" onclick="arizaKatalogTazele()" title="Bakım makine listesini bakım sisteminden yeniler (API anahtarı gerekir)">🔧 Makine listesini tazele</button>
                     </div>
                     <div id="ariza-liste"><div class="yukleniyor">Yükleniyor…</div></div>
@@ -15004,6 +15005,11 @@ window.__I18N_SOZLUK__ = {
                    : (b.durum === 'gonderildi' ? 'var(--success)' : 'var(--muted)');
           var durumEt = { bekliyor: '⏳ Amir onayında', gonderildi: '✅ Bakıma iletildi',
                           reddedildi: '⊘ Reddedildi' }[b.durum] || b.durum;
+          // Bakım tarafındaki aşama (v0.9.8 durum ucu): iletildikten sonra
+          // "Bakımcı atandı / Çalışılıyor / Tamamlandı…" ve talep numarası.
+          if (b.durum === 'gonderildi' && b.bakim_etiket) durumEt = '🔧 ' + esc(b.bakim_etiket);
+          var talepNo = b.bakim_talep_no
+            ? ' <span style="font-weight:600;color:var(--muted)">· ' + esc(b.bakim_talep_no) + '</span>' : '';
           // Gönderim yolu: amir onayı mı, acil hızlı yol mu, zaman aşımı mı?
           var yol = { amir: '', acil: ' (acil hızlı yol)', zaman_asimi: ' (süre aşımı — otomatik)' }[b.gonderim_yolu] || '';
           var h = '<div class="panel-card" style="margin-bottom:12px;border-left:3px solid ' + renk + '">' +
@@ -15011,7 +15017,7 @@ window.__I18N_SOZLUK__ = {
               '<div style="font-weight:800;font-size:1rem">' + esc(b.makine) +
                 ' <span style="font-size:.78rem;color:var(--muted);font-weight:600">' + esc(b.lokasyon) +
                 (b.bolum ? ' · ' + esc(bolumAdi(b.bolum, b.lokasyon)) : '') + '</span></div>' +
-              '<div style="font-weight:800;font-size:.8rem;color:' + renk + '">' + durumEt + esc(yol) + '</div>' +
+              '<div style="font-weight:800;font-size:.8rem;color:' + renk + '">' + durumEt + esc(yol) + talepNo + '</div>' +
             '</div>' +
             (bekliyor
               ? '<textarea id="ariza-acik-' + b.id + '" rows="2" style="width:100%;margin:8px 0;padding:8px 10px;' +
@@ -15148,12 +15154,25 @@ window.__I18N_SOZLUK__ = {
         // Katalog tazeleme: anahtar gelene kadar depodaki anlık görüntüyle
         // çalışıyoruz, buton o zaman anlam kazanacak. Hata METNİ gösterilir —
         // sözleşme henüz teyitli değil, sessiz başarısızlık yanlış olurdu.
+        // Halil Bey'in devreye alma sırası, 1. adım: ping → {ok, system, version}
+        function bakimPing() {
+          panelFetch('/api/bakim/ping')
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'Ping başarısız', 'error'); return; }
+              toast('Bakım sistemi ' + (res.j.version || '?') + ' · anahtar: ' + (res.j.anahtar_kaynagi || '?') +
+                    (res.j.etkin ? '' : ' · entegrasyon KAPALI (etkin:false)'), res.j.etkin ? 'success' : 'info');
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
         function arizaKatalogTazele() {
           panelFetch('/api/bakim/makine_tazele', { method: 'POST' })
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (res) {
               if (!res.ok) { toast(res.j.hata || 'Tazelenemedi', 'error'); return; }
-              toast(res.j.makine + ' makine güncellendi', 'success');
+              toast(res.j.makine + ' makine güncellendi' +
+                    (res.j.yeni ? ' · ' + res.j.yeni + ' yeni' : '') +
+                    (res.j.silinen ? ' · ' + res.j.silinen + ' listede yok' : ''), 'success');
               _arizaBakimCache = {};
               arizaKuyrukYukle();
             }).catch(function () { toast('Bağlantı hatası', 'error'); });

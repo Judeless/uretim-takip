@@ -12229,16 +12229,138 @@ _BAKIM_CONFIG_YOL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                  'bakim_config.json')
 
 
+# Bakım sistemi v0.9.8 uçları (Halil Bilgin, 2026-09-07). Config'te
+# work_order_yolu / makine_listesi_yolu boşsa bunlar kullanılır.
+BAKIM_WORK_ORDER_YOLU = '/api/integrations/forge/work-order'
+BAKIM_MAKINE_YOLU = '/api/integrations/forge/machines'
+BAKIM_PING_YOLU = '/api/integrations/forge/ping'
+
+
 def _bakim_config():
-    """bakim_config.json — yoksa/bozuksa {} (entegrasyon kapalı sayılır)."""
+    """bakim_config.json — yoksa/bozuksa {} (entegrasyon kapalı sayılır).
+
+    API ANAHTARI ORTAM DEĞİŞKENİNDEN (Halil Bilgin v2 cevabı): anahtar e-posta
+    dışı kanaldan gelir ve "Forge sunucusunda ortam değişkeni olarak saklanır".
+    COFLE_BAKIM_API_KEY tanımlıysa DAİMA o kazanır — anahtar yenilenince tek
+    yer değişir, dosyaya hiç yazılmaz. Dosyadaki api_anahtari geriye uyum için
+    okunmaya devam eder. Servis NSSM altında LocalSystem ile koştuğu için
+    değişken NSSM'e verilir: nssm set cofle-app AppEnvironmentExtra
+    COFLE_BAKIM_API_KEY=... (bkz. sunucu notu)."""
     try:
         with open(_BAKIM_CONFIG_YOL, encoding='utf-8-sig') as f:
-            return json.load(f) or {}
+            cfg = json.load(f) or {}
     except FileNotFoundError:
-        return {}
+        cfg = {}
     except Exception as e:
         print(f'[BAKIM] bakim_config.json okunamadı: {e}')
-        return {}
+        cfg = {}
+    anahtar = (os.environ.get('COFLE_BAKIM_API_KEY') or '').strip()
+    if anahtar:
+        cfg['api_anahtari'] = anahtar
+        cfg['anahtar_kaynagi'] = 'env'
+    elif cfg.get('api_anahtari'):
+        cfg['anahtar_kaynagi'] = 'dosya'
+    return cfg
+
+
+def _bakim_get(cfg, yol, timeout=(3, 15)):
+    """Bakım API'sine GET. (status_code, json|{}) döner; ağ hatasında (0, {})."""
+    import requests
+    try:
+        r = requests.get(cfg['api_url'].rstrip('/') + yol, timeout=timeout,
+                         headers={'X-Api-Key': cfg['api_anahtari'], 'Accept': 'application/json'})
+    except Exception as e:
+        print(f'[BAKIM] GET {yol} ulaşılamadı: {e}')
+        return 0, {}
+    try:
+        return r.status_code, (r.json() or {})
+    except Exception:
+        return r.status_code, {}
+
+
+# Bakım tarafındaki talep durumları (v0.9.8 durum sözlüğü) → MES'te gösterim.
+BAKIM_DURUM_ETIKET = {
+    'onay_bekliyor': 'Bakıma iletildi',
+    'atandi': 'Bakımcı atandı',
+    'devam_ediyor': 'Çalışılıyor',
+    'beklemede': 'Beklemede',
+    'kapatma_onayi': 'Tamamlandı (onay bekliyor)',
+    'kapatildi': 'Tamamlandı',
+    'reddedildi': 'Reddedildi (bakım)',
+    'iptal': 'İptal',
+}
+BAKIM_DURUM_BITMIS = ('kapatildi', 'reddedildi', 'iptal')
+
+
+def _bakim_durum_etiketi(durum, sebep=''):
+    d = str(durum or '').strip().lower()
+    if not d:
+        return ''
+    et = BAKIM_DURUM_ETIKET.get(d, d)
+    if d == 'beklemede' and sebep:
+        et += f' ({sebep})'
+    return et
+
+
+def _bakim_durum_sorgula(cfg, external_id):
+    """GET /api/integrations/forge/work-order/<external_id> → dict | None.
+    404 = bakım tarafında böyle bir talep yok (None döner, kayda dokunulmaz)."""
+    kod, d = _bakim_get(cfg, f'{BAKIM_WORK_ORDER_YOLU}/{external_id}')
+    if kod != 200 or not d.get('ok', True):
+        if kod not in (0, 404):
+            print(f'[BAKIM] durum {external_id}: HTTP {kod} {d}')
+        return None
+    return d
+
+
+def _bakim_durum_isle(conn, aid, d):
+    """Durum yanıtını kayda yazar. Değişiklik olduysa True."""
+    yeni = str(d.get('status') or '').strip().lower()
+    sebep = str(d.get('wait_reason') or '').strip() or None
+    talep = str(d.get('work_order_no') or d.get('code') or '').strip() or None
+    r = conn.execute("SELECT bakim_durum, bakim_bekleme_sebebi, bakim_talep_no "
+                     "FROM ariza_bildirimleri WHERE id=?", (aid,)).fetchone()
+    if not r:
+        return False
+    if (r['bakim_durum'] or '') == yeni and (r['bakim_bekleme_sebebi'] or None) == sebep \
+            and (talep is None or r['bakim_talep_no'] == talep):
+        return False
+    conn.execute(
+        "UPDATE ariza_bildirimleri SET bakim_durum=?, bakim_bekleme_sebebi=?, "
+        "  bakim_talep_no=COALESCE(?, bakim_talep_no), "
+        "  bakim_durum_ts=datetime('now','localtime') WHERE id=?",
+        (yeni or None, sebep, talep, aid))
+    conn.commit()
+    return True
+
+
+def ariza_durum_job():
+    """5 dk'da bir: bakıma iletilmiş ve bitmemiş bildirimlerin durumunu çeker.
+
+    Halil Bey'in önerisi ("5 dakikada bir toplu"); webhook ikinci fazda.
+    Yalnız son 30 günün bitmemiş kayıtları sorgulanır — sorgu sayısı küçük kalır."""
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return
+    conn = db_connect()
+    try:
+        yer = ','.join('?' * len(BAKIM_DURUM_BITMIS))
+        rows = conn.execute(
+            f"SELECT id FROM ariza_bildirimleri WHERE durum='gonderildi' "
+            f"  AND COALESCE(bakim_durum,'') NOT IN ({yer}) "
+            f"  AND olusturma_ts >= datetime('now','localtime','-30 day') ORDER BY id",
+            BAKIM_DURUM_BITMIS).fetchall()
+        n = 0
+        for r in rows:
+            d = _bakim_durum_sorgula(cfg, f"ariza-{r['id']}")
+            if d and _bakim_durum_isle(conn, r['id'], d):
+                n += 1
+        if n:
+            print(f'[BAKIM] {n} bildirimin bakım durumu güncellendi')
+    except Exception as e:
+        print(f'[BAKIM] durum yoklama hatası: {e}')
+    finally:
+        conn.close()
 
 
 def _bakim_hazir(cfg):
@@ -12507,6 +12629,7 @@ def _ariza_satir(r, conn=None):
     # Amir ekranda kodu değil MAKİNENİN ADINI görsün (TKHP04 kimseye bir şey
     # anlatmıyor; 'HİDROLİK PRES · TK 1 Pres Hattı 2' anlatıyor).
     d['bakim_ad'] = _bakim_makine_adi(conn, d.get('bakim_kodu')) if conn else ''
+    d['bakim_etiket'] = _bakim_durum_etiketi(d.get('bakim_durum'), d.get('bakim_bekleme_sebebi'))
     d['secim_grubu'] = bool(_ariza_secim_grubu(d.get('makine')))
     d['bekleme_dk'] = None
     try:
@@ -12539,11 +12662,12 @@ def _ariza_amirlere_haber(cfg, kayit):
 def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
     """Bildirimi bakım sistemine iletir. (basarili, mesaj, url) döner.
 
-    İKİ YOL (kılavuz v0.9.6):
-      · work_order ucu tanımlıysa (config: work_order_yolu) → talep DOĞRUDAN
-        açılır; acil/zaman aşımı yükseltmelerinde tek yol budur (ekran yok).
-      · yoksa → handoff bileti alınır ve amir bakım formunda tamamlar.
-    Halil Bey'in work-order sözleşmesi netleşince ilk yol varsayılan olacak."""
+    v0.9.8 (Halil Bilgin, 2026-09-07): work-order ucu VARSAYILAN — talep
+    sunucudan sunucuya doğrudan açılır; amir, acil ve zaman aşımı üçü de aynı
+    yoldan gider. Yanıttaki work_order_no (TLP-YYYY-NNNNN), status ve url kayda
+    işlenir; aynı external_id ikinci kez giderse bakım 200 + duplicate:true
+    döner — hata DEĞİL, aynı talep. Eski handoff (bilet) yolu yalnız config'te
+    work_order_yolu: "handoff" yazılırsa kullanılır."""
     cfg = _bakim_config()
     if not _bakim_hazir(cfg):
         return False, 'Bakım entegrasyonu yapılandırılmamış', ''
@@ -12572,8 +12696,9 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
         govde['started_at'] = str(kayit['baslangic_ts'])[:19].replace('T', ' ')
 
     wo = (cfg.get('work_order_yolu') or '').strip()
+    handoff = (wo.lower() == 'handoff')
     hedef = (cfg['api_url'].rstrip('/') +
-             (wo if wo else '/api/integrations/forge/handoff'))
+             ('/api/integrations/forge/handoff' if handoff else (wo or BAKIM_WORK_ORDER_YOLU)))
     try:
         r = _bakim_post(hedef, cfg['api_anahtari'], govde)
         d = r.json() if r.status_code < 500 else {}
@@ -12582,9 +12707,24 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
         return False, 'Bakım sistemine ulaşılamadı', ''
     if r.status_code != 200:
         print(f'[ARIZA] bakım {r.status_code}: {d}')
-        return False, f'Bakım sistemi reddetti (HTTP {r.status_code})', ''
+        aciklama = {400: 'eksik alan', 401: 'API anahtarı reddedildi',
+                    403: 'kullanıcı pasif ya da makine lokasyon dışı',
+                    404: 'makine bakım sisteminde bulunamadı'}.get(r.status_code, '')
+        return False, (f'Bakım sistemi reddetti (HTTP {r.status_code}'
+                       + (f' — {aciklama}' if aciklama else '') + ')'), ''
     d = d or {}
-    return True, 'Bakım sistemine iletildi', (d.get('url') or '')
+    if handoff:
+        return True, 'Bakım sistemine iletildi', (d.get('url') or '')
+    # Talep no / durum kayda: operatör "talebiniz açıldı, no: TLP-…" görsün
+    talep = str(d.get('work_order_no') or d.get('code') or '').strip()
+    try:
+        _bakim_durum_isle(conn, kayit['id'], d)
+    except Exception as e:
+        print(f'[ARIZA] talep no yazılamadı (#{kayit.get("id")}): {e}')
+    mesaj = ('Bakım sistemine iletildi' + (f' — talep {talep}' if talep else ''))
+    if d.get('duplicate'):
+        mesaj = 'Bu bildirim bakıma zaten iletilmişti' + (f' — talep {talep}' if talep else '')
+    return True, mesaj, (d.get('url') or '')
 
 
 @app.route('/api/ariza/secenek', methods=['GET'])
@@ -12713,10 +12853,15 @@ def ariza_benim():
     conn = get_db()
     rows = conn.execute(
         "SELECT id, olusturma_ts, makine, aciklama, oncelik, durum, karar_notu, "
-        "       bakim_talep_no, bakim_durum FROM ariza_bildirimleri "
+        "       bakim_talep_no, bakim_durum, bakim_bekleme_sebebi FROM ariza_bildirimleri "
         "WHERE operator_adi=? AND olusturma_ts >= datetime('now','localtime','-7 days') "
         "ORDER BY id DESC LIMIT 20", (g.operator_adi,)).fetchall()
-    return jsonify([dict(r) for r in rows])
+    out = []
+    for r in rows:
+        d = dict(r)
+        d['bakim_etiket'] = _bakim_durum_etiketi(d.get('bakim_durum'), d.get('bakim_bekleme_sebebi'))
+        out.append(d)
+    return jsonify(out)
 
 
 @app.route('/api/ariza/kuyruk', methods=['GET'])
@@ -13006,35 +13151,86 @@ def bakim_uygun():
 @app.route('/api/bakim/makine_tazele', methods=['POST'])
 @panel_gerekli(izin='ariza-onay')
 def bakim_makine_tazele():
-    """Bakim makine kataloğunu bakım sisteminden yeniler.
-
-    Halil Bey'in API anahtarı gelene kadar depodaki anlık görüntüyle
-    çalışıyoruz; anahtar gelince bu buton kataloğu tazeler. Sözleşme HENÜZ
-    DOĞRULANMADI (makine listesi ucu kılavuzda yok) — bu yüzden başarısızlık
-    açıkça raporlanır, sessizce yutulmaz ve mevcut katalog BOZULMAZ."""
+    """Bakım makine kataloğunu bakım sisteminden yeniler (panel düğmesi)."""
     cfg = _bakim_config()
     if not _bakim_hazir(cfg):
         return jsonify({'hata': 'Bakım entegrasyonu yapılandırılmamış (API anahtarı yok)'}), 503
-    hedef = cfg['api_url'].rstrip('/') + (cfg.get('makine_listesi_yolu') or '/api/machines')
-    import requests
-    try:
-        r = requests.get(hedef, headers={'X-Api-Key': cfg['api_anahtari'],
-                                         'Accept': 'application/json'}, timeout=20)
-    except Exception as e:
-        return jsonify({'hata': f'Bakım sistemine ulaşılamadı: {e}'}), 502
-    if r.status_code != 200:
-        return jsonify({'hata': f'Bakım sistemi HTTP {r.status_code} döndü — '
-                                f'makine listesi ucu/anahtar teyit edilmeli'}), 502
-    try:
-        d = r.json()
-        liste = d if isinstance(d, list) else (d.get('data') or d.get('machines') or [])
-    except Exception:
-        return jsonify({'hata': 'Bakım sistemi JSON döndürmedi'}), 502
+    sonuc, hata = _bakim_katalog_tazele(get_db(), cfg)
+    if hata:
+        return jsonify({'hata': hata}), 502
+    return jsonify({'basarili': True, **sonuc})
+
+
+def _bakim_katalog_tazele(conn, cfg):
+    """GET /api/integrations/forge/machines → katalog. (sonuc, hata) döner.
+
+    v0.9.8 sözleşmesi: {ok, count, machines:[{code,name,status,unit_path,...}]}.
+    Halil Bey: "listede olmayan bir kodu Forge tarafında da kaldırın" →
+    yanıtta bulunmayan kodlar SİLİNMEZ, durum='silindi' olur (eski kayıtlar
+    o koda referans veriyor olabilir; adı görünmeye devam etsin). Başarısızlıkta
+    katalog BOZULMAZ."""
+    yol = (cfg.get('makine_listesi_yolu') or BAKIM_MAKINE_YOLU)
+    kod, d = _bakim_get(cfg, yol, timeout=(3, 30))
+    if kod == 0:
+        return None, 'Bakım sistemine ulaşılamadı'
+    if kod != 200:
+        return None, f'Bakım sistemi HTTP {kod} döndü — makine listesi ucu/anahtar teyit edilmeli'
+    liste = d if isinstance(d, list) else (d.get('machines') or d.get('data') or [])
     if not liste:
-        return jsonify({'hata': 'Bakım sistemi boş liste döndü — katalog korundu'}), 502
-    conn = get_db()
+        return None, 'Bakım sistemi boş liste döndü — katalog korundu'
+    gelen = {str(m.get('code') or m.get('kod') or '').strip().upper() for m in liste}
+    gelen.discard('')
+    onceki = {r['kod'] for r in conn.execute("SELECT kod FROM bakim_makineleri")}
     n = _bakim_katalog_yaz(conn, liste)
-    return jsonify({'basarili': True, 'makine': n})
+    silinen = sorted(onceki - gelen)
+    if silinen:
+        conn.executemany("UPDATE bakim_makineleri SET durum='silindi', "
+                         "guncelleme_ts=datetime('now','localtime') WHERE kod=?",
+                         [(k,) for k in silinen])
+        conn.commit()
+    pasif = sum(1 for m in liste if str(m.get('status') or '').lower() == 'pasif')
+    print(f'[BAKIM] makine kataloğu tazelendi: {n} makine, {len(gelen - onceki)} yeni, '
+          f'{pasif} pasif, {len(silinen)} listede yok')
+    return {'makine': n, 'yeni': len(gelen - onceki), 'pasif': pasif,
+            'silinen': len(silinen), 'uretildi': d.get('generated_at') if isinstance(d, dict) else None}, None
+
+
+def bakim_katalog_job():
+    """Günde bir (06:30) makine kataloğunu tazeler — Halil Bey: günde bir yeterli."""
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return
+    conn = db_connect()
+    try:
+        _sonuc, hata = _bakim_katalog_tazele(conn, cfg)
+        if hata:
+            print(f'[BAKIM] günlük katalog tazeleme başarısız: {hata}')
+    except Exception as e:
+        print(f'[BAKIM] günlük katalog tazeleme hatası: {e}')
+    finally:
+        conn.close()
+
+
+@app.route('/api/bakim/ping', methods=['GET'])
+@panel_gerekli(izin='ariza-onay')
+def bakim_ping():
+    """Anahtar + erişim testi: GET /api/integrations/forge/ping →
+    {ok, system:'bakim', version}. Halil Bey'in devreye alma sırasının 1. adımı."""
+    cfg = _bakim_config()
+    if not cfg.get('api_url'):
+        return jsonify({'hata': 'api_url tanımlı değil (bakim_config.json)'}), 503
+    if not cfg.get('api_anahtari'):
+        return jsonify({'hata': 'API anahtarı yok — sunucuda COFLE_BAKIM_API_KEY tanımlanmalı'}), 503
+    kod, d = _bakim_get(cfg, BAKIM_PING_YOLU, timeout=(3, 10))
+    if kod == 0:
+        return jsonify({'hata': 'Bakım sistemine ulaşılamadı (ağ/adres)'}), 502
+    if kod == 401:
+        return jsonify({'hata': 'API anahtarı reddedildi (401) — anahtar yanlış ya da yenilenmiş'}), 502
+    if kod != 200 or not d.get('ok'):
+        return jsonify({'hata': f'Beklenmeyen yanıt: HTTP {kod} {d}'}), 502
+    return jsonify({'basarili': True, 'system': d.get('system'), 'version': d.get('version'),
+                    'anahtar_kaynagi': cfg.get('anahtar_kaynagi'),
+                    'etkin': bool(cfg.get('etkin'))})
 
 
 @app.route('/api/bakim/handoff', methods=['POST'])
@@ -13167,6 +13363,9 @@ if __name__ == '__main__':
             # vardiyaların adetleriyle çalışsın, açık kayıtla değil.
             _ek.append((VARDIYA_OTO_KAPAT_SAAT[0], VARDIYA_OTO_KAPAT_SAAT[1],
                         vardiya_oto_kapat_job, 'Açık Vardiyaları Kapat'))
+            # Bakım makine kataloğu günde bir (Halil Bey: günde bir yeterli);
+            # anahtar yoksa iş sessizce döner.
+            _ek.append((6, 30, bakim_katalog_job, 'Bakım Makine Kataloğu'))
             # AGENT NÖBETİ: agent/gözcü düşerse mail (bkz. agent_nobet_job).
             try:
                 _nbd = max(1, int((_ocfg.get('agent_nobeti') or {}).get('kontrol_dk') or 10))
@@ -13176,7 +13375,9 @@ if __name__ == '__main__':
                             periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit'),
                                                 (_nbd, agent_nobet_job, 'Teyit-Agent Nöbeti'),
                                                 # Amir onayı gecikmiş arıza bildirimleri
-                                                (5, ariza_yukseltme_job, 'Arıza Yükseltme')])
+                                                (5, ariza_yukseltme_job, 'Arıza Yükseltme'),
+                                                # Bakıma iletilmiş talebin durumu (v0.9.8 ucu)
+                                                (5, ariza_durum_job, 'Arıza Bakım Durumu')])
         except Exception as _e:
             print(f'[SCHED] başlatılamadı: {_e}')
 

@@ -671,6 +671,14 @@ def init_db():
     except Exception:
         pass
 
+    # Bakim tarafindaki 'beklemede' durumunun sebebi (malzeme|servis|bilgi) —
+    # durum sorgulama ucundan (v0.9.8) gelir, operatore "Beklemede (malzeme)"
+    # diye gosterilir.
+    try:
+        c.execute("ALTER TABLE ariza_bildirimleri ADD COLUMN bakim_bekleme_sebebi TEXT")
+    except Exception:
+        pass
+
     # Amir duzeltmesi izi (2026-09-07): operator yanlis makine secebilir ya da
     # aciklamayi eksik yazabilir; amir duzeltir. OPERATORUN ILK METNI KAYBOLMAZ
     # (orijinal_aciklama) — egitim ihtiyacini gosteren veri odur.
