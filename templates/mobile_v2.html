@@ -2398,7 +2398,7 @@ window.__I18N_SOZLUK__ = {
   <!-- ══════════ i18n MOTORU (TR varsayılan → motor NO-OP; EN/IT'de çevirir) ══════════ -->
   <script>
   (function(){
-    var DIL = localStorage.getItem('app_dil') || 'tr';
+    var DIL = localStorage.getItem('app_dil') || '{{ varsayilan_dil }}';
     window.APP_DIL = DIL;
     var S = window.__I18N_SOZLUK__ || {};
     var HARF = /[0-9A-Za-zÇĞİÖŞÜçğıöşü]/;   // Türkçe harf/rakam

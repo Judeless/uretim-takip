@@ -258,7 +258,7 @@
         });
         temaUygula();
 
-        var DIL = localStorage.getItem('app_dil') || 'tr';
+        var DIL = localStorage.getItem('app_dil') || '{{ varsayilan_dil }}';
         if (!SOZLUK[DIL]) DIL = 'tr';
 
         function T(k) { return (SOZLUK[DIL] && SOZLUK[DIL][k]) || (SOZLUK.tr[k] || k); }

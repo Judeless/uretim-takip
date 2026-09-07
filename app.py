@@ -176,6 +176,23 @@ app.config.update(
 # ── Panel yetki modeli ──
 # İzin verilebilen sayfa anahtarları (dashboard_v2 sidebar data-sayfa değerleri).
 # 'kullanicilar' burada YOK — o admin'e özeldir (rol ile korunur, izinle değil).
+# ── VARSAYILAN ARAYÜZ DİLİ (2026-09-08) ────────────────────────────────
+# Dil seçimi tarayıcıda (localStorage 'app_dil') tutulur; ilk açılışta hangi
+# dilin geleceği eskiden şablonlarda 'tr' olarak sabitti. Demo/İtalya kurulumu
+# gibi başka bir dille açılması gereken kopyalar için ortam değişkeni:
+#   COFLE_VARSAYILAN_DIL=en   (tr | en | it — geçersiz/boş → tr)
+# Üretimde tanımsız → davranış DEĞİŞMEZ. Kullanıcı seçim yaptıysa onun seçimi
+# her zaman önde (localStorage bu değeri ezer).
+VARSAYILAN_DIL = (os.environ.get('COFLE_VARSAYILAN_DIL') or 'tr').strip().lower()
+if VARSAYILAN_DIL not in ('tr', 'en', 'it'):
+    VARSAYILAN_DIL = 'tr'
+
+
+@app.context_processor
+def _varsayilan_dil_ctx():
+    return {'varsayilan_dil': VARSAYILAN_DIL}
+
+
 PANEL_SAYFALAR = [
     'ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
     'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
