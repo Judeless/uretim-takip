@@ -1096,7 +1096,13 @@ window.__I18N_SOZLUK__ = {
   "TK1 Hat Durum Paneli": {
     "en": "TK1 Line Status Panel",
     "it": "Pannello di stato linea TK1"
-  }
+  },
+  "Canlı ·": {"en": "Live ·", "it": "Live ·"},
+  "Saha cihazı offline — son": {"en": "Field device offline — last", "it": "Dispositivo di campo offline — ultimo"},
+  "dk veri yok": {"en": "min no data", "it": "min senza dati"},
+  "makine çalışıyor": {"en": "machine running", "it": "macchina in funzione"},
+  "ÇEVRİM": {"en": "CYCLE", "it": "CICLO"},
+  ", vardiya:": {"en": ", shift:", "it": ", turno:"}
 };
   </script>
 
@@ -1262,7 +1268,7 @@ window.__I18N_SOZLUK__ = {
     const pad = n => String(n).padStart(2, '0');
     const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     document.getElementById('clk').textContent = t;
-    document.getElementById('dat').textContent = d.toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    document.getElementById('dat').textContent = d.toLocaleDateString(({tr:'tr-TR',en:'en-GB',it:'it-IT'})[(function(){try{return localStorage.getItem('app_dil')||'{{ varsayilan_dil }}';}catch(e){return 'tr';}})()]||'tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     document.getElementById('ticker-ts').textContent = t;
   }
   setInterval(tick, 1000); tick();
@@ -1671,7 +1677,7 @@ window.__I18N_SOZLUK__ = {
       } else if (plansizSayisi > 0) {
         setTicker(`${plansizSayisi} plansız duruş aktif · Toplam ${d.plansiz_durus_dk || 0} dk`);
       } else {
-        setTicker(`Vardiya sayısı: ${d.vardiya_sayisi || 0} · Bugün ${d.toplam_ok || 0} OK / ${d.toplam_nok || 0} NOK üretildi`);
+        setTicker(({en:`Shifts: ${d.vardiya_sayisi || 0} · Today ${d.toplam_ok || 0} OK / ${d.toplam_nok || 0} NOK produced`, it:`Turni: ${d.vardiya_sayisi || 0} · Oggi prodotti ${d.toplam_ok || 0} OK / ${d.toplam_nok || 0} NOK`})[(function(){try{return localStorage.getItem('app_dil')||'{{ varsayilan_dil }}';}catch(e){return 'tr';}})()] || `Vardiya sayısı: ${d.vardiya_sayisi || 0} · Bugün ${d.toplam_ok || 0} OK / ${d.toplam_nok || 0} NOK üretildi`);
       }
 
       _countdown = REFRESH_SEC;

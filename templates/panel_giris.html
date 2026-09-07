@@ -150,7 +150,7 @@
 </head>
 <body>
     <div class="giris-kart">
-        <button class="tema-btn" id="tema-btn" title="Açık / koyu tema">🌙</button>
+        <button class="tema-btn" id="tema-btn" title="Açık / koyu tema" data-i18n-title="tema_baslik">🌙</button>
         <div class="dil-bar" id="dil-bar">
             <!-- Windows bayrak emojisi gostermez → gercek SVG bayraklar (2026-07-21) -->
             <button class="dil-btn" data-dil="tr"><span class="dil-bayrak"><svg viewBox="0 0 18 12" width="18" height="12" style="border-radius:2px;display:block" aria-hidden="true"><rect width="18" height="12" rx="1.5" fill="#e30a17"/><circle cx="7" cy="6" r="3" fill="#fff"/><circle cx="7.9" cy="6" r="2.4" fill="#e30a17"/><polygon points="11.6,4.6 12.02,5.52 13.02,5.57 12.26,6.24 12.5,7.2 11.6,6.68 10.7,7.2 10.94,6.24 10.18,5.57 11.18,5.52" fill="#fff"/></svg></span>TR</button>
@@ -195,7 +195,7 @@
         </form>
 
         <div class="mesaj" id="mesaj"></div>
-        <div class="alt-bilgi">© Cofle Forge · Üretim Takip Sistemi</div>
+        <div class="alt-bilgi" data-i18n="altbilgi">© Cofle Forge · Üretim Takip Sistemi</div>
     </div>
 
     <script>
@@ -210,7 +210,8 @@
                 sifre_uyar: 'İlk giriş: lütfen yeni bir şifre belirleyin',
                 sifre_kisa: 'Şifre en az 6 karakter olmalı', sifre_uyusmaz: 'Şifreler uyuşmuyor',
                 kaydediliyor: 'Kaydediliyor…', basarili: 'Giriş başarılı, yönlendiriliyorsunuz…',
-                sunucu_hata: 'Sunucu hatası, tekrar deneyin'
+                sunucu_hata: 'Sunucu hatası, tekrar deneyin',
+                altbilgi: '© Cofle Forge · Üretim Takip Sistemi', tema_baslik: 'Açık / koyu tema'
             },
             en: {
                 altbaslik: 'Admin Panel', kullanici: 'Username', sifre: 'Password',
@@ -221,7 +222,8 @@
                 sifre_uyar: 'First login: please set a new password',
                 sifre_kisa: 'Password must be at least 6 characters', sifre_uyusmaz: 'Passwords do not match',
                 kaydediliyor: 'Saving…', basarili: 'Login successful, redirecting…',
-                sunucu_hata: 'Server error, please try again'
+                sunucu_hata: 'Server error, please try again',
+                altbilgi: '© Cofle Forge · Production Tracking System', tema_baslik: 'Light / dark theme'
             },
             it: {
                 altbaslik: 'Pannello Admin', kullanici: 'Nome utente', sifre: 'Password',
@@ -232,7 +234,8 @@
                 sifre_uyar: 'Primo accesso: imposta una nuova password',
                 sifre_kisa: 'La password deve avere almeno 6 caratteri', sifre_uyusmaz: 'Le password non coincidono',
                 kaydediliyor: 'Salvataggio…', basarili: 'Accesso riuscito, reindirizzamento…',
-                sunucu_hata: 'Errore del server, riprova'
+                sunucu_hata: 'Errore del server, riprova',
+                altbilgi: '© Cofle Forge · Sistema di monitoraggio produzione', tema_baslik: 'Tema chiaro / scuro'
             }
         };
         // ── TEMA (2026-07-30) — dashboard ile ORTAK anahtar: app_tema.
@@ -269,6 +272,9 @@
             });
             document.querySelectorAll('[data-i18n-ph]').forEach(function (el) {
                 el.setAttribute('placeholder', T(el.getAttribute('data-i18n-ph')));
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+                el.setAttribute('title', T(el.getAttribute('data-i18n-title')));
             });
             document.querySelectorAll('.dil-btn').forEach(function (b) {
                 b.classList.toggle('active', b.getAttribute('data-dil') === DIL);
