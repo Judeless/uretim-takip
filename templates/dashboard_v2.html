@@ -5785,6 +5785,7 @@ window.__I18N_SOZLUK__ = {
                         </select>
                         <button class="btn btn-ghost" onclick="arizaKuyrukYukle()">↻ Yenile</button>
                         <button class="btn btn-ghost" onclick="bakimPing()" title="API anahtarı ve bağlantı testi (ping)">📡 Bağlantı testi</button>
+                        <button class="btn btn-ghost" onclick="bakimDeneme()" title="external_id test-1 ile düşük öncelikli deneme talebi açar; bakım yöneticisi reddeder">🧪 Deneme talebi (test-1)</button>
                         <button class="btn btn-ghost" onclick="arizaKatalogTazele()" title="Bakım makine listesini bakım sisteminden yeniler (API anahtarı gerekir)">🔧 Makine listesini tazele</button>
                     </div>
                     <div id="ariza-liste"><div class="yukleniyor">Yükleniyor…</div></div>
@@ -15705,6 +15706,27 @@ window.__I18N_SOZLUK__ = {
               if (!res.ok) { toast(res.j.hata || 'Ping başarısız', 'error'); return; }
               toast('Bakım sistemi ' + (res.j.version || '?') + ' · anahtar: ' + (res.j.anahtar_kaynagi || '?') +
                     (res.j.etkin ? '' : ' · entegrasyon KAPALI (etkin:false)'), res.j.etkin ? 'success' : 'info');
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
+        // Devreye alma adım 3-4: test-1 deneme talebi + durum okuma. İkinci
+        // basış duplicate → yalnız durumu tazeler (ikinci talep açılmaz).
+        function bakimDeneme() {
+          if (!confirm('Bakım sistemine external_id "test-1" ile DÜŞÜK öncelikli bir deneme talebi açılacak.\n' +
+                       'Bakım yöneticisi bu talebi reddedecek. Devam?')) return;
+          panelFetch('/api/bakim/deneme', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+            .then(function (r) {
+              return r.json().then(function (j) { return { ok: r.ok, j: j }; },
+                                   function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ')' } }; });
+            })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'Deneme başarısız', 'error'); return; }
+              var j = res.j;
+              toast((j.duplicate ? 'test-1 zaten açık' : 'test-1 açıldı') +
+                    (j.talep_no ? ' · ' + j.talep_no : '') + ' · ' + esc(j.makine_kodu) +
+                    (j.durum_etiketi ? ' · durum: ' + j.durum_etiketi : (j.durum_sorgusu_calisti ? '' : ' · durum okunamadı')),
+                    'success');
+              if (j.url) window.open(j.url, '_blank');
             }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }
 

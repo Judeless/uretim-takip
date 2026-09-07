@@ -13211,6 +13211,64 @@ def bakim_katalog_job():
         conn.close()
 
 
+@app.route('/api/bakim/deneme', methods=['POST'])
+@panel_gerekli(izin='ariza-onay')
+def bakim_deneme():
+    """Devreye alma denemesi (Halil Bilgin sırası, adım 3-4): external_id
+    "test-1", öncelik düşük, bir work-order açılır ve durumu hemen okunur.
+    Bakım yöneticisi bu talebi tanıyıp reddeder; test kullanıcısını pasife
+    alır. Aynı düğmeye ikinci basış duplicate:true döner → yalnız durum
+    tazelenir, ikinci talep AÇILMAZ. Body: {makine_kodu?}"""
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return jsonify({'hata': 'Entegrasyon hazır değil — önce Bağlantı testi'}), 503
+    d = request.get_json(silent=True) or {}
+    conn = get_db()
+    kod = str(d.get('makine_kodu') or '').strip().upper()
+    if not kod:
+        # Katalogdan gerçek bir aktif makine: talep bakımda düzgün görünsün
+        r = conn.execute("SELECT kod FROM bakim_makineleri WHERE durum='aktif' "
+                         "ORDER BY CASE WHEN kod='TKRK01' THEN 0 ELSE 1 END, kod LIMIT 1").fetchone()
+        kod = r['kod'] if r else ''
+    if not kod:
+        return jsonify({'hata': 'Katalogda aktif makine yok — önce "Makine listesini tazele"'}), 400
+    ku = g.panel_ku
+    govde = {
+        'machine_code': kod,
+        'user': {'username': ku['kullanici_adi'], 'full_name': ku['ad_soyad'] or ku['kullanici_adi'],
+                 'location': 'TK2', 'lang': 'tr'},
+        'external_id': 'test-1',
+        'title': 'Forge entegrasyon denemesi — lütfen REDDEDİN',
+        'description': ('Cofle Forge (MES) ↔ bakım sistemi devreye alma denemesi. '
+                        'Gerçek bir arıza DEĞİLDİR; bakım yöneticisi bu talebi reddedebilir.\n\n'
+                        f'Gönderen: {ku["ad_soyad"] or ku["kullanici_adi"]} · MES sürümü: git HEAD'),
+        'priority': 'dusuk',
+    }
+    hedef = cfg['api_url'].rstrip('/') + ((cfg.get('work_order_yolu') or '').strip() or BAKIM_WORK_ORDER_YOLU)
+    try:
+        r = _bakim_post(hedef, cfg['api_anahtari'], govde)
+        yanit = r.json() if r.status_code < 500 else {}
+    except Exception as e:
+        return jsonify({'hata': f'Bakım sistemine ulaşılamadı: {e!r}'}), 502
+    if r.status_code != 200:
+        aciklama = {400: 'eksik alan', 401: 'API anahtarı reddedildi',
+                    403: 'kullanıcı pasif ya da makine lokasyon dışı',
+                    404: 'makine bakım sisteminde bulunamadı'}.get(r.status_code, '')
+        return jsonify({'hata': f'Bakım sistemi reddetti (HTTP {r.status_code}'
+                                + (f' — {aciklama}' if aciklama else '') + ')',
+                        'yanit': str(yanit)[:300]}), 502
+    yanit = yanit or {}
+    durum = _bakim_durum_sorgula(cfg, 'test-1') or {}
+    print(f'[BAKIM] deneme talebi: {yanit.get("work_order_no") or yanit.get("code")} '
+          f'dup={bool(yanit.get("duplicate"))} durum={durum.get("status")}')
+    return jsonify({'basarili': True, 'makine_kodu': kod,
+                    'talep_no': yanit.get('work_order_no') or yanit.get('code'),
+                    'url': yanit.get('url'), 'duplicate': bool(yanit.get('duplicate')),
+                    'acilis_durumu': yanit.get('status'),
+                    'durum': durum.get('status'), 'durum_etiketi': _bakim_durum_etiketi(durum.get('status'), durum.get('wait_reason')),
+                    'durum_sorgusu_calisti': bool(durum)})
+
+
 @app.route('/api/bakim/ping', methods=['GET'])
 @panel_gerekli(izin='ariza-onay')
 def bakim_ping():
