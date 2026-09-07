@@ -5786,8 +5786,11 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-ghost" onclick="arizaKuyrukYukle()">↻ Yenile</button>
                         <button class="btn btn-ghost" onclick="bakimPing()" title="API anahtarı ve bağlantı testi (ping)">📡 Bağlantı testi</button>
                         <button class="btn btn-ghost" onclick="bakimDeneme()" title="external_id test-1 ile düşük öncelikli deneme talebi açar; bakım yöneticisi reddeder">🧪 Deneme talebi (test-1)</button>
+                        <button class="btn btn-ghost" onclick="bakimDenemeDurum()" title="test-1 talebinin bakım tarafındaki durumunu okur (talep açmaz)">🔎 test-1 durumu</button>
                         <button class="btn btn-ghost" onclick="arizaKatalogTazele()" title="Bakım makine listesini bakım sisteminden yeniler (API anahtarı gerekir)">🔧 Makine listesini tazele</button>
                     </div>
+                    <!-- Deneme sonucu: popup engelleyiciye takılmasın diye link BURADA durur -->
+                    <div id="bakim-deneme-kutu" style="display:none;margin:8px 0 4px;padding:10px 14px;border:1px solid var(--card-border);border-radius:10px;font-size:.84rem;line-height:1.6"></div>
                     <div id="ariza-liste"><div class="yukleniyor">Yükleniyor…</div></div>
                 </div>
             </section>
@@ -15723,10 +15726,46 @@ window.__I18N_SOZLUK__ = {
               if (!res.ok) { toast(res.j.hata || 'Deneme başarısız', 'error'); return; }
               var j = res.j;
               toast((j.duplicate ? 'test-1 zaten açık' : 'test-1 açıldı') +
-                    (j.talep_no ? ' · ' + j.talep_no : '') + ' · ' + esc(j.makine_kodu) +
-                    (j.durum_etiketi ? ' · durum: ' + j.durum_etiketi : (j.durum_sorgusu_calisti ? '' : ' · durum okunamadı')),
-                    'success');
-              if (j.url) window.open(j.url, '_blank');
+                    (j.talep_no ? ' · ' + j.talep_no : ''), 'success');
+              // window.open fetch SONRASI çağrılınca popup engelleyici keser (2026-09-08
+              // saha: "yeni sekmede açılmadı") → link kalıcı kutuda, kullanıcı tıklar.
+              bakimDenemeKutu({ baslik: j.duplicate ? 'test-1 zaten açıktı (ikinci talep açılmadı)' : 'test-1 açıldı',
+                                talep_no: j.talep_no, makine: j.makine_kodu, url: j.url,
+                                durum: j.durum_etiketi || (j.durum_sorgusu_calisti ? j.durum : 'durum ucu okunamadı'),
+                                acilis: j.acilis_durumu });
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
+        function bakimDenemeKutu(b) {
+          var el = document.getElementById('bakim-deneme-kutu');
+          if (!el) return;
+          el.style.display = '';
+          el.innerHTML =
+            '<b>' + esc(b.baslik) + '</b>' +
+            (b.talep_no ? ' · talep no <b>' + esc(b.talep_no) + '</b>' : ' · <span style="color:var(--warn)">talep no gelmedi</span>') +
+            (b.makine ? ' · makine ' + esc(b.makine) : '') +
+            (b.durum ? ' · durum: <b>' + esc(b.durum) + '</b>' : '') +
+            (b.acilis ? ' <span style="color:var(--muted)">(açılış: ' + esc(b.acilis) + ')</span>' : '') +
+            (b.acildi ? ' · açıldı ' + esc(b.acildi) : '') +
+            (b.url ? '<br>Bakım sayfası: <a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + esc(b.url) + '</a> <span style="color:var(--muted)">(bakım girişi ister)</span>'
+                   : '<br><span style="color:var(--muted)">Bakım sistemi url alanı döndürmedi.</span>') +
+            '<br><span style="color:var(--muted)">Bakım uygulamasında bulmak için: talep no ile ara ya da "MES" rozeti / Forge kaydı test-1.</span>';
+        }
+
+        function bakimDenemeDurum() {
+          panelFetch('/api/bakim/deneme')
+            .then(function (r) {
+              return r.json().then(function (j) { return { ok: r.ok, j: j }; },
+                                   function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ')' } }; });
+            })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'Durum okunamadı', 'error'); return; }
+              var j = res.j;
+              if (!j.var) { toast(j.mesaj, 'info'); bakimDenemeKutu({ baslik: j.mesaj }); return; }
+              toast('test-1: ' + (j.durum_etiketi || j.status), 'info');
+              bakimDenemeKutu({ baslik: 'test-1 bakım tarafında VAR', talep_no: j.work_order_no || j.code,
+                                makine: j.machine_code, url: j.url, durum: j.durum_etiketi || j.status,
+                                acildi: j.opened_at });
             }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }
 

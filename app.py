@@ -13211,6 +13211,27 @@ def bakim_katalog_job():
         conn.close()
 
 
+@app.route('/api/bakim/deneme', methods=['GET'])
+@panel_gerekli(izin='ariza-onay')
+def bakim_deneme_durum():
+    """test-1 deneme talebinin bakım tarafındaki durumu — talep AÇMAZ, yalnız
+    okur. Bakım sisteminin döndürdüğü (sır içermeyen) alanlar olduğu gibi
+    gösterilir: panelde 'talebi göremiyorum' sorusunun cevabı burada."""
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return jsonify({'hata': 'Entegrasyon hazır değil — önce Bağlantı testi'}), 503
+    kod, d = _bakim_get(cfg, f'{BAKIM_WORK_ORDER_YOLU}/test-1', timeout=(3, 10))
+    if kod == 404:
+        return jsonify({'var': False, 'mesaj': 'Bakım tarafında external_id test-1 ile talep YOK — henüz açılmamış'})
+    if kod != 200 or not isinstance(d, dict):
+        return jsonify({'hata': f'Durum okunamadı: HTTP {kod} {str(d)[:200]}'}), 502
+    alanlar = {k: d.get(k) for k in ('id', 'code', 'work_order_no', 'status', 'priority', 'machine_code',
+                                     'opened_at', 'work_started_at', 'wait_reason', 'finished_at',
+                                     'closed_at', 'url')}
+    return jsonify({'var': True, **alanlar,
+                    'durum_etiketi': _bakim_durum_etiketi(d.get('status'), d.get('wait_reason'))})
+
+
 @app.route('/api/bakim/deneme', methods=['POST'])
 @panel_gerekli(izin='ariza-onay')
 def bakim_deneme():
