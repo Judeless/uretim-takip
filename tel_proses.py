@@ -88,6 +88,8 @@ TEL_HAT_ADIM_ISTISNA = {
     # Numarali adlar da cozulur: tel_hat_adimi son numarayi atip burada tekrar arar.
     'Otomatik Spiral Kesme': 'Halat/Spiral Kesme',
     'Manuel Spiral Kesme': 'Halat/Spiral Kesme',
+    # 2026-09-07: tup kesme de kesim adimina dahil (spiral kesme kalibinin ayni).
+    'Tüp Kesme': 'Halat/Spiral Kesme',
 }
 
 # FİZİKSEL HATLAR (kullanıcı 2026-08-04): kesim 3 · yarı otomatik 2 · tam otomatik 1
@@ -181,6 +183,11 @@ TEL_HATLARI = (
     # tel_hat_adimi('On Hazirlik 1') -> son numarayi atar -> 'On Hazirlik'.
     # Sayac modulu YOK -> adet elle girilir.
     + ['Ön Hazırlık %d' % i for i in range(1, 3)]
+    # 2026-09-07 (kullanici): bakim sistemindeki TKTK01 TUP KESME MAKINESI bizde
+    # tanimli degildi. Yine SONA eklendi (pozisyon = uretim_kayitlari.istasyon,
+    # asla kaymaz). Adimi 'Halat/Spiral Kesme' (TEL_HAT_ADIM_ISTISNA) -> kod eki
+    # KESIM, raporda ayri sutun ACILMAZ. Sayac modulu YOK -> adet elle girilir.
+    + ['Tüp Kesme']
 )
 
 # Kullanılmayan / kodu bekleyen hatlar — operatör listesinde gösterilmez ama

@@ -3126,8 +3126,21 @@ window.__I18N_SOZLUK__ = {
         <div style="background:var(--primary-soft);border:1px solid var(--primary-line);border-radius:12px;padding:10px 14px;margin-bottom:14px">
           <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Makine</div>
           <div id="ariza-makine" style="font-weight:800;font-size:1rem">—</div>
+          <!-- SABİT HATLI BÖLÜM: vardiya 'Tel Üretimi' gibi HAT adı taşır,
+               operatör arızalı makineyi kendisi seçer (kullanıcı 2026-09-07). -->
+          <select id="ariza-makine-sec" onchange="arizaMakineSec(this.value)"
+            style="display:none;width:100%;margin-top:8px;padding:11px;border:1px solid var(--line-strong);border-radius:10px;font-size:.92rem;font-family:inherit;background:var(--card)"></select>
           <div id="ariza-baglam" style="font-size:.76rem;color:var(--muted);margin-top:2px"></div>
         </div>
+
+        <!-- BAKIM MAKİNESİ: kesim ve hidrolik pres alanlarında adlarımız bakım
+             sistemiyle 1:1 örtüşmüyor; makinenin başındaki kişi hangisi
+             olduğunu bilir, o yüzden kodu operatör seçer. -->
+        <div id="ariza-bkm-wrap" style="display:none;margin-bottom:14px">
+          <label id="ariza-bkm-lbl" style="display:block;font-weight:700;font-size:.82rem;margin-bottom:6px">Hangi makine? <span style="color:var(--danger)">*</span></label>
+          <select id="ariza-bkm" style="width:100%;padding:12px;border:1px solid var(--line-strong);border-radius:12px;font-size:.92rem;font-family:inherit;background:var(--card)"></select>
+        </div>
+        <div id="ariza-bkm-bilgi" style="display:none;font-size:.78rem;color:var(--muted);margin:-6px 0 14px"></div>
 
         <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:6px">Arıza nedir? <span style="color:var(--danger)">*</span></label>
         <textarea id="ariza-aciklama" rows="3" placeholder="Örn: 2. istasyonda kaynak torcu sızdırıyor, punta tutmuyor"
@@ -4861,12 +4874,17 @@ window.__I18N_SOZLUK__ = {
     // düşer, amir süzüp bakıma iletir. Operatör MES'ten hiç çıkmaz; bildirdiği
     // arızanın durumunu da bu formun altında görür.
     var _arizaBaglam = null, _arizaOncelik = 'yuksek';
+    // Formda gerçekten arızalanan makine: sabit hatlı bölümlerde vardiyanın
+    // hat adı DEĞİL, operatörün seçtiği makine. _arizaBakimKodu ise bakım
+    // sistemindeki karşılığı (tanımlıysa otomatik, değilse operatör seçer).
+    var _arizaMakine = '', _arizaBakimKodu = '', _arizaBakimSart = false;
 
     function arizaAc(dr) {
       var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
       if (!mak) { toast('Önce vardiya seçin', 'error'); return; }
       _arizaBaglam = dr || null;
       document.getElementById('ariza-makine').textContent = mak;
+      arizaSecimKur(mak);
       var bag = '';
       if (dr && dr.durus_sebebi) {
         bag = 'Duruş: ' + dr.durus_sebebi + (dr.sure_dk ? ' · ' + dr.sure_dk + ' dk' : '');
@@ -4894,6 +4912,71 @@ window.__I18N_SOZLUK__ = {
     }
     function arizaKapat() { document.getElementById('ariza-modal').style.display = 'none'; }
 
+    // ── MAKİNE SEÇİMİ (kullanıcı 2026-09-07) ────────────────────────────
+    // Sunucu üç durumdan birini söyler:
+    //   hat     → hattın makineleri listelenir, seçilince tekrar sorulur
+    //   tanimli → bakım karşılığı belli, operatöre yalnız gösterilir
+    //   secim   → kesim/pres grubu; operatör bakım makinesini kendi seçer
+    //   yok     → bu adla gönderilir, atamayı AMİR yapar (sonra kalıcı olur)
+    function arizaSecimKur(mak) {
+      _arizaMakine = mak; _arizaBakimKodu = ''; _arizaBakimSart = false;
+      var sel = document.getElementById('ariza-makine-sec');
+      sel.style.display = 'none'; sel.innerHTML = '';
+      arizaBakimAlaniGizle();
+      fetch('/api/ariza/secenek?makine=' + encodeURIComponent(mak))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d) return;
+          if (d.tip === 'hat') {
+            sel.innerHTML = '<option value="">— ' + (d.etiket || 'Makine') + ' seçin —</option>' +
+              (d.makineler || []).map(function (m) {
+                return '<option value="' + m.replace(/"/g, '&quot;') + '">' + m + '</option>';
+              }).join('');
+            sel.style.display = '';
+            _arizaMakine = '';   // hat adıyla talep açılmaz
+            return;
+          }
+          arizaBakimDurum(d);
+        }).catch(function () {});
+    }
+
+    function arizaMakineSec(mak) {
+      _arizaMakine = mak; _arizaBakimKodu = ''; _arizaBakimSart = false;
+      arizaBakimAlaniGizle();
+      if (!mak) return;
+      fetch('/api/ariza/secenek?makine=' + encodeURIComponent(mak))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d) arizaBakimDurum(d); }).catch(function () {});
+    }
+
+    function arizaBakimAlaniGizle() {
+      document.getElementById('ariza-bkm-wrap').style.display = 'none';
+      document.getElementById('ariza-bkm-bilgi').style.display = 'none';
+    }
+
+    function arizaBakimDurum(d) {
+      var wrap = document.getElementById('ariza-bkm-wrap');
+      var bilgi = document.getElementById('ariza-bkm-bilgi');
+      if (d.durum === 'secim') {
+        document.getElementById('ariza-bkm-lbl').innerHTML =
+          (d.baslik || 'Hangi makine?') + ' <span style="color:var(--danger)">*</span>';
+        var sec = document.getElementById('ariza-bkm');
+        sec.innerHTML = '<option value="">— seçin —</option>' +
+          (d.secenekler || []).map(function (m) {
+            return '<option value="' + m.kod + '">' + m.ad +
+                   (m.yer ? ' · ' + m.yer : '') + ' (' + m.kod + ')</option>';
+          }).join('');
+        wrap.style.display = '';
+        _arizaBakimSart = true;
+        return;
+      }
+      if (d.durum === 'tanimli') {
+        _arizaBakimKodu = d.bakim_kodu || '';
+        bilgi.textContent = '🔗 Bakım kaydı: ' + (d.bakim_ad || d.bakim_kodu);
+        bilgi.style.display = '';
+      }
+    }
+
     function arizaOncelikSec(o) {
       _arizaOncelik = o;
       document.querySelectorAll('#ariza-oncelik-grup .ariza-onc').forEach(function (b) {
@@ -4910,11 +4993,16 @@ window.__I18N_SOZLUK__ = {
 
     function arizaGonder() {
       var acik = (document.getElementById('ariza-aciklama').value || '').trim();
+      if (!_arizaMakine) { toast('Önce makineyi seçin', 'error'); return; }
+      var bkod = _arizaBakimSart
+        ? ((document.getElementById('ariza-bkm') || {}).value || '') : _arizaBakimKodu;
+      if (_arizaBakimSart && !bkod) { toast('Hangi makine olduğunu seçin', 'error'); return; }
       if (acik.length < 5) { toast('Arızayı kısaca yazın', 'error'); return; }
       var btn = document.getElementById('ariza-gonder-btn');
       btn.disabled = true; btn.textContent = 'Gönderiliyor…';
       var govde = {
-        makine: (aktifVardiyaData && aktifVardiyaData.robot_no) || '',
+        makine: _arizaMakine,
+        bakim_kodu: bkod || '',
         bolum: (aktifVardiyaData && aktifVardiyaData.bolum) || '',
         vardiya_id: aktifVardiyaId || null,
         aciklama: acik,

@@ -1,0 +1,2438 @@
+[
+ {
+  "kod": "TKAA01",
+  "ad": "ANA ŞALTER PANOSU",
+  "birim": "TK 1 Giriş Depo Sundurma",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Giriş Depo Sundurma",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAN01",
+  "ad": "ANA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 1 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAN02",
+  "ad": "ANA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAP01",
+  "ad": "ABKANT PRES",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAP02",
+  "ad": "ABKANT PRES",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAP03",
+  "ad": "ABKANT PRES",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR01",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 01",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR02",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 02",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR03",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 03",
+  "birim": "TK 1 Sevkiyat Sundurma",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Sevkiyat Sundurma",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR04",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 04",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR05",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 05",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR06",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 06",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR07",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 07",
+  "birim": "TK 1 Giriş Depo Sundurma",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Giriş Depo Sundurma",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR08",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 08",
+  "birim": "TK 1 Yönetim Binası",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Yönetim Binası",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR09",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR10",
+  "ad": "LAZER ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR11",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Kardex Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kardex Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR12",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR13",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR14",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR15",
+  "ad": "LAZER ELEKTRİK DAĞITIM PANOSU 2",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR16",
+  "ad": "LAZER ELEKTRİK DAĞITIM PANOSU 3",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR17",
+  "ad": "LAZER ELEKTRİK DAĞITIM PANOSU 4",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR18",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU 09",
+  "birim": "TK 1 Plastik Enjeksiyon",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Plastik Enjeksiyon",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAR19",
+  "ad": "ARA ELEKTRİK DAĞITIM PANOSU",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKAS01",
+  "ad": "YÜK TAŞIMA ASANSÖRÜ",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKBK01",
+  "ad": "BORU KESME & ŞİŞİRME MAKİNESİ",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKBL01",
+  "ad": "BİLEME MAKİNESİ",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKBM01",
+  "ad": "BROŞ MAKİNESİ",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKBP01",
+  "ad": "BORU-PLASTİK PARÇA MONTAJ MAKİNESİ",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKBT01",
+  "ad": "BASINÇ TEST MAKİNESİ",
+  "birim": "Fren Hidrolik Hortum Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › Fren Hidrolik Hortum Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKBZ01",
+  "ad": "ŞERİT BANT ZIMPARA",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKBZ02",
+  "ad": "ŞERİT BANT ZIMPARA",
+  "birim": "TK 2 Zımpara Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Zımpara Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKBZ03",
+  "ad": "ŞERİT BANT ZIMPARA",
+  "birim": "TK 2 Zımpara Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Zımpara Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKBZ04",
+  "ad": "ŞERİT BANT ZIMPARA",
+  "birim": "TK 2 Zımpara Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Zımpara Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKBZ05",
+  "ad": "ŞERİT BANT ZIMPARA",
+  "birim": "TK 2 Zımpara Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Zımpara Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKBZ06",
+  "ad": "ŞERİT BANT ZIMPARA",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKBZ07",
+  "ad": "ŞERİT BANT ZIMPARA",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCB01",
+  "ad": "COBOT - ABKANT PRES",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCB02",
+  "ad": "COBOT - ABKANT PRES",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCH01",
+  "ad": "SOĞUTUCU/CHILLER",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCH02",
+  "ad": "SOĞUTUCU/CHILLER",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKCH03",
+  "ad": "SOĞUTUCU/CHILLER",
+  "birim": "TK 1 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCH04",
+  "ad": "SOĞUTUCU/CHILLER",
+  "birim": "TK 1 Test Odası",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Odası",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCK01",
+  "ad": "ÇİFTLİ SPİRAL-HALAT KESME MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCK02",
+  "ad": "ÇİFTLİ SPİRAL-HALAT KESME MAKİNESİ",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCN01",
+  "ad": "CNC TEZGAHI",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCN02",
+  "ad": "CNC TEZGAHI",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCN03",
+  "ad": "CNC TEZGAHI",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCN04",
+  "ad": "CNC TEZGAHI",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKCT01",
+  "ad": "HALAT UCU TERMİNAL KOPMA VE TEST MAK.",
+  "birim": "TK 1 Test Ve Kontrol Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Ve Kontrol Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKCT02",
+  "ad": "ÇEKME TEST MAKİNESİ",
+  "birim": "TK 1 Test Ve Kontrol Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Ve Kontrol Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKCT03",
+  "ad": "ÇEKME TEST MAKİNESİ",
+  "birim": "Fren Hidrolik Hortum Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › Fren Hidrolik Hortum Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKCT04",
+  "ad": "ÇEKME TEST MAKİNESİ",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDD01",
+  "ad": "KARDEX DİKEY DEPOLAMA",
+  "birim": "TK 1 Depo",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDD02",
+  "ad": "KARDEX DİKEY DEPOLAMA",
+  "birim": "TK 1 Depo",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDD03",
+  "ad": "KARDEX DİKEY DEPOLAMA",
+  "birim": "TK 1 Depo",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDD04",
+  "ad": "KARDEX DİKEY DEPOLAMA",
+  "birim": "TK 1 Depo",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDD05",
+  "ad": "KARDEX DİKEY DEPOLAMA",
+  "birim": "TK 2 Kardex Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kardex Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDD06",
+  "ad": "KARDEX DİKEY DEPOLAMA",
+  "birim": "TK 2 Kardex Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kardex Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDF01",
+  "ad": "DAVLUMBAZ FIRIN",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKDH01",
+  "ad": "ELEKTRONİK KART DİZGİ HATTI",
+  "birim": "TK 1 Elektronik Üretim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Elektronik Üretim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDK01",
+  "ad": "DİJİTAL KUMPAS",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKDT01",
+  "ad": "DAİRESEL TESTERE (SEYYAR)",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEF01",
+  "ad": "ELEKTRİKLİ FORKLİFT",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEF02",
+  "ad": "ELEKTRİKLİ FORKLİFT",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEF03",
+  "ad": "ELEKTRİKLİ FORKLİFT",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEM01",
+  "ad": "DALMA/ELEKTRO EREZYON MAKİNESİ",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEM02",
+  "ad": "DALMA EREZYON 1",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEM03",
+  "ad": "DALMA EREZYON 2",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEP01",
+  "ad": "EKSANTRİK PRES 200 TON",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEP02",
+  "ad": "EKSANTRİK PRES 200 TON",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEP03",
+  "ad": "EKSANTRİK PRES 80 TON",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEP04",
+  "ad": "EKSANTRİK PRES 63 TON",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEP05",
+  "ad": "EKSANTRİK PRES 40 TON",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEP06",
+  "ad": "EKSANTRİK PRES 20 TON",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKET01",
+  "ad": "ELEKTRİKLİ TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKET02",
+  "ad": "ELEKTRİKLİ TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKET03",
+  "ad": "ELEKTRİKLİ TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEX01",
+  "ad": "BODİNÖZ MAKİNESİ",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEX02",
+  "ad": "BODİNÖZ MAKİNESİ",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKEX03",
+  "ad": "BODİNÖZ MAKİNESİ",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFN01",
+  "ad": "ISIL İŞLEME/FIRIN",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFN02",
+  "ad": "TEPSİLİ FIRIN",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFR01",
+  "ad": "KALIPÇI FREZE TEZGAHI",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFR02",
+  "ad": "YATAY/DİKEY FREZE",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFR03",
+  "ad": "YATAY FREZE",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT01",
+  "ad": "JKP SERİSİ TEST KONTROL CİHAZI",
+  "birim": "TK 1 Joystick Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Joystick Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT02",
+  "ad": "JKW SERİSİ KONTROL CİHAZI",
+  "birim": "TK 1 Joystick Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Joystick Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT03",
+  "ad": "LF SERİSİ KONTROL CİHAZI",
+  "birim": "TK 1 Joystick Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Joystick Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT04",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKFT05",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKFT06",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT07",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKFT08",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT09",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT10",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT11",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT12",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT13",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT14",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKFT15",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Traktör (OEM) Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Traktör (OEM) Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT16",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 2 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT17",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 2 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT18",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Traktör (OEM) Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Traktör (OEM) Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKFT19",
+  "ad": "TEST KONTROL CİHAZI",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHD01",
+  "ad": "HİDROPNÖMATİK PRES",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHD02",
+  "ad": "HİDROPNÖMATİK PRES",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHD03",
+  "ad": "HİDROPNÖMATİK PRES",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHD04",
+  "ad": "HİDROPNÖMATİK PRES",
+  "birim": "TK 2 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHD05",
+  "ad": "HİDROPNÖMATİK PRES",
+  "birim": "Fren Hidrolik Hortum Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › Fren Hidrolik Hortum Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHK01",
+  "ad": "KAYNAKLI HALAT KESME MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHK02",
+  "ad": "PİSTONLU HALAT KESME MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHM01",
+  "ad": "HAMMADDE MİKSERİ",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP01",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 1",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 1",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP02",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 1",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 1",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP03",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 1",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 1",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP04",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 2",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 2",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP05",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 2",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 2",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP06",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 2",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 2",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP07",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 3",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 3",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP08",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 3",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 3",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP09",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 3",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 3",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP10",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 4",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 4",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP11",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 4",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 4",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP12",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 4",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 4",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP13",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 5",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 5",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP14",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 5",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 5",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP15",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 5",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 5",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP16",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 6",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 6",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP17",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 6",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 6",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP18",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 6",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 6",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP19",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 7",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 7",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP20",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 7",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 7",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP21",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 7",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 7",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP22",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 8",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 8",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP23",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 8",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 8",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP24",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 8",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 8",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP25",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 9",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 9",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP26",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 9",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 9",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP27",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 9",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 9",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP28",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 10",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 10",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP29",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 10",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 10",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP30",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 10",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 10",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP31",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 11",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 11",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP32",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 11",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 11",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP33",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 11",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 11",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP34",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 11",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 11",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP35",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 12",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 12",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP36",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 12",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 12",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP37",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 12",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 12",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP38",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı 12",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 12",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP39",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP40",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP41",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP42",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP43",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP44",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP45",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP46",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP47",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHP48",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP49",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP50",
+  "ad": "HİDROLİK PRES",
+  "birim": "TK 2 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Montaj Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP51",
+  "ad": "HİDROLİK PRES",
+  "birim": "Fren Hidrolik Hortum Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › Fren Hidrolik Hortum Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP52",
+  "ad": "HİDROLİK PRES",
+  "birim": "Fren Hidrolik Hortum Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › Fren Hidrolik Hortum Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP57",
+  "ad": "HİDROLİK PRES",
+  "birim": "",
+  "yol": "",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHP58",
+  "ad": "HİDROLİK PRES",
+  "birim": "",
+  "yol": "",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKHS01",
+  "ad": "HALAT SOYMA MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKHU01",
+  "ad": "HİDROLİK ÜNİTE",
+  "birim": "TK 1 Traktör Depo Sundurma",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Traktör Depo Sundurma",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKA01",
+  "ad": "SICAK KAMARA 100 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKA02",
+  "ad": "SICAK KAMARA 50 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKA03",
+  "ad": "SICAK KAMARA 50 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKA04",
+  "ad": "SOĞUK KAMARA 400 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKA05",
+  "ad": "SOĞUK KAMARA 300 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKA06",
+  "ad": "SOĞUK KAMARA 200 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKA07",
+  "ad": "METAL PRES 400 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKA08",
+  "ad": "METAL PRES 300 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKA09",
+  "ad": "METAL PRES 550 TON",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKI01",
+  "ad": "PLASTİK ÇAPAK KIRMA MAKİNESİ",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKI02",
+  "ad": "ÇAPAK KIRMA MAKİNESİ",
+  "birim": "Çapak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › Çapak Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKL01",
+  "ad": "KLİMATİK TEST KABİNİ",
+  "birim": "TK 1 Test Odası",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Odası",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKM01",
+  "ad": "FİNAL KONTROL MASASI",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKP01",
+  "ad": "HAVA KOMPRESÖRÜ",
+  "birim": "TK 1 Traktör Depo Sundurma",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Traktör Depo Sundurma",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKP02",
+  "ad": "HAVA KOMPRESÖRÜ",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKP03",
+  "ad": "HAVA KOMPRESÖRÜ",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKP04",
+  "ad": "HAVA KOMPRESÖRÜ",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKP05",
+  "ad": "HAVA KOMPRESÖRÜ",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKP06",
+  "ad": "HAVA KOMPRESÖRÜ",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKT01",
+  "ad": "KAMÇILAMA TEST MAKİNESİ",
+  "birim": "Fren Hidrolik Hortum Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › Fren Hidrolik Hortum Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKU01",
+  "ad": "KUMLAMA MAKİNESİ",
+  "birim": "TK 2 Depo",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKY01",
+  "ad": "PUNTA KAYNAK MAKİNESİ",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKY02",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKY03",
+  "ad": "KAYNAK MAKİNESİ",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKY04",
+  "ad": "KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKY05",
+  "ad": "KAYNAK MAKİNESİ",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKY06",
+  "ad": "DAİRESEL KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKY07",
+  "ad": "ROBOTİK/ DAİRESEL KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKKY08",
+  "ad": "ROBOTİK/ DAİRESEL KAYNAK MAKİNESİ",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKY09",
+  "ad": "KAYNAK MAKİNESİ (SEYYAR)",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKKY10",
+  "ad": "KAYNAK MAKİNESİ",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLK01",
+  "ad": "LAZER SAC KESİM MAKİNESİ",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKLK02",
+  "ad": "6kW LAZER SAC KESİM MAKİNESİ 1",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLK03",
+  "ad": "6kW LAZER SAC KESİM MAKİNESİ 2",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLK04",
+  "ad": "6kW LAZER SAC KESİM MAKİNESİ 3",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLK05",
+  "ad": "6kW LAZER SAC KESİM MAKİNESİ 4",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLK06",
+  "ad": "6kW LAZER SAC KESİM MAKİNESİ 5",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLK07",
+  "ad": "6kW LAZER SAC KESİM MAKİNESİ 6",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLY01",
+  "ad": "LAZER YAZICI",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLY02",
+  "ad": "LAZER YAZICI",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKLY03",
+  "ad": "LAZER YAZICI",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLY04",
+  "ad": "LAZER YAZICI",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKLY05",
+  "ad": "LAZER YAZICI",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA01",
+  "ad": "MATKAP",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKMA02",
+  "ad": "MATKAP TEZGAHI",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA03",
+  "ad": "MATKAP",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA04",
+  "ad": "MATKAP",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA05",
+  "ad": "MATKAP",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKMA06",
+  "ad": "MATKAP",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA07",
+  "ad": "MATKAP",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKMA08",
+  "ad": "MATKAP",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKMA09",
+  "ad": "MATKAP",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA10",
+  "ad": "MATKAP TEZGAHI",
+  "birim": "TK 2 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Montaj Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKMA11",
+  "ad": "RADYAL MATKAP TEZGAHI",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA12",
+  "ad": "OTOMATİK MATKAP TEZGAHI 1",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA13",
+  "ad": "OTOMATİK MATKAP TEZGAHI 2",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMA14",
+  "ad": "OTOMATİK MATKAP TEZGAHI 3",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMK01",
+  "ad": "MANUEL KESİM MASASI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMM01",
+  "ad": "KAMERALI MONTAJ MASASI 1",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMM02",
+  "ad": "KAMERALI MONTAJ MASASI 2",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKMM03",
+  "ad": "KAMERALI MONTAJ MASASI 3",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKMM04",
+  "ad": "KAMERALI MONTAJ MASASI 4",
+  "birim": "TK 1 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Montaj Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKOP01",
+  "ad": "OTOMATİK HİDROLİK PRES",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKOP02",
+  "ad": "OTOMATİK HİDROLİK PRES",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKOP03",
+  "ad": "OTOMATİK HİDROLİK PRES",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKOP04",
+  "ad": "OTOMATİK HİDROLİK PRES",
+  "birim": "TK 1 Pres Hattı Yeni",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı Yeni",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKOP05",
+  "ad": "OTOMATİK HİDROLİK PRES",
+  "birim": "",
+  "yol": "",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKPE01",
+  "ad": "PLASTİK ENJEKSİYON 320 TON",
+  "birim": "TK 1 Plastik Enjeksiyon",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Plastik Enjeksiyon",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKPE02",
+  "ad": "TK 1 Plastik Enjeksiyon 270 TON",
+  "birim": "TK 1 Plastik Enjeksiyon",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Plastik Enjeksiyon",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKPE03",
+  "ad": "PLASTİK ENJEKSİYON 408 TON",
+  "birim": "TK 1 Plastik Enjeksiyon",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Plastik Enjeksiyon",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKPM01",
+  "ad": "PERÇİN MAKİNESİ",
+  "birim": "TK 2 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKPM02",
+  "ad": "PERÇİN MAKİNESİ",
+  "birim": "TK 2 Montaj Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Montaj Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKPP04",
+  "ad": "PNÖMATİK PRES",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKPR01",
+  "ad": "POLİSAJ ROBOTU",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKRB01",
+  "ad": "ROBUR ISITICI",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKRB02",
+  "ad": "ROBUR ISITICI",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRB03",
+  "ad": "ROBUR ISITICI",
+  "birim": "TK 2 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRB04",
+  "ad": "ROBUR ISITICI",
+  "birim": "TK 2 Depo",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRB05",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 2 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRB06",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 2 Üretim 1. Kat",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Üretim 1. Kat",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKRD01",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 1 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRD02",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 1 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRD03",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 1 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRD04",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 1 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRD05",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 1 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRD06",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 1 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRD07",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRD08",
+  "ad": "RADYAN ISITICI",
+  "birim": "TK 2 Depo",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRE01",
+  "ad": "REVOLVER",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKRK01",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK02",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK03",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK04",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK05",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK06",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK07",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK08",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK09",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKRK10",
+  "ad": "ROBOT KAYNAK MAKİNESİ",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSA01",
+  "ad": "LAZER SAC TAŞIMA ARABASI",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSC01",
+  "ad": "PUSH PULL SPİRAL ÇEKME/SARIM MAKİNESİ",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD01",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSD02",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı 6",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 6",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD03",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı 2",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 2",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD04",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSD05",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı 2",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 2",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD06",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSD07",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı 5",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 5",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD08",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı 5",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı 5",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD09",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSD10",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSD11",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD12",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSD13",
+  "ad": "SOYMA VE DELME MOTORU",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSG01",
+  "ad": "SİLEFONT GÖVDE DELİK ÇAPAK ALMA",
+  "birim": "TK 2 Dökümhane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dökümhane",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKSK01",
+  "ad": "SPİRAL TEL KESME MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSK02",
+  "ad": "SPİRAL TEL KESME MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSL01",
+  "ad": "ŞALAMA",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSP01",
+  "ad": "SPİRAL PRESLEME VE TEST HATTI",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKST01",
+  "ad": "ŞERİT TESTERE MAKİNESİ",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKST02",
+  "ad": "ŞERİT TESTERE MAKİNESİ",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSU01",
+  "ad": "SOĞUTUCU/CHILLER",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSW01",
+  "ad": "SOLAR WALL",
+  "birim": "TK 2 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKSZ01",
+  "ad": "SU DEPOSU SIZDIRMAZLIK TEST CİHAZI",
+  "birim": "TK 1 Plastik Enjeksiyon",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Plastik Enjeksiyon",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTA01",
+  "ad": "TARTI",
+  "birim": "TK 1 Sevkiyat Sundurma",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Sevkiyat Sundurma",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTA02",
+  "ad": "TARTI",
+  "birim": "TK 2 Depo",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Depo",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTC01",
+  "ad": "ÖMÜR TEST CİHAZI",
+  "birim": "TK 1 Test Odası",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Odası",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTD01",
+  "ad": "3D TARAMA CİHAZI",
+  "birim": "TK 2 Kalite Laboratuvarı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalite Laboratuvarı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTE01",
+  "ad": "TESVİYE MASASI",
+  "birim": "TK 2 İşleme Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 İşleme Alanı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTE02",
+  "ad": "TESVİYE MASASI",
+  "birim": "TK 2 Arka Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Arka Alan",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKTE03",
+  "ad": "TESVİYE MASASI",
+  "birim": "TK 2 Kaynak Alanı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kaynak Alanı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKTK01",
+  "ad": "TÜP KESME MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTK02",
+  "ad": "MANUEL TÜP KESME MAKİNESİ",
+  "birim": "TK 1 Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKTK03",
+  "ad": "MUHAFAZA KESME MAKİNESİ",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTK04",
+  "ad": "FREN HORTUMU KESME MAKİNESİ",
+  "birim": "Fren Hidrolik Hortum Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › Fren Hidrolik Hortum Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKTK05",
+  "ad": "MUHAFAZA KESME MAKİNESİ",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKTM01",
+  "ad": "UNİVERSAL TORNA TEZGAHI",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTM02",
+  "ad": "TORNA TEZGAHI",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR01",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR02",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR03",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR04",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR05",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR06",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR07",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR08",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 1 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR09",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR10",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR11",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR12",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR13",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTR14",
+  "ad": "TRANSPALET",
+  "birim": "Kaldırma Ve Taşıma Araçları",
+  "yol": "Cofle TK › Cofle TK 2 › Kaldırma Ve Taşıma Araçları",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTS01",
+  "ad": "TEST MASASI 1",
+  "birim": "TK 1 Test Odası",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Odası",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTS02",
+  "ad": "TEST MASASI 2",
+  "birim": "TK 1 Test Odası",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Odası",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTS03",
+  "ad": "TEST MASASI 3",
+  "birim": "TK 1 Test Odası",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Test Odası",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTT01",
+  "ad": "TAŞLAMA TEZGAHI",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKTV01",
+  "ad": "TOZ VAKUM ÜNİTESİ",
+  "birim": "TK 2 Dış Alan",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Dış Alan",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKUH01",
+  "ad": "SPİRAL PRESLEME ÖN HAZIRLIK MAKİNESİ",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVB01",
+  "ad": "VİBRASYON 1",
+  "birim": "TK 2 Vibrasyon Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Vibrasyon Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKVB02",
+  "ad": "VİBRASYON 2",
+  "birim": "TK 2 Vibrasyon Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Vibrasyon Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKVM01",
+  "ad": "VAKUM MAKİNASI",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVN01",
+  "ad": "VİNÇ 100 KG",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVN02",
+  "ad": "VİNÇ 100 KG",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVN03",
+  "ad": "VİNÇ 5 TON",
+  "birim": "TK 2 Ana Bina",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Ana Bina",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVN04",
+  "ad": "VİNÇ 1 TON",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVN05",
+  "ad": "VİNÇ 1 TON",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVN06",
+  "ad": "VİNÇ 1 TON",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVN07",
+  "ad": "VİNÇ 3 TON",
+  "birim": "TK 1 Plastik Enjeksiyon",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Plastik Enjeksiyon",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVS01",
+  "ad": "VAKUMLU SAC TAŞIYICI",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVS02",
+  "ad": "VAKUMLU SAC TAŞIYICI",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKVS03",
+  "ad": "VAKUMLU SAC TAŞIYICI",
+  "birim": "TK 2 Lazer Kesim Hattı",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Lazer Kesim Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKYC01",
+  "ad": "SU DEPOSU YAPIŞTIRMA CİHAZI",
+  "birim": "TK 1 Plastik Enjeksiyon",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Plastik Enjeksiyon",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKYM01",
+  "ad": "YAĞLAMA MAKİNESİ",
+  "birim": "TK 1 Iveco/Assan Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Iveco/Assan Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKZM01",
+  "ad": "ZIMPARA TAŞ MOTORU",
+  "birim": "TK 1 Spiral Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Spiral Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKZM02",
+  "ad": "ZIMPARA TAŞ MOTORU",
+  "birim": "TK 1 Otomatik Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Otomatik Pres Hattı",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKZM03",
+  "ad": "ZIMPARA TAŞ MOTORU",
+  "birim": "TK 1 Pres Hattı",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Pres Hattı",
+  "durum": "pasif"
+ },
+ {
+  "kod": "TKZM04",
+  "ad": "ZIMPARA TAŞ MOTORU",
+  "birim": "TK 1 Mekanik Atölye",
+  "yol": "Cofle TK › Cofle TK 1 › TK 1 Mekanik Atölye",
+  "durum": "aktif"
+ },
+ {
+  "kod": "TKZM05",
+  "ad": "ZIMPARA TAŞ MOTORU",
+  "birim": "TK 2 Kalıphane",
+  "yol": "Cofle TK › Cofle TK 2 › TK 2 Kalıphane",
+  "durum": "aktif"
+ }
+]

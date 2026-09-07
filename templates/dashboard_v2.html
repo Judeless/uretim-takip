@@ -5261,6 +5261,7 @@ window.__I18N_SOZLUK__ = {
                             <option value="TK1">Yalnız TK1</option>
                         </select>
                         <button class="btn btn-ghost" onclick="arizaKuyrukYukle()">↻ Yenile</button>
+                        <button class="btn btn-ghost" onclick="arizaKatalogTazele()" title="Bakım makine listesini bakım sisteminden yeniler (API anahtarı gerekir)">🔧 Makine listesini tazele</button>
                     </div>
                     <div id="ariza-liste"><div class="yukleniyor">Yükleniyor…</div></div>
                 </div>
@@ -14992,6 +14993,7 @@ window.__I18N_SOZLUK__ = {
               }
               el.innerHTML = k.map(arizaKart).join('');
               arizaMakineListeleriniDoldur();
+              arizaBakimSecicileriDoldur();
             }).catch(function () { el.innerHTML = '<div class="empty-state">Bağlantı hatası</div>'; });
         }
 
@@ -15017,6 +15019,11 @@ window.__I18N_SOZLUK__ = {
                 'title="Operatörün yazdığı açıklama — düzeltebilirsiniz">' + esc(b.aciklama) + '</textarea>'
               : '<div style="margin:8px 0;font-size:.92rem">' + esc(b.aciklama) + '</div>') +
             // Operatörün İLK ifadesi kaybolmaz — düzeltilmişse altta görünür
+            (b.bakim_ad
+              ? '<div style="font-size:.76rem;color:var(--muted);margin:-2px 0 6px">🔗 bakım kaydı: ' +
+                esc(b.bakim_ad) + ' (' + esc(b.bakim_kodu) + ')' +
+                (b.secim_grubu ? ' — operatör seçti' : '') + '</div>'
+              : '<div style="font-size:.76rem;color:var(--warn);margin:-2px 0 6px">⚠ bakım makinesi atanmamış — aşağıdan seçin</div>') +
             (b.orijinal_aciklama
               ? '<div style="font-size:.76rem;color:var(--muted);margin:-2px 0 6px">operatörün yazdığı: “' +
                 esc(b.orijinal_aciklama) + '”' + (b.orijinal_makine ? ' · makine: ' + esc(b.orijinal_makine) : '') + '</div>'
@@ -15039,6 +15046,14 @@ window.__I18N_SOZLUK__ = {
               '<select id="ariza-mak-' + b.id + '" class="rt-row-select" style="max-width:190px" ' +
                 'data-lok="' + esc(b.lokasyon) + '" data-mevcut="' + esc(b.makine) + '" ' +
                 'title="Makine yanlışsa düzeltin"><option value="' + esc(b.makine) + '">' + esc(b.makine) + '</option></select>' +
+              // BAKIM MAKİNESİ ATAMASI: bakım sisteminde onlarca makine aynı
+              // adı taşıyor ('HİDROLİK PRES'), ayıran şey hattı — o yüzden
+              // seçenekler birim yoluna göre gruplanır. Seçim grubu (kesim/
+              // pres) DIŞINDAKİ makinelerde atama KALICI tanım olur.
+              '<select id="ariza-bkm-' + b.id + '" class="rt-row-select" style="max-width:280px" ' +
+                'data-lok="' + esc(b.lokasyon) + '" data-kod="' + esc(b.bakim_kodu || '') + '" ' +
+                'title="Bakım sistemindeki makine — atama kalıcı olarak tanımlanır">' +
+                '<option value="">— bakım makinesi —</option></select>' +
               '<select id="ariza-onc-' + b.id + '" class="rt-row-select" style="max-width:150px" title="Önceliği düzeltebilirsiniz — üretim durumunu siz bilirsiniz">' +
                 ['acil', 'yuksek', 'normal', 'dusuk'].map(function (o) {
                   return '<option value="' + o + '"' + (o === b.oncelik ? ' selected' : '') + '>' + ARIZA_ONC_AD[o] + '</option>';
@@ -15069,6 +15084,44 @@ window.__I18N_SOZLUK__ = {
               }).catch(function () {});
           });
         }
+        // Bakım kataloğu lokasyon başına TEK istekle çekilir; birim yoluna
+        // göre <optgroup>'lanır (aynı adlı 40 makineyi ayıran tek şey hat).
+        var _arizaBakimCache = {};
+        function arizaBakimSecicileriDoldur() {
+          var lokler = {};
+          document.querySelectorAll('[id^="ariza-bkm-"]').forEach(function (sel) {
+            lokler[sel.getAttribute('data-lok') || 'TK2'] = 1;
+          });
+          Object.keys(lokler).forEach(function (lok) {
+            if (_arizaBakimCache[lok]) { arizaBakimSecicileriYaz(lok); return; }
+            panelFetch('/api/ariza/bakim_makineleri?lokasyon=' + encodeURIComponent(lok))
+              .then(function (r) { return r.ok ? r.json() : []; })
+              .then(function (liste) {
+                _arizaBakimCache[lok] = liste || [];
+                arizaBakimSecicileriYaz(lok);
+              }).catch(function () {});
+          });
+        }
+        function arizaBakimSecicileriYaz(lok) {
+          var liste = _arizaBakimCache[lok] || [];
+          var gruplar = {};
+          liste.forEach(function (m) {
+            var g = m.yer || 'Diğer';
+            (gruplar[g] = gruplar[g] || []).push(m);
+          });
+          var govde = Object.keys(gruplar).sort().map(function (g) {
+            return '<optgroup label="' + esc(g) + '">' + gruplar[g].map(function (m) {
+              return '<option value="' + esc(m.kod) + '">' + esc(m.ad) + ' (' + esc(m.kod) + ')</option>';
+            }).join('') + '</optgroup>';
+          }).join('');
+          document.querySelectorAll('[id^="ariza-bkm-"]').forEach(function (sel) {
+            if ((sel.getAttribute('data-lok') || 'TK2') !== lok) return;
+            var kod = sel.getAttribute('data-kod') || '';
+            sel.innerHTML = '<option value="">— bakım makinesi —</option>' + govde;
+            if (kod) sel.value = kod;
+          });
+        }
+
         function arizaMakineSecicileriYaz(lok) {
           var liste = _arizaMakineCache[lok] || [];
           document.querySelectorAll('[id^="ariza-mak-"]').forEach(function (sel) {
@@ -15089,7 +15142,21 @@ window.__I18N_SOZLUK__ = {
         function _arizaAlanlar(id) {
           var g = function (p) { return (document.getElementById(p + id) || {}).value; };
           return { aciklama: g('ariza-acik-') || '', makine: g('ariza-mak-') || '',
-                   oncelik: g('ariza-onc-') || '' };
+                   oncelik: g('ariza-onc-') || '', bakim_kodu: g('ariza-bkm-') || '' };
+        }
+
+        // Katalog tazeleme: anahtar gelene kadar depodaki anlık görüntüyle
+        // çalışıyoruz, buton o zaman anlam kazanacak. Hata METNİ gösterilir —
+        // sözleşme henüz teyitli değil, sessiz başarısızlık yanlış olurdu.
+        function arizaKatalogTazele() {
+          panelFetch('/api/bakim/makine_tazele', { method: 'POST' })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'Tazelenemedi', 'error'); return; }
+              toast(res.j.makine + ' makine güncellendi', 'success');
+              _arizaBakimCache = {};
+              arizaKuyrukYukle();
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }
 
         function arizaKaydet(id) {
@@ -15107,6 +15174,10 @@ window.__I18N_SOZLUK__ = {
         function arizaOnayla(id) {
           var alanlar = _arizaAlanlar(id);
           alanlar.not = (document.getElementById('ariza-not-' + id) || {}).value || '';
+          if (!alanlar.bakim_kodu) {
+            toast('Önce bakım sistemindeki makineyi seçin — talep onsuz açılamaz', 'error');
+            return;
+          }
           if (!confirm('"' + (alanlar.makine || '') + '" için arıza bakım sistemine iletilecek. Devam edilsin mi?')) return;
           panelFetch('/api/ariza/' + id + '/onayla', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },

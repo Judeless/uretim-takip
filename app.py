@@ -12221,18 +12221,190 @@ def _bakim_hazir(cfg):
     return bool(cfg.get('etkin') and cfg.get('api_url') and cfg.get('api_anahtari'))
 
 
-def _bakim_kodu(cfg, makine):
+# ── BAKIM MAKİNE KATALOĞU (kullanıcı 2026-09-07) ──────────────────────────
+# Bakım uygulamasındaki makinelerin YEREL kopyası (kod/ad/birim/yol). Hem
+# operatörün "hangi pres?" listesini hem amirin atama listesini bu besler.
+# Tohum dosyası repoda: sır içermez, sunucuya git ile gider. API anahtarı
+# gelince /api/bakim/makine_tazele ile bakım sisteminden yenilenir.
+_BAKIM_KATALOG_TOHUM = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    'bakim_makine_katalogu.json')
+_BAKIM_TOHUMLANDI = False
+
+
+def _bakim_lokasyon(yol, birim=''):
+    """'Cofle TK › Cofle TK 1 › TK 1 Kesim Hattı' → 'TK1'. Bilinmiyorsa ''."""
+    y = str(yol or '').upper() + ' ' + str(birim or '').upper()
+    y = y.replace('İ', 'I')
+    if 'COFLE TK 1' in y or 'TK 1 ' in y:
+        return 'TK1'
+    if 'COFLE TK 2' in y or 'TK 2 ' in y:
+        return 'TK2'
+    return ''
+
+
+def _bakim_katalog_yaz(conn, liste):
+    """Katalog satırlarını yazar (bakım API'si ya da tohum dosyası). Sayı döner."""
+    n = 0
+    for m in liste or []:
+        kod = str(m.get('kod') or m.get('code') or '').strip().upper()
+        ad = str(m.get('ad') or m.get('name') or '').strip()
+        if not kod or not ad:
+            continue
+        yol = str(m.get('yol') or m.get('unit_path') or '').strip()
+        birim = str(m.get('birim') or m.get('unit_name') or '').strip()
+        durum = str(m.get('durum') or m.get('status') or 'aktif').strip().lower()
+        conn.execute(
+            "INSERT OR REPLACE INTO bakim_makineleri "
+            "  (kod, ad, birim, yol, durum, lokasyon, guncelleme_ts) "
+            "VALUES (?,?,?,?,?,?,datetime('now','localtime'))",
+            (kod, ad, birim, yol, durum, _bakim_lokasyon(yol, birim)))
+        n += 1
+    conn.commit()
+    return n
+
+
+def _bakim_katalog_tohumla(conn):
+    """Tablo BOŞSA tohum dosyasından doldurur (süreç başına bir kez denenir).
+
+    Neden tembel: katalog yalnız arıza ekranlarında gerekiyor; başlangıç
+    sırasına yeni bir dosya okuması eklemek istemedik."""
+    global _BAKIM_TOHUMLANDI
+    if _BAKIM_TOHUMLANDI:
+        return
+    _BAKIM_TOHUMLANDI = True
+    try:
+        if conn.execute("SELECT COUNT(*) c FROM bakim_makineleri").fetchone()['c']:
+            return
+        with open(_BAKIM_KATALOG_TOHUM, encoding='utf-8-sig') as f:
+            liste = json.load(f)
+        print(f'[BAKIM] makine kataloğu tohumlandı: {_bakim_katalog_yaz(conn, liste)} makine')
+    except FileNotFoundError:
+        print('[BAKIM] katalog tohum dosyası yok — makine listeleri boş kalacak')
+    except Exception as e:
+        print(f'[BAKIM] katalog tohumlanamadı: {e}')
+
+
+def _bakim_katalog(conn, lokasyon=None, onekler=None):
+    """Aktif bakım makineleri. onekler verilirse kod ön ekine göre süzer."""
+    _bakim_katalog_tohumla(conn)
+    sql = "SELECT kod, ad, birim, yol, lokasyon FROM bakim_makineleri WHERE durum='aktif'"
+    par = []
+    if lokasyon:
+        sql += " AND lokasyon=?"
+        par.append(lokasyon)
+    rows = [dict(r) for r in conn.execute(sql + " ORDER BY yol, ad, kod", par)]
+    if onekler:
+        ok = tuple(onekler)
+        rows = [r for r in rows if r['kod'].startswith(ok)]
+    return rows
+
+
+# ── OPERATÖRÜN KENDİ SEÇTİĞİ MAKİNE GRUPLARI (kullanıcı 2026-09-07) ───────
+# "halat/spiral kesme makinesinde talep açarken operatör makine kodunu kendi
+#  seçsin, hidrolik pres hattında da operatör presi listeden seçsin."
+# NEDEN: bu iki alanda adlarımız bakım sistemiyle 1:1 örtüşmüyor —
+#   · bizde 'Halat Kesme 1-3' / 'Otomatik Spiral Kesme 1-3', bakımda
+#     TKHK01 KAYNAKLI · TKHK02 PİSTONLU · TKCK01-02 ÇİFTLİ · TKSK01-02 SPİRAL
+#   · bizde 'Hidrolik Pres 12' (saha etiketi), bakımda TKHP01..TKHP47 hepsi
+#     aynı adla, yalnız birim yolu ('TK 1 Pres Hattı 2') ayırıyor
+# Merkezi bir eşleşme uydurmak yanlış makineye iş emri açardı; makinenin
+# başındaki kişi hangisi olduğunu bilir. Tek makinelik alanlar (Tüp Kesme →
+# TKTK01, Manuel Kesim → TKMK01, Soyma → TKHS01) BURAYA GİRMEZ: eşleşmeleri
+# kesin, sorulmaz. Sıra: kalıcı eşleşme > config > bu gruplar.
+ARIZA_SECIM_GRUPLARI = (
+    {'ad': 'kesim', 'baslik': 'Hangi kesme makinesi?',
+     'forge': r'^(halat kesme|otomatik spiral kesme|manuel spiral kesme)\s*\d*$',
+     'onek': ('TKHK', 'TKCK', 'TKSK', 'TKTK')},
+    {'ad': 'pres', 'baslik': 'Hangi pres?',
+     'forge': r'^(hidrolik pres\s*\d+|otomatik pres makinesi)$',
+     'onek': ('TKHP', 'TKOP')},
+)
+
+
+def _ariza_secim_grubu(makine):
+    """Makine operatörün seçmesi gereken bir gruba mı ait? Grup ya da None."""
+    m = str(makine or '').strip().lower()
+    for grup in ARIZA_SECIM_GRUPLARI:
+        if m and re.match(grup['forge'], m):
+            return grup
+    return None
+
+
+def _bakim_eslesme_db(conn, makine, lokasyon):
+    """Amirin KALICI olarak tanımladığı eşleşme (kullanıcı: 'sonrasında kalıcı
+    olarak o atama tanımlanır'). Config'ten ÖNCE gelir: saha bilgisi taze."""
+    m = str(makine or '').strip()
+    if not m:
+        return ''
+    try:
+        r = conn.execute(
+            "SELECT bakim_kodu FROM bakim_makine_eslesme "
+            "WHERE lower(forge_makine)=lower(?) AND lokasyon=?",
+            (m, (lokasyon or 'TK2').upper())).fetchone()
+        return (r['bakim_kodu'] or '').strip() if r else ''
+    except Exception as e:
+        print(f'[BAKIM] eşleşme okunamadı: {e}')
+        return ''
+
+
+def _bakim_eslesme_yaz(conn, makine, lokasyon, kod, tanimlayan):
+    """Amirin atamasını kalıcılaştırır. Seçim gruplarında YAZILMAZ: orada
+    makine her talepte değişiyor (operatör seçiyor), sabitlemek yanlış olur."""
+    makine = str(makine or '').strip()
+    kod = str(kod or '').strip().upper()
+    if not makine or not kod or _ariza_secim_grubu(makine):
+        return False
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO bakim_makine_eslesme "
+            "  (forge_makine, lokasyon, bakim_kodu, tanimlayan, tanim_ts) "
+            "VALUES (?,?,?,?,datetime('now','localtime'))",
+            (makine, (lokasyon or 'TK2').upper(), kod, tanimlayan or ''))
+        conn.commit()
+        print(f'[BAKIM] eşleşme tanımlandı: {makine} ({lokasyon}) → {kod} · {tanimlayan}')
+        return True
+    except Exception as e:
+        print(f'[BAKIM] eşleşme yazılamadı: {e}')
+        return False
+
+
+def _bakim_kodu(cfg, makine, lokasyon=None, conn=None):
     """Forge makine adı → bakım sistemindeki TKxxNN kodu (büyük/küçük duyarsız).
 
-    Eşleşme bakim_config.json → makine_eslesme sözlüğünden. Sözlükte olmayan
-    makinede buton hiç GÖSTERİLMEZ — operatörü 404'e koşturmayız."""
+    SIRA (2026-09-07): amirin tanımladığı KALICI eşleşme → bakim_config.json.
+    Kalıcı eşleşme öndedir çünkü sahadan gelir ve config elle güncelleniyor."""
     m = str(makine or '').strip().lower()
     if not m:
         return ''
+    if conn is None:
+        try:
+            conn = get_db()
+        except Exception:
+            conn = None
+    if conn is not None:
+        kod = _bakim_eslesme_db(conn, makine, lokasyon)
+        if kod:
+            return kod
     for k, v in (cfg.get('makine_eslesme') or {}).items():
         if str(k).strip().lower() == m:
             return str(v or '').strip()
     return ''
+
+
+def _bakim_makine_adi(conn, kod):
+    """TKxxNN → 'HİDROLİK PRES · TK 1 Pres Hattı 2' (ekranda gösterilecek ad)."""
+    kod = str(kod or '').strip().upper()
+    if not kod:
+        return ''
+    try:
+        _bakim_katalog_tohumla(conn)
+        r = conn.execute("SELECT ad, yol FROM bakim_makineleri WHERE kod=?", (kod,)).fetchone()
+    except Exception:
+        return kod
+    if not r:
+        return kod
+    yer = (r['yol'] or '').split('›')[-1].strip()
+    return r['ad'] + (f' · {yer}' if yer else '')
 
 
 _SICIL_TR = str.maketrans('ÇĞİÖŞÜçğıöşü', 'CGIOSUcgiosu')
@@ -12306,8 +12478,12 @@ def _ariza_amir_mi(cfg, kullanici_adi, lokasyon=None):
     return False
 
 
-def _ariza_satir(r):
+def _ariza_satir(r, conn=None):
     d = dict(r)
+    # Amir ekranda kodu değil MAKİNENİN ADINI görsün (TKHP04 kimseye bir şey
+    # anlatmıyor; 'HİDROLİK PRES · TK 1 Pres Hattı 2' anlatıyor).
+    d['bakim_ad'] = _bakim_makine_adi(conn, d.get('bakim_kodu')) if conn else ''
+    d['secim_grubu'] = bool(_ariza_secim_grubu(d.get('makine')))
     d['bekleme_dk'] = None
     try:
         bas = datetime.strptime(d['olusturma_ts'][:19], '%Y-%m-%d %H:%M:%S')
@@ -12347,9 +12523,13 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
     cfg = _bakim_config()
     if not _bakim_hazir(cfg):
         return False, 'Bakım entegrasyonu yapılandırılmamış', ''
-    kod = _bakim_kodu(cfg, kayit['makine'])
+    # Kayıtta kod VARSA o gider: operatör (kesim/pres seçimi) ya da amir
+    # (atama) hangi makineyi kastettiğini zaten söylemiş; ad üzerinden tekrar
+    # tahmin yürütmek yanlış makineye iş emri açma riski.
+    kod = (kayit.get('bakim_kodu') or '').strip().upper() or \
+        _bakim_kodu(cfg, kayit['makine'], kayit.get('lokasyon'), conn)
     if not kod:
-        return False, f"{kayit['makine']} bakım sisteminde eşlenmemiş", ''
+        return False, f"{kayit['makine']} bakım sisteminde eşlenmemiş — amir makine ataması yapmalı", ''
 
     govde = {
         'machine_code': kod,
@@ -12383,6 +12563,43 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
     return True, 'Bakım sistemine iletildi', (d.get('url') or '')
 
 
+@app.route('/api/ariza/secenek', methods=['GET'])
+@operator_required
+def ariza_secenek():
+    """Operatör arıza formunda hangi makineyi seçecek? (?makine=&lokasyon=)
+
+    İki adımlı, çünkü sabit hatlı bölümlerde vardiyanın makinesi HAT adıdır
+    ('Tel Üretimi') — bakım gerçek makineyi ister:
+      1) makine = HAT ise  → o hattın makineleri döner, operatör kendisininkini seçer
+      2) makine = MAKİNE ise → o makinenin bakım karşılığı:
+           · tanimli  : kalıcı/config eşleşme var, seçim sorulmaz
+           · secim    : kesim/pres grubu — operatör bakım makinesini kendi seçer
+           · yok      : eşleşme yok; talep bu adla açılır, AMİR atamayı yapar"""
+    lok = (g.operator_lokasyon or request.args.get('lokasyon') or 'TK2').upper()
+    makine = str(request.args.get('makine') or '').strip()
+    conn = get_db()
+    hat_makineleri = HAT_MAKINELERI.get(makine)
+    if hat_makineleri:
+        # GIZLI_HATLAR: numarası kaymasın diye listede tutulan ama sahada
+        # KARŞILIĞI OLMAYAN slotlar ('Son Montaj 903/904') — operatöre gösterilmez.
+        return jsonify({'tip': 'hat', 'makine': makine,
+                        'etiket': KAYIT_MAKINE_ETIKETI.get(makine, 'Makine'),
+                        'makineler': [m for m in hat_makineleri if m not in GIZLI_HATLAR]})
+    cfg = _bakim_config()
+    kod = _bakim_kodu(cfg, makine, lok, conn)
+    if kod:
+        return jsonify({'tip': 'makine', 'makine': makine, 'durum': 'tanimli',
+                        'bakim_kodu': kod, 'bakim_ad': _bakim_makine_adi(conn, kod)})
+    grup = _ariza_secim_grubu(makine)
+    if grup:
+        return jsonify({'tip': 'makine', 'makine': makine, 'durum': 'secim',
+                        'baslik': grup['baslik'],
+                        'secenekler': [{'kod': m['kod'], 'ad': m['ad'],
+                                        'yer': (m['yol'] or '').split('›')[-1].strip()}
+                                       for m in _bakim_katalog(conn, lok, grup['onek'])]})
+    return jsonify({'tip': 'makine', 'makine': makine, 'durum': 'yok'})
+
+
 @app.route('/api/ariza', methods=['POST'])
 @operator_required
 def ariza_bildir():
@@ -12397,6 +12614,12 @@ def ariza_bildir():
     makine = str(d.get('makine') or '').strip()
     if not makine:
         return jsonify({'hata': 'Makine bilgisi eksik'}), 400
+    # Operatörün seçtiği bakım makinesi (kesim/pres grupları). Katalogda
+    # DOĞRULANIR: uydurulmuş bir kod bakım sisteminde 404 talebe dönerdi.
+    bkod = str(d.get('bakim_kodu') or '').strip().upper()
+    if bkod and not get_db().execute(
+            "SELECT 1 FROM bakim_makineleri WHERE kod=? AND durum='aktif'", (bkod,)).fetchone():
+        return jsonify({'hata': f'{bkod} bakım makine listesinde yok'}), 400
     oncelik = str(d.get('oncelik') or 'yuksek').strip().lower()
     if oncelik not in ARIZA_ONCELIK:
         oncelik = 'yuksek'
@@ -12421,11 +12644,12 @@ def ariza_bildir():
 
     cur = conn.execute(
         "INSERT INTO ariza_bildirimleri (olusturma_ts, lokasyon, bolum, makine, vardiya_id, "
-        "  durus_id, baslangic_ts, operator_adi, aciklama, oncelik, durum) "
-        "VALUES (datetime('now','localtime'),?,?,?,?,?,?,?,?,?,'bekliyor')",
+        "  durus_id, baslangic_ts, operator_adi, aciklama, oncelik, durum, bakim_kodu) "
+        "VALUES (datetime('now','localtime'),?,?,?,?,?,?,?,?,?,'bekliyor',?)",
         (lokasyon, (d.get('bolum') or '').strip() or None, makine,
          d.get('vardiya_id') or None, d.get('durus_id') or None,
-         bas_ts.replace('T', ' ')[:19] or None, g.operator_adi, aciklama, oncelik))
+         bas_ts.replace('T', ' ')[:19] or None, g.operator_adi, aciklama, oncelik,
+         bkod or _bakim_kodu(_bakim_config(), makine, lokasyon, conn) or None))
     conn.commit()
     kayit = dict(conn.execute("SELECT * FROM ariza_bildirimleri WHERE id=?",
                               (cur.lastrowid,)).fetchone())
@@ -12497,7 +12721,7 @@ def ariza_kuyruk():
         "SELECT COUNT(*) n FROM ariza_bildirimleri WHERE durum='bekliyor'").fetchone()['n']
     cfg = _bakim_config()
     return jsonify({
-        'kayitlar': [_ariza_satir(r) for r in rows],
+        'kayitlar': [_ariza_satir(r, conn) for r in rows],
         'bekleyen': bekleyen,
         'amir': _ariza_amir_mi(cfg, g.panel_ku['kullanici_adi']) or g.panel_ku['admin'],
         'bakim_hazir': _bakim_hazir(cfg),
@@ -12531,10 +12755,10 @@ def _ariza_makine_listesi(lokasyon):
         if kl != lok:
             continue
         for m in HAT_MAKINELERI.get(hat, ()):
-            if m not in adlar:
+            if m not in adlar and m not in GIZLI_HATLAR:
                 adlar.append(m)
     cfg = _bakim_config()
-    return [{'ad': a, 'bakim_kodu': _bakim_kodu(cfg, a)} for a in adlar]
+    return [{'ad': a, 'bakim_kodu': _bakim_kodu(cfg, a, lok, conn)} for a in adlar]
 
 
 @app.route('/api/ariza/makineler', methods=['GET'])
@@ -12542,6 +12766,20 @@ def _ariza_makine_listesi(lokasyon):
 def ariza_makineler():
     """Düzeltme ekranındaki makine seçeneği (?lokasyon=TK1|TK2)."""
     return jsonify(_ariza_makine_listesi(request.args.get('lokasyon')))
+
+
+@app.route('/api/ariza/bakim_makineleri', methods=['GET'])
+@panel_gerekli(izin='ariza-onay')
+def ariza_bakim_makineleri():
+    """Amirin atama yapacağı BAKIM makineleri (?lokasyon=TK1|TK2).
+
+    Birim yoluna göre gruplanır: bakım sisteminde onlarca makine aynı adı
+    taşıyor ('HİDROLİK PRES'), ayırt eden şey hattı."""
+    lok = (request.args.get('lokasyon') or '').strip().upper()
+    liste = _bakim_katalog(get_db(), lok if lok in ('TK1', 'TK2') else None)
+    return jsonify([{'kod': m['kod'], 'ad': m['ad'],
+                     'yer': (m['yol'] or '').split('›')[-1].strip(),
+                     'lokasyon': m['lokasyon']} for m in liste])
 
 
 def _ariza_duzelt_uygula(conn, kayit, d, amir):
@@ -12573,6 +12811,17 @@ def _ariza_duzelt_uygula(conn, kayit, d, amir):
         alan.append('oncelik=?')
         par.append(yeni_onc)
         kayit['oncelik'] = yeni_onc
+    # BAKIM MAKİNESİ ATAMASI (kullanıcı 2026-09-07): amir hangi bakım
+    # makinesinin kastedildiğini seçer; seçim grubu dışındaki makinelerde bu
+    # atama KALICI olur — operatör sonraki bildiriminde tanımlı makineyi görür.
+    yeni_kod = str(d.get('bakim_kodu') or '').strip().upper()
+    if yeni_kod and yeni_kod != (kayit.get('bakim_kodu') or ''):
+        if not conn.execute("SELECT 1 FROM bakim_makineleri WHERE kod=?", (yeni_kod,)).fetchone():
+            return None, f'{yeni_kod} bakım makine listesinde yok'
+        alan.append('bakim_kodu=?')
+        par.append(yeni_kod)
+        kayit['bakim_kodu'] = yeni_kod
+        _bakim_eslesme_yaz(conn, kayit['makine'], kayit.get('lokasyon'), yeni_kod, amir)
     if not alan:
         return False, kayit
     alan += ['duzenleyen=?', "duzenleme_ts=datetime('now','localtime')"]
@@ -12717,8 +12966,44 @@ def bakim_uygun():
     if not cfg or cfg.get('ariza_bildirimi') is False:
         return jsonify({'uygun': False})
     return jsonify({'uygun': True,
-                    'bakim_eslesme': bool(_bakim_kodu(cfg, request.args.get('makine'))),
+                    'bakim_eslesme': bool(_bakim_kodu(
+                        cfg, request.args.get('makine'),
+                        (request.args.get('lokasyon') or 'TK2').upper())),
                     'bakim_hazir': _bakim_hazir(cfg)})
+
+
+@app.route('/api/bakim/makine_tazele', methods=['POST'])
+@panel_gerekli(izin='ariza-onay')
+def bakim_makine_tazele():
+    """Bakim makine kataloğunu bakım sisteminden yeniler.
+
+    Halil Bey'in API anahtarı gelene kadar depodaki anlık görüntüyle
+    çalışıyoruz; anahtar gelince bu buton kataloğu tazeler. Sözleşme HENÜZ
+    DOĞRULANMADI (makine listesi ucu kılavuzda yok) — bu yüzden başarısızlık
+    açıkça raporlanır, sessizce yutulmaz ve mevcut katalog BOZULMAZ."""
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return jsonify({'hata': 'Bakım entegrasyonu yapılandırılmamış (API anahtarı yok)'}), 503
+    hedef = cfg['api_url'].rstrip('/') + (cfg.get('makine_listesi_yolu') or '/api/machines')
+    import requests
+    try:
+        r = requests.get(hedef, headers={'X-Api-Key': cfg['api_anahtari'],
+                                         'Accept': 'application/json'}, timeout=20)
+    except Exception as e:
+        return jsonify({'hata': f'Bakım sistemine ulaşılamadı: {e}'}), 502
+    if r.status_code != 200:
+        return jsonify({'hata': f'Bakım sistemi HTTP {r.status_code} döndü — '
+                                f'makine listesi ucu/anahtar teyit edilmeli'}), 502
+    try:
+        d = r.json()
+        liste = d if isinstance(d, list) else (d.get('data') or d.get('machines') or [])
+    except Exception:
+        return jsonify({'hata': 'Bakım sistemi JSON döndürmedi'}), 502
+    if not liste:
+        return jsonify({'hata': 'Bakım sistemi boş liste döndü — katalog korundu'}), 502
+    conn = get_db()
+    n = _bakim_katalog_yaz(conn, liste)
+    return jsonify({'basarili': True, 'makine': n})
 
 
 @app.route('/api/bakim/handoff', methods=['POST'])
@@ -12736,13 +13021,14 @@ def bakim_handoff():
         return jsonify({'hata': 'Bakım entegrasyonu bu sunucuda yapılandırılmamış'}), 503
     data = request.get_json(silent=True) or {}
     makine = str(data.get('makine') or '').strip()
-    kod = _bakim_kodu(cfg, makine)
-    if not kod:
-        return jsonify({'hata': f'"{makine}" bakım sisteminde eşlenmemiş — '
-                                f'bakim_config.json → makine_eslesme'}), 404
-
     lokasyon = (g.operator_lokasyon or request.args.get('lokasyon') or 'TK2').upper()
     conn = get_db()
+    # Operatörün seçtiği kod (kesim/pres grupları) varsa doğrudan kullanılır.
+    kod = str(data.get('bakim_kodu') or '').strip().upper() or         _bakim_kodu(cfg, makine, lokasyon, conn)
+    if not kod:
+        return jsonify({'hata': f'"{makine}" bakım sisteminde eşlenmemiş — '
+                                f'amir makine ataması yapmalı'}), 404
+
     kullanici = {
         'username': _bakim_kullanici(conn, g.operator_adi, lokasyon),
         'full_name': g.operator_adi,

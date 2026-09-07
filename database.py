@@ -632,6 +632,45 @@ def init_db():
         except Exception:
             pass
 
+    # ── BAKIM MAKINE KATALOGU (2026-09-07) ──────────────────────────────────
+    # Bakim sistemindeki makinelerin yerel kopyasi: amir ve operator secim
+    # listelerini bundan doldurur. API anahtari gelince periyodik tazelenir;
+    # o zamana kadar elle alinan anlik goruntuyle calisir.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS bakim_makineleri (
+            kod TEXT PRIMARY KEY,
+            ad TEXT NOT NULL,
+            birim TEXT,
+            yol TEXT,
+            durum TEXT DEFAULT 'aktif',
+            lokasyon TEXT,                 -- yol'dan cikarilir (TK1/TK2)
+            guncelleme_ts TEXT
+        )
+    ''')
+
+    # ── FORGE MAKINESI -> BAKIM KODU KALICI ESLESME (2026-09-07) ────────────
+    # Kullanici: "amir makine atamasini yapar, sonrasinda KALICI olarak o atama
+    # tanimlanir ve operator ekraninda o makine icin tekrar kayit acilirken
+    # tanimlanan makineyi gorur." Yani eslesme kullanildikca ogrenilir; config
+    # dosyasi yalnizca baslangic tohumudur.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS bakim_makine_eslesme (
+            forge_makine TEXT NOT NULL,
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            bakim_kodu TEXT NOT NULL,
+            tanimlayan TEXT,
+            tanim_ts TEXT,
+            PRIMARY KEY (forge_makine, lokasyon)
+        )
+    ''')
+
+    # Operator dogrudan bir BAKIM makinesi sectiyse kodu kayitta durur
+    # (hidrolik pres hatti: bizim adlarimiz bakimdakiyle ortusmuyor).
+    try:
+        c.execute("ALTER TABLE ariza_bildirimleri ADD COLUMN bakim_kodu TEXT")
+    except Exception:
+        pass
+
     # Amir duzeltmesi izi (2026-09-07): operator yanlis makine secebilir ya da
     # aciklamayi eksik yazabilir; amir duzeltir. OPERATORUN ILK METNI KAYBOLMAZ
     # (orijinal_aciklama) — egitim ihtiyacini gosteren veri odur.
