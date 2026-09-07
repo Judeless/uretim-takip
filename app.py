@@ -9513,23 +9513,30 @@ def _kapasite_reddi(conn, referans, uretim_tarihi, adet):
     return None
 
 
-def _operator_eki_engeli(referans, article=''):
-    """Referansta tamir/punta/rework gibi operatör eki varsa gerekçe döner.
+def _operator_eki_engeli(referans, article='', tesis='', bolum=''):
+    """Bu satır ERP'ye yazılmamalı mı? Gerekçe metni | '' (yazılabilir).
 
     SON SAVUNMA HATTI (kullanıcı 2026-08-27): kuyruk motoru bu satırları zaten
     HARİÇ'e ayırıyor, ama panel açık kalmış eski bir listeyi ya da elle
     işaretlenmiş bir satırı gönderebilir. ERP'ye yazan üç çekirdek de burada
-    durur — kural tek yerde (launch_esle.teyit_disi_sebep) tanımlı."""
+    durur — kurallar tek yerde (launch_esle) tanımlı.
+
+    İKİ KURAL: (1) tamir/punta/rework eki, (2) TK2 montajda "A" ekli kod.
+    İkincisi tesis/bölüm İSTER; bilinmiyorsa UYGULANMAZ — TK1 plastikte de
+    "A" ile biten meşru kodlar var, körlemesine engellemek onları durdururdu."""
     try:
         import sys as _sys
         _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
         if _d not in _sys.path:
             _sys.path.insert(0, _d)
         import launch_esle as _le
+        if _le.montaj_a_eki(tesis, bolum, referans):
+            return ('TK2 montajda "A" ekli koda teyit verilmez '
+                    '(kullanıcı kuralı 2026-09-08)')
         ek = _le.operator_eki(referans, article) or (
             'rework' if _le.rework_mi(referans, article) else '')
     except Exception as e:
-        print(f'[TEYIT] operator eki kontrolu yapilamadi: {e}')
+        print(f'[TEYIT] teyit-disi kontrolu yapilamadi: {e}')
         return ''
     if not ek:
         return ''
@@ -9586,7 +9593,7 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
         if not (yil.isdigit() and len(yil) == 2 and no.isdigit() and 0 < adet <= 99999 and article and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
             continue
-        _engel = _operator_eki_engeli(referans, article)
+        _engel = _operator_eki_engeli(referans, article, str(s.get('tesis') or ''), str(s.get('bolum') or ''))
         if _engel:
             sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _engel})
             continue
@@ -10216,7 +10223,7 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         if not (article and 0 < adet <= 99999 and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
             continue
-        _engel = _operator_eki_engeli(referans, article)
+        _engel = _operator_eki_engeli(referans, article, str(s.get('tesis') or ''), str(s.get('bolum') or ''))
         if _engel:
             sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _engel})
             continue
@@ -10441,7 +10448,7 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         if not (article and 0 < adet <= 99999 and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
             continue
-        _engel = _operator_eki_engeli(referans, article)
+        _engel = _operator_eki_engeli(referans, article, str(s.get('tesis') or ''), str(s.get('bolum') or ''))
         if _engel:
             sonuclar.append({**kayit, 'sonuc': 'atlandi', 'mesaj': _engel})
             continue

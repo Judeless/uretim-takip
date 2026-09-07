@@ -14569,8 +14569,11 @@ window.__I18N_SOZLUK__ = {
                 var adet = parseInt((document.getElementById('as4-adet-' + i) || {}).value) || 0;
                 if (adet <= 0) return;
                 var bayrak = (document.getElementById('as4-bayrak-' + i) || {}).value === 'S' ? 'S' : 'A';
+                // tesis/bolum: sunucudaki son savunma hattı TK2-montaj "A" kuralını
+                // bunlarla uygular. Gönderilmezse kural pas geçer (2026-09-08).
                 launchSec.push({ uretim_tarihi: b.tarih, yil: l.red2, no: l.renu, article: l.article,
                                  referans: b.r.referans, adet: adet, launch: l.launch, bayrak: bayrak,
+                                 tesis: b.r.tesis, bolum: b.r.bolum,
                                  hurda: (b.r.hurda || 0) });
             });
             // 2) CFI seçimleri (launch'sız üretim)
