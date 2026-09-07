@@ -597,6 +597,41 @@ def init_db():
     except Exception:
         pass
 
+    # ── ARIZA BILDIRIMLERI (amir onayli akis — Gokhan Kucuk onerisi 2026-09-04) ──
+    # Operator MES'te ariza bildirir; talep once uretim amirine duser, amir
+    # sizgecten gecirip bakim sistemine gonderir ya da gerekcesiyle reddeder.
+    # REDDEDILENLER DE BURADA KALIR: bakim programina hic dusmeyen bu kayitlar
+    # operator egitim ihtiyacini gosteren veridir (Gokhan Bey'in istegi).
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS ariza_bildirimleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            olusturma_ts TEXT NOT NULL,
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            bolum TEXT,
+            makine TEXT NOT NULL,              -- Forge makine adi (bakim kodu eslemeyle bulunur)
+            vardiya_id INTEGER,
+            durus_id INTEGER,                  -- varsa duruş kaydi (external_id + baslangic icin)
+            baslangic_ts TEXT,                 -- ariza baslangici
+            operator_adi TEXT NOT NULL,
+            aciklama TEXT NOT NULL,
+            oncelik TEXT NOT NULL DEFAULT 'yuksek',   -- acil|yuksek|normal|dusuk
+            durum TEXT NOT NULL DEFAULT 'bekliyor',   -- bekliyor|gonderildi|reddedildi
+            amir TEXT,                         -- karari veren panel kullanicisi
+            karar_ts TEXT,
+            karar_notu TEXT,                   -- red sebebi / amir notu
+            gonderim_yolu TEXT,                -- amir|acil|zaman_asimi
+            bakim_talep_no TEXT,               -- bakim sisteminden donerse
+            bakim_durum TEXT,                  -- ikinci faz: durum sorgulamasi
+            bakim_durum_ts TEXT
+        )
+    ''')
+    for _sql in ("CREATE INDEX IF NOT EXISTS ix_ariza_durum ON ariza_bildirimleri(durum, lokasyon)",
+                 "CREATE INDEX IF NOT EXISTS ix_ariza_ts ON ariza_bildirimleri(olusturma_ts)"):
+        try:
+            c.execute(_sql)
+        except Exception:
+            pass
+
     # Migration (2026-09-04, bakim sistemi entegrasyonu): sicil_no — bakim
     # tarafinda hesap anahtari olarak DEGISMEYEN kimlik. Ad-soyad degisse de
     # (evlilik, duzeltme) bakim hesabi ayni kalir. Bos birakilabilir; bossa

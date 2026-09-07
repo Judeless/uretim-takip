@@ -184,6 +184,10 @@ PANEL_SAYFALAR = [
     # mevcut kullanıcıların izin listesinde YOK (yalnız admin görür, yönetici
     # tek tek yetki verir). 'analiz' de aynı gerekçeyle ayrı.
     'operator-performans', 'analiz',
+    # 2026-09-04: arıza onay kuyruğu — üretim amiri operatör bildirimlerini
+    # süzüp bakım sistemine gönderir. Yeni sayfa → mevcut kullanıcıların izin
+    # listesinde YOK; yönetici amirlere tek tek verir.
+    'ariza-onay',
     # 2026-08-21 zaman çizelgesi: duruş sebebini DEĞİŞTİRİP yeniden atayabiliyor
     # (rapor/OEE'yi doğrudan etkiler) → aynı gerekçeyle izin listesine kendisi
     # eklenmez; yönetici tek tek yetki verir.
@@ -12264,6 +12268,331 @@ def _bakim_post(url, anahtar, govde):
                                   'X-Api-Key': anahtar})
 
 
+# ── AMİR ONAYLI ARIZA AKIŞI (Gökhan Küçük önerisi, 2026-09-04) ──────────────
+# Operatör MES'te arıza bildirir → talep ÜRETİM AMİRİNE düşer → amir süzgeçten
+# geçirip bakım sistemine gönderir ya da gerekçesiyle reddeder.
+# NEDEN: bakım ekibine yalnız süzülmüş, gerçek talep ulaşsın; önceliği anlık
+# üretim durumunu bilen kişi belirlesin (bakım ekibi bilemez). Reddedilenler
+# sistemde KALIR — operatör eğitim ihtiyacını gösteren veridir.
+
+ARIZA_ONCELIK = ('acil', 'yuksek', 'normal', 'dusuk')
+
+
+def _ariza_amirler(cfg, lokasyon):
+    """O tesisin amirleri: [{'panel','ad'}]. Config yoksa boş liste."""
+    ham = (cfg.get('amirler') or {}).get((lokasyon or 'TK2').upper()) or []
+    out = []
+    for a in ham:
+        if isinstance(a, dict):
+            out.append({'panel': str(a.get('panel') or '').strip(),
+                        'ad': str(a.get('ad') or '').strip()})
+        elif str(a).strip():
+            out.append({'panel': str(a).strip(), 'ad': str(a).strip()})
+    return out
+
+
+def _ariza_amir_mi(cfg, kullanici_adi, lokasyon=None):
+    """Bu panel kullanıcısı arıza onaylayabilir mi?
+
+    Admin DAİMA onaylayabilir (kilitli kalmasın); ayrıca config'te o tesisin
+    amiri olarak tanımlı kullanıcılar. lokasyon None ise herhangi bir tesiste
+    amir olması yeterlidir (kuyruk listesi için)."""
+    lokler = [lokasyon.upper()] if lokasyon else ['TK1', 'TK2']
+    ka = (kullanici_adi or '').strip().lower()
+    for lok in lokler:
+        for a in _ariza_amirler(cfg, lok):
+            if a['panel'].lower() == ka:
+                return True
+    return False
+
+
+def _ariza_satir(r):
+    d = dict(r)
+    d['bekleme_dk'] = None
+    try:
+        bas = datetime.strptime(d['olusturma_ts'][:19], '%Y-%m-%d %H:%M:%S')
+        bit = (datetime.strptime(d['karar_ts'][:19], '%Y-%m-%d %H:%M:%S')
+               if d.get('karar_ts') else datetime.now())
+        d['bekleme_dk'] = max(0, int((bit - bas).total_seconds() // 60))
+    except Exception:
+        pass
+    return d
+
+
+def _ariza_amirlere_haber(cfg, kayit):
+    """Yeni/yükseltilen bildirimde amirlere push. Push yoksa sessiz geçer —
+    panel kuyruğu ve rozet zaten her açılışta gösteriyor."""
+    amirler = _ariza_amirler(cfg, kayit.get('lokasyon'))
+    adlar = [a['ad'] for a in amirler if a['ad']]
+    if not adlar:
+        return
+    acil = (kayit.get('oncelik') == 'acil')
+    baslik = ('🚨 ACİL arıza bildirimi' if acil else '🔧 Yeni arıza bildirimi')
+    govde = (f"{kayit.get('makine')} · {kayit.get('operator_adi')} — "
+             f"{(kayit.get('aciklama') or '')[:80]}")
+    try:
+        _push_gonder_async(adlar, baslik, govde, '/dashboard')
+    except Exception as e:
+        print(f'[ARIZA] push atlandı: {e}')
+
+
+def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
+    """Bildirimi bakım sistemine iletir. (basarili, mesaj, url) döner.
+
+    İKİ YOL (kılavuz v0.9.6):
+      · work_order ucu tanımlıysa (config: work_order_yolu) → talep DOĞRUDAN
+        açılır; acil/zaman aşımı yükseltmelerinde tek yol budur (ekran yok).
+      · yoksa → handoff bileti alınır ve amir bakım formunda tamamlar.
+    Halil Bey'in work-order sözleşmesi netleşince ilk yol varsayılan olacak."""
+    cfg = _bakim_config()
+    if not _bakim_hazir(cfg):
+        return False, 'Bakım entegrasyonu yapılandırılmamış', ''
+    kod = _bakim_kodu(cfg, kayit['makine'])
+    if not kod:
+        return False, f"{kayit['makine']} bakım sisteminde eşlenmemiş", ''
+
+    govde = {
+        'machine_code': kod,
+        'user': {'username': _bakim_kullanici(conn, kayit['operator_adi'], kayit['lokasyon']),
+                 'full_name': kayit['operator_adi'],
+                 'location': kayit['lokasyon'], 'lang': 'tr'},
+        'external_id': f"ariza-{kayit['id']}",
+        'title': f"{kayit['makine']} — {(kayit.get('aciklama') or '')[:90]}"[:120],
+        'description': ((kayit.get('aciklama') or '') +
+                        (f"\n\nMES onayı: {amir}" if amir else '') +
+                        (f"\nAmir notu: {kayit.get('karar_notu')}" if kayit.get('karar_notu') else '')
+                        )[:2000],
+        'priority': kayit.get('oncelik') or 'yuksek',
+    }
+    if kayit.get('baslangic_ts'):
+        govde['started_at'] = str(kayit['baslangic_ts'])[:19].replace('T', ' ')
+
+    wo = (cfg.get('work_order_yolu') or '').strip()
+    hedef = (cfg['api_url'].rstrip('/') +
+             (wo if wo else '/api/integrations/forge/handoff'))
+    try:
+        r = _bakim_post(hedef, cfg['api_anahtari'], govde)
+        d = r.json() if r.status_code < 500 else {}
+    except Exception as e:
+        print(f'[ARIZA] bakım çağrısı hatası: {e}')
+        return False, 'Bakım sistemine ulaşılamadı', ''
+    if r.status_code != 200:
+        print(f'[ARIZA] bakım {r.status_code}: {d}')
+        return False, f'Bakım sistemi reddetti (HTTP {r.status_code})', ''
+    d = d or {}
+    return True, 'Bakım sistemine iletildi', (d.get('url') or '')
+
+
+@app.route('/api/ariza', methods=['POST'])
+@operator_required
+def ariza_bildir():
+    """Operatör arıza bildirir → amir kuyruğuna düşer.
+    Body: {makine?, bolum?, vardiya_id?, durus_id?, baslangic_ts?, aciklama, oncelik}"""
+    if not g.operator_adi:
+        return jsonify({'hata': 'Operatör girişi gerekli — PIN ile giriş yapın'}), 401
+    d = request.get_json(silent=True) or {}
+    aciklama = ' '.join(str(d.get('aciklama') or '').split())
+    if len(aciklama) < 5:
+        return jsonify({'hata': 'Arızayı kısaca yazın (en az 5 karakter)'}), 400
+    makine = str(d.get('makine') or '').strip()
+    if not makine:
+        return jsonify({'hata': 'Makine bilgisi eksik'}), 400
+    oncelik = str(d.get('oncelik') or 'yuksek').strip().lower()
+    if oncelik not in ARIZA_ONCELIK:
+        oncelik = 'yuksek'
+    lokasyon = (g.operator_lokasyon or request.args.get('lokasyon') or 'TK2').upper()
+    bas_ts = str(d.get('baslangic_ts') or '').strip()
+    if not re.match(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}', bas_ts):
+        bas_ts = ''
+
+    conn = get_db()
+    # MÜKERRER FRENİ: aynı makine için son 30 dk'da bekleyen bildirim varsa
+    # ikincisini açma — iki operatör aynı arızayı arka arkaya bildirebiliyor
+    # (Gökhan Bey'in "mükerrer talepler" maddesi, MES tarafında da geçerli).
+    var = conn.execute(
+        "SELECT id, operator_adi FROM ariza_bildirimleri "
+        "WHERE makine=? AND lokasyon=? AND durum='bekliyor' "
+        "  AND olusturma_ts >= datetime('now','localtime','-30 minutes')",
+        (makine, lokasyon)).fetchone()
+    if var:
+        return jsonify({'hata': f'Bu makine için {var["operator_adi"]} zaten bir arıza '
+                                f'bildirmiş (#{var["id"]}) — amir onayında bekliyor.',
+                        'mevcut_id': var['id']}), 409
+
+    cur = conn.execute(
+        "INSERT INTO ariza_bildirimleri (olusturma_ts, lokasyon, bolum, makine, vardiya_id, "
+        "  durus_id, baslangic_ts, operator_adi, aciklama, oncelik, durum) "
+        "VALUES (datetime('now','localtime'),?,?,?,?,?,?,?,?,?,'bekliyor')",
+        (lokasyon, (d.get('bolum') or '').strip() or None, makine,
+         d.get('vardiya_id') or None, d.get('durus_id') or None,
+         bas_ts.replace('T', ' ')[:19] or None, g.operator_adi, aciklama, oncelik))
+    conn.commit()
+    kayit = dict(conn.execute("SELECT * FROM ariza_bildirimleri WHERE id=?",
+                              (cur.lastrowid,)).fetchone())
+    cfg = _bakim_config()
+    _ariza_amirlere_haber(cfg, kayit)
+
+    # ACİL HIZLI YOL (Gökhan Bey'in "acil işaretli bildirimler için hızlı yol"
+    # maddesi): amiri BEKLETMEDEN bakıma düşer, amire bilgi kopyası gider.
+    # Config'te acil_hizli_yol kapatılabilir.
+    if kayit['oncelik'] == 'acil' and cfg.get('acil_hizli_yol', True):
+        ok, mesaj, _url = _ariza_bakima_gonder(conn, kayit, 'acil')
+        if ok:
+            conn.execute("UPDATE ariza_bildirimleri SET durum='gonderildi', "
+                         "gonderim_yolu='acil', karar_ts=datetime('now','localtime') WHERE id=?",
+                         (kayit['id'],))
+            conn.commit()
+            kayit['durum'] = 'gonderildi'
+        else:
+            print(f'[ARIZA] acil hızlı yol başarısız (#{kayit["id"]}): {mesaj}')
+    print(f'[ARIZA] #{kayit["id"]} {kayit["makine"]} · {g.operator_adi} · {oncelik} → {kayit["durum"]}')
+    return jsonify({'basarili': True, 'id': kayit['id'], 'durum': kayit['durum']}), 201
+
+
+@app.route('/api/ariza/benim', methods=['GET'])
+@operator_required
+def ariza_benim():
+    """Operatörün kendi bildirimleri (son 7 gün) — durumunu MES'te görsün."""
+    if not g.operator_adi:
+        return jsonify([])
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, olusturma_ts, makine, aciklama, oncelik, durum, karar_notu, "
+        "       bakim_talep_no, bakim_durum FROM ariza_bildirimleri "
+        "WHERE operator_adi=? AND olusturma_ts >= datetime('now','localtime','-7 days') "
+        "ORDER BY id DESC LIMIT 20", (g.operator_adi,)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/ariza/kuyruk', methods=['GET'])
+@panel_gerekli(izin='ariza-onay')
+def ariza_kuyruk():
+    """Amir onay kuyruğu + son kararlar. ?durum=bekliyor|hepsi&gun=7"""
+    conn = get_db()
+    durum = (request.args.get('durum') or 'bekliyor').strip()
+    try:
+        gun = max(1, min(90, int(request.args.get('gun') or 7)))
+    except (TypeError, ValueError):
+        gun = 7
+    sql = "SELECT * FROM ariza_bildirimleri WHERE 1=1"
+    par = []
+    if durum != 'hepsi':
+        sql += " AND durum=?"
+        par.append(durum)
+    else:
+        sql += f" AND olusturma_ts >= datetime('now','localtime','-{gun} days')"
+    lok = (request.args.get('lokasyon') or '').strip().upper()
+    if lok in ('TK1', 'TK2'):
+        sql += " AND lokasyon=?"
+        par.append(lok)
+    sql += " ORDER BY (durum='bekliyor') DESC, (oncelik='acil') DESC, id DESC LIMIT 200"
+    rows = conn.execute(sql, par).fetchall()
+    bekleyen = conn.execute(
+        "SELECT COUNT(*) n FROM ariza_bildirimleri WHERE durum='bekliyor'").fetchone()['n']
+    cfg = _bakim_config()
+    return jsonify({
+        'kayitlar': [_ariza_satir(r) for r in rows],
+        'bekleyen': bekleyen,
+        'amir': _ariza_amir_mi(cfg, g.panel_ku['kullanici_adi']) or g.panel_ku['admin'],
+        'bakim_hazir': _bakim_hazir(cfg),
+    })
+
+
+@app.route('/api/ariza/<int:aid>/onayla', methods=['POST'])
+@panel_gerekli(izin='ariza-onay')
+def ariza_onayla(aid):
+    """Amir bildirimi onaylar → bakım sistemine iletilir.
+    Body: {not?, oncelik?} — amir önceliği düzeltebilir (üretim durumunu O bilir)."""
+    conn = get_db()
+    r = conn.execute("SELECT * FROM ariza_bildirimleri WHERE id=?", (aid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Bildirim bulunamadı'}), 404
+    if r['durum'] != 'bekliyor':
+        return jsonify({'hata': f'Bu bildirim zaten işlenmiş ({r["durum"]})'}), 409
+    d = request.get_json(silent=True) or {}
+    kayit = dict(r)
+    yeni_oncelik = str(d.get('oncelik') or '').strip().lower()
+    if yeni_oncelik in ARIZA_ONCELIK:
+        kayit['oncelik'] = yeni_oncelik
+    kayit['karar_notu'] = ' '.join(str(d.get('not') or '').split())[:500] or None
+    amir = g.panel_ku['ad_soyad'] or g.panel_ku['kullanici_adi']
+
+    ok, mesaj, url = _ariza_bakima_gonder(conn, kayit, 'amir', amir)
+    if not ok:
+        return jsonify({'hata': mesaj}), 502
+    conn.execute(
+        "UPDATE ariza_bildirimleri SET durum='gonderildi', amir=?, oncelik=?, "
+        "karar_notu=?, karar_ts=datetime('now','localtime'), gonderim_yolu='amir' WHERE id=?",
+        (amir, kayit['oncelik'], kayit['karar_notu'], aid))
+    conn.commit()
+    print(f'[ARIZA] #{aid} onaylandı ({amir}) → bakım')
+    # url dolu ise (handoff yolu) amir bakım formunu açıp eksikleri tamamlar
+    return jsonify({'basarili': True, 'mesaj': mesaj, 'url': url})
+
+
+@app.route('/api/ariza/<int:aid>/reddet', methods=['POST'])
+@panel_gerekli(izin='ariza-onay')
+def ariza_reddet(aid):
+    """Amir bildirimi reddeder. SEBEP ZORUNLU — kayıt sistemde kalır (eğitim verisi)."""
+    d = request.get_json(silent=True) or {}
+    sebep = ' '.join(str(d.get('sebep') or '').split())
+    if len(sebep) < 3:
+        return jsonify({'hata': 'Red sebebi zorunlu — operatör neden reddedildiğini görmeli'}), 400
+    conn = get_db()
+    r = conn.execute("SELECT durum FROM ariza_bildirimleri WHERE id=?", (aid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Bildirim bulunamadı'}), 404
+    if r['durum'] != 'bekliyor':
+        return jsonify({'hata': f'Bu bildirim zaten işlenmiş ({r["durum"]})'}), 409
+    amir = g.panel_ku['ad_soyad'] or g.panel_ku['kullanici_adi']
+    conn.execute(
+        "UPDATE ariza_bildirimleri SET durum='reddedildi', amir=?, karar_notu=?, "
+        "karar_ts=datetime('now','localtime') WHERE id=?", (amir, sebep[:500], aid))
+    conn.commit()
+    print(f'[ARIZA] #{aid} reddedildi ({amir}): {sebep[:60]}')
+    return jsonify({'basarili': True})
+
+
+def ariza_yukseltme_job():
+    """Amir belirli sürede bakmadıysa bildirimi yükseltir (periyodik).
+
+    Gökhan Bey'in "amir sahada/izinli/gece vardiyasında olabilir" endişesi:
+    bekleyen bildirim config'teki süreyi aşarsa (varsayılan 30 dk) bakıma
+    OTOMATİK düşer. work-order ucu tanımlı değilse gönderim yapılamaz —
+    o hâlde amirlere tekrar push atılır ve kayıt beklemede kalır (sessizce
+    kaybolmasın). Süre 0 ise yükseltme kapalıdır."""
+    cfg = _bakim_config()
+    try:
+        dk = int(cfg.get('yukseltme_dk', 30))
+    except (TypeError, ValueError):
+        dk = 30
+    if dk <= 0:
+        return
+    conn = db_connect()
+    try:
+        rows = conn.execute(
+            f"SELECT * FROM ariza_bildirimleri WHERE durum='bekliyor' "
+            f"  AND olusturma_ts <= datetime('now','localtime','-{dk} minutes')").fetchall()
+        for r in rows:
+            kayit = dict(r)
+            ok, mesaj, _u = _ariza_bakima_gonder(conn, kayit, 'zaman_asimi')
+            if ok:
+                conn.execute(
+                    "UPDATE ariza_bildirimleri SET durum='gonderildi', "
+                    "gonderim_yolu='zaman_asimi', karar_ts=datetime('now','localtime'), "
+                    "karar_notu=COALESCE(karar_notu,'') || ? WHERE id=?",
+                    (f'[{dk} dk amir onayı beklendi, otomatik iletildi]', kayit['id']))
+                conn.commit()
+                print(f'[ARIZA] #{kayit["id"]} zaman aşımı → bakıma iletildi')
+            else:
+                _ariza_amirlere_haber(cfg, kayit)
+                print(f'[ARIZA] #{kayit["id"]} {dk} dk bekliyor — amirlere hatırlatıldı ({mesaj})')
+    except Exception as e:
+        print(f'[ARIZA] yükseltme işi hatası: {e}')
+    finally:
+        conn.close()
+
+
 @app.route('/api/bakim/uygun', methods=['GET'])
 def bakim_uygun():
     """Mobil buton görünürlüğü: bu makine için handoff mümkün mü?
@@ -12410,7 +12739,9 @@ if __name__ == '__main__':
                 _nbd = 10
             start_scheduler(ek_gorevler=_ek,
                             periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit'),
-                                                (_nbd, agent_nobet_job, 'Teyit-Agent Nöbeti')])
+                                                (_nbd, agent_nobet_job, 'Teyit-Agent Nöbeti'),
+                                                # Amir onayı gecikmiş arıza bildirimleri
+                                                (5, ariza_yukseltme_job, 'Arıza Yükseltme')])
         except Exception as _e:
             print(f'[SCHED] başlatılamadı: {_e}')
 

@@ -8,5 +8,20 @@
     "ABB1": "",
     "400T": "",
     "Pres 1": ""
-  }
+  },
+
+  "_amir_notu": "Operator bildirimi ONCE bu kisilere duser (Gokhan Kucuk onerisi). panel = panel kullanici adi (kuyrugu gorur), ad = operator adi (push bildirimi bu adla gider). Ayrica 'ariza-onay' sayfa izni verilmeli.",
+  "amirler": {
+    "TK2": [{"panel": "emre.dogutekin", "ad": "Emre Dogutekin"}],
+    "TK1": [{"panel": "ibrahim.kirmizitas", "ad": "Ibrahim Kirmizitas"}]
+  },
+
+  "_acil_notu": "true: 'acil' isaretli bildirim amiri BEKLEMEDEN bakima duser, amire bilgi kopyasi gider.",
+  "acil_hizli_yol": true,
+
+  "_yukseltme_notu": "Amir bu sure icinde bakmazsa bildirim otomatik bakima duser. 0 = kapali.",
+  "yukseltme_dk": 30,
+
+  "_work_order_notu": "Halil Bey'in v0.9.0 work-order ucunun yolu (or. /api/integrations/forge/work-order). BOSSA handoff kullanilir: amir bakim formunda tamamlar. Acil/zaman asimi yukseltmeleri icin bu uc GEREKLI (ekran yok).",
+  "work_order_yolu": ""
 }

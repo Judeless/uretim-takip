@@ -2746,7 +2746,7 @@ window.__I18N_SOZLUK__ = {
             <div style="font-size:.76rem;color:var(--muted);margin-top:2px" id="c-durus-uyari-detay">Bu süre için bir duruş tanımlayın.</div>
           </div>
           <button onclick="durusUyaridanTanimla()" style="background:var(--danger);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">⏸️ Duruş Tanımla</button>
-          <button id="c-durus-uyari-bakim" onclick="bakimHandoffSinyalYok()" style="display:none;background:var(--card);color:var(--danger);border:1px solid var(--danger);border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">🔧 Arıza Bildir</button>
+          <button id="c-durus-uyari-bakim" onclick="arizaAcSinyalYok()" style="display:none;background:var(--card);color:var(--danger);border:1px solid var(--danger);border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">🔧 Arıza Bildir</button>
         </div>
       </div>
 
@@ -2783,7 +2783,7 @@ window.__I18N_SOZLUK__ = {
 
       <div class="section-hd">
         <h3>⏸️ Duruş Kayıtları</h3>
-        <button class="section-add-btn" id="c-bakim-btn" style="display:none;background:var(--danger);color:#fff;margin-right:8px" onclick="bakimHandoff(null)">🔧 Arıza Bildir</button>
+        <button class="section-add-btn" id="c-bakim-btn" style="display:none;background:var(--danger);color:#fff;margin-right:8px" onclick="arizaAc(null)">🔧 Arıza Bildir</button>
         <button class="section-add-btn" onclick="yeniDurusEkle()">+ Ekle</button>
       </div>
       <div class="kayit-list" id="c-durus-list">
@@ -3111,6 +3111,42 @@ window.__I18N_SOZLUK__ = {
       </div>
       <div id="sayac-log-list" style="overflow-y:auto;padding:10px 14px;font-size:.8rem;line-height:1.5">
         <div style="color:var(--muted);padding:12px">Yükleniyor...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ARIZA BİLDİRİM FORMU (amir onaylı akış) ═══ -->
+  <div id="ariza-modal" style="display:none;position:fixed;inset:0;background:rgba(20,18,43,0.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9500;align-items:center;justify-content:center;padding:18px">
+    <div style="background:var(--card);border:1px solid var(--line-strong);border-radius:18px;max-width:460px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)">
+        <div style="font-weight:800;font-size:1rem">🔧 Arıza Bildir</div>
+        <button onclick="arizaKapat()" style="background:transparent;border:1px solid var(--line-strong);color:var(--text);border-radius:8px;padding:4px 12px;font-size:.85rem;cursor:pointer">Kapat</button>
+      </div>
+      <div style="overflow-y:auto;padding:16px 18px">
+        <div style="background:var(--primary-soft);border:1px solid var(--primary-line);border-radius:12px;padding:10px 14px;margin-bottom:14px">
+          <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Makine</div>
+          <div id="ariza-makine" style="font-weight:800;font-size:1rem">—</div>
+          <div id="ariza-baglam" style="font-size:.76rem;color:var(--muted);margin-top:2px"></div>
+        </div>
+
+        <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:6px">Arıza nedir? <span style="color:var(--danger)">*</span></label>
+        <textarea id="ariza-aciklama" rows="3" placeholder="Örn: 2. istasyonda kaynak torcu sızdırıyor, punta tutmuyor"
+          style="width:100%;padding:12px;border:1px solid var(--line-strong);border-radius:12px;font-size:.92rem;font-family:inherit;resize:vertical"></textarea>
+
+        <label style="display:block;font-weight:700;font-size:.82rem;margin:14px 0 6px">Öncelik</label>
+        <div id="ariza-oncelik-grup" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="ariza-onc" data-onc="acil" onclick="arizaOncelikSec('acil')" style="flex:1;min-width:96px;padding:11px;border-radius:12px;border:1px solid var(--line-strong);background:var(--card);font-weight:800;font-size:.84rem;cursor:pointer">🚨 Acil</button>
+          <button type="button" class="ariza-onc" data-onc="yuksek" onclick="arizaOncelikSec('yuksek')" style="flex:1;min-width:96px;padding:11px;border-radius:12px;border:1px solid var(--line-strong);background:var(--card);font-weight:800;font-size:.84rem;cursor:pointer">Yüksek</button>
+          <button type="button" class="ariza-onc" data-onc="normal" onclick="arizaOncelikSec('normal')" style="flex:1;min-width:96px;padding:11px;border-radius:12px;border:1px solid var(--line-strong);background:var(--card);font-weight:800;font-size:.84rem;cursor:pointer">Normal</button>
+        </div>
+        <div id="ariza-onc-not" style="font-size:.74rem;color:var(--muted);margin-top:8px;line-height:1.5">
+          Bildirim üretim amirine gider; amir kontrol edip bakıma iletir.
+        </div>
+
+        <button onclick="arizaGonder()" id="ariza-gonder-btn"
+          style="width:100%;margin-top:16px;background:var(--danger);color:#fff;border:0;border-radius:14px;padding:15px;font-weight:800;font-size:.98rem;cursor:pointer">Amire Gönder</button>
+
+        <div id="ariza-gecmis" style="margin-top:18px"></div>
       </div>
     </div>
   </div>
@@ -4817,39 +4853,113 @@ window.__I18N_SOZLUK__ = {
       return t.getFullYear() + '-' + iki(t.getMonth() + 1) + '-' + iki(t.getDate()) +
              ' ' + iki(t.getHours()) + ':' + iki(t.getMinutes()) + ':' + iki(t.getSeconds());
     }
-    function bakimHandoff(dr) {
+    // ── ARIZA BİLDİRİMİ (amir onaylı akış — Gökhan Küçük önerisi 2026-09-04) ──
+    // Operatör doğrudan bakım sistemine geçmez: bildirim önce ÜRETİM AMİRİNE
+    // düşer, amir süzüp bakıma iletir. Operatör MES'ten hiç çıkmaz; bildirdiği
+    // arızanın durumunu da bu formun altında görür.
+    var _arizaBaglam = null, _arizaOncelik = 'yuksek';
+
+    function arizaAc(dr) {
       var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
       if (!mak) { toast('Önce vardiya seçin', 'error'); return; }
-      var govde = {
-        makine: mak,
-        donus_url: window.location.href,
-        dil: (localStorage.getItem('app_dil') || 'tr')
-      };
-      if (dr) {
-        if (dr.id) govde.durus_id = dr.id;
-        if (dr.durus_sebebi) govde.durus_sebebi = dr.durus_sebebi;
-        if (dr.baslangic_ts) govde.baslangic_ts = dr.baslangic_ts;
+      _arizaBaglam = dr || null;
+      document.getElementById('ariza-makine').textContent = mak;
+      var bag = '';
+      if (dr && dr.durus_sebebi) {
+        bag = 'Duruş: ' + dr.durus_sebebi + (dr.sure_dk ? ' · ' + dr.sure_dk + ' dk' : '');
+      } else if (dr && dr.baslangic_ts) {
+        bag = 'Sinyal kesilme: ' + dr.baslangic_ts.slice(11, 16);
       }
-      toast('Bakım sistemine geçiliyor…', 'info');
-      fetch('/api/bakim/handoff', {
+      document.getElementById('ariza-baglam').textContent = bag;
+      document.getElementById('ariza-aciklama').value =
+        (dr && dr.durus_sebebi && !dr.id) ? dr.durus_sebebi : '';
+      arizaOncelikSec('yuksek');
+      document.getElementById('ariza-modal').style.display = 'flex';
+      arizaGecmisYukle();
+    }
+    function arizaAcSinyalYok() {
+      // Duruş kaydı henüz yok: başlangıcı sinyalin kesildiği andan kur.
+      var dk = window._sonPulseDk, dr = null;
+      if (dk != null && dk > 0) {
+        var t = new Date(Date.now() - dk * 60000);
+        function iki(n) { return String(n).padStart(2, '0'); }
+        dr = { durus_sebebi: dk + ' dakikadır makineden sinyal yok',
+               baslangic_ts: t.getFullYear() + '-' + iki(t.getMonth() + 1) + '-' + iki(t.getDate()) +
+                             ' ' + iki(t.getHours()) + ':' + iki(t.getMinutes()) + ':' + iki(t.getSeconds()) };
+      }
+      arizaAc(dr);
+    }
+    function arizaKapat() { document.getElementById('ariza-modal').style.display = 'none'; }
+
+    function arizaOncelikSec(o) {
+      _arizaOncelik = o;
+      document.querySelectorAll('#ariza-oncelik-grup .ariza-onc').forEach(function (b) {
+        var sec = (b.getAttribute('data-onc') === o);
+        b.style.background = sec ? 'var(--danger)' : 'var(--card)';
+        b.style.color = sec ? '#fff' : 'var(--text)';
+        b.style.borderColor = sec ? 'var(--danger)' : 'var(--line-strong)';
+      });
+      // ACİL = amiri beklemeden bakıma düşer; operatör bunu bilerek seçsin.
+      document.getElementById('ariza-onc-not').textContent = (o === 'acil')
+        ? 'ACİL: bildirim doğrudan bakıma iletilir, amire bilgi verilir. Hat durduran arızalarda kullanın.'
+        : 'Bildirim üretim amirine gider; amir kontrol edip bakıma iletir.';
+    }
+
+    function arizaGonder() {
+      var acik = (document.getElementById('ariza-aciklama').value || '').trim();
+      if (acik.length < 5) { toast('Arızayı kısaca yazın', 'error'); return; }
+      var btn = document.getElementById('ariza-gonder-btn');
+      btn.disabled = true; btn.textContent = 'Gönderiliyor…';
+      var govde = {
+        makine: (aktifVardiyaData && aktifVardiyaData.robot_no) || '',
+        bolum: (aktifVardiyaData && aktifVardiyaData.bolum) || '',
+        vardiya_id: aktifVardiyaId || null,
+        aciklama: acik,
+        oncelik: _arizaOncelik
+      };
+      if (_arizaBaglam) {
+        if (_arizaBaglam.id) govde.durus_id = _arizaBaglam.id;
+        if (_arizaBaglam.baslangic_ts) govde.baslangic_ts = _arizaBaglam.baslangic_ts;
+      }
+      fetch('/api/ariza', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(govde)
       }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
-          if (!res.ok || !res.j.url) { toast(res.j.hata || 'Bakım sistemine geçilemedi', 'error'); return; }
-          window.location.href = res.j.url;
-        }).catch(function () { toast('Bağlantı hatası', 'error'); });
+          btn.disabled = false; btn.textContent = 'Amire Gönder';
+          if (!res.ok) { toast(res.j.hata || 'Gönderilemedi', 'error'); return; }
+          toast(res.j.durum === 'gonderildi'
+            ? '🚨 Acil bildirim bakıma iletildi'
+            : '✓ Bildirim amire iletildi', 'success');
+          document.getElementById('ariza-aciklama').value = '';
+          arizaGecmisYukle();
+        }).catch(function () {
+          btn.disabled = false; btn.textContent = 'Amire Gönder';
+          toast('Bağlantı hatası', 'error');
+        });
     }
-    function bakimHandoffSinyalYok() {
-      // Sinyal-yok bandından: duruş kaydı henüz yok — başlık ve başlangıç
-      // sinyalin kesildiği andan kurulur, form dolu açılır.
-      var dr = null;
-      var dk = window._sonPulseDk;
-      if (dk != null && dk > 0) {
-        dr = { durus_sebebi: dk + ' dakikadır sinyal yok',
-               baslangic_ts: _bakimTsBicim(new Date(Date.now() - dk * 60000)) };
-      }
-      bakimHandoff(dr);
+
+    function arizaGecmisYukle() {
+      var el = document.getElementById('ariza-gecmis');
+      if (!el) return;
+      fetch('/api/ariza/benim').then(function (r) { return r.json(); }).then(function (liste) {
+        if (!liste || !liste.length) { el.innerHTML = ''; return; }
+        var rozet = { bekliyor: ['⏳ Amir onayında', 'var(--warn)'],
+                      gonderildi: ['✅ Bakıma iletildi', 'var(--success)'],
+                      reddedildi: ['⊘ Reddedildi', 'var(--muted)'] };
+        var h = '<div style="font-weight:800;font-size:.82rem;margin-bottom:8px;padding-top:14px;border-top:1px solid var(--line)">Bildirimlerim (son 7 gün)</div>';
+        liste.forEach(function (b) {
+          var rz = rozet[b.durum] || ['—', 'var(--muted)'];
+          h += '<div style="padding:8px 0;border-bottom:1px dashed var(--line)">' +
+               '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">' +
+               '<span style="font-weight:700;font-size:.84rem">' + (b.makine || '') + '</span>' +
+               '<span style="font-size:.74rem;font-weight:800;color:' + rz[1] + ';white-space:nowrap">' + rz[0] + '</span></div>' +
+               '<div style="font-size:.78rem;color:var(--muted);margin-top:2px">' + (b.aciklama || '') + '</div>' +
+               (b.karar_notu ? '<div style="font-size:.75rem;color:var(--text);margin-top:3px">↳ ' + b.karar_notu + '</div>' : '') +
+               '</div>';
+        });
+        el.innerHTML = h;
+      }).catch(function () {});
     }
 
     function refreshOEE() {
@@ -5048,7 +5158,7 @@ window.__I18N_SOZLUK__ = {
         uretimSil(id);
       } else if (type === 'd-bakim') {
         var drB = cacheDurus.find(function (x) { return x.id === id; });
-        if (drB) bakimHandoff(drB);
+        if (drB) arizaAc(drB);
       } else if (type === 'd-edit') {
         var dr = cacheDurus.find(function (x) { return x.id === id; });
         if (dr) durusDuzenle(dr.id, dr.durus_sebebi, dr.sure_dk, dr.baslangic_saati || '', dr.aciklama || '', dr.durus_tipi || 'plansiz');

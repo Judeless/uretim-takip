@@ -4573,6 +4573,9 @@ window.__I18N_SOZLUK__ = {
                      kaynak/montaj/metal arası geçilir; artık Üretim&OEE'ye gitmeye gerek yok. -->
                 <a class="nav-item" data-sayfa="is-yonetimi" onclick="sayfaAc('is-yonetimi')">
                     <span class="nav-icon">📌</span> İş Yönetimi</a>
+                <a class="nav-item" data-sayfa="ariza-onay" onclick="sayfaAc('ariza-onay')">
+                    <span class="nav-icon">🔧</span> Arıza Onay
+                    <span id="ariza-nav-rozet" style="display:none;margin-left:auto;background:var(--danger);color:#fff;border-radius:999px;padding:1px 8px;font-size:.7rem;font-weight:800"></span></a>
                 </div>
             </div>
 
@@ -5235,6 +5238,29 @@ window.__I18N_SOZLUK__ = {
 
             <!-- ══════ SAYFA: İŞ YÖNETİMİ (referans takip — eski dashboard modülü)
                         Yalnız kaynak/montaj/metal (yeni bölümlerde iş takibi yok) ══════ -->
+            <section class="page" id="page-ariza-onay">
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>🔧 Arıza Onay Kuyruğu</h3>
+                        <span class="adet-info" id="ariza-ozet"></span>
+                    </div>
+                    <div style="font-size:.82rem;color:var(--muted);margin:0 0 14px;line-height:1.6">
+                        Operatörün MES'ten bildirdiği arızalar önce buraya düşer. Kontrol edip
+                        <b>bakıma iletin</b> ya da <b>gerekçesiyle reddedin</b> — reddedilenler
+                        bakım programına gitmez, kayıt burada kalır.
+                    </div>
+                    <div id="ariza-uyari" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:10px;background:var(--danger-soft);border:1px solid rgba(180,35,28,.3);color:var(--danger);font-weight:700;font-size:.85rem"></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+                        <select id="ariza-filtre" class="rt-row-select" onchange="arizaKuyrukYukle()" style="max-width:220px">
+                            <option value="bekliyor">Bekleyenler</option>
+                            <option value="hepsi">Tümü (son 7 gün)</option>
+                        </select>
+                        <button class="btn btn-ghost" onclick="arizaKuyrukYukle()">↻ Yenile</button>
+                    </div>
+                    <div id="ariza-liste"><div class="yukleniyor">Yükleniyor…</div></div>
+                </div>
+            </section>
+
             <section class="page" id="page-is-yonetimi">
                 <div class="panel-card">
                     <div class="panel-header">
@@ -7333,6 +7359,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'as400-planlama') ? 'page-as400-planlama'
                         : (sayfa === 'kullanicilar') ? 'page-kullanicilar'
                         : (sayfa === 'zaman-cizelgesi') ? 'page-zaman-cizelgesi'
+                        : (sayfa === 'ariza-onay') ? 'page-ariza-onay'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
             document.querySelectorAll('.page').forEach(function (p) {
                 p.classList.toggle('active', p.id === hedefId);
@@ -7384,6 +7411,7 @@ window.__I18N_SOZLUK__ = {
             // logları buraya taşındı; teyit sayfası açılmadan da güncel olmalı)
             if (sayfa === 'as400-transfer') as4SabahYukle();
             if (sayfa === 'kullanicilar') yukleKullanicilar();
+            if (sayfa === 'ariza-onay') arizaKuyrukYukle();
             window.scrollTo(0, 0);
         }
 
@@ -7395,6 +7423,8 @@ window.__I18N_SOZLUK__ = {
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ ' + esc(bolumAdi(aktifBolum)) + ' ▸ <b>Üretim &amp; OEE</b>';
             } else if (aktifSayfa === 'kayitlar') {
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ ' + esc(bolumAdi(aktifBolum)) + ' ▸ <b>Kayıtlar</b>';
+            } else if (aktifSayfa === 'ariza-onay') {
+                bc.innerHTML = '<b>Arıza Onay Kuyruğu</b>';
             } else if (aktifSayfa === 'is-yonetimi') {
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ ' + esc(bolumAdi(aktifBolum)) + ' ▸ <b>İş Yönetimi</b>';
             } else if (aktifSayfa === 'fikstur') {
@@ -14915,6 +14945,134 @@ window.__I18N_SOZLUK__ = {
 
         function panelAdmin() { return !!(window.PANEL_KU && window.PANEL_KU.admin); }
         function panelIzinler() { return (window.PANEL_KU && window.PANEL_KU.izinler) || []; }
+
+        // ══ ARIZA ONAY KUYRUĞU (amir süzgeci — Gökhan Küçük önerisi 2026-09-04) ══
+        // Operatör bildirimi doğrudan bakıma gitmez; üretim amiri süzer. Önceliği
+        // anlık üretim durumunu bilen amir belirler — bakım ekibi bilemez.
+        var ARIZA_ONC_AD = { acil: '🚨 ACİL', yuksek: 'Yüksek', normal: 'Normal', dusuk: 'Düşük' };
+
+        function arizaKuyrukYukle() {
+          var el = document.getElementById('ariza-liste');
+          if (!el) return;
+          var f = (document.getElementById('ariza-filtre') || {}).value || 'bekliyor';
+          panelFetch('/api/ariza/kuyruk?durum=' + encodeURIComponent(f))
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { el.innerHTML = '<div class="empty-state">' + esc(res.j.hata || 'Okunamadı') + '</div>'; return; }
+              var d = res.j;
+              arizaRozetGuncelle(d.bekleyen);
+              var uy = document.getElementById('ariza-uyari');
+              if (uy) {
+                // Bakım entegrasyonu kapalıysa onay tuşu çalışmaz — sebebini şimdi söyle,
+                // amir "Bakıma İlet"e basıp hata almasın.
+                uy.style.display = d.bakim_hazir ? 'none' : 'block';
+                uy.textContent = '⚠ Bakım entegrasyonu yapılandırılmamış — bildirimler burada birikir, ' +
+                                 'bakıma iletilemez (sunucuda bakim_config.json).';
+              }
+              var ozet = document.getElementById('ariza-ozet');
+              if (ozet) ozet.textContent = d.bekleyen + ' bekleyen';
+              var k = d.kayitlar || [];
+              if (!k.length) {
+                el.innerHTML = '<div class="empty-state">✅ Bekleyen arıza bildirimi yok</div>';
+                return;
+              }
+              el.innerHTML = k.map(arizaKart).join('');
+            }).catch(function () { el.innerHTML = '<div class="empty-state">Bağlantı hatası</div>'; });
+        }
+
+        function arizaKart(b) {
+          var bekliyor = (b.durum === 'bekliyor');
+          var acil = (b.oncelik === 'acil');
+          var renk = bekliyor ? (acil ? 'var(--danger)' : 'var(--warn)')
+                   : (b.durum === 'gonderildi' ? 'var(--success)' : 'var(--muted)');
+          var durumEt = { bekliyor: '⏳ Amir onayında', gonderildi: '✅ Bakıma iletildi',
+                          reddedildi: '⊘ Reddedildi' }[b.durum] || b.durum;
+          // Gönderim yolu: amir onayı mı, acil hızlı yol mu, zaman aşımı mı?
+          var yol = { amir: '', acil: ' (acil hızlı yol)', zaman_asimi: ' (süre aşımı — otomatik)' }[b.gonderim_yolu] || '';
+          var h = '<div class="panel-card" style="margin-bottom:12px;border-left:3px solid ' + renk + '">' +
+            '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">' +
+              '<div style="font-weight:800;font-size:1rem">' + esc(b.makine) +
+                ' <span style="font-size:.78rem;color:var(--muted);font-weight:600">' + esc(b.lokasyon) +
+                (b.bolum ? ' · ' + esc(bolumAdi(b.bolum, b.lokasyon)) : '') + '</span></div>' +
+              '<div style="font-weight:800;font-size:.8rem;color:' + renk + '">' + durumEt + esc(yol) + '</div>' +
+            '</div>' +
+            '<div style="margin:8px 0;font-size:.92rem">' + esc(b.aciklama) + '</div>' +
+            '<div style="font-size:.76rem;color:var(--muted)">' +
+              '👤 ' + esc(b.operator_adi) + ' · ' + esc((b.olusturma_ts || '').slice(0, 16)) +
+              ' · öncelik: <b>' + (ARIZA_ONC_AD[b.oncelik] || b.oncelik) + '</b>' +
+              (b.bekleme_dk != null ? ' · ' + b.bekleme_dk + ' dk' + (bekliyor ? ' bekliyor' : '') : '') +
+              (b.durus_id ? ' · duruş #' + b.durus_id : '') +
+            '</div>';
+          if (b.karar_notu) {
+            h += '<div style="margin-top:8px;padding:8px 10px;background:var(--card-alt,rgba(0,0,0,.03));border-radius:8px;font-size:.82rem">' +
+                 '↳ ' + esc(b.karar_notu) + (b.amir ? ' <span style="color:var(--muted)">— ' + esc(b.amir) + '</span>' : '') + '</div>';
+          }
+          if (bekliyor) {
+            h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">' +
+              '<select id="ariza-onc-' + b.id + '" class="rt-row-select" style="max-width:150px" title="Önceliği düzeltebilirsiniz — üretim durumunu siz bilirsiniz">' +
+                ['acil', 'yuksek', 'normal', 'dusuk'].map(function (o) {
+                  return '<option value="' + o + '"' + (o === b.oncelik ? ' selected' : '') + '>' + ARIZA_ONC_AD[o] + '</option>';
+                }).join('') + '</select>' +
+              '<input type="text" id="ariza-not-' + b.id + '" class="rt-row-input" placeholder="Not (opsiyonel)" style="flex:1;min-width:160px">' +
+              '<button class="btn btn-primary" onclick="arizaOnayla(' + b.id + ')">✅ Bakıma İlet</button>' +
+              '<button class="btn btn-ghost" onclick="arizaReddet(' + b.id + ')">⊘ Reddet</button>' +
+            '</div>';
+          }
+          return h + '</div>';
+        }
+
+        function arizaOnayla(id) {
+          var onc = (document.getElementById('ariza-onc-' + id) || {}).value || '';
+          var not = (document.getElementById('ariza-not-' + id) || {}).value || '';
+          if (!confirm('Bu arıza bakım sistemine iletilecek. Devam edilsin mi?')) return;
+          panelFetch('/api/ariza/' + id + '/onayla', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oncelik: onc, not: not })
+          }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'İletilemedi', 'error'); return; }
+              toast('Bakıma iletildi', 'success');
+              // handoff yolu: bakım formu yeni sekmede açılır, amir eksikleri
+              // orada tamamlayıp gönderir (Halil Bey'in v0.9.6 akışı).
+              if (res.j.url) window.open(res.j.url, '_blank', 'noopener');
+              arizaKuyrukYukle();
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
+        function arizaReddet(id) {
+          var sebep = prompt('Red sebebi (operatör görecek):');
+          if (sebep === null) return;
+          sebep = (sebep || '').trim();
+          if (sebep.length < 3) { toast('Red sebebi zorunlu', 'error'); return; }
+          panelFetch('/api/ariza/' + id + '/reddet', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sebep: sebep })
+          }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'Reddedilemedi', 'error'); return; }
+              toast('Reddedildi — operatör gerekçeyi görecek', 'success');
+              arizaKuyrukYukle();
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
+        function arizaRozetGuncelle(n) {
+          var r = document.getElementById('ariza-nav-rozet');
+          if (!r) return;
+          r.textContent = n || '';
+          r.style.display = (n > 0) ? '' : 'none';
+        }
+
+        // Bekleyen sayısı sayfaya girmeden de görünsün: panel açılışında ve
+        // 2 dakikada bir sessizce yoklanır (yetki yoksa sessiz geçer).
+        function arizaRozetYokla() {
+          if (!panelSayfaIzinli('ariza-onay')) return;
+          panelFetch('/api/ariza/kuyruk?durum=bekliyor')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) { if (d) arizaRozetGuncelle(d.bekleyen); })
+            .catch(function () {});
+        }
+        setInterval(arizaRozetYokla, 120000);
+        setTimeout(arizaRozetYokla, 2500);
 
         function panelSayfaIzinli(sayfa) {
             // 'AS400 İşlemler' grubu TEK izinle yönetilir: as400-teyit izni olan
