@@ -5255,6 +5255,11 @@ window.__I18N_SOZLUK__ = {
                             <option value="bekliyor">Bekleyenler</option>
                             <option value="hepsi">Tümü (son 7 gün)</option>
                         </select>
+                        <select id="ariza-tesis" class="rt-row-select" onchange="arizaKuyrukYukle()" style="max-width:170px" title="Arıza kuyruğu üstteki TK1/TK2 anahtarından bağımsızdır">
+                            <option value="">Tüm tesisler</option>
+                            <option value="TK2">Yalnız TK2</option>
+                            <option value="TK1">Yalnız TK1</option>
+                        </select>
                         <button class="btn btn-ghost" onclick="arizaKuyrukYukle()">↻ Yenile</button>
                     </div>
                     <div id="ariza-liste"><div class="yukleniyor">Yükleniyor…</div></div>
@@ -14960,7 +14965,11 @@ window.__I18N_SOZLUK__ = {
           var el = document.getElementById('ariza-liste');
           if (!el) return;
           var f = (document.getElementById('ariza-filtre') || {}).value || 'bekliyor';
-          panelFetch('/api/ariza/kuyruk?durum=' + encodeURIComponent(f))
+          // 'tesis' parametresi BİLEREK 'lokasyon'dan ayrı: fetch sarmalayıcısı
+          // her isteğe lokasyon= ekliyor, arıza kuyruğu ondan etkilenmemeli.
+          var t = (document.getElementById('ariza-tesis') || {}).value || '';
+          panelFetch('/api/ariza/kuyruk?durum=' + encodeURIComponent(f) +
+                     (t ? '&tesis=' + encodeURIComponent(t) : ''))
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (res) {
               if (!res.ok) { el.innerHTML = '<div class="empty-state">' + esc(res.j.hata || 'Okunamadı') + '</div>'; return; }

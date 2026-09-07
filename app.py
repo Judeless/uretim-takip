@@ -12481,10 +12481,16 @@ def ariza_kuyruk():
         par.append(durum)
     else:
         sql += f" AND olusturma_ts >= datetime('now','localtime','-{gun} days')"
-    lok = (request.args.get('lokasyon') or '').strip().upper()
-    if lok in ('TK1', 'TK2'):
+    # TESİS SÜZGECİ 'lokasyon' DEĞİL 'tesis' PARAMETRESİYLE (2026-09-07):
+    # panelin fetch sarmalayıcısı HER /api/ isteğine aktif tesisi (lokasyon=)
+    # otomatik ekliyor. Uç bunu süzgeç sayınca üstteki TK1/TK2 anahtarı arıza
+    # bildirimlerini SESSİZCE gizliyordu — rozet "1 bekleyen" derken liste boş
+    # görünüyordu (kullanıcı 2026-09-07). Arıza kuyruğu tesisten bağımsızdır:
+    # varsayılan TÜM tesisler; süzmek isteyen sayfadaki seçiciyi kullanır.
+    tesis = (request.args.get('tesis') or '').strip().upper()
+    if tesis in ('TK1', 'TK2'):
         sql += " AND lokasyon=?"
-        par.append(lok)
+        par.append(tesis)
     sql += " ORDER BY (durum='bekliyor') DESC, (oncelik='acil') DESC, id DESC LIMIT 200"
     rows = conn.execute(sql, par).fetchall()
     bekleyen = conn.execute(
