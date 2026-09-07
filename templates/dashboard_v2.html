@@ -15695,7 +15695,12 @@ window.__I18N_SOZLUK__ = {
         // Halil Bey'in devreye alma sırası, 1. adım: ping → {ok, system, version}
         function bakimPing() {
           panelFetch('/api/bakim/ping')
-            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (r) {
+              // JSON gelmezse (oturum düşmüş → giriş sayfası, 5xx HTML) kodu göster;
+              // "Bağlantı hatası" sebebi yutuyordu (2026-09-08).
+              return r.json().then(function (j) { return { ok: r.ok, j: j }; },
+                                   function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ') — oturum düşmüş olabilir, sayfayı yenileyin' } }; });
+            })
             .then(function (res) {
               if (!res.ok) { toast(res.j.hata || 'Ping başarısız', 'error'); return; }
               toast('Bakım sistemi ' + (res.j.version || '?') + ' · anahtar: ' + (res.j.anahtar_kaynagi || '?') +

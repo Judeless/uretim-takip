@@ -13216,21 +13216,37 @@ def bakim_katalog_job():
 def bakim_ping():
     """Anahtar + erişim testi: GET /api/integrations/forge/ping →
     {ok, system:'bakim', version}. Halil Bey'in devreye alma sırasının 1. adımı."""
-    cfg = _bakim_config()
-    if not cfg.get('api_url'):
-        return jsonify({'hata': 'api_url tanımlı değil (bakim_config.json)'}), 503
-    if not cfg.get('api_anahtari'):
-        return jsonify({'hata': 'API anahtarı yok — sunucuda COFLE_BAKIM_API_KEY tanımlanmalı'}), 503
-    kod, d = _bakim_get(cfg, BAKIM_PING_YOLU, timeout=(3, 10))
-    if kod == 0:
-        return jsonify({'hata': 'Bakım sistemine ulaşılamadı (ağ/adres)'}), 502
-    if kod == 401:
-        return jsonify({'hata': 'API anahtarı reddedildi (401) — anahtar yanlış ya da yenilenmiş'}), 502
-    if kod != 200 or not d.get('ok'):
-        return jsonify({'hata': f'Beklenmeyen yanıt: HTTP {kod} {d}'}), 502
-    return jsonify({'basarili': True, 'system': d.get('system'), 'version': d.get('version'),
-                    'anahtar_kaynagi': cfg.get('anahtar_kaynagi'),
-                    'etkin': bool(cfg.get('etkin'))})
+    try:
+        cfg = _bakim_config()
+        if not cfg.get('api_url'):
+            return jsonify({'hata': 'api_url tanımlı değil (bakim_config.json)'}), 503
+        anahtar = str(cfg.get('api_anahtari') or '')
+        if not anahtar:
+            return jsonify({'hata': 'API anahtarı yok — sunucuda COFLE_BAKIM_API_KEY tanımlanmalı'}), 503
+        # ANAHTAR BİÇİM TEŞHİSİ (2026-09-08 saha): kullanıcı komuttaki <anahtar>
+        # yer tutucusunu parantezleriyle yazdı. Değerin KENDİSİ asla dönmez;
+        # yalnız uzunluk ve tipik yazım hataları.
+        bicim = []
+        if anahtar[:1] in ('<', '"', "'") or anahtar[-1:] in ('>', '"', "'"):
+            bicim.append('köşeli parantez/tırnak ile kaydedilmiş — parantezsiz yazın')
+        if anahtar != anahtar.strip() or any(ch in anahtar for ch in ' \t\r\n'):
+            bicim.append('boşluk/satır sonu içeriyor')
+        teshis = {'anahtar_kaynagi': cfg.get('anahtar_kaynagi'), 'anahtar_uzunluk': len(anahtar),
+                  'anahtar_bicim': '; '.join(bicim) or 'ok', 'etkin': bool(cfg.get('etkin'))}
+        if bicim:
+            return jsonify({'hata': 'Anahtar biçimi hatalı: ' + '; '.join(bicim), **teshis}), 400
+        kod, d = _bakim_get(cfg, BAKIM_PING_YOLU, timeout=(3, 10))
+        if kod == 0:
+            return jsonify({'hata': 'Bakım sistemine ulaşılamadı (ağ/adres)', **teshis}), 502
+        if kod == 401:
+            return jsonify({'hata': 'API anahtarı reddedildi (401) — anahtar yanlış ya da yenilenmiş', **teshis}), 502
+        if kod != 200 or not isinstance(d, dict) or not d.get('ok'):
+            return jsonify({'hata': f'Beklenmeyen yanıt: HTTP {kod} {str(d)[:200]}', **teshis}), 502
+        return jsonify({'basarili': True, 'system': d.get('system'), 'version': d.get('version'), **teshis})
+    except Exception as e:
+        # Panel "Bağlantı hatası" deyip sebebi yutmasın: her hata JSON döner.
+        print(f'[BAKIM] ping hatası: {e!r}')
+        return jsonify({'hata': f'Sunucu hatası: {e!r}'}), 500
 
 
 @app.route('/api/bakim/handoff', methods=['POST'])
