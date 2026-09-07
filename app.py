@@ -13262,7 +13262,8 @@ def bakim_deneme():
         'title': 'Forge entegrasyon denemesi — lütfen REDDEDİN',
         'description': ('Cofle Forge (MES) ↔ bakım sistemi devreye alma denemesi. '
                         'Gerçek bir arıza DEĞİLDİR; bakım yöneticisi bu talebi reddedebilir.\n\n'
-                        f'Gönderen: {ku["ad_soyad"] or ku["kullanici_adi"]} · MES sürümü: git HEAD'),
+                        f'Gönderen: {ku["ad_soyad"] or ku["kullanici_adi"]} · '
+                        f'{datetime.now().strftime("%Y-%m-%d %H:%M")}'),
         'priority': 'dusuk',
     }
     hedef = cfg['api_url'].rstrip('/') + ((cfg.get('work_order_yolu') or '').strip() or BAKIM_WORK_ORDER_YOLU)
