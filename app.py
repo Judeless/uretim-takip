@@ -12574,7 +12574,14 @@ def ariza_secenek():
       2) makine = MAKİNE ise → o makinenin bakım karşılığı:
            · tanimli  : kalıcı/config eşleşme var, seçim sorulmaz
            · secim    : kesim/pres grubu — operatör bakım makinesini kendi seçer
-           · yok      : eşleşme yok; talep bu adla açılır, AMİR atamayı yapar"""
+           · yok      : eşleşme yok; talep bu adla açılır, AMİR atamayı yapar
+
+    PIN ŞART: uç internete açık (coflemanage.online) ve makine envanterimizi —
+    hatlarımızı, bakım kod/adlarını — döküyor. operator_required başlıksız
+    istekte kimlik ARAMAZ (geriye uyum), o yüzden kontrol burada açıkça
+    yapılır; /api/ariza ve /api/bakim/handoff da aynı kalıbı kullanıyor."""
+    if not g.operator_adi:
+        return jsonify({'hata': 'Operatör girişi gerekli — PIN ile giriş yapın'}), 401
     lok = (g.operator_lokasyon or request.args.get('lokasyon') or 'TK2').upper()
     makine = str(request.args.get('makine') or '').strip()
     conn = get_db()
