@@ -632,6 +632,16 @@ def init_db():
         except Exception:
             pass
 
+    # Amir duzeltmesi izi (2026-09-07): operator yanlis makine secebilir ya da
+    # aciklamayi eksik yazabilir; amir duzeltir. OPERATORUN ILK METNI KAYBOLMAZ
+    # (orijinal_aciklama) — egitim ihtiyacini gosteren veri odur.
+    for _kol, _tip in (('orijinal_aciklama', 'TEXT'), ('orijinal_makine', 'TEXT'),
+                       ('duzenleyen', 'TEXT'), ('duzenleme_ts', 'TEXT')):
+        try:
+            c.execute(f"ALTER TABLE ariza_bildirimleri ADD COLUMN {_kol} {_tip}")
+        except Exception:
+            pass
+
     # Migration (2026-09-04, bakim sistemi entegrasyonu): sicil_no — bakim
     # tarafinda hesap anahtari olarak DEGISMEYEN kimlik. Ad-soyad degisse de
     # (evlilik, duzeltme) bakim hesabi ayni kalir. Bos birakilabilir; bossa

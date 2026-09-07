@@ -14991,6 +14991,7 @@ window.__I18N_SOZLUK__ = {
                 return;
               }
               el.innerHTML = k.map(arizaKart).join('');
+              arizaMakineListeleriniDoldur();
             }).catch(function () { el.innerHTML = '<div class="empty-state">Bağlantı hatası</div>'; });
         }
 
@@ -15010,7 +15011,16 @@ window.__I18N_SOZLUK__ = {
                 (b.bolum ? ' · ' + esc(bolumAdi(b.bolum, b.lokasyon)) : '') + '</span></div>' +
               '<div style="font-weight:800;font-size:.8rem;color:' + renk + '">' + durumEt + esc(yol) + '</div>' +
             '</div>' +
-            '<div style="margin:8px 0;font-size:.92rem">' + esc(b.aciklama) + '</div>' +
+            (bekliyor
+              ? '<textarea id="ariza-acik-' + b.id + '" rows="2" style="width:100%;margin:8px 0;padding:8px 10px;' +
+                'border:1px solid var(--card-border);border-radius:8px;font-family:inherit;font-size:.92rem;resize:vertical" ' +
+                'title="Operatörün yazdığı açıklama — düzeltebilirsiniz">' + esc(b.aciklama) + '</textarea>'
+              : '<div style="margin:8px 0;font-size:.92rem">' + esc(b.aciklama) + '</div>') +
+            // Operatörün İLK ifadesi kaybolmaz — düzeltilmişse altta görünür
+            (b.orijinal_aciklama
+              ? '<div style="font-size:.76rem;color:var(--muted);margin:-2px 0 6px">operatörün yazdığı: “' +
+                esc(b.orijinal_aciklama) + '”' + (b.orijinal_makine ? ' · makine: ' + esc(b.orijinal_makine) : '') + '</div>'
+              : '') +
             '<div style="font-size:.76rem;color:var(--muted)">' +
               '👤 ' + esc(b.operator_adi) + ' · ' + esc((b.olusturma_ts || '').slice(0, 16)) +
               ' · öncelik: <b>' + (ARIZA_ONC_AD[b.oncelik] || b.oncelik) + '</b>' +
@@ -15023,11 +15033,18 @@ window.__I18N_SOZLUK__ = {
           }
           if (bekliyor) {
             h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">' +
+              // MAKİNE DÜZELTME: sabit hatlı bölümlerde operatörün vardiyası HAT
+              // adı taşır ('Tel Üretimi'); bakım gerçek makineyi ister. Amirin en
+              // sık düzelteceği alan budur. Liste açılışta lokasyona göre dolar.
+              '<select id="ariza-mak-' + b.id + '" class="rt-row-select" style="max-width:190px" ' +
+                'data-lok="' + esc(b.lokasyon) + '" data-mevcut="' + esc(b.makine) + '" ' +
+                'title="Makine yanlışsa düzeltin"><option value="' + esc(b.makine) + '">' + esc(b.makine) + '</option></select>' +
               '<select id="ariza-onc-' + b.id + '" class="rt-row-select" style="max-width:150px" title="Önceliği düzeltebilirsiniz — üretim durumunu siz bilirsiniz">' +
                 ['acil', 'yuksek', 'normal', 'dusuk'].map(function (o) {
                   return '<option value="' + o + '"' + (o === b.oncelik ? ' selected' : '') + '>' + ARIZA_ONC_AD[o] + '</option>';
                 }).join('') + '</select>' +
               '<input type="text" id="ariza-not-' + b.id + '" class="rt-row-input" placeholder="Not (opsiyonel)" style="flex:1;min-width:160px">' +
+              '<button class="btn btn-ghost" onclick="arizaKaydet(' + b.id + ')" title="Düzeltmeyi kaydet, bakıma gönderme">💾 Kaydet</button>' +
               '<button class="btn btn-primary" onclick="arizaOnayla(' + b.id + ')">✅ Bakıma İlet</button>' +
               '<button class="btn btn-ghost" onclick="arizaReddet(' + b.id + ')">⊘ Reddet</button>' +
             '</div>';
@@ -15035,13 +15052,65 @@ window.__I18N_SOZLUK__ = {
           return h + '</div>';
         }
 
+        // Makine seçicileri lokasyon başına TEK istekle doldurulur (aynı tesisin
+        // birden çok kartı varsa liste tekrar çekilmez).
+        var _arizaMakineCache = {};
+        function arizaMakineListeleriniDoldur() {
+          var secililer = [].slice.call(document.querySelectorAll('[id^="ariza-mak-"]'));
+          var lokler = {};
+          secililer.forEach(function (sel) { lokler[sel.getAttribute('data-lok') || 'TK2'] = 1; });
+          Object.keys(lokler).forEach(function (lok) {
+            if (_arizaMakineCache[lok]) { arizaMakineSecicileriYaz(lok); return; }
+            panelFetch('/api/ariza/makineler?lokasyon=' + encodeURIComponent(lok))
+              .then(function (r) { return r.ok ? r.json() : []; })
+              .then(function (liste) {
+                _arizaMakineCache[lok] = liste || [];
+                arizaMakineSecicileriYaz(lok);
+              }).catch(function () {});
+          });
+        }
+        function arizaMakineSecicileriYaz(lok) {
+          var liste = _arizaMakineCache[lok] || [];
+          document.querySelectorAll('[id^="ariza-mak-"]').forEach(function (sel) {
+            if ((sel.getAttribute('data-lok') || 'TK2') !== lok) return;
+            var mevcut = sel.getAttribute('data-mevcut') || '';
+            var adlar = liste.map(function (m) { return m.ad; });
+            if (mevcut && adlar.indexOf(mevcut) === -1) adlar.unshift(mevcut);
+            sel.innerHTML = adlar.map(function (a) {
+              var m = liste.find(function (x) { return x.ad === a; });
+              // Bakım kodu eşlenmemiş makine işaretlenir: amir seçmeden önce görsün
+              var not = (m && !m.bakim_kodu) ? ' — kod yok' : '';
+              return '<option value="' + esc(a) + '"' + (a === mevcut ? ' selected' : '') + '>' +
+                     esc(a) + not + '</option>';
+            }).join('');
+          });
+        }
+
+        function _arizaAlanlar(id) {
+          var g = function (p) { return (document.getElementById(p + id) || {}).value; };
+          return { aciklama: g('ariza-acik-') || '', makine: g('ariza-mak-') || '',
+                   oncelik: g('ariza-onc-') || '' };
+        }
+
+        function arizaKaydet(id) {
+          panelFetch('/api/ariza/' + id + '/duzelt', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(_arizaAlanlar(id))
+          }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'Kaydedilemedi', 'error'); return; }
+              toast(res.j.degisti ? 'Düzeltme kaydedildi' : 'Değişiklik yok', res.j.degisti ? 'success' : 'info');
+              arizaKuyrukYukle();
+            }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
         function arizaOnayla(id) {
-          var onc = (document.getElementById('ariza-onc-' + id) || {}).value || '';
-          var not = (document.getElementById('ariza-not-' + id) || {}).value || '';
-          if (!confirm('Bu arıza bakım sistemine iletilecek. Devam edilsin mi?')) return;
+          var alanlar = _arizaAlanlar(id);
+          alanlar.not = (document.getElementById('ariza-not-' + id) || {}).value || '';
+          if (!confirm('"' + (alanlar.makine || '') + '" için arıza bakım sistemine iletilecek. Devam edilsin mi?')) return;
           panelFetch('/api/ariza/' + id + '/onayla', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ oncelik: onc, not: not })
+            body: JSON.stringify(alanlar)
           }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (res) {
               if (!res.ok) { toast(res.j.hata || 'İletilemedi', 'error'); return; }

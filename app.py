@@ -12504,6 +12504,107 @@ def ariza_kuyruk():
     })
 
 
+def _ariza_makine_listesi(lokasyon):
+    """Amirin secebilecegi makineler: sahada GERCEKTEN kullanilanlar.
+
+    İki kaynak birlestirilir:
+      · son 90 gunun vardiya hat adlari (kaynak/metal/TK2 montaj: hat = makine)
+      · sabit hatli bolumlerin MAKINE listeleri (tel/pres/plastik/TK1 montaj —
+        operatorun vardiyasi 'Tel Üretimi' gibi HAT adi tasir, bakim ise gercek
+        makineyi ister; amirin duzeltmesi gereken en sik alan budur)
+    Her makinede bakim eslesmesi olup olmadigi da doner — amir kod eslenmemis
+    bir makineyi secerse bunu onceden gorur."""
+    lok = (lokasyon or 'TK2').upper()
+    adlar = []
+    conn = get_db()
+    try:
+        for r in conn.execute(
+                "SELECT DISTINCT robot_no FROM vardiyalar "
+                "WHERE COALESCE(lokasyon,'TK2')=? AND robot_no IS NOT NULL "
+                "  AND tarih >= date('now','localtime','-90 day') ORDER BY robot_no", (lok,)):
+            if r['robot_no'] and r['robot_no'] not in adlar:
+                adlar.append(r['robot_no'])
+    except Exception as e:
+        print(f'[ARIZA] makine listesi (vardiya) okunamadi: {e}')
+    # Sabit hatli bolumlerin makineleri
+    for (kl, kb), hat in KAYITTA_HAT.items():
+        if kl != lok:
+            continue
+        for m in HAT_MAKINELERI.get(hat, ()):
+            if m not in adlar:
+                adlar.append(m)
+    cfg = _bakim_config()
+    return [{'ad': a, 'bakim_kodu': _bakim_kodu(cfg, a)} for a in adlar]
+
+
+@app.route('/api/ariza/makineler', methods=['GET'])
+@panel_gerekli(izin='ariza-onay')
+def ariza_makineler():
+    """Düzeltme ekranındaki makine seçeneği (?lokasyon=TK1|TK2)."""
+    return jsonify(_ariza_makine_listesi(request.args.get('lokasyon')))
+
+
+def _ariza_duzelt_uygula(conn, kayit, d, amir):
+    """Gövdedeki düzeltmeleri kayda işler; (degisti, kayit) döner.
+
+    İlk düzeltmede operatörün ORİJİNAL metni/makinesi saklanır — sonraki
+    düzeltmeler onu ezmez, çünkü değerli olan operatörün ilk ifadesidir."""
+    yeni_acik = ' '.join(str(d.get('aciklama') or '').split())
+    yeni_mak = str(d.get('makine') or '').strip()
+    yeni_onc = str(d.get('oncelik') or '').strip().lower()
+    alan, par = [], []
+    if yeni_acik and yeni_acik != kayit['aciklama']:
+        if len(yeni_acik) < 5:
+            return None, 'Açıklama en az 5 karakter olmalı'
+        if not kayit.get('orijinal_aciklama'):
+            alan.append('orijinal_aciklama=?')
+            par.append(kayit['aciklama'])
+        alan.append('aciklama=?')
+        par.append(yeni_acik)
+        kayit['aciklama'] = yeni_acik
+    if yeni_mak and yeni_mak != kayit['makine']:
+        if not kayit.get('orijinal_makine'):
+            alan.append('orijinal_makine=?')
+            par.append(kayit['makine'])
+        alan.append('makine=?')
+        par.append(yeni_mak)
+        kayit['makine'] = yeni_mak
+    if yeni_onc in ARIZA_ONCELIK and yeni_onc != kayit['oncelik']:
+        alan.append('oncelik=?')
+        par.append(yeni_onc)
+        kayit['oncelik'] = yeni_onc
+    if not alan:
+        return False, kayit
+    alan += ['duzenleyen=?', "duzenleme_ts=datetime('now','localtime')"]
+    par.append(amir)
+    par.append(kayit['id'])
+    conn.execute(f"UPDATE ariza_bildirimleri SET {', '.join(alan)} WHERE id=?", par)
+    conn.commit()
+    return True, kayit
+
+
+@app.route('/api/ariza/<int:aid>/duzelt', methods=['POST'])
+@panel_gerekli(izin='ariza-onay')
+def ariza_duzelt(aid):
+    """Amir bildirimi düzeltir (bakıma göndermeden). Body: {aciklama?, makine?, oncelik?}
+
+    NEDEN AYRI UÇ: amir bazen düzeltip beklemeye devam eder (makineyi teyit
+    edecek, operatöre soracak). Düzeltmenin onaya bağlı olması bunu engellerdi."""
+    conn = get_db()
+    r = conn.execute("SELECT * FROM ariza_bildirimleri WHERE id=?", (aid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Bildirim bulunamadı'}), 404
+    if r['durum'] != 'bekliyor':
+        return jsonify({'hata': f'Bu bildirim zaten işlenmiş ({r["durum"]}) — düzeltilemez'}), 409
+    amir = g.panel_ku['ad_soyad'] or g.panel_ku['kullanici_adi']
+    degisti, sonuc = _ariza_duzelt_uygula(conn, dict(r), request.get_json(silent=True) or {}, amir)
+    if degisti is None:
+        return jsonify({'hata': sonuc}), 400
+    if degisti:
+        print(f'[ARIZA] #{aid} düzeltildi ({amir}): {sonuc["makine"]} · {sonuc["aciklama"][:50]}')
+    return jsonify({'basarili': True, 'degisti': bool(degisti)})
+
+
 @app.route('/api/ariza/<int:aid>/onayla', methods=['POST'])
 @panel_gerekli(izin='ariza-onay')
 def ariza_onayla(aid):
@@ -12516,12 +12617,13 @@ def ariza_onayla(aid):
     if r['durum'] != 'bekliyor':
         return jsonify({'hata': f'Bu bildirim zaten işlenmiş ({r["durum"]})'}), 409
     d = request.get_json(silent=True) or {}
-    kayit = dict(r)
-    yeni_oncelik = str(d.get('oncelik') or '').strip().lower()
-    if yeni_oncelik in ARIZA_ONCELIK:
-        kayit['oncelik'] = yeni_oncelik
-    kayit['karar_notu'] = ' '.join(str(d.get('not') or '').split())[:500] or None
     amir = g.panel_ku['ad_soyad'] or g.panel_ku['kullanici_adi']
+    # Ekrandaki düzeltmeler (açıklama/makine/öncelik) ÖNCE kaydedilir: bakıma
+    # gönderim başarısız olsa bile amirin emeği kaybolmasın.
+    degisti, kayit = _ariza_duzelt_uygula(conn, dict(r), d, amir)
+    if degisti is None:
+        return jsonify({'hata': kayit}), 400
+    kayit['karar_notu'] = ' '.join(str(d.get('not') or '').split())[:500] or None
 
     ok, mesaj, url = _ariza_bakima_gonder(conn, kayit, 'amir', amir)
     if not ok:
