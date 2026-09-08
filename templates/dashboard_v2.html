@@ -4945,7 +4945,17 @@ window.__I18N_SOZLUK__ = {
   "son": {"en": "last", "it": "ultima"},
   "Varyant": {"en": "Variant", "it": "Variante"},
   "dosyası yok — sunucuda": {"en": "file missing — on the server copy", "it": "file mancante — sul server copia"},
-  "dosyasını kopyalayıp doldurun": {"en": "and fill it in", "it": "e compilalo"}
+  "dosyasını kopyalayıp doldurun": {"en": "and fill it in", "it": "e compilalo"},
+  "Son 7 gün": {"en": "Last 7 days", "it": "Ultimi 7 giorni"},
+  "bildirim": {"en": "reports", "it": "segnalazioni"},
+  "bakıma iletildi": {"en": "sent to maintenance", "it": "inviate alla manutenzione"},
+  "reddedildi": {"en": "rejected", "it": "rifiutate"},
+  "amir kuyruğunda bekleme": {"en": "wait in supervisor queue", "it": "attesa in coda responsabile"},
+  "ort.": {"en": "avg.", "it": "media"},
+  "medyan": {"en": "median", "it": "mediana"},
+  "en uzun": {"en": "longest", "it": "massima"},
+  "acil": {"en": "urgent", "it": "urgenti"},
+  "süre aşımı": {"en": "timeout", "it": "timeout"}
 };
     </script>
 
@@ -5789,6 +5799,7 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-ghost" onclick="bakimDenemeDurum()" title="test-1 talebinin bakım tarafındaki durumunu okur (talep açmaz)">🔎 test-1 durumu</button>
                         <button class="btn btn-ghost" onclick="arizaKatalogTazele()" title="Bakım makine listesini bakım sisteminden yeniler (API anahtarı gerekir)">🔧 Makine listesini tazele</button>
                     </div>
+                    <div id="ariza-haftalik" style="display:none;margin:2px 0 10px;font-size:.82rem;color:var(--muted);line-height:1.6"></div>
                     <!-- Deneme sonucu: popup engelleyiciye takılmasın diye link BURADA durur -->
                     <div id="bakim-deneme-kutu" style="display:none;margin:8px 0 4px;padding:10px 14px;border:1px solid var(--card-border);border-radius:10px;font-size:.84rem;line-height:1.6"></div>
                     <div id="ariza-liste"><div class="yukleniyor">Yükleniyor…</div></div>
@@ -15505,6 +15516,28 @@ window.__I18N_SOZLUK__ = {
         // anlık üretim durumunu bilen amir belirler — bakım ekibi bilemez.
         var ARIZA_ONC_AD = { acil: '🚨 ACİL', yuksek: 'Yüksek', normal: 'Normal', dusuk: 'Düşük' };
 
+        // İlk hafta ölçüleri (Halil Bilgin / Gökhan Küçük isteği): reddedilen
+        // bildirim sayısı + amir kuyruğunda bekleme. Her parça ayrı <span>: i18n
+        // motoru metin düğümü bazlı, sayılar ayrı tutulunca çevrilebilir kalır.
+        function arizaHaftalikYaz(h) {
+          var el = document.getElementById('ariza-haftalik');
+          if (!el) return;
+          if (!h || !h.toplam) { el.style.display = 'none'; return; }
+          var sp = function (t, b) { return '<span' + (b ? ' style="font-weight:800"' : '') + '>' + esc(String(t)) + '</span>'; };
+          var yol = [];
+          if (h.yol.acil) yol.push(sp(h.yol.acil) + ' ' + sp('acil'));
+          if (h.yol.zaman_asimi) yol.push(sp(h.yol.zaman_asimi) + ' ' + sp('süre aşımı'));
+          el.style.display = '';
+          el.innerHTML = '📈 ' + sp('Son 7 gün') + ': ' + sp(h.toplam, true) + ' ' + sp('bildirim') +
+            ' · ' + sp(h.gonderildi, true) + ' ' + sp('bakıma iletildi') + (yol.length ? ' (' + yol.join(', ') + ')' : '') +
+            ' · ' + sp(h.reddedildi, true) + ' ' + sp('reddedildi') +
+            ' · ' + sp(h.bekliyor, true) + ' ' + sp('bekliyor') +
+            (h.bekleme_ort_dk != null
+              ? ' · ' + sp('amir kuyruğunda bekleme') + ': ' + sp('ort.') + ' ' + sp(h.bekleme_ort_dk, true) + ' ' + sp('dk') +
+                ' / ' + sp('medyan') + ' ' + sp(h.bekleme_medyan_dk, true) + ' / ' + sp('en uzun') + ' ' + sp(h.bekleme_maks_dk, true)
+              : '');
+        }
+
         function arizaKuyrukYukle() {
           var el = document.getElementById('ariza-liste');
           if (!el) return;
@@ -15529,6 +15562,7 @@ window.__I18N_SOZLUK__ = {
               }
               var ozet = document.getElementById('ariza-ozet');
               if (ozet) ozet.textContent = d.bekleyen + ' bekleyen';
+              arizaHaftalikYaz(d.haftalik);
               var k = d.kayitlar || [];
               if (!k.length) {
                 el.innerHTML = '<div class="empty-state">✅ Bekleyen arıza bildirimi yok</div>';

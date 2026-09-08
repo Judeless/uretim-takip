@@ -12701,23 +12701,25 @@ def _ariza_bakima_gonder(conn, kayit, yol, amir=''):
     if kayit.get('baslangic_ts'):
         govde['started_at'] = str(kayit['baslangic_ts'])[:19].replace('T', ' ')
 
-    # KULLANICI BLOĞU (2026-09-08 saha: HTTP 403). Bakım sözleşmesi: user
-    # verilirse talep o kişi adına açılır (sicil/slug bakımda kullanıcı adı;
-    # hesap yoksa otomatik açılır), verilmezse "Cofle Forge (MES)" sistem
-    # kullanıcısı adına açılır. İki durumda user GÖNDERİLMEZ:
-    #   · operatör MES'in kendi sistem hesabı 'Admin' (PIN 9999): gerçek kişi
-    #     değil; slug'ı 'admin' bakımın yönetici hesabıyla çakışıyor → 403.
-    #   · bakım 403 dönerse (hesap pasif / lokasyon yetkisi yok): aynı talep
-    #     user'sız BİR KEZ daha denenir — üretim, bakım tarafındaki bir hesap
-    #     ayarı yüzünden beklemesin. Operatörün adı açıklamaya yazılır, kaybolmaz.
+    # KULLANICI BLOĞU — HER ÇAĞRIDA (Halil Bilgin 2026-09-07 16:29: "zaman
+    # aşımı yükseltmesi ve acil yol dahil her work-order çağrısında user
+    # gönderin; 'Açan' alanında operatör görünsün"). Üç yol da bu fonksiyondan
+    # geçtiği için tek yer.
+    #   · MES'in kendi sistem hesabı 'Admin' (PIN 9999) gerçek kişi değil ve
+    #     slug'ı 'admin' bakımın yönetici hesabıyla ÇAKIŞIYOR (2026-09-08: 403).
+    #     Bu yüzden ayrı bir adla gider: 'forge.mes' — bakım tarafında hesap
+    #     yoksa "Talep Açan" rolünde otomatik açılır, "Açan" alanında
+    #     "MES Admin (sistem hesabı)" görünür.
+    #   · Bakım yine de 403 dönerse (hesap pasif / lokasyon yetkisi yok) aynı
+    #     talep user'sız BİR KEZ daha denenir (aşağıda) — üretim, bakım
+    #     tarafındaki bir hesap ayarı yüzünden beklemesin.
     operator = str(kayit.get('operator_adi') or '').strip()
-    sistem_hesabi = (operator.lower() == 'admin')
-    if not sistem_hesabi:
+    if operator.lower() == 'admin':
+        govde['user'] = {'username': 'forge.mes', 'full_name': 'MES Admin (sistem hesabı)',
+                         'location': kayit['lokasyon'], 'lang': 'tr'}
+    else:
         govde['user'] = {'username': _bakim_kullanici(conn, operator, kayit['lokasyon']),
                          'full_name': operator, 'location': kayit['lokasyon'], 'lang': 'tr'}
-    else:
-        govde['description'] = (govde['description'] +
-                                f"\nBildiren: {operator} (MES sistem hesabı)")[:2000]
 
     wo = (cfg.get('work_order_yolu') or '').strip()
     handoff = (wo.lower() == 'handoff')
@@ -12903,6 +12905,45 @@ def ariza_benim():
     return jsonify(out)
 
 
+def _ariza_haftalik_ozet(conn, gun=7, tesis=''):
+    """İlk hafta ölçüleri (Gökhan Küçük / Halil Bilgin): son N günde bildirim
+    sayısı, bakıma iletilen (yol kırılımıyla), reddedilen, bekleyen ve amir
+    kuyruğunda bekleme süresi (olusturma→karar; ortalama, medyan, en uzun).
+    Bekleyenler için 'şimdi'ye kadar geçen süre sayılır — yığılma görünsün."""
+    sql = ("SELECT durum, gonderim_yolu, olusturma_ts, karar_ts FROM ariza_bildirimleri "
+           f"WHERE olusturma_ts >= datetime('now','localtime','-{int(gun)} days')")
+    par = []
+    if tesis in ('TK1', 'TK2'):
+        sql += " AND lokasyon=?"
+        par.append(tesis)
+    rows = conn.execute(sql, par).fetchall()
+    ozet = {'gun': gun, 'toplam': len(rows), 'gonderildi': 0, 'reddedildi': 0, 'bekliyor': 0,
+            'yol': {'amir': 0, 'acil': 0, 'zaman_asimi': 0}, 'bekleme': []}
+    simdi = datetime.now()
+    for r in rows:
+        d = r['durum']
+        if d == 'gonderildi':
+            ozet['gonderildi'] += 1
+            y = r['gonderim_yolu'] or 'amir'
+            ozet['yol'][y] = ozet['yol'].get(y, 0) + 1
+        elif d == 'reddedildi':
+            ozet['reddedildi'] += 1
+        elif d == 'bekliyor':
+            ozet['bekliyor'] += 1
+        try:
+            bas = datetime.strptime(str(r['olusturma_ts'])[:19], '%Y-%m-%d %H:%M:%S')
+            bit = (datetime.strptime(str(r['karar_ts'])[:19], '%Y-%m-%d %H:%M:%S')
+                   if r['karar_ts'] else simdi)
+            ozet['bekleme'].append(max(0, int((bit - bas).total_seconds() // 60)))
+        except Exception:
+            pass
+    b = sorted(ozet.pop('bekleme'))
+    ozet['bekleme_ort_dk'] = int(sum(b) / len(b)) if b else None
+    ozet['bekleme_medyan_dk'] = b[len(b) // 2] if b else None
+    ozet['bekleme_maks_dk'] = b[-1] if b else None
+    return ozet
+
+
 @app.route('/api/ariza/kuyruk', methods=['GET'])
 @panel_gerekli(izin='ariza-onay')
 def ariza_kuyruk():
@@ -12940,6 +12981,8 @@ def ariza_kuyruk():
         'bekleyen': bekleyen,
         'amir': _ariza_amir_mi(cfg, g.panel_ku['kullanici_adi']) or g.panel_ku['admin'],
         'bakim_hazir': _bakim_hazir(cfg),
+        # İlk hafta ölçüleri (Halil/Gökhan): tesis süzgeciyle uyumlu, 7 gün
+        'haftalik': _ariza_haftalik_ozet(conn, 7, tesis),
     })
 
 
