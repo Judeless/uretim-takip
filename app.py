@@ -11756,6 +11756,73 @@ def oto_transfer_iptal_job():
         conn.close()
 
 
+def _oto_gonderilecek_adet(r, l=None):
+    """Oto koşuda gönderilecek adet — panelin as4GonderilecekAdet(r, l) kuralının
+    Python karşılığı: günün TAMAMI değil, zaten teyitli kısım düşülmüş KALAN.
+
+    OLAY (kullanıcı 2026-09-08, 10.300.2283B): erken teyit sabah 09:42'de 293
+    gönderdi; 17:10 koşusu günün toplamı 422'yi gördü ve 129 yerine 422'yi de
+    gönderdi → ERP'de 293 FAZLA stok. launch_esle 'kalan_gonderilecek'i tam bu
+    iş için hesaplıyordu (2026-08-25, parçalı üretim) ama yalnız panel
+    kullanıyordu; oto koşu tam adedi alıyordu.
+
+    İki bağımsız kanıt, ikisi de eksik olabilir: kalan_gonderilecek (BİZİM
+    log'umuz) ve kalan_adet ('kismi' — ERP hareketleri, teyidi başkası da
+    vermiş olabilir; satırda VEYA launch'ta). EN KÜÇÜĞÜ alınır: fazla göndermek
+    ERP'ye olmayan stok yazar, eksik göndermek bir sonraki koşuda tamamlanır."""
+    def _sayi(v):
+        try:
+            return int(round(float(v)))
+        except (TypeError, ValueError):
+            return None
+    aday = [_sayi(r.get('adet')) or 0]
+    if r.get('kalan_gonderilecek') is not None:
+        aday.append(_sayi(r.get('kalan_gonderilecek')))
+    if r.get('zaten_teyitli') == 'kismi' and r.get('kalan_adet') is not None:
+        aday.append(_sayi(r.get('kalan_adet')))
+    if l and l.get('zaten_teyitli') == 'kismi' and l.get('kalan_adet') is not None:
+        aday.append(_sayi(l.get('kalan_adet')))
+    aday = [a for a in aday if a is not None]
+    return max(0, min(aday)) if aday else 0
+
+
+def _fazla_teyit_bul(conn, gun=30):
+    """Son N günde ERP'ye üretimden FAZLA teyit gitmiş referanslar
+    (_mutabakat_farklari fark<0) + o gün kimin ne gönderdiği. Teşhis:
+    erken teyit + akşam koşusu çakışması (2026-09-08) başka gün de oldu mu?"""
+    out = []
+    for i in range(int(gun)):
+        t = (date.today() - timedelta(days=i)).isoformat()
+        try:
+            farklar = _mutabakat_farklari(conn, t)
+        except Exception as e:
+            print(f'[FAZLA-TEYIT] {t}: {e}')
+            continue
+        for f in farklar:
+            if f['fark'] >= 0:
+                continue
+            gonderimler = [dict(g) for g in conn.execute(
+                "SELECT created_at, yil, launch_no, adet, olusturan, mesaj FROM as400_teyit_log "
+                "WHERE uretim_tarihi=? AND sonuc='ok' AND yil <> 'CO' "
+                "  AND UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ','')) ORDER BY id",
+                (t, f['referans'])).fetchall()]
+            out.append({'uretim_tarihi': t, 'referans': f['referans'], 'uretim': f['uretim'],
+                        'teyit': f['teyit'], 'fazla': -f['fark'], 'gonderimler': gonderimler,
+                        'erken_var': any((g.get('olusturan') or '') == 'oto-erken' for g in gonderimler)})
+    return out
+
+
+@app.route('/api/as400/fazla_teyit', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_fazla_teyit():
+    """?gun=30 — üretimden fazla teyit edilmiş (ERP'de fazla stok) referanslar."""
+    try:
+        gun = max(1, min(120, int(request.args.get('gun') or 30)))
+    except (TypeError, ValueError):
+        gun = 30
+    return jsonify({'gun': gun, 'satirlar': _fazla_teyit_bul(get_db(), gun)})
+
+
 def _oto_kuyruk_olustur(conn, tarihler):
     """17:10 koşusu için kuyrukları kurar — dashboard as4Render bucket mantığının
     Python karşılığı. Döner: (launchQ, cfiQ, copQ, sabah_kontrol).
@@ -11791,7 +11858,7 @@ def _oto_kuyruk_olustur(conn, tarihler):
         # artık listeden düşmüyor, ama teyit edilecek adetleri YOK. Kuyruğa
         # girerlerse gönderim 'Geçersiz satır parametresi' hatası üretir; hurdaları
         # zaten aşağıdaki COP fazında toplanır. ACIK kolunda aynı kapı zaten var.
-        _adet = int(round(float(r.get('adet') or 0)))
+        _adet = _oto_gonderilecek_adet(r)
         if _adet <= 0:
             return
         # TESİS DE ŞART (kullanıcı 2026-08-26 hata bildirimi): depo kodu
@@ -11846,7 +11913,7 @@ def _oto_kuyruk_olustur(conn, tarihler):
                        temiz[0].get('launch', ''))
                 continue
             l0 = temiz[0]
-            adet = int(round(float(r.get('adet') or 0)))
+            adet = _oto_gonderilecek_adet(r, l0)
             if adet <= 0:
                 continue
             bayrak = 'S' if adet >= float(l0.get('kalan') or 0) - 1 else 'A'

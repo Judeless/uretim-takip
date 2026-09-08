@@ -1747,6 +1747,7 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "⚠ Fazla teyit var mı?": {"en": "⚠ Any over-confirmation?", "it": "⚠ Conferme in eccesso?"},
   "Genel Bakış": {
     "en": "Overview",
     "it": "Panoramica"
@@ -6763,6 +6764,7 @@ window.__I18N_SOZLUK__ = {
                     <div class="panel-header">
                         <h3>🌅 Sabah Kontrol — Otomatik Teyit Koşuları</h3>
                         <span class="adet-info">Her akşam çalışır — robotun emin olamadığı satırlar buraya ayrılır</span>
+                        <button class="btn btn-ghost" style="padding:2px 8px;font-size:.72rem" onclick="as4FazlaTeyit()" title="Son 30 günde üretimden FAZLA teyit gitmiş referanslar (ERP'de fazla stok)">⚠ Fazla teyit var mı?</button>
                     </div>
                     <div id="as4-sabah-icerik" style="padding:10px 20px 16px">
                         <div class="yukleniyor" style="padding:8px 0">⏳ Son koşular yükleniyor…</div>
@@ -13983,6 +13985,25 @@ window.__I18N_SOZLUK__ = {
         }
 
         // ── IMPORT (COFLEFORGE.BMMAF0I) kartı ──
+        // Fazla teyit teşhisi (2026-09-08, 10.300.2283B): erken teyit + 17:10 çakışması
+        function as4FazlaTeyit() {
+            var el = document.getElementById('as4-sabah-icerik');
+            if (!el) return;
+            var kutu = document.getElementById('as4-fazla-kutu');
+            if (!kutu) { kutu = document.createElement('div'); kutu.id = 'as4-fazla-kutu'; kutu.style.marginBottom = '10px'; el.insertBefore(kutu, el.firstChild); }
+            kutu.innerHTML = '<div class="yukleniyor">⏳ Son 30 gün taranıyor…</div>';
+            panelFetch('/api/as400/fazla_teyit?gun=30').then(function (r) { return r.json(); }).then(function (j) {
+                var s = j.satirlar || [];
+                if (!s.length) { kutu.innerHTML = '<div style="padding:8px 12px;border:1px solid var(--card-border);border-radius:10px;font-size:.84rem">✅ Son ' + j.gun + ' günde üretimden fazla teyit yok.</div>'; return; }
+                kutu.innerHTML = '<div style="padding:8px 12px;border:1px solid var(--danger);border-radius:10px;font-size:.84rem">' +
+                    '<b style="color:var(--danger)">⚠ ' + s.length + ' referansta ERP\'ye üretimden FAZLA teyit gitmiş</b> — geri alma NEGATİF hareket ister (ERP tarafında stok düzeltmesi).' +
+                    '<table class="rt-table" style="margin-top:8px"><thead><tr><th>Üretim günü</th><th>Referans</th><th>Üretim</th><th>Teyit</th><th>Fazla</th><th>Gönderimler</th></tr></thead><tbody>' +
+                    s.map(function (x) { return '<tr><td>' + esc(x.uretim_tarihi) + '</td><td>' + esc(x.referans) + '</td><td>' + fmt(x.uretim) + '</td><td>' + fmt(x.teyit) + '</td><td style="color:var(--danger);font-weight:800">' + fmt(x.fazla) + '</td><td style="font-size:.76rem">' +
+                        (x.gonderimler || []).map(function (g) { return esc((g.created_at || '').slice(5, 16)) + ' · ' + fmt(g.adet) + ' · ' + esc(g.olusturan || ''); }).join('<br>') + '</td></tr>'; }).join('') +
+                    '</tbody></table></div>';
+            }).catch(function () { kutu.innerHTML = '<div class="empty-state">Bağlantı hatası</div>'; });
+        }
+
         function as4ImportYukle(kolon, son) {
             var url = '/api/as400/import_durum?x=1' + (kolon ? '&kolon=1' : '') + (son ? '&son=' + son : '');
             panelFetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
