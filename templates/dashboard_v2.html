@@ -6728,6 +6728,33 @@ window.__I18N_SOZLUK__ = {
             </section>
 
             <section class="page" id="page-as400-teyit">
+                <!-- 📥 IMPORT (COFLEFORGE.BMMAF0I) — IT'nin staging tablosu (Simone Rota
+                     2026-09-07). Ekran robotunun yerine geçecek yol; ilk satırlar
+                     panelden, göz önünde yazılır. Kaynak: /api/as400/import_durum -->
+                <div class="panel-card" style="margin-bottom:14px">
+                    <div class="panel-header">
+                        <h3>📥 Import — COFLEFORGE.BMMAF0I</h3>
+                        <span class="adet-info" id="as4-imp-mod">—</span>
+                    </div>
+                    <div style="padding:6px 20px 14px">
+                        <div style="font-size:.8rem;color:var(--muted);line-height:1.6;margin-bottom:8px">
+                            IT'nin programı 10 sn'de bir bu tablodaki boş satırları işler: <b>MGSTAT=1</b> hareket açıldı (numara yanda), <b>MGSTAT=2</b> hata (MGNOTE). Şimdilik TEST veritabanına yazar (COFLETKPR).
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                            <input id="as4-imp-article" class="rt-row-select" style="max-width:190px" placeholder="article (ör: 10.300.1866-10W)">
+                            <input id="as4-imp-adet" class="rt-row-select" style="max-width:90px" type="number" min="1" placeholder="adet">
+                            <select id="as4-imp-causal" class="rt-row-select" style="max-width:110px"><option value="CFI">CFI</option><option value="COP">COP</option></select>
+                            <input id="as4-imp-wh" class="rt-row-select" style="max-width:80px" value="01D" title="Warehouse cd">
+                            <input id="as4-imp-cp" class="rt-row-select" style="max-width:80px" value="01D" title="Counterpart warehouse (COP'ta boş)">
+                            <input id="as4-imp-tarih" class="rt-row-select" style="max-width:140px" type="date" title="Üretim tarihi (boşsa program bugünü alır)">
+                            <button class="btn btn-primary" onclick="as4ImportDeneme()">📥 Satır yaz ve bekle</button>
+                            <button class="btn btn-ghost" onclick="as4ImportYukle(true)" title="QSYS2.SYSCOLUMNS — salt okunur">Kolonlar</button>
+                            <button class="btn btn-ghost" onclick="as4ImportYukle(false, 15)">Son 15 satır</button>
+                        </div>
+                        <div id="as4-imp-sonuc" style="display:none;font-size:.84rem;line-height:1.6;padding:8px 12px;border:1px solid var(--card-border);border-radius:10px;margin-bottom:8px"></div>
+                        <div id="as4-imp-liste" style="font-size:.78rem;overflow-x:auto"></div>
+                    </div>
+                </div>
                 <!-- 🌅 SABAH KONTROL (2026-07-27): oto TEYİT koşularının raporu.
                      2026-07-29: transfer iptali koşuları buradan çıkarılıp "02'den
                      Aktarım" sayfasına taşındı (iki farklı iş aynı panelde iç içeydi).
@@ -13955,7 +13982,56 @@ window.__I18N_SOZLUK__ = {
             }
         }
 
+        // ── IMPORT (COFLEFORGE.BMMAF0I) kartı ──
+        function as4ImportYukle(kolon, son) {
+            var url = '/api/as400/import_durum?x=1' + (kolon ? '&kolon=1' : '') + (son ? '&son=' + son : '');
+            panelFetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (res) {
+                var j = res.j, mod = document.getElementById('as4-imp-mod'), el = document.getElementById('as4-imp-liste');
+                if (mod) mod.textContent = (j.etkin ? '● AÇIK — CFI/COP import ile gidiyor' : '○ kapalı — ekran robotu kullanılıyor') +
+                    ' · ' + (j.kutuphane || '?') + '.' + (j.tablo || '?');
+                if (!res.ok) { toast(j.hata || 'Import durumu okunamadı', 'error'); return; }
+                if (!el) return;
+                if (j.kolonlar) {
+                    el.innerHTML = '<table class="rt-table"><thead><tr><th>Kolon</th><th>Tip</th><th>Uzunluk</th><th>Ondalık</th><th>Açıklama</th></tr></thead><tbody>' +
+                        j.kolonlar.map(function (c) { return '<tr><td><code>' + esc(c.ad) + '</code></td><td>' + esc(c.tip) + '</td><td>' + esc(c.uzunluk) + '</td><td>' + esc(c.ondalik == null ? '' : c.ondalik) + '</td><td>' + esc(c.aciklama) + '</td></tr>'; }).join('') +
+                        '</tbody></table>';
+                } else if (j.son_satirlar) {
+                    if (!j.son_satirlar.length) { el.innerHTML = '<div class="empty-state">Tablo boş</div>'; return; }
+                    var kol = Object.keys(j.son_satirlar[0]);
+                    el.innerHTML = '<table class="rt-table"><thead><tr>' + kol.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+                        j.son_satirlar.map(function (s) { return '<tr' + (s.MGSTAT === '2' ? ' style="color:var(--danger)"' : (s.MGSTAT === '1' ? ' style="color:var(--success)"' : '')) + '>' +
+                            kol.map(function (k) { return '<td>' + esc(s[k] == null ? '' : s[k]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+                }
+              }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+        function as4ImportDeneme() {
+            var g = function (id) { return (document.getElementById(id) || {}).value || ''; };
+            var govde = { article: g('as4-imp-article').trim(), adet: parseFloat(g('as4-imp-adet')) || 0,
+                          causal: g('as4-imp-causal'), wh: g('as4-imp-wh'), cp: g('as4-imp-cp'), uretim_tarihi: g('as4-imp-tarih') };
+            if (!govde.article || govde.adet <= 0) { toast('article ve adet girin', 'error'); return; }
+            if (!confirm(govde.causal + ' ' + govde.article + ' × ' + govde.adet + ' — COFLEFORGE.BMMAF0I tablosuna TEK satır yazılacak ve programın cevabı beklenecek. Devam?')) return;
+            var kutu = document.getElementById('as4-imp-sonuc');
+            kutu.style.display = ''; kutu.textContent = '⏳ Satır yazıldı, program bekleniyor (en çok ' + 60 + ' sn)…';
+            panelFetch('/api/as400/import_deneme', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde) })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ')' } }; }); })
+              .then(function (res) {
+                var j = res.j;
+                if (!res.ok) { kutu.innerHTML = '<b style="color:var(--danger)">' + esc(j.hata || 'Hata') + '</b>'; return; }
+                var renk = j.basarili ? 'var(--success)' : 'var(--danger)';
+                kutu.innerHTML = '<b style="color:' + renk + '">' + esc(j.durum) + '</b>' +
+                    (j.hareket_no ? ' · hareket no <b>' + esc(j.hareket_no) + '</b>' : '') +
+                    (j.rrn != null ? ' · RRN ' + esc(j.rrn) : '') +
+                    (j.mgtime ? ' · ' + esc(j.mgtime) : '') +
+                    (j.not ? '<br>MGNOTE: ' + esc(j.not) : '') +
+                    (j.mesaj ? '<br>' + esc(j.mesaj) : '') +
+                    (j.sql ? '<br><code style="font-size:.74rem">' + esc(j.sql) + '</code>' : '');
+                as4ImportYukle(false, 15);
+              }).catch(function () { kutu.textContent = 'Bağlantı hatası'; });
+        }
+
         function as4Yukle(tekTarih) {
+            as4ImportYukle(false, 0);
             // Argümanlı çağrı = moda geç; argümansız = mevcut modu tazele.
             if (typeof tekTarih === 'string' && tekTarih) _as4Mod = { tip: 'gun', tarih: tekTarih };
             var aktifTarih = (_as4Mod.tip === 'gun') ? _as4Mod.tarih : '';

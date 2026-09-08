@@ -10210,6 +10210,54 @@ def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
         return None
 
 
+def _as400_import_modulu():
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import as400_import as _ai
+    return _ai
+
+
+def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zorla=False):
+    """Depo hareketini COFLEFORGE.BMMAF0I üzerinden yazar. (sonuc, mesaj, ayrinti).
+
+    EKRAN ROBOTUNUN YERİNE (IT staging tablosu). Doğrulama = programın MGSTAT='1'
+    + hareket numarası; dogrulama_bmmaf0 açıksa ayrıca bugünkü hareketlerde adet
+    aranır (canlıda). Zaman aşımında satır tabloda DURUR — mesaj RRN verir,
+    panelden "son satırlar" ile takip edilir; tekrar gönderim mükerrer freni
+    (aynı kod/causal/adet/tarih) sayesinde ikinci satır AÇMAZ."""
+    try:
+        _ai = _as400_import_modulu()
+        r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp, uretim_tarihi=u_tarih,
+                            referans=referans, kutuphane=imp.get('kutuphane') or 'COFLEFORGE',
+                            tablo=imp.get('tablo') or 'BMMAF0I',
+                            bekleme_sn=int(imp.get('bekleme_sn') or 60), zorla=zorla)
+    except Exception as e:
+        print(f'[CFI-IMPORT] {causal} {article} {adet}: {e!r}')
+        return 'hata', f'Import hatası: {e!r}', {}
+    etiket = '♻ Hurda COP' if causal == 'COP' else 'CFI'
+    if r.get('ok'):
+        mesaj = (f'{etiket} import: {article} → {adet} adet · hareket {r.get("hareket_no") or "?"} '
+                 f'(COFLEFORGE{" · zaten işlenmişti" if r.get("durum") == "mevcut" else ""})')
+        if imp.get('dogrulama_bmmaf0'):
+            try:
+                dogru = any(abs(q - float(adet)) < 0.001 for q in _as400_cfi_bugun(article, causal=causal))
+            except Exception:
+                dogru = None
+            if dogru is False:
+                return 'hata', f'Import işlendi ama bugünkü {causal} hareketlerinde {adet} bulunamadı — elle kontrol edin', r
+        return 'ok', mesaj, r
+    d = r.get('durum')
+    if d == 'reddedildi':
+        return 'hata', f'Import reddedildi (MGSTAT=2): {r.get("not") or "?"} — satır RRN {r.get("rrn")}', r
+    if d == 'mevcut':
+        return 'hata', f'Aynı satır kuyrukta bekliyor (RRN {r.get("rrn")}) — program işlemedi, tekrar yazılmadı', r
+    if d == 'zaman_asimi':
+        return 'hata', f'Import {imp.get("bekleme_sn") or 60} sn içinde işlenmedi (RRN {r.get("rrn")}) — program çalışıyor mu? Satır tabloda duruyor', r
+    return 'hata', f'Import: {r.get("not") or d}', r
+
+
 def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=None):
     """CFI depo girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
     ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
@@ -10326,6 +10374,18 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
             conn, referans, s.get('tesis'), s.get('bolum'))
         if _depo_hata:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': _depo_hata})
+            continue
+        _imp = (_oto_config().get('cfi_import') or {})
+        if _imp.get('etkin'):
+            sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'CFI', _wh, _cp, u_tarih, referans, _imp, zorla)
+            if sonuc == 'ok':
+                mesaj += _is_emri_dus_router(conn, referans, adet)
+            conn.execute(
+                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (u_tarih, 'CF', article, referans, article, adet, 'CFI-IMP', sonuc, mesaj, kullanici))
+            conn.commit()
+            sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
             continue
         _robot_arg = [article, adet, 'CFI', f'WH={_wh}', f'CP={_cp}']
         cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', _robot_arg, 120)
@@ -10532,6 +10592,18 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         if gecersiz:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
             continue
+        _imp = (_oto_config().get('cfi_import') or {})
+        if _imp.get('etkin'):
+            # COP: karşı depo BOŞ (kullanıcı 2026-07-23), depo TK2 varsayılanı
+            sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'COP', CFI_VARSAYILAN_DEPO[0], '',
+                                                  u_tarih, referans, _imp, zorla)
+            conn.execute(
+                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (u_tarih, 'CO', article, referans, article, adet, 'COP-IMP', sonuc, mesaj, kullanici))
+            conn.commit()
+            sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+            continue
         cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet, 'COP'], 120)
         if robot_hata:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
@@ -10558,6 +10630,61 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         conn.commit()
         sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
     return sonuclar
+
+
+@app.route('/api/as400/import_durum', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_import_durum():
+    """Import modu + tablo kolonları + son satırlar (panel kartı). ?kolon=1 ile
+    QSYS2.SYSCOLUMNS okunur (salt okunur), ?son=N ile son N satır."""
+    imp = _oto_config().get('cfi_import') or {}
+    out = {'etkin': bool(imp.get('etkin')), 'kutuphane': imp.get('kutuphane'), 'tablo': imp.get('tablo'),
+           'bekleme_sn': imp.get('bekleme_sn'), 'dogrulama_bmmaf0': bool(imp.get('dogrulama_bmmaf0'))}
+    try:
+        _ai = _as400_import_modulu()
+        if request.args.get('kolon'):
+            out['kolonlar'] = _ai.kolonlar(imp.get('kutuphane') or 'COFLEFORGE', imp.get('tablo') or 'BMMAF0I',
+                                           tazele=True)
+        n = int(request.args.get('son') or 0)
+        if n:
+            out['son_satirlar'] = _ai.son_satirlar(min(100, n), imp.get('kutuphane') or 'COFLEFORGE',
+                                                   imp.get('tablo') or 'BMMAF0I')
+    except Exception as e:
+        out['hata'] = f'{e!r}'
+        return jsonify(out), 424
+    return jsonify(out)
+
+
+@app.route('/api/as400/import_deneme', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_import_deneme():
+    """TEK satır yaz ve programın cevabını bekle — ilk gerçek INSERT panelden,
+    göz önünde. Body: {article, adet, causal?, wh?, cp?, uretim_tarihi?, zorla?}.
+    as400_teyit_log'a YAZILMAZ (test veritabanı denemesi, teyit değil)."""
+    d = request.get_json(silent=True) or {}
+    imp = _oto_config().get('cfi_import') or {}
+    try:
+        adet = float(d.get('adet') or 0)
+    except (TypeError, ValueError):
+        adet = 0
+    article = str(d.get('article') or '').strip()
+    causal = (str(d.get('causal') or 'CFI').strip().upper())
+    if not article or adet <= 0:
+        return jsonify({'hata': 'article ve adet zorunlu'}), 400
+    wh = str(d.get('wh') or CFI_VARSAYILAN_DEPO[0]).strip().upper()
+    cp = ('' if causal == 'COP' else str(d.get('cp') or CFI_VARSAYILAN_DEPO[1]).strip().upper())
+    try:
+        _ai = _as400_import_modulu()
+        r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp,
+                            uretim_tarihi=str(d.get('uretim_tarihi') or '') or None,
+                            kutuphane=imp.get('kutuphane') or 'COFLEFORGE', tablo=imp.get('tablo') or 'BMMAF0I',
+                            bekleme_sn=int(d.get('bekleme_sn') or imp.get('bekleme_sn') or 60),
+                            zorla=bool(d.get('zorla')))
+    except Exception as e:
+        return jsonify({'hata': f'Import hatası: {e!r}'}), 424
+    print(f'[CFI-IMPORT] deneme {causal} {article} {adet} → {r.get("durum")} {r.get("hareket_no") or r.get("not") or ""}')
+    r.pop('alanlar', None)
+    return jsonify({'basarili': bool(r.get('ok')), **r})
 
 
 @app.route('/api/as400/cop_gonder', methods=['POST'])
@@ -11314,6 +11441,13 @@ _OTO_VARSAYILAN = {
     # verir. 'alicilar' boşsa mail SMTP gönderen adresine (şirket kutusu) gider.
     'agent_nobeti':   {'etkin': True, 'kontrol_dk': 10, 'hatirlatma_saat': 6,
                        'alicilar': []},
+    # CFI/COP'u EKRAN ROBOTU yerine IT'nin staging tablosuyla yaz (Simone Rota,
+    # 2026-09-07: COFLEFORGE.BMMAF0I; program 10 sn'de bir işler, MGSTAT/MGNOTE
+    # geri yazar). VARSAYILAN KAPALI: önce panelden deneme satırı, sonra
+    # oto_config.json'da etkin:true. dogrulama_bmmaf0: test veritabanında
+    # hareket üretim BMMAF0'da GÖRÜNMEZ → kapalı; canlıya geçince açılır.
+    'cfi_import':     {'etkin': False, 'kutuphane': 'COFLEFORGE', 'tablo': 'BMMAF0I',
+                       'bekleme_sn': 60, 'dogrulama_bmmaf0': False},
 }
 
 
