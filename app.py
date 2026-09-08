@@ -627,6 +627,14 @@ TK1_MONTAJ_SABIT_HAT = 'TK1 Montaj'
 # geçmiş listesinde KALIRLAR — dashboard filtreleri bozulmaz.
 # SIRA ÖNEMLİ (istasyon no = sıra); yeni hat HEP SONA eklenir.
 TK1_MONTAJ_HATLARI = [f'MONTAJ - {i}' for i in range(1, 6)]
+# RAPORA EK MASALAR (kullanıcı 2026-09-08): "TK1 montaj hattının üretim raporu
+# paylaşılırken Son Montaj-4 ve Son Montaj-5 masalarını dahil ederim, SADECE
+# raporlar için." Bu iki masa fiziken montaj alanında ama kayıtları TEL
+# bölümünün 'Son Montaj' adımında (Tel Üretimi hattı). Günlük rapor (paylaşım
+# sayfası + panel modali) TK1 montaj için bu masaların tel kayıtlarını da
+# MONTAJ - 1..5'in ardına ekler. Başka hiçbir yerde (kayıtlar, OEE, teyit)
+# bölüm sınırı değişmez.
+TK1_MONTAJ_RAPOR_EK_MASALAR = ('Son Montaj 4', 'Son Montaj 5')
 TEL_SABIT_HAT = 'Tel Üretimi'
 
 # Hattı/makinesi ÜRETİM KAYDINDA (istasyon kolonunda) seçilen bölümler.
@@ -4581,6 +4589,12 @@ def referans_excel_indir():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+def _kayit_ref_norm(s):
+    """Referans süzgeci için normalize: büyük harf + boşluksuz ('94.pbl 83' = '94.PBL83').
+    Panel (kyRefNorm) aynı kuralı uygular — ekran ile Excel aynı kümeyi versin."""
+    return ''.join(str(s or '').split()).upper()
+
+
 def kayit_grubu(bolum, robot_no, istasyon):
     """Üretim kaydının GRUP etiketi — Kayıtlar sayfasındaki kırılım ve Excel için.
 
@@ -4644,6 +4658,9 @@ def kayitlar_uretim_excel():
 
     grup_f = _csv('gruplar', 'grup')
     makine_f = _csv('makineler', 'makine')
+    # REFERANS SÜZGECİ (kullanıcı 2026-09-08): panele referans kodu süzgeci
+    # eklendi; Excel ekrandaki kümeyle aynı insin (parça eşleşme, boşluk/harf duyarsız).
+    referans_f = _kayit_ref_norm(request.args.get('referans'))
 
     def _eslesir(secim, satir_bolum, deger):
         """Seçim boşsa her şey geçer. Seçim 'bolum|ad' biçiminde de olabilir —
@@ -4686,6 +4703,8 @@ def kayitlar_uretim_excel():
             continue
         mk = kayit_hatti(r['robot_no'], r['istasyon'])
         if not _eslesir(makine_f, r['bolum'], mk):
+            continue
+        if referans_f and referans_f not in _kayit_ref_norm(r['referans_kodu']):
             continue
         satirlar.append({
             'tarih': r['tarih'], 'vardiya': r['vardiya_turu'],
@@ -8589,6 +8608,73 @@ def andon_mesaj_guncelle():
 # GÜNLÜK ÜRETİM RAPORU (Excel Görünümü) API
 # ─────────────────────────────────────────────────────────────
 
+def _tk1_montaj_ek_satirlar(conn, tarih, vardiya_turu):
+    """TK1 montaj raporuna eklenecek Son Montaj 4/5 (tel) satırları —
+    gunluk_rapor_detay ile aynı gruplama (hat, operatör, kod, istasyon).
+    Kod eki ('SON MONTAJ') atılır: montaj raporunda adım zaten masa adından
+    belli. Bkz. TK1_MONTAJ_RAPOR_EK_MASALAR."""
+    rows = conn.execute("""
+        SELECT v.robot_no, v.operator_adi, u.referans_kodu,
+               SUM(u.ok_adet) as ok_toplam, SUM(u.nok_adet) as nok_toplam,
+               SUM(u.tamir_adet) as tamir_toplam, COALESCE(u.istasyon, 0) as istasyon
+        FROM vardiyalar v
+        JOIN uretim_kayitlari u ON v.id = u.vardiya_id
+        WHERE v.tarih = ?
+          AND UPPER(REPLACE(REPLACE(v.vardiya_turu,'ü','u'),'Ü','U')) =
+              UPPER(REPLACE(REPLACE(?,'ü','u'),'Ü','U'))
+          AND COALESCE(v.bolum, 'kaynak') = 'tel'
+          AND COALESCE(v.lokasyon, 'TK2') = 'TK1'
+        GROUP BY v.robot_no, v.operator_adi, u.referans_kodu, COALESCE(u.istasyon, 0)
+        ORDER BY istasyon, v.operator_adi
+    """, (tarih, vardiya_turu)).fetchall()
+    out = []
+    for r in rows:
+        if kayit_hatti(r['robot_no'], r['istasyon']) not in TK1_MONTAJ_RAPOR_EK_MASALAR:
+            continue
+        d = dict(r)
+        d['referans_kodu'] = tel_ek_ayikla(r['referans_kodu'] or '') or (r['referans_kodu'] or '')
+        out.append(d)
+    return out
+
+
+def _rapor_duruslari(conn, tarih, vardiya_turu, bolum, lokasyon):
+    """Günlük raporun 2. sayfası (kullanıcı 2026-09-08): o gün/vardiya/bölüm/
+    tesisteki duruşlar. Saat: zaman damgası (baslangic_ts/bitis_ts) varsa
+    ondan, yoksa operatörün yazdığı başlangıç saati + süre. Sıra: hat, saat."""
+    try:
+        rows = conn.execute("""
+            SELECT v.robot_no, v.operator_adi, d.durus_sebebi, COALESCE(d.aciklama,'') aciklama,
+                   COALESCE(d.sure_dk,0) sure_dk, COALESCE(d.baslangic_saati,'') baslangic_saati,
+                   COALESCE(d.durus_tipi,'plansiz') durus_tipi,
+                   COALESCE(d.baslangic_ts,'') baslangic_ts, COALESCE(d.bitis_ts,'') bitis_ts
+            FROM duruslar d JOIN vardiyalar v ON v.id = d.vardiya_id
+            WHERE v.tarih = ?
+              AND UPPER(REPLACE(REPLACE(v.vardiya_turu,'ü','u'),'Ü','U')) =
+                  UPPER(REPLACE(REPLACE(?,'ü','u'),'Ü','U'))
+              AND COALESCE(v.bolum,'kaynak') = ?
+              AND COALESCE(v.lokasyon,'TK2') = ?
+            ORDER BY v.robot_no, COALESCE(NULLIF(d.baslangic_ts,''), d.baslangic_saati), d.id
+        """, (tarih, vardiya_turu, bolum, lokasyon or 'TK2')).fetchall()
+    except Exception as e:
+        print(f'[RAPOR] duruş listesi okunamadı: {e}')
+        return []
+    out = []
+    for r in rows:
+        bas = (r['baslangic_ts'] or '')[11:16] or (r['baslangic_saati'] or '')[:5]
+        bit = (r['bitis_ts'] or '')[11:16]
+        if not bit and bas and r['sure_dk']:
+            try:
+                t0 = datetime.strptime(bas, '%H:%M')
+                bit = (t0 + timedelta(minutes=int(r['sure_dk']))).strftime('%H:%M')
+            except ValueError:
+                bit = ''
+        out.append({'hat': r['robot_no'] or '', 'operator': r['operator_adi'] or '',
+                    'sebep': r['durus_sebebi'] or '', 'aciklama': r['aciklama'] or '',
+                    'sure_dk': int(r['sure_dk'] or 0), 'tip': r['durus_tipi'] or 'plansiz',
+                    'baslangic': bas, 'bitis': bit})
+    return out
+
+
 @app.route('/api/rapor/gunluk_detay', methods=['GET'])
 def gunluk_rapor_detay():
     """Belirli bir tarih, vardiya ve bolum icin uretim detaylarini getirir.
@@ -8660,7 +8746,13 @@ def gunluk_rapor_detay():
         else:
             sql += " GROUP BY v.robot_no, v.operator_adi, u.referans_kodu ORDER BY v.robot_no, v.operator_adi"
         rows = conn.execute(sql, params).fetchall()
-        conn.close()
+        # get_db() istek kapsamlıdır — burada KAPATILMAZ (teardown kapatır);
+        # aşağıdaki duruş sorgusu da aynı bağlantıyı kullanır.
+
+        # TK1 MONTAJ + SON MONTAJ 4/5 (kullanıcı 2026-09-08): tel bölümünde
+        # kayıtlı iki masa montaj raporunun sonuna eklenir (yalnız rapor).
+        if lokasyon == 'TK1' and bolum == 'montaj' and not (adim_filtre or hat_filtre):
+            rows = list(rows) + _tk1_montaj_ek_satirlar(conn, tarih, vardiya_turu)
 
         # ── ALT GRUP SÜZGECİ (2026-08-21) ───────────────────────────────────
         # Adım, kaydın istasyonundan türüyor (istasyon → makine → tel adımı);
@@ -8796,11 +8888,19 @@ def gunluk_rapor_detay():
                 'adim_toplam': _adim_toplam,
             }
 
+        # ── DURUŞLAR (kullanıcı 2026-09-08): "TK1'de günlük üretim raporu
+        # paylaşılırken ayrı bir sayfada duruşlar, duruş saatleri ve açıklamaları
+        # da yazsın." Aynı gün/vardiya/bölüm/tesisin duruş kayıtları; 2. sayfa
+        # kararı istemcide (rapor.html yalnız TK1'de ikinci görsel üretir).
+        duruslar = _rapor_duruslari(conn, tarih, vardiya_turu, bolum, lokasyon)
+
         return jsonify({
             'tarih':   tarih,
             'vardiya': vardiya_turu,
             'bolum':   bolum,
             'siralama': robot_listesi,
+            'duruslar': duruslar,
+            'durus_toplam_dk': sum(int(d.get('sure_dk') or 0) for d in duruslar),
             'adim_kirilimi': adim_kirilimi,
             # Alt grup seçicisi için: o gün GERÇEKTEN çalışılmış adımlar
             # (22 hattın tamamını listelemek seçiciyi kullanışsız yapar).
@@ -8809,8 +8909,8 @@ def gunluk_rapor_detay():
             'data':    rapor_data,
         })
     except Exception as e:
-        if 'conn' in locals():
-            conn.close()
+        # get_db() istek kapsamlı; burada kapatmak aynı istekteki sonraki
+        # okumayı 'closed database' ile düşürürdü — teardown kapatır.
         return jsonify({'hata': f'Rapor hatasi: {str(e)}'}), 500
 
 
@@ -9019,8 +9119,19 @@ def rapor_vardiya_listesi():
             params.append(lokasyon)
         sql += " ORDER BY vardiya_turu"
         rows = conn.execute(sql, params).fetchall()
-        conn.close()
-        return jsonify([r['vardiya_turu'] for r in rows])
+        turler = [r['vardiya_turu'] for r in rows]
+        # TK1 montaj raporu Son Montaj 4/5 masalarını (tel) da kapsar: o gün
+        # montaj vardiyası yokken yalnız bu masalarda üretim varsa rapor yine
+        # açılabilsin (bkz. TK1_MONTAJ_RAPOR_EK_MASALAR).
+        if lokasyon == 'TK1' and bolum == 'montaj':
+            for r in conn.execute(
+                    "SELECT DISTINCT v.vardiya_turu FROM vardiyalar v "
+                    "JOIN uretim_kayitlari u ON u.vardiya_id = v.id "
+                    "WHERE v.tarih = ? AND COALESCE(v.bolum,'kaynak') = 'tel' "
+                    "  AND COALESCE(v.lokasyon,'TK2') = 'TK1' ORDER BY v.vardiya_turu", (tarih,)).fetchall():
+                if r['vardiya_turu'] not in turler and _tk1_montaj_ek_satirlar(conn, tarih, r['vardiya_turu']):
+                    turler.append(r['vardiya_turu'])
+        return jsonify(turler)
     except Exception as e:
         return jsonify({'hata': str(e)}), 500
 

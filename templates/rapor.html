@@ -76,6 +76,7 @@
     .bolum-pill.lazer  { background: rgba(6,182,212,.15);  color: #67e8f9; border:1px solid rgba(6,182,212,.4); }
     .bolum-pill.pres   { background: rgba(236,72,153,.15); color: #f9a8d4; border:1px solid rgba(236,72,153,.4); }
     .bolum-pill.plastik { background: rgba(168,85,247,.15); color: #d8b4fe; border:1px solid rgba(168,85,247,.4); }
+    .bolum-pill.tel     { background: rgba(245,158,11,.15); color: #fcd34d; border:1px solid rgba(245,158,11,.4); }
 
     /* ── FİLTRE BARI ── */
     .toolbar {
@@ -193,30 +194,28 @@
     tbody.robot-group { border-bottom: 2px solid #0f172a; }
     tbody.robot-group:last-child { border-bottom: none; }
 
-    /* ── ÜRÜN BAZLI ADIM TABLOSU (tel, 2026-08-18) ──────────────────────
-       Aynı ürünün adımları AYRI SATIR değil AYRI KOLON: '100 kapama + 100 son
-       montaj' toplanıp 200 ürün sanılmasın. Satır = ürün, kolon = proses adımı. */
-    .urun-blok { margin-bottom: 14px; }
-    .urun-blok .ub-baslik {
-      background: #0f172a; color: #f9d71c; font-weight: 900; font-size: 12px;
-      padding: 8px 10px; letter-spacing: .04em;
+    /* ── 2. SAYFA: DURUŞLAR (TK1, kullanıcı 2026-09-08) ────────────────
+       "Günlük üretim raporu paylaşılırken ayrı bir sayfada duruşlar, duruş
+       saatleri ve duruş açıklamaları da yazsın." Üretim tablosuyla aynı
+       tablo dili; paylaşımda AYRI görsel olarak gider. (Ürün bazlı adım
+       bloğu aynı gün kaldırıldı — kullanıcı: "görünmesine gerek yok".) */
+    .sayfa-etiket { font-size: .72rem; color: var(--muted); font-weight: 700; margin: 12px 2px 5px; }
+    #durus-wrap {
+      background: #fff; color: #000; border-radius: 12px;
+      border: 1px solid var(--line); overflow: hidden;
     }
-    .urun-blok .ub-not {
-      background: #fffbeb; color: #78350f; font-size: 10.5px; font-weight: 600;
-      padding: 7px 10px; border-bottom: 1px solid #fde68a; line-height: 1.45;
-    }
-    table.urun { width: 100%; border-collapse: collapse; }
-    table.urun td, table.urun th {
-      border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 11px;
-      text-align: center; color: #0f172a; background: #fff;
-    }
-    table.urun th { background: #e2e8f0; font-weight: 800; font-size: 10px; }
-    table.urun td.u-ref { text-align: left; font-weight: 800; font-size: 10.5px; }
-    table.urun td.u-adet { background: var(--c-adet); font-weight: 800; }
-    table.urun td.u-bos { background: #f8fafc; color: #cbd5e1; }
-    table.urun tfoot td { background: #0f172a; color: #f9d71c; font-weight: 900; }
-    table.urun tfoot td.u-adet { background: #1e293b; color: #f9d71c; }
-    .urun-blok .ub-op { font-size: 9px; color: #64748b; font-weight: 600; display: block; }
+    .r-head-durus { background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); }
+    table.durus { min-width: 540px; }
+    table.durus td { text-align: left; padding-left: 8px; }
+    table.durus .d-saat { font-weight: 800; white-space: nowrap; font-size: 11px; }
+    table.durus .d-sure { background: #fde68a !important; font-weight: 800; text-align: center; white-space: nowrap; }
+    table.durus .d-op { font-size: 9.5px; color: #64748b; font-weight: 600; }
+    table.durus .d-sebep { font-weight: 800; font-size: 10.5px; }
+    table.durus .d-acik { font-size: 10.5px; }
+    table.durus tr.d-planli td { background: #f8fafc; color: #475569; }
+    table.durus tr.d-planli .d-sure { background: #e2e8f0 !important; }
+    table.durus tr.d-bos td { background: #f8fafc; color: #94a3b8; font-style: italic; padding: 12px 8px; }
+    tfoot.r-toplam .t-durus { background: #fde68a !important; color: #0f172a !important; text-align: center; }
 
     /* Toplam satırı */
     tfoot.r-toplam td {
@@ -256,7 +255,11 @@
 
     /* Mobil incelmesi */
     @media (max-width: 480px) {
-      .topbar h1 { font-size: .92rem; }
+      /* Uzun bölüm adı (Plastik Enjeksiyon, Tel Üretimi) rozetle yan yana
+         sığmıyor, başlık harf harf kırılıyordu → başlık ikinci satıra iner. */
+      .topbar { flex-wrap: wrap; }
+      .topbar h1 { font-size: .92rem; flex: 1 1 100%; order: 10; }
+      .topbar .bolum-pill { margin-left: auto; }
       .toolbar { grid-template-columns: 1fr 1fr; }
       .btn-yukle { grid-column: span 2; }
       .r-head { flex-direction: column; align-items: flex-start; gap: 4px; }
@@ -341,6 +344,10 @@ const aktifLokasyon = (function () {
   return (l === 'TK1') ? 'TK1' : 'TK2';
 })();
 
+// 2. SAYFA: DURUŞLAR (kullanıcı 2026-09-08) — yalnız TK1 raporlarında; paylaşımda
+// üretim tablosundan AYRI bir görsel olarak gider (WhatsApp'ta iki resim).
+const DURUS_SAYFASI = (aktifLokasyon === 'TK1');
+
 
 // Sayfayı bölüme göre etiketle
 (function () {
@@ -370,36 +377,53 @@ function formatTarih(s){
 function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ── ÜRÜN BAZLI ADIM TABLOSU (tel, kullanıcı 2026-08-18) ────────────────────
-// "100 adet halat kapama, 100 adet son montaj toplam 200 ürün olarak anlaşılır mı?"
-// Evet, anlaşılırdı — bu tablo onu yapısal olarak imkânsız kılar: satır ÜRÜN,
-// kolon ADIM. Bir ürünün satırındaki sayılar TOPLANMAZ, o ürünün hangi adımlardan
-// kaç adet geçtiğini gösterir. Alt satır adım bazlı toplamdır (kolon içi toplanır).
-function urunBlokHtml(ak) {
-  const adimlar = ak.adimlar || [];
-  let h = `<div class="urun-blok">
-    <div class="ub-baslik">ÜRÜN BAZLI ÜRETİM — ADIM KIRILIMI</div>
-    <div class="ub-not">Satır = ürün, kolon = proses adımı.
-      Bir satırdaki sayılar <b>toplanmaz</b>: aynı parçanın geçtiği adımları gösterir.
-      Örn. bir üründe Kapama 100 + Son Montaj 100 → <b>200 değil, 100 parça</b>
-      (100 parça iki adımdan geçmiştir).</div>
+// ── 2. SAYFA: DURUŞLAR (kullanıcı 2026-09-08) ──
+// Saat = başlangıç – bitiş (zaman damgası varsa ondan, yoksa operatörün yazdığı
+// saat + süre); planlı molalar soluk. Boş liste de bir bilgidir: sayfa yine
+// üretilir ("duruş kaydı yok") ki rapor biçimi her gün aynı kalsın.
+function durusSayfasiHtml(veri, tarih, vardiya) {
+  if (!DURUS_SAYFASI) return '';
+  const bilgi = BOLUM_BILGI[aktifBolum];
+  const list = veri.duruslar || [];
+  const toplam = veri.durus_toplam_dk || 0;
+  let h = `<div class="sayfa-etiket">📄 2. sayfa — paylaşımda ayrı görsel olarak gider</div>
+  <div id="durus-wrap">
+    <div class="r-head r-head-durus">
+      <div class="r-title"><span class="ico">⏸</span><span>${esc(bilgi.ad.toUpperCase())} — DURUŞLAR</span></div>
+      <div class="r-meta">
+        <div>Vardiya: <b>${esc(vardiya)}</b></div>
+        <div>${formatTarih(tarih)}</div>
+      </div>
+    </div>
     <div class="rapor-scroll">
-    <table class="urun">
-      <thead><tr><th style="text-align:left">ÜRÜN (REFERANS)</th>`;
-  adimlar.forEach(function (a) { h += `<th>${esc(a).toUpperCase()}</th>`; });
-  h += `</tr></thead><tbody>`;
-  (ak.satirlar || []).forEach(function (r) {
-    h += `<tr><td class="u-ref">${esc(r.referans)}</td>`;
-    adimlar.forEach(function (a) {
-      const v = (r.adet || {})[a];
-      if (v === undefined || v === null) { h += `<td class="u-bos">—</td>`; return; }
-      const op = (r.operatorler || {})[a] || '';
-      h += `<td class="u-adet">${v}<span class="ub-op">${esc(op)}</span></td>`;
-    });
-    h += `</tr>`;
+    <table class="rapor durus">
+      <colgroup>
+        <col style="width:96px">
+        <col style="width:58px">
+        <col style="width:118px">
+        <col style="width:130px">
+        <col>
+      </colgroup>
+      <thead class="r-col-hdr">
+        <tr><td>SAAT</td><td>SÜRE</td><td>OPERATÖR</td><td>DURUŞ SEBEBİ</td><td>AÇIKLAMA</td></tr>
+      </thead><tbody>`;
+  if (!list.length) {
+    h += `<tr class="d-bos"><td colspan="5">Bu vardiyada duruş kaydı yok.</td></tr>`;
+  }
+  list.forEach(function (d) {
+    const saat = d.baslangic ? (d.baslangic + (d.bitis ? ' – ' + d.bitis : '')) : '—';
+    h += `<tr class="${d.tip === 'planli' ? 'd-planli' : ''}">
+      <td class="d-saat">${esc(saat)}</td>
+      <td class="d-sure">${d.sure_dk || 0} dk</td>
+      <td class="c-op">${esc(d.operator)}<br><span class="d-op">${esc(d.hat)}</span></td>
+      <td class="d-sebep">${esc(d.sebep)}${d.tip === 'planli' ? ' <span class="d-op">(planlı)</span>' : ''}</td>
+      <td class="d-acik">${esc(d.aciklama) || '—'}</td>
+    </tr>`;
   });
-  h += `</tbody><tfoot><tr><td style="text-align:right">ADIM TOPLAMI</td>`;
-  adimlar.forEach(function (a) { h += `<td class="u-adet">${(ak.adim_toplam || {})[a] || 0}</td>`; });
-  h += `</tr></tfoot></table></div></div>`;
+  h += `</tbody><tfoot class="r-toplam"><tr>
+      <td colspan="4" style="text-align:right;padding-right:10px">TOPLAM DURUŞ (${list.length} kayıt)</td>
+      <td class="t-durus">${toplam} dk</td>
+    </tr></tfoot></table></div></div>`;
   return h;
 }
 
@@ -505,9 +529,9 @@ function renderTablo(veri, tarih, vardiya){
 
   let toplamAdet = 0, toplamTamir = 0, toplamHurda = 0;
 
-  // TEL: aynı ürünün adımları toplanıp çift sayılmasın diye ÜRÜN BAZLI blok.
-  // Aşağıdaki operatör/adım tablosu "kim ne yaptı"yı gösterir; ürün adedi BU
-  // tablodan okunur (satır = ürün, kolon = adım).
+  // TEL: ürün bazlı adım bloğu KALDIRILDI (kullanıcı 2026-09-08: "ürün bazlı
+  // üretim özeti kısmını silelim, görünmesine gerek yok"). Adım kırılımı yalnız
+  // alt toplam satırında kalır — tel'de TEK genel toplam yine yazılmaz.
   const ak = veri.adim_kirilimi;
   const telModu = !!(ak && ak.satirlar && ak.satirlar.length);
 
@@ -519,7 +543,6 @@ function renderTablo(veri, tarih, vardiya){
         <div>${tarihL}</div>
       </div>
     </div>
-    ${telModu ? urunBlokHtml(ak) : ''}
     <div class="rapor-scroll">
     <table class="rapor">
       <colgroup>
@@ -591,14 +614,14 @@ function renderTablo(veri, tarih, vardiya){
     </div>
   </div>`;
 
-  document.getElementById('rapor-icerik').innerHTML = html;
+  document.getElementById('rapor-icerik').innerHTML = html + durusSayfasiHtml(veri, tarih, vardiya);
 }
 
 // ── Canvas yakala ──
 // Mobilde tablo viewport'u aşıp .rapor-scroll içinde yatay kaydığı için, capture sırasında
 // kapsayıcıyı tablonun tam genişliğine geçici olarak büyütüyoruz — yoksa görsel kesik olur.
-async function yakalaCanvas(){
-  const wrap = document.getElementById('rapor-wrap');
+async function yakalaCanvas(wrapId){
+  const wrap = document.getElementById(wrapId || 'rapor-wrap');
   if (!wrap) return null;
   const scroll = wrap.querySelector('.rapor-scroll');
   const tablo  = wrap.querySelector('table.rapor');
@@ -626,31 +649,48 @@ async function yakalaCanvas(){
   }
 }
 
+// ── Rapor görselleri: 1. sayfa üretim, (TK1) 2. sayfa duruşlar ──
+async function raporGorselleri(){
+  const out = [];
+  const c1 = await yakalaCanvas('rapor-wrap');
+  if (!c1) throw new Error('Tablo oluşturulamadı');
+  out.push({ ad: 'uretim_raporu.png', canvas: c1 });
+  if (document.getElementById('durus-wrap')) {
+    const c2 = await yakalaCanvas('durus-wrap');
+    if (c2) out.push({ ad: 'duruslar.png', canvas: c2 });
+  }
+  return out;
+}
+
 // ── WhatsApp paylaş ──
+// İki sayfa varsa iki dosya birlikte paylaşılır (WhatsApp tek mesajda iki resim).
 async function wpPaylas(){
   const btn = document.getElementById('btn-wp');
   const orijinal = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '⏳ Hazırlanıyor...';
   try {
-    const canvas = await yakalaCanvas();
-    if (!canvas) throw new Error('Tablo oluşturulamadı');
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-    const file = new File([blob], 'uretim_raporu.png', { type:'image/png' });
+    const gorseller = await raporGorselleri();
+    const files = [];
+    for (const g of gorseller) {
+      const blob = await new Promise(res => g.canvas.toBlob(res, 'image/png'));
+      files.push(new File([blob], g.ad, { type:'image/png' }));
+    }
+    const baslik = `${BOLUM_BILGI[aktifBolum].ad} — Günlük Üretim Raporu`;
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files:[file] })) {
-      await navigator.share({
-        files: [file],
-        title: `${BOLUM_BILGI[aktifBolum].ad} — Günlük Üretim Raporu`,
-        text:  `${BOLUM_BILGI[aktifBolum].ad} — Günlük Üretim Raporu`
-      });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files })) {
+      await navigator.share({ files, title: baslik, text: baslik });
     } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'uretim_raporu.png'; a.click();
-      URL.revokeObjectURL(url);
-      setTimeout(() => window.open('https://web.whatsapp.com', '_blank'), 800);
-      alert('Resim indirildi.\nWhatsApp\'ta gruba gönderebilirsiniz.');
+      files.forEach(function (f, i) {
+        setTimeout(function () {
+          const url = URL.createObjectURL(f);
+          const a = document.createElement('a');
+          a.href = url; a.download = f.name; a.click();
+          URL.revokeObjectURL(url);
+        }, i * 400);
+      });
+      setTimeout(() => window.open('https://web.whatsapp.com', '_blank'), 800 + files.length * 400);
+      alert((files.length > 1 ? files.length + ' resim indirildi.' : 'Resim indirildi.') + '\nWhatsApp\'ta gruba gönderebilirsiniz.');
     }
   } catch (e) {
     if (e.name !== 'AbortError') alert('Paylaşım hatası: ' + e.message);
@@ -666,11 +706,14 @@ async function gorselKaydet(){
   const orijinal = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '⏳ Kaydediliyor...';
   try {
-    const canvas = await yakalaCanvas();
-    if (!canvas) throw new Error('Tablo oluşturulamadı');
-    const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/png');
-    a.download = 'uretim_raporu.png'; a.click();
+    const gorseller = await raporGorselleri();
+    gorseller.forEach(function (g, i) {
+      setTimeout(function () {
+        const a = document.createElement('a');
+        a.href = g.canvas.toDataURL('image/png');
+        a.download = g.ad; a.click();
+      }, i * 400);
+    });
   } catch (e) {
     alert('Hata: ' + e.message);
   } finally {

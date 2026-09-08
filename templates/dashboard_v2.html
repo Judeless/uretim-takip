@@ -1142,6 +1142,14 @@
             min-height: 40px; min-width: 140px; cursor: pointer;
         }
         .ky-filtre select:focus { border-color: var(--primary); }
+        /* Referans süzgeci (2026-09-08): seçim kutularıyla aynı görünüm */
+        .ky-filtre .ky-ref-input {
+            background: var(--bg); color: var(--text); border: 1px solid var(--border);
+            border-radius: 10px; padding: 9px 12px; font-family: var(--font-main);
+            font-size: 0.84rem; font-weight: 600; outline: none;
+            min-height: 40px; min-width: 150px; width: 170px;
+        }
+        .ky-filtre .ky-ref-input:focus { border-color: var(--primary); }
 
         .alt-sekme-bar {
             display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px;
@@ -5512,6 +5520,14 @@ window.__I18N_SOZLUK__ = {
                             <div class="cs-panel" id="cs-adim-panel"></div>
                         </div>
                     </div>
+                    <!-- REFERANS (kullanıcı 2026-09-08): parça kodu süzgeci. Üretim
+                         listelerini İSTEMCİDE süzer (parça eşleşme, boşluk/harf duyarsız);
+                         Excel'e aynı parametre gider. Duruş/vardiya panellerine uygulanmaz
+                         (duruş kaydının referansı yoktur). -->
+                    <div class="f-group">
+                        <label for="f-referans">Referans</label>
+                        <input type="text" id="f-referans" class="ky-ref-input" placeholder="örn. 94.PBL.83" autocomplete="off" oninput="kayitYenidenCiz()">
+                    </div>
                     <button class="btn btn-primary" onclick="yukleKayitlar()">🔍 Filtrele</button>
                     <button class="btn" onclick="kayitlarExcelIndir()" id="ky-excel-btn"
                         title="Ekrandaki filtrelerle aynı küme iner — seçili bölümler, makineler ve proses adımları"
@@ -8990,11 +9006,21 @@ window.__I18N_SOZLUK__ = {
         // ── SÜZME (istemcide) ─────────────────────────────────────────────
         function kayitSuz(liste) {
             var mk = csSecili('makine'), ad = csSecili('adim');
+            var ref = kyRefSuzgec();
             return (liste || []).filter(function (u) {
                 if (mk.length && mk.indexOf(kyMakineAnahtar(u)) === -1) return false;
                 if (ad.length && ad.indexOf(kyGrupAnahtar(u)) === -1) return false;
+                if (ref && kyRefNorm(u.referans_kodu).indexOf(ref) === -1) return false;
                 return true;
             });
+        }
+        // Referans süzgeci (2026-09-08): boşluksuz + büyük harf, PARÇA eşleşme —
+        // '94.pbl 83' hem '94.PBL.83/10' hem '94.PBL.83/10A' kayıtlarını bulur.
+        // Sunucu (_kayit_ref_norm) aynı kuralı uygular: ekran = Excel.
+        function kyRefNorm(s) { return String(s || '').replace(/\s+/g, '').toUpperCase(); }
+        function kyRefSuzgec() {
+            var el = document.getElementById('f-referans');
+            return kyRefNorm(el ? el.value : '');
         }
         // Vardiya satırı seçili makinelerden birini kullanmış mı? Vardiyanın
         // makine listesi boşsa hattın kendisi makinedir (kaynak/metal…).
@@ -9047,7 +9073,8 @@ window.__I18N_SOZLUK__ = {
                     '&bolum=' + encodeURIComponent(kyBolumler().join(',')) +
                     (mk.length ? '&makineler=' + encodeURIComponent(mk.join(',')) : '') +
                     (ad.length ? '&gruplar=' + encodeURIComponent(
-                        ad.map(function (x) { return x.split('|')[1]; }).join(',')) : '');
+                        ad.map(function (x) { return x.split('|')[1]; }).join(',')) : '') +
+                    (kyRefSuzgec() ? '&referans=' + encodeURIComponent(kyRefSuzgec()) : '');
             window.location.href = u;
         }
 
