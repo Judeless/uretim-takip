@@ -16,11 +16,11 @@ SÖZLEŞME (IT'nin maili):
   · ŞİMDİLİK TEST VERİTABANI: hareket COFLETKPR'ye düşer, üretim BMMAF0'da
     GÖRÜNMEZ. Doğrulama = MGSTAT + hareket no.
 
-SATIRI GERİ BULMA: tabloda bizim kaydımızı taşıyan bir alan HENÜZ yok
-(Simone'ye soruldu). O gelene kadar satır INSERT'ten hemen sonra RRN
-(relative record number) ile bulunur: aynı kod/causal/adet/tarih + MGSTAT boş
-olan EN SON satır. Aynı anda iki INSERT olmasın diye modül kilidi var.
-Bizim ID alanı gelince `referans_kolonu` ayarıyla ona geçilir.
+SATIRI GERİ BULMA (Simone 2026-09-08): kendi kaydımız **MGSTE2** alanına
+yazılır (kolon uzunluğu SYSCOLUMNS'tan; uzunsa kırpılır). Satır INSERT'ten
+sonra MGSTE2 + diğer alanlarla, EN SON RRN olarak bulunur; mükerrer freni de
+önce MGSTE2'ye bakar. Tabloda MGSTE2 yoksa (başka kurulum) eski yol: yalnız
+alanlar + RRN. Aynı anda iki INSERT olmasın diye modül kilidi var.
 
 ODBC: mevcut okuma bağlantısıyla aynı (as400_config), tek fark INSERT yetkisi
 — COFLEFORGE kütüphanesine IT verdi. Başka hiçbir tabloya yazılmaz.
@@ -35,6 +35,7 @@ import as400_config as CFG
 KUTUPHANE = 'COFLEFORGE'
 TABLO = 'BMMAF0I'
 TARIH_KOLONLARI = ('MGDSSO', 'MGDAAO', 'MGDMMO', 'MGDGGO')
+REFERANS_KOLONU = 'MGSTE2'       # bizim kayit anahtarimiz (Simone Rota, 2026-09-08)
 DURUM_KOLONLARI = ('MGSTAT', 'MGNOTE', 'MGTIME', 'MGSERE', 'MGANRE', 'MGNURE', 'MGPRRE')
 _AD = re.compile(r'^[A-Z][A-Z0-9_]{0,9}$')       # kütüphane/tablo/kolon adı — SQL'e ham giriyor
 _KILIT = threading.Lock()
@@ -162,6 +163,16 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
         alanlar = {'MGARCD': article, 'MGCACD': causal, 'MGMGCD': wh, 'MGMCCD': cp, 'MGQTA': adet_f}
         if tarih and all(c in mevcut_kolonlar for c in TARIH_KOLONLARI):
             alanlar.update(dict(zip(TARIH_KOLONLARI, tarih)))
+        # Kendi kaydımız (MGSTE2): satırı geri bulmak + mükerrer freni. Kolon
+        # uzunluğunu aşarsa kırpılır (SYSCOLUMNS LENGTH).
+        ref = str(referans or '').strip()
+        if ref and REFERANS_KOLONU in mevcut_kolonlar:
+            uz = next((c.get('uzunluk') for c in kolonlar(k, t, cn=cn) if c['ad'] == REFERANS_KOLONU), None)
+            try:
+                uz = int(uz or 0)
+            except (TypeError, ValueError):
+                uz = 0
+            alanlar[REFERANS_KOLONU] = ref[:uz] if uz else ref
 
         with _KILIT:
             cur = cn.cursor()
@@ -175,6 +186,9 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
                 if 'MGDGGO' in alanlar:
                     kosul += " AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? AND MGDGGO=?"
                     par += list(tarih)
+                if REFERANS_KOLONU in alanlar:
+                    kosul += f" AND {REFERANS_KOLONU}=?"
+                    par.append(alanlar[REFERANS_KOLONU])
                 var = cur.execute(f"SELECT RRN(x), MGSTAT FROM {k}.{t} x WHERE {kosul} "
                                   f"ORDER BY RRN(x) DESC FETCH FIRST 1 ROW ONLY", par).fetchone()
                 if var:
@@ -239,8 +253,8 @@ def son_satirlar(n=20, kutuphane=KUTUPHANE, tablo=TABLO, cn=None):
     try:
         mevcut = {c['ad'] for c in kolonlar(k, t, cn=cn)}
         secim = [c for c in ('MGARCD', 'MGCACD', 'MGMGCD', 'MGMCCD', 'MGQTA', 'MGDSSO', 'MGDAAO',
-                             'MGDMMO', 'MGDGGO', 'MGSTAT', 'MGNOTE', 'MGSERE', 'MGANRE', 'MGNURE',
-                             'MGPRRE', 'MGTIME') if c in mevcut]
+                             'MGDMMO', 'MGDGGO', REFERANS_KOLONU, 'MGSTAT', 'MGNOTE', 'MGSERE',
+                             'MGANRE', 'MGNURE', 'MGPRRE', 'MGTIME') if c in mevcut]
         rows = cn.cursor().execute(
             f"SELECT RRN(x), {', '.join(secim)} FROM {k}.{t} x ORDER BY RRN(x) DESC "
             f"FETCH FIRST {int(n)} ROWS ONLY").fetchall()

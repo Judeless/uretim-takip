@@ -10227,11 +10227,19 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
     aranır (canlıda). Zaman aşımında satır tabloda DURUR — mesaj RRN verir,
     panelden "son satırlar" ile takip edilir; tekrar gönderim mükerrer freni
     (aynı kod/causal/adet/tarih) sayesinde ikinci satır AÇMAZ."""
+    # MGSTE2 anahtarı: causal + üretim günü + kod + adet — aynı gönderim tekrar
+    # denenince AYNI anahtar üretilir (mükerrer freni buna da bakar), farklı
+    # adet/gün farklı anahtar. Örn. 'CFI-260908-10.300.1866-10W-53'.
+    try:
+        _adet_s = str(int(round(float(adet))))
+    except (TypeError, ValueError):
+        _adet_s = str(adet)
+    anahtar = f"{causal}-{str(u_tarih or '')[2:].replace('-', '')}-{article}-{_adet_s}"
     try:
         _ai = _as400_import_modulu()
         r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp,
                             uretim_tarihi=(u_tarih if imp.get('tarih_gonder') else None),
-                            referans=referans, kutuphane=imp.get('kutuphane') or 'COFLEFORGE',
+                            referans=anahtar, kutuphane=imp.get('kutuphane') or 'COFLEFORGE',
                             tablo=imp.get('tablo') or 'BMMAF0I',
                             bekleme_sn=int(imp.get('bekleme_sn') or 60), zorla=zorla)
     except Exception as e:
@@ -10379,7 +10387,7 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         _imp = (_oto_config().get('cfi_import') or {})
         if _imp.get('etkin') and not _imp.get('canli_onay'):
             print('[CFI-IMPORT] etkin ama canli_onay yok — IT programı test veritabanında; robot yolu kullanılıyor')
-        if _imp.get('etkin') and _imp.get('canli_onay'):
+        if _imp.get('etkin') and _imp.get('canli_onay') and 'CFI' in (_imp.get('causals') or ['CFI']):
             sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'CFI', _wh, _cp, u_tarih, referans, _imp, zorla)
             if sonuc == 'ok':
                 mesaj += _is_emri_dus_router(conn, referans, adet)
@@ -10598,7 +10606,7 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         _imp = (_oto_config().get('cfi_import') or {})
         if _imp.get('etkin') and not _imp.get('canli_onay'):
             print('[CFI-IMPORT] etkin ama canli_onay yok — IT programı test veritabanında; robot yolu kullanılıyor')
-        if _imp.get('etkin') and _imp.get('canli_onay'):
+        if _imp.get('etkin') and _imp.get('canli_onay') and 'COP' in (_imp.get('causals') or ['CFI']):
             # COP: karşı depo BOŞ (kullanıcı 2026-07-23), depo TK2 varsayılanı
             sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'COP', CFI_VARSAYILAN_DEPO[0], '',
                                                   u_tarih, referans, _imp, zorla)
@@ -10647,7 +10655,7 @@ def as400_import_durum():
            'aktif': bool(imp.get('etkin') and imp.get('canli_onay')),
            'kutuphane': imp.get('kutuphane'), 'tablo': imp.get('tablo'),
            'bekleme_sn': imp.get('bekleme_sn'), 'dogrulama_bmmaf0': bool(imp.get('dogrulama_bmmaf0')),
-           'tarih_gonder': bool(imp.get('tarih_gonder'))}
+           'tarih_gonder': bool(imp.get('tarih_gonder')), 'causals': imp.get('causals') or ['CFI']}
     try:
         _ai = _as400_import_modulu()
         if request.args.get('kolon'):
@@ -10685,6 +10693,7 @@ def as400_import_deneme():
         _ai = _as400_import_modulu()
         r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp,
                             uretim_tarihi=str(d.get('uretim_tarihi') or '') or None,
+                            referans=f"TEST-{datetime.now().strftime('%y%m%d%H%M%S')}-{article}",
                             kutuphane=imp.get('kutuphane') or 'COFLEFORGE', tablo=imp.get('tablo') or 'BMMAF0I',
                             bekleme_sn=int(d.get('bekleme_sn') or imp.get('bekleme_sn') or 60),
                             zorla=bool(d.get('zorla')))
@@ -11461,9 +11470,12 @@ _OTO_VARSAYILAN = {
     # tarih_gonder: ekran robotu hareket tarihini BUGÜN olarak girer; üretim
     # tarihini göndermek hareketi geçmişe tarihler (dönem/mükerrer kontrolü
     # etkilenir) — IT ile netleşene kadar kapalı, program bugünü alır.
+    # causals: programın kabul ettiği causal'lar (Simone 2026-09-08: "for the
+    # moment import program accepts just CFI"). Listede olmayan causal (COP)
+    # ekran robotuyla gitmeye devam eder; Stefano Cappello onaylayınca eklenir.
     'cfi_import':     {'etkin': False, 'canli_onay': False, 'kutuphane': 'COFLEFORGE',
                        'tablo': 'BMMAF0I', 'bekleme_sn': 60, 'dogrulama_bmmaf0': False,
-                       'tarih_gonder': False},
+                       'tarih_gonder': False, 'causals': ['CFI']},
 }
 
 
