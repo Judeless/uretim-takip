@@ -92,9 +92,19 @@ def _tarih_parcala(uretim_tarihi):
 
 
 def _hareket_no(r):
-    """MGSERE/MGANRE/MGNURE/MGPRRE → 'SERE/ANRE-NURE-PRRE' (boşlar atılır)."""
-    parcalar = [str(x).strip() for x in r if x is not None and str(x).strip() not in ('', '0')]
-    return '-'.join(parcalar)
+    """MGSERE/MGANRE/MGNURE/MGPRRE → ekrandaki gibi 'YY/NNN r.P'.
+    COFLETKPR 'Visualizzazione movimento' (2026-09-08): Nr Registrazione = 26 / 34,
+    Riga attuale = 10 → MGANRE=26 (yıl), MGNURE=34 (kayıt no), MGPRRE=10 (satır);
+    MGSERE=20 yüzyıl, gösterilmez."""
+    sere, anre, nure, prre = [(str(x).strip() if x is not None else '') for x in r]
+    def sayi(x):
+        try:
+            return str(int(float(x)))
+        except (TypeError, ValueError):
+            return x
+    if not nure or sayi(nure) == '0':
+        return ''
+    return f"{sayi(anre)}/{sayi(nure)}" + (f" r.{sayi(prre)}" if prre and sayi(prre) != '0' else '')
 
 
 def _satir_oku(cn, k, t, rrn):

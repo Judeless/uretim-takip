@@ -13988,7 +13988,9 @@ window.__I18N_SOZLUK__ = {
             panelFetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
               .then(function (res) {
                 var j = res.j, mod = document.getElementById('as4-imp-mod'), el = document.getElementById('as4-imp-liste');
-                if (mod) mod.textContent = (j.etkin ? '● AÇIK — CFI/COP import ile gidiyor' : '○ kapalı — ekran robotu kullanılıyor') +
+                if (mod) mod.textContent = (j.aktif ? '● AÇIK — CFI/COP import ile gidiyor'
+                    : (j.etkin ? '⚠ etkin ama canli_onay yok (IT programı TEST veritabanında) — robot kullanılıyor'
+                               : '○ kapalı — ekran robotu kullanılıyor')) +
                     ' · ' + (j.kutuphane || '?') + '.' + (j.tablo || '?');
                 if (!res.ok) { toast(j.hata || 'Import durumu okunamadı', 'error'); return; }
                 if (!el) return;

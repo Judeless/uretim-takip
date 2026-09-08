@@ -10229,7 +10229,8 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
     (aynı kod/causal/adet/tarih) sayesinde ikinci satır AÇMAZ."""
     try:
         _ai = _as400_import_modulu()
-        r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp, uretim_tarihi=u_tarih,
+        r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp,
+                            uretim_tarihi=(u_tarih if imp.get('tarih_gonder') else None),
                             referans=referans, kutuphane=imp.get('kutuphane') or 'COFLEFORGE',
                             tablo=imp.get('tablo') or 'BMMAF0I',
                             bekleme_sn=int(imp.get('bekleme_sn') or 60), zorla=zorla)
@@ -10376,7 +10377,9 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': _depo_hata})
             continue
         _imp = (_oto_config().get('cfi_import') or {})
-        if _imp.get('etkin'):
+        if _imp.get('etkin') and not _imp.get('canli_onay'):
+            print('[CFI-IMPORT] etkin ama canli_onay yok — IT programı test veritabanında; robot yolu kullanılıyor')
+        if _imp.get('etkin') and _imp.get('canli_onay'):
             sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'CFI', _wh, _cp, u_tarih, referans, _imp, zorla)
             if sonuc == 'ok':
                 mesaj += _is_emri_dus_router(conn, referans, adet)
@@ -10593,7 +10596,9 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
             continue
         _imp = (_oto_config().get('cfi_import') or {})
-        if _imp.get('etkin'):
+        if _imp.get('etkin') and not _imp.get('canli_onay'):
+            print('[CFI-IMPORT] etkin ama canli_onay yok — IT programı test veritabanında; robot yolu kullanılıyor')
+        if _imp.get('etkin') and _imp.get('canli_onay'):
             # COP: karşı depo BOŞ (kullanıcı 2026-07-23), depo TK2 varsayılanı
             sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'COP', CFI_VARSAYILAN_DEPO[0], '',
                                                   u_tarih, referans, _imp, zorla)
@@ -10638,8 +10643,11 @@ def as400_import_durum():
     """Import modu + tablo kolonları + son satırlar (panel kartı). ?kolon=1 ile
     QSYS2.SYSCOLUMNS okunur (salt okunur), ?son=N ile son N satır."""
     imp = _oto_config().get('cfi_import') or {}
-    out = {'etkin': bool(imp.get('etkin')), 'kutuphane': imp.get('kutuphane'), 'tablo': imp.get('tablo'),
-           'bekleme_sn': imp.get('bekleme_sn'), 'dogrulama_bmmaf0': bool(imp.get('dogrulama_bmmaf0'))}
+    out = {'etkin': bool(imp.get('etkin')), 'canli_onay': bool(imp.get('canli_onay')),
+           'aktif': bool(imp.get('etkin') and imp.get('canli_onay')),
+           'kutuphane': imp.get('kutuphane'), 'tablo': imp.get('tablo'),
+           'bekleme_sn': imp.get('bekleme_sn'), 'dogrulama_bmmaf0': bool(imp.get('dogrulama_bmmaf0')),
+           'tarih_gonder': bool(imp.get('tarih_gonder'))}
     try:
         _ai = _as400_import_modulu()
         if request.args.get('kolon'):
@@ -11446,8 +11454,16 @@ _OTO_VARSAYILAN = {
     # geri yazar). VARSAYILAN KAPALI: önce panelden deneme satırı, sonra
     # oto_config.json'da etkin:true. dogrulama_bmmaf0: test veritabanında
     # hareket üretim BMMAF0'da GÖRÜNMEZ → kapalı; canlıya geçince açılır.
-    'cfi_import':     {'etkin': False, 'kutuphane': 'COFLEFORGE', 'tablo': 'BMMAF0I',
-                       'bekleme_sn': 60, 'dogrulama_bmmaf0': False},
+    # canli_onay: IT programı ŞİMDİLİK TEST veritabanına (COFLETKPR) yazıyor.
+    # etkin:true yapılırsa 17:10 koşusu CFI/COP'u test DB'ye yazar, üretim
+    # ERP'de stok GİRİLMEZ — sessiz kayıp. canli_onay:true (IT canlıya aldı
+    # teyidiyle) olmadan etkin DİKKATE ALINMAZ.
+    # tarih_gonder: ekran robotu hareket tarihini BUGÜN olarak girer; üretim
+    # tarihini göndermek hareketi geçmişe tarihler (dönem/mükerrer kontrolü
+    # etkilenir) — IT ile netleşene kadar kapalı, program bugünü alır.
+    'cfi_import':     {'etkin': False, 'canli_onay': False, 'kutuphane': 'COFLEFORGE',
+                       'tablo': 'BMMAF0I', 'bekleme_sn': 60, 'dogrulama_bmmaf0': False,
+                       'tarih_gonder': False},
 }
 
 
