@@ -17,10 +17,13 @@ SÖZLEŞME (IT'nin maili):
     GÖRÜNMEZ. Doğrulama = MGSTAT + hareket no.
 
 SATIRI GERİ BULMA (Simone 2026-09-08): kendi kaydımız **MGSTE2** alanına
-yazılır (kolon uzunluğu SYSCOLUMNS'tan; uzunsa kırpılır). Satır INSERT'ten
-sonra MGSTE2 + diğer alanlarla, EN SON RRN olarak bulunur; mükerrer freni de
-önce MGSTE2'ye bakar. Tabloda MGSTE2 yoksa (başka kurulum) eski yol: yalnız
-alanlar + RRN. Aynı anda iki INSERT olmasın diye modül kilidi var.
+yazılır. Alan 15 KARAKTER (saha 2026-09-08: 'TEST-260908093640-…' →
+'TEST-2609081036' kesildi) — kod içeren bir anahtar sığmaz, o yüzden anahtar
+BURADA üretilir: 'F' + yymmddHHMMSS + 2 haneli sayaç = tam 15 karakter,
+süreç içinde benzersiz (kilit + sayaç). MGSTE2 satırı geri bulmak ve izlemek
+içindir; MÜKERRER FRENİ yalnız kod/causal/adet/tarih bileşimine bakar
+(anahtar her denemede yeni olduğu için ona bakılsaydı fren çalışmazdı).
+Tabloda MGSTE2 yoksa eski yol: alanlar + RRN.
 
 ODBC: mevcut okuma bağlantısıyla aynı (as400_config), tek fark INSERT yetkisi
 — COFLEFORGE kütüphanesine IT verdi. Başka hiçbir tabloya yazılmaz.
@@ -40,6 +43,13 @@ DURUM_KOLONLARI = ('MGSTAT', 'MGNOTE', 'MGTIME', 'MGSERE', 'MGANRE', 'MGNURE', '
 _AD = re.compile(r'^[A-Z][A-Z0-9_]{0,9}$')       # kütüphane/tablo/kolon adı — SQL'e ham giriyor
 _KILIT = threading.Lock()
 _KOLON_ONBELLEK = {}
+_ANAHTAR_SAYAC = [0]
+
+
+def anahtar_uret(onek='F'):
+    """MGSTE2 anahtarı: 'F' + yymmddHHMMSS + 2 haneli sayaç → 15 karakter."""
+    _ANAHTAR_SAYAC[0] = (_ANAHTAR_SAYAC[0] + 1) % 100
+    return f"{onek[:1]}{datetime.now().strftime('%y%m%d%H%M%S')}{_ANAHTAR_SAYAC[0]:02d}"
 
 
 def _ad(x, ne):
@@ -163,9 +173,11 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
         alanlar = {'MGARCD': article, 'MGCACD': causal, 'MGMGCD': wh, 'MGMCCD': cp, 'MGQTA': adet_f}
         if tarih and all(c in mevcut_kolonlar for c in TARIH_KOLONLARI):
             alanlar.update(dict(zip(TARIH_KOLONLARI, tarih)))
-        # Kendi kaydımız (MGSTE2): satırı geri bulmak + mükerrer freni. Kolon
-        # uzunluğunu aşarsa kırpılır (SYSCOLUMNS LENGTH).
+        # Kendi kaydımız (MGSTE2): satırı geri bulmak + izleme. Verilmezse 15
+        # karakterlik anahtar üretilir; kolon uzunluğunu aşarsa kırpılır.
         ref = str(referans or '').strip()
+        if not ref and REFERANS_KOLONU in mevcut_kolonlar:
+            ref = anahtar_uret()
         if ref and REFERANS_KOLONU in mevcut_kolonlar:
             uz = next((c.get('uzunluk') for c in kolonlar(k, t, cn=cn) if c['ad'] == REFERANS_KOLONU), None)
             try:
@@ -186,9 +198,8 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
                 if 'MGDGGO' in alanlar:
                     kosul += " AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? AND MGDGGO=?"
                     par += list(tarih)
-                if REFERANS_KOLONU in alanlar:
-                    kosul += f" AND {REFERANS_KOLONU}=?"
-                    par.append(alanlar[REFERANS_KOLONU])
+                # MGSTE2 koşula GİRMEZ: anahtar her denemede yeni; bileşik alanlar
+                # aynı olduğu sürece bu aynı gönderimdir ve yeniden YAZILMAZ.
                 var = cur.execute(f"SELECT RRN(x), MGSTAT FROM {k}.{t} x WHERE {kosul} "
                                   f"ORDER BY RRN(x) DESC FETCH FIRST 1 ROW ONLY", par).fetchone()
                 if var:
@@ -208,13 +219,14 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
                             f"ORDER BY RRN(x) DESC FETCH FIRST 1 ROW ONLY",
                             list(alanlar.values())).fetchone()
             rrn = int(r[0]) if r else None
+        anahtar = alanlar.get(REFERANS_KOLONU, '')
         if rrn is None:
             return {'ok': False, 'durum': 'hata', 'not': 'INSERT sonrası satır geri bulunamadı',
-                    'sql': sql, 'alanlar': alanlar}
+                    'sql': sql, 'alanlar': alanlar, 'anahtar': anahtar}
         if sadece_yaz:
-            return {'ok': True, 'durum': 'yazildi', 'rrn': rrn, 'sql': sql, 'alanlar': alanlar}
+            return {'ok': True, 'durum': 'yazildi', 'rrn': rrn, 'sql': sql, 'alanlar': alanlar, 'anahtar': anahtar}
         son = hareket_durum(rrn, k, t, cn=cn, bekleme_sn=bekleme_sn, yokla_sn=yokla_sn)
-        son.update({'sql': sql, 'alanlar': alanlar})
+        son.update({'sql': sql, 'alanlar': alanlar, 'anahtar': anahtar})
         return son
     finally:
         if kapat:

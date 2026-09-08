@@ -10227,19 +10227,13 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
     aranır (canlıda). Zaman aşımında satır tabloda DURUR — mesaj RRN verir,
     panelden "son satırlar" ile takip edilir; tekrar gönderim mükerrer freni
     (aynı kod/causal/adet/tarih) sayesinde ikinci satır AÇMAZ."""
-    # MGSTE2 anahtarı: causal + üretim günü + kod + adet — aynı gönderim tekrar
-    # denenince AYNI anahtar üretilir (mükerrer freni buna da bakar), farklı
-    # adet/gün farklı anahtar. Örn. 'CFI-260908-10.300.1866-10W-53'.
-    try:
-        _adet_s = str(int(round(float(adet))))
-    except (TypeError, ValueError):
-        _adet_s = str(adet)
-    anahtar = f"{causal}-{str(u_tarih or '')[2:].replace('-', '')}-{article}-{_adet_s}"
+    # MGSTE2 anahtarı MODÜLDE üretilir (alan 15 karakter — kod sığmaz);
+    # mükerrer freni bileşik alanlara (kod/causal/adet/tarih) bakar.
     try:
         _ai = _as400_import_modulu()
         r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp,
                             uretim_tarihi=(u_tarih if imp.get('tarih_gonder') else None),
-                            referans=anahtar, kutuphane=imp.get('kutuphane') or 'COFLEFORGE',
+                            referans=None, kutuphane=imp.get('kutuphane') or 'COFLEFORGE',
                             tablo=imp.get('tablo') or 'BMMAF0I',
                             bekleme_sn=int(imp.get('bekleme_sn') or 60), zorla=zorla)
     except Exception as e:
@@ -10248,7 +10242,8 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
     etiket = '♻ Hurda COP' if causal == 'COP' else 'CFI'
     if r.get('ok'):
         mesaj = (f'{etiket} import: {article} → {adet} adet · hareket {r.get("hareket_no") or "?"} '
-                 f'(COFLEFORGE{" · zaten işlenmişti" if r.get("durum") == "mevcut" else ""})')
+                 f'(COFLEFORGE{" · zaten işlenmişti" if r.get("durum") == "mevcut" else ""}'
+                 f'{" · " + r["anahtar"] if r.get("anahtar") else ""})')
         if imp.get('dogrulama_bmmaf0'):
             try:
                 dogru = any(abs(q - float(adet)) < 0.001 for q in _as400_cfi_bugun(article, causal=causal))
@@ -10693,7 +10688,7 @@ def as400_import_deneme():
         _ai = _as400_import_modulu()
         r = _ai.hareket_yaz(article, adet, causal=causal, wh=wh, cp=cp,
                             uretim_tarihi=str(d.get('uretim_tarihi') or '') or None,
-                            referans=f"TEST-{datetime.now().strftime('%y%m%d%H%M%S')}-{article}",
+                            referans=_as400_import_modulu().anahtar_uret('T'),   # 'T' + zaman + sayaç = 15 kr
                             kutuphane=imp.get('kutuphane') or 'COFLEFORGE', tablo=imp.get('tablo') or 'BMMAF0I',
                             bekleme_sn=int(d.get('bekleme_sn') or imp.get('bekleme_sn') or 60),
                             zorla=bool(d.get('zorla')))
