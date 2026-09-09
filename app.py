@@ -9904,7 +9904,7 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
         if dogrulandi:
             mesaj = f'Doğrulandı: teyitli {once:g} → {sonra:g}' + (
                 f' · launch KAPANDI (durum {sonra_durum})' if bayrak == 'S' else '')
-            mesaj += _is_emri_dus_router(conn, referans, adet)
+            mesaj += _is_emri_dus_router(conn, referans, adet, article)
             # COP (hurda) BURADA GİRİLMEZ (kullanıcı 2026-07-23: robot Rientro↔07>01
             # mekik dokuyordu) — hurda ayrı /cop_gonder fazında EN SONA girilir.
         elif robot_ok and teyit_ok and not kapanma_ok:
@@ -10098,12 +10098,50 @@ def as400_teyit_durdur():
                     'mesaj': 'Durdurma istendi — işlenmekte olan launch bitince duracak'})
 
 
-def _is_emri_dus(conn, referans, adet):
+def _is_emri_anahtar(s):
+    """İş emri eşleşme anahtarı: büyük harf, boşluk/nokta atılır; '/' ve '-' kalır."""
+    return re.sub(r'[^A-Z0-9/\-]', '', str(s or '').upper())
+
+
+def _is_emri_kok(s):
+    """Op eki duyarsız anahtar: '94.LTK.517/10' ≈ '94.LTK.517' (iş emri kodu
+    operasyonla yazılır, üretim kaydı base kodla). Harf varyantı (517A) ATILMAZ —
+    montajda ayrı üründür."""
+    return re.sub(r'/\d+$', '', _is_emri_anahtar(s))
+
+
+def _is_emri_adaylari(conn):
+    return conn.execute(
+        "SELECT id, referans_kodu, hedef_adet, bolum, COALESCE(lokasyon,'TK2') lokasyon, durum "
+        "FROM referans_takip WHERE COALESCE(bolum,'') IN ('kaynak','montaj') "
+        "  AND COALESCE(lokasyon,'TK2')='TK2' AND COALESCE(hedef_adet,0) > 0 ORDER BY id").fetchall()
+
+
+def _is_emri_eslesme(satir_kodu, referans, article=''):
+    """Aday iş emri kodu bu teyide ait mi? Döner: 'tam' | 'article' | 'op' | None
+    (öncelik sırası). Kullanıcı 2026-09-09 (LTK.517 silinmedi): eşleşme yalnız
+    üretim referansının nokta/boşluksuz biçimiyle yapılıyordu; iş emri
+    '/10' op ekiyle ya da launch article'ıyla yazılmışsa bulunamıyordu."""
+    k = _is_emri_anahtar(satir_kodu)
+    if not k:
+        return None
+    if k == _is_emri_anahtar(referans):
+        return 'tam'
+    if article and k == _is_emri_anahtar(article):
+        return 'article'
+    kk = _is_emri_kok(satir_kodu)
+    if kk == _is_emri_kok(referans) or (article and kk == _is_emri_kok(article)):
+        return 'op'
+    return None
+
+
+def _is_emri_dus(conn, referans, adet, article=''):
     """Başarılı teyit sonrası İŞ YÖNETİMİ kit düşümü (kullanıcı 2026-07-22):
     kaynak/montaj iş emrinden (referans_takip) teyit edilen adet düşülür;
     kalan <= 3 ise (tam / fazla / 3 eksik üretim) iş emri LİSTEDEN SİLİNİR —
     'üretildi ama listeden silinmesi unutuldu' problemi biter.
-    Eşleşme gevşek (boşluk+nokta+büyük/küçük duyarsız). Döner: ek mesaj | ''."""
+    Eşleşme (2026-09-09): önce üretim referansı, sonra launch article'ı, sonra
+    '/10' op eki atılmış biçim (bkz. _is_emri_eslesme). Döner: ek mesaj | ''."""
     try:
         adet = int(adet or 0)
     except (TypeError, ValueError):
@@ -10111,28 +10149,56 @@ def _is_emri_dus(conn, referans, adet):
     if not referans or adet <= 0:
         return ''
     try:
-        satir = conn.execute(
-            "SELECT id, referans_kodu, hedef_adet, bolum FROM referans_takip "
-            "WHERE COALESCE(bolum,'') IN ('kaynak','montaj') "
-            "  AND COALESCE(lokasyon,'TK2')='TK2' "
-            "  AND COALESCE(hedef_adet,0) > 0 "
-            "  AND UPPER(REPLACE(REPLACE(referans_kodu,' ',''),'.','')) = "
-            "      UPPER(REPLACE(REPLACE(?,' ',''),'.','')) "
-            "ORDER BY id LIMIT 1", (referans,)).fetchone()
+        satir, nasil = None, None
+        adaylar = _is_emri_adaylari(conn)
+        for oncelik in ('tam', 'article', 'op'):
+            for r in adaylar:
+                if _is_emri_eslesme(r['referans_kodu'], referans, article) == oncelik:
+                    satir, nasil = r, oncelik
+                    break
+            if satir:
+                break
         if not satir:
+            print(f'[IS-EMRI] eşleşme yok: referans={referans!r} article={article!r} '
+                  f'(aday {len(adaylar)} iş emri) — /api/is_emri/teshis ile bakın')
             return ''
+        ek = '' if nasil == 'tam' else f", iş emri kodu '{satir['referans_kodu']}' ({nasil} eşleşme)"
         kalan = int(satir['hedef_adet']) - adet
         if kalan <= 3:
             conn.execute("DELETE FROM referans_takip WHERE id=?", (satir['id'],))
             conn.commit()
-            return f" · iş emri listeden SİLİNDİ ({satir['bolum']}, hedef {satir['hedef_adet']}, kalan {kalan})"
+            return f" · iş emri listeden SİLİNDİ ({satir['bolum']}, hedef {satir['hedef_adet']}, kalan {kalan}{ek})"
         conn.execute(
             "UPDATE referans_takip SET hedef_adet=?, guncelleme_tarihi=datetime('now','localtime') WHERE id=?",
             (kalan, satir['id']))
         conn.commit()
-        return f" · iş emrinden düşüldü ({satir['bolum']}: kalan {kalan})"
+        return f" · iş emrinden düşüldü ({satir['bolum']}: kalan {kalan}{ek})"
     except Exception as e:
         return f" · iş emri düşümü yapılamadı: {e}"
+
+
+@app.route('/api/is_emri/teshis', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def api_is_emri_teshis():
+    """?referans=...&article=... — bu teyit hangi iş emrine düşerdi? (2026-09-09,
+    'teyit verildi ama listeden silinmedi' teşhisi). Adaylar + eşleşme türü +
+    bu referansın son teyit log mesajları (düşüm notu mesajın sonundadır)."""
+    referans = (request.args.get('referans') or '').strip()
+    article = (request.args.get('article') or '').strip()
+    if not referans:
+        return jsonify({'hata': 'referans zorunlu'}), 400
+    conn = get_db()
+    adaylar = [{**dict(r), 'eslesme': _is_emri_eslesme(r['referans_kodu'], referans, article)}
+               for r in _is_emri_adaylari(conn)]
+    adaylar.sort(key=lambda a: ({'tam': 0, 'article': 1, 'op': 2}.get(a['eslesme'], 9), a['id']))
+    loglar = [dict(r) for r in conn.execute(
+        "SELECT created_at, uretim_tarihi, yil, launch_no, article, adet, bayrak, sonuc, olusturan, mesaj "
+        "FROM as400_teyit_log WHERE UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ','')) "
+        "   OR UPPER(REPLACE(article,' ',''))=UPPER(REPLACE(?,' ','')) ORDER BY id DESC LIMIT 10",
+        (referans, referans)).fetchall()]
+    return jsonify({'referans': referans, 'article': article,
+                    'eslesen': [a for a in adaylar if a['eslesme']],
+                    'tum_adaylar': adaylar[:50], 'son_teyitler': loglar})
 
 
 # ── LAPTOP→SERVER İŞ EMRİ DÜŞÜM KÖPRÜSÜ (2026-07-24) ──
@@ -10164,13 +10230,13 @@ def _is_ic_ag_istegi():
     return (request.remote_addr or '').startswith('192.168.')
 
 
-def _is_emri_sunucuya_bildir(url, referans, adet):
+def _is_emri_sunucuya_bildir(url, referans, adet, article=''):
     """Laptop: başarılı teyit sonrası server'ın iş takip düşümünü HTTP ile tetikler.
     Best-effort. Döner: (ok:bool, mesaj:str)."""
     try:
         import requests
         r = requests.post(url.rstrip('/') + '/api/is_emri/dus_sync',
-                          json={'referans': referans, 'adet': adet}, timeout=8)
+                          json={'referans': referans, 'adet': adet, 'article': article}, timeout=8)
         if r.status_code == 200:
             return True, ((r.json() or {}).get('mesaj', '') or '')
         return False, f" · ⚠ iş emri server düşümü başarısız (HTTP {r.status_code})"
@@ -10178,16 +10244,16 @@ def _is_emri_sunucuya_bildir(url, referans, adet):
         return False, f" · ⚠ iş emri server'a ULAŞILAMADI ({e})"
 
 
-def _is_emri_dus_router(conn, referans, adet):
+def _is_emri_dus_router(conn, referans, adet, article=''):
     """server_sync url varsa (laptop) düşümü SERVER'da yap (authoritative); server
     ulaşılamazsa YEREL düşüme düş + uyarı (interim kayıp olmasın). url yoksa yerel."""
     url = _server_sync_url()
     if not url:
-        return _is_emri_dus(conn, referans, adet)          # server/standalone
-    ok, mesaj = _is_emri_sunucuya_bildir(url, referans, adet)
+        return _is_emri_dus(conn, referans, adet, article)   # server/standalone
+    ok, mesaj = _is_emri_sunucuya_bildir(url, referans, adet, article)
     if ok:
         return mesaj                                       # server authoritative (boş = eşleşme yok)
-    return _is_emri_dus(conn, referans, adet) + mesaj + ' — elle kontrol'
+    return _is_emri_dus(conn, referans, adet, article) + mesaj + ' — elle kontrol'
 
 
 @app.route('/api/is_emri/dus_sync', methods=['POST'])
@@ -10204,7 +10270,7 @@ def api_is_emri_dus_sync():
     except (TypeError, ValueError):
         adet = 0
     conn = get_db()
-    mesaj = _is_emri_dus(conn, referans, adet)
+    mesaj = _is_emri_dus(conn, referans, adet, (data.get('article') or '').strip())
     return jsonify({'mesaj': mesaj, 'dustu': bool(mesaj)})
 
 
@@ -10725,7 +10791,7 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         if _imp.get('etkin') and _imp.get('canli_onay') and 'CFI' in (_imp.get('causals') or ['CFI']):
             sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'CFI', _wh, _cp, u_tarih, referans, _imp, zorla)
             if sonuc == 'ok':
-                mesaj += _is_emri_dus_router(conn, referans, adet)
+                mesaj += _is_emri_dus_router(conn, referans, adet, article)
             conn.execute(
                 "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -10750,7 +10816,7 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         sonuc = 'ok' if dogrulandi else 'hata'
         if dogrulandi:
             mesaj = f'CFI girildi: {article} → {adet} adet' + ('' if dogru else ' (hareket sorgusu doğrulanamadı, robot OK)')
-            mesaj += _is_emri_dus_router(conn, referans, adet)
+            mesaj += _is_emri_dus_router(conn, referans, adet, article)
             # COP (hurda) ayrı fazda EN SONA girilir (bkz. /api/as400/cop_gonder)
         elif robot_ok:
             mesaj = f'Robot OK ama bugünkü CFI hareketlerinde {adet} bulunamadı — elle kontrol edin'
