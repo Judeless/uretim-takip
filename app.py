@@ -10546,6 +10546,33 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
     return 'hata', f'Import: {r.get("not") or d}', r
 
 
+def _gun_uretim_toplami(referans, u_tarih, tesis=None):
+    """Günün üretim toplamı — panelin 'ÜRETİLEN' sütunuyla AYNI hesap
+    (launch_esle.gun_uretimi + op kuralı + aynı iş birleştirme). Bulunamazsa
+    None: frenler eski (sıkı) davranışa düşer."""
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+        satirlar, _ = _le.op_kurali_uygula(_le.gun_uretimi(u_tarih))
+        satirlar = _le.ayni_isi_birlestir(satirlar)
+        k = _le.kanonik(referans)
+        top, var = 0.0, False
+        for r in satirlar:
+            if _le.kanonik(r.get('referans')) != k:
+                continue
+            if tesis and str(r.get('tesis') or '').strip().upper() != str(tesis).strip().upper():
+                continue
+            top += float(r.get('adet') or 0)
+            var = True
+        return top if var else None
+    except Exception as e:
+        print(f'[CFI] gün üretimi okunamadı ({referans} {u_tarih}): {e}')
+        return None
+
+
 def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=None):
     """CFI depo girişi satırlarını robotla işler — endpoint VE 17:10 oto koşusu
     ortak çekirdeği. ÇAĞIRAN _AS400_KILIT'i tutuyor olmalı. Döner: sonuclar.
@@ -10592,15 +10619,30 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         # Mükerrer 1: kendi log'umuz (CFI kayıtları yil='CF', launch_no=article).
         # ADET DAHİL (2026-08-06) — bkz. launch tarafındaki aynı düzeltme: aynı gün
         # aynı referansı iki operatör üretince kalan adet gönderilemiyordu.
+        # GÜN ÜRETİMİ (2026-09-09, 94.PZ.01 olayı): frenler gönderilen ADEDE değil
+        # günün ÜRETİMİNE göre karar vermeli. 30 üretimin 15'i sabah gitmişti;
+        # kalan 15 gönderilince (a) kendi log'umuzda 15 vardı → "zaten gönderilmiş",
+        # (b) ERP'de aynı gün 15 vardı → 'kesin' sayıldı → satır ATLANDI. Oysa
+        # 15+15=30 üretimi aşmıyor. Üretim toplamı bilinemiyorsa eski (sıkı) yol.
+        uretim_toplam = _gun_uretim_toplami(referans, u_tarih, s.get('tesis'))
         var = conn.execute(
             "SELECT id, adet FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CF' AND launch_no=? "
             "AND sonuc='ok' AND CAST(adet AS INTEGER)=?",
             (u_tarih, article, int(adet))).fetchone()
         if var and not zorla:
-            sonuclar.append({**kayit, 'sonuc': 'atlandi',
-                             'mesaj': f'Bu koda bu gün için {int(adet)} adet CFI ZATEN gönderilmiş '
-                                      f'(log #{var["id"]}). Farklı adet göndermek serbest.'})
-            continue
+            gonderilen = float(conn.execute(
+                "SELECT COALESCE(SUM(adet),0) FROM as400_teyit_log WHERE uretim_tarihi=? AND yil='CF' "
+                "AND launch_no=? AND sonuc='ok'", (u_tarih, article)).fetchone()[0] or 0)
+            if uretim_toplam and gonderilen + adet <= uretim_toplam + 0.5:
+                pass        # parçalı üretim: gönderilen + bu = üretimi aşmıyor → mükerrer değil
+            else:
+                sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                 'mesaj': f'Bu koda bu gün için {int(adet)} adet CFI ZATEN gönderilmiş '
+                                          f'(log #{var["id"]}); gönderilen toplam {gonderilen:g}'
+                                          + (f', gün üretimi {uretim_toplam:g}' if uretim_toplam else '')
+                                          + ' — tekrar gönderilirse ERP\'ye FAZLA stok girer. '
+                                            'Gerçekten gerekiyorsa "zorla" ile gönderin.'})
+                continue
         # Mükerrer 1b — LAUNCH GÖNDERİMLERİ DE SAYILIR (2026-08-21, 94.LTK.215).
         # Yukarıdaki kontrol yalnız yil='CF' satırlarına bakar; launch tarafındaki
         # eş kontrol de CFI'yı dışlıyordu → aynı üretim bir kez launch'tan, bir kez
@@ -10627,15 +10669,29 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
             hrk = list(hrk_map.get(_le.kanonik(article), []))
             if _le.kanonik(referans) != _le.kanonik(article):
                 hrk += hrk_map.get(_le.kanonik(referans), [])
-            zt, ilgili = _le._zaten_teyitli(hrk, u_tarih, adet,
+            # ERP kanıtı GÜNÜN ÜRETİMİYLE karşılaştırılır (gönderilen parçayla değil):
+            # aynı günkü 15'lik hareket, 15 gönderirken 'kesin' görünüyordu.
+            _kiyas = max(uretim_toplam, adet) if uretim_toplam else adet
+            zt, ilgili = _le._zaten_teyitli(hrk, u_tarih, _kiyas,
                                             _le.ref_uretim_gecmisi(referans, u_tarih))
         except Exception:
             zt, ilgili = None, []
         if zt == 'kesin' and not zorla:
             h0 = ilgili[0] if ilgili else {}
             sonuclar.append({**kayit, 'sonuc': 'atlandi',
-                             'mesaj': f"ERP'de karşılığı var: {h0.get('tarih','')} {h0.get('adet',0):g} adet ({h0.get('tur','')})"})
+                             'mesaj': f"ERP'de karşılığı var: {h0.get('tarih','')} {h0.get('adet',0):g} adet ({h0.get('tur','')})"
+                                      + (f" — gün üretimi {uretim_toplam:g} zaten teyitli" if uretim_toplam else '')})
             continue
+        if zt == 'kismi' and uretim_toplam and not zorla:
+            # Günün bir kısmı ERP'de teyitli: yalnız KALAN kadar gönderilebilir.
+            teyitli = sum(float(h.get('adet') or 0) for h in ilgili)
+            kalan = max(0.0, uretim_toplam - teyitli)
+            if adet > kalan + 0.5:
+                sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                 'mesaj': f"ERP'de bu gün için zaten {teyitli:g} adet teyitli (gün üretimi "
+                                          f"{uretim_toplam:g}); kalan {kalan:g}, istenen {adet} — fazla teyit olur. "
+                                          f"Kalan adedi gönderin ya da \"zorla\" ile onaylayın."})
+                continue
         # Mükerrer 3: KAPASİTE (2026-07-30) — CFI de depoya stok yazar, aynı fren
         if not zorla:
             kap = _kapasite_reddi(conn, referans, u_tarih, adet)
