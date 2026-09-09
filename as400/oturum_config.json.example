@@ -1,5 +1,6 @@
 {
   "_aciklama": "Session B oturum gozcusu. Sunucudaki PCOMM oturumu dusunce otomatik geri getirir. Sifre BU DOSYADA DEGIL - Windows kasasinda (kaydet_sifre.py). Bu dosya gitignore'da; ornekten kopyalayin: copy oturum_config.json.example oturum_config.json",
+  "_kullanici": "Ekran robotunun (RPR/COP/transfer) sign-on profili. EMREDTK ya da COFLEFORGE (Italya IT 2026-09-09). Degistirince: sifresi kasada olmali (kaydet_sifre.py <kullanici>), Session B'de eski kullanici SIGNOFF yapilmali; gozcu yeni kullaniciyla girer. Restart gerekmez (her turda taze okunur).",
   "etkin": false,
   "kullanici": "EMREDTK",
   "aralik_sn": 300

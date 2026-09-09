@@ -265,3 +265,21 @@ Sonra teyit-agent'ı bir kez yeniden başlat (`Teyit_Agent_Baslat.bat`) — `/si
 ucu yeni agent kodunda. Panel → AS400 → Import kartı satırında
 "🔑 COFLEFORGE (şifre kasada)" görünmeli; "ŞİFRE KASADA YOK" görünürse 🚀 düğmesi çalışmaz.
 Şifre değişince aynı komut tekrar çalıştırılır; laptopta test için aynı komut (isteğe bağlı).
+
+## Ekran robotunu COFLEFORGE ile çalıştırma (2026-09-09)
+
+RPR/COP hâlâ ekran robotuyla (PCOMM Session B) giriliyor; robotun sign-on profili
+`as400\oturum_config.json` → `"kullanici"` alanından okunur. COFLEFORGE'a geçiş:
+
+1. **Önce elle dene:** Session B'de EMREDTK'dan SIGNOFF, COFLEFORGE ile sign-on; RPR
+   ekranına (10→05→12→02) ve CFI/COP ekranına (07→01) girilebiliyor mu bak. Menü yetkisi
+   yoksa Simone'den iste — profil yalnız import tablosu için açılmış olabilir.
+   İlk girişte şifre değiştirme isterse değiştir ve kasayı güncelle: `python kaydet_sifre.py COFLEFORGE`.
+2. `oturum_config.json` → `"kullanici": "COFLEFORGE"` (agent her turda taze okur, restart gerekmez).
+3. Session B'de SIGNOFF yap (gözcü açık oturuma dokunmaz — "ZATEN"); gözcü bir sonraki turda
+   COFLEFORGE ile girer. Hemen istersen agent'ı yeniden başlat.
+4. Agent açılış satırı: `COFLEFORGE (import+ROBOT sign-on) VAR`. Sonraki RPR hareketinde
+   ERP ekranı `Utente COFLEFORGE` gösterir.
+
+Okumalar (ODBC SELECT) EMREDTK'da kalır; onu değiştirmek `as400_config.DB_KULLANICI` işidir
+ve COFLEFORGE'un TKC0301F tablolarına SELECT yetkisi olmasını gerektirir.

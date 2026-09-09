@@ -102,14 +102,21 @@ def calistir():
     # Şifre YALNIZCA çocuk sürecin ortamına konur: argümana, dosyaya, loga girmez.
     ortam = None
     if script in SIFRE_ISTEYEN:
+        # ROBOT PROFİLİ (2026-09-09): oturum_ac.js hangi kullanıcıyla sign-on
+        # yapacaksa ONUN şifresi verilir (args[0]; app bunu agent /durum'daki
+        # gözcü kullanıcısından, o da oturum_config.json'dan alır). Yalnız beyaz
+        # listedeki profiller (EMREDTK / COFLEFORGE) — başka ad kasadan okutulamaz.
         try:
             import as400_config as _cfg
-            _pw = _cfg.sifre_al()
+            _ku = (temiz[0] if temiz else '').strip().upper() or _cfg.DB_KULLANICI
+            if _ku not in getattr(_cfg, 'KULLANICILAR', (_cfg.DB_KULLANICI,)):
+                return jsonify({'hata': f'bilinmeyen AS400 kullanıcısı: {_ku}'}), 400
+            _pw = _cfg.sifre_al(_ku)
         except Exception as _e:
             _pw = None
             print(f'[AGENT]   -> UYARI: kasadan şifre okunamadı: {_e}')
         if not _pw:
-            return jsonify({'hata': 'AS400 şifresi kasada yok (kaydet_sifre.py çalıştırın)'}), 503
+            return jsonify({'hata': f'AS400 şifresi kasada yok ({_ku} — kaydet_sifre.py {_ku})'}), 503
         ortam = dict(os.environ)
         ortam['COFLE_AS400_PW'] = _pw
     with _KILIT:
@@ -217,11 +224,11 @@ def _oturum_kontrol_et(kullanici):
     _KILIT ile korunur → teyit robotu kosarken ASLA araya girmez."""
     try:
         import as400_config as _cfg
-        pw = _cfg.sifre_al()
+        pw = _cfg.sifre_al(kullanici)          # gozcu kullanicisinin sifresi (config)
     except Exception as e:
         return ('KASA-HATA', f'sifre okunamadi: {e}')
     if not pw:
-        return ('KASA-BOS', 'AS400 sifresi kasada yok (kaydet_sifre.py)')
+        return ('KASA-BOS', f'AS400 sifresi kasada yok ({kullanici} — kaydet_sifre.py {kullanici})')
     ortam = dict(os.environ)
     ortam['COFLE_AS400_PW'] = pw
     with _KILIT:
@@ -291,10 +298,17 @@ def _kasa_durumu():
         import keyring
         import as400_config as cfg
         parcalar = []
+        robot_ku = (_oturum_ayar().get('kullanici') or cfg.DB_KULLANICI).strip().upper()
         for ku in getattr(cfg, 'KULLANICILAR', (cfg.DB_KULLANICI,)):
             var = bool(keyring.get_password(cfg.KEYRING_SERVICE, ku))
-            rol = 'robot+okuma' if ku == cfg.DB_KULLANICI else 'import'
-            parcalar.append(f"{ku} ({rol}) {'VAR' if var else 'YOK -> kaydet_sifre.py ' + ku}")
+            roller = []
+            if ku == cfg.DB_KULLANICI:
+                roller.append('okuma')
+            if ku == getattr(cfg, 'IMPORT_KULLANICI', ''):
+                roller.append('import')
+            if ku == robot_ku:
+                roller.append('ROBOT sign-on')
+            parcalar.append(f"{ku} ({'+'.join(roller) or '?'}) {'VAR' if var else 'YOK -> kaydet_sifre.py ' + ku}")
         return 'Kasa (Windows Kimlik Bilgileri): ' + ' · '.join(parcalar)
     except Exception as e:
         return f'Kasa durumu okunamadı: {e}'
