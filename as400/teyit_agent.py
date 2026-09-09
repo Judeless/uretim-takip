@@ -283,6 +283,23 @@ def _gozcu_dongusu():
         time.sleep(60)
 
 
+def _kasa_durumu():
+    """Açılış ekranı için: hangi AS400 profillerinin şifresi kasada? (2026-09-09,
+    kullanıcı 'agent EMREDTK gösteriyor' dedi — gözcü satırı ROBOT kullanıcısıdır,
+    import COFLEFORGE ile gider; ikisi burada yan yana görünsün.) Şifre YAZILMAZ."""
+    try:
+        import keyring
+        import as400_config as cfg
+        parcalar = []
+        for ku in getattr(cfg, 'KULLANICILAR', (cfg.DB_KULLANICI,)):
+            var = bool(keyring.get_password(cfg.KEYRING_SERVICE, ku))
+            rol = 'robot+okuma' if ku == cfg.DB_KULLANICI else 'import'
+            parcalar.append(f"{ku} ({rol}) {'VAR' if var else 'YOK -> kaydet_sifre.py ' + ku}")
+        return 'Kasa (Windows Kimlik Bilgileri): ' + ' · '.join(parcalar)
+    except Exception as e:
+        return f'Kasa durumu okunamadı: {e}'
+
+
 def _quickedit_kapat():
     """Windows konsol QuickEdit/Mark modunu KAPAT — pencereye tiklaninca agent
     DONMASIN (tiklama process'i durduruyor; kritik altyapi icin kabul edilemez)."""
@@ -327,5 +344,6 @@ if __name__ == '__main__':
     else:
         print('Oturum gözcüsü KAPALI (as400/oturum_config.json → etkin:true ile açılır)')
     threading.Thread(target=_gozcu_dongusu, daemon=True).start()
+    print(_kasa_durumu())
     print('Bu pencereyi KAPATMA — robot koşuları burada görünür.' + chr(10))
     app.run(host='127.0.0.1', port=PORT, threaded=True)
