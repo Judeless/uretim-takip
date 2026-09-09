@@ -10357,6 +10357,151 @@ def _as400_import_modulu():
     return _ai
 
 
+def _import_log_yaz(conn, causal, article, referans, adet, wh, cp, u_tarih, sonuc, mesaj, r, olusturan):
+    """Import ile yazılan hareketi as400_import_log'a işler (kullanıcı 2026-09-09:
+    İtalya'ya "bunlara teyit verdik, kontrol eder misiniz" listesi için).
+    Başarısız denemeler de yazılır (sonuc='hata') — listede ayrı bölümde çıkar."""
+    r = r or {}
+    try:
+        conn.execute(
+            "INSERT INTO as400_import_log (uretim_tarihi, causal, article, referans, adet, wh, cp, kutuphane, "
+            "hareket_no, anahtar, rrn, durum, sonuc, mesaj, olusturan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (u_tarih or '', causal, article, referans or '', float(adet), wh or '', cp or '',
+             (_oto_config().get('cfi_import') or {}).get('kutuphane') or 'COFLEFORGE',
+             r.get('hareket_no') or '', r.get('anahtar') or '', r.get('rrn'), r.get('durum') or '',
+             sonuc, mesaj or '', olusturan or ''))
+        conn.commit()
+    except Exception as e:
+        print(f'[CFI-IMPORT] import_log yazılamadı: {e}')
+
+
+def _import_gonderimleri(conn, tarih='', gun=0, sadece_bildirilmemis=False):
+    """İtalya kontrol listesi satırları. tarih: yazım günü (created_at); gun: son N gün."""
+    kosul, parm = [], []
+    if tarih:
+        kosul.append("substr(created_at,1,10)=?"); parm.append(tarih)
+    elif gun:
+        kosul.append("substr(created_at,1,10) >= date('now','localtime',?)"); parm.append(f'-{int(gun) - 1} days')
+    if sadece_bildirilmemis:
+        kosul.append("COALESCE(bildirildi,0)=0")
+    sql = "SELECT * FROM as400_import_log" + (" WHERE " + " AND ".join(kosul) if kosul else "") + " ORDER BY id"
+    return [dict(r) for r in conn.execute(sql, parm).fetchall()]
+
+
+def _import_mail_metni(satirlar, etiket):
+    """İtalya IT'ye (Simone) İngilizce kontrol maili — panel 'kopyala' düğmesi."""
+    ok = [s for s in satirlar if s.get('sonuc') == 'ok']
+    hata = [s for s in satirlar if s.get('sonuc') != 'ok']
+    def _adet(v):
+        try:
+            f = float(v); return str(int(f)) if f == int(f) else f'{f:g}'
+        except (TypeError, ValueError):
+            return str(v)
+    L = ['Dear Simone,', '',
+         f'Cofle Forge posted the following {"/".join(sorted({s["causal"] for s in ok}) or ["CFI"])} movements through '
+         f'COFLEFORGE.BMMAF0I {etiket}. Could you check on your side that they are correct?', '',
+         '#  | Time  | Causal | Article | Qty | Movement | MGSTE2 key']
+    for i, s in enumerate(ok, 1):
+        L.append(f'{i} | {(s.get("created_at") or "")[11:16]} | {s.get("causal")} | {s.get("article")} | {_adet(s.get("adet"))} | '
+                 f'{s.get("hareket_no") or "?"} | {s.get("anahtar") or "-"}')
+    toplam = sum(float(s.get('adet') or 0) for s in ok)
+    L += ['', f'Total: {len(ok)} movements, {_adet(toplam)} pieces.']
+    if hata:
+        # İç mesaj Türkçe; İtalya'ya durum İngilizce, MGNOTE köşeli parantezden alınır.
+        def _neden(s):
+            d = s.get('durum') or ''
+            m = re.search(r'\[[^\]]+\]', s.get('mesaj') or '')
+            note = m.group(0) if m else ''
+            if d == 'reddedildi':
+                return f'rejected by the import program (MGSTAT 2) {note}'.strip()
+            if d == 'islendi':
+                return 'processed by the program (MGSTAT 1) but not found in BMMAF0 on our check'
+            if d == 'zaman_asimi':
+                return f'not processed by the program in time (row still in BMMAF0I, RRN {s.get("rrn")})'
+            if d == 'mevcut':
+                return 'duplicate row already waiting in BMMAF0I, not written again'
+            return d or 'error on our side before the INSERT'
+        L += ['', f'{len(hata)} row(s) were NOT posted successfully (handled on our side, please ignore unless you see them):']
+        for s in hata:
+            L.append(f'- {(s.get("created_at") or "")[11:16]} {s.get("causal")} {s.get("article")} x {_adet(s.get("adet"))}: {_neden(s)}')
+    L += ['', 'Best regards,', 'Emre']
+    return '\n'.join(L)
+
+
+@app.route('/api/as400/import_gonderimler', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_import_gonderimler():
+    """Import ile yazılan hareketler (İtalya kontrol listesi). ?tarih=YYYY-MM-DD
+    (varsayılan bugün) | ?gun=N ; &bildirilmemis=1 yalnız henüz bildirilmeyenler."""
+    tarih = (request.args.get('tarih') or '').strip()
+    try:
+        gun = int(request.args.get('gun') or 0)
+    except (TypeError, ValueError):
+        gun = 0
+    if not tarih and not gun:
+        tarih = date.today().isoformat()
+    sb = request.args.get('bildirilmemis') in ('1', 'true')
+    satirlar = _import_gonderimleri(get_db(), tarih, gun, sb)
+    etiket = (f'on {datetime.strptime(tarih, "%Y-%m-%d").strftime("%d/%m/%Y")}' if tarih else f'in the last {gun} days')
+    ok = [s for s in satirlar if s['sonuc'] == 'ok']
+    return jsonify({'tarih': tarih, 'gun': gun, 'satirlar': satirlar,
+                    'ozet': {'toplam': len(satirlar), 'ok': len(ok), 'hata': len(satirlar) - len(ok),
+                             'adet': sum(float(s['adet'] or 0) for s in ok),
+                             'bildirilmemis': sum(1 for s in satirlar if not s.get('bildirildi'))},
+                    'mail_metni': _import_mail_metni(satirlar, etiket)})
+
+
+@app.route('/api/as400/import_bildirildi', methods=['POST'])
+@panel_gerekli(izin='as400-teyit')
+def as400_import_bildirildi():
+    """Listeyi İtalya'ya gönderdim işareti. Body: {ids:[...]}."""
+    d = request.get_json(silent=True) or {}
+    ids = [int(i) for i in (d.get('ids') or []) if str(i).isdigit()]
+    if not ids:
+        return jsonify({'hata': 'ids zorunlu'}), 400
+    conn = get_db()
+    conn.execute(f"UPDATE as400_import_log SET bildirildi=1 WHERE id IN ({','.join('?' * len(ids))})", ids)
+    conn.commit()
+    return jsonify({'basarili': True, 'adet': len(ids)})
+
+
+@app.route('/api/as400/import_gonderimler_excel', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_import_gonderimler_excel():
+    """Aynı liste Excel olarak (mail eki)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
+    import io
+    tarih = (request.args.get('tarih') or '').strip()
+    try:
+        gun = int(request.args.get('gun') or 0)
+    except (TypeError, ValueError):
+        gun = 0
+    if not tarih and not gun:
+        tarih = date.today().isoformat()
+    satirlar = _import_gonderimleri(get_db(), tarih, gun, request.args.get('bildirilmemis') in ('1', 'true'))
+    wb = Workbook(); ws = wb.active; ws.title = 'Import movements'
+    basliklar = ['Posted at', 'Production day', 'Causal', 'Article', 'Qty', 'Warehouse', 'Counterpart',
+                 'Movement', 'MGSTE2 key', 'RRN', 'Status', 'Result', 'Note', 'By']
+    ws.append(basliklar)
+    _bf, _bd = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor='6D28D9')
+    for h in ws[1]:
+        h.font, h.fill = _bf, _bd
+        h.alignment = Alignment(horizontal='center', vertical='center')
+    for s in satirlar:
+        ws.append([s.get('created_at'), s.get('uretim_tarihi'), s.get('causal'), s.get('article'), s.get('adet'),
+                   s.get('wh'), s.get('cp'), s.get('hareket_no'), s.get('anahtar'), s.get('rrn'), s.get('durum'),
+                   s.get('sonuc'), s.get('mesaj'), s.get('olusturan')])
+    for i, _b in enumerate(basliklar, start=1):
+        en = max([len(str(_b))] + [len(str(c.value or '')) for c in ws[chr(64 + i)]][:500])
+        ws.column_dimensions[chr(64 + i)].width = min(max(en + 3, 10), 48)
+    ws.freeze_panes = 'A2'
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    ad = f'cofle_forge_import_{tarih or ("son" + str(gun) + "gun")}.xlsx'
+    return send_file(buf, as_attachment=True, download_name=ad,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zorla=False):
     """Depo hareketini COFLEFORGE.BMMAF0I üzerinden yazar. (sonuc, mesaj, ayrinti).
 
@@ -10529,6 +10674,7 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
                 "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (u_tarih, 'CF', article, referans, article, adet, 'CFI-IMP', sonuc, mesaj, kullanici))
             conn.commit()
+            _import_log_yaz(conn, 'CFI', article, referans, adet, _wh, _cp, u_tarih, sonuc, mesaj, _r, kullanici)
             sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
             continue
         _robot_arg = [article, adet, 'CFI', f'WH={_wh}', f'CP={_cp}']
@@ -10748,6 +10894,7 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
                 "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (u_tarih, 'CO', article, referans, article, adet, 'COP-IMP', sonuc, mesaj, kullanici))
             conn.commit()
+            _import_log_yaz(conn, 'COP', article, referans, adet, CFI_VARSAYILAN_DEPO[0], '', u_tarih, sonuc, mesaj, _r, kullanici)
             sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
             continue
         cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet, 'COP'], 120)
@@ -10845,6 +10992,12 @@ def as400_import_deneme():
                                     for q in _as400_cfi_bugun(article, causal=causal))
         except Exception as e:
             r['canli_hata'] = f'{e!r}'
+    # Program CANLIDA (Simone 2026-09-09): deneme satırı da gerçek harekettir →
+    # İtalya kontrol listesine 'deneme' etiketiyle girer.
+    _import_log_yaz(get_db(), causal, article, '', adet, wh, cp, str(d.get('uretim_tarihi') or ''),
+                    'ok' if r.get('ok') else 'hata',
+                    f'deneme: {r.get("durum") or ""} {r.get("not") or ""}'.strip(), r,
+                    (g.panel_ku or {}).get('kullanici_adi') or 'deneme')
     return jsonify({'basarili': bool(r.get('ok')), **r})
 
 

@@ -6776,6 +6776,21 @@ window.__I18N_SOZLUK__ = {
                         </div>
                         <div id="as4-imp-sonuc" style="display:none;font-size:.84rem;line-height:1.6;padding:8px 12px;border:1px solid var(--card-border);border-radius:10px;margin-bottom:8px"></div>
                         <div id="as4-imp-liste" style="font-size:.78rem;overflow-x:auto"></div>
+                        <!-- İTALYA KONTROL LİSTESİ (2026-09-09): import ile yazılan hareketler —
+                             "bunlara teyit verdik, kontrol eder misiniz" maili + Excel. -->
+                        <div style="border-top:1px dashed var(--card-border);margin-top:12px;padding-top:10px">
+                            <div style="font-size:.84rem;font-weight:800;margin-bottom:6px">📤 Import ile yazılan hareketler — İtalya kontrol listesi</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                                <input id="as4-impl-tarih" class="rt-row-select" style="max-width:150px" type="date" title="Yazım günü">
+                                <label style="font-size:.78rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="as4-impl-bildirilmemis"> yalnız bildirilmemişler</label>
+                                <button class="btn btn-ghost" onclick="as4ImportListe()">Listele</button>
+                                <button class="btn btn-primary" onclick="as4ImportMailKopyala()" title="Simone'ye gönderilecek İngilizce metin panoya kopyalanır">📋 Mail metni (EN) kopyala</button>
+                                <button class="btn btn-ghost" onclick="as4ImportExcel()">⬇ Excel</button>
+                                <button class="btn btn-ghost" onclick="as4ImportBildirildi()" title="Listedeki satırlar 'İtalya'ya bildirildi' olarak işaretlenir">✓ Bildirildi işaretle</button>
+                                <span id="as4-impl-ozet" style="font-size:.76rem;color:var(--muted)"></span>
+                            </div>
+                            <div id="as4-impl-tablo" style="font-size:.78rem;overflow-x:auto"></div>
+                        </div>
                     </div>
                 </div>
                 <!-- 🌅 SABAH KONTROL (2026-07-27): oto TEYİT koşularının raporu.
@@ -14089,6 +14104,48 @@ window.__I18N_SOZLUK__ = {
                 as4ImportYukle(false, 0);
               }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }
+        // ── İtalya kontrol listesi (2026-09-09) ──
+        var _as4ImplSon = { satirlar: [], mail_metni: '' };
+        function as4ImplParam() {
+            var t = (document.getElementById('as4-impl-tarih') || {}).value || '';
+            var b = (document.getElementById('as4-impl-bildirilmemis') || {}).checked;
+            return (t ? 'tarih=' + encodeURIComponent(t) : 'gun=7') + (b ? '&bildirilmemis=1' : '');
+        }
+        function as4ImportListe() {
+            var el = document.getElementById('as4-impl-tablo'), oz = document.getElementById('as4-impl-ozet');
+            if (!el) return;
+            el.innerHTML = '<div class="yukleniyor">⏳</div>';
+            panelFetch('/api/as400/import_gonderimler?' + as4ImplParam()).then(function (r) { return r.json(); }).then(function (j) {
+                _as4ImplSon = j;
+                var s = j.satirlar || [], o = j.ozet || {};
+                if (oz) oz.textContent = s.length ? (o.ok + ' ok · ' + o.hata + ' hata · ' + fmt(o.adet) + ' adet · ' + o.bildirilmemis + ' bildirilmemiş') : '';
+                if (!s.length) { el.innerHTML = '<div class="empty-state">Bu günde import ile yazılan hareket yok</div>'; return; }
+                el.innerHTML = '<table class="rt-table"><thead><tr><th>Saat</th><th>Üretim günü</th><th>Causal</th><th>Article</th><th style="text-align:right">Adet</th><th>Hareket</th><th>MGSTE2</th><th>Sonuç</th><th>Kim</th><th>Bildirildi</th></tr></thead><tbody>' +
+                    s.map(function (x) { return '<tr' + (x.sonuc !== 'ok' ? ' style="color:var(--danger)"' : '') + '><td>' + esc((x.created_at || '').slice(5, 16)) + '</td><td>' + esc(x.uretim_tarihi || '') + '</td><td>' + esc(x.causal) + '</td><td><b>' + esc(x.article) + '</b></td><td style="text-align:right">' + fmt(x.adet) + '</td><td>' + esc(x.hareket_no || '?') + '</td><td><code>' + esc(x.anahtar || '') + '</code></td><td title="' + esc(x.mesaj || '') + '">' + esc(x.sonuc) + (x.durum ? ' · ' + esc(x.durum) : '') + '</td><td>' + esc(x.olusturan || '') + '</td><td>' + (x.bildirildi ? '✓' : '—') + '</td></tr>'; }).join('') +
+                    '</tbody></table>';
+            }).catch(function () { el.innerHTML = '<div class="empty-state">Bağlantı hatası</div>'; });
+        }
+        function as4ImportMailKopyala() {
+            var yap = function () {
+                var m = _as4ImplSon.mail_metni || '';
+                if (!m) { toast('Önce listeleyin', 'error'); return; }
+                var bitti = function () { toast('📋 Mail metni kopyalandı — Outlook\'a yapıştırın', 'success'); };
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(m).then(bitti, function () { prompt('Kopyalayın:', m); });
+                else prompt('Kopyalayın:', m);
+            };
+            if (!(_as4ImplSon.satirlar || []).length) {
+                panelFetch('/api/as400/import_gonderimler?' + as4ImplParam()).then(function (r) { return r.json(); }).then(function (j) { _as4ImplSon = j; yap(); });
+            } else yap();
+        }
+        function as4ImportExcel() { window.location.href = '/api/as400/import_gonderimler_excel?' + as4ImplParam() + '&lokasyon=' + encodeURIComponent(aktifLokasyon); }
+        function as4ImportBildirildi() {
+            var ids = (_as4ImplSon.satirlar || []).filter(function (x) { return !x.bildirildi; }).map(function (x) { return x.id; });
+            if (!ids.length) { toast('İşaretlenecek satır yok', 'error'); return; }
+            if (!confirm(ids.length + ' satır "İtalya\'ya bildirildi" olarak işaretlenecek. Devam?')) return;
+            panelFetch('/api/as400/import_bildirildi', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ids }) })
+              .then(function (r) { return r.json(); }).then(function (j) { if (j.basarili) { toast('✓ ' + j.adet + ' satır işaretlendi', 'success'); as4ImportListe(); } else toast(j.hata || 'Hata', 'error'); })
+              .catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
         function as4ImportDeneme() {
             var g = function (id) { return (document.getElementById(id) || {}).value || ''; };
             var govde = { article: g('as4-imp-article').trim(), adet: parseFloat(g('as4-imp-adet')) || 0,
@@ -14120,6 +14177,9 @@ window.__I18N_SOZLUK__ = {
 
         function as4Yukle(tekTarih) {
             as4ImportYukle(false, 0);
+            var _it = document.getElementById('as4-impl-tarih');
+            if (_it && !_it.value) _it.value = new Date().toISOString().slice(0, 10);
+            as4ImportListe();
             // Argümanlı çağrı = moda geç; argümansız = mevcut modu tazele.
             if (typeof tekTarih === 'string' && tekTarih) _as4Mod = { tip: 'gun', tarih: tekTarih };
             var aktifTarih = (_as4Mod.tip === 'gun') ? _as4Mod.tarih : '';

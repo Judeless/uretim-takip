@@ -1215,6 +1215,36 @@ def init_db():
     ''')
 
     # ─────────────────────────────────────────────────────────────
+    # AS400 IMPORT KAYDI (2026-09-09): COFLEFORGE.BMMAF0I üzerinden yazılan her
+    # hareket (CFI/COP) yapısal olarak burada — as400_teyit_log'daki serbest
+    # metin mesajdan ayrı. Amaç: İtalya IT'ye "bunlara teyit verdik, kontrol
+    # eder misiniz" listesi (hareket no + MGSTE2 anahtarı + adet) ve Excel.
+    # bildirildi: liste İtalya'ya gönderildi işareti (ertesi gün tekrar çıkmasın).
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS as400_import_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            uretim_tarihi TEXT DEFAULT '',
+            causal TEXT NOT NULL,
+            article TEXT NOT NULL,
+            referans TEXT DEFAULT '',
+            adet REAL NOT NULL,
+            wh TEXT DEFAULT '',
+            cp TEXT DEFAULT '',
+            kutuphane TEXT DEFAULT '',
+            hareket_no TEXT DEFAULT '',
+            anahtar TEXT DEFAULT '',
+            rrn INTEGER,
+            durum TEXT DEFAULT '',
+            sonuc TEXT NOT NULL,
+            mesaj TEXT DEFAULT '',
+            olusturan TEXT DEFAULT '',
+            bildirildi INTEGER DEFAULT 0
+        )
+    ''')
+
+    # ─────────────────────────────────────────────────────────────
     # AS400 teyit ekranı İŞARETLERİ (2026-07-20). İki kapsam:
     #  - kapsam='kalici': referans bazında SÜREKLİ 'gerek_yok' (örn 6343a ara ürün)
     #    → launch_esle bu referansları teyit dışı bırakır (her gün otomatik gizli).
