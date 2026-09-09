@@ -386,10 +386,13 @@ function durusSayfasiHtml(veri, tarih, vardiya) {
   const bilgi = BOLUM_BILGI[aktifBolum];
   const list = veri.duruslar || [];
   const toplam = veri.durus_toplam_dk || 0;
-  let h = `<div class="sayfa-etiket">📄 2. sayfa — paylaşımda ayrı görsel olarak gider</div>
+  // Makine/adım seçiliyse başlıkta da görünsün: duruşlar o adımda kaydı olan
+  // vardiyalardan gelir (bkz. app.py _rapor_duruslari).
+  const adimEk = veri.adim_filtre ? ' · ' + String(veri.adim_filtre).toUpperCase() : '';
+  let h = `<div class="sayfa-etiket">📄 2. sayfa — paylaşımda ayrı görsel olarak gider${veri.adim_filtre ? ' · yalnız ' + esc(veri.adim_filtre) + ' adımında/makinesinde çalışan vardiyaların duruşları' : ''}</div>
   <div id="durus-wrap">
     <div class="r-head r-head-durus">
-      <div class="r-title"><span class="ico">⏸</span><span>${esc(bilgi.ad.toUpperCase())} — DURUŞLAR</span></div>
+      <div class="r-title"><span class="ico">⏸</span><span>${esc(bilgi.ad.toUpperCase())}${esc(adimEk)} — DURUŞLAR</span></div>
       <div class="r-meta">
         <div>Vardiya: <b>${esc(vardiya)}</b></div>
         <div>${formatTarih(tarih)}</div>

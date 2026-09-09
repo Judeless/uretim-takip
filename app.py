@@ -8637,13 +8637,21 @@ def _tk1_montaj_ek_satirlar(conn, tarih, vardiya_turu):
     return out
 
 
-def _rapor_duruslari(conn, tarih, vardiya_turu, bolum, lokasyon):
+def _rapor_duruslari(conn, tarih, vardiya_turu, bolum, lokasyon, adim='', hat=''):
     """Günlük raporun 2. sayfası (kullanıcı 2026-09-08): o gün/vardiya/bölüm/
     tesisteki duruşlar. Saat: zaman damgası (baslangic_ts/bitis_ts) varsa
-    ondan, yoksa operatörün yazdığı başlangıç saati + süre. Sıra: hat, saat."""
+    ondan, yoksa operatörün yazdığı başlangıç saati + süre. Sıra: hat, saat.
+
+    MAKİNE/ADIM BAZLI RAPOR (kullanıcı 2026-09-09: "makine bazlı üretim raporu
+    paylaşırken bütün bölümlerin duruşları geliyor"): duruş VARDİYAYA yazılır,
+    makinesi yoktur. Seçili adım/hat için vardiyanın o günkü ÜRETİM kayıtlarının
+    makinesine bakılır: seçilen adımda/hatta kaydı olan vardiyaların duruşları
+    kalır. Aynı vardiyada iki adım çalışıldıysa duruş ikisinde de görünür
+    (bölünemez); hiç üretim kaydı olmayan vardiyanın makinesi bilinemez, o
+    yalnız bölüm raporunda kalır."""
     try:
         rows = conn.execute("""
-            SELECT v.robot_no, v.operator_adi, d.durus_sebebi, COALESCE(d.aciklama,'') aciklama,
+            SELECT v.id vid, v.robot_no, v.operator_adi, d.durus_sebebi, COALESCE(d.aciklama,'') aciklama,
                    COALESCE(d.sure_dk,0) sure_dk, COALESCE(d.baslangic_saati,'') baslangic_saati,
                    COALESCE(d.durus_tipi,'plansiz') durus_tipi,
                    COALESCE(d.baslangic_ts,'') baslangic_ts, COALESCE(d.bitis_ts,'') bitis_ts
@@ -8658,6 +8666,23 @@ def _rapor_duruslari(conn, tarih, vardiya_turu, bolum, lokasyon):
     except Exception as e:
         print(f'[RAPOR] duruş listesi okunamadı: {e}')
         return []
+    if (adim or hat) and rows:
+        try:
+            vids = sorted({r['vid'] for r in rows})
+            uygun = set()
+            for u in conn.execute(
+                    f"SELECT u.vardiya_id, v.robot_no, COALESCE(u.istasyon,0) istasyon "
+                    f"FROM uretim_kayitlari u JOIN vardiyalar v ON v.id = u.vardiya_id "
+                    f"WHERE u.vardiya_id IN ({','.join('?' * len(vids))})", vids).fetchall():
+                h = kayit_hatti(u['robot_no'], u['istasyon'])
+                if hat and h != hat:
+                    continue
+                if adim and tel_hat_adimi(h) != adim:
+                    continue
+                uygun.add(u['vardiya_id'])
+            rows = [r for r in rows if r['vid'] in uygun]
+        except Exception as e:
+            print(f'[RAPOR] duruş makine süzgeci atlandı: {e}')
     out = []
     for r in rows:
         bas = (r['baslangic_ts'] or '')[11:16] or (r['baslangic_saati'] or '')[:5]
@@ -8892,7 +8917,9 @@ def gunluk_rapor_detay():
         # paylaşılırken ayrı bir sayfada duruşlar, duruş saatleri ve açıklamaları
         # da yazsın." Aynı gün/vardiya/bölüm/tesisin duruş kayıtları; 2. sayfa
         # kararı istemcide (rapor.html yalnız TK1'de ikinci görsel üretir).
-        duruslar = _rapor_duruslari(conn, tarih, vardiya_turu, bolum, lokasyon)
+        duruslar = _rapor_duruslari(conn, tarih, vardiya_turu, bolum, lokasyon,
+                                    adim=(adim_filtre if ist_modu and bolum == 'tel' else ''),
+                                    hat=(hat_filtre if ist_modu else ''))
 
         return jsonify({
             'tarih':   tarih,
