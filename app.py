@@ -10807,6 +10807,17 @@ def as400_import_deneme():
         return jsonify({'hata': f'Import hatası: {e!r}'}), 424
     print(f'[CFI-IMPORT] deneme {causal} {article} {adet} → {r.get("durum")} {r.get("hareket_no") or r.get("not") or ""}')
     r.pop('alanlar', None)
+    # CANLI KANITI (2026-09-09): program satırı işlediyse hareket ÜRETİM
+    # kütüphanesinin BMMAF0'ında bugün görünüyor mu? Görünüyorsa IT programı
+    # COFLETK'ye (canlı) yazıyor → import'a geçilebilir; görünmüyorsa hâlâ
+    # TEST veritabanında (COFLETKPR). Tarih verilmişse bakılmaz (bugün değil).
+    r['canli_bmmaf0'] = None
+    if r.get('ok') and r.get('durum') in ('islendi', 'mevcut') and not d.get('uretim_tarihi'):
+        try:
+            r['canli_bmmaf0'] = any(abs(q - float(adet)) < 0.001
+                                    for q in _as400_cfi_bugun(article, causal=causal))
+        except Exception as e:
+            r['canli_hata'] = f'{e!r}'
     return jsonify({'basarili': bool(r.get('ok')), **r})
 
 
@@ -12554,6 +12565,14 @@ def as400_oto_config_degistir():
         cfg[tur]['etkin'] = bool(data.get('etkin'))
     if 'dryrun' in data and tur == 'transfer_iptal':
         cfg[tur]['dryrun'] = bool(data.get('dryrun'))
+    # CFI IMPORT'A GEÇİŞ (kullanıcı 2026-09-09, Stefano "start with CFI"):
+    # panelden tek düğmeyle etkin + canli_onay + dogrulama_bmmaf0 birlikte
+    # açılır/kapanır — sunucuda JSON elle düzenlenmesin (bozuk config dersi).
+    # kutuphane/tablo/causals DOSYADAN: IT sözleşmesi, panelden değişmez.
+    if tur == 'cfi_import':
+        for k in ('canli_onay', 'dogrulama_bmmaf0'):
+            if k in data:
+                cfg[tur][k] = bool(data.get(k))
     try:
         _oto_config_yaz(cfg)
     except Exception as e:

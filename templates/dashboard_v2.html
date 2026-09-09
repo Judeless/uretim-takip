@@ -6755,7 +6755,13 @@ window.__I18N_SOZLUK__ = {
                     </div>
                     <div style="padding:6px 20px 14px">
                         <div style="font-size:.8rem;color:var(--muted);line-height:1.6;margin-bottom:8px">
-                            IT'nin programı 10 sn'de bir bu tablodaki boş satırları işler: <b>MGSTAT=1</b> hareket açıldı (numara yanda), <b>MGSTAT=2</b> hata (MGNOTE). Şimdilik TEST veritabanına yazar (COFLETKPR).
+                            IT'nin programı 10 sn'de bir bu tablodaki boş satırları işler: <b>MGSTAT=1</b> hareket açıldı (numara yanda), <b>MGSTAT=2</b> hata (MGNOTE).
+                            <br>Geçiş (Stefano 2026-09-08: yalnız CFI): IT programı canlıya (COFLETK) alındı haberi gelince 🚀 ile aç — 17:10 koşusu ve panel CFI teyitlerini import ile yazar, <b>RPR ve COP robotta kalır</b>. Doğrulama açık: import işlese de hareket canlı BMMAF0'da görünmezse satır <b>hata</b> olarak kalır, hiçbir şey sessizce kaybolmaz.
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                            <button class="btn btn-primary" id="as4-imp-ac" style="display:none" onclick="as4ImportCanli(true)">🚀 CFI'yi import'a al (canlı)</button>
+                            <button class="btn btn-ghost" id="as4-imp-kapat" style="display:none" onclick="as4ImportCanli(false)">↩ Robota dön (import kapat)</button>
+                            <span id="as4-imp-not" style="font-size:.76rem;color:var(--muted)"></span>
                         </div>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
                             <input id="as4-imp-article" class="rt-row-select" style="max-width:190px" placeholder="article (ör: 10.300.1866-10W)">
@@ -14040,6 +14046,13 @@ window.__I18N_SOZLUK__ = {
                     : (j.etkin ? '⚠ etkin ama canli_onay yok (IT programı TEST veritabanında) — robot kullanılıyor'
                                : '○ kapalı — ekran robotu kullanılıyor')) +
                     ' · ' + (j.kutuphane || '?') + '.' + (j.tablo || '?');
+                _as4ImpAktif = !!j.aktif;
+                var bAc = document.getElementById('as4-imp-ac'), bKapat = document.getElementById('as4-imp-kapat'), bNot = document.getElementById('as4-imp-not');
+                if (bAc) bAc.style.display = (res.ok && !j.aktif) ? '' : 'none';
+                if (bKapat) bKapat.style.display = (res.ok && j.aktif) ? '' : 'none';
+                if (bNot) bNot.textContent = !res.ok ? '' : (j.aktif
+                    ? 'Doğrulama ' + (j.dogrulama_bmmaf0 ? 'AÇIK' : 'KAPALI') + ' · tarih ' + (j.tarih_gonder ? 'üretim günü' : 'bugün') + ' · RPR ve COP robotta'
+                    : 'Açmadan önce IT "program COFLETK\'ye yazıyor" demiş olmalı; ilk gerçek satırı panelden tek tek gönderip sonucu izleyin.');
                 if (!res.ok) { toast(j.hata || 'Import durumu okunamadı', 'error'); return; }
                 if (!el) return;
                 if (j.kolonlar) {
@@ -14055,12 +14068,34 @@ window.__I18N_SOZLUK__ = {
                 }
               }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }
+        // CFI'yi import'a al / robota dön (2026-09-09). Üç bayrak birlikte:
+        // etkin + canli_onay + dogrulama_bmmaf0. Kapatınca 17:10 koşusu ve panel
+        // aynı anda robota döner (config her koşuda taze okunur, restart yok).
+        var _as4ImpAktif = false;
+        function as4ImportCanli(ac) {
+            var metin = ac
+                ? 'CFI teyitleri IMPORT ile (COFLEFORGE.BMMAF0I) yazılacak; RPR ve COP ekran robotunda kalacak.\n\n' +
+                  'ÖN ŞART: IT (Simone) programın canlı veritabanına (COFLETK) yazdığını bildirmiş olmalı. Program hâlâ TEST\'teyse (COFLETKPR) satırlar doğrulamada "hata" olarak kalır ve ERP\'ye stok girmez.\n\n' +
+                  'Açtıktan sonra ilk gerçek satırı panelden tek tek gönderin ve "CFI-IMP · ok" sonucunu görün. Devam?'
+                : 'Import kapatılacak; CFI teyitleri yeniden ekran robotuyla yazılacak. Devam?';
+            if (!confirm(metin)) return;
+            var govde = ac ? { tur: 'cfi_import', etkin: true, canli_onay: true, dogrulama_bmmaf0: true }
+                           : { tur: 'cfi_import', etkin: false, canli_onay: false };
+            panelFetch('/api/as400/oto_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde) })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ')' } }; }); })
+              .then(function (res) {
+                if (!res.ok) { toast(res.j.hata || 'Ayar yazılamadı', 'error'); return; }
+                toast(ac ? '🚀 CFI import\'a alındı — RPR/COP robotta' : '↩ Import kapatıldı — CFI robota döndü', 'success');
+                as4ImportYukle(false, 0);
+              }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
         function as4ImportDeneme() {
             var g = function (id) { return (document.getElementById(id) || {}).value || ''; };
             var govde = { article: g('as4-imp-article').trim(), adet: parseFloat(g('as4-imp-adet')) || 0,
                           causal: g('as4-imp-causal'), wh: g('as4-imp-wh'), cp: g('as4-imp-cp'), uretim_tarihi: g('as4-imp-tarih') };
             if (!govde.article || govde.adet <= 0) { toast('article ve adet girin', 'error'); return; }
-            if (!confirm(govde.causal + ' ' + govde.article + ' × ' + govde.adet + ' — COFLEFORGE.BMMAF0I tablosuna TEK satır yazılacak ve programın cevabı beklenecek. Devam?')) return;
+            if (!confirm(govde.causal + ' ' + govde.article + ' × ' + govde.adet + ' — COFLEFORGE.BMMAF0I tablosuna TEK satır yazılacak ve programın cevabı beklenecek.' +
+                         (_as4ImpAktif ? '\n\n⚠ IMPORT CANLI: program canlıdaysa bu satır GERÇEK stok hareketi (ve SCO bileşen düşümü) yaratır!' : '') + '\n\nDevam?')) return;
             var kutu = document.getElementById('as4-imp-sonuc');
             kutu.style.display = ''; kutu.textContent = '⏳ Satır yazıldı, program bekleniyor (en çok ' + 60 + ' sn)…';
             panelFetch('/api/as400/import_deneme', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde) })
@@ -14075,6 +14110,9 @@ window.__I18N_SOZLUK__ = {
                     (j.mgtime ? ' · ' + esc(j.mgtime) : '') +
                     (j.not ? '<br>MGNOTE: ' + esc(j.not) : '') +
                     (j.mesaj ? '<br>' + esc(j.mesaj) : '') +
+                    (j.canli_bmmaf0 === true ? '<br><b style="color:var(--success)">✅ Hareket CANLI BMMAF0\'da görüldü — program COFLETK\'ye (canlı) yazıyor.</b>'
+                     : j.canli_bmmaf0 === false ? '<br><b style="color:var(--warn)">⚠ Hareket canlı BMMAF0\'da YOK — program hâlâ TEST veritabanında (COFLETKPR); import\'a geçmeyin.</b>'
+                     : (j.canli_hata ? '<br>Canlı kontrolü yapılamadı: ' + esc(j.canli_hata) : '')) +
                     (j.sql ? '<br><code style="font-size:.74rem">' + esc(j.sql) + '</code>' : '');
                 as4ImportYukle(false, 15);
               }).catch(function () { kutu.textContent = 'Bağlantı hatası'; });
