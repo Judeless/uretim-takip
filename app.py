@@ -10429,13 +10429,18 @@ def _import_log_yaz(conn, causal, article, referans, adet, wh, cp, u_tarih, sonu
     Başarısız denemeler de yazılır (sonuc='hata') — listede ayrı bölümde çıkar."""
     r = r or {}
     try:
+        _imp = (_oto_config().get('cfi_import') or {})
+        try:
+            _db_ku = _imp.get('kullanici') or _as400_import_modulu().KULLANICI
+        except Exception:
+            _db_ku = _imp.get('kullanici') or 'COFLEFORGE'
         conn.execute(
             "INSERT INTO as400_import_log (uretim_tarihi, causal, article, referans, adet, wh, cp, kutuphane, "
-            "hareket_no, anahtar, rrn, durum, sonuc, mesaj, olusturan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "hareket_no, anahtar, rrn, durum, sonuc, mesaj, olusturan, db_kullanici) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (u_tarih or '', causal, article, referans or '', float(adet), wh or '', cp or '',
-             (_oto_config().get('cfi_import') or {}).get('kutuphane') or 'COFLEFORGE',
+             _imp.get('kutuphane') or 'COFLEFORGE',
              r.get('hareket_no') or '', r.get('anahtar') or '', r.get('rrn'), r.get('durum') or '',
-             sonuc, mesaj or '', olusturan or ''))
+             sonuc, mesaj or '', olusturan or '', _db_ku))
         conn.commit()
     except Exception as e:
         print(f'[CFI-IMPORT] import_log yazılamadı: {e}')
@@ -10548,7 +10553,7 @@ def as400_import_gonderimler_excel():
     satirlar = _import_gonderimleri(get_db(), tarih, gun, request.args.get('bildirilmemis') in ('1', 'true'))
     wb = Workbook(); ws = wb.active; ws.title = 'Import movements'
     basliklar = ['Posted at', 'Production day', 'Causal', 'Article', 'Qty', 'Warehouse', 'Counterpart',
-                 'Movement', 'MGSTE2 key', 'RRN', 'Status', 'Result', 'Note', 'By']
+                 'Movement', 'MGSTE2 key', 'RRN', 'Status', 'Result', 'Note', 'By', 'AS400 user']
     ws.append(basliklar)
     _bf, _bd = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor='6D28D9')
     for h in ws[1]:
@@ -10557,7 +10562,7 @@ def as400_import_gonderimler_excel():
     for s in satirlar:
         ws.append([s.get('created_at'), s.get('uretim_tarihi'), s.get('causal'), s.get('article'), s.get('adet'),
                    s.get('wh'), s.get('cp'), s.get('hareket_no'), s.get('anahtar'), s.get('rrn'), s.get('durum'),
-                   s.get('sonuc'), s.get('mesaj'), s.get('olusturan')])
+                   s.get('sonuc'), s.get('mesaj'), s.get('olusturan'), s.get('db_kullanici')])
     for i, _b in enumerate(basliklar, start=1):
         en = max([len(str(_b))] + [len(str(c.value or '')) for c in ws[chr(64 + i)]][:500])
         ws.column_dimensions[chr(64 + i)].width = min(max(en + 3, 10), 48)

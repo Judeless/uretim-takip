@@ -1243,6 +1243,13 @@ def init_db():
             bildirildi INTEGER DEFAULT 0
         )
     ''')
+    # db_kullanici (2026-09-09): satiri BMMAF0I'ye YAZAN AS400 profili (COFLEFORGE /
+    # EMREDTK). Kullanici "bu teyitleri COFLEFORGE ile mi verdik?" diye sordu;
+    # ekrandaki 'Utente Import' IT programidir, bizim ODBC profilimizi gostermez.
+    try:
+        c.execute("ALTER TABLE as400_import_log ADD COLUMN db_kullanici TEXT DEFAULT ''")
+    except Exception:
+        pass
 
     # ─────────────────────────────────────────────────────────────
     # AS400 teyit ekranı İŞARETLERİ (2026-07-20). İki kapsam:
