@@ -10518,7 +10518,8 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
                             uretim_tarihi=(u_tarih if imp.get('tarih_gonder') else None),
                             referans=None, kutuphane=imp.get('kutuphane') or 'COFLEFORGE',
                             tablo=imp.get('tablo') or 'BMMAF0I',
-                            bekleme_sn=int(imp.get('bekleme_sn') or 60), zorla=zorla)
+                            bekleme_sn=int(imp.get('bekleme_sn') or 60), zorla=zorla,
+                            kullanici=imp.get('kullanici') or None)
     except Exception as e:
         print(f'[CFI-IMPORT] {causal} {article} {adet}: {e!r}')
         return 'hata', f'Import hatası: {e!r}', {}
@@ -10935,16 +10936,20 @@ def as400_import_durum():
            'aktif': bool(imp.get('etkin') and imp.get('canli_onay')),
            'kutuphane': imp.get('kutuphane'), 'tablo': imp.get('tablo'),
            'bekleme_sn': imp.get('bekleme_sn'), 'dogrulama_bmmaf0': bool(imp.get('dogrulama_bmmaf0')),
-           'tarih_gonder': bool(imp.get('tarih_gonder')), 'causals': imp.get('causals') or ['CFI']}
+           'tarih_gonder': bool(imp.get('tarih_gonder')), 'causals': imp.get('causals') or ['CFI'],
+           'kullanici': imp.get('kullanici') or 'COFLEFORGE'}
     try:
         _ai = _as400_import_modulu()
+        _ku = imp.get('kullanici') or None
+        # Şifre kasada mı? (bağlanmaz) — 🚀 düğmesinden önce panelde görünür.
+        out['sifre_var'] = _ai.sifre_var(_ku)
         if request.args.get('kolon'):
             out['kolonlar'] = _ai.kolonlar(imp.get('kutuphane') or 'COFLEFORGE', imp.get('tablo') or 'BMMAF0I',
-                                           tazele=True)
+                                           tazele=True, kullanici=_ku)
         n = int(request.args.get('son') or 0)
         if n:
             out['son_satirlar'] = _ai.son_satirlar(min(100, n), imp.get('kutuphane') or 'COFLEFORGE',
-                                                   imp.get('tablo') or 'BMMAF0I')
+                                                   imp.get('tablo') or 'BMMAF0I', kullanici=_ku)
     except Exception as e:
         out['hata'] = f'{e!r}'
         return jsonify(out), 424
@@ -10976,7 +10981,7 @@ def as400_import_deneme():
                             referans=_as400_import_modulu().anahtar_uret('T'),   # 'T' + zaman + sayaç = 15 kr
                             kutuphane=imp.get('kutuphane') or 'COFLEFORGE', tablo=imp.get('tablo') or 'BMMAF0I',
                             bekleme_sn=int(d.get('bekleme_sn') or imp.get('bekleme_sn') or 60),
-                            zorla=bool(d.get('zorla')))
+                            zorla=bool(d.get('zorla')), kullanici=imp.get('kullanici') or None)
     except Exception as e:
         return jsonify({'hata': f'Import hatası: {e!r}'}), 424
     print(f'[CFI-IMPORT] deneme {causal} {article} {adet} → {r.get("durum")} {r.get("hareket_no") or r.get("not") or ""}')
@@ -11772,7 +11777,10 @@ _OTO_VARSAYILAN = {
     # ekran robotuyla gitmeye devam eder; Stefano Cappello onaylayınca eklenir.
     'cfi_import':     {'etkin': False, 'canli_onay': False, 'kutuphane': 'COFLEFORGE',
                        'tablo': 'BMMAF0I', 'bekleme_sn': 60, 'dogrulama_bmmaf0': False,
-                       'tarih_gonder': False, 'causals': ['CFI']},
+                       'tarih_gonder': False, 'causals': ['CFI'],
+                       # kullanici: import INSERT profili (İtalya IT 2026-09-09: COFLEFORGE).
+                       # Şifresi kasada ayrı kayıt (kaydet_sifre.py COFLEFORGE); okuma/robot EMREDTK.
+                       'kullanici': 'COFLEFORGE'},
 }
 
 

@@ -59,16 +59,32 @@ def _ad(x, ne):
     return x
 
 
-def baglan(timeout=20):
-    """Okuma bağlantısıyla aynı kimlik; autocommit (tek satırlık INSERT)."""
+# IMPORT PROFİLİ (İtalya IT, 2026-09-09): INSERT'ler EMREDTK ile değil IT'nin
+# açtığı COFLEFORGE kullanıcısıyla gider — yalnız bu kütüphaneye yetkili olması
+# IT'ye verdiğimiz sözün (import kullanıcısı başka hiçbir tabloya dokunmaz)
+# teknik karşılığı. Şifresi kasada ayrı kayıt: kaydet_sifre.py COFLEFORGE.
+KULLANICI = CFG.IMPORT_KULLANICI
+
+
+def sifre_var(kullanici=None):
+    """Import profilinin şifresi kasada/agent'ta var mı? (bağlanmaz)"""
+    try:
+        return bool(CFG.sifre_al(kullanici or KULLANICI))
+    except Exception:
+        return False
+
+
+def baglan(timeout=20, kullanici=None):
+    """Import profiliyle bağlantı (varsayılan COFLEFORGE); autocommit (tek satırlık INSERT)."""
     import pyodbc
-    pw = CFG.sifre_al()
+    ku = (kullanici or KULLANICI).strip().upper()
+    pw = CFG.sifre_al(ku)
     if not pw:
-        raise RuntimeError('AS400 şifresi kasada yok')
-    return pyodbc.connect(CFG.baglanti_dizesi(pw), timeout=timeout, autocommit=True)
+        raise RuntimeError(f'AS400 şifresi kasada yok ({ku} — kaydet_sifre.py {ku})')
+    return pyodbc.connect(CFG.baglanti_dizesi(pw, ku), timeout=timeout, autocommit=True)
 
 
-def kolonlar(kutuphane=KUTUPHANE, tablo=TABLO, cn=None, tazele=False):
+def kolonlar(kutuphane=KUTUPHANE, tablo=TABLO, cn=None, tazele=False, kullanici=None):
     """QSYS2.SYSCOLUMNS'tan kolon listesi: [{ad, tip, uzunluk, ondalik, aciklama}].
     Salt okunur; bir kez çekilip önbelleğe alınır (INSERT'te hangi isteğe bağlı
     kolonların VAR olduğunu bilmek için)."""
@@ -76,7 +92,7 @@ def kolonlar(kutuphane=KUTUPHANE, tablo=TABLO, cn=None, tazele=False):
     if not tazele and (k, t) in _KOLON_ONBELLEK:
         return _KOLON_ONBELLEK[(k, t)]
     kapat = cn is None
-    cn = cn or baglan()
+    cn = cn or baglan(kullanici=kullanici)
     try:
         rows = cn.cursor().execute(
             "SELECT COLUMN_NAME, DATA_TYPE, LENGTH, NUMERIC_SCALE, COLUMN_TEXT, ORDINAL_POSITION "
@@ -134,7 +150,7 @@ def _satir_oku(cn, k, t, rrn):
 
 def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=None,
                 referans=None, kutuphane=KUTUPHANE, tablo=TABLO, bekleme_sn=60,
-                yokla_sn=3, zorla=False, cn=None, sadece_yaz=False):
+                yokla_sn=3, zorla=False, cn=None, sadece_yaz=False, kullanici=None):
     """Bir depo hareketi satırı yazar ve programın işlemesini bekler.
 
     Döner: {ok, durum: 'islendi'|'reddedildi'|'zaman_asimi'|'mevcut'|'hata',
@@ -164,7 +180,7 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
 
     tarih = _tarih_parcala(uretim_tarihi)
     kapat = cn is None
-    cn = cn or baglan()
+    cn = cn or baglan(kullanici=kullanici)
     try:
         mevcut_kolonlar = {c['ad'] for c in kolonlar(k, t, cn=cn)}
         eksik = [c for c in ('MGARCD', 'MGCACD', 'MGMGCD', 'MGMCCD', 'MGQTA', 'MGSTAT') if c not in mevcut_kolonlar]
@@ -233,11 +249,11 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
             cn.close()
 
 
-def hareket_durum(rrn, kutuphane=KUTUPHANE, tablo=TABLO, cn=None, bekleme_sn=0, yokla_sn=3):
+def hareket_durum(rrn, kutuphane=KUTUPHANE, tablo=TABLO, cn=None, bekleme_sn=0, yokla_sn=3, kullanici=None):
     """RRN ile satırın durumunu okur; bekleme_sn>0 ise MGSTAT dolana kadar yoklar."""
     k, t = _ad(kutuphane, 'kütüphane'), _ad(tablo, 'tablo')
     kapat = cn is None
-    cn = cn or baglan()
+    cn = cn or baglan(kullanici=kullanici)
     try:
         bitis = time.time() + max(0, float(bekleme_sn))
         while True:
@@ -257,11 +273,11 @@ def hareket_durum(rrn, kutuphane=KUTUPHANE, tablo=TABLO, cn=None, bekleme_sn=0, 
             cn.close()
 
 
-def son_satirlar(n=20, kutuphane=KUTUPHANE, tablo=TABLO, cn=None):
+def son_satirlar(n=20, kutuphane=KUTUPHANE, tablo=TABLO, cn=None, kullanici=None):
     """Panel için: tablodaki son n satır (ne yazdık, program ne dedi)."""
     k, t = _ad(kutuphane, 'kütüphane'), _ad(tablo, 'tablo')
     kapat = cn is None
-    cn = cn or baglan()
+    cn = cn or baglan(kullanici=kullanici)
     try:
         mevcut = {c['ad'] for c in kolonlar(k, t, cn=cn)}
         secim = [c for c in ('MGARCD', 'MGCACD', 'MGMGCD', 'MGMCCD', 'MGQTA', 'MGDSSO', 'MGDAAO',

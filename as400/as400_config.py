@@ -7,7 +7,13 @@ Sifreyi kaydetmek icin: python as400/kaydet_sifre.py
 
 # Windows Kimlik Bilgileri Yoneticisi anahtarlari
 KEYRING_SERVICE = 'cofle_as400'
-DB_KULLANICI    = 'EMREDTK'          # AS400 kullanici adi (sifre DEGIL)
+DB_KULLANICI    = 'EMREDTK'          # AS400 kullanici adi (sifre DEGIL) — okuma + ekran robotu
+# IMPORT KULLANICISI (Italya IT, 2026-09-09): COFLEFORGE.BMMAF0I'ye INSERT icin
+# IT'nin actigi AYRI profil. Yalniz import modulu bunu kullanir; okumalar ve
+# ekran robotu (RPR/COP) EMREDTK'da kalir. Sifresi de kasada AYRI kayittir:
+#   python as400/kaydet_sifre.py COFLEFORGE
+IMPORT_KULLANICI = 'COFLEFORGE'
+KULLANICILAR     = (DB_KULLANICI, IMPORT_KULLANICI)   # kasadan okunabilecek profiller (beyaz liste)
 
 # Baglanti
 HOST   = '192.168.1.1'
@@ -49,13 +55,14 @@ HAREKET_SORGU = (
 )
 
 
-def baglanti_dizesi(sifre):
+def baglanti_dizesi(sifre, kullanici=None):
     """pyodbc connection string uretir. sifre yalnizca runtime'da,
-    bellekte kullanilir — hicbir yere yazilmaz."""
+    bellekte kullanilir — hicbir yere yazilmaz. kullanici: varsayilan
+    DB_KULLANICI; import modulu IMPORT_KULLANICI ile cagirir."""
     return (
         f"DRIVER={{{DRIVER}}};"
         f"SYSTEM={HOST};"
-        f"UID={DB_KULLANICI};"
+        f"UID={kullanici or DB_KULLANICI};"
         f"PWD={sifre};"
         # Metin cevirisi: AS400 EBCDIC → Unicode (Turkce alanlar dogru gelsin)
         "CCSID=1208;TRANSLATE=1;"
@@ -73,18 +80,20 @@ def baglanti_dizesi(sifre):
 AGENT_URL = 'http://127.0.0.1:5010'
 
 
-def sifre_al():
-    """AS400 sifresi: once keyring, olmazsa teyit-agent (localhost). None=bulunamadi."""
+def sifre_al(kullanici=None):
+    """AS400 sifresi: once keyring, olmazsa teyit-agent (localhost). None=bulunamadi.
+    kullanici: varsayilan DB_KULLANICI; import icin IMPORT_KULLANICI."""
+    ku = (kullanici or DB_KULLANICI).strip().upper()
     try:
         import keyring
-        pw = keyring.get_password(KEYRING_SERVICE, DB_KULLANICI)
+        pw = keyring.get_password(KEYRING_SERVICE, ku)
         if pw:
             return pw
     except Exception:
         pass
     try:
         import requests
-        r = requests.get(AGENT_URL + '/sifre', timeout=2)
+        r = requests.get(AGENT_URL + '/sifre', params=({'kullanici': ku} if ku != DB_KULLANICI else None), timeout=2)
         if r.status_code == 200:
             return (r.json() or {}).get('sifre') or None
     except Exception:

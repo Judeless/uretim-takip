@@ -58,7 +58,12 @@ def sifre():
     try:
         import keyring
         import as400_config as cfg
-        pw = keyring.get_password(cfg.KEYRING_SERVICE, cfg.DB_KULLANICI)
+        # ?kullanici= (2026-09-09): import profili COFLEFORGE de kasada ayri kayit.
+        # YALNIZ beyaz listedeki profiller — rastgele kullanici adi kasadan okutulamaz.
+        ku = (request.args.get('kullanici') or cfg.DB_KULLANICI).strip().upper()
+        if ku not in getattr(cfg, 'KULLANICILAR', (cfg.DB_KULLANICI,)):
+            return jsonify({'sifre': '', 'hata': f'bilinmeyen kullanici: {ku}'}), 400
+        pw = keyring.get_password(cfg.KEYRING_SERVICE, ku)
         return jsonify({'sifre': pw or ''})
     except Exception as e:
         return jsonify({'sifre': '', 'hata': str(e)}), 500

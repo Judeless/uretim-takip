@@ -246,3 +246,22 @@ Ayarlar (`oto_config.json`, restart gerekmez — `kontrol_dk` hariç):
 
 Mailin gövdesi ne yapılacağını sırasıyla yazar (RDP → PCOMM A+B → agent →
 `Robot_Tani.bat` → panel rozeti).
+
+## Import kullanıcısı COFLEFORGE (İtalya IT, 2026-09-09)
+
+IT, `COFLEFORGE.BMMAF0I` tablosuna INSERT için ayrı bir AS400 profili açtı:
+**COFLEFORGE**. Import modülü yalnız bu profille bağlanır; okumalar ve ekran
+robotu (RPR/COP) EMREDTK'da kalır. Şifre kasada AYRI kayıttır — kod, dosya,
+config, mail veya sohbete YAZILMAZ.
+
+Sunucuda (promanage RDP oturumunda, servis şifreyi teyit-agent üzerinden buradan alır):
+
+```
+cd C:\cofle\uretim_takip\as400
+python kaydet_sifre.py COFLEFORGE      (şifre iki kez, ekranda görünmez)
+```
+
+Sonra teyit-agent'ı bir kez yeniden başlat (`Teyit_Agent_Baslat.bat`) — `/sifre?kullanici=`
+ucu yeni agent kodunda. Panel → AS400 → Import kartı satırında
+"🔑 COFLEFORGE (şifre kasada)" görünmeli; "ŞİFRE KASADA YOK" görünürse 🚀 düğmesi çalışmaz.
+Şifre değişince aynı komut tekrar çalıştırılır; laptopta test için aynı komut (isteğe bağlı).

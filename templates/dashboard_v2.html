@@ -14060,8 +14060,11 @@ window.__I18N_SOZLUK__ = {
                 if (mod) mod.textContent = (j.aktif ? '● AÇIK — ' + (j.causals || ['CFI']).join('/') + ' import ile gidiyor' + ((j.causals || ['CFI']).indexOf('COP') < 0 ? ' (COP robotta)' : '')
                     : (j.etkin ? '⚠ etkin ama canli_onay yok (IT programı TEST veritabanında) — robot kullanılıyor'
                                : '○ kapalı — ekran robotu kullanılıyor')) +
-                    ' · ' + (j.kutuphane || '?') + '.' + (j.tablo || '?');
+                    ' · ' + (j.kutuphane || '?') + '.' + (j.tablo || '?') +
+                    ' · 🔑 ' + (j.kullanici || '?') + (j.sifre_var === false ? ' — ŞİFRE KASADA YOK (kaydet_sifre.py ' + (j.kullanici || '') + ')' : (j.sifre_var ? ' (şifre kasada)' : ''));
+                if (mod) mod.style.color = (j.sifre_var === false) ? 'var(--danger)' : '';
                 _as4ImpAktif = !!j.aktif;
+                _as4ImpSifreYok = (j.sifre_var === false);
                 var bAc = document.getElementById('as4-imp-ac'), bKapat = document.getElementById('as4-imp-kapat'), bNot = document.getElementById('as4-imp-not');
                 if (bAc) bAc.style.display = (res.ok && !j.aktif) ? '' : 'none';
                 if (bKapat) bKapat.style.display = (res.ok && j.aktif) ? '' : 'none';
@@ -14087,7 +14090,9 @@ window.__I18N_SOZLUK__ = {
         // etkin + canli_onay + dogrulama_bmmaf0. Kapatınca 17:10 koşusu ve panel
         // aynı anda robota döner (config her koşuda taze okunur, restart yok).
         var _as4ImpAktif = false;
+        var _as4ImpSifreYok = false;
         function as4ImportCanli(ac) {
+            if (ac && _as4ImpSifreYok) { toast('Import kullanıcısının (COFLEFORGE) şifresi kasada yok — önce sunucuda kaydet_sifre.py COFLEFORGE', 'error'); return; }
             var metin = ac
                 ? 'CFI teyitleri IMPORT ile (COFLEFORGE.BMMAF0I) yazılacak; RPR ve COP ekran robotunda kalacak.\n\n' +
                   'ÖN ŞART: IT (Simone) programın canlı veritabanına (COFLETK) yazdığını bildirmiş olmalı. Program hâlâ TEST\'teyse (COFLETKPR) satırlar doğrulamada "hata" olarak kalır ve ERP\'ye stok girmez.\n\n' +
