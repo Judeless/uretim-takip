@@ -11065,6 +11065,18 @@ def as400_import_durum():
            'bekleme_sn': imp.get('bekleme_sn'), 'dogrulama_bmmaf0': bool(imp.get('dogrulama_bmmaf0')),
            'tarih_gonder': bool(imp.get('tarih_gonder')), 'causals': imp.get('causals') or ['CFI'],
            'kullanici': imp.get('kullanici') or 'COFLEFORGE'}
+    # ODBC okuma profili (odbc_config.json → as400_config.DB_KULLANICI, 2026-09-10):
+    # panelde görünsün ki geçiş sunucuda gerçekten oldu mu bir bakışta anlaşılsın.
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import as400_config as _acfg
+        out['odbc_kullanici'] = _acfg.DB_KULLANICI
+        out['robot_kullanici'] = _acfg.ROBOT_VARSAYILAN
+    except Exception as e:
+        out['odbc_kullanici'] = f'? ({e})'
     try:
         _ai = _as400_import_modulu()
         _ku = imp.get('kullanici') or None

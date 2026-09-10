@@ -14061,7 +14061,8 @@ window.__I18N_SOZLUK__ = {
                     : (j.etkin ? '⚠ etkin ama canli_onay yok (IT programı TEST veritabanında) — robot kullanılıyor'
                                : '○ kapalı — ekran robotu kullanılıyor')) +
                     ' · ' + (j.kutuphane || '?') + '.' + (j.tablo || '?') +
-                    ' · 🔑 ' + (j.kullanici || '?') + (j.sifre_var === false ? ' — ŞİFRE KASADA YOK (kaydet_sifre.py ' + (j.kullanici || '') + ')' : (j.sifre_var ? ' (şifre kasada)' : ''));
+                    ' · 🔑 import ' + (j.kullanici || '?') + (j.sifre_var === false ? ' — ŞİFRE KASADA YOK (kaydet_sifre.py ' + (j.kullanici || '') + ')' : (j.sifre_var ? ' (şifre kasada)' : '')) +
+                    (j.odbc_kullanici ? ' · ODBC okuma ' + j.odbc_kullanici : '');
                 if (mod) mod.style.color = (j.sifre_var === false) ? 'var(--danger)' : '';
                 _as4ImpAktif = !!j.aktif;
                 _as4ImpSifreYok = (j.sifre_var === false);
