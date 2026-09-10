@@ -300,3 +300,19 @@ Hepsi OK ise `as400\odbc_config.json` oluştur: `{"kullanici": "COFLEFORGE"}` (�
 yeniden başlat (profil modül yüklenirken okunur). Doğrulama: panel AS400 sayfası launch
 listesini getiriyor; Simone WRKACTJOB'da QZDASOINIT işlerini COFLEFORGE altında görür.
 Geri dönüş: dosyayı sil + restart.
+
+## PCOMM açılış ekranında takılıyor / ECL37110 — sunucuyu yeniden başlatmadan (2026-09-10)
+
+**Belirti:** PCOMM pencereleri kapatılıp açılınca "Personal Communications 5.8" açılış
+ekranında kalıyor; teyit-agent gözcüsü `ECL37110 — emulasyon arayuzu yok` diyor.
+**Sebep:** eski `pcsws.exe` / `pcscm.exe` (Session Manager) süreçleri asılı; yeni oturum
+onları bekliyor. Sunucu reboot'u gerekmez (reboot MES servisini de düşürüyordu).
+
+```
+as400\PCOMM_Kurtar.bat        (promanage RDP oturumunda, YÖNETİCİ OLMADAN)
+```
+
+Betik: pcs* süreçlerini kapatır → Başlangıç'taki `PCOMM A.lnk` / `PCOMM B.lnk` ile A sonra B'yi
+açar → otomasyonun 2 bağlantı gördüğünü doğrular. Sonra Session A'ya elle sign-on; Session B'ye
+gözcü ≤5 dk içinde girer (hemen istersen agent'ı yeniden başlat). Betik yoksa elle: Görev
+Yöneticisi → Ayrıntılar → `pcsws.exe` ve `pcscm.exe` hepsini sonlandır → A, sonra B'yi aç.
