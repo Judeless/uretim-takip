@@ -205,7 +205,7 @@ def _sessiz_sebep(rc, hata_cikti):
         # katmanina KAYITLI DEGILDI. Bu yuzden mesaj OLCULEBILIR dogrulamayi soyler.
         return (f'rc={rc} | PCOMM emulasyon arayuzu YOK (ECL37110): PCOMM kurulu ama '
                 f'agentin kostugu Windows oturumunda otomasyona KAYITLI emulator '
-                f'oturumu yok. KURTAR: as400\PCOMM_Kurtar.bat (pcs* sureclerini kapatir, A+B acar; reboot gerekmez). DOGRULA: Robot_Tani.bat — '
+                f'oturumu yok. KURTAR: as400/PCOMM_Kurtar.bat (pcs* sureclerini kapatir, A+B acar; reboot gerekmez). DOGRULA: Robot_Tani.bat — '
                 f'otomasyonun gordugu baglanti sayisi 2, adlar [A] ve [B] olmali. '
                 f'0 ise: TUM PCOMM pencerelerini kapat, promanage oturumunda '
                 f'YONETICI OLMADAN once A sonra B ac, sign-on yap, taniyi tekrarla. '
