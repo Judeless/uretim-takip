@@ -10629,10 +10629,11 @@ def _gun_uretim_toplami(referans, u_tarih, tesis=None):
         import launch_esle as _le
         satirlar, _ = _le.op_kurali_uygula(_le.gun_uretimi(u_tarih))
         satirlar = _le.ayni_isi_birlestir(satirlar)
-        k = _le.kanonik(referans)
+        _anah = getattr(_le, 'birlestirme_anahtari', _le.kanonik)   # nokta duyarsiz (2026-09-10)
+        k = _anah(referans)
         top, var = 0.0, False
         for r in satirlar:
-            if _le.kanonik(r.get('referans')) != k:
+            if _anah(r.get('referans')) != k:
                 continue
             if tesis and str(r.get('tesis') or '').strip().upper() != str(tesis).strip().upper():
                 continue

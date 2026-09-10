@@ -50,6 +50,41 @@ def kok(s):
     return re.sub(r'[A-Z]+([\-/][A-Z0-9]+)?$', '', k) or k
 
 
+def birlestirme_anahtari(s):
+    """AYNI IS anahtari (2026-09-10, 94.LTK.685 olayi): kanonik + NOKTALAR ATILIR.
+    Iki operator ayni referansi '94.LTK.685' ve '94LTK.685' yazdi; kanonik farkli
+    kaldigi icin satirlar birlesmedi, ikinci 12 ERP'deki ilk 12 ile 'ayni gun
+    ayni adet' diye teyitli sayildi (mukerrer sanildi, teyit gitmedi).
+    Nokta AYIRACTIR, varyant belirtmez; '/' ve '-' KORUNUR ('…/20' ile '…-20'
+    ayri urun olabilir — gevsek gibi hepsini yutmaz)."""
+    return kanonik(s).replace('.', '')
+
+
+def _referans_listesi_kanonik_seti():
+    """referans_listesi'ndeki kodlarin kanonik kumesi (yazim tercihi icin)."""
+    try:
+        conn = sqlite3.connect(URETIM_DB)
+        try:
+            return {kanonik(bosluk_nokta(rk)) for (rk,) in
+                    conn.execute("SELECT referans_kodu FROM referans_listesi").fetchall()}
+        finally:
+            conn.close()
+    except Exception:
+        return set()
+
+
+def _yazim_tercih(a, b, bilinen):
+    """Birlesen iki yazimdan hangisi kalsin? 0 = a, 1 = b.
+    Referans listesinde olan kazanir; ikisi de yoksa noktasi cok olan (eksik
+    nokta en sik yazim hatasi); esitse ilk gelen."""
+    ka, kb = kanonik(a), kanonik(b)
+    if kb in bilinen and ka not in bilinen:
+        return 1
+    if ka in bilinen:
+        return 0
+    return 1 if str(b or '').count('.') > str(a or '').count('.') else 0
+
+
 # ── OP/IST kurali (kullanici 2026-07-17): 'X 1. op', 'X 2.op', 'X (2.Opr)',
 # 'X 1.ist' gibi ekler ARA OPERASYON belirtir. Referans listesindeki (ve o gunun
 # uretimindeki) EN SON op/ist numarasi hangisiyse yalniz O satir bitmis urundur:
@@ -630,17 +665,26 @@ def ayni_isi_birlestir(satirlar):
     birlesik adet + birlesik sure uzerinden yapilmali, yoksa toplanan adet
     tek vardiyanin suresine bolunup yanlis 'asim' verir)."""
     grup = {}
+    bilinen = None
     for r in satirlar:
         # 'teyit_disi' ANAHTARA DAHIL (2026-08-25): op-kurali base koda cevirdikten
         # sonra teyit disi satir (test cihazi) teyit verilecek satirla ayni base
         # koda dusuyor ve BIRLESIYORDU -> hem HARIC ayrimi kayboluyor hem adet
         # toplanip ERP'ye iki kat stok giriyordu.
-        anahtar = (r.get('tesis'), r.get('bolum'), kanonik(r.get('referans')),
+        # NOKTA DUYARSIZ anahtar (2026-09-10): bkz. birlestirme_anahtari.
+        anahtar = (r.get('tesis'), r.get('bolum'), birlestirme_anahtari(r.get('referans')),
                    bool(r.get('teyit_disi')), r.get('teyit_disi_sebep') or '')
         g = grup.get(anahtar)
         if g is None:
             grup[anahtar] = dict(r)
             continue
+        # YAZIM FARKI: '94LTK.685' + '94.LTK.685' -> referans listesindeki yazim
+        # kalir (yoksa noktasi cok olan). Birlesen yazimlar asagida iz olarak tutulur.
+        if kanonik(r.get('referans')) != kanonik(g.get('referans')):
+            if bilinen is None:
+                bilinen = _referans_listesi_kanonik_seti()
+            if _yazim_tercih(g.get('referans'), r.get('referans'), bilinen) == 1:
+                g['referans'] = r.get('referans')
         g['adet'] += r.get('adet', 0)
         g['hurda'] = g.get('hurda', 0) + r.get('hurda', 0)
         for _m in (r.get('makineler') or []):
@@ -847,7 +891,7 @@ def uretim_gecmisi(bas_tarih, son_tarih):
     """Kendi uretim kayitlarimizdan tarih bazli adet gecmisi (2026-07-20).
     Ayni-gun hareketlerin 'onceki gunun teyidi mi' sorusunu cevaplamak icin:
     hareket adedi onceki bir gunun uretim adetiyle birebir esliyorsa o gunundur.
-    Donis: {kanonik(referans): {tarih: {adetler}}} (raw referans_kodu bazinda).
+    Donis: {birlestirme_anahtari(referans): {tarih: {adetler}}} (nokta duyarsiz, 2026-09-10).
     REWORK kayitlari HARIC (gun_uretimi ile tutarli — rework teyit edilmez, hareket
     aciklamasi olarak da sayilmamali)."""
     conn = sqlite3.connect(URETIM_DB)
@@ -873,14 +917,14 @@ def uretim_gecmisi(bas_tarih, son_tarih):
     g = collections.defaultdict(lambda: collections.defaultdict(set))
     for (t, ref), toplam in ara.items():
         if toplam > 0:
-            g[kanonik(bosluk_nokta(ref))][t].add(float(toplam))
+            g[birlestirme_anahtari(bosluk_nokta(ref))][t].add(float(toplam))
     return g
 
 
 def ref_uretim_gecmisi(referans, uretim_tarihi, gun=10):
     """Tek referansin uretim gecmisi (gonderim tarafi dedup icin) — {tarih: {adetler}}."""
     bas = (date.fromisoformat(uretim_tarihi) - timedelta(days=gun)).isoformat()
-    return uretim_gecmisi(bas, uretim_tarihi).get(kanonik(referans), {})
+    return uretim_gecmisi(bas, uretim_tarihi).get(birlestirme_anahtari(referans), {})
 
 
 def bizim_gonderilenler(tarihler):
@@ -904,7 +948,7 @@ def bizim_gonderilenler(tarihler):
                 f"WHERE uretim_tarihi IN ({yer}) AND sonuc='ok' AND yil != 'CO'",
                 list(tarihler)).fetchall():
             try:
-                out[(r[0], kanonik(r[1]))] += float(r[2] or 0)
+                out[(r[0], birlestirme_anahtari(r[1]))] += float(r[2] or 0)
             except (TypeError, ValueError):
                 continue
     except Exception as e:
@@ -993,7 +1037,7 @@ def esle_coklu(tarihler):
         gonderilmis = {}
     for t in tarihler:
         for u in hazir[t][0]:
-            g = gonderilmis.get((t, kanonik(u.get('referans'))), 0.0)
+            g = gonderilmis.get((t, birlestirme_anahtari(u.get('referans'))), 0.0)
             if g > 0:
                 u['gonderilmis_adet'] = round(g, 3)
                 u['kalan_gonderilecek'] = max(0, int(round((u.get('adet') or 0) - g)))
@@ -1078,7 +1122,7 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
                 l['zombi'] = (l['kalan'] <= 0.001)
                 hareketler = hrk.get(kanonik(l['article']), [])
                 durum, ilgili = _zaten_teyitli(hareketler, tarih, r['adet'],
-                                               gecmis_map.get(kanonik(r['referans'])))
+                                               gecmis_map.get(birlestirme_anahtari(r['referans'])))
                 _teyit_isle(l, durum, ilgili, r['adet'])
             # SATIR duzeyi kontrol — KENDI referans kodunun hareketleri (2026-07-30).
             # ACIK/SUPHELI'de yalnizca launch'in ARTICLE'ina bakiliyordu; varyant
@@ -1091,7 +1135,7 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
             _ref_hrk = hrk.get(kanonik(r['referans']), [])
             if _ref_hrk:
                 _d, _i = _zaten_teyitli(_ref_hrk, tarih, r['adet'],
-                                        gecmis_map.get(kanonik(r['referans'])))
+                                        gecmis_map.get(birlestirme_anahtari(r['referans'])))
                 _teyit_isle(r, _d, _i, r['adet'])
 
     # ── OPR10/KAPALI/YOK icin de SATIR duzeyinde hareket kontrolu (2026-07-20) ──
@@ -1105,7 +1149,8 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
             hareketler = hrk.get(anahtar, [])
             if not hareketler and r['launchlar']:
                 hareketler = hrk.get(kanonik(r['launchlar'][0]['article']), [])
-            durum, ilgili = _zaten_teyitli(hareketler, tarih, r['adet'], gecmis_map.get(anahtar))
+            durum, ilgili = _zaten_teyitli(hareketler, tarih, r['adet'],
+                                            gecmis_map.get(birlestirme_anahtari(r['referans'])))
             _teyit_isle(r, durum, ilgili, r['adet'])
     return sonuc
 
