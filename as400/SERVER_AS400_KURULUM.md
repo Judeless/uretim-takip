@@ -283,3 +283,20 @@ RPR/COP hâlâ ekran robotuyla (PCOMM Session B) giriliyor; robotun sign-on prof
 
 Okumalar (ODBC SELECT) EMREDTK'da kalır; onu değiştirmek `as400_config.DB_KULLANICI` işidir
 ve COFLEFORGE'un TKC0301F tablolarına SELECT yetkisi olmasını gerektirir.
+
+## ODBC profili COFLEFORGE (Simone 2026-09-10)
+
+COFLEFORGE bir **transaction** kullanıcısıdır: 5250'de uygulama menüsü yok (IBM i ana
+menüsüne düşer), ODBC/veritabanı işleri (QZDASOINIT) içindir. IT'nin isteği: ODBC
+bağlantılarında EMREDTK yerine COFLEFORGE. Ekran robotu (RPR/COP) EMREDTK'da kalır.
+
+```
+cd C:\cofle\uretim_takip
+python as400\odbc_profil_test.py COFLEFORGE     (tablo tablo OK/HATA; veri yazmaz)
+```
+
+Hepsi OK ise `as400\odbc_config.json` oluştur: `{"kullanici": "COFLEFORGE"}` (örnek:
+`odbc_config.json.example`). Sonra `C:\cofle\nssm.exe restart cofle-app` ve teyit-agent'ı
+yeniden başlat (profil modül yüklenirken okunur). Doğrulama: panel AS400 sayfası launch
+listesini getiriyor; Simone WRKACTJOB'da QZDASOINIT işlerini COFLEFORGE altında görür.
+Geri dönüş: dosyayı sil + restart.

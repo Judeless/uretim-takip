@@ -68,3 +68,4 @@ nul
 
 # AS400 oturum gozcusu ayari (kullanici adi icerir; sifre kasada)
 as400/oturum_config.json
+as400/odbc_config.json

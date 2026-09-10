@@ -1,0 +1,4 @@
+{
+  "_aciklama": "ODBC (QZDASOINIT) baglantilarinin AS400 profili. Simone Rota 2026-09-10: COFLEFORGE transaction kullanicisi, EMREDTK yerine ODBC icin kullanilmali. Sifre BU DOSYADA DEGIL (kaydet_sifre.py <kullanici>). Degisiklik restart ister: cofle-app + teyit-agent. Once python as400/odbc_profil_test.py COFLEFORGE ile yetkiyi dogrula. Bu dosya gitignore da; ornekten kopyalayin: copy odbc_config.json.example odbc_config.json",
+  "kullanici": "COFLEFORGE"
+}

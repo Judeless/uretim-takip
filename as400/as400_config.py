@@ -7,13 +7,33 @@ Sifreyi kaydetmek icin: python as400/kaydet_sifre.py
 
 # Windows Kimlik Bilgileri Yoneticisi anahtarlari
 KEYRING_SERVICE = 'cofle_as400'
-DB_KULLANICI    = 'EMREDTK'          # AS400 kullanici adi (sifre DEGIL) — okuma + ekran robotu
-# IMPORT KULLANICISI (Italya IT, 2026-09-09): COFLEFORGE.BMMAF0I'ye INSERT icin
-# IT'nin actigi AYRI profil. Yalniz import modulu bunu kullanir; okumalar ve
-# ekran robotu (RPR/COP) EMREDTK'da kalir. Sifresi de kasada AYRI kayittir:
-#   python as400/kaydet_sifre.py COFLEFORGE
-IMPORT_KULLANICI = 'COFLEFORGE'
-KULLANICILAR     = (DB_KULLANICI, IMPORT_KULLANICI)   # kasadan okunabilecek profiller (beyaz liste)
+ROBOT_VARSAYILAN = 'EMREDTK'         # 5250 ekran robotu (RPR/COP) — oturum_config.json 'kullanici' ile degisir
+IMPORT_KULLANICI = 'COFLEFORGE'      # COFLEFORGE.BMMAF0I INSERT profili (Italya IT, 2026-09-09)
+KULLANICILAR     = ('EMREDTK', 'COFLEFORGE')   # kasadan okunabilecek profiller (beyaz liste)
+
+
+def _odbc_kullanici():
+    """ODBC (QZDASOINIT) profili: as400/odbc_config.json {"kullanici": "..."}.
+    Simone Rota 2026-09-10: COFLEFORGE 'transaction' kullanicisidir, 5250 menusu
+    yok; ODBC baglantilarinda EMREDTK yerine o kullanilmali. Dosya yoksa EMREDTK
+    (eski davranis). Degisiklik RESTART ister (modul yuklenirken okunur):
+    cofle-app servisi + teyit-agent. Once: python as400/odbc_profil_test.py COFLEFORGE"""
+    import os, json
+    yol = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'odbc_config.json')
+    try:
+        with open(yol, encoding='utf-8-sig') as f:
+            ku = str((json.load(f) or {}).get('kullanici') or '').strip().upper()
+        return ku if ku in KULLANICILAR else ''
+    except FileNotFoundError:
+        return ''
+    except Exception as e:
+        print(f'[as400_config] odbc_config.json okunamadi ({e}) — {ROBOT_VARSAYILAN} kullaniliyor')
+        return ''
+
+
+# AS400 ODBC kullanici adi (sifre DEGIL): tum SELECT'ler (launch listesi, hareket
+# kontrolu, dogrulama) bu profille acilir; import modulu IMPORT_KULLANICI ile.
+DB_KULLANICI = _odbc_kullanici() or ROBOT_VARSAYILAN
 
 # Baglanti
 HOST   = '192.168.1.1'
