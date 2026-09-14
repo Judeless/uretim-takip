@@ -9828,6 +9828,17 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
             "AND sonuc='ok' AND CAST(adet AS INTEGER)=?",
             (u_tarih, yil, no, int(adet))).fetchone()
         if var and not zorla:
+            # GÜN ÜRETİMİ (2026-09-14, 94.LTK.685): aynı launch'a aynı gün AYNI adet
+            # daha önce gitti diye durmak, iki operatörün eşit adetli işini
+            # (12 + 12 = 24) kesiyordu. Gönderilen + bu, günün üretimini aşmıyorsa
+            # parçalı üretimdir; aşıyorsa aşağıdaki fren (log #) devrede kalır.
+            _g1 = _gun_ref_gonderilen(conn, u_tarih, referans)
+            _u1 = _gun_ref_uretim(u_tarih, referans)
+            if _u1 is not None and _g1 + adet <= _u1 + 0.5:
+                print(f'[TEYIT] parçalı üretim (aynı adet): {referans} {u_tarih} — '
+                      f'gönderilen {_g1:g} + {adet} <= üretim {_u1:g}')
+                var = None
+        if var and not zorla:
             sonuclar.append({**kayit, 'sonuc': 'atlandi',
                              'mesaj': f'Bu launch\'a bu gün için {int(adet)} adet ZATEN gönderilmiş '
                                       f'(log #{var["id"]}). Farklı adet göndermek serbest; aynı adedi '
@@ -9894,8 +9905,13 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
         if not zorla:
             try:
                 import launch_esle as _le2
+                # ERP kanıtı GÜNÜN ÜRETİMİYLE karşılaştırılır (2026-09-14): gönderilen
+                # parça (12) ile karşılaştırılınca ERP'deki ilk 12 'kesin' sayılıyor,
+                # kalan 12 hiç gidemiyordu — ve bu frende "yine de gönder" de çıkmıyor.
+                _u2 = _gun_ref_uretim(u_tarih, referans)
+                _kiyas2 = max(_u2, adet) if _u2 else adet
                 hrk = _le2.teyit_hareketleri([article]).get(_le2.kanonik(article), [])
-                zt, ilgili = _le2._zaten_teyitli(hrk, u_tarih, adet,
+                zt, ilgili = _le2._zaten_teyitli(hrk, u_tarih, _kiyas2,
                                                  _le2.ref_uretim_gecmisi(referans, u_tarih))
             except Exception:
                 zt, ilgili = None, []
@@ -9904,6 +9920,16 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
                 sonuclar.append({**kayit, 'sonuc': 'atlandi',
                                  'mesaj': f'ERP\'de bu üretim için zaten teyit var ({det}) — mükerrer olurdu'})
                 continue
+            if zt == 'kismi' and _u2:
+                # Günün bir kısmı ERP'de teyitli: yalnız KALAN kadar gönderilebilir.
+                _teyitli2 = sum(float(h.get('adet') or 0) for h in ilgili)
+                _kalan2 = max(0.0, _u2 - _teyitli2)
+                if adet > _kalan2 + 0.5:
+                    sonuclar.append({**kayit, 'sonuc': 'atlandi',
+                                     'mesaj': f"ERP'de bu gün için zaten {_teyitli2:g} adet teyitli "
+                                              f"(gün üretimi {_u2:g}); kalan {_kalan2:g}, istenen {adet} "
+                                              f"— fazla teyit olur. Kalan adedi gönderin."})
+                    continue
             # Mükerrer koruması 3: KAPASİTE (2026-07-30) — hayali stok girişini engeller
             kap = _kapasite_reddi(conn, referans, u_tarih, adet)
             if kap:
@@ -10422,10 +10448,12 @@ def _cfi_depo_kodlari(conn, referans, tesis, bolum):
 def _gun_ref_gonderilen(conn, uretim_tarihi, referans):
     """Bu ÜRETİM GÜNÜ + referans için BİZİM başarıyla gönderdiğimiz toplam adet.
     COP (yil='CO') sayılmaz — hurda ayrı bir depo hareketidir, üretim teyidi değil."""
+    # NOKTA DUYARSIZ (2026-09-14): '94.LTK.685' ile '94LTK.685' aynı iştir
+    # (launch_esle.birlestirme_anahtari ile aynı kural).
     r = conn.execute(
         "SELECT COALESCE(SUM(CAST(adet AS REAL)),0) t FROM as400_teyit_log "
         "WHERE uretim_tarihi=? AND sonuc='ok' AND yil != 'CO' "
-        "AND UPPER(REPLACE(referans,' ',''))=UPPER(REPLACE(?,' ',''))",
+        "AND UPPER(REPLACE(REPLACE(referans,' ',''),'.',''))=UPPER(REPLACE(REPLACE(?,' ',''),'.',''))",
         (uretim_tarihi, referans)).fetchone()
     return float(r['t'] or 0) if r else 0.0
 
@@ -10451,8 +10479,8 @@ def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
                 # ERP'ye fark gonderirdi — tam da onlemeye calistigimiz sey.
                 if u.get('teyit_disi'):
                     continue
-                harita[_le.kanonik(u.get('referans'))] = (
-                    harita.get(_le.kanonik(u.get('referans')), 0) + (u.get('adet') or 0))
+                _k = getattr(_le, 'birlestirme_anahtari', _le.kanonik)(u.get('referans'))
+                harita[_k] = harita.get(_k, 0) + (u.get('adet') or 0)
             _onbellek[uretim_tarihi] = harita
         except Exception as e:
             print(f'[_gun_ref_uretim] okunamadi ({uretim_tarihi}): {e}')
@@ -10462,7 +10490,7 @@ def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
         return None            # okunamadı → çağıran ESKİ (katı) davranışa düşer
     try:
         import launch_esle as _le
-        return harita.get(_le.kanonik(referans), 0)
+        return harita.get(getattr(_le, 'birlestirme_anahtari', _le.kanonik)(referans), 0)
     except Exception:
         return None
 
@@ -10688,6 +10716,8 @@ def _gun_uretim_toplami(referans, u_tarih, tesis=None):
         for r in satirlar:
             if _anah(r.get('referans')) != k:
                 continue
+            if r.get('teyit_disi'):
+                continue            # rework/test cihazı vb. teyit dışı — üretim sayılmaz
             if tesis and str(r.get('tesis') or '').strip().upper() != str(tesis).strip().upper():
                 continue
             top += float(r.get('adet') or 0)

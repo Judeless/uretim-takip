@@ -15277,7 +15277,11 @@ window.__I18N_SOZLUK__ = {
         // devreye girer, ama o durumda kalan teyit hiç verilemiyordu — kullanıcının
         // elinde çıkış yolu yoktu (backend 'zorla' destekliyordu, arayüzde yoktu).
         function as4SonucSatirlari(sonuclar) {
-            _as4ZorlaAdaylari = [];
+            // ADAYLAR SIFIRLANMAZ (2026-09-14, 94.LTK.685): sonuç kutusu launch, CFI
+            // ve COP bölümlerini AYRI çağrılarla çiziyor. Her çağrı listeyi
+            // sıfırlayınca launch satırının "yine de gönder" düğmesi CFI bölümü
+            // çizildikten sonra boş dizine bakıyor ve hiçbir şey yapmıyordu.
+            // Liste yalnız büyür; saklanan sonuç HTML'indeki dizinler geçerli kalır.
             return (sonuclar || []).map(function (s, i) {
                 var renk = s.sonuc === 'ok' ? 'var(--success)' : (s.sonuc === 'atlandi' ? 'var(--lg-slate2)' : 'var(--danger)');
                 var ikon = s.sonuc === 'ok' ? '✔' : (s.sonuc === 'atlandi' ? '⏭' : '✖');
@@ -15324,7 +15328,7 @@ window.__I18N_SOZLUK__ = {
         var _as4ZorlaAdaylari = [];
         async function as4ZorlaGonder(idx) {
             var s = _as4ZorlaAdaylari[idx];
-            if (!s) return;
+            if (!s) { toast('Satır bilgisi bulunamadı — listeyi yenileyip satırı yeniden gönderin', 'err'); return; }
             var hedefAd = s.no ? ('launch ' + s.yil + '-' + s.no) : (s.article || s.referans);
             // İki farklı zorlama var — onay metni de farklı olmalı (2026-08-17).
             // Mükerrer freni ERP'ye ikinci hareket yazar; kod kontrolü atlamak YAZMAZ.
