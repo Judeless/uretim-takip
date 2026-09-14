@@ -394,6 +394,9 @@ def init_db():
     for _sql in (
         "ALTER TABLE uretim_kayitlari ADD COLUMN paket_adedi INTEGER DEFAULT 1",
         "ALTER TABLE referans_listesi ADD COLUMN paket_adedi INTEGER DEFAULT 1",
+        # KALIP GOZ SAYISI (metal enjeksiyon, 2026-09-14): 1 baski = N parca.
+        # Sayac carpani olarak uretim_kayitlari.paket_adedi'ne kopyalanir.
+        "ALTER TABLE referans_listesi ADD COLUMN kalip_goz INTEGER DEFAULT 1",
     ):
         try:
             c.execute(_sql)

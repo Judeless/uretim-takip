@@ -1463,9 +1463,38 @@ def _paket_acik_mi(bolum, lokasyon, hat):
     return (bolum or '') == 'tel' and tel_hat_adimi(hat) == 'Son Montaj'
 
 
+KALIP_GOZ_UST = 64
+
+
+def _kalip_goz(c, ref, bolum, lokasyon):
+    """Metal enjeksiyon KALIP GÖZ SAYISI (kullanıcı 2026-09-14: "130.3914W
+    referansının kalıbı 4 gözlü, her baskıda 4 adet saymalı").
+
+    Sensör BASKIYI sayar; bir baskıda kalıptaki göz kadar parça çıkar. Değer
+    referans kartında tutulur (tanım sayfası, varsayılan 1) ve üretim kaydına
+    SAYAÇ ÇARPANI olarak kopyalanır (uretim_kayitlari.paket_adedi) — senkron,
+    dondurma ve devir yolları çarpanı zaten uyguladığı için ayrıca değişmez.
+    Metal dışında her zaman 1."""
+    if (bolum or '') != 'metal':
+        return 1
+    try:
+        row = c.execute(
+            "SELECT COALESCE(kalip_goz,1) AS g FROM referans_listesi "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND COALESCE(bolum,'kaynak')='metal' AND COALESCE(lokasyon,'TK2')=? LIMIT 1",
+            (ref, lokasyon or 'TK2')).fetchone()
+        return max(1, min(KALIP_GOZ_UST, int(row['g'] or 1))) if row else 1
+    except Exception:
+        return 1
+
+
 def _paket_coz(c, gelen, ref, bolum, lokasyon, hat=None):
     """Üretim kaydına yazılacak paket adedini belirler (_bukum_op_coz kalıbı).
-    Kapsam dışında her zaman 1 → özellik kapalı, hiçbir şey değişmez."""
+    Kapsam dışında her zaman 1 → özellik kapalı, hiçbir şey değişmez.
+    METAL (2026-09-14): çarpan = referans kartındaki KALIP GÖZ SAYISI; istemcinin
+    gönderdiği değere bakılmaz (operatör girmez, tanım sayfasından yönetilir)."""
+    if (bolum or '') == 'metal':
+        return _kalip_goz(c, ref, bolum, lokasyon)
     if not _paket_acik_mi(bolum, lokasyon, hat):
         return 1
     kayitli = 1
@@ -4273,6 +4302,7 @@ def referans_listesi():
     base = ("SELECT referans_kodu, aciklama, hedef_cycle_time_sn, kaynak_suresi_sn, soktak_suresi_sn, "
             "sure_teyit, sure_teyit_tarihi, COALESCE(bukum_operasyon,1) AS bukum_operasyon, "
             "COALESCE(paket_adedi,1) AS paket_adedi, "
+            "COALESCE(kalip_goz,1) AS kalip_goz, "
             "COALESCE(depo_kodu,'') AS depo_kodu, "
             "COALESCE(karsi_depo_kodu,'') AS karsi_depo_kodu "
             "FROM referans_listesi")
@@ -4310,6 +4340,7 @@ def referans_ekle():
     lokasyon = (data.get('lokasyon') or request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
 
     conn = get_db()
+    _acik_n = 0
     try:
         # BÖLÜM+LOKASYONA KAPALI UPSERT: aynı (referans_kodu, bolum, lokasyon) varsa GÜNCELLE,
         # yoksa EKLE. (INSERT OR REPLACE kullanılmıyor → sure_teyit/kaynak/söktak gibi diğer
@@ -4330,20 +4361,42 @@ def referans_ekle():
             return str(x).strip().upper().replace(' ', '')[:5]
         d_kod = _depo(data.get('depo_kodu'))
         k_kod = _depo(data.get('karsi_depo_kodu'))
+        # KALIP GÖZ SAYISI — yalnız metal; GÖNDERİLMEDİYSE DOKUNULMAZ (None).
+        goz = None
+        if bolum == 'metal' and data.get('kalip_goz') not in (None, ''):
+            try:
+                goz = max(1, min(KALIP_GOZ_UST, int(data.get('kalip_goz'))))
+            except (TypeError, ValueError):
+                goz = None
 
         if mevcut:
             conn.execute(
                 "UPDATE referans_listesi SET aciklama=?, hedef_cycle_time_sn=?, "
                 "depo_kodu=COALESCE(?, depo_kodu), "
-                "karsi_depo_kodu=COALESCE(?, karsi_depo_kodu) WHERE id=?",
-                (desc, ct, d_kod, k_kod, mevcut['id'])
+                "karsi_depo_kodu=COALESCE(?, karsi_depo_kodu), "
+                "kalip_goz=COALESCE(?, kalip_goz) WHERE id=?",
+                (desc, ct, d_kod, k_kod, goz, mevcut['id'])
             )
         else:
             conn.execute(
                 "INSERT INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, "
-                "bolum, lokasyon, depo_kodu, karsi_depo_kodu) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (ref, desc, ct, bolum, lokasyon, d_kod or '', k_kod or '')
+                "bolum, lokasyon, depo_kodu, karsi_depo_kodu, kalip_goz) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (ref, desc, ct, bolum, lokasyon, d_kod or '', k_kod or '', goz or 1)
             )
+
+        # AÇIK SAYAÇ KAYITLARINA HEMEN UYGULA (2026-09-14): göz sayısı düzeltilince
+        # o referansın o an otomatik sayan metal kayıtları da yeni çarpanla sayar
+        # (sayaç her senkronda ham baskıdan yeniden hesaplar → kayıt baştan ×göz olur;
+        # kalıp zaten o gözlüydü, yanlış olan tanımdı). KAPANMIŞ / elle girilmiş
+        # kayıtlara dokunulmaz — geçmiş adetler kendiliğinden değişmez.
+        if goz is not None:
+            _acik_n = conn.execute(
+                "UPDATE uretim_kayitlari SET paket_adedi=? "
+                "WHERE sayac_otomatik=1 "
+                "AND UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+                "                   AND COALESCE(bolum,'kaynak')='metal')",
+                (goz, ref, lokasyon)).rowcount
 
         # Geriye dönük: aynı referansın geçmiş üretim kayıtlarının cycle'ını güncelle —
         # AMA sadece bu lokasyonun + bu bölümün vardiyalarına ait olanları
@@ -4369,7 +4422,7 @@ def referans_ekle():
     except Exception as e:
         print(f'[referans_ekle] Excel auto-sync hatası ({bolum}/{lokasyon}): {e}')
 
-    return jsonify({'basarili': True}), 201
+    return jsonify({'basarili': True, 'acik_kayit': _acik_n}), 201
 
 
 # ── Referans KODU değiştirme (rename) — TÜM ilgili tablolarda ──

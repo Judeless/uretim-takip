@@ -1755,6 +1755,10 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "Kalıp Göz Sayısı": {"en": "Mould Cavities", "it": "Numero impronte stampo"},
+  "Göz": {"en": "Cavities", "it": "Impronte"},
+  "Sayaç her baskıda bu kadar adet sayar. Açık sayaç kayıtlarına hemen uygulanır.": {"en": "The counter adds this many parts per shot. Applied immediately to open counter records.", "it": "Il contatore aggiunge questo numero di pezzi per stampata. Applicato subito ai record aperti."},
+  "⚠ Cycle time parça başına olmalı: baskı süresi ÷ göz sayısı.": {"en": "⚠ Cycle time must be per part: shot time ÷ cavities.", "it": "⚠ Il tempo ciclo deve essere per pezzo: tempo stampata ÷ impronte."},
   "⚠ Fazla teyit var mı?": {"en": "⚠ Any over-confirmation?", "it": "⚠ Conferme in eccesso?"},
   "Genel Bakış": {
     "en": "Overview",
@@ -5766,6 +5770,8 @@ window.__I18N_SOZLUK__ = {
                                     <th class="kaynak-only" style="text-align:right;display:none">Kaynak (sn)</th>
                                     <th class="kaynak-only" style="text-align:right;display:none">Söktak (sn)</th>
                                     <th style="text-align:right">Toplam Cycle (sn)</th>
+                                    <th class="goz-only" style="text-align:center;display:none;width:80px"
+                                        title="Kalıp göz sayısı — sayaç her baskıda bu kadar adet sayar">Göz</th>
                                     <th class="kaynak-only" style="text-align:center;display:none;width:130px">Süre Teyit</th>
                                     <!-- AS400 depo kodlari — yalniz TK1 plastik (kullanici 2026-08-25:
                                          "2 depo tanimlamasini da gorebileyim"). Duzelt modalini
@@ -7285,6 +7291,14 @@ window.__I18N_SOZLUK__ = {
                     <div id="ref-cycle-info" style="font-size:.72rem;color:var(--muted);margin-top:4px;display:none">
                         💡 Toplam = Kaynak + Söktak (otomatik hesaplanır)
                     </div>
+                </div>
+                <!-- KALIP GÖZ SAYISI — yalnız metal enjeksiyon (kullanıcı 2026-09-14).
+                     Sensör baskıyı sayar; 4 gözlü kalıpta 1 baskı = 4 parça. -->
+                <div class="modal-form-row" id="ref-goz-row" style="display:none">
+                    <label>Kalıp Göz Sayısı</label>
+                    <input type="number" id="ref-kalip-goz" placeholder="1" min="1" max="64" step="1" value="1">
+                    <div style="font-size:.7rem;color:var(--muted);margin-top:4px">Sayaç her baskıda bu kadar adet sayar. Açık sayaç kayıtlarına hemen uygulanır.</div>
+                    <div style="font-size:.7rem;color:var(--warn);margin-top:3px">⚠ Cycle time parça başına olmalı: baskı süresi ÷ göz sayısı.</div>
                 </div>
                 <!-- AS400 DEPO KODLARI — yalnız TK1 plastik (kullanıcı 2026-08-25).
                      Bu bölümde her ürünün deposu farklı; teyit robotu bu değerleri
@@ -9815,8 +9829,13 @@ window.__I18N_SOZLUK__ = {
             document.querySelectorAll('#ref-tbl-head .depo-only').forEach(el => {
                 el.style.display = depoVar ? '' : 'none';
             });
+            // Kalip goz sayisi YALNIZ metal enjeksiyonda (2026-09-14)
+            const gozVar = (aktifBolum === 'metal');
+            document.querySelectorAll('#ref-tbl-head .goz-only').forEach(el => {
+                el.style.display = gozVar ? '' : 'none';
+            });
             document.getElementById('teyit-ozet-banner').style.display = isKaynak ? '' : 'none';
-            const colspan = (isKaynak ? 7 : 4) + (depoVar ? 2 : 0);
+            const colspan = (isKaynak ? 7 : 4) + (depoVar ? 2 : 0) + (gozVar ? 1 : 0);
 
             // Filtre uygula (sadece kaynakta anlamlı)
             const liste = isKaynak ? data.filter(refFiltresinden) : data;
@@ -9856,7 +9875,11 @@ window.__I18N_SOZLUK__ = {
                 // icine gomuldugu icin tek tirnak kacirilir.
                 const _dp = String(r.depo_kodu || '').replace(/'/g, "\\'");
                 const _kd = String(r.karsi_depo_kodu || '').replace(/'/g, "\\'");
-                const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}, ${teyit ? 1 : 0}, '${_dp}', '${_kd}'`;
+                const goz = parseInt(r.kalip_goz, 10) || 1;
+                const duzenleArgs = `'${r.referans_kodu}', '${aciklamaEscaped}', ${ct}, ${k}, ${s}, ${teyit ? 1 : 0}, '${_dp}', '${_kd}', ${goz}`;
+                const gozCell = gozVar
+                    ? `<td style="text-align:center">${goz > 1 ? `<span class="badge badge-blue">${goz}</span>` : '1'}</td>`
+                    : '';
                 const sureCells = isKaynak
                     ? `<td style="text-align:right;font-weight:700;color:var(--lg-amber)">${k || '—'}</td>
                        <td style="text-align:right;font-weight:700;color:var(--primary)">${s || '—'}</td>`
@@ -9887,6 +9910,7 @@ window.__I18N_SOZLUK__ = {
                         <td style="font-size:.82rem">${r.aciklama || '—'}</td>
                         ${sureCells}
                         <td style="text-align:right;font-weight:700">${ct || '0'} sn</td>
+                        ${gozCell}
                         ${teyitCell}
                         ${depoCells}
                         <td style="text-align:center;white-space:nowrap" onclick="event.stopPropagation()">
@@ -10004,6 +10028,8 @@ window.__I18N_SOZLUK__ = {
             var depoRow = document.getElementById('ref-depo-row');
             if (depoRow) depoRow.style.display =
                 (aktifLokasyon === 'TK1' && aktifBolum === 'plastik') ? '' : 'none';
+            var gozRow = document.getElementById('ref-goz-row');
+            if (gozRow) gozRow.style.display = (aktifBolum === 'metal') ? '' : 'none';
             document.getElementById('ref-cycle').readOnly = isKaynak;  // Kaynak modunda hesaplı, elle değişmez
             document.getElementById('ref-cycle-label').textContent =
                 isKaynak ? 'Toplam Cycle (Kaynak + Söktak — otomatik)' : 'Hedef Cycle Time (saniye/parça)';
@@ -10025,6 +10051,8 @@ window.__I18N_SOZLUK__ = {
             var _k0 = document.getElementById('ref-karsi-depo');
             if (_d0) _d0.value = '01';
             if (_k0) _k0.value = '01';
+            var _g0 = document.getElementById('ref-kalip-goz');
+            if (_g0) _g0.value = 1;          // kalip goz varsayilani 1 (metal)
             document.getElementById('ref-modal-title').textContent = 'Yeni Referans Ekle';
             document.getElementById('ref-kod').disabled = false;
             document.getElementById('ref-kod-degistir-btn').style.display = 'none';
@@ -10032,7 +10060,7 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('ref-modal').classList.add('open');
         }
 
-        function refDuzenle(kod, desc, ct, kaynak, soktak, teyit, depo, karsiDepo) {
+        function refDuzenle(kod, desc, ct, kaynak, soktak, teyit, depo, karsiDepo, kalipGoz) {
             refModalKaynakModuKur();
             document.getElementById('ref-modal-title').textContent = 'Referans Düzenle';
             document.getElementById('ref-kod').value = kod;
@@ -10049,6 +10077,8 @@ window.__I18N_SOZLUK__ = {
             var kEl = document.getElementById('ref-karsi-depo');
             if (dEl) dEl.value = depo || '';
             if (kEl) kEl.value = karsiDepo || '';
+            var gEl = document.getElementById('ref-kalip-goz');
+            if (gEl) gEl.value = parseInt(kalipGoz, 10) || 1;
             document.getElementById('ref-modal').classList.add('open');
         }
 
@@ -10056,7 +10086,7 @@ window.__I18N_SOZLUK__ = {
             if (!e || e.target === document.getElementById('ref-modal')) {
                 document.getElementById('ref-modal').classList.remove('open');
                 ['ref-kod', 'ref-aciklama', 'ref-cycle', 'ref-kaynak-sn', 'ref-soktak-sn',
-                 'ref-depo', 'ref-karsi-depo'].forEach(id => {
+                 'ref-depo', 'ref-karsi-depo', 'ref-kalip-goz'].forEach(id => {
                     const el = document.getElementById(id);
                     if(el) el.value = '';
                 });
@@ -10154,6 +10184,10 @@ window.__I18N_SOZLUK__ = {
                         ...((aktifLokasyon === 'TK1' && aktifBolum === 'plastik') ? {
                             depo_kodu: (document.getElementById('ref-depo') || {}).value || '',
                             karsi_depo_kodu: (document.getElementById('ref-karsi-depo') || {}).value || ''
+                        } : {}),
+                        // Kalip goz sayisi YALNIZ metalde gonderilir (baska bolumde dokunulmaz)
+                        ...(aktifBolum === 'metal' ? {
+                            kalip_goz: Math.max(1, parseInt((document.getElementById('ref-kalip-goz') || {}).value, 10) || 1)
                         } : {})
                     })
                 });
@@ -10162,6 +10196,8 @@ window.__I18N_SOZLUK__ = {
                     toast(d.hata || 'Kaydedilemedi', 'err');
                     return;
                 }
+                var _rj = {};
+                try { _rj = await res.json(); } catch (e) {}
                 // Kaynak modunda kaynak+söktak ayrı PATCH ile yaz (Excel'e sync olur)
                 if (aktifBolum === 'kaynak') {
                     const k = parseFloat(document.getElementById('ref-kaynak-sn').value) || 0;
@@ -10185,7 +10221,7 @@ window.__I18N_SOZLUK__ = {
                         });
                     }
                 }
-                toast('Referans kaydedildi', 'ok');
+                toast('Referans kaydedildi' + (_rj.acik_kayit ? ' · ' + _rj.acik_kayit + ' açık sayaç kaydına uygulandı' : ''), 'ok');
                 refModalKapat();
                 yukleReferanslar();
             } catch (e) { toast('Bağlantı hatası', 'err'); }
