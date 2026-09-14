@@ -9308,6 +9308,10 @@ def as400_teyit_listesi():
                                  "WHERE kapsam='gun' AND uretim_tarihi=?", (t,)).fetchall()}
         kalici_isaret = {r['referans']: r['aciklama'] for r in conn.execute(
             "SELECT referans, aciklama FROM as400_teyit_isaret WHERE kapsam='kalici' AND durum='gerek_yok'").fetchall()}
+        # Hurda yoksay (kapsam='cop', 2026-09-14) — satıra 'cop_yoksay' işaretlenir
+        cop_isaret = {t: {r['referans'] for r in conn.execute(
+            "SELECT referans FROM as400_teyit_isaret WHERE kapsam='cop' AND uretim_tarihi=?", (t,)).fetchall()}
+            for t in tarihler}
         for t in tarihler:
             for satirlar in coklu[t].values():
                 for r in satirlar:
@@ -9316,6 +9320,8 @@ def as400_teyit_listesi():
                         r['isaret'] = gun_isaret[t][kn]
                     if kn in kalici_isaret:
                         r['kalici_haric'] = True
+                    if kn in cop_isaret.get(t, ()):
+                        r['cop_yoksay'] = True
     except Exception as e:
         print(f'[teyit_listesi] işaret enjeksiyonu atlandı: {e}')
 
@@ -9347,11 +9353,20 @@ def as400_teyit_isaret():
     u_tarih = (data.get('uretim_tarihi') or '').strip()
     aciklama = (data.get('aciklama') or '').strip()
     kaldir = bool(data.get('kaldir'))
-    if kapsam not in ('gun', 'kalici') or not referans:
+    if kapsam not in ('gun', 'kalici', 'cop') or not referans:
         return jsonify({'hata': 'kapsam ve referans zorunlu'}), 400
     if kapsam == 'kalici':
         u_tarih = ''
         durum = 'gerek_yok'
+    elif kapsam == 'cop':
+        # HURDA YOKSAY (kullanıcı 2026-09-14, '10.130.6209A Numune'): o günün bu
+        # referansının hurdası ERP'ye COP olarak GÖNDERİLMEZ (panel + 17:10 koşusu).
+        # AYRI KAPSAM bilinçli: tablo (kapsam, tarih, bölüm, referans) tekil;
+        # 'gun' kapsamında tutulsaydı aynı satırın 'teyit_ver'/'kontrol' işaretinin
+        # ÜSTÜNE yazar, ana teyidi bozardı. Ana teyit bu işaretten etkilenmez.
+        if not u_tarih:
+            return jsonify({'hata': 'hurda yoksayma için uretim_tarihi zorunlu'}), 400
+        durum = 'yoksay'
     else:
         if not u_tarih:
             return jsonify({'hata': 'günlük işaret için uretim_tarihi zorunlu'}), 400
@@ -12373,6 +12388,12 @@ def _oto_kuyruk_olustur(conn, tarihler):
         gun_isaret[t] = {r['referans']: r['durum'] for r in conn.execute(
             "SELECT referans, durum FROM as400_teyit_isaret WHERE kapsam='gun' AND uretim_tarihi=?",
             (t,)).fetchall()}
+    # Hurda yoksay işaretleri (kapsam='cop', 2026-09-14): o günün hurdası COP'a gitmez
+    cop_yoksay = set()
+    for t in tarihler:
+        for r in conn.execute(
+                "SELECT referans FROM as400_teyit_isaret WHERE kapsam='cop' AND uretim_tarihi=?", (t,)).fetchall():
+            cop_yoksay.add(f"{t}|{r['referans']}")
     cop_verildi = {f"{r['uretim_tarihi']}|{r['launch_no']}" for r in conn.execute(
         "SELECT uretim_tarihi, launch_no FROM as400_teyit_log WHERE yil='CO' AND sonuc='ok'").fetchall()}
 
@@ -12515,6 +12536,8 @@ def _oto_kuyruk_olustur(conn, tarihler):
                     h = 0
                 if h <= 0:
                     continue
+                if f"{t}|{_le.kanonik(r.get('referans', ''))}" in cop_yoksay:
+                    continue        # panelden 'yoksay' işaretli hurda (2026-09-14)
                 ls = r.get('launchlar') or []
                 if kat == 'SUPHELI':
                     sabaha('cop_supheli', t, r, f'Hurda {h} adet: varyant eşleşme — COP kodunu doğrulayıp elle gönderin')

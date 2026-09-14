@@ -1755,6 +1755,8 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "⊘ yoksay": {"en": "⊘ ignore", "it": "⊘ ignora"},
+  "↺ geri al": {"en": "↺ undo", "it": "↺ annulla"},
   "Kalıp Göz Sayısı": {"en": "Mould Cavities", "it": "Numero impronte stampo"},
   "Göz": {"en": "Cavities", "it": "Impronte"},
   "Sayaç her baskıda bu kadar adet sayar. Açık sayaç kayıtlarına hemen uygulanır.": {"en": "The counter adds this many parts per shot. Applied immediately to open counter records.", "it": "Il contatore aggiunge questo numero di pezzi per stampata. Applicato subito ai record aperti."},
@@ -14270,10 +14272,11 @@ window.__I18N_SOZLUK__ = {
                 });
                 const d = await r.json();
                 if (!r.ok) { toast(d.hata || 'İşaretlenemedi', 'err'); return; }
-                toast(kaldir ? 'İşaret kaldırıldı'
+                toast(kaldir ? (kapsam === 'cop' ? '↺ Hurda yeniden COP kuyruğunda' : 'İşaret kaldırıldı')
+                      : (kapsam === 'cop' ? '⊘ Hurda yoksayıldı — COP gönderilmeyecek'
                       : (kapsam === 'kalici' ? 'Kalıcı teyit-dışı işaretlendi'
                          : durum === 'teyit_ver' ? '➕ Teyit kuyruğuna eklendi — gönderim kuyruğunda görünecek'
-                         : 'Kontrol edildi işaretlendi'), 'ok');
+                         : 'Kontrol edildi işaretlendi')), 'ok');
                 as4Yukle();
             } catch (e) { toast('Bağlantı hatası', 'err'); }
         }
@@ -14766,6 +14769,8 @@ window.__I18N_SOZLUK__ = {
                             bolum: r.bolum || '', tesis: r.tesis || '',
                             bugunMu: g.tarih === bugun,
                             supheli: (kat === 'SUPHELI'), verildi: !!copVer[copKey(g.tarih, art)],
+                            // Hurda yoksay (2026-09-14) + düzelt için ham kod (birleşmiş yazım değil)
+                            yoksay: !!r.cop_yoksay, orijinal: r.orijinal_referans || r.referans,
                             // Önceki denemesi HATA ile bitmiş satır: ERP'ye girilmiş OLABİLİR
                             // (robot yazdı ama doğrulama tutmadı). Satırda uyarı gösterilir.
                             hataliDeneme: copHata[copKey(g.tarih, art)] || null,
@@ -14791,7 +14796,9 @@ window.__I18N_SOZLUK__ = {
                     ';border-radius:999px;padding:5px 13px;font-size:.78rem;font-weight:' + (sonuk ? '600' : '800') +
                     (sonuk ? ';opacity:.75' : '') + '">' + txt + '</span>';
             }
-            var copBek = _as4CopBekleyen.filter(function (c) { return !c.verildi; });   // COP verilmemiş (pending) hurdalar
+            var copBek = _as4CopBekleyen.filter(function (c) { return !c.verildi && !c.yoksay; });   // COP verilmemiş (pending) hurdalar
+            var copYok = _as4CopBekleyen.filter(function (c) { return c.yoksay && !c.verildi; });   // panelden yoksayılan (2026-09-14)
+            var copVerSay = _as4CopBekleyen.filter(function (c) { return c.verildi; }).length;
 
             // ── SAYFA YENİDEN DÜZENLENDİ (2026-07-29) ────────────────────────────
             // Eskiden bloklar üretim sırasına göre diziliyordu: önce kuyruk, sonra
@@ -14955,7 +14962,8 @@ window.__I18N_SOZLUK__ = {
             // olabilir, normal kuyrukta çıkmaz). Ayrı buton; /cop_gonder + dedup kullanır. ──
             if (copBek.length) {
                 sCop += '<h4 style="margin:20px 0 8px;color:var(--lg-red);font-size:.9rem">♻ 2 · Hurda düşümü — ERP stoğundan düşülecek (' + copBek.length + ')' +
-                    (_as4CopBekleyen.length > copBek.length ? ' <span style="color:var(--lg-green);font-size:.74rem;font-weight:700">· ✅ ' + (_as4CopBekleyen.length - copBek.length) + ' zaten COP verilmiş</span>' : '') +
+                    (copVerSay ? ' <span style="color:var(--lg-green);font-size:.74rem;font-weight:700">· ✅ ' + copVerSay + ' zaten COP verilmiş</span>' : '') +
+                    (copYok.length ? ' <span style="color:var(--muted);font-size:.74rem;font-weight:700">· ⊘ ' + copYok.length + ' yoksayıldı</span>' : '') +
                     ' <span style="font-weight:500;color:var(--muted);font-size:.74rem">— operatörün NOK olarak girdiği adetler ERP stoğundan düşülür · daha önce düşülenler tekrar gönderilmez</span>' +
                     ' <a onclick="as4CopTumunuSec(true)" style="margin-left:10px;font-size:.74rem;color:var(--primary);cursor:pointer">tümünü seç</a>' +
                     ' <a onclick="as4CopTumunuSec(false)" style="margin-left:6px;font-size:.74rem;color:var(--muted);cursor:pointer">temizle</a></h4>';
@@ -14963,7 +14971,7 @@ window.__I18N_SOZLUK__ = {
                     '<th style="width:34px"></th><th>Gün</th><th>Bölüm</th><th>Referans</th>' +
                     '<th>Article (COP hedefi)</th><th style="text-align:right;width:96px">Hurda</th></tr></thead><tbody>';
                 _as4CopBekleyen.forEach(function (c, i) {
-                    if (c.verildi) return;   // zaten COP verilmiş — pending listede gösterme (dedup kaydı var; index korunur, cb yok → gönderimde atlanır)
+                    if (c.verildi || c.yoksay) return;   // yoksayılan ayrı listede (2026-09-14); zaten COP verilmiş — pending listede gösterme (dedup kaydı var; index korunur, cb yok → gönderimde atlanır)
                     var sec = !c.bugunMu;   // geçmiş gün seçili; article editable olduğu için varyant da seçilebilir
                     var uyari = c.supheli ? ' <span style="color:var(--lg-amber);font-size:.7rem;font-weight:800" title="Varyant eşleşme — üretilen kod yazıldı; AS400 kodu farklıysa aşağıdaki alandan düzelt">⚠ kod?</span>' : '';
                     var gunU = c.bugunMu ? ' <span style="color:var(--lg-amber)" title="Gün bitmeden önerilmez">⚠</span>' : '';
@@ -14984,7 +14992,18 @@ window.__I18N_SOZLUK__ = {
                         '<td><input type="checkbox" id="as4-cop-cb-' + i + '"' + (sec ? ' checked' : '') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(c.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(c.bolum, c.tesis)) + '</td>' +
-                        '<td style="font-weight:700">' + esc(c.referans) + sadeceU + denemeU + '</td>' +
+                        '<td style="font-weight:700">' + esc(c.referans) + sadeceU + denemeU +
+                            // DÜZELT / YOKSAY (kullanıcı 2026-09-14): '10.130.6209A Numune' gibi
+                            // kodlar için. Düzelt = kodu tüm kayıtlarda değiştir (CFI satırındakiyle
+                            // aynı işlev); yoksay = bu günün hurdası COP'a gitmez (17:10 da atlar).
+                            '<div style="margin-top:3px">' +
+                            '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem" onclick="refRenameAc(this.dataset.kod)" ' +
+                                'data-kod="' + esc(c.orijinal || c.referans) + '" title="Referans kodunu AS400 koduna göre düzelt (tüm sayfalarda)">🔁 düzelt</button>' +
+                            '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
+                                'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'cop\',\'yoksay\',this.dataset.tar)" ' +
+                                'data-ref="' + esc(c.referans) + '" data-bol="' + esc(c.bolum || '') + '" data-tar="' + esc(c.tarih) + '" ' +
+                                'title="Bu günün hurdası ERP\'ye COP olarak gönderilmesin (17:10 koşusu da atlar; geri alınabilir)">⊘ yoksay</button>' +
+                            '</div></td>' +
                         '<td><input type="text" id="as4-cop-art-' + i + '" value="' + esc(c.article) + '" class="rt-row-input" style="width:150px;font-size:.8rem' + (c.supheli ? ';border-color:var(--lg-amber)' : '') + '">' + uyari + '</td>' +
                         '<td style="text-align:right"><input type="number" id="as4-cop-adet-' + i + '" value="' + c.adet + '" min="1" class="rt-row-input" style="width:78px;text-align:right;color:var(--lg-red);font-weight:800"></td>' +
                         '</tr>';
@@ -14997,10 +15016,21 @@ window.__I18N_SOZLUK__ = {
                     '<div id="as4-cop-sonuc"></div>';
             } else if (_as4CopBekleyen.length) {
                 // Tüm hurdalar zaten COP verilmiş — pending yok; boş tablo yerine kısa bilgi.
-                sCop += '<div style="margin:18px 0 4px;color:var(--lg-green);font-size:.86rem;font-weight:700">♻ ✅ Bu aralıktaki tüm hurdalar zaten COP verilmiş (' + _as4CopBekleyen.length + ' satır).</div>';
+                sCop += '<div style="margin:18px 0 4px;color:var(--lg-green);font-size:.86rem;font-weight:700">♻ ✅ Bekleyen hurda yok (' + copVerSay + ' satır COP verilmiş' + (copYok.length ? ', ' + copYok.length + ' satır yoksayıldı' : '') + ').</div>';
             }
             // Sonuç kutusu HER ZAMAN dursun: COP başarılı olunca satır listeden
             // düşüyor, kutu da onunla birlikte kaybolup sonucu götürüyordu (2026-07-31).
+            // YOKSAYILAN HURDALAR (2026-09-14): katlanır liste + geri al
+            if (copYok.length) {
+                sCop += '<details style="margin:8px 0 4px"><summary style="cursor:pointer;font-size:.8rem;color:var(--muted);font-weight:700">⊘ Yoksayılan hurdalar (' + copYok.length + ') — COP gönderilmeyecek</summary>' +
+                    copYok.map(function (c) {
+                        return '<div style="font-size:.78rem;padding:3px 0">' + esc(as4GunEtiket(c.tarih)) + ' · <b>' + esc(c.referans) + '</b> · hurda ' + fmt(c.adet) +
+                            ' <button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
+                            'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'cop\',\'yoksay\',this.dataset.tar,true)" ' +
+                            'data-ref="' + esc(c.referans) + '" data-bol="' + esc(c.bolum || '') + '" data-tar="' + esc(c.tarih) + '" ' +
+                            'title="Yoksaymayı kaldır — hurda yeniden COP kuyruğuna girer">↺ geri al</button></div>';
+                    }).join('') + '</details>';
+            }
             if (!copBek.length) sCop += '<div id="as4-cop-sonuc"></div>';
 
             // ── 2) DIKKAT (robot dokunmaz) ──
@@ -15599,7 +15629,7 @@ window.__I18N_SOZLUK__ = {
                 // "AS400'e gönder diyorum ama COP'u göndermiyor" diyordu
                 // (10.300.1992A_LK: teyidi 07-29/07-30'da verilmiş, hurdası bekliyordu).
                 var kalanCop = (_as4CopBekleyen || []).filter(function (c) {
-                    return !c.verildi && !copGonderildi[c.tarih + '|' + c.referans];
+                    return !c.verildi && !c.yoksay && !copGonderildi[c.tarih + '|' + c.referans];
                 });
                 if (kalanCop.length) {
                     html += '<div style="margin:10px 0;padding:12px 14px;background:var(--warn-soft);' +
@@ -15676,7 +15706,7 @@ window.__I18N_SOZLUK__ = {
                 // SESSİZ TUZAK (2026-07-31): bugüne ait satırlar varsayılan olarak
                 // İŞARETSİZ gelir (gün bitmeden COP önerilmiyor). Kullanıcı butona
                 // basıp "göndermiyor" diyordu — sebebini artık ekranda da yazıyoruz.
-                var bekleyenler = (_as4CopBekleyen || []).filter(function (c) { return !c.verildi; });
+                var bekleyenler = (_as4CopBekleyen || []).filter(function (c) { return !c.verildi && !c.yoksay; });
                 var el0 = document.getElementById('as4-cop-sonuc');
                 if (bekleyenler.length && el0) {
                     el0.innerHTML = '<div style="margin:10px 0;padding:12px 14px;background:var(--warn-soft);' +
