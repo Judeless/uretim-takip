@@ -9637,8 +9637,7 @@ def _as400_launch_durum(yil, no):
         _sys.path.insert(0, _d)
     import keyring, pyodbc
     import as400_config as _cfg
-    pw = _cfg.sifre_al()
-    cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=15, autocommit=True)
+    cn = _cfg.baglan(timeout=15)   # kilit + şifresiz deneme yok (2026-09-15)
     try:
         r = cn.cursor().execute(
             "SELECT Q0QTRI, Q0AVAN FROM tkc0301F.BPROF0 WHERE Q0RED2=? AND Q0RENU=?",
@@ -10384,8 +10383,7 @@ def _as400_cfi_bugun(article, causal='CFI'):
     import keyring, pyodbc
     import as400_config as _cfg
     bugun = date.today()
-    pw = _cfg.sifre_al()
-    cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=20, autocommit=True)
+    cn = _cfg.baglan(timeout=20)   # kilit + şifresiz deneme yok (2026-09-15)
     try:
         # HARF DUYARLILIGI (2026-08-17): MGARCD=? karsilastirmasi harf duyarli.
         # '10.130.6206b' COP'u ERP'ye BASARIYLA girildi (ekranda 10.130.6206B
@@ -11716,8 +11714,7 @@ def as400_planlama():
     if not _re2.match(r'^[A-Za-z0-9./\-]{3,21}$', ref):
         return jsonify({'hata': f"Geçersiz referans: '{ref}' — yalnız harf/rakam/nokta/tire (Türkçe karakter olmadan)"}), 400
     try:
-        pw = _cfg.sifre_al()
-        cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
+        cn = _cfg.baglan(timeout=30)   # kilit + şifresiz deneme yok (2026-09-15)
     except Exception as e:
         return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 424
     try:
@@ -11806,8 +11803,7 @@ def _acik_transferler_sorgula(gunler=60):
         _sys.path.insert(0, _d)
     import keyring, pyodbc
     import as400_config as _cfg
-    pw = _cfg.sifre_al()
-    cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=30, autocommit=True)
+    cn = _cfg.baglan(timeout=30)   # kilit + şifresiz deneme yok (2026-09-15)
     try:
         rows = cn.cursor().execute(
             "SELECT MGDSSO, MGDAAO, MGDMMO, MGDGGO, MGARCD, MGQTA, MGUTVA, MGANRE, MGNURE, MGPRRE "
@@ -11859,8 +11855,7 @@ def _transfer_kayit_duruyor_mu(kayit, satir):
             _sys.path.insert(0, _d)
         import keyring, pyodbc
         import as400_config as _cfg
-        pw = _cfg.sifre_al()
-        cn = pyodbc.connect(_cfg.baglanti_dizesi(pw), timeout=15, autocommit=True)
+        cn = _cfg.baglan(timeout=15)   # kilit + şifresiz deneme yok (2026-09-15)
         try:
             r = cn.cursor().execute(
                 "SELECT COUNT(*) FROM tkc0301F.BMMAF0 "

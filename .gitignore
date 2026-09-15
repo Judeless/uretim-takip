@@ -69,3 +69,5 @@ nul
 # AS400 oturum gozcusu ayari (kullanici adi icerir; sifre kasada)
 as400/oturum_config.json
 as400/odbc_config.json
+# AS400 baglanti kilidi (kimlik hatasi sonrasi otomatik denemeler durur; sunucuya ozel durum)
+as400/baglanti_kilidi.json

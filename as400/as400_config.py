@@ -113,9 +113,109 @@ def sifre_al(kullanici=None):
         pass
     try:
         import requests
-        r = requests.get(AGENT_URL + '/sifre', params=({'kullanici': ku} if ku != DB_KULLANICI else None), timeout=2)
+        # Kullanici HER ZAMAN acikca yollanir (2026-09-15): eskiden ku == DB_KULLANICI ise
+        # parametresiz soruluyordu → agent'in kendi varsayilani farkliysa (config/restart
+        # farki) BASKA kullanicinin sifresi bu kullanici adiyla AS400'e gidebiliyordu.
+        r = requests.get(AGENT_URL + '/sifre', params={'kullanici': ku}, timeout=2)
         if r.status_code == 200:
             return (r.json() or {}).get('sifre') or None
     except Exception:
         pass
     return None
+
+
+# ── BAĞLANTI KİLİDİ (devre kesici, 2026-09-15) ──
+# OLAY: COFLEFORGE profili AS400'de 'disabilitato' oldu (CWBSY0011). IBM i, art arda
+# başarısız girişte (QMAXSIGN) profili kapatır; bizim otomatik koşular (erken teyit
+# 2-3 dk'da bir, launch listesi, doğrulamalar) kimlik hatasına rağmen denemeye devam
+# ederse profil AÇILDIKTAN dakikalar sonra yine kilitlenir. Ayrıca şifre alınamayınca
+# 'PWD=None' ile giriş denemesi yapılıyordu (o da başarısız giriş sayılır).
+# KURAL: kimlik hatası (SQLSTATE 28000 / CWBSY…) → o kullanıcı için KİLİT (dosyada;
+# cofle-app servisi ve teyit-agent aynı dosyayı görür) → sonraki otomatik bağlantılar
+# AS400'e HİÇ gitmeden BaglantiKilitli ile düşer. Kilidi kaldıran: kaydet_sifre.py <ku>
+# (yeni şifre) ya da odbc_profil_test.py <ku> (tek elle deneme, başarılıysa).
+# İletişim hataları (CWBCO… / 08001: ağ, sunucu kapalı) kilit KOYMAZ.
+KILIT_DOSYA = __import__('os').path.join(__import__('os').path.dirname(__import__('os').path.abspath(__file__)),
+                                         'baglanti_kilidi.json')
+
+
+class BaglantiKilitli(RuntimeError):
+    """Kimlik hatası sonrası otomatik bağlantı durduruldu (AS400'e gidilmedi)."""
+
+
+def _kilitler():
+    import json
+    try:
+        with open(KILIT_DOSYA, encoding='utf-8') as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (FileNotFoundError, ValueError):
+        return {}
+    except Exception:
+        return {}
+
+
+def kilit_durumu(kullanici=None):
+    """Kilit varsa {'ts','mesaj'} döner, yoksa None."""
+    return _kilitler().get((kullanici or DB_KULLANICI).strip().upper())
+
+
+def kilit_koy(kullanici, mesaj):
+    import json, time
+    ku = (kullanici or DB_KULLANICI).strip().upper()
+    d = _kilitler()
+    d[ku] = {'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'mesaj': str(mesaj)[:500]}
+    try:
+        with open(KILIT_DOSYA, 'w', encoding='utf-8') as f:
+            json.dump(d, f, ensure_ascii=False, indent=1)
+    except Exception as e:
+        print(f'[as400_config] baglanti kilidi yazilamadi: {e}')
+
+
+def kilit_temizle(kullanici):
+    import json
+    ku = (kullanici or DB_KULLANICI).strip().upper()
+    d = _kilitler()
+    if ku in d:
+        d.pop(ku, None)
+        try:
+            with open(KILIT_DOSYA, 'w', encoding='utf-8') as f:
+                json.dump(d, f, ensure_ascii=False, indent=1)
+        except Exception as e:
+            print(f'[as400_config] baglanti kilidi silinemedi: {e}')
+        return True
+    return False
+
+
+def kimlik_hatasi_mi(e):
+    """Giriş/kimlik hatası mı? (yanlış şifre, profil devre dışı, şifre süresi dolmuş,
+    bilinmeyen kullanıcı) — SQLSTATE 28000 ya da Client Access güvenlik kodu CWBSY."""
+    s = str(e)
+    return ('28000' in s) or ('CWBSY' in s)
+
+
+def baglan(sifre=None, kullanici=None, timeout=20, kilidi_yoksay=False):
+    """AS400 ODBC bağlantısı — TEK MERKEZ (autocommit). Kilitliyse AS400'e gitmez;
+    şifre yoksa denemez; kimlik hatasında kilit koyar. kilidi_yoksay yalnız elle
+    yapılan tek deneme içindir (odbc_profil_test.py)."""
+    import pyodbc
+    ku = (kullanici or DB_KULLANICI).strip().upper()
+    if not kilidi_yoksay:
+        k = kilit_durumu(ku)
+        if k:
+            raise BaglantiKilitli(
+                f"AS400 bağlantısı DURDURULDU ({ku}): {k.get('ts', '')} tarihli giriş denemesi kimlik hatası verdi "
+                f"— profil yeniden kilitlenmesin diye otomatik denemeler kapalı. İtalya IT profili açıp şifreyi "
+                f"teyit edince sunucuda tek deneme: python as400\\odbc_profil_test.py {ku}  "
+                f"(şifre değiştiyse önce: python as400\\kaydet_sifre.py {ku}) | son hata: {str(k.get('mesaj', ''))[:220]}")
+    if sifre is None:
+        sifre = sifre_al(ku)
+    if not sifre:
+        raise RuntimeError(f'AS400 şifresi alınamadı ({ku}) — kasada yok ya da teyit-agent kapalı '
+                           f'(kaydet_sifre.py {ku}); boş şifreyle giriş DENENMEDİ')
+    try:
+        return pyodbc.connect(baglanti_dizesi(sifre, ku), timeout=timeout, autocommit=True)
+    except Exception as e:
+        if kimlik_hatasi_mi(e):
+            kilit_koy(ku, e)
+        raise

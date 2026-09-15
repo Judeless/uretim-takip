@@ -86,7 +86,7 @@ try:
     if not pw:
         hata('sifre yok — 3. adimi tamamla')
     else:
-        cn = pyodbc.connect(cfg.baglanti_dizesi(pw), timeout=10)
+        cn = cfg.baglan(sifre=pw, timeout=10, kilidi_yoksay=True)   # elle tek deneme; kimlik hatasi kilit koyar
         r = cn.cursor().execute('SELECT COUNT(*) FROM tkc0301F.BPROF0').fetchone()
         cn.close()
         ok(f'BPROF0 okundu ({r[0]} satir) — liste/dogrulama sorgulari calisir')

@@ -17,11 +17,19 @@ if ku not in CFG.KULLANICILAR:
 pw = CFG.sifre_al(ku)
 if not pw:
     print(f'{ku} sifresi kasada YOK — once: python as400/kaydet_sifre.py {ku}'); sys.exit(1)
+_k = CFG.kilit_durumu(ku)
+if _k:
+    print(f'Not: {ku} icin baglanti KILIDI var ({_k.get("ts")}) — bu test kilide ragmen TEK deneme yapar.')
 try:
-    import pyodbc
-    cn = pyodbc.connect(CFG.baglanti_dizesi(pw, ku), timeout=20, autocommit=True)
+    cn = CFG.baglan(sifre=pw, kullanici=ku, timeout=20, kilidi_yoksay=True)
 except Exception as e:
-    print(f'BAGLANTI HATASI ({ku}): {e}'); sys.exit(1)
+    print(f'BAGLANTI HATASI ({ku}): {e}')
+    if CFG.kimlik_hatasi_mi(e):
+        print('  -> KIMLIK HATASI: yanlis sifre / profil devre disi. TEKRAR DENEMEYIN (profil kilitlenir).')
+        print(f'     Italya IT profili acsin + sifreyi teyit etsin; sifre farkliysa: python as400\\kaydet_sifre.py {ku}')
+    sys.exit(1)
+if CFG.kilit_temizle(ku):
+    print(f'Baglanti kilidi KALDIRILDI ({ku}) — otomatik kosular yeniden baglanabilir.')
 print(f'Baglanti OK — profil {ku}, host {CFG.HOST}')
 
 # (aciklama, sql) — sistemin gercekten kullandigi okumalar

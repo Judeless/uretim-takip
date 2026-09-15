@@ -40,9 +40,8 @@ _GUVENLI_KOD = re.compile(r'^[\x00-\x7F]{1,21}$')
 
 
 def _baglan():
-    import pyodbc
     import as400_config as cfg
-    return pyodbc.connect(cfg.baglanti_dizesi(cfg.sifre_al()), timeout=20, autocommit=True)
+    return cfg.baglan(timeout=20)
 
 
 def eoq_benzeri_kolonlar(cn):

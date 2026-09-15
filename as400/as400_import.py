@@ -76,12 +76,8 @@ def sifre_var(kullanici=None):
 
 def baglan(timeout=20, kullanici=None):
     """Import profiliyle bağlantı (varsayılan COFLEFORGE); autocommit (tek satırlık INSERT)."""
-    import pyodbc
     ku = (kullanici or KULLANICI).strip().upper()
-    pw = CFG.sifre_al(ku)
-    if not pw:
-        raise RuntimeError(f'AS400 şifresi kasada yok ({ku} — kaydet_sifre.py {ku})')
-    return pyodbc.connect(CFG.baglanti_dizesi(pw, ku), timeout=timeout, autocommit=True)
+    return CFG.baglan(kullanici=ku, timeout=timeout)   # kilit + sifresiz deneme yok (2026-09-15)
 
 
 def kolonlar(kutuphane=KUTUPHANE, tablo=TABLO, cn=None, tazele=False, kullanici=None):

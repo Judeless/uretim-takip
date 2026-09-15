@@ -188,10 +188,7 @@ def op_kurali_uygula(rows):
 
 def as400_launchlar():
     """AS400'den acik launch haritasi: kanonik(article) -> [launch kaydi]"""
-    pw = CFG.sifre_al()
-    if not pw:
-        raise RuntimeError('Sifre kasada yok: python as400/kaydet_sifre.py')
-    cn = pyodbc.connect(CFG.baglanti_dizesi(pw), timeout=20, autocommit=True)
+    cn = CFG.baglan(timeout=20)          # kilit + sifresiz deneme yok (2026-09-15)
     tam = collections.defaultdict(list)
     gev = collections.defaultdict(list)
     kokm = collections.defaultdict(list)
@@ -350,7 +347,7 @@ def article_tanimli(kodlar):
     if not liste:
         return set()
     try:
-        cn = pyodbc.connect(CFG.baglanti_dizesi(CFG.sifre_al()), timeout=60, autocommit=True)
+        cn = CFG.baglan(timeout=60)
     except Exception as e:
         print(f'[launch_esle] article master baglanti HATASI: {e}')
         return None
@@ -405,8 +402,7 @@ def teyit_hareketleri(articles):
     liste = sorted(ham | {a.upper() for a in ham})
     if not liste:
         return {}
-    pw = CFG.sifre_al()
-    cn = pyodbc.connect(CFG.baglanti_dizesi(pw), timeout=60, autocommit=True)
+    cn = CFG.baglan(timeout=60)
     sonuc = collections.defaultdict(list)
     try:
         for i in range(0, len(liste), 60):

@@ -23,8 +23,7 @@ def _sifre():
 
 def baglan(timeout=15):
     """AS400'e pyodbc baglantisi kurar (sifre keyring'den)."""
-    cs = CFG.baglanti_dizesi(_sifre())
-    return pyodbc.connect(cs, timeout=timeout, autocommit=True)
+    return CFG.baglan(sifre=_sifre(), timeout=timeout)
 
 
 def satir_cek(limit=None, sorgu=None):

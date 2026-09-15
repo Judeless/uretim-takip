@@ -18,7 +18,7 @@ except ImportError:
     sys.exit(1)
 
 sys.path.insert(0, __file__.rsplit('\\', 1)[0])
-from as400_config import KEYRING_SERVICE, DB_KULLANICI, KULLANICILAR
+from as400_config import KEYRING_SERVICE, DB_KULLANICI, KULLANICILAR, kilit_temizle
 
 kullanici = (sys.argv[1] if len(sys.argv) > 1 else DB_KULLANICI).strip().upper()
 if kullanici not in KULLANICILAR:
@@ -41,6 +41,8 @@ keyring.set_password(KEYRING_SERVICE, kullanici, p1)
 geri = keyring.get_password(KEYRING_SERVICE, kullanici)
 if geri == p1:
     print(f'OK — {kullanici} sifresi kasaya kaydedildi ({len(geri)} karakter). Bu pencere kapatilabilir.')
+    if kilit_temizle(kullanici):
+        print(f'Baglanti kilidi kaldirildi ({kullanici}). Once TEK deneme: python as400\\odbc_profil_test.py {kullanici}')
 else:
     print('HATA — kayit dogrulanamadi.')
     sys.exit(1)
