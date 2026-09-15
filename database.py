@@ -1382,6 +1382,13 @@ def init_db():
     except Exception as _e:
         print(f'[MIGRATION] proje notlari gecisi hata: {_e}')
 
+    # PROJE v5 (kullanıcı 2026-09-15 · MS Project görünümü): planlanan BAŞLANGIÇ.
+    # Gantt çubuğu başlangıç → üretim termini (yoksa talep termini); boşsa tek günlük taslak.
+    try:
+        c.execute("ALTER TABLE proje_is ADD COLUMN baslangic TEXT DEFAULT ''")
+    except Exception:
+        pass
+
     # ─────────────────────────────────────────────────────────────
     # AS400 teyit ekranı İŞARETLERİ (2026-07-20). İki kapsam:
     #  - kapsam='kalici': referans bazında SÜREKLİ 'gerek_yok' (örn 6343a ara ürün)

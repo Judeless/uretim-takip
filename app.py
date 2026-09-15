@@ -14337,8 +14337,10 @@ PROJE_KALEM_KATEGORI = ('parca', 'tel', 'satin_alma')
 _PROJE_KATEGORI_VARSAYILAN = {'tel': ['tel_uretim'], 'satin_alma': ['satin_alma']}
 PROJE_IS_DURUM = ('bekliyor', 'devam', 'tamam', 'iptal')
 PROJE_DURUM = ('aktif', 'beklemede', 'tamamlandi', 'iptal')
-_PROJE_IS_ALANLAR = ('tip', 'aciklama', 'atanan_id', 'talep_termin', 'uretim_termin', 'durum')
-_PROJE_ATANAN_ALANLAR = ('uretim_termin', 'durum')   # sorumlunun değiştirebildikleri (notlar ayrı uçta)
+_PROJE_IS_ALANLAR = ('tip', 'aciklama', 'atanan_id', 'baslangic', 'talep_termin', 'uretim_termin', 'durum')
+# sorumlunun değiştirebildikleri — kendi işinin planı (başlangıç → üretim termini) ve durumu;
+# notlar ayrı uçta (v5: Gantt için başlangıç eklendi)
+_PROJE_ATANAN_ALANLAR = ('baslangic', 'uretim_termin', 'durum')
 
 
 def _proje_tarih(v):
@@ -14574,7 +14576,7 @@ def proje_liste():
     ids = [p['id'] for p in projeler]
     bugun = date.today().isoformat()
     ozet = {i: {'toplam': 0, 'tamam': 0, 'devam': 0, 'geciken': 0, 'risk': 0, 'en_yakin': '',
-                'benim_acik': 0, 'segmentler': []} for i in ids}
+                'benim_acik': 0, 'segmentler': [], 'plan_bas': '', 'plan_bit': ''} for i in ids}
     if ids:
         for t in _proje_is_hiyerarsik(conn, ids):
             o = ozet[t['proje_id']]
@@ -14594,6 +14596,18 @@ def proje_liste():
             o['geciken'] += 1 if j['geciken'] else 0
             o['risk'] += 1 if j['risk'] else 0
             o['segmentler'].append(_proje_seg(j))
+    if ids:
+        # Gantt özet çubuğu (proje satırı, detay yüklenmeden): en erken / en geç plan tarihi
+        for r in conn.execute(
+                "SELECT proje_id, MIN(NULLIF(baslangic,'')) AS b1, MIN(NULLIF(uretim_termin,'')) AS b2, "
+                "MIN(NULLIF(talep_termin,'')) AS b3, MAX(NULLIF(baslangic,'')) AS e1, "
+                "MAX(NULLIF(uretim_termin,'')) AS e2, MAX(NULLIF(talep_termin,'')) AS e3 "
+                f"FROM proje_is WHERE durum != 'iptal' AND proje_id IN ({','.join('?' * len(ids))}) "
+                "GROUP BY proje_id", ids).fetchall():
+            bas = [v for v in (r['b1'], r['b2'], r['b3']) if v]
+            bit = [v for v in (r['e1'], r['e2'], r['e3']) if v]
+            ozet[r['proje_id']]['plan_bas'] = min(bas) if bas else ''
+            ozet[r['proje_id']]['plan_bit'] = max(bit) if bit else ''
     for p in projeler:
         o = ozet[p['id']]
         p.update(o)
@@ -14881,7 +14895,7 @@ def proje_is_guncelle(iid):
     yeni = {}
     try:
         for k, v in gelen.items():
-            if k in ('talep_termin', 'uretim_termin'):
+            if k in ('baslangic', 'talep_termin', 'uretim_termin'):
                 yeni[k] = _proje_tarih(v)
             elif k == 'durum':
                 if v not in PROJE_IS_DURUM:
@@ -14895,11 +14909,16 @@ def proje_is_guncelle(iid):
                 yeni[k] = str(v or '').strip()[:1000]
     except (ValueError, IndexError) as e:
         return jsonify({'hata': str(e) or 'geçersiz değer'}), 400
+    # Gantt planı: başlangıç, bitişten (üretim termini) sonra olamaz
+    _bas = yeni.get('baslangic', r['baslangic'] or '')
+    _bit = yeni.get('uretim_termin', r['uretim_termin'] or '')
+    if ('baslangic' in yeni or 'uretim_termin' in yeni) and _bas and _bit and _bas > _bit:
+        return jsonify({'hata': 'Başlangıç, bitişten (üretim termini) sonra olamaz'}), 400
     if 'durum' in yeni and yeni['durum'] != r['durum']:
         yeni['tamam_ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S') if yeni['durum'] == 'tamam' else None
     kim = ku['kullanici_adi']
     adlar = _proje_kisi_adlari(conn)
-    for k in ('atanan_id', 'talep_termin', 'uretim_termin', 'durum', 'tip'):
+    for k in ('atanan_id', 'baslangic', 'talep_termin', 'uretim_termin', 'durum', 'tip'):
         if k in yeni:
             if k == 'atanan_id':
                 _proje_gecmis_yaz(conn, r['proje_id'], iid, 'sorumlu', adlar.get(r['atanan_id'], ''),
