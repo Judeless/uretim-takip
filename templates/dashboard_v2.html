@@ -1755,6 +1755,13 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "Kaplama / boya": {"en": "Coating / painting", "it": "Rivestimento / verniciatura"},
+  "Sevk": {"en": "Shipping", "it": "Spedizione"},
+  "Henüz not yok": {"en": "No notes yet", "it": "Nessuna nota"},
+  "Proses / takım": {"en": "Process / tooling", "it": "Processo / attrezzatura"},
+  "Adet · tedarikçi": {"en": "Qty · supplier", "it": "Q.tà · fornitore"},
+  "takip satırı yok": {"en": "no tracking row", "it": "nessuna riga"},
+  "siz": {"en": "you", "it": "tu"},
   "Kalem": {"en": "Item", "it": "Voce"},
   "Sorumlu": {"en": "Owner", "it": "Responsabile"},
   "Üretim / teslim termini": {"en": "Production / delivery date", "it": "Data produzione / consegna"},
@@ -5890,13 +5897,97 @@ window.__I18N_SOZLUK__ = {
                  satın alma parçaları. Takip edilen her kalem: sorumlu, talep
                  termini, üretim/teslim termini, durum, not. -->
             <section class="page" id="page-proje-takip">
+                <style>
+                    /* PROJE TAKİP v3 (kullanıcı 2026-09-15): kompakt kartlar, renkli durum, çok kişili notlar */
+                    #page-proje-takip .pj-bosluk { flex: 1; }
+                    #page-proje-takip .pj-sec { margin-top: 20px; }
+                    #page-proje-takip .pj-sec-bas { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+                    #page-proje-takip .pj-sec-ikon { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--primary-soft); font-size: .95rem; flex: none; }
+                    #page-proje-takip .pj-sec-bas h4 { margin: 0; font-size: .95rem; font-weight: 800; }
+                    #page-proje-takip .pj-say { min-width: 22px; height: 20px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--dim); font-size: .72rem; font-weight: 800; display: inline-grid; place-items: center; }
+                    #page-proje-takip .pj-bolum-ekle { padding: 4px 12px; font-size: .78rem; }
+                    #page-proje-takip .pj-kartlar { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 750px), 1fr)); gap: 12px; align-items: start; }
+                    #page-proje-takip .pj-kart { border: 1px solid var(--card-border); border-radius: 14px; background: var(--card); overflow: hidden; container-type: inline-size; box-shadow: 0 1px 3px rgba(20, 16, 50, .05); max-width: 900px; }
+                    #page-proje-takip .pj-kart.sa-kart { max-width: 1080px; }
+                    #page-proje-takip .pj-kart-bas { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--surface-2); border-bottom: 1px solid var(--card-border); min-height: 40px; flex-wrap: wrap; }
+                    #page-proje-takip .pj-kart-kod { font-weight: 800; font-size: .9rem; white-space: nowrap; }
+                    #page-proje-takip .pj-kart-acik { color: var(--muted); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 40%; }
+                    #page-proje-takip .pj-mini-bar { width: 70px; height: 6px; border-radius: 999px; background: var(--card-border); overflow: hidden; flex: none; }
+                    #page-proje-takip .pj-mini-bar > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
+                    #page-proje-takip .pj-mini-bar.tam > i { background: var(--success); }
+                    #page-proje-takip .pj-kart-say { font-size: .72rem; font-weight: 800; color: var(--dim); flex: none; }
+                    #page-proje-takip .pj-kart-btn { display: flex; gap: 2px; flex: none; }
+                    #page-proje-takip .pj-ikon-btn { border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 3px 7px; font: inherit; font-size: .76rem; font-weight: 700; cursor: pointer; color: var(--text); line-height: 1.3; }
+                    #page-proje-takip .pj-ikon-btn:hover { background: var(--card); border-color: var(--card-border); }
+                    #page-proje-takip .pj-ikon-btn.sil { color: var(--dim); }
+                    #page-proje-takip .pj-ikon-btn.sil:hover { color: var(--danger); border-color: var(--danger); }
+                    #page-proje-takip .pj-satir { display: grid; grid-template-columns: minmax(130px, 210px) minmax(140px, 190px) 118px 118px 118px 64px; justify-content: start; align-items: center; gap: 6px; padding: 5px 12px; border-top: 1px solid var(--card-border); }
+                    #page-proje-takip .pj-satir.sa { grid-template-columns: minmax(130px, 200px) minmax(100px, 170px) minmax(140px, 180px) 118px 118px 118px 90px; }
+                    #page-proje-takip .pj-satir.pj-bas { border-top: 0; padding-top: 7px; padding-bottom: 2px; font-size: .62rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+                    #page-proje-takip .pj-satir.tamam { background: color-mix(in srgb, var(--success) 7%, transparent); }
+                    #page-proje-takip .pj-satir.iptal { opacity: .5; }
+                    #page-proje-takip .pj-tip { min-width: 0; }
+                    #page-proje-takip .pj-tip-ust { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .82rem; min-width: 0; }
+                    #page-proje-takip .pj-tip-ad { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    #page-proje-takip .pj-tip-ikon { font-size: .78rem; opacity: .75; flex: none; }
+                    #page-proje-takip .pj-tip-acik { font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    #page-proje-takip .pj-uyari { font-size: .76rem; cursor: help; flex: none; }
+                    #page-proje-takip .pj-in { width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--border-input); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-size: .78rem; min-width: 0; box-sizing: border-box; }
+                    #page-proje-takip .pj-in:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
+                    #page-proje-takip .pj-in.gec, #page-proje-takip .pj-tarih.gec { border-color: var(--danger); color: var(--danger); font-weight: 700; }
+                    #page-proje-takip .pj-in.rsk, #page-proje-takip .pj-tarih.rsk { border-color: var(--warn); color: var(--warn); font-weight: 700; }
+                    #page-proje-takip .pj-tarih { font-size: .8rem; white-space: nowrap; }
+                    #page-proje-takip .pj-kisi { display: flex; align-items: center; gap: 6px; font-size: .8rem; min-width: 0; white-space: nowrap; overflow: hidden; }
+                    #page-proje-takip .pj-av { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; font-size: .6rem; font-weight: 800; flex: none; }
+                    #page-proje-takip .pj-durum { width: 100%; height: 28px; border-radius: 999px; border: 1px solid transparent; padding: 0 10px; font: inherit; font-size: .74rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; white-space: nowrap; }
+                    #page-proje-takip span.pj-durum { cursor: default; }
+                    #page-proje-takip .pj-d-bekliyor { background: var(--surface-2); color: var(--dim); border-color: var(--card-border); }
+                    #page-proje-takip .pj-d-devam { background: var(--primary-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+                    #page-proje-takip .pj-d-tamam { background: var(--success-soft); color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
+                    #page-proje-takip .pj-d-iptal { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); text-decoration: line-through; }
+                    #page-proje-takip select.pj-durum option { background: var(--card); color: var(--text); font-weight: 600; }
+                    #page-proje-takip .pj-islem { display: flex; align-items: center; gap: 2px; justify-content: flex-end; }
+                    #page-proje-takip .pj-not-btn { border: 1px solid var(--card-border); background: var(--card); border-radius: 999px; padding: 2px 8px; font: inherit; font-size: .74rem; font-weight: 800; cursor: pointer; color: var(--dim); white-space: nowrap; }
+                    #page-proje-takip .pj-not-btn.var { background: var(--primary-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
+                    #page-proje-takip .pj-not-btn.acik { box-shadow: 0 0 0 3px var(--focus-ring); }
+                    #page-proje-takip .pj-notlar { margin: 2px 12px 8px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--card-border); }
+                    #page-proje-takip .pj-not { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; }
+                    #page-proje-takip .pj-not + .pj-not { border-top: 1px dashed var(--card-border); }
+                    #page-proje-takip .pj-not-ust { font-size: .7rem; color: var(--muted); }
+                    #page-proje-takip .pj-not-ust b { color: var(--text); font-size: .76rem; }
+                    #page-proje-takip .pj-not-metin { font-size: .8rem; white-space: pre-wrap; word-break: break-word; margin-top: 1px; }
+                    #page-proje-takip .pj-bos-not { font-size: .76rem; color: var(--muted); padding: 2px 0 4px; }
+                    #page-proje-takip .pj-not-yaz { display: flex; gap: 6px; margin-top: 6px; }
+                    #page-proje-takip .pj-not-yaz .btn { padding: 4px 14px; font-size: .78rem; }
+                    #page-proje-takip .pj-alt-bas { padding: 7px 12px 3px; font-size: .64rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; border-top: 1px solid var(--card-border); }
+                    #page-proje-takip .pj-kart-bos, #page-proje-takip .pj-bos { font-size: .8rem; color: var(--muted); padding: 10px 12px; }
+                    #page-proje-takip .pj-bos { border: 1px dashed var(--card-border); border-radius: 12px; }
+                    #page-proje-takip .pj-sa-bilgi { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    #page-proje-takip .pj-sa-bilgi b { color: var(--text); }
+                    #page-proje-takip .pj-ilerleme { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 10px 0 2px; }
+                    #page-proje-takip .pj-ilerleme > i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
+                    #page-proje-takip .pj-ilerleme.tam > i { background: var(--success); }
+                    #page-proje-takip .pj-tr-tamam > td { opacity: .6; }
+                    @container (max-width: 745px) {
+                        #page-proje-takip .pj-satir:not(.sa) { grid-template-columns: 1fr 1fr; justify-content: stretch; }
+                        #page-proje-takip .pj-satir:not(.sa) > .pj-tip { grid-column: 1 / -1; }
+                        #page-proje-takip .pj-satir.pj-bas:not(.sa) { display: none; }
+                        #page-proje-takip .pj-satir:not(.sa) > [data-et]::before { content: attr(data-et); display: block; font-size: .6rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+                    }
+                    @container (max-width: 950px) {
+                        #page-proje-takip .pj-satir.sa { grid-template-columns: 1fr 1fr; justify-content: stretch; }
+                        #page-proje-takip .pj-satir.sa > .pj-tip { grid-column: 1 / -1; }
+                        #page-proje-takip .pj-satir.sa.pj-bas { display: none; }
+                        #page-proje-takip .pj-satir.sa > [data-et]::before { content: attr(data-et); display: block; font-size: .6rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+                    }
+                </style>
                 <div class="panel-card" id="pj-benim-kart" style="display:none">
                     <div class="panel-header">
                         <h3>🙋 Bana atanan işler</h3>
                         <span class="adet-info" id="pj-benim-ozet"></span>
                     </div>
                     <div class="table-wrap"><table class="admin-table">
-                        <thead><tr><th>Proje</th><th>Kalem</th><th>Talep termini</th><th>Üretim / teslim termini</th><th>Durum</th><th>Not</th></tr></thead>
+                        <thead><tr><th>Proje</th><th>Kalem</th><th>Talep termini</th><th>Üretim / teslim termini</th><th>Durum</th><th>Notlar</th></tr></thead>
                         <tbody id="pj-benim-body"></tbody>
                     </table></div>
                 </div>
@@ -16022,7 +16113,7 @@ window.__I18N_SOZLUK__ = {
         // satın alma parçaları. Yönetici her alanı; sorumlu yalnız KENDİ
         // satırının üretim/teslim termini, durumu ve notunu değiştirir.
         var _pj = { tipler: [], katTip: {}, yon: false, benimId: null, secili: null, kisiler: null,
-                    detay: null, bilgiAcik: false, kalem: null };
+                    detay: null, benim: null, bilgiAcik: false, kalem: null, notAcik: {} };
         var PJ_IS_DURUM_AD = { bekliyor: 'Bekliyor', devam: 'Devam ediyor', tamam: 'Tamamlandı', iptal: 'İptal' };
         var PJ_SA_DURUM_AD = { bekliyor: 'Bekliyor', devam: 'Sipariş verildi', tamam: 'Teslim alındı', iptal: 'İptal' };
         var PJ_PROJE_DURUM_AD = { aktif: 'Aktif', beklemede: 'Beklemede', tamamlandi: 'Tamamlandı', iptal: 'İptal' };
@@ -16032,7 +16123,7 @@ window.__I18N_SOZLUK__ = {
             tel:        { baslik: 'Tel üretimi',          ikon: '🧵', ekle: '＋ Tel referansı',       kodEt: 'Tel referans kodu', bos: 'Tel üretimi kalemi yok' },
             satin_alma: { baslik: 'Satın alma parçaları', ikon: '🛒', ekle: '＋ Satın alma parçası', kodEt: 'Parça kodu / adı',  bos: 'Beklenen satın alma parçası yok' }
         };
-        var PJ_VARSAYILAN = { ana: ['montaj'], parca: ['kesim_bukum', 'kaynak'], tel: ['tel_uretim'], satin_alma: ['satin_alma'] };
+        var PJ_VARSAYILAN = { ana: ['montaj', 'sevk'], parca: ['kesim_bukum', 'kaynak'], tel: ['tel_uretim'], satin_alma: ['satin_alma'] };
 
         function projeYonetici() { return panelAdmin() || panelIzinler().indexOf('proje-yonetim') !== -1; }
         function pjTarih(t) { return t ? (t.slice(8, 10) + '.' + t.slice(5, 7) + '.' + t.slice(0, 4)) : '—'; }
@@ -16119,48 +16210,130 @@ window.__I18N_SOZLUK__ = {
             } catch (e) { rz.style.display = 'none'; }
         }
 
+        // ── v3 (kullanıcı 2026-09-15): kompakt kartlar (alan genişlikleri sabit, kart
+        // genişliği yayılmaz), renkli durum hapı, satır başına ÇOK KİŞİLİ NOTLAR (💬):
+        // projeyi gören herkes yazar, yazanın adı + zamanı görünür.
         function pjDurumSelect(id, deger, kat) {
             var ad = pjDurumAdlari(kat);
-            return '<select class="rt-row-select" style="min-width:130px" data-id="' + id + '" data-alan="durum" onchange="pjIsGuncelle(this)">' +
+            return '<select class="pj-durum pj-d-' + esc(deger) + '" title="Durum" data-id="' + id + '" data-alan="durum" onchange="pjIsGuncelle(this)">' +
                 Object.keys(ad).map(function (k) {
                     return '<option value="' + k + '"' + (k === deger ? ' selected' : '') + '>' + ad[k] + '</option>';
                 }).join('') + '</select>';
         }
-        function pjTarihInput(id, alan, deger) {
-            return '<input type="date" class="rt-row-input" style="min-width:132px" value="' + esc(deger || '') + '" data-id="' + id + '" data-alan="' + alan + '" onchange="pjIsGuncelle(this)">';
+        function pjDurumEtiket(deger, kat) {
+            return '<span class="pj-durum pj-d-' + esc(deger) + '">' + esc(pjDurumAdlari(kat)[deger] || deger) + '</span>';
         }
-        function pjMetinInput(id, alan, deger, ph) {
-            return '<input type="text" class="rt-row-input" style="min-width:130px" value="' + esc(deger || '') + '" placeholder="' + esc(ph || '') + '" data-id="' + id + '" data-alan="' + alan + '" onchange="pjIsGuncelle(this)">';
+        function pjTarihInput(id, alan, deger, sinif) {
+            return '<input type="date" class="pj-in' + (sinif ? ' ' + sinif : '') + '" value="' + esc(deger || '') + '" data-id="' + id + '" data-alan="' + alan + '" onchange="pjIsGuncelle(this)">';
         }
-        function pjIsDurumRozet(t) {
-            return (t.geciken ? pjRozet('⏰ gecikti', 'var(--danger)') : '') +
-                   (t.risk ? pjRozet('⚠ termin riski', 'var(--warn)') : '');
+        function pjTarihMetin(deger, sinif) {
+            return '<span class="pj-tarih' + (sinif ? ' ' + sinif : '') + '">' + pjTarih(deger) + '</span>';
+        }
+        function pjUyari(t) {
+            return (t.geciken ? '<span class="pj-uyari" style="color:var(--danger)" title="Talep termini geçti, iş bitmedi">⏰</span>' : '') +
+                   (t.risk ? '<span class="pj-uyari" style="color:var(--warn)" title="Üretim termini talep edilen terminden sonra">⚠</span>' : '');
+        }
+        function pjBasHarf(ad) {
+            var p = String(ad || '?').trim().split(/\s+/);
+            return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toLocaleUpperCase('tr-TR');
+        }
+        function pjAvatar(ad) {
+            var h = 0;
+            String(ad || '').split('').forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) % 360; });
+            return '<span class="pj-av" style="background:hsl(' + h + ' 65% 88%);color:hsl(' + h + ' 60% 26%)" title="' + esc(ad || '') + '">' + esc(pjBasHarf(ad)) + '</span>';
+        }
+        function pjZaman(ts) {
+            ts = String(ts || '');
+            return ts.length >= 16 ? (ts.slice(8, 10) + '.' + ts.slice(5, 7) + '.' + ts.slice(0, 4) + ' ' + ts.slice(11, 16)) : ts;
+        }
+        function pjSatirSinif(t) { return t.durum === 'tamam' ? ' tamam' : (t.durum === 'iptal' ? ' iptal' : ''); }
+
+        // ── Notlar (💬) — yer: 'd' detay kartı, 'b' bana atanan işler ──
+        function pjNotBtn(yer, t) {
+            var L = t.notlar_liste || [], acik = !!_pj.notAcik[yer + t.id];
+            var son = L.length ? L[L.length - 1] : null;
+            return '<button type="button" class="pj-not-btn' + (L.length ? ' var' : '') + (acik ? ' acik' : '') + '" title="' +
+                esc(son ? (son.kim_ad + ': ' + son.metin) : 'Not ekle') + '" onclick="pjNotAc(\'' + yer + '\',' + t.id + ')">💬' + (L.length ? ' ' + L.length : '') + '</button>';
+        }
+        function pjNotPanel(yer, t) {
+            if (!_pj.notAcik[yer + t.id]) return '';
+            var L = t.notlar_liste || [];
+            return '<div class="pj-notlar">' + (L.length ? L.map(function (x) {
+                return '<div class="pj-not">' + pjAvatar(x.kim_ad) +
+                    '<div style="min-width:0;flex:1"><div class="pj-not-ust"><b>' + esc(x.kim_ad) + '</b> · ' + esc(pjZaman(x.ts)) + '</div>' +
+                    '<div class="pj-not-metin">' + esc(x.metin) + '</div></div>' +
+                    (x.sil ? '<button type="button" class="pj-ikon-btn sil" title="Notu sil" onclick="pjNotSil(' + x.id + ')">✕</button>' : '') + '</div>';
+            }).join('') : '<div class="pj-bos-not">Henüz not yok</div>') +
+                '<div class="pj-not-yaz"><input type="text" class="pj-in" id="pj-not-in-' + yer + t.id + '" maxlength="1000" placeholder="Not yazın… (Enter ile ekle)" ' +
+                'onkeydown="if(event.key===\'Enter\'){event.preventDefault();pjNotEkle(\'' + yer + '\',' + t.id + ');}">' +
+                '<button type="button" class="btn btn-primary" onclick="pjNotEkle(\'' + yer + '\',' + t.id + ')">Ekle</button></div></div>';
+        }
+        function pjYenidenCiz(yer) {
+            if (yer === 'b') pjBenimCiz();
+            else if (_pj.detay) pjDetayCiz(_pj.detay);
+        }
+        function pjNotAc(yer, id) {
+            var k = yer + id;
+            _pj.notAcik[k] = !_pj.notAcik[k];
+            pjYenidenCiz(yer);
+            if (_pj.notAcik[k]) setTimeout(function () { var i = document.getElementById('pj-not-in-' + k); if (i) i.focus(); }, 30);
+        }
+        async function pjNotYenile() {
+            var bekle = [projeBenimYukle()];
+            if (_pj.secili) bekle.push(projeDetayYukle(_pj.secili));
+            await Promise.all(bekle);
+        }
+        async function pjNotEkle(yer, id) {
+            var inp = document.getElementById('pj-not-in-' + yer + id);
+            var metin = inp ? inp.value.trim() : '';
+            if (!metin) return;
+            inp.disabled = true;
+            try {
+                await pjJson('/api/proje_is/' + id + '/not', pjGovde({ metin: metin }));
+                _pj.notAcik[yer + id] = true;
+                await pjNotYenile();
+                var yeni = document.getElementById('pj-not-in-' + yer + id);
+                if (yeni) yeni.focus();
+            } catch (e) { toast(e.message, 'err'); inp.disabled = false; }
+        }
+        async function pjNotSil(nid) {
+            if (!confirm('Not silinsin mi?')) return;
+            try { await pjJson('/api/proje_not/' + nid, { method: 'DELETE' }); await pjNotYenile(); }
+            catch (e) { toast(e.message, 'err'); }
         }
 
         async function projeBenimYukle() {
             var kart = document.getElementById('pj-benim-kart');
-            var body = document.getElementById('pj-benim-body');
-            if (!kart || !body) return;
+            if (!kart) return;
             try {
                 var d = await pjJson('/api/proje/benim');
-                var L = d.isler || [];
-                kart.style.display = L.length ? '' : 'none';
-                var oz = document.getElementById('pj-benim-ozet');
-                if (oz) oz.textContent = (d.acik || 0) + ' açık iş';
-                body.innerHTML = L.map(function (t) {
-                    var kalem = (t.parca_kod ? esc(t.parca_kod) : 'Ana referans') + ' · <b>' + esc(t.tip_ad) + '</b>';
-                    return '<tr' + (t.durum === 'tamam' ? ' style="opacity:.6"' : '') + '>' +
-                        '<td><a style="cursor:pointer;color:var(--primary);font-weight:700" onclick="projeDetayYukle(' + t.proje_id + ')">' + esc(t.referans_kodu) + '</a>' +
-                            (t.proje_ad ? '<div style="font-size:.72rem;color:var(--muted)">' + esc(t.proje_ad) + '</div>' : '') + '</td>' +
-                        '<td>' + kalem + (t.aciklama ? '<div style="font-size:.72rem;color:var(--muted)">' + esc(t.aciklama) + '</div>' : '') + '</td>' +
-                        '<td style="white-space:nowrap">' + pjTarih(t.talep_termin) + pjIsDurumRozet(t) + '</td>' +
-                        '<td>' + pjTarihInput(t.id, 'uretim_termin', t.uretim_termin) + '</td>' +
-                        '<td>' + pjDurumSelect(t.id, t.durum, t.kategori) + '</td>' +
-                        '<td>' + pjMetinInput(t.id, 'notlar', t.notlar, 'not') + '</td></tr>';
-                }).join('');
+                _pj.benim = d;
+                pjBenimCiz();
                 var rz = document.getElementById('proje-nav-rozet');
                 if (rz) { rz.textContent = d.acik || ''; rz.style.display = d.acik ? '' : 'none'; }
             } catch (e) { kart.style.display = 'none'; }
+        }
+        function pjBenimCiz() {
+            var kart = document.getElementById('pj-benim-kart'), body = document.getElementById('pj-benim-body');
+            if (!kart || !body) return;
+            var d = _pj.benim || {}, L = d.isler || [];
+            kart.style.display = L.length ? '' : 'none';
+            var oz = document.getElementById('pj-benim-ozet');
+            if (oz) oz.textContent = (d.acik || 0) + ' açık iş';
+            body.innerHTML = L.map(function (t) {
+                var ikon = t.grup === 'takim' ? '🔧' : (t.kategori === 'satin_alma' ? '🛒' : '⚙️');
+                var np = pjNotPanel('b', t);
+                return '<tr' + (t.durum === 'tamam' ? ' class="pj-tr-tamam"' : '') + '>' +
+                    '<td><a style="cursor:pointer;color:var(--primary);font-weight:700" onclick="projeDetayYukle(' + t.proje_id + ')">' + esc(t.referans_kodu) + '</a>' +
+                        (t.proje_ad ? '<div style="font-size:.72rem;color:var(--muted)">' + esc(t.proje_ad) + '</div>' : '') + '</td>' +
+                    '<td><div class="pj-tip-ust"><span class="pj-tip-ikon">' + ikon + '</span><span>' + (t.parca_kod ? esc(t.parca_kod) : 'Ana referans') + ' · <b>' + esc(t.tip_ad) + '</b></span>' + pjUyari(t) + '</div>' +
+                        (t.aciklama ? '<div class="pj-tip-acik">' + esc(t.aciklama) + '</div>' : '') + '</td>' +
+                    '<td>' + pjTarihMetin(t.talep_termin, t.geciken ? 'gec' : '') + '</td>' +
+                    '<td style="width:140px">' + pjTarihInput(t.id, 'uretim_termin', t.uretim_termin, t.risk ? 'rsk' : '') + '</td>' +
+                    '<td style="width:150px">' + pjDurumSelect(t.id, t.durum, t.kategori) + '</td>' +
+                    '<td>' + pjNotBtn('b', t) + '</td></tr>' +
+                    (np ? '<tr><td colspan="6" style="padding:0 0 4px">' + np + '</td></tr>' : '');
+            }).join('');
         }
 
         async function projeDetayYukle(id) {
@@ -16188,63 +16361,82 @@ window.__I18N_SOZLUK__ = {
             }
         }
 
-        // Tek takip satırının ortak hücreleri: sorumlu · talep · üretim/teslim · durum · not
-        function pjHucreler(t, kat) {
+        // Takip satırının ortak hücreleri: sorumlu · talep · üretim/teslim · durum · 💬 (+ işlem)
+        function pjOrtakHucreler(t, kat, yer, ekBtn) {
             var yon = _pj.yon, benim = !!(t.atanan_id && t.atanan_id === _pj.benimId), duz = yon || benim;
-            var kisiOpt = '<option value="">— atanmadı —</option>' + (_pj.kisiler || []).map(function (k) {
-                return '<option value="' + k.id + '"' + (k.id === t.atanan_id ? ' selected' : '') + '>' + esc(k.ad) + '</option>'; }).join('');
-            return '<td>' + (yon ? '<select class="rt-row-select" style="min-width:150px" data-id="' + t.id + '" data-alan="atanan_id" onchange="pjIsGuncelle(this)">' + kisiOpt + '</select>'
-                                 : esc(t.atanan_ad || '—') + (benim ? pjRozet('siz', 'var(--primary)') : '')) + '</td>' +
-                '<td style="white-space:nowrap">' + (yon ? pjTarihInput(t.id, 'talep_termin', t.talep_termin) : pjTarih(t.talep_termin)) + pjIsDurumRozet(t) + '</td>' +
-                '<td>' + (duz ? pjTarihInput(t.id, 'uretim_termin', t.uretim_termin) : pjTarih(t.uretim_termin)) + '</td>' +
-                '<td>' + (duz ? pjDurumSelect(t.id, t.durum, kat) : esc(pjDurumAdlari(kat)[t.durum] || t.durum)) + '</td>' +
-                '<td>' + (duz ? pjMetinInput(t.id, 'notlar', t.notlar, 'not') : esc(t.notlar || '')) + '</td>';
+            var sor;
+            if (yon) {
+                var kisiler = (_pj.kisiler || []).slice();
+                if (t.atanan_id && !kisiler.some(function (k) { return k.id === t.atanan_id; })) kisiler.push({ id: t.atanan_id, ad: t.atanan_ad || ('#' + t.atanan_id) });
+                sor = '<select class="pj-in" title="Sorumlu" data-id="' + t.id + '" data-alan="atanan_id" onchange="pjIsGuncelle(this)"><option value="">— atanmadı —</option>' +
+                    kisiler.map(function (k) { return '<option value="' + k.id + '"' + (k.id === t.atanan_id ? ' selected' : '') + '>' + esc(k.ad) + '</option>'; }).join('') + '</select>';
+            } else {
+                sor = '<span class="pj-kisi">' + (t.atanan_ad ? pjAvatar(t.atanan_ad) + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(t.atanan_ad) + '</span>'
+                                                               : '<span style="color:var(--muted)">—</span>') +
+                      (benim ? pjRozet('siz', 'var(--primary)') : '') + '</span>';
+            }
+            var gecS = t.geciken ? 'gec' : '', rskS = t.risk ? 'rsk' : '';
+            var sil = (ekBtn !== undefined) ? ekBtn
+                    : (yon ? '<button type="button" class="pj-ikon-btn sil" title="Satırı sil" onclick="pjIsSil(' + t.id + ')">🗑</button>' : '');
+            return '<div data-et="Sorumlu">' + sor + '</div>' +
+                '<div data-et="Talep termini">' + (yon ? pjTarihInput(t.id, 'talep_termin', t.talep_termin, gecS) : pjTarihMetin(t.talep_termin, gecS)) + '</div>' +
+                '<div data-et="' + (kat === 'satin_alma' ? 'Teslim termini' : 'Üretim termini') + '">' +
+                    (duz ? pjTarihInput(t.id, 'uretim_termin', t.uretim_termin, rskS) : pjTarihMetin(t.uretim_termin, rskS)) + '</div>' +
+                '<div data-et="Durum">' + (duz ? pjDurumSelect(t.id, t.durum, kat) : pjDurumEtiket(t.durum, kat)) + '</div>' +
+                '<div class="pj-islem">' + pjNotBtn(yer, t) + sil + '</div>';
         }
-        function pjSatirStil(t) {
-            return t.durum === 'tamam' ? 'background:color-mix(in srgb,var(--success) 9%,transparent)'
-                 : t.durum === 'iptal' ? 'opacity:.5' : '';
+        function pjSatir(t, kat, yer) {
+            return '<div class="pj-satir' + pjSatirSinif(t) + '">' +
+                '<div class="pj-tip"><div class="pj-tip-ust"><span class="pj-tip-ikon">' + (t.grup === 'takim' ? '🔧' : '⚙️') + '</span>' +
+                    '<span class="pj-tip-ad">' + esc(t.tip_ad) + '</span>' + pjUyari(t) + '</div>' +
+                    (t.aciklama ? '<div class="pj-tip-acik" title="' + esc(t.aciklama) + '">' + esc(t.aciklama) + '</div>' : '') + '</div>' +
+                pjOrtakHucreler(t, kat, yer) + '</div>' + pjNotPanel(yer, t);
         }
-        function pjMiniBtn(txt, fn, attrs, renk) {
-            return '<button class="btn btn-ghost" style="padding:2px 8px;font-size:.72rem;margin-left:4px' + (renk ? ';color:' + renk : '') + '" ' +
-                   attrs + ' onclick="' + fn + '">' + txt + '</button>';
+        function pjSatirBaslik(sa) {
+            return '<div class="pj-satir pj-bas' + (sa ? ' sa' : '') + '">' +
+                (sa ? '<span>Parça</span><span>Adet · tedarikçi</span>' : '<span>Proses / takım</span>') +
+                '<span>Sorumlu</span><span>Talep termini</span><span>' + (sa ? 'Teslim termini' : 'Üretim termini') + '</span>' +
+                '<span>Durum</span><span style="text-align:right">Notlar</span></div>';
         }
-        // Kalem/proses satırı (ana, alt referans, tel)
-        function pjIsSatir(t, kat, girinti) {
-            return '<tr style="' + pjSatirStil(t) + '">' +
-                '<td style="padding-left:' + (girinti ? 30 : 12) + 'px;white-space:nowrap">' + (t.grup === 'takim' ? '🔧 ' : '⚙️ ') + '<b>' + esc(t.tip_ad) + '</b>' +
-                    (t.aciklama ? '<div style="font-size:.72rem;color:var(--muted);white-space:normal">' + esc(t.aciklama) + '</div>' : '') + '</td>' +
-                pjHucreler(t, kat) +
-                (_pj.yon ? '<td><button class="adm-btn sil" title="Satırı sil" onclick="pjIsSil(' + t.id + ')">🗑️</button></td>' : '') + '</tr>';
+        // Kalem kartı: başlık (kod · açıklama · mini ilerleme · işlemler) + prosesler + "Takımlar"
+        function pjKart(baslik, alt, isler, kat, butonlar) {
+            var akt = isler.filter(function (t) { return t.durum !== 'iptal'; });
+            var tam = akt.filter(function (t) { return t.durum === 'tamam'; }).length;
+            var yz = akt.length ? Math.round(100 * tam / akt.length) : 0;
+            var proses = isler.filter(function (t) { return t.grup !== 'takim'; });
+            var takim = isler.filter(function (t) { return t.grup === 'takim'; });
+            var h = '<div class="pj-kart"><div class="pj-kart-bas"><span class="pj-kart-kod">' + esc(baslik) + '</span>' +
+                (alt ? '<span class="pj-kart-acik" title="' + esc(alt) + '">' + esc(alt) + '</span>' : '') + '<span class="pj-bosluk"></span>' +
+                (akt.length ? '<span class="pj-mini-bar' + (yz >= 100 ? ' tam' : '') + '" title="%' + yz + '"><i style="width:' + yz + '%"></i></span>' +
+                              '<span class="pj-kart-say">' + tam + '/' + akt.length + '</span>' : '') +
+                (butonlar || '') + '</div>';
+            if (!isler.length) return h + '<div class="pj-kart-bos">Takip edilen proses yok</div></div>';
+            h += pjSatirBaslik(false) + proses.map(function (t) { return pjSatir(t, kat, 'd'); }).join('');
+            if (takim.length) h += '<div class="pj-alt-bas">🔧 Takımlar</div>' + takim.map(function (t) { return pjSatir(t, kat, 'd'); }).join('');
+            return h + '</div>';
         }
-        function pjTabloBas(sa) {
-            return '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
-                (sa ? '<th>Parça</th><th style="text-align:right">Adet</th><th>Tedarikçi</th>' : '<th>Kalem</th>') +
-                '<th>Sorumlu</th><th>Talep termini</th><th>' + (sa ? 'Teslim termini' : 'Üretim termini') + '</th><th>Durum</th><th>Not</th>' +
-                (_pj.yon ? '<th></th>' : '') + '</tr></thead><tbody>';
-        }
-        function pjBolum(kat, sayi, icerik, ekBaslik) {
+        function pjBolum(kat, sayi, icerik) {
             var k = PJ_KAT[kat];
-            var ekle = _pj.yon ? pjMiniBtn(k.ekle, 'pjKalemAc(this.dataset.mod,this.dataset.kat,\'\')',
-                                           'data-mod="' + (kat === 'ana' ? 'is' : 'yeni') + '" data-kat="' + kat + '" style="margin-left:auto"') : '';
-            return '<div style="margin-top:18px">' +
-                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
-                '<h4 style="margin:0;font-size:.95rem"><span>' + k.ikon + '</span> <span>' + esc(k.baslik) + '</span>' +
-                (ekBaslik ? ' <span style="color:var(--muted);font-weight:600">' + ekBaslik + '</span>' : '') +
-                (sayi !== null ? ' <span style="color:var(--muted);font-weight:600">(' + sayi + ')</span>' : '') + '</h4>' +
-                '<span style="margin-left:auto"></span>' + ekle + '</div>' + icerik + '</div>';
+            var ekle = (_pj.yon && kat !== 'ana')
+                ? '<button type="button" class="btn btn-ghost pj-bolum-ekle" data-kat="' + kat + '" onclick="pjKalemAc(\'yeni\',this.dataset.kat,\'\')">' + k.ekle + '</button>' : '';
+            return '<div class="pj-sec"><div class="pj-sec-bas"><span class="pj-sec-ikon">' + k.ikon + '</span><h4>' + esc(k.baslik) + '</h4>' +
+                (sayi !== null ? '<span class="pj-say">' + sayi + '</span>' : '') + ekle + '</div>' + icerik + '</div>';
         }
 
         function pjDetayCiz(d) {
             var p = d.proje, yon = _pj.yon, kart = document.getElementById('pj-detay-kart');
+            if (!kart) return;
             var parcalar = d.parcalar || [];
             var tum = (d.ana_isler || []).slice();
             parcalar.forEach(function (pc) { tum = tum.concat(pc.isler || []); });
             var akt = tum.filter(function (t) { return t.durum !== 'iptal'; });
             var tamam = akt.filter(function (t) { return t.durum === 'tamam'; }).length;
+            var devam = akt.filter(function (t) { return t.durum === 'devam'; }).length;
             var gec = akt.filter(function (t) { return t.geciken; }).length;
             var rsk = akt.filter(function (t) { return t.risk; }).length;
+            var yuzde = akt.length ? Math.round(100 * tamam / akt.length) : 0;
             var cip = function (et, v, renk) {
-                return '<span style="display:inline-flex;gap:6px;align-items:baseline;padding:4px 11px;border:1px solid var(--card-border);border-radius:999px;font-size:.78rem">' +
+                return '<span style="display:inline-flex;gap:6px;align-items:baseline;padding:4px 11px;border:1px solid var(--card-border);border-radius:999px;font-size:.78rem;background:var(--card)">' +
                     '<span style="color:var(--muted)">' + et + '</span><b' + (renk ? ' style="color:' + renk + '"' : '') + '>' + v + '</b></span>';
             };
             var h = '<div class="panel-header"><h3>📐 ' + esc(p.referans_kodu) + (p.ad ? ' — ' + esc(p.ad) : '') + '</h3>' +
@@ -16252,12 +16444,14 @@ window.__I18N_SOZLUK__ = {
                 (yon ? '<button class="btn btn-ghost" onclick="pjBilgiTogle()">✏ Proje bilgileri</button>' +
                        '<button class="btn btn-ghost" style="color:var(--danger)" onclick="pjProjeSil(' + p.id + ')">🗑 Sil</button>' : '') +
                 '<button class="btn btn-ghost" onclick="pjDetayKapat()">✕ Kapat</button></span></div>';
-            h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 6px">' +
+            h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px">' +
                 cip('Müşteri', esc(p.musteri || '—')) + cip('Talep termini', pjTarih(p.talep_termin)) +
                 cip('Durum', esc(PJ_PROJE_DURUM_AD[p.durum] || p.durum)) +
-                cip('İlerleme', tamam + '/' + akt.length, tamam && tamam === akt.length ? 'var(--success)' : '') +
+                cip('İlerleme', tamam + '/' + akt.length + ' · %' + yuzde, yuzde >= 100 && akt.length ? 'var(--success)' : '') +
+                (devam ? cip('Devam ediyor', devam, 'var(--primary)') : '') +
                 (gec ? cip('Geciken', gec, 'var(--danger)') : '') + (rsk ? cip('Termin riski', rsk, 'var(--warn)') : '') +
                 (p.notlar ? cip('Not', esc(p.notlar)) : '') + '</div>';
+            h += '<div class="pj-ilerleme' + (yuzde >= 100 && akt.length ? ' tam' : '') + '"><i style="width:' + yuzde + '%"></i></div>';
             if (yon && _pj.bilgiAcik) {
                 var pin = function (et, k, v, tip) {
                     return '<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:.7rem;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">' + et + '</span>' +
@@ -16272,52 +16466,37 @@ window.__I18N_SOZLUK__ = {
                     pin('Not', 'notlar', p.notlar) + '</div>';
             }
 
-            // ① Ana referans prosesleri
-            var ana = d.ana_isler || [];
-            h += pjBolum('ana', null, ana.length
-                ? pjTabloBas(false) + ana.map(function (t) { return pjIsSatir(t, 'ana', false); }).join('') + '</tbody></table></div>'
-                : '<div style="font-size:.8rem;color:var(--muted);padding:4px 2px">Ana referans için takip edilen proses yok.</div>',
-                '— ' + esc(p.referans_kodu));
+            // ① Ana referans — montaj / kaplama-boya → sevk (+ takımlar)
+            var anaBtn = yon ? '<span class="pj-kart-btn"><button type="button" class="pj-ikon-btn" onclick="pjKalemAc(\'is\',\'ana\',\'\')">＋ proses / takım</button></span>' : '';
+            h += pjBolum('ana', null, '<div class="pj-kartlar">' + pjKart(p.referans_kodu, p.ad || '', d.ana_isler || [], 'ana', anaBtn) + '</div>');
 
-            // ② Alt referanslar ③ Tel üretimi — kalem başlığı + prosesler + "Takımlar" alt başlığı
+            // ② Alt referanslar ③ Tel üretimi — her kalem bir kart
             ['parca', 'tel'].forEach(function (kat) {
                 var L = parcalar.filter(function (x) { return x.kategori === kat; });
-                var cols = 6 + (yon ? 1 : 0);
-                var ic = !L.length ? '<div style="font-size:.8rem;color:var(--muted);padding:4px 2px">' + PJ_KAT[kat].bos + '</div>'
-                    : pjTabloBas(false) + L.map(function (pc) {
-                        var s = '<tr><td colspan="' + cols + '" style="background:var(--surface-2);padding:7px 12px">' +
-                            '<b>' + esc(pc.kod) + '</b>' + (pc.aciklama ? ' <span style="color:var(--muted)">· ' + esc(pc.aciklama) + '</span>' : '') +
-                            (yon ? '<span style="margin-left:12px;white-space:nowrap">' +
-                                pjMiniBtn('＋ proses / takım', 'pjKalemAc(\'is\',this.dataset.kat,this.dataset.pid)', 'data-kat="' + kat + '" data-pid="' + pc.id + '"') +
-                                pjMiniBtn('✏', 'pjKalemAc(\'duzenle\',this.dataset.kat,this.dataset.pid)', 'data-kat="' + kat + '" data-pid="' + pc.id + '" title="Kalemi düzenle"') +
-                                pjMiniBtn('🗑', 'pjParcaSil(this.dataset.pid)', 'data-pid="' + pc.id + '" title="Kalemi ve satırlarını sil"', 'var(--danger)') +
-                                '</span>' : '') + '</td></tr>';
-                        var proses = (pc.isler || []).filter(function (t) { return t.grup !== 'takim'; });
-                        var takim = (pc.isler || []).filter(function (t) { return t.grup === 'takim'; });
-                        s += proses.map(function (t) { return pjIsSatir(t, kat, true); }).join('');
-                        if (takim.length) {
-                            s += '<tr><td colspan="' + cols + '" style="padding:5px 12px 3px 30px;font-size:.7rem;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">🔧 Takımlar</td></tr>';
-                            s += takim.map(function (t) { return pjIsSatir(t, kat, true); }).join('');
-                        }
-                        if (!(pc.isler || []).length) s += '<tr><td colspan="' + cols + '" style="padding-left:30px;font-size:.78rem;color:var(--muted)">Takip edilen proses yok</td></tr>';
-                        return s;
-                    }).join('') + '</tbody></table></div>';
+                var ic = !L.length ? '<div class="pj-bos">' + PJ_KAT[kat].bos + '</div>'
+                    : '<div class="pj-kartlar">' + L.map(function (pc) {
+                        var b = yon ? '<span class="pj-kart-btn">' +
+                            '<button type="button" class="pj-ikon-btn" data-kat="' + kat + '" data-pid="' + pc.id + '" onclick="pjKalemAc(\'is\',this.dataset.kat,this.dataset.pid)">＋ proses / takım</button>' +
+                            '<button type="button" class="pj-ikon-btn" data-kat="' + kat + '" data-pid="' + pc.id + '" title="Kalemi düzenle" onclick="pjKalemAc(\'duzenle\',this.dataset.kat,this.dataset.pid)">✏</button>' +
+                            '<button type="button" class="pj-ikon-btn sil" data-pid="' + pc.id + '" title="Kalemi ve satırlarını sil" onclick="pjParcaSil(this.dataset.pid)">🗑</button></span>' : '';
+                        return pjKart(pc.kod, pc.aciklama || '', pc.isler || [], kat, b);
+                    }).join('') + '</div>';
                 h += pjBolum(kat, L.length, ic);
             });
 
-            // ④ Satın alma parçaları — her parça tek takip satırı
+            // ④ Satın alma parçaları — tek kart, parça başına tek takip satırı
             var SA = parcalar.filter(function (x) { return x.kategori === 'satin_alma'; });
-            var icSa = !SA.length ? '<div style="font-size:.8rem;color:var(--muted);padding:4px 2px">' + PJ_KAT.satin_alma.bos + '</div>'
-                : pjTabloBas(true) + SA.map(function (pc) {
+            var icSa = !SA.length ? '<div class="pj-bos">' + PJ_KAT.satin_alma.bos + '</div>'
+                : '<div class="pj-kart sa-kart">' + pjSatirBaslik(true) + SA.map(function (pc) {
                     var t = (pc.isler || [])[0];
-                    var bas = '<td><b>' + esc(pc.kod) + '</b>' + (pc.aciklama ? '<div style="font-size:.72rem;color:var(--muted)">' + esc(pc.aciklama) + '</div>' : '') + '</td>' +
-                        '<td style="text-align:right">' + pjSayi(pc.adet) + '</td><td>' + esc(pc.tedarikci || '—') + '</td>';
-                    var islem = yon ? '<td style="white-space:nowrap">' +
-                        pjMiniBtn('✏', 'pjKalemAc(\'duzenle\',\'satin_alma\',this.dataset.pid)', 'data-pid="' + pc.id + '" title="Parçayı düzenle"') +
-                        pjMiniBtn('🗑', 'pjParcaSil(this.dataset.pid)', 'data-pid="' + pc.id + '" title="Parçayı sil"', 'var(--danger)') + '</td>' : '';
-                    return t ? '<tr style="' + pjSatirStil(t) + '">' + bas + pjHucreler(t, 'satin_alma') + islem + '</tr>'
-                             : '<tr>' + bas + '<td colspan="5" style="color:var(--muted)">takip satırı yok</td>' + islem + '</tr>';
-                }).join('') + '</tbody></table></div>';
+                    var b = yon ? '<button type="button" class="pj-ikon-btn" data-pid="' + pc.id + '" title="Parçayı düzenle" onclick="pjKalemAc(\'duzenle\',\'satin_alma\',this.dataset.pid)">✏</button>' +
+                                  '<button type="button" class="pj-ikon-btn sil" data-pid="' + pc.id + '" title="Parçayı sil" onclick="pjParcaSil(this.dataset.pid)">🗑</button>' : '';
+                    var bas = '<div class="pj-tip"><div class="pj-tip-ust"><span class="pj-tip-ikon">🛒</span><span class="pj-tip-ad">' + esc(pc.kod) + '</span>' + (t ? pjUyari(t) : '') + '</div>' +
+                        (pc.aciklama ? '<div class="pj-tip-acik" title="' + esc(pc.aciklama) + '">' + esc(pc.aciklama) + '</div>' : '') + '</div>' +
+                        '<div class="pj-sa-bilgi" data-et="Adet · tedarikçi"><b>' + pjSayi(pc.adet) + '</b> · ' + esc(pc.tedarikci || '—') + '</div>';
+                    if (!t) return '<div class="pj-satir sa">' + bas + '<div style="grid-column:span 4;color:var(--muted);font-size:.78rem">takip satırı yok</div><div class="pj-islem">' + b + '</div></div>';
+                    return '<div class="pj-satir sa' + pjSatirSinif(t) + '">' + bas + pjOrtakHucreler(t, 'satin_alma', 'd', b) + '</div>' + pjNotPanel('d', t);
+                }).join('') + '</div>';
             h += pjBolum('satin_alma', SA.length, icSa);
 
             if (yon && !(_pj.kisiler || []).length) {
@@ -16325,7 +16504,7 @@ window.__I18N_SOZLUK__ = {
             }
             var G = d.gecmis || [];
             if (G.length) {
-                h += '<details style="margin-top:16px"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">🕘 Değişiklik geçmişi (' + G.length + ')</summary>' +
+                h += '<details style="margin-top:18px"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">🕘 Değişiklik geçmişi (' + G.length + ')</summary>' +
                     '<div style="font-size:.78rem;line-height:1.7;margin-top:6px">' + G.map(function (x) {
                         return '<div>' + esc((x.ts || '').slice(0, 16)) + ' · <b>' + esc(x.kim) + '</b> · ' + esc(x.is_ad ? x.is_ad + ' — ' : '') +
                             esc(x.alan) + ': ' + esc(x.eski || '—') + ' → ' + esc(x.yeni || '—') + '</div>';

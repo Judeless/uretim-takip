@@ -1355,6 +1355,33 @@ def init_db():
     except Exception as _e:
         print(f'[MIGRATION] proje v2 gecisi hata: {_e}')
 
+    # PROJE NOTLARI (kullanıcı 2026-09-15 · v3): her takip satırına FARKLI KİŞİLER not
+    # yazar, yazanın adı görünür. Eski tek metin alanı proje_is.notlar → ilk not olur
+    # (yazan = satırı son güncelleyen) ve alan boşaltılır — tekrar çalışmada çoğalmaz.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS proje_not (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proje_id INTEGER NOT NULL,
+            is_id INTEGER NOT NULL,
+            kim_id INTEGER,
+            kim TEXT DEFAULT '',
+            metin TEXT NOT NULL,
+            ts TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_proje_not_is ON proje_not(is_id)")
+    try:
+        for r in c.execute("SELECT id, proje_id, notlar, guncelleyen, updated_at FROM proje_is "
+                           "WHERE TRIM(COALESCE(notlar,'')) <> ''").fetchall():
+            kim = r[3] or ''
+            u = c.execute("SELECT id FROM panel_kullanicilari WHERE kullanici_adi=?", (kim,)).fetchone() if kim else None
+            c.execute("INSERT INTO proje_not (proje_id, is_id, kim_id, kim, metin, ts) "
+                      "VALUES (?,?,?,?,?,COALESCE(?, datetime('now','localtime')))",
+                      (r[1], r[0], u[0] if u else None, kim, r[2].strip(), r[4]))
+            c.execute("UPDATE proje_is SET notlar='' WHERE id=?", (r[0],))
+    except Exception as _e:
+        print(f'[MIGRATION] proje notlari gecisi hata: {_e}')
+
     # ─────────────────────────────────────────────────────────────
     # AS400 teyit ekranı İŞARETLERİ (2026-07-20). İki kapsam:
     #  - kapsam='kalici': referans bazında SÜREKLİ 'gerek_yok' (örn 6343a ara ürün)

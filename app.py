@@ -14296,18 +14296,23 @@ init_db()
 # ═════════════════════════════════════════════════════════════════════════════
 # v1: proje → düz iş listesi. Kullanıcı: "şu anki tasarım karışık" → v2:
 #   PROJE = ANA REFERANS (94.PBL.144). Kırılımlar:
-#     ana         → ana referansın kendi prosesleri (montaj …)          parca_id NULL
+#     ana         → ana referansın kendi prosesleri: montaj / kaplama-boya → sevk
+#                   (+ montaj fikstürü, aparat)                          parca_id NULL
 #     parca       → ALT REFERANSLAR (130.5606 …): prosesler (kesim/büküm, kaynak)
 #                   + TAKIMLAR alt başlığı (büküm kalıbı, kaynak fikstürü, aparat)
 #     tel         → TEL ÜRETİMİ referansları (tel üretimi prosesiyle)
 #     satin_alma  → beklenen SATIN ALMA parçaları (adet, tedarikçi; tek takip satırı)
 # Takip edilen her kalem bir proje_is satırı: sorumlu, talep termini, üretim/teslim
 # termini, durum, not. Yetki: 'proje-yonetim' her şey; 'proje-takip' görür + KENDİ
-# satırında yalnız üretim termini / durum / not (sunucu alan bazında uygular).
+# satırında yalnız üretim termini / durum (sunucu alan bazında uygular).
+# NOTLAR (v3): projeyi gören herkes her satıra not yazar (proje_not, yazanın adıyla);
+# kendi notunu yazan, hepsini yönetici siler.
 PROJE_IS_TIPLERI = [
     ('kesim_bukum', 'Kesim / büküm', 'proses'),
     ('kaynak', 'Kaynak', 'proses'),
     ('montaj', 'Montaj', 'proses'),
+    ('kaplama_boya', 'Kaplama / boya', 'proses'),
+    ('sevk', 'Sevk', 'proses'),
     ('tel_uretim', 'Tel üretimi', 'proses'),
     ('bukum_kalibi', 'Büküm kalıbı', 'takim'),
     ('kaynak_fiksturu', 'Kaynak fikstürü', 'takim'),
@@ -14321,7 +14326,9 @@ PROJE_IS_GRUP = {k: gr for k, _, gr in PROJE_IS_TIPLERI}
 _PROJE_TIP_SIRA = {k: i for i, (k, _, _) in enumerate(PROJE_IS_TIPLERI)}
 _PROJE_GRUP_SIRA = {'proses': 0, 'takim': 1, 'satin_alma': 2}
 PROJE_KATEGORI_TIPLER = {
-    'ana': ['montaj', 'kaynak', 'kesim_bukum', 'diger', 'fikstur', 'aparat'],
+    # ana referans: montaj ya da kaplama/boya, ardından doğrudan sevk (kullanıcı v3) —
+    # kesim/kaynak alt referanslarda. Eski ana satırlar görünmeye devam eder.
+    'ana': ['montaj', 'kaplama_boya', 'sevk', 'fikstur', 'aparat'],
     'parca': ['kesim_bukum', 'kaynak', 'diger', 'bukum_kalibi', 'kaynak_fiksturu', 'aparat'],
     'tel': ['tel_uretim', 'diger'],
     'satin_alma': ['satin_alma'],
@@ -14330,8 +14337,8 @@ PROJE_KALEM_KATEGORI = ('parca', 'tel', 'satin_alma')
 _PROJE_KATEGORI_VARSAYILAN = {'tel': ['tel_uretim'], 'satin_alma': ['satin_alma']}
 PROJE_IS_DURUM = ('bekliyor', 'devam', 'tamam', 'iptal')
 PROJE_DURUM = ('aktif', 'beklemede', 'tamamlandi', 'iptal')
-_PROJE_IS_ALANLAR = ('tip', 'aciklama', 'atanan_id', 'talep_termin', 'uretim_termin', 'durum', 'notlar')
-_PROJE_ATANAN_ALANLAR = ('uretim_termin', 'durum', 'notlar')   # sorumlunun değiştirebildikleri
+_PROJE_IS_ALANLAR = ('tip', 'aciklama', 'atanan_id', 'talep_termin', 'uretim_termin', 'durum')
+_PROJE_ATANAN_ALANLAR = ('uretim_termin', 'durum')   # sorumlunun değiştirebildikleri (notlar ayrı uçta)
 
 
 def _proje_tarih(v):
@@ -14408,6 +14415,21 @@ def _proje_is_sirala(liste):
     liste.sort(key=lambda d: (_PROJE_GRUP_SIRA.get(d['grup'], 9), _PROJE_TIP_SIRA.get(d['tip'], 99),
                               d.get('sira') or 0, d['id']))
     return liste
+
+
+def _proje_notlar(conn, is_ids, ku, yon, adlar):
+    """is_id → [not …] eskiden yeniye. sil: notu yazan kendisi ya da proje yöneticisi."""
+    out = {}
+    ids = [i for i in is_ids if i]
+    for b in range(0, len(ids), 500):
+        dilim = ids[b:b + 500]
+        for r in conn.execute(f"SELECT * FROM proje_not WHERE is_id IN ({','.join('?' * len(dilim))}) "
+                              "ORDER BY ts, id", dilim).fetchall():
+            d = dict(r)
+            d['kim_ad'] = (adlar.get(d['kim_id']) if d['kim_id'] else '') or d['kim'] or '—'
+            d['sil'] = bool(yon or (d['kim_id'] and d['kim_id'] == ku['id']))
+            out.setdefault(d['is_id'], []).append(d)
+    return out
 
 
 def _proje_tipleri_coz(liste, kategori):
@@ -14545,6 +14567,10 @@ def proje_detay(pid):
             ana.append(d)
     for pc in parcalar:
         pc['isler'] = _proje_is_sirala(by.get(pc['id'], []))
+    tum_is = ana + [t for pc in parcalar for t in pc['isler']]
+    notlar = _proje_notlar(conn, [t['id'] for t in tum_is], ku, yon, adlar)
+    for t in tum_is:
+        t['notlar_liste'] = notlar.get(t['id'], [])
     is_ad = {}
     for d in ana:
         is_ad[d['id']] = 'Ana referans · ' + d['tip_ad']
@@ -14640,6 +14666,7 @@ def proje_sil(pid):
         return jsonify({'hata': 'Proje bulunamadı'}), 404
     conn.execute("DELETE FROM proje_gecmis WHERE proje_id=?", (pid,))
     conn.execute("DELETE FROM proje_is WHERE proje_id=?", (pid,))
+    conn.execute("DELETE FROM proje_not WHERE proje_id=?", (pid,))
     conn.execute("DELETE FROM proje_parca WHERE proje_id=?", (pid,))
     conn.execute("DELETE FROM proje WHERE id=?", (pid,))
     conn.commit()
@@ -14711,6 +14738,7 @@ def proje_parca_sil(kid):
     r = conn.execute("SELECT * FROM proje_parca WHERE id=?", (kid,)).fetchone()
     if not r:
         return jsonify({'hata': 'Kalem bulunamadı'}), 404
+    conn.execute("DELETE FROM proje_not WHERE is_id IN (SELECT id FROM proje_is WHERE parca_id=?)", (kid,))
     conn.execute("DELETE FROM proje_is WHERE parca_id=?", (kid,))
     conn.execute("DELETE FROM proje_parca WHERE id=?", (kid,))
     _proje_gecmis_yaz(conn, r['proje_id'], None, 'kalem', r['kod'], 'silindi', g.panel_ku['kullanici_adi'])
@@ -14760,7 +14788,8 @@ def proje_is_ekle(pid):
 @app.route('/api/proje_is/<int:iid>', methods=['PATCH'])
 @panel_gerekli()
 def proje_is_guncelle(iid):
-    """Yönetici her alanı; sorumlu (atanan) yalnız üretim termini / durum / not."""
+    """Yönetici her alanı; sorumlu (atanan) yalnız üretim termini / durum.
+    Notlar ayrı uçta: POST /api/proje_is/<id>/not."""
     ku = g.panel_ku
     yon, hata = _proje_yetki_gerekli(ku)
     if hata:
@@ -14828,11 +14857,57 @@ def proje_is_sil(iid):
     r = conn.execute("SELECT proje_id, parca, tip FROM proje_is WHERE id=?", (iid,)).fetchone()
     if not r:
         return jsonify({'hata': 'İş bulunamadı'}), 404
+    conn.execute("DELETE FROM proje_not WHERE is_id=?", (iid,))
     conn.execute("DELETE FROM proje_is WHERE id=?", (iid,))
     _proje_gecmis_yaz(conn, r['proje_id'], None, 'is', (((r['parca'] + ' · ') if r['parca'] else 'Ana referans · ')
                       + PROJE_IS_TIP.get(r['tip'], r['tip'])), 'silindi', g.panel_ku['kullanici_adi'])
     conn.commit()
     return jsonify({'basarili': True})
+
+
+@app.route('/api/proje_is/<int:iid>/not', methods=['POST'])
+@panel_gerekli()
+def proje_not_ekle(iid):
+    """Satıra not ekler — projeyi görebilen HERKES (yazanın adıyla saklanır).
+    Body: {metin}. Döner: satırın güncel not listesi."""
+    ku = g.panel_ku
+    yon, hata = _proje_yetki_gerekli(ku)
+    if hata:
+        return hata
+    d = request.get_json(silent=True) or {}
+    metin = str(d.get('metin') or '').strip()
+    if not metin:
+        return jsonify({'hata': 'Not boş olamaz'}), 400
+    conn = get_db()
+    r = conn.execute("SELECT proje_id FROM proje_is WHERE id=?", (iid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'İş bulunamadı'}), 404
+    cur = conn.execute("INSERT INTO proje_not (proje_id, is_id, kim_id, kim, metin) VALUES (?,?,?,?,?)",
+                       (r['proje_id'], iid, ku['id'], ku['kullanici_adi'], metin[:1000]))
+    conn.execute("UPDATE proje SET updated_at=datetime('now','localtime') WHERE id=?", (r['proje_id'],))
+    conn.commit()
+    notlar = _proje_notlar(conn, [iid], ku, yon, _proje_kisi_adlari(conn)).get(iid, [])
+    return jsonify({'basarili': True, 'id': cur.lastrowid, 'notlar': notlar}), 201
+
+
+@app.route('/api/proje_not/<int:nid>', methods=['DELETE'])
+@panel_gerekli()
+def proje_not_sil(nid):
+    """Notu yazan kendisi ya da proje yöneticisi siler."""
+    ku = g.panel_ku
+    yon, hata = _proje_yetki_gerekli(ku)
+    if hata:
+        return hata
+    conn = get_db()
+    r = conn.execute("SELECT * FROM proje_not WHERE id=?", (nid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Not bulunamadı'}), 404
+    if not (yon or (r['kim_id'] and r['kim_id'] == ku['id'])):
+        return jsonify({'hata': 'Yalnız kendi notunuzu silebilirsiniz'}), 403
+    conn.execute("DELETE FROM proje_not WHERE id=?", (nid,))
+    conn.commit()
+    notlar = _proje_notlar(conn, [r['is_id']], ku, yon, _proje_kisi_adlari(conn)).get(r['is_id'], [])
+    return jsonify({'basarili': True, 'notlar': notlar})
 
 
 @app.route('/api/proje/kisiler', methods=['GET'])
@@ -14878,6 +14953,9 @@ def proje_benim():
         d['kategori'] = r['kategori'] or 'ana'
         out.append(d)
     out.sort(key=lambda d: (d['durum'] == 'tamam', d['talep_termin'] == '', d['talep_termin'], d['id']))
+    notlar = _proje_notlar(conn, [d['id'] for d in out], ku, yon, adlar)
+    for d in out:
+        d['notlar_liste'] = notlar.get(d['id'], [])
     return jsonify({'isler': out, 'acik': sum(1 for d in out if d['durum'] != 'tamam')})
 
 
