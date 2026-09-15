@@ -7111,6 +7111,10 @@ def ozet():
                 'vardiya': oee_data['vardiya_turu'],
                 'robot': oee_data['robot_no'],
                 'bolum': row['bolum'],        # çoklu bölüm seçiliyken satır hangi bölüm
+                # cycle süresi tanımsız üretim → OEE BİLİNMİYOR; ortalama/havuza girmez (2026-09-15)
+                'olculebilir': oee_data.get('olculebilir', True),
+                'ct_tanimsiz_ref': oee_data.get('ct_tanimsiz_ref', []),
+                'ct_tanimsiz_adet': oee_data.get('ct_tanimsiz_adet', 0),
 
                 'makineler': _mak,            # boşsa robot_no zaten makinedir
                 'operator': oee_data['operator'],
@@ -7160,12 +7164,19 @@ def ozet():
         _oee_disi = ('isleme',)
     _havuz = (oee_listesi if bolumler
               else [o for o in oee_listesi if o.get('bolum') not in _oee_disi])
+    # ÖLÇÜLEMEYEN vardiya (üretimi var, hiçbir referansın cycle süresi yok) ortalamaya
+    # GİRMEZ (2026-09-15 metal: 300T %86 + 550T %0 → %43 görünüyordu). Liste aşağıda.
+    _havuz = [o for o in _havuz if o.get('olculebilir', True)]
     ort_oee = round(sum(o['oee'] for o in _havuz) / len(_havuz), 1) if _havuz else 0
 
     return jsonify({
         'tarih_aralik': {'bas': tarih_bas, 'bit': tarih_bit},
         'vardiya_sayisi': vardiya_sayisi,
         'ort_oee': ort_oee,
+        # ort_oee'ye GİRMEYEN ölçülemeyen vardiyalar (cycle süresi tanımsız) — panel yazar
+        'ort_oee_olculemeyen': [{'robot': o.get('robot'), 'makineler': o.get('makineler') or [],
+                                 'bolum': o.get('bolum'), 'ct_tanimsiz_ref': o.get('ct_tanimsiz_ref', [])}
+                                for o in oee_listesi if not o.get('olculebilir', True)],
         # Son günlük rapor maili gönderilemediyse Fabrika Özeti bandında görünür
         'mail_uyari': _mail_uyari(),
         # ort_oee havuzundan dışlanan bölümler — panel dürüstçe yazabilsin
@@ -7323,7 +7334,7 @@ def rapor_api():
             qual_list = []
             for vid in vids:
                 oee_d = hesapla_oee(vid)
-                if oee_d:
+                if oee_d and oee_d.get('olculebilir', True):     # ölçülemeyen vardiya ortalamaya girmez
                     oee_list.append(oee_d['oee'])
                     avail_list.append(oee_d['availability'])
                     perf_list.append(oee_d['performance'])

@@ -8220,7 +8220,7 @@ window.__I18N_SOZLUK__ = {
             var kutu = document.getElementById('ft-oee-kutu');
             if (!el) return;
             var net = 0, cal = 0, sn = 0, ok = 0, nok = 0, n = 0, bilesenVar = false;
-            var atlanan = [];
+            var atlanan = [], olculemeyen = [];
             (sonuclar || []).forEach(function (d, i) {
                 var b = (bolumler || [])[i];
                 if (b && OEE_DISI_BOLUMLER.indexOf(b) !== -1) {
@@ -8230,6 +8230,9 @@ window.__I18N_SOZLUK__ = {
                 }
                 if (!d || !Array.isArray(d.vardiyalar)) return;
                 d.vardiyalar.forEach(function (v) {
+                    // Ölçülemeyen vardiya (cycle süresi tanımsız üretim) havuza GİRMEZ —
+                    // %0 performansla fabrika OEE'sini yanlış düşürürdü (2026-09-15).
+                    if (v && v.olculebilir === false) { olculemeyen.push(v.robot || '?'); return; }
                     if (typeof v.net_plan_dk === 'number') bilesenVar = true;
                     net += Number(v.net_plan_dk) || 0;
                     cal += Number(v.calisma_dk) || 0;
@@ -8253,9 +8256,11 @@ window.__I18N_SOZLUK__ = {
             var oee = a * Math.min(p, 1) * q * 100;
             el.textContent = oee.toFixed(1) + '%';
             var notEl = document.getElementById('ft-oee-not');
+            var _notlar = atlanan.slice();
+            if (olculemeyen.length) _notlar.push(olculemeyen.join(', ') + ' (cycle time yok)');
             if (notEl) {
-                notEl.style.display = atlanan.length ? '' : 'none';
-                notEl.textContent = atlanan.length ? (atlanan.join(', ') + ' hariç') : '';
+                notEl.style.display = _notlar.length ? '' : 'none';
+                notEl.textContent = _notlar.length ? (_notlar.join(', ') + ' hariç') : '';
             }
             if (kutu) {
                 kutu.title = n + ' vardiya havuzlandı · Kullanılabilirlik ' + (a * 100).toFixed(1) +
@@ -8263,7 +8268,8 @@ window.__I18N_SOZLUK__ = {
                     '\nBölüm ortalamalarının ortalaması değil — bileşenler toplanıp formül bir kez uygulanır.' +
                     '\nÜretim süresi vardiya başına kırpılır: bir vardiya kendi çalışma süresinden' +
                     '\nfazlasını üretmiş sayılmaz (yoksa cycle süresi cömert tanımlı vardiyalar toplamı şişirir).' +
-                    (atlanan.length ? '\nHARİÇ: ' + atlanan.join(', ') + ' (cycle süresi tanımlı değil)' : '');
+                    (atlanan.length ? '\nHARİÇ: ' + atlanan.join(', ') + ' (cycle süresi tanımlı değil)' : '') +
+                    (olculemeyen.length ? '\nÖLÇÜLEMEYEN vardiya: ' + olculemeyen.join(', ') + ' (ürettiği referansların cycle time\'ı yok)' : '');
             }
         }
 
@@ -8305,10 +8311,15 @@ window.__I18N_SOZLUK__ = {
                 var op = v && v.operator;
                 if (op && operatorler.indexOf(op) === -1) operatorler.push(op);
             });
+            // ÖLÇÜLEMEYEN vardiyalar (2026-09-15): üretimi var ama hiçbir referansın cycle
+            // süresi yok → sunucu ort_oee'ye katmadı; burada adıyla yazılır.
+            var olculemeyen = Array.isArray(d.ort_oee_olculemeyen) ? d.ort_oee_olculemeyen : [];
+            // Hepsi ölçülemezse OEE '0' değil '—' (bilinmiyor)
+            if (vardiyalar.length && vardiyalar.every(function (v) { return v && v.olculebilir === false; })) oee = null;
             return {
                 ok: ok, nok: nok, durusDk: durusDk,
                 vardiyaSayisi: vardiyaSayisi, aktifVardiya: aktifVardiya,
-                oee: oee, hedef: hedef, operatorler: operatorler
+                oee: oee, hedef: hedef, operatorler: operatorler, olculemeyen: olculemeyen
             };
         }
 
@@ -9020,9 +9031,16 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('kpi-durus').textContent = fmt(m.durusDk);
             document.getElementById('kpi-durus-sub').textContent = m.durusDk > 0 ? 'dakika toplam' : 'Duruş yok';
             document.getElementById('kpi-oee').textContent = (m.oee === null) ? '—' : '%' + fmt(m.oee);
+            var _olcY = (m.olculemeyen || []).map(function (o) {
+                return ((o.makineler && o.makineler.length) ? o.makineler.join('/') : (o.robot || '?'));
+            });
             document.getElementById('kpi-oee-sub').textContent = (m.oee !== null)
-                ? (fmt(vardiyalar.length) + ' vardiya ortalaması')
-                : (m.vardiyaSayisi > 0 ? 'OEE hesaplanamadı' : 'Kayıt yok');
+                ? (fmt(vardiyalar.length - _olcY.length) + ' vardiya ortalaması' +
+                   (_olcY.length ? ' · ' + _olcY.join(', ') + ' ölçülemedi (cycle time yok)' : ''))
+                : (m.vardiyaSayisi > 0 ? (_olcY.length ? 'Ölçülemedi — cycle time tanımsız' : 'OEE hesaplanamadı') : 'Kayıt yok');
+            document.getElementById('kpi-oee-sub').title = (m.olculemeyen || []).map(function (o) {
+                return (o.robot || '?') + ': ' + (o.ct_tanimsiz_ref || []).join(', ') + ' — cycle time tanımsız, OEE ortalamasına katılmadı';
+            }).join('\n');
             oeeGosterge(m.oee);
 
             // ── Grafikler

@@ -267,6 +267,21 @@ def hesapla_oee(vardiya_id):
 
     # Performans = Gercek uretim suresi / Fiili calisma suresi
     # 100% asimi mumkun
+    # ÖLÇÜLEBİLİRLİK (kullanıcı 2026-09-15: "1 operatör 2 makine çalıştırdı, OEE 43
+    # olmamalı"): cycle süresi TANIMSIZ referansın üretimi performansa SIFIR katkı verir
+    # → vardiya %0 görünür ve bölüm ortalamasını yarıya indirir (300T %86 + 550T %0 =
+    # %43). Bu SIFIR değil BİLİNMİYOR demektir: üretimi olup HİÇ süresi tanımlı olmayan
+    # vardiya olculebilir=False → ortalamalara GİRMEZ (hesapla_oee_ozet, /api/ozet,
+    # operatör raporu). Kısmen tanımsızsa vardiya sayılır, ct_tanimsiz_* ile işaretlenir.
+    ct_tanimsiz_adet, ct_tanimsiz_ref = 0, set()
+    for r in uretim_rows:
+        _ct = r['guncel_ct'] if (r['guncel_ct'] and r['guncel_ct'] > 0) else (r['cycle_time_sn'] or 0)
+        _adet = (r['ok_adet'] or 0) + (r['nok_adet'] or 0)
+        if _adet > 0 and not (_ct and _ct > 0):
+            ct_tanimsiz_adet += _adet
+            ct_tanimsiz_ref.add((r['referans_kodu'] or '?').strip())
+    olculebilir = not (toplam_uretim > 0 and gercek_uretim_sn <= 0)
+
     performance = (gercek_uretim_sn / calisma_suresi_sn) if calisma_suresi_sn > 0 else 0
 
     # Kalite (Quality)
@@ -305,6 +320,9 @@ def hesapla_oee(vardiya_id):
         'performance': round(performance * 100, 1),
         'quality': round(quality * 100, 1),
         'oee': round(oee * 100, 1),
+        'olculebilir': olculebilir,
+        'ct_tanimsiz_adet': ct_tanimsiz_adet,
+        'ct_tanimsiz_ref': sorted(ct_tanimsiz_ref),
     }
 
 
@@ -366,11 +384,18 @@ def hesapla_oee_ozet(tarih_baslangic=None, tarih_bitis=None, robot_no=None, bolu
             'vardiyalar': []
         }
 
+    # Ortalamalar yalnız ÖLÇÜLEBİLİR vardiyalardan (cycle süresi tanımsız üretim = bilinmiyor)
+    havuz = [s for s in sonuclar if s.get('olculebilir', True)]
+    ort = (lambda k: round(sum(s[k] for s in havuz) / len(havuz), 1) if havuz else 0)
     return {
         'vardiya_sayisi': len(sonuclar),
-        'ort_availability': round(sum(s['availability'] for s in sonuclar) / len(sonuclar), 1),
-        'ort_performance': round(sum(s['performance'] for s in sonuclar) / len(sonuclar), 1),
-        'ort_quality': round(sum(s['quality'] for s in sonuclar) / len(sonuclar), 1),
-        'ort_oee': round(sum(s['oee'] for s in sonuclar) / len(sonuclar), 1),
+        'olculen_vardiya_sayisi': len(havuz),
+        'olculemeyen': [{'vardiya_id': s['vardiya_id'], 'robot_no': s['robot_no'],
+                         'ct_tanimsiz_ref': s.get('ct_tanimsiz_ref', [])}
+                        for s in sonuclar if not s.get('olculebilir', True)],
+        'ort_availability': ort('availability'),
+        'ort_performance': ort('performance'),
+        'ort_quality': ort('quality'),
+        'ort_oee': ort('oee'),
         'vardiyalar': sonuclar
     }
