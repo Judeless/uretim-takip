@@ -1255,6 +1255,64 @@ def init_db():
         pass
 
     # ─────────────────────────────────────────────────────────────
+    # PROJE TAKİP (kullanıcı 2026-09-15): referans bazlı proje → iş satırları
+    # (parça + iş tipi: sac üretimi, büküm kalıbı, kaynak fikstürü, satın alma,
+    # aparat, fikstür, kaynak, montaj). Yönetici kişi atar + talep termini girer,
+    # atanan kişi üretim termini + durum girer. Termin/atama/durum değişiklikleri
+    # proje_gecmis'e yazılır (termin kaymaları izlenebilsin).
+    # ─────────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS proje (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referans_kodu TEXT NOT NULL,
+            ad TEXT DEFAULT '',
+            musteri TEXT DEFAULT '',
+            lokasyon TEXT DEFAULT 'TK2',
+            talep_termin TEXT DEFAULT '',
+            durum TEXT DEFAULT 'aktif',
+            notlar TEXT DEFAULT '',
+            olusturan TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS proje_is (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proje_id INTEGER NOT NULL REFERENCES proje(id) ON DELETE CASCADE,
+            parca TEXT DEFAULT '',
+            tip TEXT NOT NULL,
+            aciklama TEXT DEFAULT '',
+            atanan_id INTEGER,
+            talep_termin TEXT DEFAULT '',
+            uretim_termin TEXT DEFAULT '',
+            durum TEXT DEFAULT 'bekliyor',
+            tamam_ts TEXT,
+            notlar TEXT DEFAULT '',
+            sira INTEGER DEFAULT 0,
+            guncelleyen TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS proje_gecmis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proje_id INTEGER NOT NULL,
+            is_id INTEGER,
+            alan TEXT NOT NULL,
+            eski TEXT DEFAULT '',
+            yeni TEXT DEFAULT '',
+            kim TEXT DEFAULT '',
+            ts TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    for _sql in ("CREATE INDEX IF NOT EXISTS idx_proje_is_proje ON proje_is(proje_id)",
+                 "CREATE INDEX IF NOT EXISTS idx_proje_is_atanan ON proje_is(atanan_id)",
+                 "CREATE INDEX IF NOT EXISTS idx_proje_gecmis_proje ON proje_gecmis(proje_id)"):
+        c.execute(_sql)
+
+    # ─────────────────────────────────────────────────────────────
     # AS400 teyit ekranı İŞARETLERİ (2026-07-20). İki kapsam:
     #  - kapsam='kalici': referans bazında SÜREKLİ 'gerek_yok' (örn 6343a ara ürün)
     #    → launch_esle bu referansları teyit dışı bırakır (her gün otomatik gizli).

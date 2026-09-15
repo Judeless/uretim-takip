@@ -218,6 +218,11 @@ PANEL_SAYFALAR = [
     # (rapor/OEE'yi doğrudan etkiler) → aynı gerekçeyle izin listesine kendisi
     # eklenmez; yönetici tek tek yetki verir.
     'zaman-cizelgesi',
+    # 2026-09-15 PROJE TAKİP: 'proje-takip' = sayfayı görür + KENDİNE atanan işin
+    # üretim terminini/durumunu girer; 'proje-yonetim' = proje açar, parça/iş ekler,
+    # kişi atar, talep termini girer (sayfa değil yetki; sayfayı da açar).
+    # Yeni → mevcut kullanıcılarda yok, yönetici tek tek verir.
+    'proje-takip', 'proje-yonetim',
 ]
 
 def panel_kullanici():
@@ -2038,6 +2043,7 @@ def dashboard_sayfasi():
     if not ku:
         return render_template('panel_giris.html')
     return render_template('dashboard_v2.html', panel_ku=json.dumps({
+        'id': ku['id'],          # proje takip: "bana atanan" işlerin düzenlenebilirliği
         'kullanici_adi': ku['kullanici_adi'],
         'ad_soyad': ku['ad_soyad'],
         'rol': ku['rol'],
@@ -14283,6 +14289,433 @@ def bakim_handoff():
 # Modul yüklenirken DB migration'larını çalıştır (debug auto-reload sonrası da
 # eksik kolonların eklendiğinden emin olmak için).
 init_db()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  PROJE TAKİP (kullanıcı 2026-09-15)
+# ═════════════════════════════════════════════════════════════════════════════
+# "Proje takip kısmı referans bazlı ilerleyecek. Referansların üretimi için
+#  fikstür, aparat, satın alma parçaları, alt parça saclarının üretimi, kaynak,
+#  montaj adımları var. Her parça için büküm kalıbı / kaynak fikstürü gerekmeyebilir.
+#  Yönetici kalıp/fikstür işlerine kişi atayabilmeli; atanan üretim terminini,
+#  yönetici talep edilen termini girebilmeli."
+# Model: proje (referans) → iş satırları (parça + iş tipi); parça boş = proje geneli.
+# Yetki: 'proje-yonetim' her şey; 'proje-takip' görür + KENDİ işinde yalnız
+# üretim termini / durum / not. Sunucu bunu ALAN bazında uygular.
+PROJE_IS_TIPLERI = [
+    ('sac_uretim', 'Sac üretimi (lazer/büküm)'),
+    ('bukum_kalibi', 'Büküm kalıbı'),
+    ('kaynak_fiksturu', 'Kaynak fikstürü'),
+    ('satin_alma', 'Satın alma'),
+    ('aparat', 'Aparat'),
+    ('fikstur', 'Montaj / kontrol fikstürü'),
+    ('kaynak', 'Kaynak'),
+    ('montaj', 'Montaj'),
+    ('diger', 'Diğer'),
+]
+PROJE_IS_TIP = dict(PROJE_IS_TIPLERI)
+_PROJE_TIP_SIRA = {k: i for i, (k, _) in enumerate(PROJE_IS_TIPLERI)}
+PROJE_IS_DURUM = ('bekliyor', 'devam', 'tamam', 'iptal')
+PROJE_DURUM = ('aktif', 'beklemede', 'tamamlandi', 'iptal')
+_PROJE_IS_ALANLAR = ('parca', 'tip', 'aciklama', 'atanan_id', 'talep_termin',
+                     'uretim_termin', 'durum', 'notlar')
+_PROJE_ATANAN_ALANLAR = ('uretim_termin', 'durum', 'notlar')   # atanan kişinin değiştirebildikleri
+
+
+def _proje_tarih(v):
+    """'' ya da geçerli 'YYYY-MM-DD'. Geçersizse ValueError."""
+    v = str(v or '').strip()
+    if not v:
+        return ''
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', v):
+        raise ValueError(f'geçersiz tarih: {v}')
+    datetime.strptime(v, '%Y-%m-%d')
+    return v
+
+
+def _proje_yetki(ku):
+    """(yönetici_mi, görebilir_mi)"""
+    yon = bool(ku['admin'] or 'proje-yonetim' in ku['izinler'])
+    return yon, bool(yon or 'proje-takip' in ku['izinler'])
+
+
+def _proje_kisi_adlari(conn):
+    return {r['id']: (r['ad_soyad'] or r['kullanici_adi'])
+            for r in conn.execute("SELECT id, kullanici_adi, ad_soyad FROM panel_kullanicilari").fetchall()}
+
+
+def _proje_atanabilir_mi(conn, uid):
+    r = conn.execute("SELECT aktif FROM panel_kullanicilari WHERE id=?", (uid,)).fetchone()
+    return bool(r and r['aktif'])
+
+
+def _proje_gecmis_yaz(conn, proje_id, is_id, alan, eski, yeni, kim):
+    if str(eski if eski is not None else '') == str(yeni if yeni is not None else ''):
+        return
+    conn.execute("INSERT INTO proje_gecmis (proje_id, is_id, alan, eski, yeni, kim) VALUES (?,?,?,?,?,?)",
+                 (proje_id, is_id, alan, '' if eski is None else str(eski),
+                  '' if yeni is None else str(yeni), kim))
+
+
+def _proje_is_json(r, adlar, bugun):
+    d = dict(r)
+    d['tip_ad'] = PROJE_IS_TIP.get(d['tip'], d['tip'])
+    d['atanan_ad'] = adlar.get(d['atanan_id'], '') if d.get('atanan_id') else ''
+    acik = d['durum'] not in ('tamam', 'iptal')
+    # GECİKEN: talep termini geçti ve iş bitmedi. RİSK: atanan kişinin verdiği
+    # üretim termini talep edilenden SONRA — iş henüz gecikmedi ama gecikecek.
+    d['geciken'] = bool(acik and d['talep_termin'] and d['talep_termin'] < bugun)
+    d['risk'] = bool(acik and d['talep_termin'] and d['uretim_termin']
+                     and d['uretim_termin'] > d['talep_termin'])
+    return d
+
+
+def _proje_tipleri_coz(liste):
+    """Gelen tip listesini doğrular; bilinmeyen tip → ValueError (sessiz yutma yok)."""
+    out = []
+    for t in (liste or []):
+        t = str(t or '').strip()
+        if not t:
+            continue
+        if t not in PROJE_IS_TIP:
+            raise ValueError(f'bilinmeyen iş tipi: {t}')
+        if t not in out:
+            out.append(t)
+    return out
+
+
+@app.route('/api/proje', methods=['GET'])
+@panel_gerekli()
+def proje_liste():
+    """?durum=aktif|beklemede|tamamlandi|iptal|tumu &q= &lokasyon=TK1|TK2
+    Liste + her proje için iş özeti (toplam/tamam/geciken/risk/en yakın talep)."""
+    ku = g.panel_ku
+    yon, gor = _proje_yetki(ku)
+    if not gor:
+        return jsonify({'hata': 'Bu sayfa için yetkiniz yok (proje-takip)'}), 403
+    conn = get_db()
+    durum = (request.args.get('durum') or 'aktif').strip()
+    q = (request.args.get('q') or '').strip()
+    lok = (request.args.get('lokasyon') or '').strip().upper()
+    sql, par = "SELECT * FROM proje WHERE 1=1", []
+    if durum in PROJE_DURUM:
+        sql += " AND durum=?"; par.append(durum)
+    if lok in ('TK1', 'TK2'):
+        sql += " AND COALESCE(lokasyon,'TK2')=?"; par.append(lok)
+    if q:
+        qn = q.replace(' ', '').upper()
+        sql += (" AND (UPPER(REPLACE(referans_kodu,' ','')) LIKE ? OR UPPER(ad) LIKE ? "
+                "OR UPPER(musteri) LIKE ?)")
+        par += [f'%{qn}%', f'%{q.upper()}%', f'%{q.upper()}%']
+    sql += " ORDER BY CASE WHEN COALESCE(talep_termin,'')='' THEN 1 ELSE 0 END, talep_termin, id DESC"
+    projeler = [dict(r) for r in conn.execute(sql, par).fetchall()]
+    ids = [p['id'] for p in projeler]
+    bugun = date.today().isoformat()
+    ozet = {i: {'toplam': 0, 'tamam': 0, 'geciken': 0, 'risk': 0, 'en_yakin': '', 'benim_acik': 0} for i in ids}
+    if ids:
+        for t in conn.execute(
+                f"SELECT * FROM proje_is WHERE proje_id IN ({','.join('?' * len(ids))})", ids).fetchall():
+            o = ozet[t['proje_id']]
+            if t['durum'] == 'iptal':
+                continue
+            o['toplam'] += 1
+            j = _proje_is_json(t, {}, bugun)
+            if t['durum'] == 'tamam':
+                o['tamam'] += 1
+            else:
+                if t['talep_termin'] and (not o['en_yakin'] or t['talep_termin'] < o['en_yakin']):
+                    o['en_yakin'] = t['talep_termin']
+                if t['atanan_id'] == ku['id']:
+                    o['benim_acik'] += 1
+            o['geciken'] += 1 if j['geciken'] else 0
+            o['risk'] += 1 if j['risk'] else 0
+    for p in projeler:
+        o = ozet[p['id']]
+        p.update(o)
+        p['yuzde'] = round(100 * o['tamam'] / o['toplam']) if o['toplam'] else 0
+    return jsonify({'projeler': projeler, 'yonetici': yon, 'benim_id': ku['id'],
+                    'tipler': PROJE_IS_TIPLERI})
+
+
+@app.route('/api/proje/<int:pid>', methods=['GET'])
+@panel_gerekli()
+def proje_detay(pid):
+    ku = g.panel_ku
+    yon, gor = _proje_yetki(ku)
+    if not gor:
+        return jsonify({'hata': 'Bu sayfa için yetkiniz yok (proje-takip)'}), 403
+    conn = get_db()
+    p = conn.execute("SELECT * FROM proje WHERE id=?", (pid,)).fetchone()
+    if not p:
+        return jsonify({'hata': 'Proje bulunamadı'}), 404
+    adlar = _proje_kisi_adlari(conn)
+    bugun = date.today().isoformat()
+    isler = [_proje_is_json(r, adlar, bugun) for r in conn.execute(
+        "SELECT * FROM proje_is WHERE proje_id=?", (pid,)).fetchall()]
+    isler.sort(key=lambda d: (d['parca'] != '', (d['parca'] or '').upper(),
+                              _PROJE_TIP_SIRA.get(d['tip'], 99), d['sira'] or 0, d['id']))
+    is_ad = {d['id']: (((d['parca'] + ' · ') if d['parca'] else '') + d['tip_ad']) for d in isler}
+    gecmis = []
+    for r in conn.execute("SELECT * FROM proje_gecmis WHERE proje_id=? ORDER BY id DESC LIMIT 100", (pid,)).fetchall():
+        d = dict(r)
+        d['is_ad'] = is_ad.get(d['is_id'], '') if d['is_id'] else ''
+        gecmis.append(d)
+    return jsonify({'proje': dict(p), 'isler': isler, 'gecmis': gecmis, 'yonetici': yon,
+                    'benim_id': ku['id'], 'tipler': PROJE_IS_TIPLERI})
+
+
+@app.route('/api/proje', methods=['POST'])
+@panel_gerekli(izin='proje-yonetim')
+def proje_olustur():
+    """Body: {referans_kodu*, ad, musteri, talep_termin, notlar, lokasyon,
+    genel_tipler: [tip...], parcalar: [{parca, tipler: [tip...]}]}"""
+    d = request.get_json(silent=True) or {}
+    ref = str(d.get('referans_kodu') or '').strip()
+    if not ref:
+        return jsonify({'hata': 'Referans kodu zorunlu'}), 400
+    try:
+        termin = _proje_tarih(d.get('talep_termin'))
+        genel = _proje_tipleri_coz(d.get('genel_tipler'))
+        parcalar = []
+        for pc in (d.get('parcalar') or []):
+            ad = str((pc or {}).get('parca') or '').strip()
+            if not ad:
+                continue
+            parcalar.append((ad[:80], _proje_tipleri_coz((pc or {}).get('tipler'))))
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    lok = str(d.get('lokasyon') or request.args.get('lokasyon') or 'TK2').strip().upper()
+    lok = lok if lok in ('TK1', 'TK2') else 'TK2'
+    kim = g.panel_ku['kullanici_adi']
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO proje (referans_kodu, ad, musteri, lokasyon, talep_termin, notlar, olusturan) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (ref[:60], str(d.get('ad') or '').strip()[:200], str(d.get('musteri') or '').strip()[:120],
+         lok, termin, str(d.get('notlar') or '').strip()[:2000], kim))
+    pid = cur.lastrowid
+    sira = 0
+    for t in genel:
+        sira += 1
+        conn.execute("INSERT INTO proje_is (proje_id, parca, tip, sira, guncelleyen) VALUES (?,?,?,?,?)",
+                     (pid, '', t, sira, kim))
+    for ad, tipler in parcalar:
+        for t in tipler:
+            sira += 1
+            conn.execute("INSERT INTO proje_is (proje_id, parca, tip, sira, guncelleyen) VALUES (?,?,?,?,?)",
+                         (pid, ad, t, sira, kim))
+    _proje_gecmis_yaz(conn, pid, None, 'proje', '', f'oluşturuldu ({ref})', kim)
+    conn.commit()
+    return jsonify({'basarili': True, 'id': pid}), 201
+
+
+@app.route('/api/proje/<int:pid>', methods=['PATCH'])
+@panel_gerekli(izin='proje-yonetim')
+def proje_guncelle(pid):
+    d = request.get_json(silent=True) or {}
+    conn = get_db()
+    p = conn.execute("SELECT * FROM proje WHERE id=?", (pid,)).fetchone()
+    if not p:
+        return jsonify({'hata': 'Proje bulunamadı'}), 404
+    yeni = {}
+    try:
+        for k in ('referans_kodu', 'ad', 'musteri', 'notlar'):
+            if k in d:
+                yeni[k] = str(d.get(k) or '').strip()
+        if 'referans_kodu' in yeni and not yeni['referans_kodu']:
+            return jsonify({'hata': 'Referans kodu boş olamaz'}), 400
+        if 'talep_termin' in d:
+            yeni['talep_termin'] = _proje_tarih(d.get('talep_termin'))
+        if 'durum' in d:
+            if d.get('durum') not in PROJE_DURUM:
+                return jsonify({'hata': f'geçersiz durum: {d.get("durum")}'}), 400
+            yeni['durum'] = d.get('durum')
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    if not yeni:
+        return jsonify({'hata': 'değişecek alan yok'}), 400
+    kim = g.panel_ku['kullanici_adi']
+    for k in ('talep_termin', 'durum', 'referans_kodu'):
+        if k in yeni:
+            _proje_gecmis_yaz(conn, pid, None, 'proje_' + k, p[k], yeni[k], kim)
+    conn.execute(f"UPDATE proje SET {', '.join(k + '=?' for k in yeni)}, "
+                 f"updated_at=datetime('now','localtime') WHERE id=?", list(yeni.values()) + [pid])
+    conn.commit()
+    return jsonify({'basarili': True, 'proje': dict(conn.execute("SELECT * FROM proje WHERE id=?", (pid,)).fetchone())})
+
+
+@app.route('/api/proje/<int:pid>', methods=['DELETE'])
+@panel_gerekli(izin='proje-yonetim')
+def proje_sil(pid):
+    conn = get_db()
+    if not conn.execute("SELECT 1 FROM proje WHERE id=?", (pid,)).fetchone():
+        return jsonify({'hata': 'Proje bulunamadı'}), 404
+    conn.execute("DELETE FROM proje_gecmis WHERE proje_id=?", (pid,))
+    conn.execute("DELETE FROM proje_is WHERE proje_id=?", (pid,))
+    conn.execute("DELETE FROM proje WHERE id=?", (pid,))
+    conn.commit()
+    return jsonify({'basarili': True})
+
+
+@app.route('/api/proje/<int:pid>/is', methods=['POST'])
+@panel_gerekli(izin='proje-yonetim')
+def proje_is_ekle(pid):
+    """Body: {parca, tipler: [tip...] (ya da tip), aciklama, atanan_id, talep_termin}
+    Her tip için bir iş satırı açar."""
+    d = request.get_json(silent=True) or {}
+    conn = get_db()
+    if not conn.execute("SELECT 1 FROM proje WHERE id=?", (pid,)).fetchone():
+        return jsonify({'hata': 'Proje bulunamadı'}), 404
+    try:
+        tipler = _proje_tipleri_coz(d.get('tipler') or ([d.get('tip')] if d.get('tip') else []))
+        termin = _proje_tarih(d.get('talep_termin'))
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    if not tipler:
+        return jsonify({'hata': 'En az bir iş tipi seçin'}), 400
+    atanan = d.get('atanan_id')
+    atanan = int(atanan) if str(atanan or '').isdigit() else None
+    if atanan and not _proje_atanabilir_mi(conn, atanan):
+        return jsonify({'hata': 'Atanan kullanıcı bulunamadı ya da pasif'}), 400
+    kim = g.panel_ku['kullanici_adi']
+    parca = str(d.get('parca') or '').strip()[:80]
+    sira = (conn.execute("SELECT COALESCE(MAX(sira),0) FROM proje_is WHERE proje_id=?", (pid,)).fetchone()[0] or 0)
+    yeni_ids = []
+    for t in tipler:
+        sira += 1
+        cur = conn.execute(
+            "INSERT INTO proje_is (proje_id, parca, tip, aciklama, atanan_id, talep_termin, sira, guncelleyen) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (pid, parca, t, str(d.get('aciklama') or '').strip()[:300], atanan, termin, sira, kim))
+        yeni_ids.append(cur.lastrowid)
+        _proje_gecmis_yaz(conn, pid, cur.lastrowid, 'is', '', 'eklendi', kim)
+    conn.execute("UPDATE proje SET updated_at=datetime('now','localtime') WHERE id=?", (pid,))
+    conn.commit()
+    return jsonify({'basarili': True, 'ids': yeni_ids}), 201
+
+
+@app.route('/api/proje_is/<int:iid>', methods=['PATCH'])
+@panel_gerekli()
+def proje_is_guncelle(iid):
+    """Yönetici her alanı; atanan kişi yalnız üretim termini / durum / not."""
+    ku = g.panel_ku
+    yon, gor = _proje_yetki(ku)
+    if not gor:
+        return jsonify({'hata': 'Bu sayfa için yetkiniz yok (proje-takip)'}), 403
+    d = request.get_json(silent=True) or {}
+    conn = get_db()
+    r = conn.execute("SELECT * FROM proje_is WHERE id=?", (iid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'İş bulunamadı'}), 404
+    benim = (r['atanan_id'] == ku['id'])
+    if not (yon or benim):
+        return jsonify({'hata': 'Bu iş size atanmamış — yalnız proje yöneticisi değiştirebilir'}), 403
+    gelen = {k: d[k] for k in _PROJE_IS_ALANLAR if k in d}
+    if not gelen:
+        return jsonify({'hata': 'değişecek alan yok'}), 400
+    if not yon:
+        yasak = [k for k in gelen if k not in _PROJE_ATANAN_ALANLAR]
+        if yasak:
+            return jsonify({'hata': 'Bu alanları yalnız proje yöneticisi değiştirebilir: ' + ', '.join(yasak)}), 403
+    yeni = {}
+    try:
+        for k, v in gelen.items():
+            if k in ('talep_termin', 'uretim_termin'):
+                yeni[k] = _proje_tarih(v)
+            elif k == 'durum':
+                if v not in PROJE_IS_DURUM:
+                    raise ValueError(f'geçersiz durum: {v}')
+                yeni[k] = v
+            elif k == 'tip':
+                if v not in PROJE_IS_TIP:
+                    raise ValueError(f'bilinmeyen iş tipi: {v}')
+                yeni[k] = v
+            elif k == 'atanan_id':
+                if v in (None, '', 0, '0'):
+                    yeni[k] = None
+                else:
+                    if not str(v).isdigit() or not _proje_atanabilir_mi(conn, int(v)):
+                        raise ValueError('Atanan kullanıcı bulunamadı ya da pasif')
+                    yeni[k] = int(v)
+            else:
+                yeni[k] = str(v or '').strip()[:(80 if k == 'parca' else 1000)]
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    if 'durum' in yeni and yeni['durum'] != r['durum']:
+        yeni['tamam_ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S') if yeni['durum'] == 'tamam' else None
+    kim = ku['kullanici_adi']
+    adlar = _proje_kisi_adlari(conn)
+    for k in ('atanan_id', 'talep_termin', 'uretim_termin', 'durum', 'tip', 'parca'):
+        if k in yeni:
+            if k == 'atanan_id':
+                _proje_gecmis_yaz(conn, r['proje_id'], iid, 'atanan', adlar.get(r['atanan_id'], ''),
+                                  adlar.get(yeni[k], ''), kim)
+            else:
+                _proje_gecmis_yaz(conn, r['proje_id'], iid, k, r[k], yeni[k], kim)
+    yeni['guncelleyen'] = kim
+    conn.execute(f"UPDATE proje_is SET {', '.join(k + '=?' for k in yeni)}, "
+                 f"updated_at=datetime('now','localtime') WHERE id=?", list(yeni.values()) + [iid])
+    conn.execute("UPDATE proje SET updated_at=datetime('now','localtime') WHERE id=?", (r['proje_id'],))
+    conn.commit()
+    r2 = conn.execute("SELECT * FROM proje_is WHERE id=?", (iid,)).fetchone()
+    return jsonify({'basarili': True, 'is': _proje_is_json(r2, adlar, date.today().isoformat())})
+
+
+@app.route('/api/proje_is/<int:iid>', methods=['DELETE'])
+@panel_gerekli(izin='proje-yonetim')
+def proje_is_sil(iid):
+    conn = get_db()
+    r = conn.execute("SELECT proje_id, parca, tip FROM proje_is WHERE id=?", (iid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'İş bulunamadı'}), 404
+    conn.execute("DELETE FROM proje_is WHERE id=?", (iid,))
+    _proje_gecmis_yaz(conn, r['proje_id'], None, 'is', (((r['parca'] + ' · ') if r['parca'] else '')
+                      + PROJE_IS_TIP.get(r['tip'], r['tip'])), 'silindi', g.panel_ku['kullanici_adi'])
+    conn.commit()
+    return jsonify({'basarili': True})
+
+
+@app.route('/api/proje/kisiler', methods=['GET'])
+@panel_gerekli(izin='proje-yonetim')
+def proje_kisiler():
+    """Atanabilir kişiler: aktif ve proje izni olan panel kullanıcıları (admin dahil).
+    İzni olmayana atanan kişi işi göremezdi — listeye alınmaz."""
+    conn = get_db()
+    out = []
+    for r in conn.execute("SELECT id, kullanici_adi, ad_soyad, rol, izinler, aktif FROM panel_kullanicilari "
+                          "WHERE aktif=1 ORDER BY COALESCE(NULLIF(ad_soyad,''), kullanici_adi)").fetchall():
+        try:
+            iz = json.loads(r['izinler'] or '[]')
+        except Exception:
+            iz = []
+        if r['rol'] == 'admin' or 'proje-takip' in iz or 'proje-yonetim' in iz:
+            out.append({'id': r['id'], 'ad': r['ad_soyad'] or r['kullanici_adi'],
+                        'kullanici_adi': r['kullanici_adi']})
+    return jsonify({'kisiler': out})
+
+
+@app.route('/api/proje/benim', methods=['GET'])
+@panel_gerekli()
+def proje_benim():
+    """Oturumdaki kullanıcıya atanmış işler (tüm tesisler; iptal hariç)."""
+    ku = g.panel_ku
+    yon, gor = _proje_yetki(ku)
+    if not gor:
+        return jsonify({'hata': 'Bu sayfa için yetkiniz yok (proje-takip)'}), 403
+    conn = get_db()
+    adlar = _proje_kisi_adlari(conn)
+    bugun = date.today().isoformat()
+    out = []
+    for r in conn.execute(
+            "SELECT i.*, p.referans_kodu, p.ad AS proje_ad, p.talep_termin AS proje_termin, p.durum AS proje_durum "
+            "FROM proje_is i JOIN proje p ON p.id = i.proje_id "
+            "WHERE i.atanan_id=? AND i.durum != 'iptal' AND p.durum IN ('aktif','beklemede')", (ku['id'],)).fetchall():
+        d = _proje_is_json(r, adlar, bugun)
+        for k in ('referans_kodu', 'proje_ad', 'proje_termin', 'proje_durum'):
+            d[k] = r[k]
+        out.append(d)
+    out.sort(key=lambda d: (d['durum'] == 'tamam', d['talep_termin'] == '', d['talep_termin'], d['id']))
+    return jsonify({'isler': out, 'acik': sum(1 for d in out if d['durum'] != 'tamam')})
 
 
 if __name__ == '__main__':
