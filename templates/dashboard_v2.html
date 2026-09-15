@@ -1755,6 +1755,27 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "Bu hafta riskli": {"en": "At risk this week", "it": "A rischio questa settimana"},
+  "Devam eden": {"en": "In progress", "it": "In corso"},
+  "Sorumlusu yok": {"en": "Unassigned", "it": "Senza responsabile"},
+  "3 gün içinde termini dolan": {"en": "Due within 3 days", "it": "In scadenza entro 3 giorni"},
+  "Sahada işlem görüyor": {"en": "Being worked on", "it": "In lavorazione"},
+  "Atama bekliyor": {"en": "Awaiting assignment", "it": "In attesa di assegnazione"},
+  "Gecikme yok": {"en": "No delays", "it": "Nessun ritardo"},
+  "iş": {"en": "tasks", "it": "attività"},
+  "Bitti": {"en": "Done", "it": "Fatto"},
+  "Devam": {"en": "In progress", "it": "In corso"},
+  "Gecikmiş": {"en": "Late", "it": "In ritardo"},
+  "Siparişte": {"en": "Ordered", "it": "Ordinato"},
+  "Proje bilgileri": {"en": "Project details", "it": "Dati progetto"},
+  "Takım": {"en": "Tooling", "it": "Attrezzatura"},
+  "Tel": {"en": "Wire", "it": "Cavo"},
+  "Alt referans": {"en": "Sub-reference", "it": "Sotto-riferimento"},
+  "＋ Proses": {"en": "＋ Process", "it": "＋ Processo"},
+  "Sizde": {"en": "Yours", "it": "Tuo"},
+  "Soldan bir proje seçin": {"en": "Select a project on the left", "it": "Seleziona un progetto a sinistra"},
+  "Ana referans için takip edilen proses yok": {"en": "No processes tracked for the main reference", "it": "Nessun processo per il riferimento principale"},
+  "Değişiklik geçmişi": {"en": "Change history", "it": "Storico modifiche"},
   "Kaplama / boya": {"en": "Coating / painting", "it": "Rivestimento / verniciatura"},
   "Sevk": {"en": "Shipping", "it": "Spedizione"},
   "Henüz not yok": {"en": "No notes yet", "it": "Nessuna nota"},
@@ -5891,131 +5912,220 @@ window.__I18N_SOZLUK__ = {
 
             <!-- ══════ SAYFA: İŞ YÖNETİMİ (referans takip — eski dashboard modülü)
                         Yalnız kaynak/montaj/metal (yeni bölümlerde iş takibi yok) ══════ -->
-            <!-- ══════ SAYFA: PROJE TAKİP (kullanıcı 2026-09-15 · v2 hiyerarşi) ══════
-                 Proje = ANA REFERANS. Kırılımlar: ana referans prosesleri · alt
-                 referanslar (prosesler + takımlar alt başlığı) · tel üretimi ·
-                 satın alma parçaları. Takip edilen her kalem: sorumlu, talep
-                 termini, üretim/teslim termini, durum, not. -->
+            <!-- ══════ SAYFA: PROJE TAKİP (kullanıcı 2026-09-15 · v4 tasarım) ══════
+                 Kullanıcının gönderdiği tasarım: üstte KPI şeridi (geciken · 3 gün
+                 içinde termini dolan · devam · sorumlusu yok), solda proje listesi
+                 (ilerleme parçaları), sağda ANA REFERANS → alt referans / tel / satın
+                 alma hiyerarşisi. Pano ve sorumlu görünümü istenmedi. -->
             <section class="page" id="page-proje-takip">
                 <style>
-                    /* PROJE TAKİP v3 (kullanıcı 2026-09-15): kompakt kartlar, renkli durum, çok kişili notlar */
-                    #page-proje-takip .pj-bosluk { flex: 1; }
-                    #page-proje-takip .pj-sec { margin-top: 20px; }
-                    #page-proje-takip .pj-sec-bas { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-                    #page-proje-takip .pj-sec-ikon { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--primary-soft); font-size: .95rem; flex: none; }
-                    #page-proje-takip .pj-sec-bas h4 { margin: 0; font-size: .95rem; font-weight: 800; }
-                    #page-proje-takip .pj-say { min-width: 22px; height: 20px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--dim); font-size: .72rem; font-weight: 800; display: inline-grid; place-items: center; }
-                    #page-proje-takip .pj-bolum-ekle { padding: 4px 12px; font-size: .78rem; }
-                    #page-proje-takip .pj-kartlar { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 750px), 1fr)); gap: 12px; align-items: start; }
-                    #page-proje-takip .pj-kart { border: 1px solid var(--card-border); border-radius: 14px; background: var(--card); overflow: hidden; container-type: inline-size; box-shadow: 0 1px 3px rgba(20, 16, 50, .05); max-width: 900px; }
-                    #page-proje-takip .pj-kart.sa-kart { max-width: 1080px; }
-                    #page-proje-takip .pj-kart-bas { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--surface-2); border-bottom: 1px solid var(--card-border); min-height: 40px; flex-wrap: wrap; }
-                    #page-proje-takip .pj-kart-kod { font-weight: 800; font-size: .9rem; white-space: nowrap; }
-                    #page-proje-takip .pj-kart-acik { color: var(--muted); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 40%; }
-                    #page-proje-takip .pj-mini-bar { width: 70px; height: 6px; border-radius: 999px; background: var(--card-border); overflow: hidden; flex: none; }
-                    #page-proje-takip .pj-mini-bar > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
-                    #page-proje-takip .pj-mini-bar.tam > i { background: var(--success); }
-                    #page-proje-takip .pj-kart-say { font-size: .72rem; font-weight: 800; color: var(--dim); flex: none; }
-                    #page-proje-takip .pj-kart-btn { display: flex; gap: 2px; flex: none; }
-                    #page-proje-takip .pj-ikon-btn { border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 3px 7px; font: inherit; font-size: .76rem; font-weight: 700; cursor: pointer; color: var(--text); line-height: 1.3; }
-                    #page-proje-takip .pj-ikon-btn:hover { background: var(--card); border-color: var(--card-border); }
-                    #page-proje-takip .pj-ikon-btn.sil { color: var(--dim); }
-                    #page-proje-takip .pj-ikon-btn.sil:hover { color: var(--danger); border-color: var(--danger); }
-                    #page-proje-takip .pj-satir { display: grid; grid-template-columns: minmax(130px, 210px) minmax(140px, 190px) 118px 118px 118px 64px; justify-content: start; align-items: center; gap: 6px; padding: 5px 12px; border-top: 1px solid var(--card-border); }
-                    #page-proje-takip .pj-satir.sa { grid-template-columns: minmax(130px, 200px) minmax(100px, 170px) minmax(140px, 180px) 118px 118px 118px 90px; }
-                    #page-proje-takip .pj-satir.pj-bas { border-top: 0; padding-top: 7px; padding-bottom: 2px; font-size: .62rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
-                    #page-proje-takip .pj-satir.tamam { background: color-mix(in srgb, var(--success) 7%, transparent); }
-                    #page-proje-takip .pj-satir.iptal { opacity: .5; }
-                    #page-proje-takip .pj-tip { min-width: 0; }
-                    #page-proje-takip .pj-tip-ust { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .82rem; min-width: 0; }
-                    #page-proje-takip .pj-tip-ad { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                    #page-proje-takip .pj-tip-ikon { font-size: .78rem; opacity: .75; flex: none; }
-                    #page-proje-takip .pj-tip-acik { font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                    #page-proje-takip .pj-uyari { font-size: .76rem; cursor: help; flex: none; }
-                    #page-proje-takip .pj-in { width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--border-input); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-size: .78rem; min-width: 0; box-sizing: border-box; }
-                    #page-proje-takip .pj-in:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
-                    #page-proje-takip .pj-in.gec, #page-proje-takip .pj-tarih.gec { border-color: var(--danger); color: var(--danger); font-weight: 700; }
-                    #page-proje-takip .pj-in.rsk, #page-proje-takip .pj-tarih.rsk { border-color: var(--warn); color: var(--warn); font-weight: 700; }
-                    #page-proje-takip .pj-tarih { font-size: .8rem; white-space: nowrap; }
-                    #page-proje-takip .pj-kisi { display: flex; align-items: center; gap: 6px; font-size: .8rem; min-width: 0; white-space: nowrap; overflow: hidden; }
-                    #page-proje-takip .pj-av { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; font-size: .6rem; font-weight: 800; flex: none; }
-                    #page-proje-takip .pj-durum { width: 100%; height: 28px; border-radius: 999px; border: 1px solid transparent; padding: 0 10px; font: inherit; font-size: .74rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; white-space: nowrap; }
-                    #page-proje-takip span.pj-durum { cursor: default; }
-                    #page-proje-takip .pj-d-bekliyor { background: var(--surface-2); color: var(--dim); border-color: var(--card-border); }
-                    #page-proje-takip .pj-d-devam { background: var(--primary-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
-                    #page-proje-takip .pj-d-tamam { background: var(--success-soft); color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
-                    #page-proje-takip .pj-d-iptal { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); text-decoration: line-through; }
-                    #page-proje-takip select.pj-durum option { background: var(--card); color: var(--text); font-weight: 600; }
-                    #page-proje-takip .pj-islem { display: flex; align-items: center; gap: 2px; justify-content: flex-end; }
-                    #page-proje-takip .pj-not-btn { border: 1px solid var(--card-border); background: var(--card); border-radius: 999px; padding: 2px 8px; font: inherit; font-size: .74rem; font-weight: 800; cursor: pointer; color: var(--dim); white-space: nowrap; }
-                    #page-proje-takip .pj-not-btn.var { background: var(--primary-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
-                    #page-proje-takip .pj-not-btn.acik { box-shadow: 0 0 0 3px var(--focus-ring); }
-                    #page-proje-takip .pj-notlar { margin: 2px 12px 8px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--card-border); }
-                    #page-proje-takip .pj-not { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; }
-                    #page-proje-takip .pj-not + .pj-not { border-top: 1px dashed var(--card-border); }
-                    #page-proje-takip .pj-not-ust { font-size: .7rem; color: var(--muted); }
-                    #page-proje-takip .pj-not-ust b { color: var(--text); font-size: .76rem; }
-                    #page-proje-takip .pj-not-metin { font-size: .8rem; white-space: pre-wrap; word-break: break-word; margin-top: 1px; }
-                    #page-proje-takip .pj-bos-not { font-size: .76rem; color: var(--muted); padding: 2px 0 4px; }
-                    #page-proje-takip .pj-not-yaz { display: flex; gap: 6px; margin-top: 6px; }
-                    #page-proje-takip .pj-not-yaz .btn { padding: 4px 14px; font-size: .78rem; }
-                    #page-proje-takip .pj-alt-bas { padding: 7px 12px 3px; font-size: .64rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; border-top: 1px solid var(--card-border); }
-                    #page-proje-takip .pj-kart-bos, #page-proje-takip .pj-bos { font-size: .8rem; color: var(--muted); padding: 10px 12px; }
-                    #page-proje-takip .pj-bos { border: 1px dashed var(--card-border); border-radius: 12px; }
-                    #page-proje-takip .pj-sa-bilgi { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                    #page-proje-takip .pj-sa-bilgi b { color: var(--text); }
-                    #page-proje-takip .pj-ilerleme { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 10px 0 2px; }
-                    #page-proje-takip .pj-ilerleme > i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
-                    #page-proje-takip .pj-ilerleme.tam > i { background: var(--success); }
-                    #page-proje-takip .pj-tr-tamam > td { opacity: .6; }
-                    @container (max-width: 745px) {
-                        #page-proje-takip .pj-satir:not(.sa) { grid-template-columns: 1fr 1fr; justify-content: stretch; }
-                        #page-proje-takip .pj-satir:not(.sa) > .pj-tip { grid-column: 1 / -1; }
-                        #page-proje-takip .pj-satir.pj-bas:not(.sa) { display: none; }
-                        #page-proje-takip .pj-satir:not(.sa) > [data-et]::before { content: attr(data-et); display: block; font-size: .6rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+                    #page-proje-takip {
+                        --pj-ink: #141414; --pj-paper: #F4F4F2; --pj-kart: #FFFFFF; --pj-line: #D5D5D0; --pj-line2: #141414;
+                        --pj-mute: #6A6A64; --pj-red: #E3311D; --pj-pink: #FDEBE7; --pj-gri: #E7E7E3;
+                        --pj-bitti: #1E9A52; --pj-devam: #2D6BE6; --pj-bekle: #CACAC4; --pj-risk: #D97400;
                     }
-                    @container (max-width: 950px) {
-                        #page-proje-takip .pj-satir.sa { grid-template-columns: 1fr 1fr; justify-content: stretch; }
-                        #page-proje-takip .pj-satir.sa > .pj-tip { grid-column: 1 / -1; }
-                        #page-proje-takip .pj-satir.sa.pj-bas { display: none; }
-                        #page-proje-takip .pj-satir.sa > [data-et]::before { content: attr(data-et); display: block; font-size: .6rem; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+                    :root[data-tema="koyu"] #page-proje-takip {
+                        --pj-ink: #EDEDEA; --pj-paper: #161618; --pj-kart: #1F1F23; --pj-line: #35353B; --pj-line2: #EDEDEA;
+                        --pj-mute: #9C9CA4; --pj-red: #F2432F; --pj-pink: rgba(242, 67, 47, .14); --pj-gri: #26262B;
+                        --pj-bitti: #35C274; --pj-devam: #5D8FF7; --pj-bekle: #4E4E56; --pj-risk: #FFA43C;
+                    }
+                    #page-proje-takip .pj-sayfa { background: var(--pj-paper); color: var(--pj-ink); border: 1px solid var(--pj-line); border-radius: 14px; padding: 0 24px 24px; overflow: hidden; }
+                    #page-proje-takip .pj-sayfa button { font-family: inherit; }
+                    #page-proje-takip .bos { flex: 1; }
+                    #page-proje-takip .pj-lbl { font-size: .66rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--pj-mute); }
+                    #page-proje-takip .pj-mute { color: var(--pj-mute); }
+                    /* üst KPI şeridi */
+                    #page-proje-takip .pj-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 -24px; border-bottom: 2px solid var(--pj-line2); }
+                    #page-proje-takip .pj-kt { padding: 20px 22px 18px; border-right: 1px solid var(--pj-line); min-width: 0; }
+                    #page-proje-takip .pj-kt:last-child { border-right: 0; }
+                    #page-proje-takip .pj-kt .pj-lbl { color: var(--pj-ink); }
+                    #page-proje-takip .pj-kt-num { display: flex; align-items: baseline; gap: 6px; margin: 8px 0 6px; }
+                    #page-proje-takip .pj-kt-num b { font-size: 2.6rem; font-weight: 900; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+                    #page-proje-takip .pj-kt-num span { font-size: .8rem; font-weight: 600; }
+                    #page-proje-takip .pj-kt-alt { font-size: .8rem; color: var(--pj-mute); }
+                    #page-proje-takip .pj-kt.kirmizi { background: var(--pj-red); color: #fff; }
+                    #page-proje-takip .pj-kt.kirmizi .pj-lbl, #page-proje-takip .pj-kt.kirmizi .pj-kt-alt { color: #fff; }
+                    #page-proje-takip .pj-kt.turuncu .pj-kt-num b { color: var(--pj-risk); }
+                    #page-proje-takip .pj-kt.mavi .pj-kt-num b { color: var(--pj-devam); }
+                    #page-proje-takip .pj-kt.gri { background: var(--pj-gri); }
+                    /* iki sütun */
+                    #page-proje-takip .pj-ana { display: grid; grid-template-columns: minmax(300px, 36%) minmax(0, 1fr); }
+                    #page-proje-takip .pj-sol { padding: 22px 24px 8px 0; border-right: 1px solid var(--pj-line); min-width: 0; }
+                    #page-proje-takip .pj-sag { padding: 22px 0 8px 26px; min-width: 0; container: pjd / inline-size; }
+                    @media (max-width: 1100px) {
+                        #page-proje-takip .pj-ana { grid-template-columns: minmax(0, 1fr); }
+                        #page-proje-takip .pj-sol { border-right: 0; padding-right: 0; border-bottom: 2px solid var(--pj-line2); }
+                        #page-proje-takip .pj-sag { padding-left: 0; }
+                        #page-proje-takip .pj-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                        #page-proje-takip .pj-kt:nth-child(2) { border-right: 0; }
+                        #page-proje-takip .pj-kt:nth-child(-n+2) { border-bottom: 1px solid var(--pj-line); }
+                    }
+                    /* sol: projeler */
+                    #page-proje-takip .pj-sol-bas { display: flex; align-items: baseline; margin-bottom: 14px; }
+                    #page-proje-takip .pj-sol-bas h3 { margin: 0; font-size: 1.2rem; font-weight: 800; }
+                    #page-proje-takip .pj-yeni { width: 100%; background: var(--pj-red); color: #fff; border: 0; padding: 12px 14px; text-align: left; font-size: .82rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; margin-bottom: 12px; }
+                    #page-proje-takip .pj-yeni:hover { filter: brightness(1.06); }
+                    #page-proje-takip .pj-filtre { display: flex; border: 1px solid var(--pj-line); margin-bottom: 8px; }
+                    #page-proje-takip .pj-filtre button { background: transparent; border: 0; padding: 7px 10px; font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--pj-mute); cursor: pointer; }
+                    #page-proje-takip .pj-filtre button.on { background: var(--pj-ink); color: var(--pj-paper); }
+                    #page-proje-takip .pj-ara { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--pj-line); background: transparent; color: var(--pj-ink); padding: 8px 2px; font: inherit; font-size: .82rem; margin-bottom: 6px; }
+                    #page-proje-takip .pj-ara:focus, #page-proje-takip .pj-nin:focus { outline: none; border-bottom-color: var(--pj-ink); }
+                    #page-proje-takip .pj-li { padding: 14px 14px 12px; border-bottom: 1px solid var(--pj-line); cursor: pointer; }
+                    #page-proje-takip .pj-li:hover { background: var(--pj-kart); }
+                    #page-proje-takip .pj-li.on { background: var(--pj-pink); box-shadow: inset 4px 0 0 var(--pj-red); }
+                    #page-proje-takip .pj-li-ust { display: flex; align-items: center; gap: 8px; }
+                    #page-proje-takip .pj-li-kod { font-size: 1.02rem; font-weight: 800; }
+                    #page-proje-takip .pj-li-alt { font-size: .8rem; color: var(--pj-mute); margin: 1px 0 9px; }
+                    #page-proje-takip .pj-li-bar { display: flex; align-items: center; gap: 10px; }
+                    #page-proje-takip .pj-li-bar > span { font-size: .72rem; font-weight: 700; color: var(--pj-mute); font-variant-numeric: tabular-nums; }
+                    #page-proje-takip .pj-rozet { background: var(--pj-red); color: #fff; font-size: .64rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px; white-space: nowrap; }
+                    #page-proje-takip .pj-etk { border: 1px solid var(--pj-line); color: var(--pj-mute); font-size: .6rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; padding: 2px 6px; white-space: nowrap; }
+                    #page-proje-takip .pj-etk.kirmizi { border-color: var(--pj-red); color: var(--pj-red); }
+                    /* ilerleme parçaları */
+                    #page-proje-takip .pj-seg { display: flex; gap: 3px; height: 8px; flex: 1; min-width: 0; }
+                    #page-proje-takip .pj-seg i { flex: 1; min-width: 3px; }
+                    #page-proje-takip .pj-seg.buyuk { height: 16px; gap: 4px; margin: 10px 0 8px; }
+                    #page-proje-takip .s-tamam { background: var(--pj-bitti); }
+                    #page-proje-takip .s-devam { background: var(--pj-devam); }
+                    #page-proje-takip .s-geciken { background: var(--pj-red); }
+                    #page-proje-takip .s-bekliyor { background: var(--pj-bekle); }
+                    #page-proje-takip .pj-lej { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .72rem; color: var(--pj-mute); }
+                    #page-proje-takip .pj-lej i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; vertical-align: -1px; }
+                    #page-proje-takip .pj-kare { display: inline-flex; gap: 3px; }
+                    #page-proje-takip .pj-kare i { width: 10px; height: 10px; }
+                    /* sağ: detay başlığı */
+                    #page-proje-takip .pj-d-ust { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+                    #page-proje-takip .pj-d-kod { font-size: 2.7rem; font-weight: 900; letter-spacing: -.02em; line-height: 1.05; margin-top: 4px; }
+                    #page-proje-takip .pj-d-ad { font-size: .95rem; color: var(--pj-mute); margin-top: 2px; }
+                    #page-proje-takip .pj-btn { background: var(--pj-kart); border: 1.5px solid var(--pj-ink); color: var(--pj-ink); padding: 8px 14px; font-size: .84rem; font-weight: 800; cursor: pointer; }
+                    #page-proje-takip .pj-btn.kirmizi { color: var(--pj-red); }
+                    #page-proje-takip .pj-meta { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 14px 0 0; font-size: .84rem; }
+                    #page-proje-takip .pj-meta span { color: var(--pj-mute); margin-right: 10px; }
+                    #page-proje-takip .pj-meta b { font-weight: 800; }
+                    #page-proje-takip .pj-bilgi { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0 0; padding: 12px; border: 1px dashed var(--pj-line); background: var(--pj-kart); }
+                    #page-proje-takip .pj-bilgi label { display: flex; flex-direction: column; gap: 4px; }
+                    #page-proje-takip .pj-inp { border: 1px solid var(--pj-line); background: var(--pj-paper); color: var(--pj-ink); padding: 6px 8px; font: inherit; font-size: .84rem; min-width: 160px; }
+                    #page-proje-takip .pj-ilr { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 128px); border-top: 2px solid var(--pj-line2); border-bottom: 2px solid var(--pj-line2); margin: 18px 0 20px; }
+                    #page-proje-takip .pj-ilr-sol { padding: 14px 16px 12px 0; min-width: 0; }
+                    #page-proje-takip .pj-ilr-ust { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+                    #page-proje-takip .pj-ilr-ust b { font-size: 1rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+                    #page-proje-takip .pj-t { padding: 14px 14px 12px; border-left: 1px solid var(--pj-line); display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+                    #page-proje-takip .pj-t b { font-size: 1.7rem; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+                    #page-proje-takip .pj-t span { font-size: .64rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+                    #page-proje-takip .pj-t.kirmizi { background: var(--pj-red); color: #fff; border-left-color: var(--pj-red); }
+                    #page-proje-takip .pj-t.mavi b { color: var(--pj-devam); }
+                    #page-proje-takip .pj-t.yesil { background: var(--pj-gri); }
+                    #page-proje-takip .pj-t.yesil b { color: var(--pj-bitti); }
+                    /* satır ızgarası */
+                    #page-proje-takip .pj-r1 { display: grid; grid-template-columns: minmax(0, 1fr) 210px 108px 108px 40px; align-items: center; gap: 10px; }
+                    #page-proje-takip .pj-r2 { display: grid; grid-template-columns: 216px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 8px; }
+                    #page-proje-takip .pj-kol { padding: 0 10px 8px 16px; border-bottom: 1px solid var(--pj-line); }
+                    #page-proje-takip .pj-kol .pj-r2 { margin-top: 4px; }
+                    #page-proje-takip .pj-kol span { font-size: .62rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--pj-mute); }
+                    /* bölüm başlıkları */
+                    #page-proje-takip .pj-bol { display: flex; align-items: center; gap: 10px; margin-top: 26px; padding-bottom: 9px; border-bottom: 2px solid var(--pj-line2); }
+                    #page-proje-takip .pj-no { background: var(--pj-ink); color: var(--pj-paper); font-size: .76rem; font-weight: 900; padding: 4px 7px; font-variant-numeric: tabular-nums; }
+                    #page-proje-takip .pj-bol h4 { margin: 0; font-size: 1.12rem; font-weight: 800; }
+                    #page-proje-takip .pj-ekle { background: var(--pj-kart); border: 1px solid var(--pj-line); color: var(--pj-red); padding: 7px 12px; font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+                    #page-proje-takip .pj-ekle:hover { border-color: var(--pj-red); }
+                    /* kalem başlıkları — ANA referans alt referanslardan büyük */
+                    #page-proje-takip .pj-kb { display: flex; align-items: center; gap: 10px; padding: 12px 0 10px; border-bottom: 1px solid var(--pj-line); flex-wrap: wrap; }
+                    #page-proje-takip .pj-kod { font-size: 1.2rem; font-weight: 800; }
+                    #page-proje-takip .pj-kb.ana { padding: 16px 0 12px; }
+                    #page-proje-takip .pj-kb.ana .pj-kod { font-size: 1.85rem; font-weight: 900; letter-spacing: -.01em; }
+                    #page-proje-takip .pj-kb-acik { font-size: .8rem; color: var(--pj-mute); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30%; }
+                    #page-proje-takip .pj-kb-say { font-size: .74rem; font-weight: 700; color: var(--pj-mute); font-variant-numeric: tabular-nums; }
+                    #page-proje-takip .pj-katla { width: 22px; height: 22px; border: 1px solid var(--pj-line); background: var(--pj-kart); color: var(--pj-ink); font-weight: 800; cursor: pointer; line-height: 1; padding: 0; }
+                    #page-proje-takip .pj-mbtn { background: var(--pj-kart); border: 1px solid var(--pj-line); color: var(--pj-ink); padding: 5px 9px; font-size: .64rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+                    #page-proje-takip .pj-mbtn:hover { border-color: var(--pj-ink); }
+                    #page-proje-takip .pj-ibtn { background: transparent; border: 1px solid transparent; color: var(--pj-mute); padding: 2px 6px; font-size: .8rem; cursor: pointer; line-height: 1.2; }
+                    #page-proje-takip .pj-ibtn:hover { border-color: var(--pj-line); color: var(--pj-ink); }
+                    #page-proje-takip .pj-ibtn.sil:hover { border-color: var(--pj-red); color: var(--pj-red); }
+                    /* takip satırı */
+                    #page-proje-takip .pj-r { padding: 11px 10px 11px 16px; border-bottom: 1px solid var(--pj-line); }
+                    #page-proje-takip .pj-r.gec { background: var(--pj-pink); box-shadow: inset 4px 0 0 var(--pj-red); }
+                    #page-proje-takip .pj-r.iptal { opacity: .5; }
+                    #page-proje-takip .pj-ad { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: .92rem; font-weight: 800; }
+                    #page-proje-takip .pj-r.buyuk .pj-ad { font-size: 1.04rem; }
+                    #page-proje-takip .pj-r.buyuk { padding-top: 14px; padding-bottom: 14px; }
+                    #page-proje-takip .pj-ad-t { white-space: nowrap; }
+                    #page-proje-takip .pj-ad-alt { font-size: .74rem; font-weight: 500; color: var(--pj-mute); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    #page-proje-takip .pj-mad { width: 8px; height: 8px; background: var(--pj-ink); flex: none; }
+                    #page-proje-takip .pj-mad.bos { background: transparent; box-shadow: inset 0 0 0 1.5px var(--pj-ink); }
+                    #page-proje-takip .pj-sor { display: flex; align-items: center; gap: 8px; min-width: 0; }
+                    #page-proje-takip .pj-av { width: 26px; height: 26px; background: var(--pj-ink); color: var(--pj-paper); display: inline-grid; place-items: center; font-size: .62rem; font-weight: 900; flex: none; letter-spacing: .02em; }
+                    #page-proje-takip .pj-av.bos { background: transparent; color: var(--pj-mute); box-shadow: inset 0 0 0 1px var(--pj-line); }
+                    #page-proje-takip .pj-av.kucuk { width: 20px; height: 20px; font-size: .54rem; }
+                    #page-proje-takip .pj-sel { border: 0; background: transparent; color: var(--pj-ink); font: inherit; font-size: .86rem; font-weight: 600; min-width: 0; width: 100%; cursor: pointer; padding: 4px 0; }
+                    #page-proje-takip .pj-sor-ad { font-size: .86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    #page-proje-takip .pj-dt { font-size: .86rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; background: transparent; border: 0; color: var(--pj-ink); padding: 3px 0; text-align: left; }
+                    #page-proje-takip .pj-dtb { cursor: pointer; border-bottom: 1px dashed transparent; }
+                    #page-proje-takip .pj-dtb:hover { border-bottom-color: var(--pj-ink); }
+                    #page-proje-takip .pj-dt.bos { color: var(--pj-mute); font-weight: 500; }
+                    #page-proje-takip .pj-dt.gec { color: var(--pj-red); }
+                    #page-proje-takip .pj-dt.rsk { color: var(--pj-risk); }
+                    #page-proje-takip .pj-dti { width: 100%; box-sizing: border-box; border: 1.5px solid var(--pj-ink); background: var(--pj-kart); color: var(--pj-ink); font: inherit; font-size: .8rem; padding: 3px 4px; }
+                    #page-proje-takip .pj-gun { text-align: right; }
+                    #page-proje-takip .pj-gun span { background: var(--pj-red); color: #fff; font-size: .7rem; font-weight: 900; padding: 2px 6px; font-variant-numeric: tabular-nums; }
+                    #page-proje-takip .pj-seg3 { display: flex; }
+                    #page-proje-takip .pj-seg3 button { flex: 1; background: var(--pj-kart); border: 1px solid var(--pj-line); margin-left: -1px; padding: 5px 0; font-size: .6rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--pj-mute); cursor: pointer; white-space: nowrap; }
+                    #page-proje-takip .pj-seg3 button:first-child { margin-left: 0; }
+                    #page-proje-takip .pj-seg3 button:hover { color: var(--pj-ink); }
+                    #page-proje-takip .pj-seg3 button.on { cursor: default; color: #fff; position: relative; }
+                    #page-proje-takip .pj-seg3 button.bekliyor.on { background: var(--pj-ink); border-color: var(--pj-ink); color: var(--pj-paper); }
+                    #page-proje-takip .pj-seg3 button.devam.on { background: var(--pj-devam); border-color: var(--pj-devam); }
+                    #page-proje-takip .pj-seg3 button.tamam.on { background: var(--pj-bitti); border-color: var(--pj-bitti); }
+                    #page-proje-takip .pj-seg3.kilitli button { cursor: default; }
+                    #page-proje-takip .pj-seg3.kilitli button:not(.on) { opacity: .55; }
+                    #page-proje-takip .pj-notw { min-width: 0; }
+                    #page-proje-takip .pj-nin { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--pj-line); background: transparent; color: var(--pj-ink); padding: 5px 2px; font: inherit; font-size: .82rem; }
+                    #page-proje-takip .pj-nin::placeholder { color: var(--pj-mute); }
+                    #page-proje-takip .pj-nson { width: 100%; display: flex; align-items: center; gap: 8px; border: 0; border-bottom: 1px solid var(--pj-line); background: transparent; color: var(--pj-ink); padding: 3px 2px; cursor: pointer; text-align: left; min-width: 0; }
+                    #page-proje-takip .pj-nson-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
+                    #page-proje-takip .pj-nson-say { background: var(--pj-ink); color: var(--pj-paper); font-size: .62rem; font-weight: 900; padding: 1px 6px; }
+                    #page-proje-takip .pj-ra { display: flex; gap: 2px; }
+                    #page-proje-takip .pj-thread { margin: 10px 0 2px; border: 1px solid var(--pj-line); background: var(--pj-kart); padding: 6px 10px 10px; }
+                    #page-proje-takip .pj-not { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed var(--pj-line); }
+                    #page-proje-takip .pj-not-g { flex: 1; min-width: 0; }
+                    #page-proje-takip .pj-not-u { font-size: .7rem; color: var(--pj-mute); }
+                    #page-proje-takip .pj-not-u b { color: var(--pj-ink); font-size: .76rem; }
+                    #page-proje-takip .pj-not-m { font-size: .84rem; white-space: pre-wrap; word-break: break-word; margin-top: 1px; }
+                    #page-proje-takip .pj-not-yaz { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+                    #page-proje-takip .pj-bos, #page-proje-takip .pj-bos-satir { color: var(--pj-mute); font-size: .84rem; padding: 14px 2px; }
+                    #page-proje-takip .pj-bos-satir { padding: 12px 16px; border-bottom: 1px solid var(--pj-line); }
+                    #page-proje-takip .pj-gecmis { margin-top: 22px; font-size: .78rem; }
+                    #page-proje-takip .pj-gecmis summary { cursor: pointer; font-weight: 800; color: var(--pj-mute); letter-spacing: .08em; text-transform: uppercase; font-size: .68rem; }
+                    @container pjd (max-width: 700px) {
+                        #page-proje-takip .pj-kol { display: none; }
+                        #page-proje-takip .pj-r1 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 40px; }
+                        #page-proje-takip .pj-r1 > .pj-ad { grid-column: 1 / -1; }
+                        #page-proje-takip .pj-r1 > .pj-sor { grid-column: 1 / -1; }
+                        #page-proje-takip .pj-r2 { grid-template-columns: minmax(0, 1fr) auto; }
+                        #page-proje-takip .pj-r2 > .pj-notw { grid-column: 1 / -1; grid-row: 2; }
+                        #page-proje-takip .pj-ilr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+                        #page-proje-takip .pj-ilr-sol { grid-column: 1 / -1; padding-right: 0; }
+                        #page-proje-takip .pj-t:nth-child(2) { border-left: 0; }
+                        #page-proje-takip .pj-d-kod { font-size: 2rem; }
+                        #page-proje-takip .pj-kb.ana .pj-kod { font-size: 1.5rem; }
                     }
                 </style>
-                <div class="panel-card" id="pj-benim-kart" style="display:none">
-                    <div class="panel-header">
-                        <h3>🙋 Bana atanan işler</h3>
-                        <span class="adet-info" id="pj-benim-ozet"></span>
+                <div class="pj-sayfa">
+                    <div class="pj-kpi" id="pj-kpi"></div>
+                    <div class="pj-ana">
+                        <aside class="pj-sol">
+                            <div class="pj-sol-bas"><h3>Projeler</h3><span class="bos"></span><span class="pj-lbl" id="pj-ozet"></span></div>
+                            <button type="button" class="pj-yeni" id="pj-yeni-btn" style="display:none" onclick="projeYeniAc()">＋ Yeni proje</button>
+                            <div class="pj-filtre" id="pj-filtre">
+                                <button type="button" data-f="aktif" class="on" onclick="pjFiltre('aktif')">Aktif</button>
+                                <button type="button" data-f="geciken" onclick="pjFiltre('geciken')">Geciken</button>
+                                <button type="button" data-f="tumu" onclick="pjFiltre('tumu')">Tümü</button>
+                            </div>
+                            <input id="pj-ara" class="pj-ara" placeholder="Referans / müşteri ara" oninput="projeAraGecikmeli()">
+                            <div id="pj-liste"></div>
+                        </aside>
+                        <div class="pj-sag" id="pj-detay-kart"><div class="pj-bos">Soldan bir proje seçin</div></div>
                     </div>
-                    <div class="table-wrap"><table class="admin-table">
-                        <thead><tr><th>Proje</th><th>Kalem</th><th>Talep termini</th><th>Üretim / teslim termini</th><th>Durum</th><th>Notlar</th></tr></thead>
-                        <tbody id="pj-benim-body"></tbody>
-                    </table></div>
                 </div>
-                <div class="panel-card">
-                    <div class="panel-header">
-                        <h3>📐 Projeler</h3>
-                        <span class="adet-info" id="pj-ozet"></span>
-                    </div>
-                    <div style="font-size:.82rem;color:var(--muted);margin:0 0 12px;line-height:1.6">
-                        Proje, üretilecek ana referanstır. Altında alt referanslar (kesim/büküm ve kaynak prosesleri, gerekiyorsa büküm kalıbı ve kaynak fikstürü), tel üretimi ve beklenen satın alma parçaları takip edilir. Yönetici her kaleme sorumlu ve talep termini atar; sorumlu kendi terminini ve durumunu günceller.
-                    </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-                        <select id="pj-filtre" class="rt-row-select" onchange="projeListeYukle()" style="max-width:170px">
-                            <option value="aktif">Aktif</option>
-                            <option value="beklemede">Beklemede</option>
-                            <option value="tamamlandi">Tamamlanan</option>
-                            <option value="tumu">Tümü</option>
-                        </select>
-                        <input id="pj-ara" class="rt-row-input" style="max-width:260px" placeholder="Referans / alt referans / müşteri ara" oninput="projeAraGecikmeli()">
-                        <button class="btn btn-ghost" onclick="projeListeYukle()">↻ Yenile</button>
-                        <button class="btn btn-primary" id="pj-yeni-btn" style="display:none" onclick="projeYeniAc()">＋ Yeni proje</button>
-                    </div>
-                    <div class="table-wrap"><table class="admin-table">
-                        <thead><tr><th>Ana referans</th><th>Proje</th><th>Müşteri</th><th>Talep termini</th><th style="min-width:150px">İlerleme</th><th style="text-align:center">Geciken</th><th style="text-align:center">Termin riski</th><th>Durum</th></tr></thead>
-                        <tbody id="pj-liste-body"></tbody>
-                    </table></div>
-                </div>
-                <div class="panel-card" id="pj-detay-kart" style="display:none"></div>
             </section>
 
             <section class="page" id="page-ariza-onay">
@@ -16107,21 +16217,23 @@ window.__I18N_SOZLUK__ = {
         function panelAdmin() { return !!(window.PANEL_KU && window.PANEL_KU.admin); }
         function panelIzinler() { return (window.PANEL_KU && window.PANEL_KU.izinler) || []; }
 
-        // ══ PROJE TAKİP (kullanıcı 2026-09-15 · v2 hiyerarşi) ══════════════
-        // Proje = ANA REFERANS. Kırılımlar: ana referans prosesleri · alt
-        // referanslar (prosesler + "Takımlar" alt başlığı) · tel üretimi ·
-        // satın alma parçaları. Yönetici her alanı; sorumlu yalnız KENDİ
-        // satırının üretim/teslim termini, durumu ve notunu değiştirir.
-        var _pj = { tipler: [], katTip: {}, yon: false, benimId: null, secili: null, kisiler: null,
-                    detay: null, benim: null, bilgiAcik: false, kalem: null, notAcik: {} };
+        // ══ PROJE TAKİP (kullanıcı 2026-09-15 · v4 tasarım) ══════════════════════
+        // Üstte KPI şeridi, solda proje listesi (ilerleme parçaları), sağda ANA
+        // REFERANS (büyük) → alt referanslar / tel / satın alma. Durum renkleri:
+        // bitti yeşil · devam mavi · gecikmiş kırmızı · bekliyor gri. Yönetici her
+        // alanı; sorumlu yalnız KENDİ satırının üretim termini + durumu. Notları
+        // projeyi gören herkes yazar (yazan adıyla).
+        var _pj = { tipler: [], katTip: {}, yon: false, benimId: null, secili: null, kisiler: null, detay: null,
+                    bilgiAcik: false, kalem: null, notAcik: {}, kapali: {}, filtre: 'aktif', liste: [], bugun: '' };
         var PJ_IS_DURUM_AD = { bekliyor: 'Bekliyor', devam: 'Devam ediyor', tamam: 'Tamamlandı', iptal: 'İptal' };
-        var PJ_SA_DURUM_AD = { bekliyor: 'Bekliyor', devam: 'Sipariş verildi', tamam: 'Teslim alındı', iptal: 'İptal' };
+        var PJ_SEG_AD = { bekliyor: 'Bekliyor', devam: 'Devam', tamam: 'Bitti' };
+        var PJ_SA_SEG_AD = { bekliyor: 'Bekliyor', devam: 'Siparişte', tamam: 'Teslim alındı' };
         var PJ_PROJE_DURUM_AD = { aktif: 'Aktif', beklemede: 'Beklemede', tamamlandi: 'Tamamlandı', iptal: 'İptal' };
         var PJ_KAT = {
-            ana:        { baslik: 'Ana referans',         ikon: '🏁', ekle: '＋ Proses / takım' },
-            parca:      { baslik: 'Alt referanslar',      ikon: '🧩', ekle: '＋ Alt referans',        kodEt: 'Alt referans kodu', bos: 'Henüz alt referans yok' },
-            tel:        { baslik: 'Tel üretimi',          ikon: '🧵', ekle: '＋ Tel referansı',       kodEt: 'Tel referans kodu', bos: 'Tel üretimi kalemi yok' },
-            satin_alma: { baslik: 'Satın alma parçaları', ikon: '🛒', ekle: '＋ Satın alma parçası', kodEt: 'Parça kodu / adı',  bos: 'Beklenen satın alma parçası yok' }
+            ana:        { baslik: 'Ana referans',         ekle: '＋ Proses' },
+            parca:      { baslik: 'Alt referanslar',      ekle: '＋ Alt referans',        kodEt: 'Alt referans kodu', bos: 'Henüz alt referans yok' },
+            tel:        { baslik: 'Tel üretimi',          ekle: '＋ Tel referansı',       kodEt: 'Tel referans kodu', bos: 'Tel üretimi kalemi yok' },
+            satin_alma: { baslik: 'Satın alma parçaları', ekle: '＋ Satın alma parçası', kodEt: 'Parça kodu / adı',  bos: 'Beklenen satın alma parçası yok' }
         };
         var PJ_VARSAYILAN = { ana: ['montaj', 'sevk'], parca: ['kesim_bukum', 'kaynak'], tel: ['tel_uretim'], satin_alma: ['satin_alma'] };
 
@@ -16129,10 +16241,10 @@ window.__I18N_SOZLUK__ = {
         function pjTarih(t) { return t ? (t.slice(8, 10) + '.' + t.slice(5, 7) + '.' + t.slice(0, 4)) : '—'; }
         function pjTip(k) { return (_pj.tipler || []).filter(function (x) { return x[0] === k; })[0] || [k, k, 'proses']; }
         function pjTipAd(k) { return pjTip(k)[1]; }
-        function pjDurumAdlari(kat) { return kat === 'satin_alma' ? PJ_SA_DURUM_AD : PJ_IS_DURUM_AD; }
         function pjTipleriAl(d) {
             if (d && d.tipler) _pj.tipler = d.tipler;
             if (d && d.kategori_tipler) _pj.katTip = d.kategori_tipler;
+            if (d && d.bugun) _pj.bugun = d.bugun;
         }
         async function pjJson(url, opt) {
             var r = await panelFetch(url, opt);
@@ -16143,60 +16255,98 @@ window.__I18N_SOZLUK__ = {
         }
         function pjGovde(o) { return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }; }
         function pjPatch(o) { return { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }; }
-        function pjRozet(txt, renk) {
-            return '<span style="font-size:.68rem;font-weight:800;border:1px solid ' + renk + ';color:' + renk +
-                   ';border-radius:999px;padding:1px 7px;margin-left:5px;white-space:nowrap">' + txt + '</span>';
-        }
         function pjSayi(v) { return (v === null || v === undefined || v === '') ? '—' : fmt(v); }
+        function pjBugun() {
+            if (_pj.bugun) return _pj.bugun;
+            var n = new Date();
+            return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+        }
+        function pjGun(a, b) { return Math.round((Date.parse(b + 'T00:00:00') - Date.parse(a + 'T00:00:00')) / 86400000); }
+        function pjBasHarf(ad) {
+            var p = String(ad || '?').trim().split(/\s+/);
+            return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toLocaleUpperCase('tr-TR');
+        }
+        function pjZaman(ts) {
+            ts = String(ts || '');
+            return ts.length >= 16 ? (ts.slice(8, 10) + '.' + ts.slice(5, 7) + '.' + ts.slice(0, 4) + ' ' + ts.slice(11, 16)) : ts;
+        }
+        function pjSeg(t) { return t.durum === 'tamam' ? 'tamam' : (t.geciken ? 'geciken' : (t.durum === 'devam' ? 'devam' : 'bekliyor')); }
+        function pjAktif(L) { return (L || []).filter(function (t) { return t.durum !== 'iptal'; }); }
+        function pjSegBar(kodlar, sinif) {
+            return '<div class="pj-seg' + (sinif ? ' ' + sinif : '') + '">' + (kodlar || []).map(function (k) {
+                return '<i class="s-' + k + '"></i>'; }).join('') + '</div>';
+        }
+        function pjKareler(isler) {
+            return '<span class="pj-kare">' + pjAktif(isler).map(function (t) { return '<i class="s-' + pjSeg(t) + '"></i>'; }).join('') + '</span>';
+        }
 
         function projeSekmeAcildi() {
             var b = document.getElementById('pj-yeni-btn');
             if (b) b.style.display = projeYonetici() ? '' : 'none';
             projeListeYukle();
-            projeBenimYukle();
             if (_pj.secili) projeDetayYukle(_pj.secili);
+            projeRozetGuncelle();
         }
 
         var _pjAraT = null;
         function projeAraGecikmeli() { clearTimeout(_pjAraT); _pjAraT = setTimeout(projeListeYukle, 300); }
+        function pjFiltre(f) {
+            _pj.filtre = f;
+            document.querySelectorAll('#pj-filtre button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-f') === f); });
+            projeListeYukle();
+        }
 
         async function projeListeYukle() {
-            var body = document.getElementById('pj-liste-body');
-            if (!body) return;
-            var durum = (document.getElementById('pj-filtre') || {}).value || 'aktif';
+            var kap = document.getElementById('pj-liste');
+            if (!kap) return;
             var q = ((document.getElementById('pj-ara') || {}).value || '').trim();
-            body.innerHTML = '<tr><td colspan="8"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
+            if (!(_pj.liste || []).length) kap.innerHTML = '<div class="pj-bos">Yükleniyor…</div>';
             try {
-                var d = await pjJson('/api/proje?durum=' + encodeURIComponent(durum) + (q ? '&q=' + encodeURIComponent(q) : ''));
+                var d = await pjJson('/api/proje?durum=' + encodeURIComponent(_pj.filtre) + (q ? '&q=' + encodeURIComponent(q) : ''));
                 pjTipleriAl(d); _pj.yon = !!d.yonetici; _pj.benimId = d.benim_id;
-                var L = d.projeler || [];
+                _pj.liste = d.projeler || [];
                 var oz = document.getElementById('pj-ozet');
-                if (oz) oz.textContent = L.length + ' proje';
-                if (!L.length) {
-                    body.innerHTML = '<tr><td colspan="8"><div class="empty-state">' +
-                        (projeYonetici() ? 'Proje yok — ＋ Yeni proje ile başlayın' : 'Görüntülenecek proje yok') + '</div></td></tr>';
-                    return;
-                }
-                body.innerHTML = L.map(function (p) {
-                    var bar = '<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden">' +
-                        '<div style="height:100%;width:' + p.yuzde + '%;background:' + (p.yuzde >= 100 ? 'var(--success)' : 'var(--primary)') + '"></div></div>' +
-                        '<span style="font-size:.76rem;font-weight:700;white-space:nowrap">' + p.tamam + '/' + p.toplam + '</span></div>';
-                    var gec = p.geciken ? '<b style="color:var(--danger)">' + p.geciken + '</b>' : '<span style="color:var(--muted)">—</span>';
-                    var rsk = p.risk ? '<b style="color:var(--warn)">' + p.risk + '</b>' : '<span style="color:var(--muted)">—</span>';
-                    var benim = p.benim_acik ? pjRozet('🙋 ' + p.benim_acik, 'var(--primary)') : '';
-                    return '<tr data-pj="' + p.id + '" style="cursor:pointer' + (_pj.secili === p.id ? ';background:var(--primary-soft)' : '') + '" onclick="projeDetayYukle(' + p.id + ')">' +
-                        '<td><b>' + esc(p.referans_kodu) + '</b>' + benim + '</td>' +
-                        '<td>' + esc(p.ad || '—') + '</td>' +
-                        '<td>' + esc(p.musteri || '—') + '</td>' +
-                        '<td style="white-space:nowrap">' + pjTarih(p.talep_termin) + (p.en_yakin ? '<div style="font-size:.7rem;color:var(--muted)">en yakın kalem: ' + pjTarih(p.en_yakin) + '</div>' : '') + '</td>' +
-                        '<td>' + bar + '</td>' +
-                        '<td style="text-align:center">' + gec + '</td>' +
-                        '<td style="text-align:center">' + rsk + '</td>' +
-                        '<td>' + esc(PJ_PROJE_DURUM_AD[p.durum] || p.durum) + '</td></tr>';
-                }).join('');
+                if (oz) oz.textContent = _pj.liste.length + ' ' + ({ aktif: 'aktif', geciken: 'geciken', tumu: 'proje' }[_pj.filtre] || '');
+                pjKpiCiz(d.kpi);
+                pjListeCiz();
+                if (!_pj.secili && _pj.liste.length) projeDetayYukle(_pj.liste[0].id);
+                else if (!_pj.secili) pjDetayBos();
             } catch (e) {
-                body.innerHTML = '<tr><td colspan="8"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+                kap.innerHTML = '<div class="pj-bos">' + esc(e.message) + '</div>';
             }
+        }
+
+        function pjKpiCiz(k) {
+            var el = document.getElementById('pj-kpi');
+            if (!el || !k) return;
+            var t = function (sinif, lbl, n, alt) {
+                return '<div class="pj-kt' + (sinif ? ' ' + sinif : '') + '"><div class="pj-lbl">' + lbl + '</div>' +
+                    '<div class="pj-kt-num"><b>' + n + '</b><span>iş</span></div><div class="pj-kt-alt">' + alt + '</div></div>';
+            };
+            el.innerHTML =
+                t(k.geciken ? 'kirmizi' : '', 'Geciken', k.geciken, k.geciken ? ('En eski ' + k.en_eski_gun + ' gün gecikmede') : 'Gecikme yok') +
+                t(k.riskli ? 'turuncu' : '', 'Bu hafta riskli', k.riskli, '3 gün içinde termini dolan') +
+                t('mavi', 'Devam eden', k.devam, 'Sahada işlem görüyor') +
+                t('gri', 'Sorumlusu yok', k.sorumsuz, 'Atama bekliyor');
+        }
+
+        function pjListeCiz() {
+            var kap = document.getElementById('pj-liste');
+            if (!kap) return;
+            var L = _pj.liste || [];
+            if (!L.length) {
+                kap.innerHTML = '<div class="pj-bos">' + (projeYonetici() && _pj.filtre === 'aktif' ? 'Proje yok — Yeni proje ile başlayın' : 'Görüntülenecek proje yok') + '</div>';
+                return;
+            }
+            kap.innerHTML = L.map(function (p) {
+                return '<div class="pj-li' + (p.id === _pj.secili ? ' on' : '') + '" data-pj="' + p.id + '" onclick="projeDetayYukle(' + p.id + ')">' +
+                    '<div class="pj-li-ust"><span class="pj-li-kod">' + esc(p.referans_kodu) + '</span>' +
+                    (p.benim_acik ? '<span class="pj-etk kirmizi" title="Size atanmış açık iş">Sizde ' + p.benim_acik + '</span>' : '') +
+                    (p.durum !== 'aktif' ? '<span class="pj-etk">' + esc(PJ_PROJE_DURUM_AD[p.durum] || p.durum) + '</span>' : '') +
+                    '<span class="bos"></span>' + (p.geciken ? '<span class="pj-rozet">' + p.geciken + ' geciken</span>' : '') + '</div>' +
+                    '<div class="pj-li-alt">' + esc(p.musteri || p.ad || '—') + '</div>' +
+                    '<div class="pj-li-bar">' + pjSegBar(p.segmentler || []) + '<span>' + p.tamam + '/' + p.toplam + '</span></div></div>';
+            }).join('');
         }
 
         async function projeRozetGuncelle() {
@@ -16210,139 +16360,17 @@ window.__I18N_SOZLUK__ = {
             } catch (e) { rz.style.display = 'none'; }
         }
 
-        // ── v3 (kullanıcı 2026-09-15): kompakt kartlar (alan genişlikleri sabit, kart
-        // genişliği yayılmaz), renkli durum hapı, satır başına ÇOK KİŞİLİ NOTLAR (💬):
-        // projeyi gören herkes yazar, yazanın adı + zamanı görünür.
-        function pjDurumSelect(id, deger, kat) {
-            var ad = pjDurumAdlari(kat);
-            return '<select class="pj-durum pj-d-' + esc(deger) + '" title="Durum" data-id="' + id + '" data-alan="durum" onchange="pjIsGuncelle(this)">' +
-                Object.keys(ad).map(function (k) {
-                    return '<option value="' + k + '"' + (k === deger ? ' selected' : '') + '>' + ad[k] + '</option>';
-                }).join('') + '</select>';
+        function pjDetayBos() {
+            var k = document.getElementById('pj-detay-kart');
+            if (k) k.innerHTML = '<div class="pj-bos">Soldan bir proje seçin</div>';
         }
-        function pjDurumEtiket(deger, kat) {
-            return '<span class="pj-durum pj-d-' + esc(deger) + '">' + esc(pjDurumAdlari(kat)[deger] || deger) + '</span>';
-        }
-        function pjTarihInput(id, alan, deger, sinif) {
-            return '<input type="date" class="pj-in' + (sinif ? ' ' + sinif : '') + '" value="' + esc(deger || '') + '" data-id="' + id + '" data-alan="' + alan + '" onchange="pjIsGuncelle(this)">';
-        }
-        function pjTarihMetin(deger, sinif) {
-            return '<span class="pj-tarih' + (sinif ? ' ' + sinif : '') + '">' + pjTarih(deger) + '</span>';
-        }
-        function pjUyari(t) {
-            return (t.geciken ? '<span class="pj-uyari" style="color:var(--danger)" title="Talep termini geçti, iş bitmedi">⏰</span>' : '') +
-                   (t.risk ? '<span class="pj-uyari" style="color:var(--warn)" title="Üretim termini talep edilen terminden sonra">⚠</span>' : '');
-        }
-        function pjBasHarf(ad) {
-            var p = String(ad || '?').trim().split(/\s+/);
-            return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toLocaleUpperCase('tr-TR');
-        }
-        function pjAvatar(ad) {
-            var h = 0;
-            String(ad || '').split('').forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) % 360; });
-            return '<span class="pj-av" style="background:hsl(' + h + ' 65% 88%);color:hsl(' + h + ' 60% 26%)" title="' + esc(ad || '') + '">' + esc(pjBasHarf(ad)) + '</span>';
-        }
-        function pjZaman(ts) {
-            ts = String(ts || '');
-            return ts.length >= 16 ? (ts.slice(8, 10) + '.' + ts.slice(5, 7) + '.' + ts.slice(0, 4) + ' ' + ts.slice(11, 16)) : ts;
-        }
-        function pjSatirSinif(t) { return t.durum === 'tamam' ? ' tamam' : (t.durum === 'iptal' ? ' iptal' : ''); }
-
-        // ── Notlar (💬) — yer: 'd' detay kartı, 'b' bana atanan işler ──
-        function pjNotBtn(yer, t) {
-            var L = t.notlar_liste || [], acik = !!_pj.notAcik[yer + t.id];
-            var son = L.length ? L[L.length - 1] : null;
-            return '<button type="button" class="pj-not-btn' + (L.length ? ' var' : '') + (acik ? ' acik' : '') + '" title="' +
-                esc(son ? (son.kim_ad + ': ' + son.metin) : 'Not ekle') + '" onclick="pjNotAc(\'' + yer + '\',' + t.id + ')">💬' + (L.length ? ' ' + L.length : '') + '</button>';
-        }
-        function pjNotPanel(yer, t) {
-            if (!_pj.notAcik[yer + t.id]) return '';
-            var L = t.notlar_liste || [];
-            return '<div class="pj-notlar">' + (L.length ? L.map(function (x) {
-                return '<div class="pj-not">' + pjAvatar(x.kim_ad) +
-                    '<div style="min-width:0;flex:1"><div class="pj-not-ust"><b>' + esc(x.kim_ad) + '</b> · ' + esc(pjZaman(x.ts)) + '</div>' +
-                    '<div class="pj-not-metin">' + esc(x.metin) + '</div></div>' +
-                    (x.sil ? '<button type="button" class="pj-ikon-btn sil" title="Notu sil" onclick="pjNotSil(' + x.id + ')">✕</button>' : '') + '</div>';
-            }).join('') : '<div class="pj-bos-not">Henüz not yok</div>') +
-                '<div class="pj-not-yaz"><input type="text" class="pj-in" id="pj-not-in-' + yer + t.id + '" maxlength="1000" placeholder="Not yazın… (Enter ile ekle)" ' +
-                'onkeydown="if(event.key===\'Enter\'){event.preventDefault();pjNotEkle(\'' + yer + '\',' + t.id + ');}">' +
-                '<button type="button" class="btn btn-primary" onclick="pjNotEkle(\'' + yer + '\',' + t.id + ')">Ekle</button></div></div>';
-        }
-        function pjYenidenCiz(yer) {
-            if (yer === 'b') pjBenimCiz();
-            else if (_pj.detay) pjDetayCiz(_pj.detay);
-        }
-        function pjNotAc(yer, id) {
-            var k = yer + id;
-            _pj.notAcik[k] = !_pj.notAcik[k];
-            pjYenidenCiz(yer);
-            if (_pj.notAcik[k]) setTimeout(function () { var i = document.getElementById('pj-not-in-' + k); if (i) i.focus(); }, 30);
-        }
-        async function pjNotYenile() {
-            var bekle = [projeBenimYukle()];
-            if (_pj.secili) bekle.push(projeDetayYukle(_pj.secili));
-            await Promise.all(bekle);
-        }
-        async function pjNotEkle(yer, id) {
-            var inp = document.getElementById('pj-not-in-' + yer + id);
-            var metin = inp ? inp.value.trim() : '';
-            if (!metin) return;
-            inp.disabled = true;
-            try {
-                await pjJson('/api/proje_is/' + id + '/not', pjGovde({ metin: metin }));
-                _pj.notAcik[yer + id] = true;
-                await pjNotYenile();
-                var yeni = document.getElementById('pj-not-in-' + yer + id);
-                if (yeni) yeni.focus();
-            } catch (e) { toast(e.message, 'err'); inp.disabled = false; }
-        }
-        async function pjNotSil(nid) {
-            if (!confirm('Not silinsin mi?')) return;
-            try { await pjJson('/api/proje_not/' + nid, { method: 'DELETE' }); await pjNotYenile(); }
-            catch (e) { toast(e.message, 'err'); }
-        }
-
-        async function projeBenimYukle() {
-            var kart = document.getElementById('pj-benim-kart');
-            if (!kart) return;
-            try {
-                var d = await pjJson('/api/proje/benim');
-                _pj.benim = d;
-                pjBenimCiz();
-                var rz = document.getElementById('proje-nav-rozet');
-                if (rz) { rz.textContent = d.acik || ''; rz.style.display = d.acik ? '' : 'none'; }
-            } catch (e) { kart.style.display = 'none'; }
-        }
-        function pjBenimCiz() {
-            var kart = document.getElementById('pj-benim-kart'), body = document.getElementById('pj-benim-body');
-            if (!kart || !body) return;
-            var d = _pj.benim || {}, L = d.isler || [];
-            kart.style.display = L.length ? '' : 'none';
-            var oz = document.getElementById('pj-benim-ozet');
-            if (oz) oz.textContent = (d.acik || 0) + ' açık iş';
-            body.innerHTML = L.map(function (t) {
-                var ikon = t.grup === 'takim' ? '🔧' : (t.kategori === 'satin_alma' ? '🛒' : '⚙️');
-                var np = pjNotPanel('b', t);
-                return '<tr' + (t.durum === 'tamam' ? ' class="pj-tr-tamam"' : '') + '>' +
-                    '<td><a style="cursor:pointer;color:var(--primary);font-weight:700" onclick="projeDetayYukle(' + t.proje_id + ')">' + esc(t.referans_kodu) + '</a>' +
-                        (t.proje_ad ? '<div style="font-size:.72rem;color:var(--muted)">' + esc(t.proje_ad) + '</div>' : '') + '</td>' +
-                    '<td><div class="pj-tip-ust"><span class="pj-tip-ikon">' + ikon + '</span><span>' + (t.parca_kod ? esc(t.parca_kod) : 'Ana referans') + ' · <b>' + esc(t.tip_ad) + '</b></span>' + pjUyari(t) + '</div>' +
-                        (t.aciklama ? '<div class="pj-tip-acik">' + esc(t.aciklama) + '</div>' : '') + '</td>' +
-                    '<td>' + pjTarihMetin(t.talep_termin, t.geciken ? 'gec' : '') + '</td>' +
-                    '<td style="width:140px">' + pjTarihInput(t.id, 'uretim_termin', t.uretim_termin, t.risk ? 'rsk' : '') + '</td>' +
-                    '<td style="width:150px">' + pjDurumSelect(t.id, t.durum, t.kategori) + '</td>' +
-                    '<td>' + pjNotBtn('b', t) + '</td></tr>' +
-                    (np ? '<tr><td colspan="6" style="padding:0 0 4px">' + np + '</td></tr>' : '');
-            }).join('');
-        }
-
         async function projeDetayYukle(id) {
             if (_pj.secili !== id) _pj.bilgiAcik = false;
             _pj.secili = id;
+            document.querySelectorAll('#pj-liste .pj-li').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-pj') === String(id)); });
             var kart = document.getElementById('pj-detay-kart');
             if (!kart) return;
-            kart.style.display = '';
-            if (!_pj.detay || _pj.detay.proje.id !== id) kart.innerHTML = '<div class="yukleniyor" style="padding:20px">Yükleniyor…</div>';
+            if (!_pj.detay || _pj.detay.proje.id !== id) kart.innerHTML = '<div class="pj-bos">Yükleniyor…</div>';
             try {
                 var d = await pjJson('/api/proje/' + id);
                 pjTipleriAl(d); _pj.yon = !!d.yonetici; _pj.benimId = d.benim_id;
@@ -16352,160 +16380,228 @@ window.__I18N_SOZLUK__ = {
                     try { _pj.kisiler = (await pjJson('/api/proje/kisiler')).kisiler || []; } catch (e) { _pj.kisiler = []; }
                 }
                 pjDetayCiz(d);
-                if (ilk) kart.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                document.querySelectorAll('#pj-liste-body tr[data-pj]').forEach(function (tr) {
-                    tr.style.background = (tr.getAttribute('data-pj') === String(id)) ? 'var(--primary-soft)' : '';
-                });
+                if (ilk && window.innerWidth < 1100) kart.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } catch (e) {
-                kart.innerHTML = '<div class="empty-state">' + esc(e.message) + '</div>';
+                kart.innerHTML = '<div class="pj-bos">' + esc(e.message) + '</div>';
             }
+        }
+        async function pjYenile() {
+            if (_pj.secili) await projeDetayYukle(_pj.secili);
+            projeListeYukle();
         }
 
-        // Takip satırının ortak hücreleri: sorumlu · talep · üretim/teslim · durum · 💬 (+ işlem)
-        function pjOrtakHucreler(t, kat, yer, ekBtn) {
-            var yon = _pj.yon, benim = !!(t.atanan_id && t.atanan_id === _pj.benimId), duz = yon || benim;
-            var sor;
-            if (yon) {
-                var kisiler = (_pj.kisiler || []).slice();
-                if (t.atanan_id && !kisiler.some(function (k) { return k.id === t.atanan_id; })) kisiler.push({ id: t.atanan_id, ad: t.atanan_ad || ('#' + t.atanan_id) });
-                sor = '<select class="pj-in" title="Sorumlu" data-id="' + t.id + '" data-alan="atanan_id" onchange="pjIsGuncelle(this)"><option value="">— atanmadı —</option>' +
-                    kisiler.map(function (k) { return '<option value="' + k.id + '"' + (k.id === t.atanan_id ? ' selected' : '') + '>' + esc(k.ad) + '</option>'; }).join('') + '</select>';
-            } else {
-                sor = '<span class="pj-kisi">' + (t.atanan_ad ? pjAvatar(t.atanan_ad) + '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(t.atanan_ad) + '</span>'
-                                                               : '<span style="color:var(--muted)">—</span>') +
-                      (benim ? pjRozet('siz', 'var(--primary)') : '') + '</span>';
+        // ── satır parçaları ──
+        function pjSorumlu(t, yon) {
+            var av = t.atanan_ad ? '<span class="pj-av" title="' + esc(t.atanan_ad) + '">' + esc(pjBasHarf(t.atanan_ad)) + '</span>'
+                                 : '<span class="pj-av bos" title="Atanmadı">?</span>';
+            if (!yon) return av + '<span class="pj-sor-ad">' + (t.atanan_ad ? esc(t.atanan_ad) : '<span class="pj-mute">— atanmadı —</span>') + '</span>';
+            var kisiler = (_pj.kisiler || []).slice();
+            if (t.atanan_id && !kisiler.some(function (k) { return k.id === t.atanan_id; })) kisiler.push({ id: t.atanan_id, ad: t.atanan_ad || ('#' + t.atanan_id) });
+            return av + '<select class="pj-sel" title="Sorumlu" data-id="' + t.id + '" data-alan="atanan_id" onchange="pjIsGuncelle(this)"><option value="">— atanmadı —</option>' +
+                kisiler.map(function (k) { return '<option value="' + k.id + '"' + (k.id === t.atanan_id ? ' selected' : '') + '>' + esc(k.ad) + '</option>'; }).join('') + '</select>';
+        }
+        function pjTarihHucre(t, alan, duz, sinif) {
+            var v = t[alan] || '';
+            var cls = 'pj-dt' + (sinif ? ' ' + sinif : '') + (v ? '' : ' bos');
+            if (!duz) return '<span class="' + cls + '">' + (v ? pjTarih(v) : '—') + '</span>';
+            return '<button type="button" class="' + cls + ' pj-dtb" title="Değiştirmek için tıklayın" data-id="' + t.id + '" data-alan="' + alan + '" data-deger="' + esc(v) + '" onclick="pjTarihAc(this)">' + (v ? pjTarih(v) : '—') + '</button>';
+        }
+        function pjTarihAc(b) {
+            var inp = document.createElement('input');
+            inp.type = 'date';
+            inp.className = 'pj-dti';
+            inp.value = b.getAttribute('data-deger') || '';
+            inp.setAttribute('data-id', b.getAttribute('data-id'));
+            inp.setAttribute('data-alan', b.getAttribute('data-alan'));
+            inp.onchange = function () { pjIsGuncelle(inp); };
+            inp.onkeydown = function (e) { if (e.key === 'Escape' && _pj.detay) pjDetayCiz(_pj.detay); };
+            b.replaceWith(inp);
+            inp.focus();
+            try { if (inp.showPicker) inp.showPicker(); } catch (e) {}
+        }
+        function pjSeg3(t, kat, duz) {
+            var ad = kat === 'satin_alma' ? PJ_SA_SEG_AD : PJ_SEG_AD;
+            return '<div class="pj-seg3' + (duz ? '' : ' kilitli') + '">' + ['bekliyor', 'devam', 'tamam'].map(function (k) {
+                var on = t.durum === k;
+                return '<button type="button" class="' + k + (on ? ' on' : '') + '"' +
+                    (duz && !on ? ' onclick="pjDurumSec(' + t.id + ',\'' + k + '\')"' : ' tabindex="-1"') + '>' + ad[k] + '</button>';
+            }).join('') + '</div>';
+        }
+        async function pjDurumSec(id, durum) {
+            try { await pjJson('/api/proje_is/' + id, pjPatch({ durum: durum })); }
+            catch (e) { toast(e.message, 'err'); }
+            pjYenile();
+        }
+        // Not: son not (yazanın baş harfi + metin + sayı) → tıklayınca tüm notlar; not yoksa doğrudan yazma alanı
+        function pjNotSatir(t) {
+            var L = t.notlar_liste || [];
+            if (!L.length) {
+                return '<input type="text" class="pj-nin" maxlength="1000" placeholder="not…" title="Not yazıp Enter\'a basın" ' +
+                    'onkeydown="if(event.key===\'Enter\'){event.preventDefault();pjNotEkle(' + t.id + ',this);}">';
             }
-            var gecS = t.geciken ? 'gec' : '', rskS = t.risk ? 'rsk' : '';
-            var sil = (ekBtn !== undefined) ? ekBtn
-                    : (yon ? '<button type="button" class="pj-ikon-btn sil" title="Satırı sil" onclick="pjIsSil(' + t.id + ')">🗑</button>' : '');
-            return '<div data-et="Sorumlu">' + sor + '</div>' +
-                '<div data-et="Talep termini">' + (yon ? pjTarihInput(t.id, 'talep_termin', t.talep_termin, gecS) : pjTarihMetin(t.talep_termin, gecS)) + '</div>' +
-                '<div data-et="' + (kat === 'satin_alma' ? 'Teslim termini' : 'Üretim termini') + '">' +
-                    (duz ? pjTarihInput(t.id, 'uretim_termin', t.uretim_termin, rskS) : pjTarihMetin(t.uretim_termin, rskS)) + '</div>' +
-                '<div data-et="Durum">' + (duz ? pjDurumSelect(t.id, t.durum, kat) : pjDurumEtiket(t.durum, kat)) + '</div>' +
-                '<div class="pj-islem">' + pjNotBtn(yer, t) + sil + '</div>';
+            var s = L[L.length - 1];
+            return '<button type="button" class="pj-nson" title="' + esc(s.kim_ad + ' · ' + pjZaman(s.ts)) + '" onclick="pjNotAc(' + t.id + ')">' +
+                '<span class="pj-av kucuk">' + esc(pjBasHarf(s.kim_ad)) + '</span><span class="pj-nson-t">' + esc(s.metin) + '</span>' +
+                (L.length > 1 ? '<span class="pj-nson-say">' + L.length + '</span>' : '') + '</button>';
         }
-        function pjSatir(t, kat, yer) {
-            return '<div class="pj-satir' + pjSatirSinif(t) + '">' +
-                '<div class="pj-tip"><div class="pj-tip-ust"><span class="pj-tip-ikon">' + (t.grup === 'takim' ? '🔧' : '⚙️') + '</span>' +
-                    '<span class="pj-tip-ad">' + esc(t.tip_ad) + '</span>' + pjUyari(t) + '</div>' +
-                    (t.aciklama ? '<div class="pj-tip-acik" title="' + esc(t.aciklama) + '">' + esc(t.aciklama) + '</div>' : '') + '</div>' +
-                pjOrtakHucreler(t, kat, yer) + '</div>' + pjNotPanel(yer, t);
+        function pjNotPanel(t) {
+            if (!_pj.notAcik[t.id]) return '';
+            var L = t.notlar_liste || [];
+            return '<div class="pj-thread">' + L.map(function (x) {
+                return '<div class="pj-not"><span class="pj-av kucuk">' + esc(pjBasHarf(x.kim_ad)) + '</span>' +
+                    '<div class="pj-not-g"><div class="pj-not-u"><b>' + esc(x.kim_ad) + '</b> · ' + esc(pjZaman(x.ts)) + '</div>' +
+                    '<div class="pj-not-m">' + esc(x.metin) + '</div></div>' +
+                    (x.sil ? '<button type="button" class="pj-ibtn sil" title="Notu sil" onclick="pjNotSil(' + x.id + ')">✕</button>' : '') + '</div>';
+            }).join('') +
+                '<div class="pj-not-yaz"><input type="text" class="pj-nin" id="pj-nin-' + t.id + '" maxlength="1000" placeholder="Not yazın… (Enter)" ' +
+                'onkeydown="if(event.key===\'Enter\'){event.preventDefault();pjNotEkle(' + t.id + ',this);}">' +
+                '<button type="button" class="pj-mbtn" onclick="pjNotEkle(' + t.id + ',document.getElementById(\'pj-nin-' + t.id + '\'))">Ekle</button></div></div>';
         }
-        function pjSatirBaslik(sa) {
-            return '<div class="pj-satir pj-bas' + (sa ? ' sa' : '') + '">' +
-                (sa ? '<span>Parça</span><span>Adet · tedarikçi</span>' : '<span>Proses / takım</span>') +
-                '<span>Sorumlu</span><span>Talep termini</span><span>' + (sa ? 'Teslim termini' : 'Üretim termini') + '</span>' +
-                '<span>Durum</span><span style="text-align:right">Notlar</span></div>';
+        function pjNotAc(id) {
+            _pj.notAcik[id] = !_pj.notAcik[id];
+            if (_pj.detay) pjDetayCiz(_pj.detay);
+            if (_pj.notAcik[id]) setTimeout(function () { var i = document.getElementById('pj-nin-' + id); if (i) i.focus(); }, 30);
         }
-        // Kalem kartı: başlık (kod · açıklama · mini ilerleme · işlemler) + prosesler + "Takımlar"
-        function pjKart(baslik, alt, isler, kat, butonlar) {
-            var akt = isler.filter(function (t) { return t.durum !== 'iptal'; });
-            var tam = akt.filter(function (t) { return t.durum === 'tamam'; }).length;
-            var yz = akt.length ? Math.round(100 * tam / akt.length) : 0;
-            var proses = isler.filter(function (t) { return t.grup !== 'takim'; });
-            var takim = isler.filter(function (t) { return t.grup === 'takim'; });
-            var h = '<div class="pj-kart"><div class="pj-kart-bas"><span class="pj-kart-kod">' + esc(baslik) + '</span>' +
-                (alt ? '<span class="pj-kart-acik" title="' + esc(alt) + '">' + esc(alt) + '</span>' : '') + '<span class="pj-bosluk"></span>' +
-                (akt.length ? '<span class="pj-mini-bar' + (yz >= 100 ? ' tam' : '') + '" title="%' + yz + '"><i style="width:' + yz + '%"></i></span>' +
-                              '<span class="pj-kart-say">' + tam + '/' + akt.length + '</span>' : '') +
-                (butonlar || '') + '</div>';
-            if (!isler.length) return h + '<div class="pj-kart-bos">Takip edilen proses yok</div></div>';
-            h += pjSatirBaslik(false) + proses.map(function (t) { return pjSatir(t, kat, 'd'); }).join('');
-            if (takim.length) h += '<div class="pj-alt-bas">🔧 Takımlar</div>' + takim.map(function (t) { return pjSatir(t, kat, 'd'); }).join('');
-            return h + '</div>';
+        async function pjNotEkle(id, inp) {
+            var metin = inp ? inp.value.trim() : '';
+            if (!metin) return;
+            inp.disabled = true;
+            try {
+                await pjJson('/api/proje_is/' + id + '/not', pjGovde({ metin: metin }));
+                toast('Not eklendi', 'ok');
+                await pjYenile();
+                var yeni = document.getElementById('pj-nin-' + id);
+                if (yeni) yeni.focus();
+            } catch (e) { toast(e.message, 'err'); inp.disabled = false; }
         }
-        function pjBolum(kat, sayi, icerik) {
-            var k = PJ_KAT[kat];
-            var ekle = (_pj.yon && kat !== 'ana')
-                ? '<button type="button" class="btn btn-ghost pj-bolum-ekle" data-kat="' + kat + '" onclick="pjKalemAc(\'yeni\',this.dataset.kat,\'\')">' + k.ekle + '</button>' : '';
-            return '<div class="pj-sec"><div class="pj-sec-bas"><span class="pj-sec-ikon">' + k.ikon + '</span><h4>' + esc(k.baslik) + '</h4>' +
-                (sayi !== null ? '<span class="pj-say">' + sayi + '</span>' : '') + ekle + '</div>' + icerik + '</div>';
+        async function pjNotSil(nid) {
+            if (!confirm('Not silinsin mi?')) return;
+            try { await pjJson('/api/proje_not/' + nid, { method: 'DELETE' }); await pjYenile(); }
+            catch (e) { toast(e.message, 'err'); }
         }
+
+        // Tek takip satırı. buyuk: ana referans satırı. pc: satın alma kalemi (ad = parça kodu)
+        function pjSatir(t, kat, buyuk, pc) {
+            var yon = _pj.yon, benim = !!(t.atanan_id && t.atanan_id === _pj.benimId), duz = yon || benim;
+            var sa = (kat === 'satin_alma' && pc);
+            var gun = t.geciken ? pjGun(t.talep_termin, pjBugun()) : 0;
+            var ad = sa ? esc(pc.kod) : esc(t.tip_ad);
+            var alt = sa ? [pc.adet !== null && pc.adet !== undefined && pc.adet !== '' ? pjSayi(pc.adet) + ' adet' : '', esc(pc.tedarikci || ''), esc(pc.aciklama || '')]
+                            .filter(Boolean).join(' · ')
+                         : esc(t.aciklama || '');
+            var islem = !yon ? '' : (sa
+                ? '<button type="button" class="pj-ibtn" title="Parçayı düzenle" onclick="pjKalemAc(\'duzenle\',\'satin_alma\',\'' + pc.id + '\')">✎</button>' +
+                  '<button type="button" class="pj-ibtn sil" title="Parçayı sil" onclick="pjParcaSil(' + pc.id + ')">✕</button>'
+                : '<button type="button" class="pj-ibtn sil" title="Satırı sil" onclick="pjIsSil(' + t.id + ')">✕</button>');
+            return '<div class="pj-r' + (buyuk ? ' buyuk' : '') + (t.geciken ? ' gec' : '') + (t.durum === 'iptal' ? ' iptal' : '') + '">' +
+                '<div class="pj-r1">' +
+                    '<div class="pj-ad"><i class="pj-mad' + (t.grup === 'takim' ? ' bos' : '') + '"></i><span class="pj-ad-t">' + ad + '</span>' +
+                        (t.grup === 'takim' ? '<span class="pj-etk">Takım</span>' : '') +
+                        (t.durum === 'iptal' ? '<span class="pj-etk">İptal</span>' : '') +
+                        (benim ? '<span class="pj-etk kirmizi">Sizde</span>' : '') +
+                        (alt ? '<span class="pj-ad-alt">' + alt + '</span>' : '') + '</div>' +
+                    '<div class="pj-sor">' + pjSorumlu(t, yon) + '</div>' +
+                    '<div>' + pjTarihHucre(t, 'talep_termin', yon, t.geciken ? 'gec' : '') + '</div>' +
+                    '<div>' + pjTarihHucre(t, 'uretim_termin', duz, t.risk ? 'rsk' : '') + '</div>' +
+                    '<div class="pj-gun">' + (gun > 0 ? '<span title="Talep termini ' + gun + ' gün geçti">+' + gun + '</span>' : '') + '</div>' +
+                '</div>' +
+                '<div class="pj-r2">' + pjSeg3(t, kat, duz) + '<div class="pj-notw">' + pjNotSatir(t) + '</div><div class="pj-ra">' + islem + '</div></div>' +
+                pjNotPanel(t) + '</div>';
+        }
+        function pjBolumBas(n, baslik, ekle) {
+            return '<div class="pj-bol"><span class="pj-no">' + (n < 10 ? '0' + n : n) + '</span><h4>' + esc(baslik) + '</h4><span class="bos"></span>' + (ekle || '') + '</div>';
+        }
+        function pjEkleBtn(etiket, js) { return '<button type="button" class="pj-ekle" onclick="' + js + '">' + etiket + '</button>'; }
+        function pjKatla(id) { _pj.kapali[id] = !_pj.kapali[id]; if (_pj.detay) pjDetayCiz(_pj.detay); }
 
         function pjDetayCiz(d) {
             var p = d.proje, yon = _pj.yon, kart = document.getElementById('pj-detay-kart');
             if (!kart) return;
-            var parcalar = d.parcalar || [];
-            var tum = (d.ana_isler || []).slice();
-            parcalar.forEach(function (pc) { tum = tum.concat(pc.isler || []); });
-            var akt = tum.filter(function (t) { return t.durum !== 'iptal'; });
+            var parcalar = d.parcalar || [], ana = d.ana_isler || [];
+            var tum = ana.slice();
+            ['parca', 'tel', 'satin_alma'].forEach(function (k) {
+                parcalar.filter(function (x) { return x.kategori === k; }).forEach(function (pc) { tum = tum.concat(pc.isler || []); });
+            });
+            var akt = pjAktif(tum);
             var tamam = akt.filter(function (t) { return t.durum === 'tamam'; }).length;
             var devam = akt.filter(function (t) { return t.durum === 'devam'; }).length;
             var gec = akt.filter(function (t) { return t.geciken; }).length;
-            var rsk = akt.filter(function (t) { return t.risk; }).length;
             var yuzde = akt.length ? Math.round(100 * tamam / akt.length) : 0;
-            var cip = function (et, v, renk) {
-                return '<span style="display:inline-flex;gap:6px;align-items:baseline;padding:4px 11px;border:1px solid var(--card-border);border-radius:999px;font-size:.78rem;background:var(--card)">' +
-                    '<span style="color:var(--muted)">' + et + '</span><b' + (renk ? ' style="color:' + renk + '"' : '') + '>' + v + '</b></span>';
-            };
-            var h = '<div class="panel-header"><h3>📐 ' + esc(p.referans_kodu) + (p.ad ? ' — ' + esc(p.ad) : '') + '</h3>' +
-                '<span style="display:flex;gap:6px;flex-wrap:wrap">' +
-                (yon ? '<button class="btn btn-ghost" onclick="pjBilgiTogle()">✏ Proje bilgileri</button>' +
-                       '<button class="btn btn-ghost" style="color:var(--danger)" onclick="pjProjeSil(' + p.id + ')">🗑 Sil</button>' : '') +
-                '<button class="btn btn-ghost" onclick="pjDetayKapat()">✕ Kapat</button></span></div>';
-            h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px">' +
-                cip('Müşteri', esc(p.musteri || '—')) + cip('Talep termini', pjTarih(p.talep_termin)) +
-                cip('Durum', esc(PJ_PROJE_DURUM_AD[p.durum] || p.durum)) +
-                cip('İlerleme', tamam + '/' + akt.length + ' · %' + yuzde, yuzde >= 100 && akt.length ? 'var(--success)' : '') +
-                (devam ? cip('Devam ediyor', devam, 'var(--primary)') : '') +
-                (gec ? cip('Geciken', gec, 'var(--danger)') : '') + (rsk ? cip('Termin riski', rsk, 'var(--warn)') : '') +
-                (p.notlar ? cip('Not', esc(p.notlar)) : '') + '</div>';
-            h += '<div class="pj-ilerleme' + (yuzde >= 100 && akt.length ? ' tam' : '') + '"><i style="width:' + yuzde + '%"></i></div>';
+
+            var h = '<div class="pj-d-ust"><div style="min-width:0"><div class="pj-lbl">Ana referans</div>' +
+                '<div class="pj-d-kod">' + esc(p.referans_kodu) + '</div>' + (p.ad ? '<div class="pj-d-ad">' + esc(p.ad) + '</div>' : '') + '</div>' +
+                '<span class="bos"></span>' +
+                (yon ? '<button type="button" class="pj-btn" onclick="pjBilgiTogle()">Proje bilgileri</button>' +
+                       '<button type="button" class="pj-btn kirmizi" onclick="pjProjeSil(' + p.id + ')">Sil</button>' : '') + '</div>';
+            var meta = function (et, v) { return '<div><span>' + et + '</span><b>' + esc(v || '—') + '</b></div>'; };
+            h += '<div class="pj-meta">' + meta('Müşteri', p.musteri) + meta('Talep termini', p.talep_termin ? pjTarih(p.talep_termin) : '') +
+                meta('Durum', PJ_PROJE_DURUM_AD[p.durum] || p.durum) + (p.notlar ? meta('Not', p.notlar) : '') + '</div>';
             if (yon && _pj.bilgiAcik) {
                 var pin = function (et, k, v, tip) {
-                    return '<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:.7rem;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">' + et + '</span>' +
-                        '<input type="' + (tip || 'text') + '" class="rt-row-input" style="min-width:' + (tip === 'date' ? '150' : '190') + 'px" value="' + esc(v || '') + '" data-alan="' + k + '" onchange="pjProjeGuncelle(this)"></div>';
+                    return '<label><span class="pj-lbl">' + et + '</span><input type="' + (tip || 'text') + '" class="pj-inp" value="' + esc(v || '') + '" data-alan="' + k + '" onchange="pjProjeGuncelle(this)"></label>';
                 };
-                h += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 12px;border:1px dashed var(--card-border);border-radius:12px">' +
-                    pin('Ana referans', 'referans_kodu', p.referans_kodu) + pin('Proje adı', 'ad', p.ad) + pin('Müşteri', 'musteri', p.musteri) +
-                    pin('Talep edilen termin', 'talep_termin', p.talep_termin, 'date') +
-                    '<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:.7rem;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">Durum</span>' +
-                    '<select class="rt-row-select" data-alan="durum" onchange="pjProjeGuncelle(this)">' + Object.keys(PJ_PROJE_DURUM_AD).map(function (k) {
-                        return '<option value="' + k + '"' + (k === p.durum ? ' selected' : '') + '>' + PJ_PROJE_DURUM_AD[k] + '</option>'; }).join('') + '</select></div>' +
-                    pin('Not', 'notlar', p.notlar) + '</div>';
+                h += '<div class="pj-bilgi">' + pin('Ana referans', 'referans_kodu', p.referans_kodu) + pin('Proje adı', 'ad', p.ad) +
+                    pin('Müşteri', 'musteri', p.musteri) + pin('Talep edilen termin', 'talep_termin', p.talep_termin, 'date') +
+                    '<label><span class="pj-lbl">Durum</span><select class="pj-inp" data-alan="durum" onchange="pjProjeGuncelle(this)">' +
+                    Object.keys(PJ_PROJE_DURUM_AD).map(function (k) { return '<option value="' + k + '"' + (k === p.durum ? ' selected' : '') + '>' + PJ_PROJE_DURUM_AD[k] + '</option>'; }).join('') +
+                    '</select></label>' + pin('Not', 'notlar', p.notlar) + '</div>';
             }
+            h += '<div class="pj-ilr"><div class="pj-ilr-sol"><div class="pj-ilr-ust"><span class="pj-lbl">İlerleme</span><b>' + tamam + ' / ' + akt.length + ' proses · %' + yuzde + '</b></div>' +
+                pjSegBar(akt.map(pjSeg), 'buyuk') +
+                '<div class="pj-lej"><span><i class="s-tamam"></i>Bitti</span><span><i class="s-devam"></i>Devam</span><span><i class="s-geciken"></i>Gecikmiş</span><span><i class="s-bekliyor"></i>Bekliyor</span></div></div>' +
+                '<div class="pj-t' + (gec ? ' kirmizi' : '') + '"><b>' + gec + '</b><span>Geciken</span></div>' +
+                '<div class="pj-t mavi"><b>' + devam + '</b><span>Devam eden</span></div>' +
+                '<div class="pj-t yesil"><b>' + tamam + '</b><span>Tamamlanan</span></div></div>';
+            h += '<div class="pj-kol"><div class="pj-r1"><span>Proses / takım</span><span>Sorumlu</span><span>Talep termini</span><span>Üretim termini</span><span></span></div>' +
+                '<div class="pj-r2"><span>Durum</span><span>Not</span><span></span></div></div>';
 
-            // ① Ana referans — montaj / kaplama-boya → sevk (+ takımlar)
-            var anaBtn = yon ? '<span class="pj-kart-btn"><button type="button" class="pj-ikon-btn" onclick="pjKalemAc(\'is\',\'ana\',\'\')">＋ proses / takım</button></span>' : '';
-            h += pjBolum('ana', null, '<div class="pj-kartlar">' + pjKart(p.referans_kodu, p.ad || '', d.ana_isler || [], 'ana', anaBtn) + '</div>');
+            // 01 · ANA REFERANS — büyük başlık + satırlar
+            h += pjBolumBas(ana.length, 'Ana referans', yon ? pjEkleBtn('＋ Proses', "pjKalemAc('is','ana','')") : '');
+            h += '<div class="pj-kb ana"><span class="pj-kod">' + esc(p.referans_kodu) + '</span><span class="pj-etk kirmizi">Ana referans</span>' +
+                '<span class="bos"></span>' + pjKareler(ana) + '<span class="pj-kb-say">' + pjAktif(ana).filter(function (t) { return t.durum === 'tamam'; }).length + '/' + pjAktif(ana).length + '</span></div>';
+            h += ana.length ? ana.map(function (t) { return pjSatir(t, 'ana', true); }).join('')
+                            : '<div class="pj-bos-satir">Ana referans için takip edilen proses yok</div>';
 
-            // ② Alt referanslar ③ Tel üretimi — her kalem bir kart
-            ['parca', 'tel'].forEach(function (kat) {
+            // ALT REFERANSLAR · TEL ÜRETİMİ — kalem başlığı (daralt) + satırlar
+            [['parca', 'Alt referanslar', '＋ Alt referans'], ['tel', 'Tel üretimi', '＋ Tel referansı']].forEach(function (b) {
+                var kat = b[0];
                 var L = parcalar.filter(function (x) { return x.kategori === kat; });
-                var ic = !L.length ? '<div class="pj-bos">' + PJ_KAT[kat].bos + '</div>'
-                    : '<div class="pj-kartlar">' + L.map(function (pc) {
-                        var b = yon ? '<span class="pj-kart-btn">' +
-                            '<button type="button" class="pj-ikon-btn" data-kat="' + kat + '" data-pid="' + pc.id + '" onclick="pjKalemAc(\'is\',this.dataset.kat,this.dataset.pid)">＋ proses / takım</button>' +
-                            '<button type="button" class="pj-ikon-btn" data-kat="' + kat + '" data-pid="' + pc.id + '" title="Kalemi düzenle" onclick="pjKalemAc(\'duzenle\',this.dataset.kat,this.dataset.pid)">✏</button>' +
-                            '<button type="button" class="pj-ikon-btn sil" data-pid="' + pc.id + '" title="Kalemi ve satırlarını sil" onclick="pjParcaSil(this.dataset.pid)">🗑</button></span>' : '';
-                        return pjKart(pc.kod, pc.aciklama || '', pc.isler || [], kat, b);
-                    }).join('') + '</div>';
-                h += pjBolum(kat, L.length, ic);
+                var n = L.reduce(function (s, pc) { return s + (pc.isler || []).length; }, 0);
+                h += pjBolumBas(n, b[1], yon ? pjEkleBtn(b[2], "pjKalemAc('yeni','" + kat + "','')") : '');
+                if (!L.length) { h += '<div class="pj-bos-satir">' + PJ_KAT[kat].bos + '</div>'; return; }
+                L.forEach(function (pc) {
+                    var isl = pc.isler || [], kapali = !!_pj.kapali[pc.id], a = pjAktif(isl);
+                    var etk = kat === 'tel' ? 'Tel' : ((isl.length && isl.every(function (t) { return t.grup === 'takim'; })) ? 'Takım' : 'Alt referans');
+                    h += '<div class="pj-kb"><button type="button" class="pj-katla" title="' + (kapali ? 'Aç' : 'Daralt') + '" onclick="pjKatla(' + pc.id + ')">' + (kapali ? '+' : '−') + '</button>' +
+                        '<span class="pj-kod">' + esc(pc.kod) + '</span><span class="pj-etk">' + etk + '</span>' +
+                        (pc.aciklama ? '<span class="pj-kb-acik" title="' + esc(pc.aciklama) + '">' + esc(pc.aciklama) + '</span>' : '') +
+                        '<span class="bos"></span>' + pjKareler(isl) +
+                        '<span class="pj-kb-say">' + a.filter(function (t) { return t.durum === 'tamam'; }).length + '/' + a.length + '</span>' +
+                        (yon ? '<button type="button" class="pj-mbtn" onclick="pjKalemAc(\'is\',\'' + kat + '\',\'' + pc.id + '\')">＋ Proses</button>' +
+                               '<button type="button" class="pj-ibtn" title="Kalemi düzenle" onclick="pjKalemAc(\'duzenle\',\'' + kat + '\',\'' + pc.id + '\')">✎</button>' +
+                               '<button type="button" class="pj-ibtn sil" title="Kalemi ve satırlarını sil" onclick="pjParcaSil(' + pc.id + ')">✕</button>' : '') + '</div>';
+                    if (!kapali) h += isl.length ? isl.map(function (t) { return pjSatir(t, kat, false); }).join('')
+                                                 : '<div class="pj-bos-satir">Takip edilen proses yok</div>';
+                });
             });
 
-            // ④ Satın alma parçaları — tek kart, parça başına tek takip satırı
+            // SATIN ALMA PARÇALARI — parça başına tek satır
             var SA = parcalar.filter(function (x) { return x.kategori === 'satin_alma'; });
-            var icSa = !SA.length ? '<div class="pj-bos">' + PJ_KAT.satin_alma.bos + '</div>'
-                : '<div class="pj-kart sa-kart">' + pjSatirBaslik(true) + SA.map(function (pc) {
-                    var t = (pc.isler || [])[0];
-                    var b = yon ? '<button type="button" class="pj-ikon-btn" data-pid="' + pc.id + '" title="Parçayı düzenle" onclick="pjKalemAc(\'duzenle\',\'satin_alma\',this.dataset.pid)">✏</button>' +
-                                  '<button type="button" class="pj-ikon-btn sil" data-pid="' + pc.id + '" title="Parçayı sil" onclick="pjParcaSil(this.dataset.pid)">🗑</button>' : '';
-                    var bas = '<div class="pj-tip"><div class="pj-tip-ust"><span class="pj-tip-ikon">🛒</span><span class="pj-tip-ad">' + esc(pc.kod) + '</span>' + (t ? pjUyari(t) : '') + '</div>' +
-                        (pc.aciklama ? '<div class="pj-tip-acik" title="' + esc(pc.aciklama) + '">' + esc(pc.aciklama) + '</div>' : '') + '</div>' +
-                        '<div class="pj-sa-bilgi" data-et="Adet · tedarikçi"><b>' + pjSayi(pc.adet) + '</b> · ' + esc(pc.tedarikci || '—') + '</div>';
-                    if (!t) return '<div class="pj-satir sa">' + bas + '<div style="grid-column:span 4;color:var(--muted);font-size:.78rem">takip satırı yok</div><div class="pj-islem">' + b + '</div></div>';
-                    return '<div class="pj-satir sa' + pjSatirSinif(t) + '">' + bas + pjOrtakHucreler(t, 'satin_alma', 'd', b) + '</div>' + pjNotPanel('d', t);
-                }).join('') + '</div>';
-            h += pjBolum('satin_alma', SA.length, icSa);
+            h += pjBolumBas(SA.length, 'Satın alma parçaları', yon ? pjEkleBtn('＋ Satın alma parçası', "pjKalemAc('yeni','satin_alma','')") : '');
+            if (!SA.length) h += '<div class="pj-bos-satir">' + PJ_KAT.satin_alma.bos + '</div>';
+            SA.forEach(function (pc) {
+                var t = (pc.isler || [])[0];
+                h += t ? pjSatir(t, 'satin_alma', false, pc)
+                       : '<div class="pj-r"><div class="pj-ad"><i class="pj-mad"></i>' + esc(pc.kod) + '<span class="pj-ad-alt">takip satırı yok</span></div></div>';
+            });
 
             if (yon && !(_pj.kisiler || []).length) {
-                h += '<div style="font-size:.76rem;color:var(--warn);margin-top:10px">Atanabilir kişi yok — Kullanıcılar sayfasından ilgili kişilere "Proje Takip" izni verin.</div>';
+                h += '<div class="pj-bos" style="color:var(--pj-risk)">Atanabilir kişi yok — Kullanıcılar sayfasından ilgili kişilere "Proje Takip" izni verin.</div>';
             }
             var G = d.gecmis || [];
             if (G.length) {
-                h += '<details style="margin-top:18px"><summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)">🕘 Değişiklik geçmişi (' + G.length + ')</summary>' +
-                    '<div style="font-size:.78rem;line-height:1.7;margin-top:6px">' + G.map(function (x) {
+                h += '<details class="pj-gecmis"><summary>Değişiklik geçmişi (' + G.length + ')</summary><div style="line-height:1.7;margin-top:6px">' +
+                    G.map(function (x) {
                         return '<div>' + esc((x.ts || '').slice(0, 16)) + ' · <b>' + esc(x.kim) + '</b> · ' + esc(x.is_ad ? x.is_ad + ' — ' : '') +
                             esc(x.alan) + ': ' + esc(x.eski || '—') + ' → ' + esc(x.yeni || '—') + '</div>';
                     }).join('') + '</div></details>';
@@ -16515,56 +16611,48 @@ window.__I18N_SOZLUK__ = {
 
         function pjBilgiTogle() { _pj.bilgiAcik = !_pj.bilgiAcik; if (_pj.detay) pjDetayCiz(_pj.detay); }
 
-        function pjDetayKapat() {
-            _pj.secili = null; _pj.detay = null; _pj.bilgiAcik = false;
-            var kart = document.getElementById('pj-detay-kart');
-            if (kart) { kart.style.display = 'none'; kart.innerHTML = ''; }
-            document.querySelectorAll('#pj-liste-body tr[data-pj]').forEach(function (tr) { tr.style.background = ''; });
-        }
-
         async function pjIsGuncelle(el) {
-            var id = el.getAttribute('data-id'), alan = el.getAttribute('data-alan');
-            var o = {}; o[alan] = el.value;
+            var o = {};
+            o[el.getAttribute('data-alan')] = el.value;
             el.disabled = true;
             try {
-                await pjJson('/api/proje_is/' + id, pjPatch(o));
+                await pjJson('/api/proje_is/' + el.getAttribute('data-id'), pjPatch(o));
                 toast('Kaydedildi', 'ok');
             } catch (e) { toast(e.message, 'err'); }
-            finally {
-                el.disabled = false;
-                if (_pj.secili) projeDetayYukle(_pj.secili);
-                projeBenimYukle();
-                projeListeYukle();
-            }
+            pjYenile();
         }
-
         async function pjProjeGuncelle(el) {
             if (!_pj.secili) return;
-            var o = {}; o[el.getAttribute('data-alan')] = el.value;
+            var o = {};
+            o[el.getAttribute('data-alan')] = el.value;
             try { await pjJson('/api/proje/' + _pj.secili, pjPatch(o)); toast('Kaydedildi', 'ok'); }
             catch (e) { toast(e.message, 'err'); }
-            projeListeYukle();
-            projeDetayYukle(_pj.secili);
+            pjYenile();
         }
-
         async function pjIsSil(id) {
             if (!confirm('Bu takip satırı silinecek. Devam?')) return;
-            try { await pjJson('/api/proje_is/' + id, { method: 'DELETE' }); toast('Silindi', 'ok'); projeDetayYukle(_pj.secili); projeListeYukle(); }
+            try { await pjJson('/api/proje_is/' + id, { method: 'DELETE' }); toast('Silindi', 'ok'); pjYenile(); }
             catch (e) { toast(e.message, 'err'); }
         }
         async function pjParcaSil(id) {
             if (!confirm('Bu kalem ve altındaki tüm takip satırları silinecek. Devam?')) return;
-            try { await pjJson('/api/proje_parca/' + id, { method: 'DELETE' }); toast('Kalem silindi', 'ok'); projeDetayYukle(_pj.secili); projeListeYukle(); }
+            try { await pjJson('/api/proje_parca/' + id, { method: 'DELETE' }); toast('Kalem silindi', 'ok'); pjYenile(); }
             catch (e) { toast(e.message, 'err'); }
         }
         async function pjProjeSil(id) {
             var p = (_pj.detay || {}).proje || {};
-            if (!confirm('"' + (p.referans_kodu || '') + '" projesi, tüm kalemleri ve geçmişiyle birlikte SİLİNECEK.\n\nYalnız kapatmak için ✏ Proje bilgileri → durum "Tamamlandı" ya da "İptal" yapabilirsiniz. Silinsin mi?')) return;
-            try { await pjJson('/api/proje/' + id, { method: 'DELETE' }); toast('Proje silindi', 'ok'); pjDetayKapat(); projeListeYukle(); projeBenimYukle(); }
-            catch (e) { toast(e.message, 'err'); }
+            if (!confirm('"' + (p.referans_kodu || '') + '" projesi, tüm kalemleri ve geçmişiyle birlikte SİLİNECEK.\n\nYalnız kapatmak için Proje bilgileri → durum "Tamamlandı" ya da "İptal" yapabilirsiniz. Silinsin mi?')) return;
+            try {
+                await pjJson('/api/proje/' + id, { method: 'DELETE' });
+                toast('Proje silindi', 'ok');
+                _pj.secili = null; _pj.detay = null; _pj.bilgiAcik = false;
+                pjDetayBos();
+                projeListeYukle();
+                projeRozetGuncelle();
+            } catch (e) { toast(e.message, 'err'); }
         }
 
-        // Kırılımın izinli tiplerini "Prosesler" / "Takımlar" gruplarında kutucuk olarak çizer
+        // ── Pencereler: yeni proje · kalem (yeni / proses-takım ekle / düzenle) ──
         function pjTipGruplari(kap, kat, secili) {
             if (!kap) return;
             var liste = (_pj.katTip || {})[kat] || [];
@@ -16648,6 +16736,7 @@ window.__I18N_SOZLUK__ = {
                 }));
                 toast('Proje oluşturuldu', 'ok');
                 projeModalKapat();
+                _pj.secili = d.id;
                 await projeListeYukle();
                 projeDetayYukle(d.id);
             } catch (e) { toast(e.message, 'err'); }
@@ -16713,8 +16802,7 @@ window.__I18N_SOZLUK__ = {
                 }
                 toast('Kaydedildi', 'ok');
                 pjKalemKapat();
-                projeDetayYukle(pid);
-                projeListeYukle();
+                pjYenile();
             } catch (e) { toast(e.message, 'err'); }
         }
 

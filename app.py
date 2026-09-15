@@ -14432,6 +14432,62 @@ def _proje_notlar(conn, is_ids, ku, yon, adlar):
     return out
 
 
+def _proje_seg(j):
+    """İlerleme çubuğu parçası: tamam | geciken | devam | bekliyor (iptal çağırana kalır)."""
+    if j['durum'] == 'tamam':
+        return 'tamam'
+    if j['geciken']:
+        return 'geciken'
+    return 'devam' if j['durum'] == 'devam' else 'bekliyor'
+
+
+_PROJE_KAT_SIRA = {'parca': 0, 'tel': 1, 'satin_alma': 2}
+
+
+def _proje_is_hiyerarsik(conn, proje_ids):
+    """Projelerin takip satırları EKRANDAKİ sırayla: ana referans → alt referanslar →
+    tel → satın alma (kalem sırası) → proses → takım."""
+    ids = list(proje_ids)
+    rows = conn.execute(
+        f"SELECT i.*, pp.sira AS _psira, pp.kategori AS _pkat FROM proje_is i "
+        f"LEFT JOIN proje_parca pp ON pp.id = i.parca_id "
+        f"WHERE i.proje_id IN ({','.join('?' * len(ids))})", ids).fetchall()
+    return sorted(rows, key=lambda r: (
+        r['proje_id'], 1 if r['parca_id'] else 0, _PROJE_KAT_SIRA.get(r['_pkat'], 3),
+        r['_psira'] or 0, r['parca_id'] or 0,
+        _PROJE_GRUP_SIRA.get(PROJE_IS_GRUP.get(r['tip'], 'proses'), 9), _PROJE_TIP_SIRA.get(r['tip'], 99), r['id']))
+
+
+def _proje_kpi(conn, lok, bugun):
+    """Üst şerit — AKTİF projelerin açık satırları (liste süzgecinden bağımsız):
+    geciken (talep termini geçti) + en eski gecikme günü · 3 gün içinde termini dolan ·
+    devam eden · sorumlusu yok."""
+    sql = ("SELECT i.talep_termin, i.durum, i.atanan_id FROM proje_is i JOIN proje p ON p.id = i.proje_id "
+           "WHERE p.durum='aktif' AND i.durum NOT IN ('tamam','iptal')")
+    par = []
+    if lok in ('TK1', 'TK2'):
+        sql += " AND COALESCE(p.lokasyon,'TK2')=?"
+        par.append(lok)
+    b = date.fromisoformat(bugun)
+    ufuk = (b + timedelta(days=3)).isoformat()
+    k = {'geciken': 0, 'en_eski_gun': 0, 'riskli': 0, 'devam': 0, 'sorumsuz': 0}
+    for r in conn.execute(sql, par).fetchall():
+        tt = r['talep_termin'] or ''
+        if tt and tt < bugun:
+            k['geciken'] += 1
+            try:
+                k['en_eski_gun'] = max(k['en_eski_gun'], (b - date.fromisoformat(tt)).days)
+            except ValueError:
+                pass
+        elif tt and tt <= ufuk:
+            k['riskli'] += 1
+        if r['durum'] == 'devam':
+            k['devam'] += 1
+        if not r['atanan_id']:
+            k['sorumsuz'] += 1
+    return k
+
+
 def _proje_tipleri_coz(liste, kategori):
     """Tip listesini doğrular; bu kırılımda kullanılamayan tip → ValueError."""
     izinli = PROJE_KATEGORI_TIPLER.get(kategori, [])
@@ -14490,8 +14546,9 @@ def _proje_yetki_gerekli(ku):
 @app.route('/api/proje', methods=['GET'])
 @panel_gerekli()
 def proje_liste():
-    """?durum=aktif|beklemede|tamamlandi|iptal|tumu &q= &lokasyon=TK1|TK2
-    Liste + her proje için takip özeti (toplam/tamam/geciken/risk/en yakın talep)."""
+    """?durum=aktif|geciken|beklemede|tamamlandi|iptal|tumu &q= &lokasyon=TK1|TK2
+    Liste + her proje için takip özeti (toplam/tamam/devam/geciken/risk/en yakın talep,
+    segmentler = ilerleme parçaları) + üst KPI şeridi. 'geciken' = aktif ve gecikeni olan."""
     ku = g.panel_ku
     yon, hata = _proje_yetki_gerekli(ku)
     if hata:
@@ -14501,7 +14558,9 @@ def proje_liste():
     q = (request.args.get('q') or '').strip()
     lok = (request.args.get('lokasyon') or '').strip().upper()
     sql, par = "SELECT * FROM proje WHERE 1=1", []
-    if durum in PROJE_DURUM:
+    if durum == 'geciken':
+        sql += " AND durum='aktif'"
+    elif durum in PROJE_DURUM:
         sql += " AND durum=?"; par.append(durum)
     if lok in ('TK1', 'TK2'):
         sql += " AND COALESCE(lokasyon,'TK2')=?"; par.append(lok)
@@ -14514,10 +14573,10 @@ def proje_liste():
     projeler = [dict(r) for r in conn.execute(sql, par).fetchall()]
     ids = [p['id'] for p in projeler]
     bugun = date.today().isoformat()
-    ozet = {i: {'toplam': 0, 'tamam': 0, 'geciken': 0, 'risk': 0, 'en_yakin': '', 'benim_acik': 0} for i in ids}
+    ozet = {i: {'toplam': 0, 'tamam': 0, 'devam': 0, 'geciken': 0, 'risk': 0, 'en_yakin': '',
+                'benim_acik': 0, 'segmentler': []} for i in ids}
     if ids:
-        for t in conn.execute(
-                f"SELECT * FROM proje_is WHERE proje_id IN ({','.join('?' * len(ids))})", ids).fetchall():
+        for t in _proje_is_hiyerarsik(conn, ids):
             o = ozet[t['proje_id']]
             if t['durum'] == 'iptal':
                 continue
@@ -14530,13 +14589,19 @@ def proje_liste():
                     o['en_yakin'] = t['talep_termin']
                 if t['atanan_id'] == ku['id']:
                     o['benim_acik'] += 1
+                if t['durum'] == 'devam':
+                    o['devam'] += 1
             o['geciken'] += 1 if j['geciken'] else 0
             o['risk'] += 1 if j['risk'] else 0
+            o['segmentler'].append(_proje_seg(j))
     for p in projeler:
         o = ozet[p['id']]
         p.update(o)
         p['yuzde'] = round(100 * o['tamam'] / o['toplam']) if o['toplam'] else 0
-    return jsonify({'projeler': projeler, 'yonetici': yon, 'benim_id': ku['id'],
+    if durum == 'geciken':
+        projeler = [p for p in projeler if p['geciken']]
+    return jsonify({'projeler': projeler, 'yonetici': yon, 'benim_id': ku['id'], 'bugun': bugun,
+                    'kpi': _proje_kpi(conn, lok, bugun),
                     'tipler': PROJE_IS_TIPLERI, 'kategori_tipler': PROJE_KATEGORI_TIPLER})
 
 
@@ -14583,7 +14648,7 @@ def proje_detay(pid):
         d['is_ad'] = is_ad.get(d['is_id'], '') if d['is_id'] else ''
         gecmis.append(d)
     return jsonify({'proje': dict(p), 'ana_isler': _proje_is_sirala(ana), 'parcalar': parcalar,
-                    'gecmis': gecmis, 'yonetici': yon, 'benim_id': ku['id'],
+                    'gecmis': gecmis, 'yonetici': yon, 'benim_id': ku['id'], 'bugun': bugun,
                     'tipler': PROJE_IS_TIPLERI, 'kategori_tipler': PROJE_KATEGORI_TIPLER})
 
 
