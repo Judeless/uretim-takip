@@ -31,13 +31,14 @@ ODBC: mevcut okuma bağlantısıyla aynı (as400_config), tek fark INSERT yetkis
 import re
 import threading
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import as400_config as CFG
 
 KUTUPHANE = 'COFLEFORGE'
 TABLO = 'BMMAF0I'
 TARIH_KOLONLARI = ('MGDSSO', 'MGDAAO', 'MGDMMO', 'MGDGGO')
+MUKERRER_PENCERE_DK = 30          # işlenmiş aynı satır YALNIZ bu kadar yeniyse engel (ağ kopması tekrarı)
 REFERANS_KOLONU = 'MGSTE2'       # bizim kayit anahtarimiz (Simone Rota, 2026-09-08)
 DURUM_KOLONLARI = ('MGSTAT', 'MGNOTE', 'MGTIME', 'MGSERE', 'MGANRE', 'MGNURE', 'MGPRRE')
 _AD = re.compile(r'^[A-Z][A-Z0-9_]{0,9}$')       # kütüphane/tablo/kolon adı — SQL'e ham giriyor
@@ -155,8 +156,9 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
       · reddedildi  : MGSTAT='2', not = MGNOTE
       · zaman_asimi : bekleme_sn içinde MGSTAT hâlâ boş (program durmuş olabilir);
                       satır tabloda DURUR, rrn ile sonra bakılır (hareket_durum)
-      · mevcut      : aynı kod/causal/adet/tarih için bekleyen ya da işlenmiş
-                      satır zaten var (zorla=False) — tekrar YAZILMADI
+      · mevcut      : aynı kod/causal/adet için BEKLEYEN satır ya da son
+                      MUKERRER_PENCERE_DK dk'da bizim yazdığımız İŞLENMİŞ satır var
+                      (zorla=False) — tekrar YAZILMADI
     sadece_yaz=True → bekleme yok (rrn döner)."""
     k, t = _ad(kutuphane, 'kütüphane'), _ad(tablo, 'tablo')
     article = str(article or '').strip()
@@ -205,8 +207,22 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
             # denemede ERP'ye ikinci hareket girmesin. Reddedilmiş ('2') satır
             # engel değil: düzeltilip tekrar denenebilir.
             if not zorla:
-                kosul = "MGARCD=? AND MGCACD=? AND MGQTA=? AND (MGSTAT='1' OR MGSTAT='' OR MGSTAT IS NULL)"
+                # SÜRE SINIRI (2026-09-15, 10.300.6341A-S): tarih gönderilmediğinden koşulda
+                # tarih YOKTU → önceki günün işlenmiş aynı adetli satırı BUGÜNKÜ gerçek
+                # üretimi 'mevcut' diye engelliyordu (lazer aynı nesting'i her gün keser:
+                # 140/344/292/28 her gün aynı). Fren yalnız ağ kopması sonrası TEKRAR
+                # DENEME içindir: bekleyen ('') satır her zaman engeller; işlenmiş ('1')
+                # satır yalnız BİZİM anahtarımızla (MGSTE2 = 'F'+yymmddHHMMSS) son
+                # MUKERRER_PENCERE_DK dakikada yazıldıysa. Günlük toplam mükerrerini app
+                # katmanı (gönderilen / kalan adet) zaten önler.
+                kosul = "MGARCD=? AND MGCACD=? AND MGQTA=? AND (MGSTAT='' OR MGSTAT IS NULL"
                 par = [article, causal, adet_f]
+                if REFERANS_KOLONU in mevcut_kolonlar:
+                    esik = 'F' + (datetime.now() - timedelta(minutes=MUKERRER_PENCERE_DK)).strftime('%y%m%d%H%M%S')
+                    kosul += f" OR (MGSTAT='1' AND {REFERANS_KOLONU} LIKE 'F%' AND {REFERANS_KOLONU} >= ?))"
+                    par.append(esik)
+                else:
+                    kosul += " OR MGSTAT='1')"
                 if 'MGDGGO' in alanlar:
                     kosul += " AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? AND MGDGGO=?"
                     par += list(tarih)
