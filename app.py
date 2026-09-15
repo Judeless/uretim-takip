@@ -14327,8 +14327,10 @@ _PROJE_TIP_SIRA = {k: i for i, (k, _, _) in enumerate(PROJE_IS_TIPLERI)}
 _PROJE_GRUP_SIRA = {'proses': 0, 'takim': 1, 'satin_alma': 2}
 PROJE_KATEGORI_TIPLER = {
     # ana referans: montaj ya da kaplama/boya, ardından doğrudan sevk (kullanıcı v3) —
-    # kesim/kaynak alt referanslarda. Eski ana satırlar görünmeye devam eder.
-    'ana': ['montaj', 'kaplama_boya', 'sevk', 'fikstur', 'aparat'],
+    # kesim/kaynak alt referanslarda. TAKIMLAR (kalıp / fikstür / aparat) YALNIZ alt
+    # referansın altında (kullanıcı v6: 'fikstürü iki yerden talep edebiliyorum').
+    # Eski ana satırlar silinmez, görünmeye devam eder.
+    'ana': ['montaj', 'kaplama_boya', 'sevk'],
     'parca': ['kesim_bukum', 'kaynak', 'diger', 'bukum_kalibi', 'kaynak_fiksturu', 'aparat'],
     'tel': ['tel_uretim', 'diger'],
     'satin_alma': ['satin_alma'],

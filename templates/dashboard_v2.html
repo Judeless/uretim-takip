@@ -356,6 +356,7 @@
         /* Kapanma display ile — max-height geçişi kare üretmeyen/arka plan
            sekmelerde takılı kalabiliyor; doğruluğu animasyona bağlamıyoruz. */
         .nav-group.kapali .nav-group-govde { display: none; }
+        .nav-group:not(.kapali) .ng-rozet { display: none !important; }   /* grup açıkken rozet öğede */
         .nav-item {
             display: flex; align-items: center; gap: 11px;
             min-height: 44px; padding: 10px 22px; color: var(--muted);
@@ -1755,6 +1756,7 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "Proje Yönetimi": {"en": "Project Management", "it": "Gestione progetti"},
   "Termin": {"en": "Due", "it": "Scadenza"},
   "Proje planı": {"en": "Project plan", "it": "Piano progetto"},
   "📐 Proje planı": {"en": "📐 Project plan", "it": "📐 Piano progetto"},
@@ -5254,14 +5256,23 @@ window.__I18N_SOZLUK__ = {
                      kaynak/montaj/metal arası geçilir; artık Üretim&OEE'ye gitmeye gerek yok. -->
                 <a class="nav-item" data-sayfa="is-yonetimi" onclick="sayfaAc('is-yonetimi')">
                     <span class="nav-icon">📌</span> İş Yönetimi</a>
-                <!-- PROJE TAKİP (2026-09-15): referans bazlı proje / iş / termin. Rozet =
-                     oturumdaki kişiye atanmış açık iş sayısı. -->
-                <a class="nav-item" data-sayfa="proje-takip" onclick="sayfaAc('proje-takip')">
-                    <span class="nav-icon">📐</span> Proje Takip
-                    <span id="proje-nav-rozet" style="display:none;margin-left:auto;background:var(--primary);color:#fff;border-radius:999px;padding:1px 8px;font-size:.7rem;font-weight:800"></span></a>
                 <a class="nav-item" data-sayfa="ariza-onay" onclick="sayfaAc('ariza-onay')">
                     <span class="nav-icon">🔧</span> Arıza Onay
                     <span id="ariza-nav-rozet" style="display:none;margin-left:auto;background:var(--danger);color:#fff;border-radius:999px;padding:1px 8px;font-size:.7rem;font-weight:800"></span></a>
+                </div>
+            </div>
+
+            <!-- PROJE YÖNETİMİ (kullanıcı 2026-09-15: "bölüm olarak, proje olarak ayrı bir kısımda").
+                 İlk ziyarette AÇIK (data-varsayilan); kapalıyken başlıkta atanmış iş rozeti. -->
+            <div class="nav-group" data-varsayilan="acik">
+                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Proje Yönetimi</span>
+                    <span id="proje-grup-rozet" class="ng-rozet" style="display:none;margin-left:auto;margin-right:8px;background:var(--primary);color:#fff;border-radius:999px;padding:0 7px;font-size:.66rem;font-weight:800;letter-spacing:0"></span><span class="ok">▼</span></button>
+                <div class="nav-group-govde">
+                <!-- PROJE TAKİP (2026-09-15): ana referans bazlı proje, MS Project görünümü.
+                     Rozet = oturumdaki kişiye atanmış açık iş sayısı. -->
+                <a class="nav-item" data-sayfa="proje-takip" onclick="sayfaAc('proje-takip')">
+                    <span class="nav-icon">📐</span> Proje Takip
+                    <span id="proje-nav-rozet" style="display:none;margin-left:auto;background:var(--primary);color:#fff;border-radius:999px;padding:1px 8px;font-size:.7rem;font-weight:800"></span></a>
                 </div>
             </div>
 
@@ -5994,7 +6005,7 @@ window.__I18N_SOZLUK__ = {
                     #page-proje-takip .proje .pj-ad-m { font-weight: 800; font-size: .95rem; }
                     #page-proje-takip .pj-ad-2 { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
                     #page-proje-takip .pj-ad-alt { font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                    #page-proje-takip .grup .pj-ad-m { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+                    #page-proje-takip .grup .pj-ad-m, #page-proje-takip .tgrup .pj-ad-m { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
                     #page-proje-takip .kalem .pj-ad-m { font-weight: 800; }
                     #page-proje-takip .pj-mad { width: 7px; height: 7px; border-radius: 2px; background: var(--muted); flex: none; }
                     #page-proje-takip .pj-mad.bos { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
@@ -8373,7 +8384,8 @@ window.__I18N_SOZLUK__ = {
             document.querySelectorAll('.sidebar .nav-group').forEach(function (grup) {
                 var durum = null;
                 try { durum = localStorage.getItem(navGrupAnahtar(grup)); } catch (e) {}
-                navGrupUygula(grup, durum ? (durum === 'kapali') : true);   // ilk ziyaret: kapali
+                // ilk ziyaret: kapalı — data-varsayilan="acik" olan grup (Proje Yönetimi) açık başlar
+                navGrupUygula(grup, durum ? (durum === 'kapali') : grup.getAttribute('data-varsayilan') !== 'acik');
             });
         }
         // Aktif sayfanın grubu kapalıysa aç — kullanıcı nerede olduğunu görsün
@@ -8480,7 +8492,7 @@ window.__I18N_SOZLUK__ = {
             } else if (aktifSayfa === 'ariza-onay') {
                 bc.innerHTML = '<b>Arıza Onay Kuyruğu</b>';
             } else if (aktifSayfa === 'proje-takip') {
-                bc.innerHTML = '<b>Proje Takip</b>';
+                bc.innerHTML = 'Proje Yönetimi ▸ <b>Proje Takip</b>';
             } else if (aktifSayfa === 'is-yonetimi') {
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ ' + esc(bolumAdi(aktifBolum)) + ' ▸ <b>İş Yönetimi</b>';
             } else if (aktifSayfa === 'fikstur') {
@@ -16426,6 +16438,8 @@ window.__I18N_SOZLUK__ = {
                 rz.textContent = d.acik || '';
                 rz.style.display = d.acik ? '' : 'none';
                 rz.title = d.acik ? (d.acik + ' açık iş size atanmış') : '';
+                var gr = document.getElementById('proje-grup-rozet');   // grup kapalıyken başlıkta
+                if (gr) { gr.textContent = d.acik || ''; gr.style.display = d.acik ? '' : 'none'; gr.title = rz.title; }
             } catch (e) { rz.style.display = 'none'; }
         }
 
@@ -16476,9 +16490,20 @@ window.__I18N_SOZLUK__ = {
                         }
                         var kk = 'C' + pc.id, kAcik = !_pj.kapali[kk], isl = pc.isler || [];
                         R.push({ tur: 'kalem', pc: pc, kat: kat, p: p, seviye: 2, wbs: cw, anahtar: kk, acik: kAcik, isler: isl, aralik: pjOzetAralik(isl) });
-                        if (kAcik) isl.forEach(function (t, ti) {
-                            R.push({ tur: 'is', t: t, kat: kat, pc: pc, p: p, seviye: 3, wbs: cw + '.' + (ti + 1), aralik: pjIsAralik(t) });
+                        if (!kAcik) return;
+                        // v6: önce prosesler, sonra alt referansın TAKIMLAR alt başlığı (kalıp / fikstür / aparat)
+                        var pr = isl.filter(function (t) { return t.grup !== 'takim'; });
+                        var tk = isl.filter(function (t) { return t.grup === 'takim'; }), m = 0;
+                        pr.forEach(function (t) {
+                            R.push({ tur: 'is', t: t, kat: kat, pc: pc, p: p, seviye: 3, wbs: cw + '.' + (++m), aralik: pjIsAralik(t) });
                         });
+                        if (tk.length) {
+                            var tkk = 'T' + pc.id, tAcik = !_pj.kapali[tkk], tw = cw + '.' + (++m);
+                            R.push({ tur: 'tgrup', pc: pc, kat: kat, p: p, seviye: 3, wbs: tw, anahtar: tkk, acik: tAcik, isler: tk, aralik: pjOzetAralik(tk) });
+                            if (tAcik) tk.forEach(function (t, ti) {
+                                R.push({ tur: 'is', t: t, kat: kat, pc: pc, p: p, seviye: 4, wbs: tw + '.' + (ti + 1), aralik: pjIsAralik(t) });
+                            });
+                        }
                     });
                 });
             });
@@ -16615,7 +16640,7 @@ window.__I18N_SOZLUK__ = {
                 sag = ozet(r.aralik, '', PJ_KAT[r.kat].baslik);
             } else if (r.tur === 'kalem') {
                 var pc = r.pc, kA = pjAktif(r.isler);
-                var etk = r.kat === 'tel' ? 'Tel' : ((r.isler.length && r.isler.every(function (t) { return t.grup === 'takim'; })) ? 'Takım' : 'Alt ref.');
+                var etk = r.kat === 'tel' ? 'Tel' : 'Alt ref.';   // v6: 'TAKIM' kalem etiketi yok — takımlar alt başlıkta
                 var tikK = "pjCekAc('kalem'," + pc.id + ',' + pid + ')';
                 sol = '<div class="pj-c pj-c-wbs">' + r.wbs + '</div>' +
                     ad('<span class="pj-ad-m"%TIK%>' + esc(pc.kod) + '</span><span class="pj-etk">' + etk + '</span>' +
@@ -16627,6 +16652,17 @@ window.__I18N_SOZLUK__ = {
                     '<div class="pj-c">' + pjMini(pjTamamSay(r.isler), kA.length) + '</div>' +
                     '<div class="pj-c">' + (yon ? '<button type="button" class="pj-ib" title="Proses / takım ekle" onclick="pjKalemAc(\'is\',\'' + r.kat + '\',\'' + pc.id + '\',' + pid + ')">＋</button>' : '') + '</div>';
                 sag = ozet(r.aralik, '', pc.kod, tikK);
+            } else if (r.tur === 'tgrup') {
+                var tA = pjAktif(r.isler);
+                sol = '<div class="pj-c pj-c-wbs">' + r.wbs + '</div>' +
+                    ad('<span class="pj-ad-m"%TIK%>🔧 Takımlar</span><span class="pj-say">(' + r.isler.length + ')</span>', "pjAcKapa('" + r.anahtar + "')") +
+                    '<div class="pj-c pj-c-g"></div>' +
+                    '<div class="pj-c pj-c-g"><span class="pj-tar">' + (r.aralik ? pjKisa(pjIso(r.aralik.bas)) : '—') + '</span></div>' +
+                    '<div class="pj-c pj-c-g"><span class="pj-tar">' + (r.aralik ? pjKisa(pjIso(r.aralik.bit)) : '—') + '</span></div>' +
+                    '<div class="pj-c pj-c-g"></div>' +
+                    '<div class="pj-c">' + pjMini(pjTamamSay(r.isler), tA.length) + '</div>' +
+                    '<div class="pj-c">' + (yon ? '<button type="button" class="pj-ib" title="Kalıp / fikstür / aparat ekle" onclick="pjKalemAc(\'is\',\'' + r.kat + '\',\'' + r.pc.id + '\',' + pid + ')">＋</button>' : '') + '</div>';
+                sag = ozet(r.aralik, '', r.pc.kod + ' · takımlar');
             } else {
                 var t = r.t, benim = !!(t.atanan_id && t.atanan_id === _pj.benimId), duz = yon || benim;
                 var sa = r.kat === 'satin_alma' && r.pc;
@@ -16636,7 +16672,7 @@ window.__I18N_SOZLUK__ = {
                 var nS = (t.notlar_liste || []).length;
                 sol = '<div class="pj-c pj-c-wbs">' + r.wbs + '</div>' +
                     ad('<i class="pj-mad' + (t.grup === 'takim' ? ' bos' : '') + '"></i><span class="pj-ad-m"%TIK%>' + adMetin + '</span>' +
-                       (t.grup === 'takim' ? '<span class="pj-etk">Takım</span>' : '') + (benim ? '<span class="pj-etk mor">Sizde</span>' : '') +
+                       (benim ? '<span class="pj-etk mor">Sizde</span>' : '') +
                        (t.durum === 'iptal' ? '<span class="pj-etk kirmizi">İptal</span>' : '') +
                        (altM ? '<span class="pj-ad-alt">' + altM + '</span>' : ''), tikI) +
                     '<div class="pj-c pj-c-g">' + (yon ? pjSorumluSelect(t, pid, 'pj-sel')
@@ -16874,6 +16910,13 @@ window.__I18N_SOZLUK__ = {
             }
             return h + '</div>';
         }
+        function pjAltListe(baslik, L, pid) {
+            if (!L.length) return '';
+            return '<div class="pj-cek-alt">' + baslik + '</div>' + L.map(function (t) {
+                return '<div class="pj-alt-is s-' + pjSeg(t) + '" onclick="pjCekAc(\'is\',' + t.id + ',' + pid + ')"><i class="pj-nokta"></i><span class="n">' + esc(t.tip_ad) + '</span>' +
+                    '<span class="pj-tar">' + (t.atanan_ad ? esc(t.atanan_ad) + ' · ' : '') + pjKisa(t.uretim_termin || t.talep_termin) + '</span></div>';
+            }).join('');
+        }
         function pjCekKalem(d, pc) {
             var p = d.proje, pid = p.id, yon = _pj.yon, sa = pc.kategori === 'satin_alma', isl = pc.isler || [];
             var inp = function (alan, v, tip) {
@@ -16886,11 +16929,9 @@ window.__I18N_SOZLUK__ = {
                 (sa ? pjF('Adet', inp('adet', pc.adet, 'number')) + pjF('Tedarikçi', inp('tedarikci', pc.tedarikci)) : '') +
                 pjF('Plan', '<div class="pj-f-d">' + (a ? pjTarih(pjIso(a.bas)) + ' → ' + pjTarih(pjIso(a.bit)) : '—') + '</div>') +
                 pjF('İlerleme', '<div class="pj-f-d">' + pjMini(pjTamamSay(isl), pjAktif(isl).length) + '</div>') + '</div>' +
-                '<div class="pj-cek-alt">Prosesler ve takımlar</div>' +
-                (isl.length ? isl.map(function (t) {
-                    return '<div class="pj-alt-is s-' + pjSeg(t) + '" onclick="pjCekAc(\'is\',' + t.id + ',' + pid + ')"><i class="pj-nokta"></i><span class="n">' + esc(t.tip_ad) + '</span>' +
-                        '<span class="pj-tar">' + (t.atanan_ad ? esc(t.atanan_ad) + ' · ' : '') + pjKisa(t.uretim_termin || t.talep_termin) + '</span></div>';
-                }).join('') : '<div class="pj-bos-not">Takip edilen proses yok</div>');
+                pjAltListe('Prosesler', isl.filter(function (t) { return t.grup !== 'takim'; }), pid) +
+                pjAltListe('🔧 Takımlar', isl.filter(function (t) { return t.grup === 'takim'; }), pid) +
+                (isl.length ? '' : '<div class="pj-bos-not">Takip edilen proses yok</div>');
             if (yon) {
                 h += '<div class="pj-cek-islem">' + (sa ? '' : '<button type="button" class="btn btn-ghost" onclick="pjKalemAc(\'is\',\'' + pc.kategori + '\',\'' + pc.id + '\',' + pid + ')">＋ Proses / takım</button>') +
                     '<button type="button" class="btn btn-ghost" style="color:var(--danger)" onclick="pjParcaSil(' + pc.id + ',' + pid + ')">🗑 Kalemi sil</button></div>';
