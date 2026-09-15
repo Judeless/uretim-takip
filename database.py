@@ -1312,6 +1312,49 @@ def init_db():
                  "CREATE INDEX IF NOT EXISTS idx_proje_gecmis_proje ON proje_gecmis(proje_id)"):
         c.execute(_sql)
 
+    # PROJE v2 HİYERARŞİ (kullanıcı 2026-09-15, aynı gün): proje = ANA REFERANS;
+    # altında kalemler (proje_parca): 'parca' = alt referans (130.5606 …; prosesleri
+    # + takımları alt başlık), 'tel' = tel üretimi referansı, 'satin_alma' = beklenen
+    # satın alma parçası (adet, tedarikçi). proje_is.parca_id NULL = ana referansın
+    # kendi prosesi. proje_is.parca metni v1'den kalır (okunabilirlik), karar parca_id'de.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS proje_parca (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proje_id INTEGER NOT NULL REFERENCES proje(id) ON DELETE CASCADE,
+            kategori TEXT NOT NULL DEFAULT 'parca',
+            kod TEXT NOT NULL,
+            aciklama TEXT DEFAULT '',
+            adet REAL,
+            tedarikci TEXT DEFAULT '',
+            sira INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_proje_parca_proje ON proje_parca(proje_id)")
+    try:
+        c.execute("ALTER TABLE proje_is ADD COLUMN parca_id INTEGER")
+    except Exception:
+        pass
+    # v1 → v2 GEÇİŞ: parça metni dolu ama parca_id boş satırlar kalem olur;
+    # 'sac_uretim' → 'kesim_bukum' (kullanıcı: kesim/büküm tek proses).
+    try:
+        eski = c.execute("SELECT id, proje_id, parca, tip FROM proje_is "
+                         "WHERE COALESCE(parca,'') <> '' AND parca_id IS NULL").fetchall()
+        for r in eski:
+            is_id, pid, kod, tip = r[0], r[1], r[2], r[3]
+            kat = 'satin_alma' if tip == 'satin_alma' else 'parca'
+            var = c.execute("SELECT id FROM proje_parca WHERE proje_id=? AND kategori=? AND kod=?",
+                            (pid, kat, kod)).fetchone()
+            if var:
+                parca_id = var[0]
+            else:
+                c.execute("INSERT INTO proje_parca (proje_id, kategori, kod) VALUES (?,?,?)", (pid, kat, kod))
+                parca_id = c.lastrowid
+            c.execute("UPDATE proje_is SET parca_id=? WHERE id=?", (parca_id, is_id))
+        c.execute("UPDATE proje_is SET tip='kesim_bukum' WHERE tip='sac_uretim'")
+    except Exception as _e:
+        print(f'[MIGRATION] proje v2 gecisi hata: {_e}')
+
     # ─────────────────────────────────────────────────────────────
     # AS400 teyit ekranı İŞARETLERİ (2026-07-20). İki kapsam:
     #  - kapsam='kalici': referans bazında SÜREKLİ 'gerek_yok' (örn 6343a ara ürün)
