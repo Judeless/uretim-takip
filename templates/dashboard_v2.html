@@ -10779,11 +10779,16 @@ window.__I18N_SOZLUK__ = {
             var bilgi = document.getElementById('hat-sure-bilgi');
             if (bilgi) bilgi.textContent = (d.hatlar || []).length ? ((d.hatlar.length) + ' ' + (d.etiket || 'hat')) : 'bölüm geneli';
             if ((d.hatlar || []).length) {
-                // Adımı olan bölümlerde (tel) adım başlığı + "adıma uygula"
-                var gruplar = [], sonAdim = null;
+                // Adımı olan bölümlerde (tel) adım başlığı + "adıma uygula".
+                // ADIM ADINA GÖRE grupla, ARDIŞIK bloklara göre DEĞİL: liste proses
+                // sırasındadır ama aynı adımın makineleri araya giren adımlarla bölünebilir
+                // (Halat/Spiral Kesme listede 4 yerde). Ardışık gruplamada "adımın tümüne
+                // uygula" o adımın yalnız bir bölümünü doldururdu.
+                var gruplar = [], grupIx = {};
                 d.hatlar.forEach(function (x) {
-                    if (!gruplar.length || x.adim !== sonAdim) { gruplar.push({ adim: x.adim, hatlar: [] }); sonAdim = x.adim; }
-                    gruplar[gruplar.length - 1].hatlar.push(x);
+                    var ad = x.adim || '';
+                    if (!(ad in grupIx)) { grupIx[ad] = gruplar.length; gruplar.push({ adim: ad, hatlar: [] }); }
+                    gruplar[grupIx[ad]].hatlar.push(x);
                 });
                 gruplar.forEach(function (gr, gi) {
                     if (gr.adim) {
@@ -10805,11 +10810,12 @@ window.__I18N_SOZLUK__ = {
                 hatSureGirdi('genel', d.bolum_geneli, 'Bölüm geneli (hat tanımı olmayan kayıtlar)', '') + '</div>';
             liste.innerHTML = h;
             liste.setAttribute('data-gruplar', JSON.stringify((d.hatlar || []).map(function (x) { return x.istasyon; })));
-            _hatSure.gruplar = (function () {
-                var g = [], son = null;
+            _hatSure.gruplar = (function () {      // çizimdeki gruplama ile AYNI kural (adım adına göre)
+                var g = [], ix = {};
                 (d.hatlar || []).forEach(function (x) {
-                    if (!g.length || x.adim !== son) { g.push([]); son = x.adim; }
-                    g[g.length - 1].push(x.istasyon);
+                    var ad = x.adim || '';
+                    if (!(ad in ix)) { ix[ad] = g.length; g.push([]); }
+                    g[ix[ad]].push(x.istasyon);
                 });
                 return g;
             })();
