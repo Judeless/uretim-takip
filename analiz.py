@@ -180,13 +180,34 @@ def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
             ct_tam.get((anahtar, r['bolum'], r['lokasyon']), 0), r['ct'])
         ct_kod[anahtar] = max(ct_kod.get(anahtar, 0), r['ct'])
 
-    v_bilgi = {v['id']: (v['bolum'], v['lokasyon']) for v in vardiyalar}
+    # HAT / MAKİNE SÜRESİ (2026-09-16): referansın kendi süresi yoksa kaydın çalışıldığı
+    # HATTIN süresi kullanılır — oee.hesapla_oee ile AYNI sıra (referans → kayıt → hat).
+    # Bu olmadan Üretim & OEE ekranı hat süresiyle OEE gösterirken analiz aynı üretim için
+    # "hedef süre tanımsız / OEE %0" diyordu (kullanıcı 2026-09-16, TK1 tel).
+    hat_ct = {}
+    for hr in conn.execute("SELECT COALESCE(lokasyon,'TK2') lok, bolum, istasyon, hat, cycle_time_sn "
+                           "FROM hat_cycle_time WHERE cycle_time_sn > 0"):
+        hat_ct[(hr['lok'], hr['bolum'], int(hr['istasyon'] or 0), str(hr['hat'] or ''))] = float(hr['cycle_time_sn'])
+
+    def _hat_suresi(lok, bol, istasyon, hat):
+        """Kaydın makinesi (istasyon) → vardiyanın hattı → bölüm geneli. 0 = tanımsız."""
+        try:
+            ist = int(istasyon or 0)
+        except (TypeError, ValueError):
+            ist = 0
+        for a_ist, a_hat in ((ist, ''), (0, str(hat or '')), (0, '')):
+            v = hat_ct.get((lok, bol, a_ist, a_hat), 0)
+            if v > 0:
+                return v
+        return 0
+
+    v_bilgi = {v['id']: (v['bolum'], v['lokasyon'], v['robot_no']) for v in vardiyalar}
     uretim = defaultdict(list)
     for u in conn.execute(
             f"SELECT vardiya_id, referans_kodu, ok_adet, nok_adet, hedef_adet, "
             f"       cycle_time_sn, istasyon FROM uretim_kayitlari "
             f"WHERE vardiya_id IN ({yer})", vid_list):
-        bol, lok = v_bilgi.get(u['vardiya_id'], ('kaynak', 'TK2'))
+        bol, lok, v_hat = v_bilgi.get(u['vardiya_id'], ('kaynak', 'TK2', ''))
         anahtar = (u['referans_kodu'] or '').replace(' ', '').upper()
         guncel = ct_tam.get((anahtar, bol, lok)) or ct_kod.get(anahtar) or 0
         uretim[u['vardiya_id']].append({
@@ -194,6 +215,7 @@ def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
             'nok_adet': u['nok_adet'], 'hedef_adet': u['hedef_adet'],
             'cycle_time_sn': u['cycle_time_sn'], 'istasyon': u['istasyon'],
             'guncel_ct': guncel,
+            'hat_ct': _hat_suresi(lok, bol, u['istasyon'], v_hat),
         })
 
     sonuc = []
@@ -212,6 +234,8 @@ def vardiya_metrikleri(conn, bas, bit, lokasyon=None, bolum=None):
         ct_yok_adet = 0
         for r in rows:
             ct = r['guncel_ct'] if (r['guncel_ct'] and r['guncel_ct'] > 0) else (r['cycle_time_sn'] or 0)
+            if not (ct and ct > 0):
+                ct = r.get('hat_ct') or 0          # hat / makine süresi (2026-09-16)
             adet = (r['ok_adet'] or 0) + (r['nok_adet'] or 0)
             if ct > 0:
                 gercek_sn += adet * ct
@@ -567,6 +591,8 @@ def ct_yok_kirilimi(vardiyalar):
     for v in vardiyalar:
         for r in v['kayitlar']:
             ct = r['guncel_ct'] if (r['guncel_ct'] and r['guncel_ct'] > 0) else (r['cycle_time_sn'] or 0)
+            if not (ct and ct > 0):
+                ct = r.get('hat_ct') or 0          # hat / makine süresi (2026-09-16)
             if ct > 0:
                 continue
             adet = (r['ok_adet'] or 0) + (r['nok_adet'] or 0)
