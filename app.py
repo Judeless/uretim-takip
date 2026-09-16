@@ -4687,6 +4687,97 @@ def _sure_sayi(v):
     return f, None
 
 
+# ── HAT / MAKİNE CYCLE SÜRESİ (kullanıcı 2026-09-16) ────────────────────────
+# "TK1 tel hattı özelinde makinelere süre tanımlamak nasıl fikir — yeni ürünler de
+#  eklense, kapama hattında işlem görüyorsa süresi 102 sn olacak."
+# Süre ürüne değil MAKİNEYE ait: referansın kendi süresi yoksa OEE hattın süresini
+# kullanır (oee.hesapla_oee). Böylece yeni referansta süre tanımı gerekmez.
+def _hat_cycle_satirlari(conn, lokasyon, bolum):
+    return {(int(r['istasyon'] or 0), str(r['hat'] or '')): r for r in conn.execute(
+        "SELECT * FROM hat_cycle_time WHERE COALESCE(lokasyon,'TK2')=? AND bolum=?",
+        (lokasyon, bolum)).fetchall()}
+
+
+@app.route('/api/hat_cycle', methods=['GET'])
+def hat_cycle_listesi():
+    """Bölümün hat/makine süreleri + kullanım özeti.
+    ?bolum=tel&lokasyon=TK1 → {'etiket','sabit_hat','hatlar':[{istasyon,ad,adim,cycle_time_sn}],
+                               'bolum_geneli', 'vardiya_hatlari':[{hat,cycle_time_sn}]}"""
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    bolum = (request.args.get('bolum') or '').strip()
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    conn = get_db()
+    kayitli = _hat_cycle_satirlari(conn, lokasyon, bolum)
+    sh = sabit_hat_adi(lokasyon, bolum)
+    hatlar = []
+    if sh:
+        for i, ad in enumerate(HAT_MAKINELERI.get(sh, [])):
+            if ad in GIZLI_HATLAR:
+                continue
+            r = kayitli.get((i + 1, ''))
+            hatlar.append({'istasyon': i + 1, 'ad': ad, 'adim': (tel_hat_adimi(ad) or '') if bolum == 'tel' else '',
+                           'cycle_time_sn': float(r['cycle_time_sn']) if r else 0})
+    # Hattı VARDİYADA seçilen bölümler: kayıtlı satırlar (serbest liste; hat adı = robot_no)
+    vardiya_hatlari = [{'hat': h, 'cycle_time_sn': float(r['cycle_time_sn'])}
+                       for (i, h), r in sorted(kayitli.items()) if not i and h]
+    genel = kayitli.get((0, ''))
+    return jsonify({'bolum': bolum, 'lokasyon': lokasyon, 'sabit_hat': sh,
+                    'etiket': kayit_makine_etiketi(lokasyon, bolum) or 'Hat',
+                    'hatlar': hatlar, 'vardiya_hatlari': vardiya_hatlari,
+                    'bolum_geneli': float(genel['cycle_time_sn']) if genel else 0})
+
+
+@app.route('/api/hat_cycle', methods=['POST'])
+@panel_gerekli(izin='referanslar')
+def hat_cycle_kaydet():
+    """Hat/makine sürelerini yazar. Body: {bolum, lokasyon, kayitlar:[{istasyon|hat, cycle_time_sn}]}
+    cycle_time_sn 0 → tanım SİLİNİR (o hat için hat süresi kullanılmaz)."""
+    d = request.get_json(silent=True) or {}
+    bolum = (d.get('bolum') or '').strip()
+    lokasyon = (d.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    kayitlar = d.get('kayitlar')
+    if not isinstance(kayitlar, list) or not kayitlar:
+        return jsonify({'hata': 'kayitlar listesi boş'}), 400
+    kim = g.panel_ku['kullanici_adi']
+    conn = get_db()
+    yazilan, silinen = 0, 0
+    for k in kayitlar[:400]:
+        try:
+            ist = int(k.get('istasyon') or 0)
+        except (TypeError, ValueError):
+            ist = 0
+        hat = str(k.get('hat') or '').strip()[:60]
+        if ist and hat:
+            hat = ''                      # istasyon verildiyse hat alanı kullanılmaz
+        try:
+            ct = float(str(k.get('cycle_time_sn') if k.get('cycle_time_sn') not in (None, '') else 0).replace(',', '.'))
+        except (TypeError, ValueError):
+            return jsonify({'hata': f'Geçersiz süre: {k.get("cycle_time_sn")!r}'}), 400
+        if ct < 0 or ct > 100000:
+            return jsonify({'hata': f'Geçersiz süre: {ct:g}'}), 400
+        if ct > 0:
+            conn.execute(
+                "INSERT INTO hat_cycle_time (lokasyon, bolum, istasyon, hat, cycle_time_sn, guncelleyen) "
+                "VALUES (?,?,?,?,?,?) "
+                "ON CONFLICT(lokasyon, bolum, istasyon, hat) DO UPDATE SET "
+                "cycle_time_sn=excluded.cycle_time_sn, guncelleyen=excluded.guncelleyen, "
+                "updated_at=datetime('now','localtime')",
+                (lokasyon, bolum, ist, hat, ct, kim))
+            yazilan += 1
+        else:
+            silinen += conn.execute(
+                "DELETE FROM hat_cycle_time WHERE COALESCE(lokasyon,'TK2')=? AND bolum=? AND istasyon=? AND hat=?",
+                (lokasyon, bolum, ist, hat)).rowcount
+    conn.commit()
+    mesaj = f'{yazilan} hat süresi kaydedildi'
+    if silinen:
+        mesaj += f', {silinen} tanım silindi'
+    return jsonify({'basarili': True, 'mesaj': mesaj, 'yazilan': yazilan, 'silinen': silinen})
+
+
 @app.route('/api/referanslar/sure_sablonu', methods=['GET'])
 @panel_gerekli(izin='referanslar')
 def referans_sure_sablonu():

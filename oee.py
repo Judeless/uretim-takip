@@ -242,6 +242,37 @@ def hesapla_oee(vardiya_id):
         WHERE u.vardiya_id = ?
     ''', (_v_bolum, _v_lok, vardiya_id)).fetchall()
 
+    # HAT / MAKİNE SÜRESİ (kullanıcı 2026-09-16): referansın kendi süresi yoksa kaydın
+    # çalışıldığı hattın süresi kullanılır (tel'de süre ürüne değil makineye ait).
+    # Sıra: referans (güncel) → kayıttaki süre → hat süresi. Bölüm geneli varsayılan da
+    # aynı tablodadır (istasyon=0, hat='').
+    try:
+        _v_lok2 = vardiya['lokasyon'] or 'TK2'
+    except Exception:
+        _v_lok2 = 'TK2'
+    try:
+        _v_hat = str(vardiya['robot_no'] or '').strip()
+    except Exception:
+        _v_hat = ''
+    hat_ct = {}
+    for hr in c.execute("SELECT istasyon, hat, cycle_time_sn FROM hat_cycle_time "
+                        "WHERE COALESCE(lokasyon,'TK2')=? AND bolum=?", (_v_lok2, _v_bolum)).fetchall():
+        hat_ct[(int(hr['istasyon'] or 0), str(hr['hat'] or ''))] = float(hr['cycle_time_sn'] or 0)
+
+    def _hat_suresi(istasyon):
+        """Kaydın hat süresi: önce kaydın makinesi (istasyon), sonra vardiyanın hattı,
+        sonra bölüm geneli. 0 = tanımsız."""
+        try:
+            ist = int(istasyon or 0)
+        except (TypeError, ValueError):
+            ist = 0
+        for anahtar in ((ist, ''), (0, _v_hat), (0, '')):
+            if anahtar[0] or anahtar[1] or anahtar == (0, ''):
+                v = hat_ct.get(anahtar, 0)
+                if v > 0:
+                    return v
+        return 0
+
     toplam_ok = sum(r['ok_adet'] for r in uretim_rows)
     toplam_nok = sum(r['nok_adet'] for r in uretim_rows)
     toplam_uretim = toplam_ok + toplam_nok
@@ -256,6 +287,8 @@ def hesapla_oee(vardiya_id):
         # Oncelikle referans listesindeki guncel sureyi kullan (retroaktif duzeltme)
         # Eger listede yoksa uretim kayidindaki eski sureyi kullan
         ct = r['guncel_ct'] if (r['guncel_ct'] and r['guncel_ct'] > 0) else (r['cycle_time_sn'] or 0)
+        if not (ct and ct > 0):
+            ct = _hat_suresi(r['istasyon'] if 'istasyon' in r.keys() else 0)
         
         adet = r['ok_adet'] + r['nok_adet']
         if ct > 0:
@@ -276,6 +309,8 @@ def hesapla_oee(vardiya_id):
     ct_tanimsiz_adet, ct_tanimsiz_ref = 0, set()
     for r in uretim_rows:
         _ct = r['guncel_ct'] if (r['guncel_ct'] and r['guncel_ct'] > 0) else (r['cycle_time_sn'] or 0)
+        if not (_ct and _ct > 0):
+            _ct = _hat_suresi(r['istasyon'] if 'istasyon' in r.keys() else 0)
         _adet = (r['ok_adet'] or 0) + (r['nok_adet'] or 0)
         if _adet > 0 and not (_ct and _ct > 0):
             ct_tanimsiz_adet += _adet

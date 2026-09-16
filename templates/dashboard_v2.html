@@ -1756,6 +1756,10 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "⏱ Hat Süreleri": {"en": "⏱ Line times", "it": "⏱ Tempi linea"},
+  "⏱ Hat / makine süreleri": {"en": "⏱ Line / machine times", "it": "⏱ Tempi linea / macchina"},
+  "Adımın tümüne uygula": {"en": "Apply to whole step", "it": "Applica a tutto il passo"},
+  "Bölüm geneli (hat tanımı olmayan kayıtlar)": {"en": "Department default (records without a line)", "it": "Predefinito reparto (record senza linea)"},
   "🧾 Süre Şablonu": {"en": "🧾 Time template", "it": "🧾 Modello tempi"},
   "⬆️ Süreleri Yükle": {"en": "⬆️ Upload times", "it": "⬆️ Carica tempi"},
   "Bu bölüm + tesisin TÜM referanslarını (süresi boş olanlar dahil) doldurulacak şablon olarak indirir": {"en": "Downloads ALL references of this department + plant (including those without a time) as a template to fill in", "it": "Scarica TUTTI i riferimenti di questo reparto + stabilimento (anche senza tempo) come modello da compilare"},
@@ -5864,7 +5868,27 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-outline" id="ref-sure-sablon-btn" onclick="referansSureSablonu()" style="border-color:rgba(109,40,217,0.5);color:var(--primary)" title="Bu bölüm + tesisin TÜM referanslarını (süresi boş olanlar dahil) doldurulacak şablon olarak indirir">🧾 Süre Şablonu</button>
                         <input type="file" id="ref-sure-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="referansSureYukle(this)">
                         <button class="btn btn-outline" id="ref-sure-yukle-btn" onclick="document.getElementById('ref-sure-dosya').click()" style="border-color:rgba(16,185,129,0.5);color:var(--success)" title="Doldurduğunuz şablonu yükleyin — süreler koda göre eşleşip toplu güncellenir">⬆️ Süreleri Yükle</button>
+                        <button class="btn btn-outline" id="ref-hat-sure-btn" onclick="hatSureAc()" style="border-color:rgba(245,158,11,0.5);color:var(--warn)" title="Hat / makine bazlı süre: referansın kendi süresi yoksa OEE bu süreyi kullanır (yeni ürünlerde süre tanımı gerekmez)">⏱ Hat Süreleri</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
+                    </div>
+                </div>
+
+                <!-- HAT / MAKİNE SÜRELERİ (kullanıcı 2026-09-16): süre ürüne değil makineye ait -->
+                <div id="hat-sure-kart" class="panel-card" style="display:none;margin-bottom:14px">
+                    <div class="panel-header">
+                        <h3>⏱ Hat / makine süreleri</h3>
+                        <span class="adet-info" id="hat-sure-bilgi"></span>
+                    </div>
+                    <div style="padding:14px 20px">
+                        <div style="font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:12px">
+                            Bu süreler HATTA aittir: bir referansın kendi süresi tanımlı değilse OEE o hattın süresini kullanır. Yeni ürün eklendiğinde süre tanımlamanız gerekmez — ürün hangi hatta işlem görürse o hattın süresiyle hesaplanır. Referansa özel süre girerseniz o referansta referansın süresi geçerli olur. 0 yazarsanız hattın tanımı silinir.
+                        </div>
+                        <div id="hat-sure-liste"></div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center">
+                            <button class="btn btn-primary" onclick="hatSureKaydet()" id="hat-sure-kaydet-btn">Kaydet</button>
+                            <button class="btn btn-ghost" onclick="document.getElementById('hat-sure-kart').style.display='none'">Kapat</button>
+                            <span id="hat-sure-mesaj" style="font-size:.82rem;color:var(--muted)"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -10715,6 +10739,119 @@ window.__I18N_SOZLUK__ = {
                     toast('Silinemedi', 'err');
                 }
             } catch (e) { toast('Bağlantı hatası', 'err'); }
+        }
+
+        // ── HAT / MAKİNE SÜRELERİ (kullanıcı 2026-09-16) ───────────────────────
+        // "TK1 tel hattı özelinde makinelere süre tanımlamak nasıl fikir — yeni ürünler
+        //  de eklense, kapama hattında işlem görüyorsa süresi 102 sn olacak."
+        // Süre ürüne değil MAKİNEYE ait; OEE sırası: referans süresi → kayıttaki süre →
+        // HAT süresi. Tel'de aynı adımın tüm makinelerine tek tıkla uygulanır.
+        var _hatSure = { veri: null };
+        async function hatSureAc() {
+            var kart = document.getElementById('hat-sure-kart');
+            var liste = document.getElementById('hat-sure-liste');
+            if (!kart || !liste) return;
+            kart.style.display = '';
+            liste.innerHTML = '<div class="yukleniyor">Yükleniyor…</div>';
+            try {
+                var r = await panelFetch('/api/hat_cycle?bolum=' + encodeURIComponent(aktifBolum) +
+                                         '&lokasyon=' + encodeURIComponent(aktifLokasyon));
+                var d = await r.json();
+                if (!r.ok) { liste.innerHTML = '<div class="empty-state">' + esc(d.hata || 'Yüklenemedi') + '</div>'; return; }
+                _hatSure.veri = d;
+                hatSureCiz();
+            } catch (e) {
+                liste.innerHTML = '<div class="empty-state">' + esc(e.message) + '</div>';
+            }
+        }
+        function hatSureGirdi(anahtar, deger, etiket, alt) {
+            return '<label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-subtle)">' +
+                '<span style="flex:1;min-width:0;font-size:.86rem;font-weight:600">' + esc(etiket) +
+                (alt ? '<span style="color:var(--muted);font-weight:500"> · ' + esc(alt) + '</span>' : '') + '</span>' +
+                '<input type="number" min="0" step="0.1" class="rt-row-input" style="width:110px;text-align:right" ' +
+                'data-hat-anahtar="' + esc(anahtar) + '" value="' + (deger > 0 ? deger : '') + '" placeholder="—">' +
+                '<span style="font-size:.78rem;color:var(--muted);width:24px">sn</span></label>';
+        }
+        function hatSureCiz() {
+            var d = _hatSure.veri, liste = document.getElementById('hat-sure-liste');
+            if (!d || !liste) return;
+            var h = '';
+            var bilgi = document.getElementById('hat-sure-bilgi');
+            if (bilgi) bilgi.textContent = (d.hatlar || []).length ? ((d.hatlar.length) + ' ' + (d.etiket || 'hat')) : 'bölüm geneli';
+            if ((d.hatlar || []).length) {
+                // Adımı olan bölümlerde (tel) adım başlığı + "adıma uygula"
+                var gruplar = [], sonAdim = null;
+                d.hatlar.forEach(function (x) {
+                    if (!gruplar.length || x.adim !== sonAdim) { gruplar.push({ adim: x.adim, hatlar: [] }); sonAdim = x.adim; }
+                    gruplar[gruplar.length - 1].hatlar.push(x);
+                });
+                gruplar.forEach(function (gr, gi) {
+                    if (gr.adim) {
+                        h += '<div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px">' +
+                            '<b style="font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)">' + esc(gr.adim) + '</b>' +
+                            '<input type="number" min="0" step="0.1" class="rt-row-input" style="width:100px;text-align:right" id="hat-adim-' + gi + '" placeholder="sn">' +
+                            '<button class="btn btn-ghost" style="padding:3px 10px;font-size:.76rem" onclick="hatSureAdimaUygula(' + gi + ')">Adımın tümüne uygula</button></div>';
+                    }
+                    gr.hatlar.forEach(function (x) {
+                        h += hatSureGirdi('i' + x.istasyon, x.cycle_time_sn, x.ad, '');
+                    });
+                    gruplar[gi].ilk = gr.hatlar[0];
+                });
+            }
+            (d.vardiya_hatlari || []).forEach(function (x) {
+                h += hatSureGirdi('h' + x.hat, x.cycle_time_sn, x.hat, 'vardiya hattı');
+            });
+            h += '<div style="margin-top:14px">' +
+                hatSureGirdi('genel', d.bolum_geneli, 'Bölüm geneli (hat tanımı olmayan kayıtlar)', '') + '</div>';
+            liste.innerHTML = h;
+            liste.setAttribute('data-gruplar', JSON.stringify((d.hatlar || []).map(function (x) { return x.istasyon; })));
+            _hatSure.gruplar = (function () {
+                var g = [], son = null;
+                (d.hatlar || []).forEach(function (x) {
+                    if (!g.length || x.adim !== son) { g.push([]); son = x.adim; }
+                    g[g.length - 1].push(x.istasyon);
+                });
+                return g;
+            })();
+        }
+        function hatSureAdimaUygula(gi) {
+            var inp = document.getElementById('hat-adim-' + gi);
+            var v = inp ? (inp.value || '').trim() : '';
+            if (v === '') { toast('Önce süre yazın', 'err'); return; }
+            (_hatSure.gruplar[gi] || []).forEach(function (ist) {
+                var el = document.querySelector('[data-hat-anahtar="i' + ist + '"]');
+                if (el) el.value = v;
+            });
+            toast((_hatSure.gruplar[gi] || []).length + ' hatta ' + v + ' sn yazıldı — Kaydet ile onaylayın', 'ok');
+        }
+        async function hatSureKaydet() {
+            var btn = document.getElementById('hat-sure-kaydet-btn');
+            var kayitlar = Array.prototype.slice.call(document.querySelectorAll('#hat-sure-liste [data-hat-anahtar]')).map(function (el) {
+                var a = el.getAttribute('data-hat-anahtar');
+                var v = (el.value || '').trim();
+                var o = { cycle_time_sn: v === '' ? 0 : Number(v) };
+                if (a === 'genel') { o.istasyon = 0; o.hat = ''; }
+                else if (a.charAt(0) === 'i') { o.istasyon = parseInt(a.slice(1), 10); o.hat = ''; }
+                else { o.istasyon = 0; o.hat = a.slice(1); }
+                return o;
+            });
+            if (btn) { btn.disabled = true; }
+            try {
+                var r = await panelFetch('/api/hat_cycle', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bolum: aktifBolum, lokasyon: aktifLokasyon, kayitlar: kayitlar })
+                });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Kaydedilemedi', 'err'); return; }
+                toast(d.mesaj || 'Kaydedildi', 'ok');
+                var m = document.getElementById('hat-sure-mesaj');
+                if (m) m.textContent = d.mesaj + ' · OEE bu sürelerle yeniden hesaplanır.';
+                hatSureAc();
+            } catch (e) {
+                toast('Kaydedilemedi: ' + e.message, 'err');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         }
 
         // ── TOPLU SÜRE GİRİŞİ (kullanıcı 2026-09-16) ───────────────────────────

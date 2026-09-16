@@ -1382,6 +1382,28 @@ def init_db():
     except Exception as _e:
         print(f'[MIGRATION] proje notlari gecisi hata: {_e}')
 
+    # HAT / MAKİNE CYCLE SÜRESİ (kullanıcı 2026-09-16): süre REFERANSA değil MAKİNEYE
+    # ait olabilir — tel üretiminde bir ürünün süresi hangi hatta işlendiğine bağlıdır
+    # (Kapama 102 sn, Otomatik Pres 12 sn…). Referansın kendi süresi yoksa OEE bu
+    # tabloya düşer → yeni ürün eklendiğinde süre tanımı gerekmez, eksik süre kalmaz.
+    # Anahtar: (lokasyon, bolum, istasyon, hat)
+    #   · istasyon>0  : makinesi ÜRETİM KAYDINDA seçilen bölümler (tel/plastik/pres/TK1 montaj)
+    #   · hat dolu    : makinesi VARDİYADA seçilen bölümler (kaynak/TK2 montaj) — vardiya.robot_no
+    #   · ikisi de boş: bölüm geneli varsayılan
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS hat_cycle_time (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            bolum TEXT NOT NULL,
+            istasyon INTEGER NOT NULL DEFAULT 0,
+            hat TEXT NOT NULL DEFAULT '',
+            cycle_time_sn REAL NOT NULL DEFAULT 0,
+            guncelleyen TEXT DEFAULT '',
+            updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+            UNIQUE (lokasyon, bolum, istasyon, hat)
+        )
+    """)
+
     # PROJE v5 (kullanıcı 2026-09-15 · MS Project görünümü): planlanan BAŞLANGIÇ.
     # Gantt çubuğu başlangıç → üretim termini (yoksa talep termini); boşsa tek günlük taslak.
     try:
