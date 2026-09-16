@@ -218,6 +218,9 @@ PANEL_SAYFALAR = [
     # (rapor/OEE'yi doğrudan etkiler) → aynı gerekçeyle izin listesine kendisi
     # eklenmez; yönetici tek tek yetki verir.
     'zaman-cizelgesi',
+    # 2026-09-16: duruş sebebi tanımlama (Excel'e dokunmadan) + duruş analizi.
+    # Yeni sayfalar mevcut kullanıcıların izin listesinde YOK; yönetici tek tek verir.
+    'durus-sebepleri', 'durus-analizi',
     # 2026-09-15 PROJE TAKİP: 'proje-takip' = sayfayı görür + KENDİNE atanan işin
     # üretim terminini/durumunu girer; 'proje-yonetim' = proje açar, parça/iş ekler,
     # kişi atar, talep termini girer (sayfa değil yetki; sayfayı da açar).
@@ -4152,7 +4155,7 @@ def zaman_cizelgesi_api():
     for b, lk in ({(bolum, lokasyon or 'TK2')} if bolum
                   else {(c['bolum'], c['lokasyon']) for c in cikti}):
         try:
-            liste = durus_sebepleri_yukle(b, lk) + list(_ek_durus_sebepleri(b, lk))
+            liste = _durus_sebep_listesi(b, lk)   # panel tanımları da gelsin
         except Exception as _e:
             print(f'[zaman_cizelgesi] sebep listesi hata ({b}/{lk}): {_e}')
             continue
@@ -5187,7 +5190,11 @@ def referans_excel_export():
         sonuc = export_referans_cycle_times(bolum=bolum, lokasyon=lokasyon)
         if not sonuc.get('basarili'):
             return jsonify({'hata': sonuc.get('hata', 'Excel yazılamadı')}), 500
-        return jsonify({'basarili': True, 'mesaj': f"{sonuc.get('yazilan', 0)} referans Excel'e yazıldı."})
+        mesaj = f"{sonuc.get('yazilan', 0)} referans Excel'e yazıldı."
+        if sonuc.get('uyari'):
+            # Ana dosya bozuktu, yedekten devam edildi — kullanıcı BUNU görmeli
+            mesaj += ' ⚠ ' + sonuc['uyari']
+        return jsonify({'basarili': True, 'mesaj': mesaj, 'uyari': sonuc.get('uyari', '')})
     except Exception as e:
         return jsonify({'hata': str(e)}), 500
 
@@ -6937,6 +6944,234 @@ def _ek_durus_sebepleri(bolum, lokasyon):
     return out
 
 
+def _panel_durus_sebepleri(bolum, lokasyon):
+    """Panelden tanımlanan sebepler (durus_sebebi tablosu). Hata listeyi BOZMASIN:
+    tablo yoksa/okunamazsa Excel listesi yine dönsün."""
+    try:
+        return get_db().execute(
+            "SELECT sebep, tip, aktif FROM durus_sebebi "
+            "WHERE COALESCE(lokasyon,'TK2')=? AND bolum=? ORDER BY sira, id",
+            ((lokasyon or 'TK2').upper(), bolum)).fetchall()
+    except Exception as e:
+        print(f'[durus_sebebi] panel tanımları okunamadı: {e}')
+        return []
+
+
+def _durus_sebep_listesi(bolum, lokasyon):
+    """Bir bölümün duruş sebepleri — TEK KAYNAK: Excel + kod (EK_DURUS_SEBEPLERI) +
+    panel tanımları. Sebep listesi gösteren/kabul eden her yer BURAYI çağırmalı;
+    yoksa panelden eklenen sebep bazı ekranlarda (operatör mobili, zaman çizelgesi)
+    görünmez ve duruş yanlış sebeple kaydedilir.
+    Panel kaydı aynı adlı Excel sebebinin TİPİNİ ezer; aktif=0 ise sebebi listeden
+    ÇIKARIR (Excel'e dokunmadan gizleme)."""
+    try:
+        sebepler = durus_sebepleri_yukle(bolum, lokasyon)
+    except Exception as e:
+        print(f'[durus_sebepleri] Excel okunamadı ({bolum}/{lokasyon}): {e}')
+        sebepler = []
+    mevcut = {str(x.get('sebep', '')).strip().upper() for x in sebepler}
+    for ek in _ek_durus_sebepleri(bolum, lokasyon):
+        if str(ek['sebep']).strip().upper() not in mevcut:
+            sebepler.append(dict(ek))
+            mevcut.add(str(ek['sebep']).strip().upper())
+    for p in _panel_durus_sebepleri(bolum, lokasyon):
+        ad = str(p['sebep']).strip()
+        var = [x for x in sebepler if str(x.get('sebep', '')).strip().upper() == ad.upper()]
+        if not p['aktif']:
+            for x in var:
+                sebepler.remove(x)
+        elif var:
+            for x in var:
+                x['tip'] = p['tip']
+        else:
+            sebepler.append({'sebep': ad, 'tip': p['tip']})
+    return sebepler
+
+
+# ── DURUŞ SEBEBİ YÖNETİMİ (kullanıcı 2026-09-16) ────────────────────────────
+# "Robot kaynak için ekstra bir duruş tanımlamak istiyorum, her seferinde Excel'e
+#  yazıp oradan güncellemek zor oluyor. Dashboard'da yer oluşturalım."
+# Excel ANA KAYNAK olarak kalır (planlama oradan bakıyor); panel tanımları listeye
+# karışır (_durus_sebep_listesi). Excel'den gelen sebep panelden SİLİNMEZ, gizlenir.
+_DURUS_TIP = ('planli', 'plansiz')
+
+
+@app.route('/api/durus_sebebi', methods=['GET'])
+@panel_gerekli(izin='durus-sebepleri')
+def durus_sebebi_listesi():
+    """Yönetim listesi: sebepler kaynağıyla (excel / kod / panel) ve kullanım sayısıyla.
+    ?bolum=kaynak&lokasyon=TK2"""
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    try:
+        excel = durus_sebepleri_yukle(bolum, lokasyon)
+    except Exception as e:
+        excel = []
+        print(f'[durus_sebebi] Excel okunamadı: {e}')
+    panel = {str(p['sebep']).strip().upper(): p for p in _panel_durus_sebepleri(bolum, lokasyon)}
+    out, gorulen = [], set()
+    for kaynak, liste in (('excel', excel), ('kod', _ek_durus_sebepleri(bolum, lokasyon))):
+        for x in liste:
+            ad = str(x.get('sebep', '')).strip()
+            if not ad or ad.upper() in gorulen:
+                continue
+            gorulen.add(ad.upper())
+            p = panel.get(ad.upper())
+            out.append({'sebep': ad, 'tip': (p['tip'] if p else x.get('tip', 'plansiz')),
+                        'kaynak': kaynak, 'aktif': bool(p['aktif']) if p else True,
+                        'panelde': bool(p)})
+    for ad, p in panel.items():
+        if ad not in gorulen:
+            out.append({'sebep': p['sebep'], 'tip': p['tip'], 'kaynak': 'panel',
+                        'aktif': bool(p['aktif']), 'panelde': True})
+    # Kullanım: sebep gerçekten kaydedilmiş mi (silmeden önce görülsün)
+    kullanim = {str(r['s']).strip().upper(): r['n'] for r in get_db().execute(
+        "SELECT d.durus_sebebi s, COUNT(*) n FROM duruslar d JOIN vardiyalar v ON v.id=d.vardiya_id "
+        "WHERE COALESCE(v.bolum,'kaynak')=? AND COALESCE(v.lokasyon,'TK2')=? GROUP BY 1",
+        (bolum, lokasyon)).fetchall()}
+    for x in out:
+        x['kullanim'] = kullanim.get(x['sebep'].upper(), 0)
+    return jsonify({'bolum': bolum, 'lokasyon': lokasyon, 'sebepler': out,
+                    'excel_sayisi': len(excel), 'panel_sayisi': len(panel)})
+
+
+@app.route('/api/durus_sebebi', methods=['POST'])
+@panel_gerekli(izin='durus-sebepleri')
+def durus_sebebi_kaydet():
+    """Ekle / güncelle. Body: {bolum, lokasyon, sebep, tip: planli|plansiz, aktif}
+    Aynı ad varsa GÜNCELLER. aktif=0 → sebep listelerde görünmez (Excel'dekiler dahil)."""
+    d = request.get_json(silent=True) or {}
+    bolum = (d.get('bolum') or '').strip()
+    lokasyon = (d.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    sebep = ' '.join(str(d.get('sebep') or '').split())[:80]
+    tip = (d.get('tip') or 'plansiz').strip()
+    aktif = 0 if str(d.get('aktif', 1)).lower() in ('0', 'false', 'hayir') else 1
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    if not sebep:
+        return jsonify({'hata': 'Duruş sebebi boş olamaz'}), 400
+    if tip not in _DURUS_TIP:
+        return jsonify({'hata': f'Geçersiz tip: {tip} (planli|plansiz)'}), 400
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO durus_sebebi (lokasyon, bolum, sebep, tip, aktif, olusturan) VALUES (?,?,?,?,?,?) "
+        "ON CONFLICT(lokasyon, bolum, sebep) DO UPDATE SET tip=excluded.tip, aktif=excluded.aktif",
+        (lokasyon, bolum, sebep, tip, aktif, g.panel_ku['kullanici_adi']))
+    conn.commit()
+    return jsonify({'basarili': True, 'sebep': sebep, 'tip': tip, 'aktif': bool(aktif),
+                    'mesaj': f'"{sebep}" ' + ('kaydedildi' if aktif else 'gizlendi')})
+
+
+@app.route('/api/durus_sebebi', methods=['DELETE'])
+@panel_gerekli(izin='durus-sebepleri')
+def durus_sebebi_sil():
+    """Panel tanımını siler. ?bolum&lokasyon&sebep
+    GEÇMİŞ DURUŞ KAYITLARINA DOKUNMAZ — sebep adı kayıtta metin olarak durur,
+    raporlar değişmez. Excel'den gelen bir sebep silinmez; onu gizlemek için aktif=0."""
+    bolum = (request.args.get('bolum') or '').strip()
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    sebep = (request.args.get('sebep') or '').strip()
+    if not (bolum and sebep):
+        return jsonify({'hata': 'bolum ve sebep gerekli'}), 400
+    conn = get_db()
+    n = conn.execute("DELETE FROM durus_sebebi WHERE COALESCE(lokasyon,'TK2')=? AND bolum=? "
+                     "AND UPPER(sebep)=UPPER(?)", (lokasyon, bolum, sebep)).rowcount
+    conn.commit()
+    if not n:
+        return jsonify({'hata': 'Panel tanımı bulunamadı (Excel sebebi silinemez, gizlenebilir)'}), 404
+    return jsonify({'basarili': True, 'mesaj': f'"{sebep}" panel tanımı silindi'})
+
+
+# ── DURUŞ ANALİZİ (kullanıcı 2026-09-16: "duruşları analiz edebileceğimiz bir kısım") ──
+def _durus_grupla(rows, anahtar):
+    """rows → [{'ad','dk','adet'}] (süreye göre azalan)."""
+    out = {}
+    for r in rows:
+        k = str(r.get(anahtar) or '—').strip() or '—'
+        t = out.get(k, [0.0, 0])
+        t[0] += r['dk'] or 0
+        t[1] += 1
+        out[k] = t
+    return sorted([{'ad': k, 'dk': round(v[0], 1), 'adet': v[1]} for k, v in out.items()],
+                  key=lambda x: -x['dk'])
+
+
+@app.route('/api/durus_analiz', methods=['GET'])
+@panel_gerekli(izin='durus-analizi')
+def durus_analiz_api():
+    """Dönem duruş analizi: Pareto (sebep), hat / operatör / gün kırılımı, en uzunlar.
+    ?tarih_bas&tarih_bit&bolum&lokasyon&hat&tip=planli|plansiz
+    Duruş VARDİYAYA bağlıdır: hat = vardiyanın hattı (robot_no), bölüm/lokasyon da
+    vardiyadan gelir — duruş kaydında bu alanlar yok."""
+    bas = (request.args.get('tarih_bas') or date.today().isoformat()).strip()
+    bit = (request.args.get('tarih_bit') or bas).strip()
+    bolum = (request.args.get('bolum') or '').strip()
+    lokasyon = (request.args.get('lokasyon') or '').strip().upper()
+    hat = (request.args.get('hat') or '').strip()
+    tip = (request.args.get('tip') or '').strip()
+    kosul, par = '', [bas, bit]
+    if bolum:
+        kosul += " AND COALESCE(v.bolum,'kaynak')=?"
+        par.append(bolum)
+    if lokasyon:
+        kosul += " AND COALESCE(v.lokasyon,'TK2')=?"
+        par.append(lokasyon)
+    if hat:
+        kosul += " AND v.robot_no=?"
+        par.append(hat)
+    sql = ("SELECT d.durus_sebebi sebep, COALESCE(d.aciklama,'') aciklama, "
+           "       COALESCE(d.sure_dk,0) dk, COALESCE(d.durus_tipi,'plansiz') tip, "
+           "       COALESCE(d.baslangic_saati,'') saat, v.id vid, v.tarih, "
+           "       COALESCE(v.robot_no,'') hat, COALESCE(v.operator_adi,'') operator, "
+           "       COALESCE(v.bolum,'kaynak') bolum, COALESCE(v.lokasyon,'TK2') lokasyon "
+           "FROM duruslar d JOIN vardiyalar v ON v.id = d.vardiya_id "
+           "WHERE v.tarih BETWEEN ? AND ?" + kosul)
+    if tip in _DURUS_TIP:
+        sql += " AND COALESCE(d.durus_tipi,'plansiz')=?"
+    conn = get_db()
+    rows = [dict(r) for r in conn.execute(sql, par + ([tip] if tip in _DURUS_TIP else [])).fetchall()]
+    for r in rows:
+        r['sebep'] = (str(r['sebep'] or '').strip() or 'Sebep girilmemiş')
+    toplam = sum(r['dk'] for r in rows)
+    planli = sum(r['dk'] for r in rows if r['tip'] == 'planli')
+    # Sebep bazlı PARETO: süre sırası + kümülatif pay ("kaybın %80'i hangi sebepler?")
+    sebep_tip = {}
+    for r in rows:                      # bir sebebin tipi karışıksa plansız ağır basar
+        if r['sebep'] not in sebep_tip or r['tip'] == 'plansiz':
+            sebep_tip[r['sebep']] = r['tip']
+    sebepler, kum = [], 0.0
+    for x in _durus_grupla(rows, 'sebep'):
+        kum += x['dk']
+        sebepler.append({'sebep': x['ad'], 'dk': x['dk'], 'adet': x['adet'],
+                         'tip': sebep_tip.get(x['ad'], 'plansiz'),
+                         'ort_dk': round(x['dk'] / x['adet'], 1) if x['adet'] else 0,
+                         'pay': round(100 * x['dk'] / toplam, 1) if toplam else 0,
+                         'kumulatif': round(100 * kum / toplam, 1) if toplam else 0})
+    vardiya_sayisi = conn.execute(
+        "SELECT COUNT(*) n FROM vardiyalar v WHERE v.tarih BETWEEN ? AND ?" + kosul, par).fetchone()['n']
+    en_uzun = sorted(rows, key=lambda r: -r['dk'])[:20]
+    return jsonify({
+        'donem': {'bas': bas, 'bit': bit, 'bolum': bolum, 'lokasyon': lokasyon, 'hat': hat, 'tip': tip},
+        'ozet': {'toplam_dk': round(toplam, 1), 'planli_dk': round(planli, 1),
+                 'plansiz_dk': round(toplam - planli, 1), 'kayit': len(rows),
+                 'vardiya': vardiya_sayisi, 'duruslu_vardiya': len({r['vid'] for r in rows}),
+                 'vardiya_basi_dk': round(toplam / vardiya_sayisi, 1) if vardiya_sayisi else 0,
+                 'ort_dk': round(toplam / len(rows), 1) if rows else 0,
+                 'sebepsiz_adet': sum(1 for r in rows if r['sebep'] == 'Sebep girilmemiş')},
+        'sebepler': sebepler,
+        'hatlar': _durus_grupla(rows, 'hat'),
+        'operatorler': _durus_grupla(rows, 'operator'),
+        'bolumler': _durus_grupla(rows, 'bolum'),
+        'gunler': sorted(_durus_grupla(rows, 'tarih'), key=lambda x: x['ad']),
+        'en_uzun': [{'tarih': r['tarih'], 'hat': r['hat'], 'operator': r['operator'],
+                     'sebep': r['sebep'], 'dk': r['dk'], 'tip': r['tip'],
+                     'aciklama': r['aciklama'], 'saat': r['saat'],
+                     'bolum': r['bolum'], 'lokasyon': r['lokasyon']} for r in en_uzun],
+    })
+
+
 @app.route('/api/durus_sebepleri', methods=['GET'])
 def durus_sebepleri_api():
     """Bölüme göre duruş sebeplerini Excel'den okuyup döner.
@@ -6954,12 +7189,7 @@ def durus_sebepleri_api():
     lokasyon = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
     if bolum not in GECERLI_BOLUMLER:
         return jsonify({'hata': f"Geçersiz bölüm: {bolum}"}), 400
-    sebepler = durus_sebepleri_yukle(bolum, lokasyon)
-    # Excel dışı sebepleri ekle — Excel'de zaten varsa TEKRARLAMA (ad bazlı).
-    _mevcut = {str(x.get('sebep', '')).strip().upper() for x in sebepler}
-    for _ek in _ek_durus_sebepleri(bolum, lokasyon):
-        if str(_ek['sebep']).strip().upper() not in _mevcut:
-            sebepler.append(dict(_ek))
+    sebepler = _durus_sebep_listesi(bolum, lokasyon)   # Excel + kod + panel tanımları
     # BOŞ LİSTENİN SEBEBİNİ SÖYLE (2026-08-18). Eskiden boş dönerdi ve operatör
     # mobili sessizce 6 maddelik yedek listeye düşerdi: operatörler "duruşlarımız
     # azaldı" diyene kadar kimse fark etmiyor, o arada duruşlar YANLIŞ/GENEL

@@ -1756,6 +1756,20 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "⏸️ Duruş Sebepleri": {"en": "⏸️ Downtime Reasons", "it": "⏸️ Motivi di fermo"},
+  "Duruş Sebepleri": {"en": "Downtime Reasons", "it": "Motivi di fermo"},
+  "Duruş Analizi": {"en": "Downtime Analysis", "it": "Analisi fermi"},
+  "⛔ Duruş Analizi": {"en": "⛔ Downtime Analysis", "it": "⛔ Analisi fermi"},
+  "➕ Yeni duruş sebebi": {"en": "➕ New downtime reason", "it": "➕ Nuovo motivo di fermo"},
+  "📋 Bölümün duruş sebepleri": {"en": "📋 Department downtime reasons", "it": "📋 Motivi di fermo del reparto"},
+  "🏆 Sebepler (Pareto)": {"en": "🏆 Reasons (Pareto)", "it": "🏆 Motivi (Pareto)"},
+  "⏳ En uzun duruşlar": {"en": "⏳ Longest stops", "it": "⏳ Fermi più lunghi"},
+  "🏭 Hat / Makine": {"en": "🏭 Line / Machine", "it": "🏭 Linea / Macchina"},
+  "📆 Günlük seyir": {"en": "📆 Daily trend", "it": "📆 Andamento giornaliero"},
+  "👷 Operatör": {"en": "👷 Operator", "it": "👷 Operatore"},
+  "🧱 Bölüm": {"en": "🧱 Department", "it": "🧱 Reparto"},
+  "Kullanım": {"en": "Usage", "it": "Utilizzo"},
+  "Plansız (kayıp)": {"en": "Unplanned (loss)", "it": "Non pianificato (perdita)"},
   "⏱ Hat Süreleri": {"en": "⏱ Line times", "it": "⏱ Tempi linea"},
   "⏱ Hat / makine süreleri": {"en": "⏱ Line / machine times", "it": "⏱ Tempi linea / macchina"},
   "Adımın tümüne uygula": {"en": "Apply to whole step", "it": "Applica a tutto il passo"},
@@ -5304,6 +5318,8 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">📦</span> Referanslar</a>
                 <a class="nav-item" data-sayfa="operatorler" onclick="sayfaAc('operatorler')">
                     <span class="nav-icon">🔐</span> Operatörler</a>
+                <a class="nav-item" data-sayfa="durus-sebepleri" onclick="sayfaAc('durus-sebepleri')">
+                    <span class="nav-icon">⏸️</span> Duruş Sebepleri</a>
                 </div>
             </div>
 
@@ -5330,6 +5346,8 @@ window.__I18N_SOZLUK__ = {
                 <div class="nav-group-govde">
                 <a class="nav-item" data-sayfa="zaman-cizelgesi" onclick="sayfaAc('zaman-cizelgesi')">
                     <span class="nav-icon">🗓️</span> Zaman Çizelgesi</a>
+                <a class="nav-item" data-sayfa="durus-analizi" onclick="sayfaAc('durus-analizi')">
+                    <span class="nav-icon">⛔</span> Duruş Analizi</a>
                 <a class="nav-item" data-sayfa="raporlar" onclick="sayfaAc('raporlar')">
                     <span class="nav-icon">📈</span> Raporlar</a>
                 <a class="nav-item" data-sayfa="operator-performans" onclick="sayfaAc('operator-performans')">
@@ -6901,6 +6919,231 @@ window.__I18N_SOZLUK__ = {
                  bölünebiliyor ve sebebi değiştirilip yeniden atanabiliyor.
                  Veri kaynağı TEK: /api/zaman_cizelgesi (damgalar duruslar/
                  uretim_kayitlari.baslangic_ts-bitis_ts kolonlarından gelir). ══ -->
+            <!-- DURUŞ SEBEPLERİ (kullanıcı 2026-09-16): "robot kaynak için ekstra bir duruş
+                 tanımlamak istiyorum, her seferinde Excel'e yazıp oradan güncellemek zor
+                 oluyor." Excel ana liste olarak kalır; buradan eklenen sebep operatör
+                 mobiline ve zaman çizelgesine aynı anda düşer. -->
+            <section class="page" id="page-durus-sebepleri">
+                <div style="margin-bottom:18px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">⏸️ Duruş Sebepleri</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                        Bölüme duruş sebebi ekleyin; operatör mobilinde ve zaman çizelgesinde anında görünür. Excel listesi ana kaynak olarak kalır — Excel'den gelen bir sebebi silemezsiniz, yalnızca gizleyebilirsiniz.
+                    </p>
+                </div>
+
+                <div class="ky-filtre">
+                    <div class="f-group">
+                        <label>Bölüm</label>
+                        <select id="ds-bolum" style="min-width:170px" onchange="dsYukle()"></select>
+                    </div>
+                    <button onclick="dsYukle()" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
+                        🔄 Yenile
+                    </button>
+                    <div id="ds-durum" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>➕ Yeni duruş sebebi</h3>
+                        <span class="adet-info" id="ds-bilgi"></span>
+                    </div>
+                    <div style="padding:14px 20px">
+                        <div class="rt-form" style="grid-template-columns:2fr 1fr auto">
+                            <div>
+                                <div class="f-lbl">Sebep</div>
+                                <input type="text" id="ds-yeni-sebep" maxlength="80" placeholder="ör. Robot Torç Değişimi"
+                                       onkeydown="if(event.key==='Enter')dsEkle()">
+                            </div>
+                            <div>
+                                <div class="f-lbl">Tip</div>
+                                <select id="ds-yeni-tip">
+                                    <option value="plansiz">Plansız (kayıp)</option>
+                                    <option value="planli">Planlı</option>
+                                </select>
+                            </div>
+                            <div style="display:flex;align-items:flex-end">
+                                <button class="btn btn-primary" onclick="dsEkle()">Ekle</button>
+                            </div>
+                        </div>
+                        <div style="font-size:.78rem;color:var(--muted);margin-top:10px;line-height:1.6">
+                            Şüphedeyseniz plansız seçin: planlı işaretlenen bir duruş OEE'de kayıp sayılmaz ve gerçek bir kaybı gizler.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>📋 Bölümün duruş sebepleri</h3>
+                        <span class="adet-info" id="ds-sayi"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Sebep</th>
+                                    <th style="width:150px">Tip</th>
+                                    <th style="width:110px">Kaynak</th>
+                                    <th style="width:110px">Kullanım</th>
+                                    <th style="width:190px">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ds-liste">
+                                <tr><td colspan="5"><div class="yukleniyor">Yükleniyor…</div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- DURUŞ ANALİZİ (kullanıcı 2026-09-16: "duruşları analiz edebileceğimiz bir
+                 kısım oluşturalım"). Duruş vardiyaya bağlıdır: hat/bölüm/operatör bilgisi
+                 vardiyadan gelir. Pareto sıralaması "kaybın çoğu hangi sebepte" sorusunu
+                 yanıtlar; kümülatif sütun %80 çizgisini gösterir. -->
+            <section class="page" id="page-durus-analizi">
+                <div style="margin-bottom:18px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">⛔ Duruş Analizi</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                        Seçilen dönemde duruşların sebep, hat, operatör ve gün kırılımı. Sebepler süreye göre sıralanır; kümülatif sütun toplam kaybın yüzde kaçının o sebebe kadar biriktiğini gösterir.
+                    </p>
+                </div>
+
+                <div class="ky-filtre">
+                    <div class="f-group">
+                        <label>Başlangıç</label>
+                        <input type="date" id="da-bas" onchange="daYukle()">
+                    </div>
+                    <div class="f-group">
+                        <label>Bitiş</label>
+                        <input type="date" id="da-bit" onchange="daYukle()">
+                    </div>
+                    <div class="f-group">
+                        <label>Bölüm</label>
+                        <select id="da-bolum" style="min-width:150px" onchange="daYukle()"></select>
+                    </div>
+                    <div class="f-group">
+                        <label>Hat / Makine</label>
+                        <select id="da-hat" style="min-width:140px" onchange="daYukle()">
+                            <option value="">Tümü</option>
+                        </select>
+                    </div>
+                    <div class="f-group">
+                        <label>Tip</label>
+                        <select id="da-tip" style="min-width:130px" onchange="daYukle()">
+                            <option value="">Tümü</option>
+                            <option value="plansiz">Plansız</option>
+                            <option value="planli">Planlı</option>
+                        </select>
+                    </div>
+                    <button onclick="daYukle()" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
+                        🔄 Yenile
+                    </button>
+                    <div id="da-durum" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card k-durus">
+                        <div class="kpi-label">⏱ Toplam Duruş</div>
+                        <div class="kpi-value" id="da-k-toplam" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="da-k-toplam-sub">&nbsp;</div>
+                    </div>
+                    <div class="kpi-card k-hedef">
+                        <div class="kpi-label">🛑 Plansız</div>
+                        <div class="kpi-value" id="da-k-plansiz" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="da-k-plansiz-sub">&nbsp;</div>
+                    </div>
+                    <div class="kpi-card k-ok">
+                        <div class="kpi-label">📅 Planlı</div>
+                        <div class="kpi-value" id="da-k-planli" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="da-k-planli-sub">&nbsp;</div>
+                    </div>
+                    <div class="kpi-card k-oee">
+                        <div class="kpi-label">📉 Vardiya Başına</div>
+                        <div class="kpi-value" id="da-k-vardiya" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="da-k-vardiya-sub">&nbsp;</div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>🏆 Sebepler (Pareto)</h3>
+                        <span class="adet-info" id="da-pareto-info"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Sebep</th>
+                                    <th style="width:90px">Tip</th>
+                                    <th style="width:100px">Süre</th>
+                                    <th style="width:70px">Adet</th>
+                                    <th style="width:90px">Ort.</th>
+                                    <th style="width:220px">Pay</th>
+                                    <th style="width:90px">Kümülatif</th>
+                                </tr>
+                            </thead>
+                            <tbody id="da-pareto">
+                                <tr><td colspan="7"><div class="yukleniyor">Yükleniyor…</div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="detay-kolonlar">
+                    <div>
+                        <div class="panel-card">
+                            <div class="panel-header">
+                                <h3>🏭 Hat / Makine</h3>
+                            </div>
+                            <div style="padding:14px 20px" id="da-hatlar"></div>
+                        </div>
+                        <div class="panel-card">
+                            <div class="panel-header">
+                                <h3>📆 Günlük seyir</h3>
+                            </div>
+                            <div style="padding:14px 20px" id="da-gunler"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="panel-card">
+                            <div class="panel-header">
+                                <h3>👷 Operatör</h3>
+                            </div>
+                            <div style="padding:14px 20px" id="da-operatorler"></div>
+                        </div>
+                        <div class="panel-card">
+                            <div class="panel-header">
+                                <h3>🧱 Bölüm</h3>
+                            </div>
+                            <div style="padding:14px 20px" id="da-bolumler"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>⏳ En uzun duruşlar</h3>
+                        <span class="adet-info">ilk 20</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:100px">Tarih</th>
+                                    <th style="width:70px">Saat</th>
+                                    <th style="width:110px">Hat</th>
+                                    <th style="width:150px">Operatör</th>
+                                    <th>Sebep</th>
+                                    <th style="width:90px">Süre</th>
+                                </tr>
+                            </thead>
+                            <tbody id="da-uzun">
+                                <tr><td colspan="6"><div class="yukleniyor">Yükleniyor…</div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <section class="page" id="page-zaman-cizelgesi">
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">🗓️ Zaman Çizelgesi</h2>
@@ -8470,6 +8713,8 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'as400-planlama') ? 'page-as400-planlama'
                         : (sayfa === 'kullanicilar') ? 'page-kullanicilar'
                         : (sayfa === 'zaman-cizelgesi') ? 'page-zaman-cizelgesi'
+                        : (sayfa === 'durus-sebepleri') ? 'page-durus-sebepleri'
+                        : (sayfa === 'durus-analizi') ? 'page-durus-analizi'
                         : (sayfa === 'ariza-onay') ? 'page-ariza-onay'
                         : (sayfa === 'proje-takip') ? 'page-proje-takip'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
@@ -8514,6 +8759,8 @@ window.__I18N_SOZLUK__ = {
             }
             if (sayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();
             if (sayfa === 'zaman-cizelgesi') zcSekmeAcildi();
+            if (sayfa === 'durus-sebepleri') dsSekmeAcildi();
+            if (sayfa === 'durus-analizi') daSekmeAcildi();
             if (sayfa === 'raporlar') initRaporlar();
             if (sayfa === 'operator-performans') initOperatorPerformans();
             if (sayfa === 'analiz') initAnaliz();
@@ -8558,6 +8805,10 @@ window.__I18N_SOZLUK__ = {
             } else if (aktifSayfa === 'sinyal-analizi') {
                 // Sinyal analizi kendi iç bölüm seçicisini taşır (v2 bölüm bağlamı zorlanmaz)
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Sinyal Analizi</b>';
+            } else if (aktifSayfa === 'durus-sebepleri') {
+                bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Duruş Sebepleri</b>';
+            } else if (aktifSayfa === 'durus-analizi') {
+                bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Duruş Analizi</b>';
             } else if (aktifSayfa === 'zaman-cizelgesi') {
                 // Çizelge kendi bölüm/tarih seçicilerini taşır (v2 bağlamı zorlanmaz)
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Zaman Çizelgesi</b>';
@@ -16492,6 +16743,9 @@ window.__I18N_SOZLUK__ = {
             // kutucukları çıkmadığı için yöneticiler izni panelden veremiyordu
             // (yalnız admin görebiliyordu). Arıza Onay eklenirken fark edildi.
             'zaman-cizelgesi': 'Zaman Çizelgesi (duruş atama)',
+            // 2026-09-16: duruş sebebi tanımlama + duruş analizi
+            'durus-sebepleri': 'Duruş Sebepleri (bölüme duruş sebebi tanımla)',
+            'durus-analizi': 'Duruş Analizi (Pareto + hat/operatör kırılımı)',
             'ariza-onay': 'Arıza Onay (operatör bildirimlerini bakıma iletme)',
             // 2026-09-15 Proje Takip: yönetim izni sayfayı da açar
             'proje-takip': 'Proje Takip (görüntüle + kendine atanan işin terminini gir)',
@@ -18070,6 +18324,276 @@ window.__I18N_SOZLUK__ = {
         var _zcVeri = null;          // son çekilen /api/zaman_cizelgesi yanıtı
         var _zcEksen = null;         // { bas: Date, bit: Date } — ortak ölçek
         var _zcSecili = null;        // modalda açık duruş {vid, durus}
+
+        // ── DURUŞ SEBEPLERİ (kullanıcı 2026-09-16) ─────────────────────────────
+        // "Robot kaynak için ekstra bir duruş tanımlamak istiyorum, her seferinde
+        //  Excel'e yazıp oradan güncellemek zor oluyor."
+        // Excel listesi ANA KAYNAK olarak kalır; buradan eklenen sebep aynı listeye
+        // karışır (backend: _durus_sebep_listesi). Excel sebebi SİLİNMEZ, gizlenir.
+        var _ds = { sebepler: [] };
+
+        function dsSekmeAcildi() {
+            dsBolumDoldur();
+            dsYukle();
+        }
+
+        function dsBolumDoldur() {
+            var sel = document.getElementById('ds-bolum');
+            if (!sel) return;
+            var onceki = sel.value || aktifBolum;
+            sel.innerHTML = lokBolumleri().map(function (b) {
+                return '<option value="' + b + '">' + esc(bolumAdi(b)) + '</option>';
+            }).join('');
+            sel.value = (onceki && sel.querySelector('option[value="' + onceki + '"]')) ? onceki : (lokBolumleri()[0] || '');
+        }
+
+        function dsBolum() {
+            return (document.getElementById('ds-bolum') || {}).value || aktifBolum;
+        }
+
+        async function dsYukle() {
+            var durum = document.getElementById('ds-durum');
+            var govde = document.getElementById('ds-liste');
+            if (durum) durum.textContent = 'Yükleniyor…';
+            try {
+                var r = await panelFetch('/api/durus_sebebi?bolum=' + encodeURIComponent(dsBolum()) +
+                                         '&lokasyon=' + encodeURIComponent(aktifLokasyon));
+                var d = await r.json();
+                if (!r.ok) {
+                    if (govde) govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">' + esc(d.hata || 'Yüklenemedi') + '</div></td></tr>';
+                    if (durum) durum.textContent = '';
+                    return;
+                }
+                _ds.sebepler = d.sebepler || [];
+                dsCiz(d);
+                if (durum) durum.textContent = aktifLokasyon + ' · ' + bolumAdi(dsBolum());
+            } catch (e) {
+                if (govde) govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+                if (durum) durum.textContent = '';
+            }
+        }
+
+        function dsCiz(d) {
+            var govde = document.getElementById('ds-liste');
+            if (!govde) return;
+            var bilgi = document.getElementById('ds-bilgi');
+            if (bilgi) bilgi.textContent = 'Excel ' + (d.excel_sayisi || 0) + ' · panel ' + (d.panel_sayisi || 0);
+            var sayi = document.getElementById('ds-sayi');
+            var aktifSayisi = _ds.sebepler.filter(function (x) { return x.aktif; }).length;
+            if (sayi) sayi.textContent = aktifSayisi + ' aktif / ' + _ds.sebepler.length;
+            if (!_ds.sebepler.length) {
+                govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">Bu bölüm için tanımlı duruş sebebi yok.</div></td></tr>';
+                return;
+            }
+            var KAYNAK = {
+                excel: ['Excel', 'var(--b-kaynak)'], kod: ['Kod', 'var(--lg-slate)'], panel: ['Panel', 'var(--success)']
+            };
+            govde.innerHTML = _ds.sebepler.map(function (x, i) {
+                var k = KAYNAK[x.kaynak] || KAYNAK.kod;
+                var pasif = !x.aktif;
+                return '<tr style="' + (pasif ? 'opacity:.5' : '') + '">' +
+                    '<td style="font-weight:700">' + esc(x.sebep) +
+                    (pasif ? ' <span style="font-weight:500;color:var(--muted)">(gizli)</span>' : '') + '</td>' +
+                    '<td><select class="rt-row-select" style="width:130px" onchange="dsTipDegistir(' + i + ', this.value)">' +
+                    '<option value="plansiz"' + (x.tip === 'plansiz' ? ' selected' : '') + '>Plansız</option>' +
+                    '<option value="planli"' + (x.tip === 'planli' ? ' selected' : '') + '>Planlı</option></select></td>' +
+                    '<td><span style="background:rgba(148,163,184,0.15);color:' + k[1] + ';border-radius:6px;padding:2px 8px;font-size:.72rem;font-weight:700">' + k[0] + '</span></td>' +
+                    '<td style="color:var(--muted)">' + (x.kullanim || 0) + '</td>' +
+                    '<td><button class="btn btn-ghost" style="padding:3px 10px;font-size:.76rem" onclick="dsGizle(' + i + ')">' +
+                    (pasif ? 'Göster' : 'Gizle') + '</button>' +
+                    (x.kaynak === 'panel'
+                        ? ' <button class="btn btn-ghost" style="padding:3px 10px;font-size:.76rem;color:var(--danger)" onclick="dsSil(' + i + ')">Sil</button>'
+                        : '') + '</td></tr>';
+            }).join('');
+        }
+
+        async function dsKaydet(govde, basarimesaji) {
+            try {
+                var r = await panelFetch('/api/durus_sebebi', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(govde)
+                });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Kaydedilemedi', 'err'); return false; }
+                toast(basarimesaji || d.mesaj, 'ok');
+                dsYukle();
+                return true;
+            } catch (e) {
+                toast('Kaydedilemedi: ' + e.message, 'err');
+                return false;
+            }
+        }
+
+        async function dsEkle() {
+            var inp = document.getElementById('ds-yeni-sebep');
+            var sebep = ((inp || {}).value || '').trim();
+            if (!sebep) { toast('Duruş sebebi yazın', 'err'); return; }
+            var ok = await dsKaydet({
+                bolum: dsBolum(), lokasyon: aktifLokasyon, sebep: sebep,
+                tip: (document.getElementById('ds-yeni-tip') || {}).value || 'plansiz'
+            });
+            if (ok && inp) inp.value = '';
+        }
+
+        function dsTipDegistir(i, tip) {
+            var x = _ds.sebepler[i];
+            if (!x) return;
+            dsKaydet({ bolum: dsBolum(), lokasyon: aktifLokasyon, sebep: x.sebep, tip: tip, aktif: x.aktif ? 1 : 0 },
+                     '"' + x.sebep + '" → ' + (tip === 'planli' ? 'planlı' : 'plansız'));
+        }
+
+        function dsGizle(i) {
+            var x = _ds.sebepler[i];
+            if (!x) return;
+            // Gizlenen sebep yeni duruş girişinde SEÇİLEMEZ; geçmiş kayıtlar aynen kalır.
+            dsKaydet({ bolum: dsBolum(), lokasyon: aktifLokasyon, sebep: x.sebep, tip: x.tip, aktif: x.aktif ? 0 : 1 });
+        }
+
+        async function dsSil(i) {
+            var x = _ds.sebepler[i];
+            if (!x) return;
+            if (!confirm('"' + x.sebep + '" tanımı silinsin mi?\n\nGeçmiş duruş kayıtları etkilenmez; sebep yalnızca listeden kalkar.')) return;
+            try {
+                var r = await panelFetch('/api/durus_sebebi?bolum=' + encodeURIComponent(dsBolum()) +
+                                         '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
+                                         '&sebep=' + encodeURIComponent(x.sebep), { method: 'DELETE' });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Silinemedi', 'err'); return; }
+                toast(d.mesaj, 'ok');
+                dsYukle();
+            } catch (e) {
+                toast('Silinemedi: ' + e.message, 'err');
+            }
+        }
+
+        // ── DURUŞ ANALİZİ (kullanıcı 2026-09-16) ───────────────────────────────
+        var _da = { veri: null };
+
+        function daSekmeAcildi() {
+            var bas = document.getElementById('da-bas'), bit = document.getElementById('da-bit');
+            if (bas && !bas.value) {
+                var g = new Date(); g.setDate(g.getDate() - 6);
+                bas.value = isoTarih(g);
+            }
+            if (bit && !bit.value) bit.value = isoTarih(new Date());
+            var sel = document.getElementById('da-bolum');
+            if (sel) {
+                var onceki = sel.value;
+                sel.innerHTML = '<option value="">Tüm bölümler</option>' + lokBolumleri().map(function (b) {
+                    return '<option value="' + b + '">' + esc(bolumAdi(b)) + '</option>';
+                }).join('');
+                sel.value = (onceki && sel.querySelector('option[value="' + onceki + '"]')) ? onceki : '';
+            }
+            daYukle();
+        }
+
+        async function daYukle() {
+            var durum = document.getElementById('da-durum');
+            if (durum) durum.textContent = 'Yükleniyor…';
+            var q = '/api/durus_analiz?tarih_bas=' + encodeURIComponent((document.getElementById('da-bas') || {}).value || '') +
+                    '&tarih_bit=' + encodeURIComponent((document.getElementById('da-bit') || {}).value || '') +
+                    '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
+                    '&bolum=' + encodeURIComponent((document.getElementById('da-bolum') || {}).value || '') +
+                    '&hat=' + encodeURIComponent((document.getElementById('da-hat') || {}).value || '') +
+                    '&tip=' + encodeURIComponent((document.getElementById('da-tip') || {}).value || '');
+            try {
+                var r = await panelFetch(q);
+                var d = await r.json();
+                if (!r.ok) { toast(d.hata || 'Yüklenemedi', 'err'); if (durum) durum.textContent = ''; return; }
+                _da.veri = d;
+                daCiz(d);
+                if (durum) durum.textContent = d.ozet.kayit + ' duruş kaydı · ' + d.ozet.vardiya + ' vardiya';
+            } catch (e) {
+                toast('Yüklenemedi: ' + e.message, 'err');
+                if (durum) durum.textContent = '';
+            }
+        }
+
+        function daSure(dk) {
+            // Dakika tek başına okunmuyor: 415 dk yerine "6 sa 55 dk"
+            dk = Math.round(dk || 0);
+            if (dk < 60) return dk + ' dk';
+            return Math.floor(dk / 60) + ' sa ' + (dk % 60) + ' dk';
+        }
+
+        function daCizgi(liste, toplam) {
+            if (!liste || !liste.length) return '<div class="empty-state">Kayıt yok</div>';
+            var enb = liste[0].dk || 1;
+            return liste.slice(0, 12).map(function (x) {
+                var oran = Math.max(2, Math.round(100 * (x.dk || 0) / enb));
+                var pay = toplam ? Math.round(100 * (x.dk || 0) / toplam) : 0;
+                return '<div style="margin-bottom:10px">' +
+                    '<div style="display:flex;justify-content:space-between;gap:10px;font-size:.82rem;margin-bottom:3px">' +
+                    '<span style="font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.ad) + '</span>' +
+                    '<span style="color:var(--muted);white-space:nowrap">' + daSure(x.dk) + ' · ' + x.adet + ' kez · %' + pay + '</span></div>' +
+                    '<div style="height:7px;border-radius:4px;background:rgba(148,163,184,0.16);overflow:hidden">' +
+                    '<div style="height:100%;width:' + oran + '%;background:var(--grad-violet)"></div></div></div>';
+            }).join('');
+        }
+
+        function daCiz(d) {
+            var o = d.ozet;
+            var yaz = function (id, metin) { var e = document.getElementById(id); if (e) e.textContent = metin; };
+            yaz('da-k-toplam', daSure(o.toplam_dk));
+            yaz('da-k-toplam-sub', o.kayit + ' duruş · ortalama ' + daSure(o.ort_dk));
+            yaz('da-k-plansiz', daSure(o.plansiz_dk));
+            yaz('da-k-plansiz-sub', o.toplam_dk ? ('toplamın %' + Math.round(100 * o.plansiz_dk / o.toplam_dk)) : ' ');
+            yaz('da-k-planli', daSure(o.planli_dk));
+            yaz('da-k-planli-sub', o.toplam_dk ? ('toplamın %' + Math.round(100 * o.planli_dk / o.toplam_dk)) : ' ');
+            yaz('da-k-vardiya', daSure(o.vardiya_basi_dk));
+            yaz('da-k-vardiya-sub', o.duruslu_vardiya + ' / ' + o.vardiya + ' vardiyada duruş var');
+            // Sebepsiz kayıt gerçek bir veri boşluğudur: analiz onu gizlemesin
+            var info = document.getElementById('da-pareto-info');
+            if (info) {
+                info.textContent = d.sebepler.length + ' sebep' +
+                    (o.sebepsiz_adet ? ' · ' + o.sebepsiz_adet + ' kayıtta sebep girilmemiş' : '');
+                info.style.color = o.sebepsiz_adet ? 'var(--warn)' : '';
+            }
+            var govde = document.getElementById('da-pareto');
+            if (govde) {
+                govde.innerHTML = d.sebepler.length ? d.sebepler.map(function (x) {
+                    var planli = x.tip === 'planli';
+                    return '<tr' + (x.kumulatif <= 80 ? ' style="background:rgba(239,68,68,0.05)"' : '') + '>' +
+                        '<td style="font-weight:700">' + esc(x.sebep) + '</td>' +
+                        '<td><span style="color:' + (planli ? 'var(--lg-slate)' : 'var(--danger)') + ';font-size:.76rem;font-weight:700">' +
+                        (planli ? 'Planlı' : 'Plansız') + '</span></td>' +
+                        '<td style="font-weight:700">' + daSure(x.dk) + '</td>' +
+                        '<td>' + x.adet + '</td>' +
+                        '<td style="color:var(--muted)">' + x.ort_dk + ' dk</td>' +
+                        '<td><div style="display:flex;align-items:center;gap:8px">' +
+                        '<div style="flex:1;height:7px;border-radius:4px;background:rgba(148,163,184,0.16);overflow:hidden">' +
+                        '<div style="height:100%;width:' + Math.max(2, Math.round(x.pay)) + '%;background:' +
+                        (planli ? 'var(--lg-slate)' : 'linear-gradient(90deg,#ef4444,#f87171)') + '"></div></div>' +
+                        '<span style="font-size:.76rem;color:var(--muted);width:42px;text-align:right">%' + x.pay + '</span></div></td>' +
+                        '<td style="font-weight:700;color:' + (x.kumulatif <= 80 ? 'var(--danger)' : 'var(--muted)') + '">%' + x.kumulatif + '</td></tr>';
+                }).join('') : '<tr><td colspan="7"><div class="empty-state">Bu dönemde duruş kaydı yok.</div></td></tr>';
+            }
+            var koy = function (id, liste) {
+                var e = document.getElementById(id);
+                if (e) e.innerHTML = daCizgi(liste, o.toplam_dk);
+            };
+            koy('da-hatlar', d.hatlar);
+            koy('da-operatorler', d.operatorler);
+            koy('da-bolumler', d.bolumler);
+            koy('da-gunler', d.gunler);
+            var uzun = document.getElementById('da-uzun');
+            if (uzun) {
+                uzun.innerHTML = d.en_uzun.length ? d.en_uzun.map(function (x) {
+                    return '<tr><td>' + esc(x.tarih) + '</td><td style="color:var(--muted)">' + esc(x.saat || '—') + '</td>' +
+                        '<td>' + esc(x.hat || '—') + '</td><td>' + esc(x.operator || '—') + '</td>' +
+                        '<td>' + esc(x.sebep) + (x.aciklama ? ' <span style="color:var(--muted);font-size:.78rem">· ' + esc(x.aciklama) + '</span>' : '') + '</td>' +
+                        '<td style="font-weight:700">' + daSure(x.dk) + '</td></tr>';
+                }).join('') : '<tr><td colspan="6"><div class="empty-state">Kayıt yok</div></td></tr>';
+            }
+            // Hat süzgeci seçenekleri dönemde GERÇEKTEN duruşu olan hatlardan doldurulur
+            var hsel = document.getElementById('da-hat');
+            if (hsel && !(document.getElementById('da-hat') || {}).value) {
+                var adlar = (d.hatlar || []).map(function (x) { return x.ad; }).filter(function (a) { return a && a !== '—'; });
+                hsel.innerHTML = '<option value="">Tümü</option>' + adlar.map(function (a) {
+                    return '<option value="' + esc(a) + '">' + esc(a) + '</option>';
+                }).join('');
+            }
+        }
 
         function zcSekmeAcildi() {
             var t = document.getElementById('zc-tarih');

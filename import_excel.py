@@ -1034,7 +1034,49 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
     conn.row_factory = sqlite3.Row
     bolum_listesi = [bolum] if bolum else list(BOLUM_SAYFA.keys())
     toplam_yazilan = 0
-    wb = openpyxl.load_workbook(EXCEL_YOL)
+    # BOZUK DOSYA KURTARMA (kullanıcı 2026-09-16: "Excel'e Yaz → Error -3 while
+    # decompressing data: invalid distance too far back"): xlsx bir zip'tir, bozulunca
+    # openpyxl zlib hatası verir. Okuma yolu zaten son bilinen iyi kopyaya düşüyordu,
+    # yazma yolu çöküyordu. Artık yedekten devam edilir; bozuk dosya SİLİNMEZ,
+    # '.bozuk-<zaman>' adıyla saklanır ve hangi kopyadan devam edildiği DÖNER —
+    # sessiz kurtarma, kimsenin fark etmediği eski bir dosyaya yazmak olurdu.
+    # NOT: yedek burada data_only=False okunur — _yedekten_oku (data_only=True)
+    # kullanılsaydı kaydederken Excel'deki FORMÜLLER (kaynak Toplam kolonu) silinirdi.
+    kurtarma = ''
+    try:
+        with open(EXCEL_YOL, 'rb') as _fh:
+            wb = openpyxl.load_workbook(io.BytesIO(_fh.read()))
+    except Exception as _ex:
+        _yol = _yedek_yolu(EXCEL_YOL)
+        _wb2 = None
+        if os.path.exists(_yol):
+            try:
+                from datetime import datetime as _dt
+                with open(_yol, 'rb') as _f2:
+                    _wb2 = openpyxl.load_workbook(io.BytesIO(_f2.read()))
+                _ytar = _dt.fromtimestamp(os.path.getmtime(_yol)).strftime('%d.%m.%Y %H:%M')
+            except Exception as _e3:
+                print(f'[export] yedek de okunamadi: {_e3}')
+                _wb2 = None
+        if _wb2 is None:
+            conn.close()
+            return {'basarili': False,
+                    'hata': f'Excel dosyası BOZUK ve kullanılabilir yedek yok ({_ex}). '
+                            f'Dosyayı sağlam bir kopyayla değiştirin: {EXCEL_YOL}'}
+        try:
+            from datetime import datetime as _dt2
+            _bz = EXCEL_YOL + '.bozuk-' + _dt2.now().strftime('%Y%m%d-%H%M%S')
+            os.replace(EXCEL_YOL, _bz)
+        except Exception as _e2:
+            conn.close()
+            return {'basarili': False,
+                    'hata': f'Excel BOZUK, bozuk dosya kenara alınamadı ({_e2}). '
+                            f'Dosya açık olabilir — kapatıp tekrar deneyin: {EXCEL_YOL}'}
+        wb = _wb2
+        kurtarma = (f'ANA DOSYA BOZUKTU ({_ex}) — {_ytar} tarihli son bilinen iyi kopyadan '
+                    f'devam edildi. Bozuk dosya: {os.path.basename(_bz)}. Yedekten sonraki '
+                    f'Excel düzenlemeleri KAYBOLMUŞ olabilir, listeyi gözden geçirin.')
+        print('[export_referans_cycle_times] ' + kurtarma)
 
     for b in bolum_listesi:
         sayfa_adi = BOLUM_SAYFA[b]['ref']
@@ -1116,7 +1158,10 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
         # Dosya Excel'de/OneDrive'da AÇIK — kullanıcı sessiz kayıp yaşamasın, net mesaj dön
         return {'basarili': False,
                 'hata': 'Excel dosyası şu an açık (uretim_verileri.xlsx) — kapatıp tekrar deneyin.'}
-    return {'basarili': True, 'yazilan': toplam_yazilan, 'dosya': EXCEL_YOL}
+    sonuc = {'basarili': True, 'yazilan': toplam_yazilan, 'dosya': EXCEL_YOL}
+    if kurtarma:
+        sonuc['uyari'] = kurtarma      # panel BU metni göstermeli (sessiz kurtarma yok)
+    return sonuc
 
 
 if __name__ == '__main__':

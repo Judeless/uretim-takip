@@ -1382,6 +1382,26 @@ def init_db():
     except Exception as _e:
         print(f'[MIGRATION] proje notlari gecisi hata: {_e}')
 
+    # DURUŞ SEBEBİ — PANELDEN (kullanıcı 2026-09-16): "robot kaynak için ekstra bir
+    # duruş tanımlamak istiyorum, her seferinde Excel'e yazıp oradan güncellemek zor
+    # oluyor." Sebepler Excel sayfalarından okunuyordu (Duruş Listesi); buraya eklenen
+    # sebep o listeye KARIŞIR. aktif=0 → aynı adlı Excel sebebini GİZLER (Excel'e
+    # dokunmadan kaldırma). Excel ana kaynak olarak kalır; bu tablo onu tamamlar.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS durus_sebebi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            bolum TEXT NOT NULL,
+            sebep TEXT NOT NULL,
+            tip TEXT NOT NULL DEFAULT 'plansiz',
+            aktif INTEGER NOT NULL DEFAULT 1,
+            sira INTEGER DEFAULT 0,
+            olusturan TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            UNIQUE (lokasyon, bolum, sebep)
+        )
+    """)
+
     # HAT / MAKİNE CYCLE SÜRESİ (kullanıcı 2026-09-16): süre REFERANSA değil MAKİNEYE
     # ait olabilir — tel üretiminde bir ürünün süresi hangi hatta işlendiğine bağlıdır
     # (Kapama 102 sn, Otomatik Pres 12 sn…). Referansın kendi süresi yoksa OEE bu
