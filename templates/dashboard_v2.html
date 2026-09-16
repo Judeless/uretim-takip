@@ -8694,6 +8694,9 @@ window.__I18N_SOZLUK__ = {
                 sayfa = panelIlkIzinliSayfa();
             }
             aktifSayfa = sayfa;
+            // Yenilemede aynı sayfa açılsın (kullanıcı 2026-09-16). localStorage
+            // cihaz başına: kullanıcı değişse bile sayfaAc yetki kapısı koruyor.
+            try { localStorage.setItem('dbv2_sayfa', sayfa); } catch (e) { }
             var hedefId = (sayfa === 'ozet') ? 'page-ozet'
                         : (sayfa === 'bolum') ? 'page-bolum'
                         : (sayfa === 'kayitlar') ? 'page-kayitlar'
@@ -8873,6 +8876,10 @@ window.__I18N_SOZLUK__ = {
             else if (aktifSayfa === 'saha-cihazlari') yukleSahaCihazlari();         // TK1'de YF1 görünümü (lokasyon fetch wrapper'dan)
             else if (aktifSayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();    // TK1 → bölüm montaj sabit + YF1 listesi
             else if (aktifSayfa === 'raporlar') { yukleRaporRobotListesi(); yukleRaporlar(); }
+            // Duruş sayfalarının bölüm listeleri lokasyona bağlı — tesis değişince
+            // seçici yeniden doldurulmazsa TK1'de TK2 bölümleri görünüyordu.
+            else if (aktifSayfa === 'durus-sebepleri') dsSekmeAcildi();
+            else if (aktifSayfa === 'durus-analizi') daSekmeAcildi();
         }
 
         function lokasyonGorunum() {
@@ -8905,6 +8912,13 @@ window.__I18N_SOZLUK__ = {
             }
             else if (aktifSayfa === 'referanslar') yukleReferanslar();
             else if (aktifSayfa === 'raporlar') { yukleRaporRobotListesi(); yukleRaporlar(); }
+            else if (aktifSayfa === 'durus-sebepleri') {
+                // Sayfanın kendi seçicisi var ama üst bardaki bölüm değişince onu
+                // takip etsin — iki ayrı bölüm göstermek kafa karıştırıyor.
+                var _dsSel = document.getElementById('ds-bolum');
+                if (_dsSel) _dsSel.value = yeni;
+                dsYukle();
+            }
         }
 
         // Karta tıklayınca: bölümü aktifle + detay sayfasını aç
@@ -19069,8 +19083,14 @@ window.__I18N_SOZLUK__ = {
             navGruplariBaslat();   // sidebar grup açık/kapalı durumunu cihazdan geri yükle
             sayacRozetYukle();
             setInterval(sayacRozetYukle, 60000);
-            // İzinli ilk sayfaya düş (admin → ozet). sayfaAc yetki kapısını da uygular.
-            sayfaAc(panelIlkIzinliSayfa());
+            // Son açık sayfaya dön; yoksa/izin yoksa izinli ilk sayfaya düş.
+            // KAPI 'page-<ad>' elemanı: kayıtlı değer eski bir sürümden kalma
+            // bilinmeyen bir sayfaysa sayfaAc onu 'ozet' gövdesiyle açar ama
+            // aktifSayfa'yı o bilinmeyen değere set ederdi (breadcrumb bozulurdu).
+            var _son = '';
+            try { _son = localStorage.getItem('dbv2_sayfa') || ''; } catch (e) { }
+            var _gecerli = _son && document.getElementById('page-' + _son) && panelSayfaIzinli(_son);
+            sayfaAc(_gecerli ? _son : panelIlkIzinliSayfa());
             // Geçici şifreyle giren kullanıcıyı şifre değiştirmeye yönlendir
             if (window.PANEL_KU && window.PANEL_KU.sifre_gecici) {
                 setTimeout(function () { alert('İlk giriş: lütfen güvenliğiniz için şifrenizi değiştirin.'); sifreDegistirAc(); }, 400);
