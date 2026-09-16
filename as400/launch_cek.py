@@ -9,21 +9,29 @@ import sys, io, os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import keyring, pyodbc
+import pyodbc
 import as400_config as CFG
 
 
 def _sifre():
-    p = keyring.get_password(CFG.KEYRING_SERVICE, CFG.DB_KULLANICI)
+    """Sifre: once kasa, olmazsa TEYIT-AGENT (as400_config.sifre_al).
+
+    2026-09-16 saha: Kaynak Plani 'AS400 baglantisi kurulamadi: Sifre kasada yok'
+    veriyordu — burada keyring DOGRUDAN okunuyordu; sunucuda cofle-app NSSM
+    servisi LocalSystem'da kosar ve promanage kasasini GOREMEZ. sifre_al agent'a
+    (127.0.0.1:5010) duser, o da kasayi gorur.
+    """
+    p = CFG.sifre_al()
     if not p:
         raise RuntimeError(
-            "Sifre kasada yok. Once calistir: python as400/kaydet_sifre.py")
+            f"AS400 sifresi alinamadi ({CFG.DB_KULLANICI}) — kasada yok ya da teyit-agent kapali. "
+            f"Sunucuda: python as400/kaydet_sifre.py {CFG.DB_KULLANICI} ve teyit-agent'i baslatin.")
     return p
 
 
 def baglan(timeout=15):
-    """AS400'e pyodbc baglantisi kurar (sifre keyring'den)."""
-    return CFG.baglan(sifre=_sifre(), timeout=timeout)
+    """AS400 baglantisi — tek merkez (kilit + sifre kasa/agent): as400_config.baglan."""
+    return CFG.baglan(timeout=timeout)
 
 
 def satir_cek(limit=None, sorgu=None):
