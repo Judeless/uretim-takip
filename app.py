@@ -4648,6 +4648,225 @@ def referans_excel_indir():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+# ── TOPLU SÜRE GİRİŞİ: ŞABLON İNDİR + DOLDURULMUŞ DOSYAYI YÜKLE (kullanıcı 2026-09-16) ──
+# "TK1'de süreleri tanımlamaya başlayacağım; toplu girebilmek için mevcut kodları ve
+#  süreleri Excel'e kaydedip, doldurup geri yüklemem gerekiyor."
+# FARKI: /indir_excel süresi TANIMSIZ olanları dosyaya KOYMAZ (planlama paylaşımı için) —
+# doldurulacak şablon tam da onlara lazım. TK1'in kendi Excel'i tek kolondur ve
+# 'Excel'e Yaz' TK1'de kapalıdır; bu yüzden yükleme sunucudaki dosyaya DEĞİL,
+# tarayıcıdan gelen dosyaya bakar (multipart) — sunucudaki Excel'e dokunulmaz.
+_SURE_SUTUN = {
+    'kod': ('referans kodu', 'referans', 'kod', 'kodu', 'ürün kodu', 'urun kodu', 'parça kodu', 'parca kodu'),
+    'ct': ('cycle time (sn)', 'cycle time', 'cycle', 'süre (sn)', 'sure (sn)', 'süre', 'sure', 'hedef cycle time (sn)'),
+    'ks': ('kaynak süresi (sn)', 'kaynak suresi (sn)', 'kaynak süresi', 'kaynak suresi'),
+    'ss': ('söktak süresi (sn)', 'soktak süresi (sn)', 'soktak suresi (sn)', 'söktak süresi', 'soktak suresi'),
+    'goz': ('kalıp göz', 'kalip goz', 'kalıp göz sayısı', 'kalip goz sayisi', 'göz', 'goz'),
+}
+_SURE_UST = 100000.0        # saçma değer koruması (yanlış kolon / tarih hücresi)
+
+
+def _sure_basliklar(bolum):
+    b = ['Referans Kodu', 'Açıklama', 'Cycle Time (sn)']
+    if bolum == 'kaynak':
+        b += ['Kaynak Süresi (sn)', 'Söktak Süresi (sn)']
+    if bolum == 'metal':
+        b += ['Kalıp Göz']
+    return b
+
+
+def _sure_sayi(v):
+    """Hücre → (deger, hata). Boş = (None, None) 'dokunma'."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None, None
+    try:
+        f = float(str(v).strip().replace(',', '.'))
+    except (TypeError, ValueError):
+        return None, f'sayı değil: {str(v)[:20]}'
+    if f < 0 or f > _SURE_UST:
+        return None, f'geçersiz değer: {f:g}'
+    return f, None
+
+
+@app.route('/api/referanslar/sure_sablonu', methods=['GET'])
+@panel_gerekli(izin='referanslar')
+def referans_sure_sablonu():
+    """Bölüm+lokasyonun TÜM referansları (süresi BOŞ olanlar dahil) — doldurup
+    /api/referanslar/sure_yukle ile geri yüklemek için. Süresi olmayanlar ÜSTTE."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
+    import io as _io
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    conn = get_db()
+    satirlar = conn.execute(
+        "SELECT referans_kodu, COALESCE(aciklama,'') aciklama, COALESCE(hedef_cycle_time_sn,0) ct, "
+        "       COALESCE(kaynak_suresi_sn,0) ks, COALESCE(soktak_suresi_sn,0) ss, COALESCE(kalip_goz,1) goz "
+        "FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? "
+        "ORDER BY CASE WHEN COALESCE(hedef_cycle_time_sn,0) > 0 THEN 1 ELSE 0 END, referans_kodu",
+        (bolum, lokasyon)).fetchall()
+    basliklar = _sure_basliklar(bolum)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (BOLUM_AD.get(bolum, bolum))[:31]
+    ws.append(basliklar)
+    for h in ws[1]:
+        h.font, h.fill = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor='6D28D9')
+        h.alignment = Alignment(horizontal='center', vertical='center')
+    _bos = Font(color='B45309', bold=True)
+    for r in satirlar:
+        satir = [r['referans_kodu'], r['aciklama'], (round(float(r['ct']), 2) or None)]
+        if bolum == 'kaynak':
+            satir += [round(float(r['ks']), 2) or None, round(float(r['ss']), 2) or None]
+        if bolum == 'metal':
+            satir += [int(r['goz'] or 1)]
+        ws.append(satir)
+        if not (r['ct'] or 0) > 0:
+            ws.cell(row=ws.max_row, column=1).font = _bos      # süresi girilecek satır
+    for i, _b in enumerate(basliklar, start=1):
+        en = max([len(str(_b))] + [len(str(c.value or '')) for c in ws[chr(64 + i)]][:600])
+        ws.column_dimensions[chr(64 + i)].width = min(max(en + 3, 12), 45)
+    ws.freeze_panes = 'A2'
+    yg = wb.create_sheet('Nasıl doldurulur')
+    for sat in [
+        ['Bu dosya Cofle Forge tarafından üretildi — doldurup panelden geri yükleyin.'],
+        [f'Bölüm: {BOLUM_AD.get(bolum, bolum)}   Tesis: {lokasyon}   Tarih: {date.today().isoformat()}'],
+        [''],
+        ['1) İlk sayfada "Cycle Time (sn)" sütununu doldurun. Kodu ve başlık satırını DEĞİŞTİRMEYİN.'],
+        ['2) Boş bıraktığınız satır değişmez — dosyayı parça parça doldurup birden çok kez yükleyebilirsiniz.'],
+        ['3) Panel → Referanslar → "⬆️ Süreleri Yükle" ile bu dosyayı seçin.'],
+        ['4) Tanımadığı kodlar rapor edilir; yeni referans OLUŞTURULMAZ, hiçbir satır silinmez.'],
+        ['5) Süre PARÇA BAŞINA girilir. Metalde kalıp çok gözlüyse "Kalıp Göz" sütununu da doldurun.'],
+        [''],
+        [f'Süresi girilecek (boş) referans sayısı: {sum(1 for r in satirlar if not (r["ct"] or 0) > 0)} / {len(satirlar)}'],
+    ]:
+        yg.append(sat)
+    yg.column_dimensions['A'].width = 105
+    yg['A1'].font = Font(bold=True)
+    bellek = _io.BytesIO()
+    wb.save(bellek)
+    bellek.seek(0)
+    ad = f"sure_sablonu_{bolum}_{lokasyon}_{date.today().isoformat()}.xlsx"
+    return send_file(bellek, as_attachment=True, download_name=ad,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/api/referanslar/sure_yukle', methods=['POST'])
+@panel_gerekli(izin='referanslar')
+def referans_sure_yukle():
+    """Doldurulmuş şablonu (multipart 'dosya') okur ve süreleri TOPLU günceller.
+    Eşleşme: referans kodu (büyük harf + boşluksuz) + bölüm + lokasyon.
+    Boş hücre = dokunma. Yeni referans AÇMAZ, satır SİLMEZ. Süre girilince o
+    bölüm+lokasyonun geçmiş üretim kayıtlarının cycle'ı da güncellenir (tek
+    referans kaydıyla aynı kural)."""
+    from openpyxl import load_workbook
+    bolum = (request.args.get('bolum') or 'kaynak').strip()
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    f = request.files.get('dosya')
+    if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify({'hata': 'Yalnız .xlsx dosyası yükleyin'}), 400
+    try:
+        wb = load_workbook(f, data_only=True, read_only=True)
+    except Exception as e:
+        return jsonify({'hata': f'Excel okunamadı: {e}'}), 400
+    ws = wb.worksheets[0]
+    satir_iter = ws.iter_rows(values_only=True)
+    try:
+        basliklar = [str(x or '').strip().lower() for x in next(satir_iter)]
+    except StopIteration:
+        return jsonify({'hata': 'Dosya boş'}), 400
+    kolon = {}
+    for ad, adaylar in _SURE_SUTUN.items():
+        for i, b in enumerate(basliklar):
+            if b in adaylar:
+                kolon[ad] = i
+                break
+    if 'kod' not in kolon or 'ct' not in kolon:
+        return jsonify({'hata': "Başlık satırı bulunamadı — 'Referans Kodu' ve 'Cycle Time (sn)' "
+                                "sütunları şart (şablonu indirip doldurun)"}), 400
+    conn = get_db()
+    mevcut = {}
+    for r in conn.execute("SELECT id, referans_kodu, COALESCE(hedef_cycle_time_sn,0) ct, "
+                          "COALESCE(kaynak_suresi_sn,0) ks, COALESCE(soktak_suresi_sn,0) ss, "
+                          "COALESCE(kalip_goz,1) goz FROM referans_listesi "
+                          "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=?",
+                          (bolum, lokasyon)).fetchall():
+        mevcut[_kayit_ref_norm(r['referans_kodu'])] = r
+    guncel, ayni, bulunamayan, hatali, goz_kayit = 0, 0, [], [], 0
+    for no, satir in enumerate(satir_iter, start=2):
+        if satir is None:
+            continue
+        kod = str(satir[kolon['kod']] or '').strip() if kolon['kod'] < len(satir) else ''
+        if not kod:
+            continue
+        al = lambda ad: (satir[kolon[ad]] if (ad in kolon and kolon[ad] < len(satir)) else None)
+        ct, e1 = _sure_sayi(al('ct'))
+        ks, e2 = _sure_sayi(al('ks'))
+        ss, e3 = _sure_sayi(al('ss'))
+        goz, e4 = _sure_sayi(al('goz'))
+        hata = e1 or e2 or e3 or e4
+        if hata:
+            hatali.append({'satir': no, 'kod': kod, 'sebep': hata})
+            continue
+        r = mevcut.get(_kayit_ref_norm(kod))
+        if not r:
+            bulunamayan.append(kod)
+            continue
+        yeni = {}
+        if ct is not None and abs(float(r['ct']) - ct) > 0.001:
+            yeni['hedef_cycle_time_sn'] = ct
+        if bolum == 'kaynak':
+            if ks is not None and abs(float(r['ks']) - ks) > 0.001:
+                yeni['kaynak_suresi_sn'] = ks
+            if ss is not None and abs(float(r['ss']) - ss) > 0.001:
+                yeni['soktak_suresi_sn'] = ss
+        if bolum == 'metal' and goz is not None:
+            g = max(1, min(KALIP_GOZ_UST, int(goz)))
+            if int(r['goz'] or 1) != g:
+                yeni['kalip_goz'] = g
+        if not yeni:
+            ayni += 1
+            continue
+        conn.execute(f"UPDATE referans_listesi SET {', '.join(k + '=?' for k in yeni)} WHERE id=?",
+                     list(yeni.values()) + [r['id']])
+        # Geçmiş üretim kayıtlarının cycle'ı (yalnız bu bölüm+lokasyon) — /api/referanslar ile aynı kural
+        if 'hedef_cycle_time_sn' in yeni and yeni['hedef_cycle_time_sn'] > 0:
+            conn.execute(
+                "UPDATE uretim_kayitlari SET cycle_time_sn=? "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+                "                   AND COALESCE(bolum,'kaynak')=?)",
+                (yeni['hedef_cycle_time_sn'], kod, lokasyon, bolum))
+        # Açık otomatik sayaç kayıtları göz çarpanı (metal) — /api/referanslar ile aynı
+        if 'kalip_goz' in yeni:
+            goz_kayit += conn.execute(
+                "UPDATE uretim_kayitlari SET paket_adedi=? WHERE sayac_otomatik=1 "
+                "AND UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+                "                   AND COALESCE(bolum,'kaynak')='metal')",
+                (yeni['kalip_goz'], kod, lokasyon)).rowcount
+        guncel += 1
+    conn.commit()
+    kalan = conn.execute("SELECT COUNT(*) FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
+                         "AND COALESCE(lokasyon,'TK2')=? AND COALESCE(hedef_cycle_time_sn,0) <= 0",
+                         (bolum, lokasyon)).fetchone()[0]
+    mesaj = f'{guncel} referans güncellendi'
+    if ayni:
+        mesaj += f', {ayni} satır zaten aynıydı'
+    if bulunamayan:
+        mesaj += f', {len(bulunamayan)} kod listede yok'
+    if hatali:
+        mesaj += f', {len(hatali)} satır hatalı'
+    return jsonify({'basarili': True, 'mesaj': mesaj, 'guncellenen': guncel, 'degismeyen': ayni,
+                    'bulunamayan': bulunamayan[:100], 'bulunamayan_sayi': len(bulunamayan),
+                    'hatali': hatali[:100], 'hatali_sayi': len(hatali),
+                    'suresiz_kalan': kalan, 'sayac_kayit': goz_kayit,
+                    'bolum': bolum, 'lokasyon': lokasyon})
+
+
 def _kayit_ref_norm(s):
     """Referans süzgeci için normalize: büyük harf + boşluksuz ('94.pbl 83' = '94.PBL83').
     Panel (kyRefNorm) aynı kuralı uygular — ekran ile Excel aynı kümeyi versin."""

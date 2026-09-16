@@ -1756,6 +1756,10 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "🧾 Süre Şablonu": {"en": "🧾 Time template", "it": "🧾 Modello tempi"},
+  "⬆️ Süreleri Yükle": {"en": "⬆️ Upload times", "it": "⬆️ Carica tempi"},
+  "Bu bölüm + tesisin TÜM referanslarını (süresi boş olanlar dahil) doldurulacak şablon olarak indirir": {"en": "Downloads ALL references of this department + plant (including those without a time) as a template to fill in", "it": "Scarica TUTTI i riferimenti di questo reparto + stabilimento (anche senza tempo) come modello da compilare"},
+  "Doldurduğunuz şablonu yükleyin — süreler koda göre eşleşip toplu güncellenir": {"en": "Upload the filled template — times are matched by code and updated in bulk", "it": "Carica il modello compilato — i tempi vengono abbinati per codice e aggiornati in blocco"},
   "Proje Yönetimi": {"en": "Project Management", "it": "Gestione progetti"},
   "Termin": {"en": "Due", "it": "Scadenza"},
   "Proje planı": {"en": "Project plan", "it": "Piano progetto"},
@@ -5854,9 +5858,17 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-outline" id="ref-excel-aktar-btn" onclick="excelVeriAktar()" style="border-color:rgba(52,211,153,0.5);color:var(--lg-green)" title="Excel → Program: sayfadaki referans/operatör listesini programa yükler">📥 Excel'den İçe Aktar</button>
                         <button class="btn btn-outline" id="ref-excel-guncelle-btn" onclick="referansExcelGuncelle()" style="border-color:rgba(96,165,250,0.5);color:var(--b-kaynak)" title="Program → Excel: tanımlı süreleri Excel sayfasına yazar">📤 Excel'e Yaz</button>
                         <button class="btn btn-outline" id="ref-excel-indir-btn" onclick="referansExcelIndir()" style="border-color:rgba(180,83,9,0.5);color:#B45309" title="Bu bölümün referanslarını süreleriyle .xlsx olarak indirir (planlamayla paylaşmak için). Süresi tanımsız olanlar listeye girmez.">⬇️ Excel İndir</button>
+                        <!-- TOPLU SÜRE GİRİŞİ (kullanıcı 2026-09-16): mevcut listeyi (süresi BOŞ
+                             olanlar dahil) indir → Excel'de doldur → geri yükle. 'Excel İndir'
+                             süresizleri dışlar (paylaşım için), şablon tam da onları içerir. -->
+                        <button class="btn btn-outline" id="ref-sure-sablon-btn" onclick="referansSureSablonu()" style="border-color:rgba(109,40,217,0.5);color:var(--primary)" title="Bu bölüm + tesisin TÜM referanslarını (süresi boş olanlar dahil) doldurulacak şablon olarak indirir">🧾 Süre Şablonu</button>
+                        <input type="file" id="ref-sure-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="referansSureYukle(this)">
+                        <button class="btn btn-outline" id="ref-sure-yukle-btn" onclick="document.getElementById('ref-sure-dosya').click()" style="border-color:rgba(16,185,129,0.5);color:var(--success)" title="Doldurduğunuz şablonu yükleyin — süreler koda göre eşleşip toplu güncellenir">⬆️ Süreleri Yükle</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
                 </div>
+
+                <div id="ref-sure-sonuc" style="display:none;margin:0 0 14px;padding:12px 14px;border:1px solid var(--card-border);border-radius:12px;background:var(--card);font-size:.84rem"></div>
 
                 <!-- Süre Teyit Özeti (sadece kaynak için) -->
                 <div class="panel-card" id="teyit-ozet-banner" style="display:none;padding:14px 18px">
@@ -10703,6 +10715,84 @@ window.__I18N_SOZLUK__ = {
                     toast('Silinemedi', 'err');
                 }
             } catch (e) { toast('Bağlantı hatası', 'err'); }
+        }
+
+        // ── TOPLU SÜRE GİRİŞİ (kullanıcı 2026-09-16) ───────────────────────────
+        // "TK1'de süreleri tanımlamaya başlayacağım; toplu girebilmek için mevcut
+        //  kodları ve süreleri Excel'e kaydedip, doldurup geri yüklemem gerekiyor."
+        // Şablon = bu bölüm + tesisin TÜM referansları (süresi BOŞ olanlar ÜSTTE);
+        // yükleme sunucudaki Excel'e DOKUNMAZ, dosyayı tarayıcıdan gönderir.
+        async function referansSureSablonu() {
+            var btn = document.getElementById('ref-sure-sablon-btn');
+            var eski = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Hazırlanıyor…'; }
+            try {
+                var r = await panelFetch('/api/referanslar/sure_sablonu?bolum=' + encodeURIComponent(aktifBolum) +
+                                         '&lokasyon=' + encodeURIComponent(aktifLokasyon));
+                if (!r.ok) {
+                    var h = ''; try { h = (await r.json()).hata || ''; } catch (e) {}
+                    toast(h || ('İndirilemedi (HTTP ' + r.status + ')'), 'err');
+                    return;
+                }
+                var blob = await r.blob();
+                var ad = 'sure_sablonu_' + aktifBolum + '_' + aktifLokasyon + '.xlsx';
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url; a.download = ad; document.body.appendChild(a); a.click();
+                a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+                toast('Şablon indirildi — süreleri doldurup "Süreleri Yükle" ile geri yükleyin', 'ok');
+            } catch (e) {
+                toast('İndirilemedi: ' + e.message, 'err');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = eski; }
+            }
+        }
+        async function referansSureYukle(inp) {
+            var f = inp && inp.files && inp.files[0];
+            if (!f) return;
+            var btn = document.getElementById('ref-sure-yukle-btn');
+            var eski = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Yükleniyor…'; }
+            try {
+                var fd = new FormData();
+                fd.append('dosya', f);
+                var r = await panelFetch('/api/referanslar/sure_yukle?bolum=' + encodeURIComponent(aktifBolum) +
+                                         '&lokasyon=' + encodeURIComponent(aktifLokasyon),
+                                         { method: 'POST', body: fd });
+                var d = {};
+                try { d = await r.json(); } catch (e) {}
+                if (!r.ok || d.hata) { toast(d.hata || ('Yüklenemedi (HTTP ' + r.status + ')'), 'err'); return; }
+                toast(d.mesaj || 'Yüklendi', 'ok');
+                refSureSonucGoster(d);
+                yukleReferanslar();
+            } catch (e) {
+                toast('Yüklenemedi: ' + e.message, 'err');
+            } finally {
+                inp.value = '';
+                if (btn) { btn.disabled = false; btn.textContent = eski; }
+            }
+        }
+        // Sonuç özeti: güncellenen / değişmeyen / listede olmayan kodlar / hatalı satırlar
+        function refSureSonucGoster(d) {
+            var el = document.getElementById('ref-sure-sonuc');
+            if (!el) return;
+            var h = '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline">' +
+                '<b style="color:var(--success)">' + fmt(d.guncellenen || 0) + ' güncellendi</b>' +
+                (d.degismeyen ? '<span style="color:var(--muted)">' + fmt(d.degismeyen) + ' satır zaten aynıydı</span>' : '') +
+                (d.bulunamayan_sayi ? '<span style="color:var(--warn)">' + fmt(d.bulunamayan_sayi) + ' kod listede yok</span>' : '') +
+                (d.hatali_sayi ? '<span style="color:var(--danger)">' + fmt(d.hatali_sayi) + ' satır hatalı</span>' : '') +
+                '<span style="color:var(--muted)">Süresi boş kalan: <b>' + fmt(d.suresiz_kalan || 0) + '</b></span>' +
+                '<button class="btn btn-ghost" style="margin-left:auto;padding:2px 10px" onclick="document.getElementById(\'ref-sure-sonuc\').style.display=\'none\'">✕</button></div>';
+            if ((d.bulunamayan || []).length) {
+                h += '<div style="margin-top:8px;font-size:.8rem"><b>Listede olmayan kodlar</b> (yeni referans açılmadı — önce Referans ekleyin): ' +
+                    d.bulunamayan.map(esc).join(', ') + '</div>';
+            }
+            if ((d.hatali || []).length) {
+                h += '<div style="margin-top:8px;font-size:.8rem"><b>Hatalı satırlar</b>: ' +
+                    d.hatali.map(function (x) { return 'satır ' + x.satir + ' (' + esc(x.kod) + '): ' + esc(x.sebep); }).join(' · ') + '</div>';
+            }
+            el.innerHTML = h;
+            el.style.display = '';
         }
 
         // ── REFERANSLARI .XLSX OLARAK İNDİR (2026-08-04) ──────────────────────
