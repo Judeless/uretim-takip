@@ -1451,6 +1451,22 @@ def init_db():
     #   makine × vardiya × vardiya_saat × gun × verimlilik
     # verimlilik: elle girilen % ya da oee_kullan=1 ise o bölümün GERÇEKLEŞEN OEE'si
     # (son 4 hafta) — teorik kapasite gerçeği süslüyor, ölçtüğümüz OEE elimizde.
+    # ÜRETİM MÜDÜRÜ EXCEL'İNDEN ÇALIŞMA SAATİ (kullanıcı 2026-09-17):
+    # "Kapasite Kullanım Oranı 2026.xlsx" · Çalışma Saati sayfası kişi bazlı aylık
+    # saatleri tutar (NÖS + %90/%95/%100 mesai). Bölüm toplamı = o bölümün gerçek
+    # kapasitesi; onların raporunda payda budur (Performans = teorik süre / çalışma saati).
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_calisma_saati (
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            bolum TEXT NOT NULL,
+            ay INTEGER NOT NULL DEFAULT 0,
+            saat REAL NOT NULL DEFAULT 0,
+            kisi INTEGER NOT NULL DEFAULT 0,
+            kaynak TEXT DEFAULT 'excel',
+            updated_at TEXT,
+            PRIMARY KEY (lokasyon, bolum, ay)
+        )
+    """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS kapasite_parametre (
             lokasyon TEXT NOT NULL DEFAULT 'TK2',
@@ -1461,6 +1477,7 @@ def init_db():
             gun REAL NOT NULL DEFAULT 5,
             verimlilik REAL NOT NULL DEFAULT 75,
             oee_kullan INTEGER NOT NULL DEFAULT 0,
+            haftalik_saat_elle REAL NOT NULL DEFAULT 0,   -- >0: formül yerine DOĞRUDAN bu saat
             not_metni TEXT DEFAULT '',
             guncelleyen TEXT DEFAULT '',
             updated_at TEXT,
@@ -1487,6 +1504,12 @@ def init_db():
             rota INTEGER DEFAULT 0, kaynak INTEGER DEFAULT 0
         )
     """)
+    for _kolon, _tip in (('haftalik_saat_elle', 'REAL NOT NULL DEFAULT 0'),):
+        try:
+            c.execute(f'ALTER TABLE kapasite_parametre ADD COLUMN {_kolon} {_tip}')
+        except Exception:
+            pass          # kolon zaten var
+
     # ERP kodu ↔ referans eşlemesi büyük harf + boşluksuz yapılır (kapasite._ESLES).
     # İFADE İNDEKSİ: bu olmadan her kapasite sorgusu 7 bin referans satırını tarar.
     try:

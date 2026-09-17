@@ -7064,6 +7064,81 @@ def kapasite_talep_ozet_api():
     return jsonify(KAP.talep_ozet(get_db(), lokasyon, haftalar or (2, 4, 6, 8)))
 
 
+# ── ÜRETİM MÜDÜRÜ KAPASİTE EXCEL'İ (kullanıcı 2026-09-17) ──────────────────
+# "Q:\UretimPlanlama\Aylık Kapasite Sunum\Kapasite Kullanım Oranı 2026.xlsx"
+# Database sayfası süreyi (saatlik üretim adedi) ve bölümü (üretim hattı), Çalışma
+# Saati sayfası kapasiteyi (kişi bazlı aylık saat) verir. Dosya panelden YÜKLENİR;
+# sunucuda Q: sürücüsü haritalı değilse yol ile okumak çalışmaz.
+KAPASITE_EXCEL_VARSAYILAN = r'Q:\UretimPlanlama\Aylık Kapasite Sunum\Kapasite Kullanım Oranı 2026.xlsx'
+
+
+def _kapasite_excel_kaynak():
+    """İstekteki dosya (multipart 'dosya') ya da sunucudaki yol. (kaynak, ad) döner."""
+    import io as _io
+    f = request.files.get('dosya')
+    if f and f.filename:
+        if not f.filename.lower().endswith(('.xlsx', '.xlsm')):
+            return None, 'Yalnız .xlsx / .xlsm dosyası yüklenebilir'
+        return _io.BytesIO(f.read()), f.filename
+    yol = (request.form.get('yol') or request.args.get('yol') or '').strip()
+    if yol:
+        if not os.path.exists(yol):
+            return None, f'Dosya sunucuda bulunamadı: {yol}'
+        return yol, os.path.basename(yol)
+    return None, 'Excel dosyası seçilmedi'
+
+
+@app.route('/api/kapasite/excel_onizle', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def kapasite_excel_onizle():
+    """Excel'i okur, NE DEĞİŞECEĞİNİ döner — hiçbir şey yazmaz."""
+    kaynak, ad = _kapasite_excel_kaynak()
+    if kaynak is None:
+        return jsonify({'hata': ad}), 400
+    try:
+        veri = KAP.excel_oku(kaynak)
+    except Exception as e:
+        return jsonify({'hata': f'Excel okunamadı: {e}'}), 400
+    conn = get_db()
+    onizleme = KAP.excel_onizle(conn, veri)
+    return jsonify({'dosya': ad, 'sure': onizleme, 'calisma': veri['calisma'],
+                    'hatlar': veri['hatlar'], 'uyarilar': veri['uyarilar'],
+                    'aylar': veri['aylar']})
+
+
+@app.route('/api/kapasite/excel_uygula', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def kapasite_excel_uygula():
+    """Excel'i uygular. Form alanları:
+      dosya (multipart) ya da yol · sureler=1 · calisma=1 · lokasyon= · sadece_opr=1
+    Süreler referans_listesi'ne yazılır (OEE de aynı tanımı kullanır); çalışma saatleri
+    bölümün haftalık kapasitesi olur."""
+    kaynak, ad = _kapasite_excel_kaynak()
+    if kaynak is None:
+        return jsonify({'hata': ad}), 400
+    al = lambda k, v='': (request.form.get(k) or request.args.get(k) or v).strip()
+    lokasyon = al('lokasyon').upper()
+    if lokasyon and lokasyon not in ('TK1', 'TK2'):
+        return jsonify({'hata': f'Geçersiz lokasyon: {lokasyon}'}), 400
+    try:
+        veri = KAP.excel_oku(kaynak)
+    except Exception as e:
+        return jsonify({'hata': f'Excel okunamadı: {e}'}), 400
+    conn = get_db()
+    sonuc, parca = {}, []
+    if al('sureler', '1') == '1':
+        sonuc['sure'] = KAP.excel_sure_uygula(conn, veri, g.panel_ku['kullanici_adi'],
+                                              lokasyon, al('sadece_opr') == '1',
+                                              al('sadece_bos', '1') == '1')
+        parca.append(f"{sonuc['sure']['yeni']} yeni + {sonuc['sure']['guncel']} güncel süre")
+    if al('calisma', '1') == '1':
+        sonuc['calisma'] = KAP.excel_calisma_uygula(conn, veri, g.panel_ku['kullanici_adi'])
+        parca.append(f"{sonuc['calisma']['bolum']} bölümün çalışma saati")
+    if not parca:
+        return jsonify({'hata': 'Uygulanacak bir şey seçilmedi'}), 400
+    return jsonify({'basarili': True, 'dosya': ad, 'mesaj': ' · '.join(parca) + ' işlendi', **sonuc})
+
+
 @app.route('/api/kapasite/parametre', methods=['GET'])
 @panel_gerekli(izin='kapasite')
 def kapasite_parametre_listesi():
@@ -7077,6 +7152,12 @@ def kapasite_parametre_listesi():
         p['bolum_ad'] = BOLUM_AD.get(b, b)
         if p.get('oee_kullan'):
             p['gerceklesen_oee'] = KAP.gerceklesen_oee(b, lokasyon)
+        cs = get_db().execute(
+            "SELECT ay, saat, kisi FROM kapasite_calisma_saati WHERE COALESCE(lokasyon,'TK2')=? "
+            "AND bolum=? ORDER BY ay DESC LIMIT 1", (lokasyon, b)).fetchone()
+        if cs:
+            p['excel_calisma'] = {'ay': cs['ay'], 'saat': cs['saat'], 'kisi': cs['kisi'],
+                                  'haftalik': round(float(cs['saat'] or 0) / 4.345, 1)}
         out.append(p)
     return jsonify({'lokasyon': lokasyon, 'parametreler': out})
 
@@ -7103,17 +7184,26 @@ def kapasite_parametre_kaydet():
             return jsonify({'hata': f'{ad} 0 ile {tavan:g} arasında olmalı'}), 400
         alanlar[ad] = v
     oee_kullan = 0 if str(d.get('oee_kullan', 0)).lower() in ('0', 'false', '', 'none') else 1
+    # Haftalık saat DOĞRUDAN girilebilir (Excel'den gelen gerçek çalışma saati);
+    # 0 = formülü kullan (makine × vardiya × saat × gün × verimlilik).
+    try:
+        elle = float(str(d.get('haftalik_saat_elle', 0) or 0).replace(',', '.'))
+    except (TypeError, ValueError):
+        return jsonify({'hata': 'haftalik_saat_elle sayı olmalı'}), 400
+    if elle < 0 or elle > 2000:
+        return jsonify({'hata': 'haftalik_saat_elle 0 ile 2000 arasında olmalı'}), 400
     conn = get_db()
     conn.execute(
         "INSERT INTO kapasite_parametre (lokasyon, bolum, makine, vardiya, vardiya_saat, gun, "
-        "verimlilik, oee_kullan, not_metni, guncelleyen, updated_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime')) "
+        "verimlilik, oee_kullan, haftalik_saat_elle, not_metni, guncelleyen, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime')) "
         "ON CONFLICT(lokasyon, bolum) DO UPDATE SET makine=excluded.makine, vardiya=excluded.vardiya, "
         "vardiya_saat=excluded.vardiya_saat, gun=excluded.gun, verimlilik=excluded.verimlilik, "
-        "oee_kullan=excluded.oee_kullan, not_metni=excluded.not_metni, "
+        "oee_kullan=excluded.oee_kullan, haftalik_saat_elle=excluded.haftalik_saat_elle, "
+        "not_metni=excluded.not_metni, "
         "guncelleyen=excluded.guncelleyen, updated_at=datetime('now','localtime')",
         (lokasyon, bolum, alanlar['makine'], alanlar['vardiya'], alanlar['vardiya_saat'],
-         alanlar['gun'], alanlar['verimlilik'], oee_kullan, str(d.get('not') or '')[:200],
+         alanlar['gun'], alanlar['verimlilik'], oee_kullan, elle, str(d.get('not') or '')[:200],
          g.panel_ku['kullanici_adi']))
     conn.commit()
     p = KAP.parametreler(conn, lokasyon, [bolum])[bolum]

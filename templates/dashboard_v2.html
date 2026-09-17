@@ -1756,6 +1756,15 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "📥 Üretim müdürü kapasite Excel'i": {"en": "📥 Production manager capacity Excel", "it": "📥 Excel capacità del responsabile"},
+  "📥 Kapasite Excel'i": {"en": "📥 Capacity Excel", "it": "📥 Excel capacità"},
+  "Excel dosyası": {"en": "Excel file", "it": "File Excel"},
+  "Sunucudaki dosyadan oku": {"en": "Read from server file", "it": "Leggi dal file sul server"},
+  "Süreleri yaz": {"en": "Write times", "it": "Scrivi i tempi"},
+  "Çalışma saatlerini kapasite yap": {"en": "Use working hours as capacity", "it": "Usa le ore lavorate come capacità"},
+  "Yalnız açık ihtiyacı olan kodlar": {"en": "Only codes with open demand", "it": "Solo codici con fabbisogno"},
+  "Uygula": {"en": "Apply", "it": "Applica"},
+  "Haftalık saat (elle)": {"en": "Weekly hours (manual)", "it": "Ore settimanali (manuale)"},
   "⚙️ Kapasite parametreleri": {"en": "⚙️ Capacity parameters", "it": "⚙️ Parametri di capacità"},
   "⚙️ Kapasite Parametreleri": {"en": "⚙️ Capacity parameters", "it": "⚙️ Parametri di capacità"},
   "Makine/hat": {"en": "Machines/lines", "it": "Macchine/linee"},
@@ -7039,6 +7048,35 @@ window.__I18N_SOZLUK__ = {
                     <div style="padding:10px 20px;font-size:.78rem;color:var(--muted);line-height:1.6" id="kap-talep-not"></div>
                 </div>
 
+                <!-- ÜRETİM MÜDÜRÜ KAPASİTE EXCEL'İ (kullanıcı 2026-09-17) — süreler
+                     (saatlik üretim adedi) ve çalışma saatleri oradan gelir. -->
+                <div class="panel-card" id="kap-xls-kart" style="display:none">
+                    <div class="panel-header">
+                        <h3>📥 Üretim müdürü kapasite Excel'i</h3>
+                        <span class="adet-info" id="kap-xls-bilgi"></span>
+                    </div>
+                    <div style="padding:14px 20px">
+                        <div style="font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:12px">
+                            "Kapasite Kullanım Oranı" dosyasındaki <b>Database</b> sayfası her kodun saatlik üretim adedini ve üretim hattını, <b>Çalışma Saati</b> sayfası bölümlerin aylık çalışma saatini verir. Süre = 3600 ÷ saatlik adet; üretim hattı hem tesisi hem bölümü belirler (PP / PULL / IVECO / JKP-JKW / LF-LFP → TK1 montaj, ASSEMBLY → TK2 montaj).
+                        </div>
+                        <div class="rt-form" style="grid-template-columns:2fr auto auto">
+                            <div>
+                                <div class="f-lbl">Excel dosyası</div>
+                                <input type="file" id="kap-xls-dosya" accept=".xlsx,.xlsm"
+                                       onchange="kapXlsOnizle()">
+                            </div>
+                            <div style="display:flex;align-items:flex-end">
+                                <button class="btn btn-outline" onclick="kapXlsOnizle(true)"
+                                        title="Sunucudaki Q: yolundan okumayı dener">Sunucudaki dosyadan oku</button>
+                            </div>
+                            <div style="display:flex;align-items:flex-end">
+                                <button class="btn btn-ghost" onclick="document.getElementById('kap-xls-kart').style.display='none'">Kapat</button>
+                            </div>
+                        </div>
+                        <div id="kap-xls-sonuc" style="margin-top:14px"></div>
+                    </div>
+                </div>
+
                 <!-- KAPASİTE PARAMETRELERİ (kullanıcı 2026-09-17: "makine/hat, vardiya,
                      vardiya saati, verimlilik kısmı düzenlenebilir olmalı") -->
                 <div class="panel-card" id="kap-par-kart" style="display:none">
@@ -7060,7 +7098,8 @@ window.__I18N_SOZLUK__ = {
                                     <th style="width:85px">Gün/hafta</th>
                                     <th style="width:110px">Verimlilik %</th>
                                     <th style="width:70px">OEE</th>
-                                    <th style="width:120px">Haftalık saat</th>
+                                    <th style="width:135px">Haftalık saat (elle)</th>
+                                    <th style="width:120px">Haftalık kapasite</th>
                                     <th style="width:90px"></th>
                                 </tr>
                             </thead>
@@ -7100,6 +7139,7 @@ window.__I18N_SOZLUK__ = {
                     <button onclick="kapYukle(0)" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
                         🔍 Listele
                     </button>
+                    <button class="btn btn-outline" onclick="kapXlsAc()" title="Üretim müdürünün kapasite Excel'inden süre ve çalışma saati aktarımı">📥 Kapasite Excel'i</button>
                     <button class="btn btn-outline" onclick="kapParAc()" title="Makine/hat, vardiya, vardiya saati ve verimlilik">⚙️ Kapasite Parametreleri</button>
                     <button class="btn btn-outline" onclick="kapKaynakAc()" title="ERP kaynağı (WELDING, LASERCUT, NROPE…) hangi bölümümüze sayılıyor">🔗 Kaynak Eşlemesi</button>
                     <button class="btn btn-outline" id="kap-talep-btn" onclick="kapSenkron(true)" title="Yalnız açık üretim ihtiyacını (OPR) tazeler — birkaç saniye">🔄 İhtiyacı Tazele</button>
@@ -18725,6 +18765,131 @@ window.__I18N_SOZLUK__ = {
                 bin(t.suresiz_kod) + ' kod süresiz · ' + bin(t.sure_forge) + ' kod Forge');
         }
 
+        // ── ÜRETİM MÜDÜRÜ KAPASİTE EXCEL'İ ─────────────────────────────────────
+        // Süre = 3600 ÷ "Saatlik Üretim Adedi"; "Üretim Hattı" tesis+bölümü verir.
+        // ÖNCE ÖNİZLE, SONRA UYGULA: 3.800 kodun süresini görmeden yazmak, yıllardır
+        // ölçülmüş süreleri sessizce ezmek demek olurdu.
+        var _kapXls = { dosya: null, sunucu: false };
+
+        function kapXlsAc() {
+            var k = document.getElementById('kap-xls-kart');
+            if (!k) return;
+            k.style.display = (k.style.display === 'none') ? '' : 'none';
+        }
+
+        function _kapXlsGovde() {
+            var g = new FormData();
+            var f = (document.getElementById('kap-xls-dosya') || {}).files;
+            if (f && f[0]) { g.append('dosya', f[0]); return g; }
+            if (_kapXls.sunucu) { g.append('yol', _kapXls.yol || ''); return g; }
+            return null;
+        }
+
+        async function kapXlsOnizle(sunucudan) {
+            var sonuc = document.getElementById('kap-xls-sonuc');
+            if (sunucudan) {
+                _kapXls.sunucu = true;
+                _kapXls.yol = prompt('Sunucudaki dosya yolu:',
+                    'Q:\\UretimPlanlama\\Aylık Kapasite Sunum\\Kapasite Kullanım Oranı 2026.xlsx');
+                if (!_kapXls.yol) { _kapXls.sunucu = false; return; }
+            } else {
+                _kapXls.sunucu = false;
+            }
+            var govde = _kapXlsGovde();
+            if (!govde) { toast('Önce dosya seçin', 'err'); return; }
+            sonuc.innerHTML = '<div class="yukleniyor">Excel okunuyor…</div>';
+            try {
+                var r = await panelFetch('/api/kapasite/excel_onizle', { method: 'POST', body: govde });
+                var d = await r.json();
+                if (!r.ok || d.hata) { sonuc.innerHTML = '<div class="empty-state">' + esc(d.hata || 'Okunamadı') + '</div>'; return; }
+                _kapXls.veri = d;
+                kapXlsCiz(d);
+            } catch (e) {
+                sonuc.innerHTML = '<div class="empty-state">' + esc(e.message) + '</div>';
+            }
+        }
+
+        function kapXlsCiz(d) {
+            var bin = function (n) { return Math.round(n || 0).toLocaleString('tr-TR'); };
+            var bilgi = document.getElementById('kap-xls-bilgi');
+            if (bilgi) bilgi.textContent = d.dosya || '';
+            var h = '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px">' +
+                '<div><div style="font-size:.74rem;color:var(--muted)">SÜRE SATIRI</div><b style="font-size:1.2rem">' +
+                bin(d.sure.toplam) + '</b></div>' +
+                '<div><div style="font-size:.74rem;color:var(--muted)">YENİ TANIM</div><b style="font-size:1.2rem;color:var(--success)">' +
+                bin(d.sure.yeni) + '</b></div>' +
+                '<div><div style="font-size:.74rem;color:var(--muted)">SÜRESİ BOŞ OLAN</div><b style="font-size:1.2rem;color:var(--b-kaynak)">' +
+                bin(d.sure.bos) + '</b></div>' +
+                '<div><div style="font-size:.74rem;color:var(--muted)">SÜRESİ DEĞİŞECEK</div><b style="font-size:1.2rem;color:var(--warn)">' +
+                bin(d.sure.degisen) + '</b></div>' +
+                '<div><div style="font-size:.74rem;color:var(--muted)">AYNI</div><b style="font-size:1.2rem;color:var(--dim)">' +
+                bin(d.sure.ayni) + '</b></div></div>';
+            h += '<div class="table-wrap"><table class="admin-table"><thead><tr><th>Tesis / bölüm</th>' +
+                '<th style="width:90px">Yeni</th><th style="width:100px">Süresi boş</th>' +
+                '<th style="width:110px">Değişecek</th><th style="width:80px">Aynı</th>' +
+                '<th style="width:110px">Açık OPR</th></tr></thead><tbody>';
+            h += (d.sure.bolumler || []).map(function (b) {
+                return '<tr><td style="font-weight:700">' + esc(b.lokasyon + ' / ' + bolumAdi(b.bolum, b.lokasyon)) + '</td>' +
+                    '<td style="color:var(--success)">' + bin(b.yeni) + '</td>' +
+                    '<td style="color:var(--b-kaynak)">' + bin(b.bos) + '</td>' +
+                    '<td style="color:var(--warn)">' + bin(b.degisen) + '</td>' +
+                    '<td style="color:var(--dim)">' + bin(b.ayni) + '</td>' +
+                    '<td>' + bin(b.opr) + '</td></tr>';
+            }).join('') + '</tbody></table></div>';
+            if ((d.sure.ornek_degisen || []).length) {
+                h += '<div style="margin-top:12px;font-size:.8rem"><b>Değişecek sürelerden örnekler</b> (bizdeki → Excel):<br>' +
+                    d.sure.ornek_degisen.map(function (x) {
+                        return '<span style="display:inline-block;margin:3px 10px 0 0">' + esc(x.kod) + ' ' +
+                            esc(x.bolum) + ': <b>' + x.eski + '</b> → <b style="color:var(--warn)">' + x.yeni + '</b> sn' +
+                            (x.opr ? ' <span style="color:var(--danger)">·OPR</span>' : '') + '</span>';
+                    }).join('') + '</div>';
+            }
+            if ((d.calisma || []).length) {
+                h += '<div style="margin-top:14px"><b style="font-size:.86rem">Çalışma saatleri (kapasite)</b>' +
+                    '<div class="table-wrap"><table class="admin-table"><thead><tr><th>Tesis / bölüm</th>' +
+                    '<th style="width:90px">Ay</th><th style="width:110px">Aylık saat</th><th style="width:80px">Kişi</th>' +
+                    '<th style="width:130px">Haftalık kapasite</th></tr></thead><tbody>' +
+                    d.calisma.map(function (c) {
+                        return '<tr><td style="font-weight:700">' + esc(c.lokasyon + ' / ' + bolumAdi(c.bolum, c.lokasyon)) + '</td>' +
+                            '<td>' + c.ay + '</td><td>' + bin(c.saat) + ' sa</td><td>' + c.kisi + '</td>' +
+                            '<td style="font-weight:700">' + c.haftalik_saat + ' sa</td></tr>';
+                    }).join('') + '</tbody></table></div></div>';
+            }
+            if ((d.uyarilar || []).length) {
+                h += '<div style="margin-top:10px;color:var(--warn);font-size:.8rem">⚠ ' +
+                    d.uyarilar.map(esc).join('<br>⚠ ') + '</div>';
+            }
+            h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center">' +
+                '<label style="font-size:.82rem"><input type="checkbox" id="kap-xls-sure" checked> Süreleri yaz</label>' +
+                '<label style="font-size:.82rem"><input type="checkbox" id="kap-xls-calisma" checked> Çalışma saatlerini kapasite yap</label>' +
+                '<label style="font-size:.82rem"><input type="checkbox" id="kap-xls-bos" checked title="Bizde süresi olan kodun süresi korunur"> Yalnız süresi olmayanlara yaz</label>' +
+                '<label style="font-size:.82rem"><input type="checkbox" id="kap-xls-opr"> Yalnız açık ihtiyacı olan kodlar</label>' +
+                '<button class="btn btn-primary" onclick="kapXlsUygula()">Uygula</button></div>';
+            document.getElementById('kap-xls-sonuc').innerHTML = h;
+        }
+
+        async function kapXlsUygula() {
+            var govde = _kapXlsGovde();
+            if (!govde) { toast('Dosya seçimi kayboldu, yeniden seçin', 'err'); return; }
+            var sec = function (id) { return (document.getElementById(id) || {}).checked ? '1' : '0'; };
+            govde.append('sureler', sec('kap-xls-sure'));
+            govde.append('calisma', sec('kap-xls-calisma'));
+            govde.append('sadece_opr', sec('kap-xls-opr'));
+            govde.append('sadece_bos', sec('kap-xls-bos'));
+            if (!confirm('Excel uygulanacak. Süreler referans listesine yazılır ve OEE hesabında da kullanılır.\n\nDevam edilsin mi?')) return;
+            try {
+                var r = await panelFetch('/api/kapasite/excel_uygula', { method: 'POST', body: govde });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Uygulanamadı', 'err'); return; }
+                toast(d.mesaj, 'ok');
+                kapTalepOzet(); kapOzet(); kapYukle();
+                var pk = document.getElementById('kap-par-kart');
+                if (pk && pk.style.display !== 'none') kapParAc(true);
+            } catch (e) {
+                toast('Uygulanamadı: ' + e.message, 'err');
+            }
+        }
+
         // ── KAPASİTE PARAMETRELERİ ─────────────────────────────────────────────
         async function kapParAc(zorla) {
             var kart = document.getElementById('kap-par-kart');
@@ -18732,11 +18897,11 @@ window.__I18N_SOZLUK__ = {
             if (!zorla && kart.style.display !== 'none') { kart.style.display = 'none'; return; }
             kart.style.display = '';
             var govde = document.getElementById('kap-par-liste');
-            govde.innerHTML = '<tr><td colspan="9"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
+            govde.innerHTML = '<tr><td colspan="10"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
             try {
                 var r = await panelFetch('/api/kapasite/parametre?lokasyon=' + encodeURIComponent(aktifLokasyon));
                 var d = await r.json();
-                if (!r.ok) { govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">' + esc(d.hata || '') + '</div></td></tr>'; return; }
+                if (!r.ok) { govde.innerHTML = '<tr><td colspan="10"><div class="empty-state">' + esc(d.hata || '') + '</div></td></tr>'; return; }
                 var bilgi = document.getElementById('kap-par-bilgi');
                 if (bilgi) bilgi.textContent = aktifLokasyon + ' · ' + d.parametreler.length + ' bölüm';
                 var sayi = function (b, ad, v, adim) {
@@ -18757,13 +18922,20 @@ window.__I18N_SOZLUK__ = {
                             p.gerceklesen_oee + '</div>' : '') + '</td>' +
                         '<td><input type="checkbox" data-par="' + p.bolum + '" data-alan="oee_kullan"' +
                         (p.oee_kullan ? ' checked' : '') + ' title="Verimlilik yerine gerçekleşen OEE"></td>' +
+                        '<td>' + sayi(p.bolum, 'haftalik_saat_elle', p.haftalik_saat_elle || '', 0.5) +
+                        (p.excel_calisma ? '<div style="font-size:.72rem;color:var(--success)" ' +
+                            'title="Üretim müdürü Excel\'i · ' + p.excel_calisma.saat + ' sa / ' +
+                            p.excel_calisma.kisi + ' kişi">Excel ' + p.excel_calisma.ay + '. ay: ' +
+                            p.excel_calisma.haftalik + ' sa</div>' : '') + '</td>' +
                         '<td style="font-weight:700" id="kap-par-saat-' + p.bolum + '">' +
-                        (p.haftalik_saat || 0).toLocaleString('tr-TR') + ' sa</td>' +
+                        (p.haftalik_saat || 0).toLocaleString('tr-TR') + ' sa' +
+                        '<div style="font-size:.72rem;color:var(--dim)">' +
+                        (p.saat_kaynagi === 'excel' ? 'elle/Excel saati' : 'formülden') + '</div></td>' +
                         '<td><button class="btn btn-ghost" style="padding:3px 10px;font-size:.76rem" ' +
                         'onclick="kapParKaydet(\'' + p.bolum + '\')">Kaydet</button></td></tr>';
                 }).join('');
             } catch (e) {
-                govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+                govde.innerHTML = '<tr><td colspan="10"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
             }
         }
 
@@ -18778,7 +18950,8 @@ window.__I18N_SOZLUK__ = {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ bolum: bolum, lokasyon: aktifLokasyon,
                         makine: al('makine'), vardiya: al('vardiya'), vardiya_saat: al('vardiya_saat'),
-                        gun: al('gun'), verimlilik: al('verimlilik'), oee_kullan: al('oee_kullan') })
+                        gun: al('gun'), verimlilik: al('verimlilik'), oee_kullan: al('oee_kullan'),
+                        haftalik_saat_elle: al('haftalik_saat_elle') })
                 });
                 var d = await r.json();
                 if (!r.ok || d.hata) { toast(d.hata || 'Kaydedilemedi', 'err'); return; }

@@ -80,7 +80,256 @@ LOKASYON_BOLUMLERI = {
     'TK1': ('montaj', 'tel', 'plastik'),
 }
 
-AS400_SEMA = 'TKC0301F'
+# ── ÜRETİM MÜDÜRÜ KAPASİTE EXCEL'İ (kullanıcı 2026-09-17) ───────────────────
+# Q:\UretimPlanlama\Aylık Kapasite Sunum\Kapasite Kullanım Oranı 2026.xlsx
+#   Database        : Kod · Makine · SAATLİK ÜRETİM ADEDİ · ÜRETİM HATTI · 2025'te üretildi mi
+#   Çalışma Saati   : İsim · Ay · NÖS · %90 · %95 · %100 · BÖLÜM  (kişi bazlı aylık saat)
+#   Summary Tk1/Tk2 : Performans = yapılan işin teorik süresi ÷ çalışma saati (hedef %90)
+# Süre = 3600 / saatlik adet. Hat adı hem TESİSİ hem BÖLÜMÜ söyler: PP/PULL/IVECO/
+# JKP-JKW/LF-LFP TK1 montaj hatlarıdır, ASSEMBLY ise TK2 montajıdır.
+EXCEL_HAT_BOLUM = {
+    'WELDING': ('TK2', 'kaynak'),
+    'LASER CUTTING': ('TK2', 'lazer'),
+    'METAL INJECTION': ('TK2', 'metal'),
+    'ASSEMBLY': ('TK2', 'montaj'),
+    'ABKANT': ('TK2', 'pres'),
+    'PP': ('TK1', 'montaj'),
+    'PULL': ('TK1', 'montaj'),
+    'IVECO': ('TK1', 'montaj'),
+    'JKP,JKW': ('TK1', 'montaj'),
+    'LF,LFP,LAG (LTK),LSB,PBL': ('TK1', 'montaj'),
+    'PLASTIC INJECTION': ('TK1', 'plastik'),
+    # Kapasite hattı DEĞİL (bilerek dışarıda): ELECTRONIC, DEPO, POLISING, PTO WITH CABLE
+}
+EXCEL_ATLANAN = ('ELECTRONIC', 'DEPO', 'POLISING', 'PTO WITH CABLE', '0', '#N/A')
+
+
+def _excel_hat(ad):
+    """Excel hat/bölüm adını (lokasyon, bolum) çiftine çevirir; tanınmıyorsa None."""
+    a = ' '.join(str(ad or '').strip().upper().split())
+    return EXCEL_HAT_BOLUM.get(a)
+
+
+def excel_oku(kaynak):
+    """Kapasite Excel'ini okur (dosya yolu ya da dosya benzeri nesne).
+    Dönüş: {'sureler': [...], 'calisma': [...], 'hatlar': {...}, 'uyarilar': [...]}"""
+    import openpyxl
+    wb = openpyxl.load_workbook(kaynak, data_only=True, read_only=True)
+    try:
+        sayfa = {ad.strip().lower(): ad for ad in wb.sheetnames}
+        d_ad = next((sayfa[k] for k in sayfa if k.startswith('database')), None)
+        c_ad = next((sayfa[k] for k in sayfa if 'saat' in k), None)
+        uyarilar = []
+        sureler, hatlar = [], {}
+        if not d_ad:
+            uyarilar.append("'Database' sayfası bulunamadı — süre aktarımı yapılamaz.")
+        else:
+            ws = wb[d_ad]
+            for i, r in enumerate(ws.iter_rows(values_only=True), start=1):
+                if i == 1 or not r or r[0] in (None, ''):
+                    continue
+                kod = str(r[0]).strip()
+                if not kod:
+                    continue
+                try:
+                    saatlik = float(r[2] or 0)
+                except (TypeError, ValueError):
+                    saatlik = 0.0
+                hat = ' '.join(str(r[3] or '').strip().upper().split())
+                hedef = _excel_hat(hat)
+                h = hatlar.setdefault(hat or '(boş)', {'hat': hat or '(boş)', 'kod': 0, 'sureli': 0,
+                                                       'lokasyon': hedef[0] if hedef else '',
+                                                       'bolum': hedef[1] if hedef else ''})
+                h['kod'] += 1
+                if saatlik > 0:
+                    h['sureli'] += 1
+                if not hedef or saatlik <= 0:
+                    continue          # tanınmayan hat ya da süresi girilmemiş kod
+                sureler.append({'kod': kod, 'lokasyon': hedef[0], 'bolum': hedef[1],
+                                'saatlik': saatlik, 'sure_sn': round(3600.0 / saatlik, 2),
+                                'makine': str(r[1] or '').strip(), 'hat': hat})
+        calisma, ay_gorulen = {}, {}
+        if not c_ad:
+            uyarilar.append("'Çalışma Saati' sayfası bulunamadı — kapasite saatleri alınamadı.")
+        else:
+            ws = wb[c_ad]
+            for i, r in enumerate(ws.iter_rows(values_only=True), start=1):
+                if i == 1 or not r:
+                    continue
+                # İSİMSİZ SATIRLAR DA SAYILIR: Excel'in altında isim yazmadan bölüme
+                # eklenmiş saatler var (ör. 'pp 260 saat' — geçici/ödünç işçilik).
+                # Atlarsak kapasite eksik çıkar (Ağustos'ta 260 saat kaybolur).
+                hedef = _excel_hat(r[6] if len(r) > 6 else '')
+                if not hedef:
+                    continue
+                try:
+                    ay = int(float(r[1] or 0))
+                except (TypeError, ValueError):
+                    ay = 0
+                # NÖS + %90/%95/%100 mesai = kişinin o ay fiilen çalıştığı saat
+                saat = 0.0
+                for j in (2, 3, 4, 5):
+                    try:
+                        saat += float(r[j] or 0)
+                    except (TypeError, ValueError):
+                        pass
+                if saat <= 0:
+                    continue
+                if ay:
+                    ay_gorulen[ay] = ay_gorulen.get(ay, 0) + 1
+                k = (hedef[0], hedef[1], ay)
+                c = calisma.setdefault(k, {'lokasyon': hedef[0], 'bolum': hedef[1], 'ay': ay,
+                                           'saat': 0.0, 'kisi': 0, 'isimsiz': 0.0})
+                if not str(r[0] or '').strip():
+                    c['isimsiz'] += saat
+                c['saat'] += saat
+                if str(r[0] or '').strip():
+                    c['kisi'] += 1          # kişi sayısı yalnız isimli satırlardan
+        # AYI YAZILMAMIŞ satırlar (isimsiz ek saatler) dosyadaki ASIL AYA yazılır;
+        # ayrı bir 'ay 0' kovası kapasiteyi ikiye bölerdi.
+        ana_ay = max(ay_gorulen, key=lambda a: ay_gorulen[a]) if ay_gorulen else 0
+        if ana_ay:
+            for (lok, bol, ay), c in list(calisma.items()):
+                if ay or not c['saat']:
+                    continue
+                hedef_k = (lok, bol, ana_ay)
+                ana = calisma.setdefault(hedef_k, {'lokasyon': lok, 'bolum': bol, 'ay': ana_ay,
+                                                   'saat': 0.0, 'kisi': 0, 'isimsiz': 0.0})
+                ana['saat'] += c['saat']
+                ana['isimsiz'] += c['saat']
+                calisma.pop((lok, bol, ay))
+        for c in calisma.values():
+            c['saat'] = round(c['saat'], 1)
+            c['isimsiz'] = round(c.get('isimsiz', 0), 1)
+            # Aylık saat → haftalık: ortalama ay 4,345 hafta (365/7/12)
+            c['haftalik_saat'] = round(c['saat'] / 4.345, 1)
+        taninmayan = [h for h in hatlar.values()
+                      if not h['lokasyon'] and h['hat'].upper() not in EXCEL_ATLANAN]
+        if taninmayan:
+            uyarilar.append('Tanınmayan üretim hattı: ' +
+                            ', '.join(f"{h['hat']} ({h['kod']} kod)" for h in taninmayan[:6]))
+        return {'sureler': sureler, 'calisma': sorted(calisma.values(), key=lambda x: (x['lokasyon'], x['bolum'])),
+                'hatlar': sorted(hatlar.values(), key=lambda x: -x['kod']), 'uyarilar': uyarilar,
+                'aylar': sorted(ay_gorulen)}
+    finally:
+        wb.close()
+
+
+def excel_onizle(conn, veri, lokasyon=''):
+    """Excel'deki sürelerin bizdeki tanımlarla farkını çıkarır (YAZMADAN).
+    'yeni' = bizde o bölümde tanım yok · 'degisen' = süre farklı · 'ayni' = aynı."""
+    mevcut = {}
+    for r in conn.execute("SELECT UPPER(REPLACE(referans_kodu,' ','')) k, COALESCE(bolum,'kaynak') b, "
+                          "COALESCE(lokasyon,'TK2') l, COALESCE(hedef_cycle_time_sn,0) ct "
+                          "FROM referans_listesi"):
+        mevcut[(r['k'], r['b'], r['l'])] = float(r['ct'] or 0)
+    talep = {r['kod'] for r in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0")}
+    yeni = degisen = ayni = bos = 0
+    ornek, ozet = [], {}
+    for x in veri['sureler']:
+        if lokasyon and x['lokasyon'] != lokasyon:
+            continue
+        anahtar = (_norm(x['kod']), x['bolum'], x['lokasyon'])
+        eski = mevcut.get(anahtar)
+        if eski is None:
+            durum = 'yeni'
+        elif eski <= 0:
+            durum = 'bos'        # tanım var ama süre girilmemiş → ezme riski YOK
+        else:
+            durum = 'ayni' if abs(eski - x['sure_sn']) < 0.05 else 'degisen'
+        if durum == 'yeni':
+            yeni += 1
+        elif durum == 'bos':
+            bos += 1
+        elif durum == 'degisen':
+            degisen += 1
+        else:
+            ayni += 1
+        o = ozet.setdefault((x['lokasyon'], x['bolum']), {'lokasyon': x['lokasyon'], 'bolum': x['bolum'],
+                                                          'yeni': 0, 'degisen': 0, 'ayni': 0,
+                                                          'bos': 0, 'opr': 0})
+        o[durum] += 1
+        if x['kod'] in talep:
+            o['opr'] += 1
+        if durum == 'degisen' and len(ornek) < 12:
+            ornek.append({'kod': x['kod'], 'bolum': x['bolum'], 'lokasyon': x['lokasyon'],
+                          'eski': round(eski, 1), 'yeni': x['sure_sn'],
+                          'opr': x['kod'] in talep})
+    return {'yeni': yeni, 'degisen': degisen, 'ayni': ayni, 'bos': bos,
+            'toplam': yeni + degisen + ayni + bos,
+            'bolumler': sorted(ozet.values(), key=lambda x: (x['lokasyon'], x['bolum'])),
+            'ornek_degisen': ornek}
+
+
+def excel_sure_uygula(conn, veri, kullanici='', lokasyon='', sadece_opr=False,
+                      sadece_bos=True):
+    """Excel sürelerini referans_listesi'ne yazar (bölüm/tesis Excel'in hattından).
+
+    sadece_bos=True (VARSAYILAN) → bizde süresi OLMAYAN kodlara yazar, mevcut süreyi
+      EZMEZ. Kaynak/lazer gibi bölümlerde bizim süreler sahada ölçüldü; Excel'in
+      saatlik adedi yuvarlak bir plan değeri olabilir (ör. 10.130.2412: bizde 255,3 sn,
+      Excel'de 36 sn). Ezmek istenirse bu bayrak kapatılır.
+    sadece_opr=True → yalnız açık ihtiyacı olan kodlara dokunur."""
+    talep = {r['kod'] for r in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0")}
+    yeni = guncel = ayni = 0
+    for x in veri['sureler']:
+        if lokasyon and x['lokasyon'] != lokasyon:
+            continue
+        if sadece_opr and x['kod'] not in talep:
+            continue
+        r = conn.execute(
+            "SELECT id, COALESCE(hedef_cycle_time_sn,0) ct FROM referans_listesi "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND bolum=? "
+            "AND COALESCE(lokasyon,'TK2')=?", (x['kod'], x['bolum'], x['lokasyon'])).fetchone()
+        if r is None:
+            conn.execute("INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, bolum, "
+                         "lokasyon) VALUES (?,?,?,?)",
+                         (x['kod'], x['sure_sn'], x['bolum'], x['lokasyon']))
+            yeni += 1
+        elif sadece_bos and float(r['ct'] or 0) > 0:
+            ayni += 1            # süresi var, dokunma (mevcut tanım korunur)
+            continue
+        elif abs(float(r['ct']) - x['sure_sn']) >= 0.05:
+            conn.execute("UPDATE referans_listesi SET hedef_cycle_time_sn=? WHERE id=?",
+                         (x['sure_sn'], r['id']))
+            guncel += 1
+        else:
+            ayni += 1
+            continue
+        # Geçmiş üretim kayıtlarının cycle'ı — /api/referanslar ve sure_yukle ile aynı kural
+        conn.execute(
+            "UPDATE uretim_kayitlari SET cycle_time_sn=? "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+            "                   AND COALESCE(bolum,'kaynak')=?)",
+            (x['sure_sn'], x['kod'], x['lokasyon'], x['bolum']))
+    conn.commit()
+    return {'yeni': yeni, 'guncel': guncel, 'ayni': ayni}
+
+
+def excel_calisma_uygula(conn, veri, kullanici=''):
+    """Çalışma saatlerini kaydeder ve bölümlerin HAFTALIK KAPASİTESİNİ bu saatle
+    günceller (kapasite_parametre.haftalik_saat_elle). Aylık saat ÷ 4,345 = haftalık."""
+    yazilan = 0
+    for c in veri['calisma']:
+        conn.execute(
+            "INSERT INTO kapasite_calisma_saati (lokasyon, bolum, ay, saat, kisi, kaynak, updated_at) "
+            "VALUES (?,?,?,?,?, 'excel', datetime('now','localtime')) "
+            "ON CONFLICT(lokasyon, bolum, ay) DO UPDATE SET saat=excluded.saat, kisi=excluded.kisi, "
+            "updated_at=datetime('now','localtime')",
+            (c['lokasyon'], c['bolum'], c['ay'], c['saat'], c['kisi']))
+        conn.execute(
+            "INSERT INTO kapasite_parametre (lokasyon, bolum, haftalik_saat_elle, guncelleyen, updated_at) "
+            "VALUES (?,?,?,?, datetime('now','localtime')) "
+            "ON CONFLICT(lokasyon, bolum) DO UPDATE SET haftalik_saat_elle=excluded.haftalik_saat_elle, "
+            "guncelleyen=excluded.guncelleyen, updated_at=datetime('now','localtime')",
+            (c['lokasyon'], c['bolum'], c['haftalik_saat'], kullanici))
+        yazilan += 1
+    conn.commit()
+    return {'bolum': yazilan}
+
+
+AS400_SEMA = 'TKC0301F' 
 
 SQL_URUN = f"""
     SELECT A0ARTI, A0ARDS, A0PROV, A0ARAN, A0TART, A0LNPR
@@ -289,9 +538,14 @@ def parametreler(conn, lokasyon='TK2', bolumler=()):
                            'not_metni': '', 'guncelleyen': '', 'updated_at': None,
                            'varsayilan': True})
     for b, p in out.items():
-        p['haftalik_saat'] = round(float(p['makine'] or 0) * float(p['vardiya'] or 0) *
-                                   float(p['vardiya_saat'] or 0) * float(p['gun'] or 0) *
-                                   (float(p['verimlilik'] or 0) / 100.0), 1)
+        p.setdefault('haftalik_saat_elle', 0)
+        elle = float(p.get('haftalik_saat_elle') or 0)
+        # ELLE SAAT (üretim müdürü Excel'indeki gerçek çalışma saati) formülü EZER:
+        # gerçekte çalışılan saat, makine × vardiya varsayımından daha doğrudur.
+        p['haftalik_saat'] = elle if elle > 0 else round(
+            float(p['makine'] or 0) * float(p['vardiya'] or 0) * float(p['vardiya_saat'] or 0) *
+            float(p['gun'] or 0) * (float(p['verimlilik'] or 0) / 100.0), 1)
+        p['saat_kaynagi'] = 'excel' if elle > 0 else 'formul'
     return out
 
 
@@ -460,7 +714,7 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
         if p.get('oee_kullan'):
             oee = gerceklesen_oee(b['bolum'], lokasyon)
             p['gerceklesen_oee'] = oee
-            if oee:
+            if oee and not float(p.get('haftalik_saat_elle') or 0):
                 p['verimlilik'] = oee
                 p['haftalik_saat'] = round(float(p['makine'] or 0) * float(p['vardiya'] or 0) *
                                            float(p['vardiya_saat'] or 0) * float(p['gun'] or 0) *
