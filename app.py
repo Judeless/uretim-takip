@@ -7064,6 +7064,63 @@ def kapasite_talep_ozet_api():
     return jsonify(KAP.talep_ozet(get_db(), lokasyon, haftalar or (2, 4, 6, 8)))
 
 
+@app.route('/api/kapasite/parametre', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def kapasite_parametre_listesi():
+    """Bölümlerin kapasite parametreleri + haftalık kapasite saati.
+    Tanımsız bölüm varsayılanla döner (kaydedilmemiş olduğu 'varsayilan' ile bellidir)."""
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    par = KAP.parametreler(get_db(), lokasyon, [b for b in GECERLI_BOLUMLER])
+    out = []
+    for b in sorted(par, key=lambda x: list(GECERLI_BOLUMLER).index(x) if x in GECERLI_BOLUMLER else 99):
+        p = dict(par[b])
+        p['bolum_ad'] = BOLUM_AD.get(b, b)
+        if p.get('oee_kullan'):
+            p['gerceklesen_oee'] = KAP.gerceklesen_oee(b, lokasyon)
+        out.append(p)
+    return jsonify({'lokasyon': lokasyon, 'parametreler': out})
+
+
+@app.route('/api/kapasite/parametre', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def kapasite_parametre_kaydet():
+    """Body: {bolum, lokasyon, makine, vardiya, vardiya_saat, gun, verimlilik, oee_kullan, not}
+    Haftalık kapasite = makine × vardiya × vardiya_saat × gün × verimlilik."""
+    d = request.get_json(silent=True) or {}
+    bolum = str(d.get('bolum') or '').strip()
+    lokasyon = (str(d.get('lokasyon') or 'TK2').strip().upper() or 'TK2')
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    if lokasyon not in ('TK1', 'TK2'):
+        return jsonify({'hata': f'Geçersiz lokasyon: {lokasyon}'}), 400
+    alanlar, ust = {}, {'makine': 500, 'vardiya': 4, 'vardiya_saat': 24, 'gun': 7, 'verimlilik': 100}
+    for ad, tavan in ust.items():
+        try:
+            v = float(str(d.get(ad, '')).replace(',', '.'))
+        except (TypeError, ValueError):
+            return jsonify({'hata': f'{ad} sayı olmalı'}), 400
+        if v < 0 or v > tavan:
+            return jsonify({'hata': f'{ad} 0 ile {tavan:g} arasında olmalı'}), 400
+        alanlar[ad] = v
+    oee_kullan = 0 if str(d.get('oee_kullan', 0)).lower() in ('0', 'false', '', 'none') else 1
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO kapasite_parametre (lokasyon, bolum, makine, vardiya, vardiya_saat, gun, "
+        "verimlilik, oee_kullan, not_metni, guncelleyen, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime')) "
+        "ON CONFLICT(lokasyon, bolum) DO UPDATE SET makine=excluded.makine, vardiya=excluded.vardiya, "
+        "vardiya_saat=excluded.vardiya_saat, gun=excluded.gun, verimlilik=excluded.verimlilik, "
+        "oee_kullan=excluded.oee_kullan, not_metni=excluded.not_metni, "
+        "guncelleyen=excluded.guncelleyen, updated_at=datetime('now','localtime')",
+        (lokasyon, bolum, alanlar['makine'], alanlar['vardiya'], alanlar['vardiya_saat'],
+         alanlar['gun'], alanlar['verimlilik'], oee_kullan, str(d.get('not') or '')[:200],
+         g.panel_ku['kullanici_adi']))
+    conn.commit()
+    p = KAP.parametreler(conn, lokasyon, [bolum])[bolum]
+    return jsonify({'basarili': True, 'parametre': p,
+                    'mesaj': f"{BOLUM_AD.get(bolum, bolum)}: haftalık {p['haftalik_saat']:g} saat kapasite"})
+
+
 @app.route('/api/kapasite/urunler', methods=['GET'])
 @panel_gerekli(izin='kapasite')
 def kapasite_urunler_api():

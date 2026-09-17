@@ -1446,6 +1446,27 @@ def init_db():
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS ix_kapasite_talep_kod ON kapasite_talep (kod)")
+    # BÖLÜM KAPASİTE PARAMETRELERİ (kullanıcı 2026-09-17: "makine/hat, vardiya, vardiya
+    # saati, verimlilik kısmı düzenlenebilir olmalı"). Haftalık kapasite =
+    #   makine × vardiya × vardiya_saat × gun × verimlilik
+    # verimlilik: elle girilen % ya da oee_kullan=1 ise o bölümün GERÇEKLEŞEN OEE'si
+    # (son 4 hafta) — teorik kapasite gerçeği süslüyor, ölçtüğümüz OEE elimizde.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_parametre (
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            bolum TEXT NOT NULL,
+            makine REAL NOT NULL DEFAULT 1,
+            vardiya REAL NOT NULL DEFAULT 2,
+            vardiya_saat REAL NOT NULL DEFAULT 7.5,
+            gun REAL NOT NULL DEFAULT 5,
+            verimlilik REAL NOT NULL DEFAULT 75,
+            oee_kullan INTEGER NOT NULL DEFAULT 0,
+            not_metni TEXT DEFAULT '',
+            guncelleyen TEXT DEFAULT '',
+            updated_at TEXT,
+            PRIMARY KEY (lokasyon, bolum)
+        )
+    """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS kapasite_kaynak (
             kaynak_kod TEXT PRIMARY KEY,

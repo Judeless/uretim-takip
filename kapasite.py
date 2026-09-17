@@ -275,6 +275,40 @@ def _sure_haritasi(conn):
         "FROM referans_listesi WHERE COALESCE(hedef_cycle_time_sn,0) > 0")}
 
 
+def parametreler(conn, lokasyon='TK2', bolumler=()):
+    """Bölümlerin kapasite parametreleri (tanımsızsa varsayılan satır üretilir).
+    Haftalık kapasite saati = makine × vardiya × vardiya_saat × gün × verimlilik."""
+    out = {}
+    for r in conn.execute("SELECT * FROM kapasite_parametre WHERE COALESCE(lokasyon,'TK2')=?",
+                          (lokasyon,)):
+        out[r['bolum']] = {k: r[k] for k in r.keys()}
+    for b in bolumler:
+        out.setdefault(b, {'lokasyon': lokasyon, 'bolum': b, 'makine': 1, 'vardiya': 2,
+                           'vardiya_saat': 7.5, 'gun': 5, 'verimlilik': 75, 'oee_kullan': 0,
+                           'not_metni': '', 'guncelleyen': '', 'updated_at': None,
+                           'varsayilan': True})
+    for b, p in out.items():
+        p['haftalik_saat'] = round(float(p['makine'] or 0) * float(p['vardiya'] or 0) *
+                                   float(p['vardiya_saat'] or 0) * float(p['gun'] or 0) *
+                                   (float(p['verimlilik'] or 0) / 100.0), 1)
+    return out
+
+
+def gerceklesen_oee(bolum, lokasyon, hafta=4):
+    """Bölümün son <hafta> haftadaki gerçekleşen OEE'si (%) — yoksa None.
+    Kapasite parametresinde 'OEE kullan' seçilirse verimlilik yerine BU geçer."""
+    try:
+        from oee import hesapla_oee_ozet
+        bit = date.today()
+        bas = bit - timedelta(days=7 * hafta)
+        o = hesapla_oee_ozet(bas.isoformat(), bit.isoformat(), None, bolum, lokasyon)
+        v = float(o.get('ort_oee') or 0)
+        return round(v, 1) if v > 0 else None
+    except Exception as e:
+        print(f'[kapasite] gerçekleşen OEE alınamadı ({bolum}/{lokasyon}): {e}')
+        return None
+
+
 def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
     """Bölüm bazlı haftalık ihtiyaç: kaç adet ve kaç SAAT iş var.
 
@@ -338,11 +372,64 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
             'hafta': {str(h): {'adet': round(v['adet']), 'saat': round(v['sn'] / 3600, 1)}
                       for h, v in b['hafta'].items()},
         })
+    # KAPASİTE KARŞILAŞTIRMASI: kova kümülatif olduğu için kapasite de kümülatiftir
+    # (4 haftalık kova ↔ 4 haftalık kapasite). Gecikmiş iş kovaların içinde olduğundan
+    # doluluk >%100 çıkabilir — bu bir hata değil, "yetişmiyoruz" demektir.
+    par = parametreler(conn, lokasyon, [b['bolum'] for b in out])
+    for b in out:
+        p = dict(par.get(b['bolum'], {}))
+        if p.get('oee_kullan'):
+            oee = gerceklesen_oee(b['bolum'], lokasyon)
+            p['gerceklesen_oee'] = oee
+            if oee:
+                p['verimlilik'] = oee
+                p['haftalik_saat'] = round(float(p['makine'] or 0) * float(p['vardiya'] or 0) *
+                                           float(p['vardiya_saat'] or 0) * float(p['gun'] or 0) *
+                                           (oee / 100.0), 1)
+        b['kapasite'] = p
+        for h in haftalar:
+            kap = round(float(p.get('haftalik_saat') or 0) * h, 1)
+            saat = b['hafta'][str(h)]['saat']
+            b['hafta'][str(h)]['kapasite_saat'] = kap
+            b['hafta'][str(h)]['doluluk'] = round(100 * saat / kap, 1) if kap > 0 else None
     out.sort(key=lambda x: -x['hafta'][str(max(haftalar))]['saat'])
     son = conn.execute("SELECT MAX(senk_at) s FROM kapasite_talep").fetchone()
-    return {'lokasyon': lokasyon, 'haftalar': list(haftalar), 'bolumler': out,
+    havuz = conn.execute("SELECT COUNT(*) n FROM kapasite_urun_bolum").fetchone()['n']
+    talep_var = conn.execute("SELECT COUNT(*) n FROM kapasite_talep WHERE kalan > 0").fetchone()['n']
+    # "Hiç bölüm çıkmadı" iki AYRI sebepten olur; karıştırmak yanlış teşhis yaratır:
+    #   rota_yok  → ürün/rota hiç çekilmedi, sınıflandırma yapılamıyor (AS400'den Çek)
+    #   talep_yok → ihtiyaç listesi boş
+    uyari = ''
+    if not havuz:
+        uyari = ('Ürün ve rota listesi çekilmemiş — sınıflandırma ve ERP süreleri oradan '
+                 'geliyor. Önce "AS400\'den Çek" ile ürün + rota listesini alın.')
+    elif not talep_var:
+        uyari = 'Açık üretim ihtiyacı (OPR) bulunamadı — "İhtiyacı Tazele" ile listeyi çekin.'
+    # KPI'lar için toplamlar: kod sayısı BÖLÜMLER ARASI TEKİL (bir kod hem kaynak hem
+    # montajdan geçebilir), adet ise doğrudan emir tablosundan (bölüm bazında toplarsak
+    # iki bölümden geçen kodun adedi iki kez sayılırdı).
+    tekil_kod = set()
+    for t in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0"):
+        if t['kod'] in rota:
+            tekil_kod.add(t['kod'])
+    bugun_iso = bugun.isoformat()
+    say = conn.execute(
+        "SELECT COUNT(*) emir, COALESCE(SUM(kalan),0) adet, "
+        "SUM(CASE WHEN bitis <> '' AND bitis < ? THEN 1 ELSE 0 END) gecikmis_emir, "
+        "COALESCE(SUM(CASE WHEN bitis <> '' AND bitis < ? THEN kalan ELSE 0 END),0) gecikmis_adet "
+        "FROM kapasite_talep WHERE kalan > 0", (bugun_iso, bugun_iso)).fetchone()
+    toplam = {'kod': len(tekil_kod), 'emir': say['emir'], 'adet': round(say['adet']),
+              'gecikmis_emir': say['gecikmis_emir'], 'gecikmis_adet': round(say['gecikmis_adet']),
+              'suresiz_kod': sum(b['suresiz_kod'] for b in out),
+              'erp_sureli_kod': sum(b['erp_sureli_kod'] for b in out),
+              'bizim_sureli_kod': sum(b['bizim_sureli_kod'] for b in out),
+              'saat': {str(h): round(sum(b['hafta'][str(h)]['saat'] for b in out), 1) for h in haftalar},
+              'kapasite_saat': {str(h): round(sum(b['hafta'][str(h)].get('kapasite_saat') or 0
+                                                  for b in out), 1) for h in haftalar}}
+    return {'lokasyon': lokasyon, 'haftalar': list(haftalar), 'bolumler': out, 'toplam': toplam,
             'dis_islem': {'kod': len(dis_islem['kod']), 'adet': round(dis_islem['adet'])},
             'tarihsiz': {'emir': tarihsiz['emir'], 'adet': round(tarihsiz['adet'])},
+            'havuz_satiri': havuz, 'acik_talep': talep_var, 'uyari': uyari,
             'senk_at': (son['s'] if son else None)}
 
 

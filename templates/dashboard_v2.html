@@ -1756,6 +1756,19 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "⚙️ Kapasite parametreleri": {"en": "⚙️ Capacity parameters", "it": "⚙️ Parametri di capacità"},
+  "⚙️ Kapasite Parametreleri": {"en": "⚙️ Capacity parameters", "it": "⚙️ Parametri di capacità"},
+  "Makine/hat": {"en": "Machines/lines", "it": "Macchine/linee"},
+  "Vardiya saati": {"en": "Shift hours", "it": "Ore turno"},
+  "Gün/hafta": {"en": "Days/week", "it": "Giorni/settimana"},
+  "Verimlilik %": {"en": "Efficiency %", "it": "Efficienza %"},
+  "Haftalık saat": {"en": "Weekly hours", "it": "Ore settimanali"},
+  "Haftalık kapasite": {"en": "Weekly capacity", "it": "Capacità settimanale"},
+  "📦 Açık ihtiyaç (OPR)": {"en": "📦 Open demand (OPR)", "it": "📦 Fabbisogno aperto (OPR)"},
+  "⏱ 8 haftalık iş": {"en": "⏱ 8-week workload", "it": "⏱ Carico 8 settimane"},
+  "⚠️ Termini geçmiş": {"en": "⚠️ Overdue", "it": "⚠️ In ritardo"},
+  "🕒 Süresi bizde olmayan": {"en": "🕒 Without our time", "it": "🕒 Senza nostro tempo"},
+  "⬇️ Ürün + Rota Çek": {"en": "⬇️ Fetch items + routing", "it": "⬇️ Scarica articoli + cicli"},
   "📅 Açık üretim ihtiyacı (OPR) — bölüm bazlı iş yükü": {"en": "📅 Open production demand (OPR) — load by department", "it": "📅 Fabbisogno di produzione (OPR) — carico per reparto"},
   "Yalnız OPR'si olanlar": {"en": "Only with open demand", "it": "Solo con fabbisogno"},
   "OPR'si olmayanlar": {"en": "Without open demand", "it": "Senza fabbisogno"},
@@ -6972,22 +6985,22 @@ window.__I18N_SOZLUK__ = {
 
                 <div class="kpi-grid">
                     <div class="kpi-card k-hedef">
-                        <div class="kpi-label">🏭 Üretim kodu (P)</div>
+                        <div class="kpi-label">📦 Açık ihtiyaç (OPR)</div>
                         <div class="kpi-value" id="kap-k-uretim" style="font-size:1.7rem">—</div>
                         <div class="kpi-sub" id="kap-k-uretim-sub">&nbsp;</div>
                     </div>
                     <div class="kpi-card k-oee">
-                        <div class="kpi-label">🧭 ERP rotası olan</div>
+                        <div class="kpi-label">⏱ 8 haftalık iş</div>
                         <div class="kpi-value" id="kap-k-rota" style="font-size:1.7rem">—</div>
                         <div class="kpi-sub" id="kap-k-rota-sub">&nbsp;</div>
                     </div>
-                    <div class="kpi-card k-ok">
-                        <div class="kpi-label">✅ Bizde tanımlı</div>
+                    <div class="kpi-card k-durus">
+                        <div class="kpi-label">⚠️ Termini geçmiş</div>
                         <div class="kpi-value" id="kap-k-tanimli" style="font-size:1.7rem">—</div>
                         <div class="kpi-sub" id="kap-k-tanimli-sub">&nbsp;</div>
                     </div>
-                    <div class="kpi-card k-durus">
-                        <div class="kpi-label">⏳ Süresi yok</div>
+                    <div class="kpi-card k-ok">
+                        <div class="kpi-label">🕒 Süresi bizde olmayan</div>
                         <div class="kpi-value" id="kap-k-suresiz" style="font-size:1.7rem">—</div>
                         <div class="kpi-sub" id="kap-k-suresiz-sub">&nbsp;</div>
                     </div>
@@ -7009,20 +7022,51 @@ window.__I18N_SOZLUK__ = {
                                     <th>Bölüm</th>
                                     <th style="width:90px">Kod</th>
                                     <th style="width:110px">Adet</th>
-                                    <th style="width:120px">Termini geçmiş</th>
-                                    <th style="width:90px">2 hafta</th>
-                                    <th style="width:90px">4 hafta</th>
-                                    <th style="width:90px">6 hafta</th>
-                                    <th style="width:90px">8 hafta</th>
-                                    <th style="width:190px">Süre kaynağı</th>
+                                    <th style="width:110px">Termini geçmiş</th>
+                                    <th style="width:120px">Haftalık kapasite</th>
+                                    <th style="width:105px">2 hafta</th>
+                                    <th style="width:105px">4 hafta</th>
+                                    <th style="width:105px">6 hafta</th>
+                                    <th style="width:105px">8 hafta</th>
+                                    <th style="width:170px">Süre kaynağı</th>
                                 </tr>
                             </thead>
                             <tbody id="kap-talep-liste">
-                                <tr><td colspan="9"><div class="yukleniyor">Yükleniyor…</div></td></tr>
+                                <tr><td colspan="10"><div class="yukleniyor">Yükleniyor…</div></td></tr>
                             </tbody>
                         </table>
                     </div>
                     <div style="padding:10px 20px;font-size:.78rem;color:var(--muted);line-height:1.6" id="kap-talep-not"></div>
+                </div>
+
+                <!-- KAPASİTE PARAMETRELERİ (kullanıcı 2026-09-17: "makine/hat, vardiya,
+                     vardiya saati, verimlilik kısmı düzenlenebilir olmalı") -->
+                <div class="panel-card" id="kap-par-kart" style="display:none">
+                    <div class="panel-header">
+                        <h3>⚙️ Kapasite parametreleri</h3>
+                        <span class="adet-info" id="kap-par-bilgi"></span>
+                    </div>
+                    <div style="padding:12px 20px 4px;font-size:.8rem;color:var(--muted);line-height:1.6">
+                        Haftalık kapasite = makine/hat × vardiya × vardiya saati × haftalık gün × verimlilik. Verimlilik yerine o bölümün son 4 haftadaki gerçekleşen OEE'sini kullanmak isterseniz "OEE" kutusunu işaretleyin — teorik saat yerine gerçekte ne ürettiğinizi kullanır.
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Bölüm</th>
+                                    <th style="width:95px">Makine/hat</th>
+                                    <th style="width:85px">Vardiya</th>
+                                    <th style="width:95px">Vardiya saati</th>
+                                    <th style="width:85px">Gün/hafta</th>
+                                    <th style="width:110px">Verimlilik %</th>
+                                    <th style="width:70px">OEE</th>
+                                    <th style="width:120px">Haftalık saat</th>
+                                    <th style="width:90px"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="kap-par-liste"></tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div class="ky-filtre">
@@ -7049,14 +7093,6 @@ window.__I18N_SOZLUK__ = {
                         <select id="kap-bolum" style="min-width:150px" onchange="kapYukle(0)"></select>
                     </div>
                     <div class="f-group">
-                        <label>Tip</label>
-                        <select id="kap-prov" style="min-width:140px" onchange="kapYukle(0)">
-                            <option value="P">Üretim (P)</option>
-                            <option value="A">Fason (A)</option>
-                            <option value="">Hepsi</option>
-                        </select>
-                    </div>
-                    <div class="f-group">
                         <label>Ara</label>
                         <input type="text" id="kap-ara" placeholder="kod ya da açıklama" style="min-width:190px"
                                onkeydown="if(event.key==='Enter')kapYukle(0)">
@@ -7064,9 +7100,10 @@ window.__I18N_SOZLUK__ = {
                     <button onclick="kapYukle(0)" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
                         🔍 Listele
                     </button>
+                    <button class="btn btn-outline" onclick="kapParAc()" title="Makine/hat, vardiya, vardiya saati ve verimlilik">⚙️ Kapasite Parametreleri</button>
                     <button class="btn btn-outline" onclick="kapKaynakAc()" title="ERP kaynağı (WELDING, LASERCUT, NROPE…) hangi bölümümüze sayılıyor">🔗 Kaynak Eşlemesi</button>
                     <button class="btn btn-outline" id="kap-talep-btn" onclick="kapSenkron(true)" title="Yalnız açık üretim ihtiyacını (OPR) tazeler — birkaç saniye">🔄 İhtiyacı Tazele</button>
-                    <button class="btn btn-outline" id="kap-senk-btn" onclick="kapSenkron()" title="AS400'den ürün, rota ve ihtiyaç listesini yeniden çeker (yaklaşık yarım dakika)">⬇️ AS400'den Çek</button>
+                    <button class="btn btn-outline" id="kap-senk-btn" onclick="kapSenkron()" title="Ürün + rota + süre listesini AS400'den çeker. Sınıflandırma ve ERP süreleri BUNDAN gelir; ürün/rota seyrek değişir, ayda bir yeterli (yaklaşık yarım dakika).">⬇️ Ürün + Rota Çek</button>
                     <div id="kap-durum-bilgi" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
                 </div>
 
@@ -9099,7 +9136,11 @@ window.__I18N_SOZLUK__ = {
             else if (aktifSayfa === 'durus-analizi') daSekmeAcildi();
             // Kapasite: "bizde tanımlı mı" sorusu LOKASYONA göre yanıtlanır; atama
             // bölümleri de tesise göre değişir (TK1'de montaj/plastik/tel)
-            else if (aktifSayfa === 'kapasite') { kapTopluBolumDoldur(); kapOzet(); kapTalepOzet(); kapYukle(); }
+            else if (aktifSayfa === 'kapasite') {
+                kapTopluBolumDoldur(); kapOzet(); kapTalepOzet(); kapYukle();
+                var _pk = document.getElementById('kap-par-kart');
+                if (_pk && _pk.style.display !== 'none') kapParAc(true);
+            }
         }
 
         function lokasyonGorunum() {
@@ -18606,14 +18647,25 @@ window.__I18N_SOZLUK__ = {
                 var bin = function (n) { return Math.round(n || 0).toLocaleString('tr-TR'); };
                 var bilgi = document.getElementById('kap-talep-bilgi');
                 if (bilgi) bilgi.textContent = d.senk_at ? ('ihtiyaç listesi ' + d.senk_at) : 'ihtiyaç çekilmedi';
+                kapTalepKpi(d);
                 if (!d.bolumler.length) {
-                    govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">Açık üretim ihtiyacı yok ya da ihtiyaç listesi çekilmedi.</div></td></tr>';
+                    // Boş tablonun SEBEBİNİ söyle: ürün/rota çekilmediyse "dış işlem" demek
+                    // yanlış teşhis olur (sınıflandırma yapılamadığı için kod bölümsüz kalır).
+                    govde.innerHTML = '<tr><td colspan="10"><div class="empty-state">' +
+                        esc(d.uyari || 'Açık üretim ihtiyacı yok.') + '</div></td></tr>';
                 } else {
                     govde.innerHTML = d.bolumler.map(function (b) {
                         var saat = function (h) {
-                            var v = (b.hafta[h] || {}).saat || 0;
-                            return '<td style="font-weight:700">' + bin(v) + ' sa</td>';
+                            var x = b.hafta[h] || {};
+                            var dol = x.doluluk;
+                            var renk = (dol === null || dol === undefined) ? 'var(--dim)'
+                                : (dol > 100 ? 'var(--danger)' : (dol > 85 ? 'var(--warn)' : 'var(--success)'));
+                            return '<td style="font-weight:700">' + bin(x.saat || 0) + ' sa' +
+                                '<div style="font-size:.74rem;font-weight:700;color:' + renk + '">' +
+                                (dol === null || dol === undefined ? 'kapasite yok' : ('%' + Math.round(dol))) +
+                                '</div></td>';
                         };
+                        var kap = (b.kapasite || {});
                         var kaynak = '<span style="color:var(--success)">' + b.bizim_sureli_kod + ' bizim</span>' +
                             (b.erp_sureli_kod ? ' · <span style="color:var(--b-kaynak)">' + b.erp_sureli_kod + ' ERP</span>' : '') +
                             (b.suresiz_kod ? ' · <span style="color:var(--danger);font-weight:700">' + b.suresiz_kod + ' süresiz</span>' : '');
@@ -18622,13 +18674,20 @@ window.__I18N_SOZLUK__ = {
                             '<td>' + b.kod_sayisi + '</td><td>' + bin(b.adet) + '</td>' +
                             '<td style="color:' + (b.gecikmis_saat ? 'var(--danger)' : 'var(--muted)') + '">' +
                             bin(b.gecikmis_saat) + ' sa</td>' +
+                            '<td><a onclick="kapParAc(true)" style="cursor:pointer;font-weight:700;color:var(--primary)">' +
+                            bin(kap.haftalik_saat || 0) + ' sa</a>' +
+                            '<div style="font-size:.72rem;color:var(--dim)">' + (kap.makine || 0) + ' × ' +
+                            (kap.vardiya || 0) + ' vardiya · %' + Math.round(kap.verimlilik || 0) +
+                            (kap.oee_kullan ? ' OEE' : '') + (kap.varsayilan ? ' · varsayılan' : '') + '</div></td>' +
                             saat('2') + saat('4') + saat('6') + saat('8') +
                             '<td style="font-size:.76rem">' + kaynak + '</td></tr>';
                     }).join('');
                 }
                 var not = document.getElementById('kap-talep-not');
                 if (not) {
-                    not.innerHTML = 'Saatler <b>kümülatiftir</b>: "4 hafta" sütunu bugünden 28 gün sonrasına kadar olan işi ve termini geçmiş işi birlikte sayar. ' +
+                    not.innerHTML = (d.uyari ? ('<b style="color:var(--warn)">' + esc(d.uyari) + '</b><br>') : '') +
+                        'Saatler <b>kümülatiftir</b>: "4 hafta" sütunu bugünden 28 gün sonrasına kadar olan işi ve termini geçmiş işi birlikte sayar. ' +
+                        'Doluluk = gereken saat ÷ (haftalık kapasite × hafta). ' +
                         'Süre önceliği: bizim tanımımız → ERP rota süresi. ' +
                         (d.dis_islem && d.dis_islem.kod ? ('<br>' + bin(d.dis_islem.adet) + ' adetlik ' + d.dis_islem.kod +
                             ' kod tamamen dış işlem/kaplama rotasına sahip — bizim kapasitemize yük getirmez.') : '') +
@@ -18636,7 +18695,88 @@ window.__I18N_SOZLUK__ = {
                             ' emrin termini yok, haftalık kovalara girmedi.</span>') : '');
                 }
             } catch (e) {
+                govde.innerHTML = '<tr><td colspan="10"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        function kapTalepKpi(d) {
+            var t = d.toplam || {};
+            var bin = function (n) { return Math.round(n || 0).toLocaleString('tr-TR'); };
+            var yaz = function (id, m) { var e = document.getElementById(id); if (e) e.textContent = m; };
+            yaz('kap-k-uretim', bin(t.kod));
+            yaz('kap-k-uretim-sub', bin(t.adet) + ' adet · ' + bin(t.emir) + ' emir');
+            yaz('kap-k-rota', bin((t.saat || {})['8']) + ' sa');
+            yaz('kap-k-rota-sub', '2 haftada ' + bin((t.saat || {})['2']) + ' sa');
+            yaz('kap-k-tanimli', bin(t.gecikmis_emir) + ' emir');
+            yaz('kap-k-tanimli-sub', bin(t.gecikmis_adet) + ' adet gecikmiş');
+            yaz('kap-k-suresiz', bin((t.erp_sureli_kod || 0) + (t.suresiz_kod || 0)));
+            yaz('kap-k-suresiz-sub', bin(t.erp_sureli_kod) + ' kod ERP süresiyle · ' +
+                bin(t.suresiz_kod) + ' kod süresiz · ' + bin(t.bizim_sureli_kod) + ' kod bizim');
+        }
+
+        // ── KAPASİTE PARAMETRELERİ ─────────────────────────────────────────────
+        async function kapParAc(zorla) {
+            var kart = document.getElementById('kap-par-kart');
+            if (!kart) return;
+            if (!zorla && kart.style.display !== 'none') { kart.style.display = 'none'; return; }
+            kart.style.display = '';
+            var govde = document.getElementById('kap-par-liste');
+            govde.innerHTML = '<tr><td colspan="9"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
+            try {
+                var r = await panelFetch('/api/kapasite/parametre?lokasyon=' + encodeURIComponent(aktifLokasyon));
+                var d = await r.json();
+                if (!r.ok) { govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">' + esc(d.hata || '') + '</div></td></tr>'; return; }
+                var bilgi = document.getElementById('kap-par-bilgi');
+                if (bilgi) bilgi.textContent = aktifLokasyon + ' · ' + d.parametreler.length + ' bölüm';
+                var sayi = function (b, ad, v, adim) {
+                    return '<input type="number" min="0" step="' + (adim || 1) + '" class="rt-row-input" ' +
+                        'style="width:72px;text-align:right" data-par="' + b + '" data-alan="' + ad + '" ' +
+                        'value="' + (v === null || v === undefined ? '' : v) + '">';
+                };
+                govde.innerHTML = d.parametreler.map(function (p) {
+                    return '<tr' + (p.varsayilan ? ' style="opacity:.75"' : '') + '>' +
+                        '<td style="font-weight:700">' + esc(p.bolum_ad) +
+                        (p.varsayilan ? '<div style="font-size:.72rem;color:var(--dim)">varsayılan (kaydedilmedi)</div>' : '') + '</td>' +
+                        '<td>' + sayi(p.bolum, 'makine', p.makine, 0.5) + '</td>' +
+                        '<td>' + sayi(p.bolum, 'vardiya', p.vardiya, 0.5) + '</td>' +
+                        '<td>' + sayi(p.bolum, 'vardiya_saat', p.vardiya_saat, 0.5) + '</td>' +
+                        '<td>' + sayi(p.bolum, 'gun', p.gun, 0.5) + '</td>' +
+                        '<td>' + sayi(p.bolum, 'verimlilik', p.verimlilik, 1) +
+                        (p.gerceklesen_oee ? '<div style="font-size:.72rem;color:var(--success)">gerçek OEE %' +
+                            p.gerceklesen_oee + '</div>' : '') + '</td>' +
+                        '<td><input type="checkbox" data-par="' + p.bolum + '" data-alan="oee_kullan"' +
+                        (p.oee_kullan ? ' checked' : '') + ' title="Verimlilik yerine gerçekleşen OEE"></td>' +
+                        '<td style="font-weight:700" id="kap-par-saat-' + p.bolum + '">' +
+                        (p.haftalik_saat || 0).toLocaleString('tr-TR') + ' sa</td>' +
+                        '<td><button class="btn btn-ghost" style="padding:3px 10px;font-size:.76rem" ' +
+                        'onclick="kapParKaydet(\'' + p.bolum + '\')">Kaydet</button></td></tr>';
+                }).join('');
+            } catch (e) {
                 govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        async function kapParKaydet(bolum) {
+            var al = function (ad) {
+                var el = document.querySelector('[data-par="' + bolum + '"][data-alan="' + ad + '"]');
+                if (!el) return 0;
+                return (el.type === 'checkbox') ? (el.checked ? 1 : 0) : Number(el.value || 0);
+            };
+            try {
+                var r = await panelFetch('/api/kapasite/parametre', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bolum: bolum, lokasyon: aktifLokasyon,
+                        makine: al('makine'), vardiya: al('vardiya'), vardiya_saat: al('vardiya_saat'),
+                        gun: al('gun'), verimlilik: al('verimlilik'), oee_kullan: al('oee_kullan') })
+                });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Kaydedilemedi', 'err'); return; }
+                toast(d.mesaj, 'ok');
+                var hs = document.getElementById('kap-par-saat-' + bolum);
+                if (hs) hs.textContent = (d.parametre.haftalik_saat || 0).toLocaleString('tr-TR') + ' sa';
+                kapTalepOzet();      // doluluk yüzdeleri yeni kapasiteyle
+            } catch (e) {
+                toast('Kaydedilemedi: ' + e.message, 'err');
             }
         }
 
@@ -18683,7 +18823,7 @@ window.__I18N_SOZLUK__ = {
                 '&talep=' + encodeURIComponent((document.getElementById('kap-talep') || {}).value || '') +
                 '&durum=' + encodeURIComponent((document.getElementById('kap-durum') || {}).value || '') +
                 '&bolum=' + encodeURIComponent((document.getElementById('kap-bolum') || {}).value || '') +
-                '&prov=' + encodeURIComponent((document.getElementById('kap-prov') || {}).value || '') +
+                '&prov=P' +
                 '&ara=' + encodeURIComponent((document.getElementById('kap-ara') || {}).value || '');
             try {
                 var r = await panelFetch(q);
