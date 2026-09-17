@@ -18666,9 +18666,13 @@ window.__I18N_SOZLUK__ = {
                                 '</div></td>';
                         };
                         var kap = (b.kapasite || {});
-                        var kaynak = '<span style="color:var(--success)">' + b.bizim_sureli_kod + ' bizim</span>' +
-                            (b.erp_sureli_kod ? ' · <span style="color:var(--b-kaynak)">' + b.erp_sureli_kod + ' ERP</span>' : '') +
-                            (b.suresiz_kod ? ' · <span style="color:var(--danger);font-weight:700">' + b.suresiz_kod + ' süresiz</span>' : '');
+                        // Bölüm ataması NEREDEN geldi (Forge tanımı / ERP rotası) ve
+                        // süre NEREDEN geldi — ikisi ayrı sorudur.
+                        var kaynak = '<span style="color:var(--success)">' + b.sure_forge + ' Forge süresi</span>' +
+                            (b.sure_erp ? ' · <span style="color:var(--b-kaynak)">' + b.sure_erp + ' ERP süresi</span>' : '') +
+                            (b.suresiz_kod ? ' · <span style="color:var(--danger);font-weight:700">' + b.suresiz_kod + ' süresiz</span>' : '') +
+                            '<div style="color:var(--dim);font-size:.72rem">bölüm: ' + b.forge_kod +
+                            ' Forge · ' + b.erp_kod + ' ERP rotası</div>';
                         return '<tr><td style="font-weight:700"><a onclick="kapBolumSuz(\'' + b.bolum + '\')" ' +
                             'style="cursor:pointer;color:var(--primary)">' + esc(bolumAdi(b.bolum)) + '</a></td>' +
                             '<td>' + b.kod_sayisi + '</td><td>' + bin(b.adet) + '</td>' +
@@ -18688,6 +18692,13 @@ window.__I18N_SOZLUK__ = {
                     not.innerHTML = (d.uyari ? ('<b style="color:var(--warn)">' + esc(d.uyari) + '</b><br>') : '') +
                         'Saatler <b>kümülatiftir</b>: "4 hafta" sütunu bugünden 28 gün sonrasına kadar olan işi ve termini geçmiş işi birlikte sayar. ' +
                         'Doluluk = gereken saat ÷ (haftalık kapasite × hafta). ' +
+                        'Bölüm ataması <b>önce Forge tanımından</b> gelir (referans hangi bölümde tanımlıysa), ' +
+                        'Forge tanımı olmayan kodlarda ERP rotasına düşülür. ' +
+                        (d.diger_tesis && d.diger_tesis.kod ? ('<br>' + bin(d.diger_tesis.adet) + ' adetlik ' +
+                            d.diger_tesis.kod + ' kod ' + esc(d.diger_tesis.lokasyon) + ' tesisinde tanımlı, bu görünüme girmedi.') : '') +
+                        (d.siniflanamayan && d.siniflanamayan.kod ? ('<br><span style="color:var(--warn)">' +
+                            bin(d.siniflanamayan.adet) + ' adetlik ' + d.siniflanamayan.kod +
+                            ' kod sınıflandırılamadı (ne Forge tanımı ne ERP rotası var).</span>') : '') +
                         'Süre önceliği: bizim tanımımız → ERP rota süresi. ' +
                         (d.dis_islem && d.dis_islem.kod ? ('<br>' + bin(d.dis_islem.adet) + ' adetlik ' + d.dis_islem.kod +
                             ' kod tamamen dış işlem/kaplama rotasına sahip — bizim kapasitemize yük getirmez.') : '') +
@@ -18709,9 +18720,9 @@ window.__I18N_SOZLUK__ = {
             yaz('kap-k-rota-sub', '2 haftada ' + bin((t.saat || {})['2']) + ' sa');
             yaz('kap-k-tanimli', bin(t.gecikmis_emir) + ' emir');
             yaz('kap-k-tanimli-sub', bin(t.gecikmis_adet) + ' adet gecikmiş');
-            yaz('kap-k-suresiz', bin((t.erp_sureli_kod || 0) + (t.suresiz_kod || 0)));
-            yaz('kap-k-suresiz-sub', bin(t.erp_sureli_kod) + ' kod ERP süresiyle · ' +
-                bin(t.suresiz_kod) + ' kod süresiz · ' + bin(t.bizim_sureli_kod) + ' kod bizim');
+            yaz('kap-k-suresiz', bin((t.sure_erp || 0) + (t.suresiz_kod || 0)));
+            yaz('kap-k-suresiz-sub', bin(t.sure_erp) + ' kod ERP süresiyle · ' +
+                bin(t.suresiz_kod) + ' kod süresiz · ' + bin(t.sure_forge) + ' kod Forge');
         }
 
         // ── KAPASİTE PARAMETRELERİ ─────────────────────────────────────────────

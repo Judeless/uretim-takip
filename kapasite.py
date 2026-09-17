@@ -71,6 +71,15 @@ BOLUM_DISI = ()
 # Zaman birimleri (ERP Y1IVUM) → saniye çarpanı. AD/KG/NR malzeme satırıdır, süre değil.
 UM_SANIYE = {'SS': 1.0, 'MN': 60.0, 'HH': 3600.0}
 
+# TESİSİN BÖLÜMLERİ (panel LOKASYON_BOLUMLERI ile aynı olmalı). Kullanıcı 2026-09-17:
+# "TK1 için kapasite hesabını montaj hattı, tel üretimi ve plastik enjeksiyon olarak
+# sınıflandıracağız." ERP rotasından türeyen bölüm o tesiste YOKSA o iş bu görünüme
+# girmez (TK1'de 'lazer' satırı çıkması yanlış olurdu).
+LOKASYON_BOLUMLERI = {
+    'TK2': ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'),
+    'TK1': ('montaj', 'tel', 'plastik'),
+}
+
 AS400_SEMA = 'TKC0301F'
 
 SQL_URUN = f"""
@@ -267,14 +276,6 @@ def talep_senkron(conn, kullanici='', baglan=None):
             'tarih': simdi}
 
 
-def _sure_haritasi(conn):
-    """{(normalize_kod, bolum, lokasyon): sn} — BİZİM tanımlı sürelerimiz (ct > 0)."""
-    return {(r['k'], r['bolum'], r['lok']): float(r['ct']) for r in conn.execute(
-        "SELECT UPPER(REPLACE(referans_kodu,' ','')) k, COALESCE(bolum,'kaynak') bolum, "
-        "COALESCE(lokasyon,'TK2') lok, COALESCE(hedef_cycle_time_sn,0) ct "
-        "FROM referans_listesi WHERE COALESCE(hedef_cycle_time_sn,0) > 0")}
-
-
 def parametreler(conn, lokasyon='TK2', bolumler=()):
     """Bölümlerin kapasite parametreleri (tanımsızsa varsayılan satır üretilir).
     Haftalık kapasite saati = makine × vardiya × vardiya_saat × gün × verimlilik."""
@@ -309,48 +310,126 @@ def gerceklesen_oee(bolum, lokasyon, hafta=4):
         return None
 
 
+def _kok(kod):
+    """Adım eki atılmış kod: '93.00.1347 KESIM' → '93.00.1347'.
+    TEL üretiminde bir ERP kodu Forge'de birden çok satırdır (her proses adımı ayrı
+    referans, kendi süresiyle) — eşleme kökten yapılır."""
+    return _norm(str(kod or '').split(' ')[0])
+
+
+def forge_haritasi(conn, lokasyon):
+    """Forge'deki (referans_listesi) bölüm tanımları — SINIFLANDIRMANIN BİRİNCİL KAYNAĞI.
+
+    Dönüş: {anahtar: {bolum: {'sn': toplam_saniye, 'satir': kaç referans satırı}}}
+    Anahtar hem TAM kod hem KÖK kod olarak yazılır; arama önce tam kodla yapılır.
+    Aynı bölümdeki birden çok satırın süresi TOPLANIR: tel'de ürün kesim + kapama +
+    son montaj adımlarının HEPSİNDEN geçer, kapasite yükü adımların toplamıdır.
+    """
+    tam, kok = {}, {}
+    for r in conn.execute(
+            "SELECT referans_kodu, COALESCE(bolum,'kaynak') bolum, "
+            "COALESCE(hedef_cycle_time_sn,0) ct FROM referans_listesi "
+            "WHERE COALESCE(lokasyon,'TK2') = ?", (lokasyon,)):
+        sn = float(r['ct'] or 0)
+        for harita, anahtar in ((tam, _norm(r['referans_kodu'])), (kok, _kok(r['referans_kodu']))):
+            b = harita.setdefault(anahtar, {}).setdefault(r['bolum'], {'sn': 0.0, 'satir': 0})
+            b['sn'] += sn
+            b['satir'] += 1
+    return tam, kok
+
+
+def _forge_bolumleri(kod, tam, kok):
+    """Kodun Forge'deki bölüm dağılımı: önce tam kod, yoksa kök (adım ekli tel kodları)."""
+    return tam.get(_norm(kod)) or kok.get(_kok(kod))
+
+
 def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
     """Bölüm bazlı haftalık ihtiyaç: kaç adet ve kaç SAAT iş var.
 
-    · Kovalar KÜMÜLATİF: "4 hafta" = bugünden 28 gün sonrasına kadar olan tüm iş +
-      TERMİNİ GEÇMİŞ işler. Gecikmiş iş ayrı da gösterilir — kapasite planında onu
-      saymamak, yükü olduğundan küçük gösterir (2026-09-17'de 486 bin adet gecikmiş).
-    · Süre önceliği: BİZİM tanımımız (referans_listesi, seçili tesis) → ERP rota süresi.
-      Hangisinin kullanıldığı sayılır: 'bizim_kod' / 'erp_kod' (kalan iş için).
-    · Termini olmayan emirler 'tarihsiz' olarak ayrı raporlanır, kovalara girmez.
+    SINIFLANDIRMA SIRASI (kullanıcı 2026-09-17: "kod dağılımları Forge'de bölümlere göre
+    tanımlı olan referanslardan oluşacak gibi düşün"):
+      1) Kod bu tesiste Forge'de tanımlıysa → bölüm(ler) ve süre(ler) ORADAN gelir.
+         (Tel'de adım ekli satırların süreleri toplanır; ERP rotası 'tel' demeyi bilmez,
+          yalnız OUTCASE kaynağını tanır — 2026-09-17'de tel'de 21 kod görünmesinin sebebi
+          buydu.)
+      2) Kod DİĞER tesiste tanımlıysa → o tesisin işidir, bu görünüme girmez ('diger_tesis').
+      3) Hiçbir tesiste tanımı yoksa → ERP rotasından türetilen bölüm kullanılır ('erp_kod');
+         rotası tamamen dış işlemse 'dis_islem', hiç bölüm çıkmıyorsa 'siniflanamayan'.
+
+    · Kovalar KÜMÜLATİF: "4 hafta" = 28 gün içindeki iş + TERMİNİ GEÇMİŞ iş.
+    · Kapasite: makine × vardiya × vardiya_saat × gün × verimlilik (kapasite_parametre).
     """
     bugun = date.today()
     sinir = {h: (bugun + timedelta(days=7 * h)).isoformat() for h in haftalar}
-    bizim = _sure_haritasi(conn)
+    diger_lok = 'TK1' if lokasyon == 'TK2' else 'TK2'
+    gecerli = set(LOKASYON_BOLUMLERI.get(lokasyon, LOKASYON_BOLUMLERI['TK2']))
+    f_tam, f_kok = forge_haritasi(conn, lokasyon)
+    d_tam, d_kok = forge_haritasi(conn, diger_lok)
     rota = {}
     for r in conn.execute("SELECT kod, bolum, sure_sn FROM kapasite_urun_bolum"):
         rota.setdefault(r['kod'], {})[r['bolum']] = float(r['sure_sn'] or 0)
     bolumler = {}
-    dis_islem = {'kod': set(), 'adet': 0.0}    # rotası yalnız dış işlem/kaplama: bize yük gelmez
+    dis_islem = {'kod': set(), 'adet': 0.0}
+    diger_tesis = {'kod': set(), 'adet': 0.0}
+    siniflanamayan = {'kod': set(), 'adet': 0.0}
     tarihsiz = {'adet': 0.0, 'emir': 0}
     for t in conn.execute("SELECT kod, kalan, bitis FROM kapasite_talep WHERE kalan > 0"):
         kod, kalan, bitis = t['kod'], float(t['kalan'] or 0), (t['bitis'] or '')
-        dagilim = rota.get(kod)
-        if not dagilim:
-            dis_islem['kod'].add(kod)
-            dis_islem['adet'] += kalan
+        forge = _forge_bolumleri(kod, f_tam, f_kok)
+        if forge:
+            # SÜRE: Forge'de tanımlıysa o, değilse (0 ise) ERP rota süresi — bölüm
+            # Forge'den gelse bile süresi girilmemiş olabilir; ERP süresi hiç yoktan
+            # iyidir, ama hangisinin kullanıldığı sayılır ve panelde gösterilir.
+            erp_sn = rota.get(kod, {})
+            dagilim = {}
+            for b, v in forge.items():
+                if b not in gecerli:
+                    continue
+                if v['sn'] > 0:
+                    dagilim[b] = (v['sn'], 'forge', 'forge')
+                else:
+                    dagilim[b] = (erp_sn.get(b, 0.0), 'forge', 'erp' if erp_sn.get(b) else 'yok')
+            if not dagilim:
+                diger_tesis['kod'].add(kod)
+                diger_tesis['adet'] += kalan
+                continue
+        elif _forge_bolumleri(kod, d_tam, d_kok):
+            diger_tesis['kod'].add(kod)
+            diger_tesis['adet'] += kalan
             continue
+        else:
+            erp = {b: sn for b, sn in (rota.get(kod) or {}).items() if b in gecerli}
+            if not erp:
+                # Rotası var ama bu tesiste geçerli bölüm çıkmıyor: ya tamamen dış
+                # işlem, ya da öteki tesisin işi. Rota satırı hiç yoksa sınıflanamaz.
+                if rota.get(kod):
+                    diger_tesis['kod'].add(kod)
+                    diger_tesis['adet'] += kalan
+                elif conn.execute("SELECT 1 FROM kapasite_rota WHERE kod=? LIMIT 1", (kod,)).fetchone():
+                    dis_islem['kod'].add(kod)
+                    dis_islem['adet'] += kalan
+                else:
+                    siniflanamayan['kod'].add(kod)
+                    siniflanamayan['adet'] += kalan
+                continue
+            dagilim = {b: (sn, 'erp', 'erp' if sn else 'yok') for b, sn in erp.items()}
         if not bitis:
             tarihsiz['adet'] += kalan
             tarihsiz['emir'] += 1
         gecikmis = bool(bitis) and bitis < bugun.isoformat()
-        for bolum, erp_sn in dagilim.items():
+        for bolum, (sn, bolum_kaynak, sure_kaynak) in dagilim.items():
             b = bolumler.setdefault(bolum, {
-                'bolum': bolum, 'kod': set(), 'suresiz_kod': set(), 'bizim_kod': set(),
+                'bolum': bolum, 'kod': set(), 'suresiz_kod': set(), 'forge_kod': set(),
+                'erp_kod': set(), 'sure_forge': set(), 'sure_erp': set(),
                 'adet': 0.0, 'gecikmis_adet': 0.0, 'gecikmis_sn': 0.0,
                 'hafta': {h: {'adet': 0.0, 'sn': 0.0} for h in haftalar}})
-            sn = bizim.get((kod.upper(), bolum, lokasyon))
-            if sn:
-                b['bizim_kod'].add(kod)
+            (b['forge_kod'] if bolum_kaynak == 'forge' else b['erp_kod']).add(kod)
+            if sure_kaynak == 'forge':
+                b['sure_forge'].add(kod)
+            elif sure_kaynak == 'erp':
+                b['sure_erp'].add(kod)
             else:
-                sn = erp_sn
-                if not sn:
-                    b['suresiz_kod'].add(kod)
+                b['suresiz_kod'].add(kod)
             b['kod'].add(kod)
             b['adet'] += kalan
             if gecikmis:
@@ -364,8 +443,8 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
     for b in bolumler.values():
         out.append({
             'bolum': b['bolum'], 'kod_sayisi': len(b['kod']),
-            'bizim_sureli_kod': len(b['bizim_kod']),
-            'erp_sureli_kod': len(b['kod']) - len(b['bizim_kod']) - len(b['suresiz_kod']),
+            'forge_kod': len(b['forge_kod']), 'erp_kod': len(b['erp_kod']),
+            'sure_forge': len(b['sure_forge']), 'sure_erp': len(b['sure_erp']),
             'suresiz_kod': len(b['suresiz_kod']),
             'adet': round(b['adet']), 'gecikmis_adet': round(b['gecikmis_adet']),
             'gecikmis_saat': round(b['gecikmis_sn'] / 3600, 1),
@@ -397,37 +476,36 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
     havuz = conn.execute("SELECT COUNT(*) n FROM kapasite_urun_bolum").fetchone()['n']
     talep_var = conn.execute("SELECT COUNT(*) n FROM kapasite_talep WHERE kalan > 0").fetchone()['n']
     # "Hiç bölüm çıkmadı" iki AYRI sebepten olur; karıştırmak yanlış teşhis yaratır:
-    #   rota_yok  → ürün/rota hiç çekilmedi, sınıflandırma yapılamıyor (AS400'den Çek)
+    #   rota_yok  → ürün/rota hiç çekilmedi, sınıflandırma yapılamıyor (Ürün + Rota Çek)
     #   talep_yok → ihtiyaç listesi boş
     uyari = ''
     if not havuz:
-        uyari = ('Ürün ve rota listesi çekilmemiş — sınıflandırma ve ERP süreleri oradan '
-                 'geliyor. Önce "AS400\'den Çek" ile ürün + rota listesini alın.')
+        uyari = ('Ürün ve rota listesi çekilmemiş — Forge\'de tanımı olmayan kodlar '
+                 'sınıflandırılamaz. "Ürün + Rota Çek" ile listeyi alın.')
     elif not talep_var:
         uyari = 'Açık üretim ihtiyacı (OPR) bulunamadı — "İhtiyacı Tazele" ile listeyi çekin.'
-    # KPI'lar için toplamlar: kod sayısı BÖLÜMLER ARASI TEKİL (bir kod hem kaynak hem
-    # montajdan geçebilir), adet ise doğrudan emir tablosundan (bölüm bazında toplarsak
-    # iki bölümden geçen kodun adedi iki kez sayılırdı).
-    tekil_kod = set()
-    for t in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0"):
-        if t['kod'] in rota:
-            tekil_kod.add(t['kod'])
     bugun_iso = bugun.isoformat()
     say = conn.execute(
         "SELECT COUNT(*) emir, COALESCE(SUM(kalan),0) adet, "
         "SUM(CASE WHEN bitis <> '' AND bitis < ? THEN 1 ELSE 0 END) gecikmis_emir, "
         "COALESCE(SUM(CASE WHEN bitis <> '' AND bitis < ? THEN kalan ELSE 0 END),0) gecikmis_adet "
         "FROM kapasite_talep WHERE kalan > 0", (bugun_iso, bugun_iso)).fetchone()
-    toplam = {'kod': len(tekil_kod), 'emir': say['emir'], 'adet': round(say['adet']),
-              'gecikmis_emir': say['gecikmis_emir'], 'gecikmis_adet': round(say['gecikmis_adet']),
+    toplam = {'kod': sum(b['kod_sayisi'] for b in out), 'emir': say['emir'],
+              'adet': round(say['adet']), 'gecikmis_emir': say['gecikmis_emir'],
+              'gecikmis_adet': round(say['gecikmis_adet']),
               'suresiz_kod': sum(b['suresiz_kod'] for b in out),
-              'erp_sureli_kod': sum(b['erp_sureli_kod'] for b in out),
-              'bizim_sureli_kod': sum(b['bizim_sureli_kod'] for b in out),
+              'erp_kod': sum(b['erp_kod'] for b in out),
+              'forge_kod': sum(b['forge_kod'] for b in out),
+              'sure_forge': sum(b['sure_forge'] for b in out),
+              'sure_erp': sum(b['sure_erp'] for b in out),
               'saat': {str(h): round(sum(b['hafta'][str(h)]['saat'] for b in out), 1) for h in haftalar},
               'kapasite_saat': {str(h): round(sum(b['hafta'][str(h)].get('kapasite_saat') or 0
                                                   for b in out), 1) for h in haftalar}}
     return {'lokasyon': lokasyon, 'haftalar': list(haftalar), 'bolumler': out, 'toplam': toplam,
             'dis_islem': {'kod': len(dis_islem['kod']), 'adet': round(dis_islem['adet'])},
+            'diger_tesis': {'kod': len(diger_tesis['kod']), 'adet': round(diger_tesis['adet']),
+                            'lokasyon': diger_lok},
+            'siniflanamayan': {'kod': len(siniflanamayan['kod']), 'adet': round(siniflanamayan['adet'])},
             'tarihsiz': {'emir': tarihsiz['emir'], 'adet': round(tarihsiz['adet'])},
             'havuz_satiri': havuz, 'acik_talep': talep_var, 'uyari': uyari,
             'senk_at': (son['s'] if son else None)}
