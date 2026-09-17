@@ -7127,10 +7127,23 @@ def kapasite_excel_uygula():
     conn = get_db()
     sonuc, parca = {}, []
     if al('sureler', '1') == '1':
-        sonuc['sure'] = KAP.excel_sure_uygula(conn, veri, g.panel_ku['kullanici_adi'],
-                                              lokasyon, al('sadece_opr') == '1',
-                                              al('sadece_bos', '1') == '1')
-        parca.append(f"{sonuc['sure']['yeni']} yeni + {sonuc['sure']['guncel']} güncel süre")
+        try:
+            esik = float(al('fark_esik', '50').replace(',', '.') or 50)
+        except ValueError:
+            return jsonify({'hata': 'fark_esik sayı olmalı'}), 400
+        sonuc['sure'] = KAP.excel_sure_uygula(
+            conn, veri, g.panel_ku['kullanici_adi'], lokasyon,
+            sadece_opr=al('sadece_opr') == '1',
+            sadece_bos=al('sadece_bos', '0') == '1',      # varsayılan: Excel EZER
+            fark_atla=al('fark_atla', '1') == '1',        # varsayılan: aykırıları bekletir
+            fark_esik=max(1.0, min(1000.0, esik)))
+        _s = sonuc['sure']
+        parca.append(f"{_s['yeni']} yeni + {_s['guncel']} güncel süre")
+        if _s.get('atlanan', {}).get('buyuk_fark'):
+            parca.append(f"{_s['atlanan']['buyuk_fark']} kod kontrol listesinde bekliyor "
+                         f"(fark > %{esik:g})")
+        if _s.get('atlanan', {}).get('metal'):
+            parca.append(f"{_s['atlanan']['metal']} metal kodu hariç (süresi Forge'dan)")
     if al('calisma', '1') == '1':
         sonuc['calisma'] = KAP.excel_calisma_uygula(conn, veri, g.panel_ku['kullanici_adi'])
         parca.append(f"{sonuc['calisma']['bolum']} bölümün çalışma saati")

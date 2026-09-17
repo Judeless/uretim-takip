@@ -317,18 +317,22 @@ def excel_onizle(conn, veri, lokasyon=''):
 
 
 def excel_sure_uygula(conn, veri, kullanici='', lokasyon='', sadece_opr=False,
-                      sadece_bos=True):
-    """Excel sürelerini referans_listesi'ne yazar (bölüm/tesis Excel'in hattından).
+                      sadece_bos=False, fark_atla=True, fark_esik=50.0):
+    """Excel sürelerini referans_listesi'ne yazar. BÖLÜM/TESİS Forge'dan, SÜRE Excel'den.
 
-    sadece_bos=True (VARSAYILAN) → bizde süresi OLMAYAN kodlara yazar, mevcut süreyi
-      EZMEZ. Kaynak/lazer gibi bölümlerde bizim süreler sahada ölçüldü; Excel'in
-      saatlik adedi yuvarlak bir plan değeri olabilir (ör. 10.130.2412: bizde 255,3 sn,
-      Excel'de 36 sn). Ezmek istenirse bu bayrak kapatılır.
-    sadece_opr=True → yalnız açık ihtiyacı olan kodlara dokunur."""
+    Kullanıcı 2026-09-17: "süreleri Forge'dan almayacağız, süreler ANA EXCEL'den gelecek;
+    Forge ile süresi çok farklı olanları kontrol edeceğiz."
+      · sadece_bos=False (VARSAYILAN) → Excel mevcut süreyi de GÜNCELLER.
+      · fark_atla=True (VARSAYILAN) → farkı %<fark_esik> üzerinde olan kodlara DOKUNMAZ;
+        onlar "kontrol listesi"dir (biri yanlış: ya Excel'in saatlik adedi eski, ya bizim
+        ölçümümüz). Kontrol bitince bu bayrak kapatılıp tekrar uygulanır.
+      · METAL (EXCEL_SURE_DISI) her hâlükârda hariç — kullanıcı "metal süreleri doğru" dedi.
+      · sadece_opr=True → yalnız açık ihtiyacı olan kodlara dokunur.
+    """
     talep = {r['kod'] for r in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0")}
     f_tam, f_kok = _excel_forge_haritasi(conn)
     yeni = guncel = ayni = 0
-    atlanan = {'metal': 0, 'adim': 0}
+    atlanan = {'metal': 0, 'adim': 0, 'buyuk_fark': 0}
     for x in veri['sureler']:
         if sadece_opr and x['kod'] not in talep:
             continue
@@ -355,6 +359,10 @@ def excel_sure_uygula(conn, veri, kullanici='', lokasyon='', sadece_opr=False,
                 yeni += 1
             elif sadece_bos and float(r['ct'] or 0) > 0:
                 ayni += 1        # süresi var, dokunma (mevcut tanım korunur)
+                continue
+            elif (fark_atla and float(r['ct'] or 0) > 0 and
+                  abs(x['sure_sn'] - float(r['ct'])) / float(r['ct']) * 100 > fark_esik):
+                atlanan['buyuk_fark'] += 1   # kontrol listesinde: hangisi doğru belirsiz
                 continue
             elif abs(float(r['ct']) - x['sure_sn']) >= 0.05:
                 conn.execute("UPDATE referans_listesi SET hedef_cycle_time_sn=? WHERE id=?",
