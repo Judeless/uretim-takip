@@ -103,6 +103,16 @@ EXCEL_HAT_BOLUM = {
 }
 EXCEL_ATLANAN = ('ELECTRONIC', 'DEPO', 'POLISING', 'PTO WITH CABLE', '0', '#N/A')
 
+# SÜRESİ EXCEL'DEN ALINMAYAN BÖLÜMLER (kullanıcı 2026-09-17: "bizdeki metal enjeksiyon
+# süreleri doğru, metal enjeksiyon süreleri için Forge'yi alalım"). Excel'in saatlik
+# adedi çevrim başına; bizim süremiz parça başına (kalıp gözü) — karıştırmak yanlış.
+EXCEL_SURE_DISI = ('metal',)
+
+# BÖLÜM/TESİS KARARI FORGE'UN: Excel'in üretim hattı eskiden beri kullanıldığı için
+# yanlış olabilir (ör. PBL kodları Excel'de TK1 'LF,LFP,…' hattında ama üretim TK2'de;
+# 34 lazer kodu bizde pres/abkant). Excel yalnız SÜRE getirir; kod Forge'de tanımlıysa
+# süre ORADAKİ bölüme yazılır, Excel'in hattı yalnız Forge'de HİÇ tanım yoksa kullanılır.
+
 
 def _excel_hat(ad):
     """Excel hat/bölüm adını (lokasyon, bolum) çiftine çevirir; tanınmıyorsa None."""
@@ -215,50 +225,95 @@ def excel_oku(kaynak):
         wb.close()
 
 
+def _excel_hedefler(kod, f_tam, f_kok):
+    """Excel'deki bir kodun yazılacağı hedefler.
+    Dönüş: (hedefler, kaynak) · hedefler = [(lokasyon, bolum, mevcut_ct)]
+      kaynak 'forge'  → kod Forge'de tanımlı, süre O bölüme yazılır
+      kaynak 'adim'   → Forge'de ADIM EKLİ satırlar var (tel): Excel tek süre verir,
+                        adımlara bölemeyiz → YAZILMAZ
+      kaynak 'excel'  → Forge'de tanım yok, Excel'in hattı kullanılır
+    """
+    tam = f_tam.get(_norm(kod))
+    if tam:
+        return [(l, b, ct) for (l, b), ct in tam.items()], 'forge'
+    kokler = f_kok.get(_kok(kod))
+    if kokler:
+        return [(l, b, ct) for (l, b), ct in kokler.items()], 'adim'
+    return [], 'excel'
+
+
+def _excel_forge_haritasi(conn):
+    """{norm_kod: {(lokasyon, bolum): ct}} — tam kod ve kök kod için ayrı ayrı."""
+    tam, kok = {}, {}
+    for r in conn.execute("SELECT referans_kodu, COALESCE(bolum,'kaynak') b, "
+                          "COALESCE(lokasyon,'TK2') l, COALESCE(hedef_cycle_time_sn,0) ct "
+                          "FROM referans_listesi"):
+        ct = float(r['ct'] or 0)
+        anahtar = (r['l'], r['b'])
+        tam.setdefault(_norm(r['referans_kodu']), {})[anahtar] = ct
+        if _kok(r['referans_kodu']) != _norm(r['referans_kodu']):
+            kok.setdefault(_kok(r['referans_kodu']), {})[anahtar] = ct
+    return tam, kok
+
+
 def excel_onizle(conn, veri, lokasyon=''):
     """Excel'deki sürelerin bizdeki tanımlarla farkını çıkarır (YAZMADAN).
     'yeni' = bizde o bölümde tanım yok · 'degisen' = süre farklı · 'ayni' = aynı."""
-    mevcut = {}
-    for r in conn.execute("SELECT UPPER(REPLACE(referans_kodu,' ','')) k, COALESCE(bolum,'kaynak') b, "
-                          "COALESCE(lokasyon,'TK2') l, COALESCE(hedef_cycle_time_sn,0) ct "
-                          "FROM referans_listesi"):
-        mevcut[(r['k'], r['b'], r['l'])] = float(r['ct'] or 0)
-    talep = {r['kod'] for r in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0")}
+    f_tam, f_kok = _excel_forge_haritasi(conn)
+    talep = {}
+    for r in conn.execute("SELECT kod, SUM(kalan) k FROM kapasite_talep WHERE kalan > 0 GROUP BY kod"):
+        talep[r['kod']] = float(r['k'] or 0)
     yeni = degisen = ayni = bos = 0
-    ornek, ozet = [], {}
+    atlanan = {'metal': 0, 'adim': 0, 'hat_farki': 0}
+    ozet, buyuk_fark = {}, []
     for x in veri['sureler']:
-        if lokasyon and x['lokasyon'] != lokasyon:
+        hedefler, kaynak = _excel_hedefler(x['kod'], f_tam, f_kok)
+        if kaynak == 'adim':
+            atlanan['adim'] += 1       # tel: Excel tek süre veriyor, adımlara bölemeyiz
             continue
-        anahtar = (_norm(x['kod']), x['bolum'], x['lokasyon'])
-        eski = mevcut.get(anahtar)
-        if eski is None:
-            durum = 'yeni'
-        elif eski <= 0:
-            durum = 'bos'        # tanım var ama süre girilmemiş → ezme riski YOK
-        else:
-            durum = 'ayni' if abs(eski - x['sure_sn']) < 0.05 else 'degisen'
-        if durum == 'yeni':
-            yeni += 1
-        elif durum == 'bos':
-            bos += 1
-        elif durum == 'degisen':
-            degisen += 1
-        else:
-            ayni += 1
-        o = ozet.setdefault((x['lokasyon'], x['bolum']), {'lokasyon': x['lokasyon'], 'bolum': x['bolum'],
-                                                          'yeni': 0, 'degisen': 0, 'ayni': 0,
-                                                          'bos': 0, 'opr': 0})
-        o[durum] += 1
-        if x['kod'] in talep:
-            o['opr'] += 1
-        if durum == 'degisen' and len(ornek) < 12:
-            ornek.append({'kod': x['kod'], 'bolum': x['bolum'], 'lokasyon': x['lokasyon'],
-                          'eski': round(eski, 1), 'yeni': x['sure_sn'],
-                          'opr': x['kod'] in talep})
+        if kaynak == 'excel':
+            hedefler = [(x['lokasyon'], x['bolum'], None)]
+        for lok, bolum, eski in hedefler:
+            if lokasyon and lok != lokasyon:
+                continue
+            if bolum in EXCEL_SURE_DISI:
+                atlanan['metal'] += 1
+                continue
+            if kaynak == 'forge' and (lok, bolum) != (x['lokasyon'], x['bolum']):
+                atlanan['hat_farki'] += 1   # Excel başka hat diyor; Forge kazanır
+            if eski is None:
+                durum = 'yeni'
+            elif eski <= 0:
+                durum = 'bos'          # tanım var, süre girilmemiş → ezme riski YOK
+            else:
+                durum = 'ayni' if abs(eski - x['sure_sn']) < 0.05 else 'degisen'
+            if durum == 'yeni':
+                yeni += 1
+            elif durum == 'bos':
+                bos += 1
+            elif durum == 'degisen':
+                degisen += 1
+            else:
+                ayni += 1
+            o = ozet.setdefault((lok, bolum), {'lokasyon': lok, 'bolum': bolum, 'yeni': 0,
+                                               'degisen': 0, 'ayni': 0, 'bos': 0, 'opr': 0})
+            o[durum] += 1
+            if talep.get(x['kod']):
+                o['opr'] += 1
+            if durum == 'degisen' and eski > 0 and abs(x['sure_sn'] - eski) / eski > 0.5:
+                adet = talep.get(x['kod'], 0)
+                buyuk_fark.append({
+                    'kod': x['kod'], 'lokasyon': lok, 'bolum': bolum,
+                    'forge': round(eski, 1), 'excel': x['sure_sn'],
+                    'oran': round(100 * (x['sure_sn'] - eski) / eski),
+                    'adet': round(adet),
+                    'saat_etki': round(adet * abs(x['sure_sn'] - eski) / 3600, 1)})
+    buyuk_fark.sort(key=lambda z: (-z['saat_etki'], -abs(z['oran'])))
     return {'yeni': yeni, 'degisen': degisen, 'ayni': ayni, 'bos': bos,
-            'toplam': yeni + degisen + ayni + bos,
+            'toplam': yeni + degisen + ayni + bos, 'atlanan': atlanan,
             'bolumler': sorted(ozet.values(), key=lambda x: (x['lokasyon'], x['bolum'])),
-            'ornek_degisen': ornek}
+            'buyuk_fark': buyuk_fark[:60], 'buyuk_fark_sayisi': len(buyuk_fark),
+            'buyuk_fark_saat': round(sum(z['saat_etki'] for z in buyuk_fark), 1)}
 
 
 def excel_sure_uygula(conn, veri, kullanici='', lokasyon='', sadece_opr=False,
@@ -271,40 +326,52 @@ def excel_sure_uygula(conn, veri, kullanici='', lokasyon='', sadece_opr=False,
       Excel'de 36 sn). Ezmek istenirse bu bayrak kapatılır.
     sadece_opr=True → yalnız açık ihtiyacı olan kodlara dokunur."""
     talep = {r['kod'] for r in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0")}
+    f_tam, f_kok = _excel_forge_haritasi(conn)
     yeni = guncel = ayni = 0
+    atlanan = {'metal': 0, 'adim': 0}
     for x in veri['sureler']:
-        if lokasyon and x['lokasyon'] != lokasyon:
-            continue
         if sadece_opr and x['kod'] not in talep:
             continue
-        r = conn.execute(
-            "SELECT id, COALESCE(hedef_cycle_time_sn,0) ct FROM referans_listesi "
-            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND bolum=? "
-            "AND COALESCE(lokasyon,'TK2')=?", (x['kod'], x['bolum'], x['lokasyon'])).fetchone()
-        if r is None:
-            conn.execute("INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, bolum, "
-                         "lokasyon) VALUES (?,?,?,?)",
-                         (x['kod'], x['sure_sn'], x['bolum'], x['lokasyon']))
-            yeni += 1
-        elif sadece_bos and float(r['ct'] or 0) > 0:
-            ayni += 1            # süresi var, dokunma (mevcut tanım korunur)
+        hedefler, kaynak = _excel_hedefler(x['kod'], f_tam, f_kok)
+        if kaynak == 'adim':
+            atlanan['adim'] += 1
             continue
-        elif abs(float(r['ct']) - x['sure_sn']) >= 0.05:
-            conn.execute("UPDATE referans_listesi SET hedef_cycle_time_sn=? WHERE id=?",
-                         (x['sure_sn'], r['id']))
-            guncel += 1
-        else:
-            ayni += 1
-            continue
-        # Geçmiş üretim kayıtlarının cycle'ı — /api/referanslar ve sure_yukle ile aynı kural
-        conn.execute(
-            "UPDATE uretim_kayitlari SET cycle_time_sn=? "
-            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
-            "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
-            "                   AND COALESCE(bolum,'kaynak')=?)",
-            (x['sure_sn'], x['kod'], x['lokasyon'], x['bolum']))
+        if kaynak == 'excel':
+            hedefler = [(x['lokasyon'], x['bolum'], None)]
+        for hedef_lok, hedef_bolum, _eski in hedefler:
+            if lokasyon and hedef_lok != lokasyon:
+                continue
+            if hedef_bolum in EXCEL_SURE_DISI:
+                atlanan['metal'] += 1      # metal süresi Forge'den kalır
+                continue
+            r = conn.execute(
+                "SELECT id, COALESCE(hedef_cycle_time_sn,0) ct FROM referans_listesi "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND bolum=? "
+                "AND COALESCE(lokasyon,'TK2')=?", (x['kod'], hedef_bolum, hedef_lok)).fetchone()
+            if r is None:
+                conn.execute("INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, bolum, "
+                             "lokasyon) VALUES (?,?,?,?)",
+                             (x['kod'], x['sure_sn'], hedef_bolum, hedef_lok))
+                yeni += 1
+            elif sadece_bos and float(r['ct'] or 0) > 0:
+                ayni += 1        # süresi var, dokunma (mevcut tanım korunur)
+                continue
+            elif abs(float(r['ct']) - x['sure_sn']) >= 0.05:
+                conn.execute("UPDATE referans_listesi SET hedef_cycle_time_sn=? WHERE id=?",
+                             (x['sure_sn'], r['id']))
+                guncel += 1
+            else:
+                ayni += 1
+                continue
+            # Geçmiş üretim kayıtlarının cycle'ı — /api/referanslar ve sure_yukle ile aynı kural
+            conn.execute(
+                "UPDATE uretim_kayitlari SET cycle_time_sn=? "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+                "                   AND COALESCE(bolum,'kaynak')=?)",
+                (x['sure_sn'], x['kod'], hedef_lok, hedef_bolum))
     conn.commit()
-    return {'yeni': yeni, 'guncel': guncel, 'ayni': ayni}
+    return {'yeni': yeni, 'guncel': guncel, 'ayni': ayni, 'atlanan': atlanan}
 
 
 def excel_calisma_uygula(conn, veri, kullanici=''):
@@ -833,7 +900,7 @@ def _norm(kod):
     return str(kod or '').strip().upper().replace(' ', '')
 
 
-def _tanimli_sql(lokasyon, sureli=False):
+def _tanimli_sql(lokasyon, sureli=False, bolum=''):
     """Bizde TANIMLI kodların normalize listesi (alt sorgu metni).
 
     HIZ NOTU (2026-09-17): bu eşleme önce korele alt sorguydu
@@ -848,6 +915,8 @@ def _tanimli_sql(lokasyon, sureli=False):
         q += " AND COALESCE(lokasyon,'TK2') = ?"
     if sureli:
         q += " AND COALESCE(hedef_cycle_time_sn,0) > 0"
+    if bolum:
+        q += " AND COALESCE(bolum,'kaynak') = ?"
     return q
 
 
@@ -898,7 +967,17 @@ def liste(conn, prov='P', durum='', bolum='', lokasyon='', ara='', sirala='kod',
         kosul.append("(u.kod LIKE ? OR UPPER(u.aciklama) LIKE ?)")
         par += [a, a]
     if bolum:
-        kosul.append("EXISTS (SELECT 1 FROM kapasite_urun_bolum b WHERE b.kod=u.kod AND b.bolum=?)")
+        # SINIFLANDIRMA SIRASI ÖZETLE AYNI: önce Forge tanımı, Forge'de hiç tanımı
+        # olmayan kodda ERP rotasından türetilen bölüm. (Eskiden yalnız ERP rotasına
+        # bakıyordu: bizde 'pres' olan lazer kodları 'lazer' süzgecinde çıkıyordu.)
+        kosul.append(f"(u.kod IN ({_tanimli_sql(lokasyon, bolum=bolum)}) OR "
+                     f"(u.kod NOT IN ({_tanimli_sql(lokasyon)}) AND EXISTS "
+                     "(SELECT 1 FROM kapasite_urun_bolum b WHERE b.kod=u.kod AND b.bolum=?)))")
+        if lokasyon:
+            par.append(lokasyon)
+        par.append(bolum)
+        if lokasyon:
+            par.append(lokasyon)
         par.append(bolum)
     if talep == '1':
         # Kullanıcı 2026-09-17: "hepsini süzmeye ve atamaya gerek yok, OPR'si oluşmuş
