@@ -1382,6 +1382,80 @@ def init_db():
     except Exception as _e:
         print(f'[MIGRATION] proje notlari gecisi hata: {_e}')
 
+    # ── KAPASİTE MODÜLÜ (kullanıcı 2026-09-17) ──────────────────────────────
+    # "TK1 ve TK2 kapasite hesabı modülü oluşturalım. Önce bütün referansları AS400'den
+    #  çekip P olan kodları ayıralım (P üretim, A fason), sonra bölümlere ayıracağız."
+    # kapasite_urun      : AS400 BARTF0 anlık kopyası (P/A ayrımı burada)
+    # kapasite_rota      : AS400 BSPEF1 rotası — hangi kaynakta kaç saniye
+    # kapasite_urun_bolum: rotadan TÜRETİLEN (kod, bölüm, saniye) — listeleme bunu süzer
+    # kapasite_kaynak    : ERP kaynağı (risorsa) → bizim bölüm eşlemesi (panelden düzenlenir)
+    # Atama/süre AYRI TUTULMAZ: referans_listesi'ne yazılır, OEE ile tek tanım kalır.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_urun (
+            kod TEXT PRIMARY KEY,
+            aciklama TEXT DEFAULT '',
+            prov TEXT DEFAULT '',          -- P = üretim, A = satın alma/fason
+            iptal INTEGER DEFAULT 0,       -- AS400 A0ARAN='A'
+            tip TEXT DEFAULT '',           -- A0TART (F/S/C/M)
+            urun_hatti TEXT DEFAULT '',    -- A0LNPR
+            guncel INTEGER DEFAULT 1,      -- son senkronda ERP'de görüldü mü
+            senk_at TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_rota (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kod TEXT NOT NULL,
+            surum TEXT DEFAULT '',         -- ERP Y1LIAG ('' = temel sürüm)
+            faz INTEGER DEFAULT 0,
+            sira INTEGER DEFAULT 0,
+            kaynak_kod TEXT NOT NULL,      -- ERP risorsa (WELDING, LASERCUT, NROPE…)
+            um TEXT DEFAULT '',
+            miktar REAL DEFAULT 0,
+            sure_sn REAL DEFAULT 0,        -- saniyeye çevrilmiş birim süre
+            hazirlik_sn REAL DEFAULT 0,
+            kisi INTEGER DEFAULT 1,
+            UNIQUE (kod, surum, faz, sira, kaynak_kod)
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS ix_kapasite_rota_kod ON kapasite_rota (kod)")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_urun_bolum (
+            kod TEXT NOT NULL,
+            bolum TEXT NOT NULL,
+            sure_sn REAL DEFAULT 0,
+            PRIMARY KEY (kod, bolum)
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS ix_kapasite_ub_bolum ON kapasite_urun_bolum (bolum)")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_kaynak (
+            kaynak_kod TEXT PRIMARY KEY,
+            aciklama TEXT DEFAULT '',
+            reparto TEXT DEFAULT '',
+            reparto_ad TEXT DEFAULT '',
+            bolum TEXT DEFAULT '',         -- '' = kapasiteye sayılmaz (dış işlem/malzeme)
+            iptal INTEGER DEFAULT 0,
+            elle INTEGER DEFAULT 0,        -- kullanıcı atadıysa senkron EZMEZ
+            updated_at TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_senk (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tarih TEXT, kullanici TEXT DEFAULT '',
+            urun INTEGER DEFAULT 0, uretim INTEGER DEFAULT 0, fason INTEGER DEFAULT 0,
+            rota INTEGER DEFAULT 0, kaynak INTEGER DEFAULT 0
+        )
+    """)
+    # ERP kodu ↔ referans eşlemesi büyük harf + boşluksuz yapılır (kapasite._ESLES).
+    # İFADE İNDEKSİ: bu olmadan her kapasite sorgusu 7 bin referans satırını tarar.
+    try:
+        c.execute("CREATE INDEX IF NOT EXISTS ix_ref_norm ON referans_listesi "
+                  "(UPPER(REPLACE(referans_kodu,' ','')))")
+    except Exception as e:
+        print(f'[db] ix_ref_norm olusturulamadi: {e}')
+
     # DURUŞ SEBEBİ — PANELDEN (kullanıcı 2026-09-16): "robot kaynak için ekstra bir
     # duruş tanımlamak istiyorum, her seferinde Excel'e yazıp oradan güncellemek zor
     # oluyor." Sebepler Excel sayfalarından okunuyordu (Duruş Listesi); buraya eklenen

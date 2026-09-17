@@ -221,6 +221,8 @@ PANEL_SAYFALAR = [
     # 2026-09-16: duruş sebebi tanımlama (Excel'e dokunmadan) + duruş analizi.
     # Yeni sayfalar mevcut kullanıcıların izin listesinde YOK; yönetici tek tek verir.
     'durus-sebepleri', 'durus-analizi',
+    # 2026-09-17: kapasite modülü (AS400 ürün havuzu + bölüm/süre ataması)
+    'kapasite',
     # 2026-09-15 PROJE TAKİP: 'proje-takip' = sayfayı görür + KENDİNE atanan işin
     # üretim terminini/durumunu girer; 'proje-yonetim' = proje açar, parça/iş ekler,
     # kişi atar, talep termini girer (sayfa değil yetki; sayfayı da açar).
@@ -6986,6 +6988,223 @@ def _durus_sebep_listesi(bolum, lokasyon):
         else:
             sebepler.append({'sebep': ad, 'tip': p['tip']})
     return sebepler
+
+
+# ══ KAPASİTE MODÜLÜ (kullanıcı 2026-09-17) ═════════════════════════════════
+# "TK1 ve TK2 kapasite hesabı modülü oluşturalım. Önce bütün referansları AS400'den
+#  çekip P olan kodları ayıralım… sonra bölümlere göre ayıracağız… yeni ve tanımlı
+#  olmayan referanslar için atama yapabilelim… süre tanımlamaları da gerekecek."
+# Sınıflandırma ELLE DEĞİL ROTADAN gelir: ERP'de (BSPEF1) aktif P kodların %92'sinin
+# rotası ve saniye cinsinden süresi tanımlı. Panel yalnız eşlemeyi ve istisnaları alır.
+import kapasite as KAP
+
+
+def _kapasite_bolum_gecerli(bolum):
+    """Atanabilir bölüm mü? ERP'de olup bizde ÜRETİM BÖLÜMÜ olmayanlar (CNC büküm)
+    atanamaz — referans_listesi o bölümü tanımıyor, sessizce yanlış yere yazmayalım."""
+    return bolum in GECERLI_BOLUMLER
+
+
+@app.route('/api/kapasite/ozet', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def kapasite_ozet_api():
+    """Havuz özeti: kaç üretim (P) / fason (A) kodu, kaçının rotası var, kaçı bizde
+    tanımlı, kaçının süresi var + son senkron bilgisi."""
+    lokasyon = (request.args.get('lokasyon') or '').strip().upper()
+    return jsonify(KAP.ozet(get_db(), lokasyon))
+
+
+@app.route('/api/kapasite/senkron', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def kapasite_senkron_api():
+    """AS400'den ürün havuzunu + rotaları çeker (60 bin ürün, 34 bin rota satırı).
+    ELLE TETİKLENİR: ERP'yi her istekte taramak ne gerekli ne de nazik."""
+    try:
+        sonuc = KAP.senkron(get_db(), g.panel_ku['kullanici_adi'])
+        sonuc['turetilen'] = KAP.turet(get_db())
+    except Exception as e:
+        # Kimlik/profil hatasında as400_config KİLİT koyar (COFLEFORGE disabilitato
+        # olayı) — mesajı olduğu gibi göster, kullanıcı kilidi bilsin.
+        return jsonify({'hata': f'AS400 okunamadı: {e}'}), 502
+    mesaj = (f"{sonuc['uretim']:,} üretim (P) + {sonuc['fason']:,} fason (A) kodu, "
+             f"{sonuc['rota']:,} rota satırı alındı".replace(',', '.'))
+    if sonuc['yeni_kaynak']:
+        mesaj += f" · bölümü atanmamış YENİ kaynak: {', '.join(sonuc['yeni_kaynak'][:6])}"
+    return jsonify({'basarili': True, 'mesaj': mesaj, **sonuc})
+
+
+@app.route('/api/kapasite/urunler', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def kapasite_urunler_api():
+    """Ürün havuzu listesi. ?prov=P&durum=atanmamis&bolum=kaynak&lokasyon=TK2&ara=&limit&offset"""
+    a = request.args
+    try:
+        limit = max(1, min(500, int(a.get('limit') or 100)))
+        offset = max(0, int(a.get('offset') or 0))
+    except (TypeError, ValueError):
+        return jsonify({'hata': 'limit/offset sayı olmalı'}), 400
+    d = KAP.liste(get_db(),
+                  prov=(a.get('prov') if a.get('prov') is not None else 'P').strip().upper(),
+                  durum=(a.get('durum') or '').strip(),
+                  bolum=(a.get('bolum') or '').strip(),
+                  lokasyon=(a.get('lokasyon') or '').strip().upper(),
+                  ara=(a.get('ara') or '').strip(),
+                  sirala=(a.get('sirala') or 'kod').strip(),
+                  limit=limit, offset=offset)
+    d['bolum_disi'] = list(KAP.BOLUM_DISI)
+    return jsonify(d)
+
+
+@app.route('/api/kapasite/kaynaklar', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def kapasite_kaynaklar_api():
+    """ERP kaynağı → bölüm eşlemesi + her kaynağın kaç kodda kullanıldığı."""
+    conn = get_db()
+    kullanim = {str(r['kaynak_kod']).upper(): r['n'] for r in conn.execute(
+        "SELECT kaynak_kod, COUNT(DISTINCT kod) n FROM kapasite_rota GROUP BY kaynak_kod")}
+    out = []
+    for r in conn.execute("SELECT * FROM kapasite_kaynak ORDER BY reparto_ad, kaynak_kod"):
+        out.append({'kaynak_kod': r['kaynak_kod'], 'aciklama': r['aciklama'],
+                    'reparto': r['reparto'], 'reparto_ad': r['reparto_ad'],
+                    'bolum': r['bolum'] or '', 'iptal': bool(r['iptal']),
+                    'elle': bool(r['elle']), 'kullanim': kullanim.get(str(r['kaynak_kod']).upper(), 0),
+                    'iscilik': str(r['kaynak_kod']).upper() in KAP.ISCILIK_KAYNAKLARI})
+    return jsonify({'kaynaklar': out, 'bolumler': list(GECERLI_BOLUMLER),
+                    'bolum_disi': list(KAP.BOLUM_DISI)})
+
+
+@app.route('/api/kapasite/kaynak', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def kapasite_kaynak_kaydet():
+    """Kaynağın bölümünü değiştirir ve TÜRETMEYİ YENİLER (liste anında değişir).
+    Body: {kaynak_kod, bolum}  ·  bolum='' → kapasiteye sayılmaz."""
+    d = request.get_json(silent=True) or {}
+    kod = str(d.get('kaynak_kod') or '').strip()
+    bolum = str(d.get('bolum') or '').strip()
+    if not kod:
+        return jsonify({'hata': 'kaynak_kod gerekli'}), 400
+    if bolum and bolum not in GECERLI_BOLUMLER and bolum not in KAP.BOLUM_DISI:
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}'}), 400
+    conn = get_db()
+    if not conn.execute("SELECT 1 FROM kapasite_kaynak WHERE kaynak_kod=?", (kod,)).fetchone():
+        return jsonify({'hata': f'Kaynak bulunamadı: {kod}'}), 404
+    conn.execute("UPDATE kapasite_kaynak SET bolum=?, elle=1, updated_at=datetime('now','localtime') "
+                 "WHERE kaynak_kod=?", (bolum, kod))
+    conn.commit()
+    n = KAP.turet(conn)
+    return jsonify({'basarili': True, 'turetilen': n,
+                    'mesaj': f'{kod} → {bolum or "sayılmaz"} · {n} ürün-bölüm satırı yenilendi'})
+
+
+@app.route('/api/kapasite/ata', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def kapasite_ata():
+    """Kodları bir bölüme atar ve/veya süresini yazar — hedef referans_listesi.
+
+    Body: {kodlar: [...], bolum, lokasyon, sure_sn?, erp_suresi?: bool}
+      · sure_sn verilirse o süre yazılır.
+      · erp_suresi=true → her kod için ERP rotasındaki O BÖLÜMÜN süresi yazılır
+        (kodun kendi süresi; toplu 'AS400 süresini uygula' düğmesi bunu kullanır).
+      · Süre verilmezse yalnız bölüm ataması yapılır (süre 0 kalır, listede 'süresiz').
+    Var olan referans satırının süresi ASLA 0'a çekilmez; bir süre yazılmadıkça dokunulmaz.
+    """
+    d = request.get_json(silent=True) or {}
+    kodlar = [str(k).strip() for k in (d.get('kodlar') or []) if str(k).strip()]
+    bolum = str(d.get('bolum') or '').strip()
+    lokasyon = (str(d.get('lokasyon') or 'TK2').strip().upper() or 'TK2')
+    erp = bool(d.get('erp_suresi'))
+    sure = d.get('sure_sn')
+    if not kodlar:
+        return jsonify({'hata': 'kod listesi boş'}), 400
+    if len(kodlar) > 500:
+        return jsonify({'hata': 'tek seferde en fazla 500 kod'}), 400
+    if not _kapasite_bolum_gecerli(bolum):
+        ek = ' (bu bölüm sistemde tanımlı değil — önce üretim bölümü olarak eklenmeli)' \
+             if bolum in KAP.BOLUM_DISI else ''
+        return jsonify({'hata': f'Geçersiz bölüm: {bolum}{ek}'}), 400
+    if lokasyon not in ('TK1', 'TK2'):
+        return jsonify({'hata': f'Geçersiz lokasyon: {lokasyon}'}), 400
+    if sure not in (None, ''):
+        try:
+            sure = float(str(sure).replace(',', '.'))
+        except (TypeError, ValueError):
+            return jsonify({'hata': f'Geçersiz süre: {sure!r}'}), 400
+        if sure < 0 or sure > 100000:
+            return jsonify({'hata': f'Geçersiz süre: {sure:g}'}), 400
+    else:
+        sure = None
+    conn = get_db()
+    erp_sure = {}
+    if erp:
+        isaret = ','.join('?' * len(kodlar))
+        erp_sure = {str(r['kod']).upper(): float(r['sure_sn'] or 0) for r in conn.execute(
+            f"SELECT kod, sure_sn FROM kapasite_urun_bolum WHERE bolum=? AND kod IN ({isaret})",
+            [bolum] + kodlar)}
+    yeni = guncel = sure_yazilan = atlanan = 0
+    for kod in kodlar:
+        ct = sure if sure is not None else erp_sure.get(kod.upper())
+        if erp and ct is None:
+            atlanan += 1            # bu kodun ERP'de o bölümde süresi yok
+        aciklama = (conn.execute("SELECT aciklama FROM kapasite_urun WHERE kod=?", (kod,)).fetchone()
+                    or {'aciklama': ''})['aciklama']
+        var = conn.execute(
+            "SELECT id, COALESCE(hedef_cycle_time_sn,0) ct FROM referans_listesi "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND bolum=? "
+            "AND COALESCE(lokasyon,'TK2')=?", (kod, bolum, lokasyon)).fetchone()
+        if var is None:
+            conn.execute(
+                "INSERT INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, "
+                "bolum, lokasyon) VALUES (?,?,?,?,?)",
+                (kod, aciklama or '', ct or 0, bolum, lokasyon))
+            yeni += 1
+        elif ct is not None and abs(float(var['ct']) - ct) > 0.001:
+            conn.execute("UPDATE referans_listesi SET hedef_cycle_time_sn=? WHERE id=?", (ct, var['id']))
+            guncel += 1
+        if ct is not None and ct > 0:
+            sure_yazilan += 1
+            # Geçmiş üretim kayıtlarının cycle'ı — /api/referanslar ve sure_yukle ile aynı kural
+            conn.execute(
+                "UPDATE uretim_kayitlari SET cycle_time_sn=? "
+                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+                "                   AND COALESCE(bolum,'kaynak')=?)", (ct, kod, lokasyon, bolum))
+    conn.commit()
+    mesaj = f'{len(kodlar)} kod {BOLUM_AD.get(bolum, bolum)} / {lokasyon}: {yeni} yeni tanım'
+    if guncel:
+        mesaj += f', {guncel} süre güncellendi'
+    if sure_yazilan:
+        mesaj += f', {sure_yazilan} kodun süresi yazıldı'
+    if atlanan:
+        mesaj += f' · {atlanan} kodun ERP süresi yok (elle girin)'
+    return jsonify({'basarili': True, 'mesaj': mesaj, 'yeni': yeni, 'guncel': guncel,
+                    'sure_yazilan': sure_yazilan, 'atlanan': atlanan})
+
+
+@app.route('/api/kapasite/urun/<path:kod>', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def kapasite_urun_detay(kod):
+    """Tek ürünün ERP rota satırları (hangi kaynakta kaç sn) + bizdeki tanımları."""
+    kod = (kod or '').strip()
+    conn = get_db()
+    u = conn.execute("SELECT * FROM kapasite_urun WHERE kod=?", (kod,)).fetchone()
+    if not u:
+        return jsonify({'hata': f'Kod havuzda yok: {kod}'}), 404
+    harita = KAP.kaynak_haritasi(conn)
+    rota = [dict(r) for r in conn.execute(
+        "SELECT surum, faz, sira, kaynak_kod, um, miktar, sure_sn, hazirlik_sn, kisi "
+        "FROM kapasite_rota WHERE kod=? ORDER BY surum, faz, sira", (kod,))]
+    for r in rota:
+        b, ad = harita.get(str(r['kaynak_kod']).upper(), ('', ''))
+        r['bolum'] = b
+        r['kaynak_ad'] = ad
+    tanimlar = [dict(r) for r in conn.execute(
+        "SELECT referans_kodu, bolum, COALESCE(lokasyon,'TK2') lokasyon, "
+        "COALESCE(hedef_cycle_time_sn,0) hedef_cycle_time_sn, COALESCE(aciklama,'') aciklama "
+        "FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ',''))",
+        (kod,))]
+    return jsonify({'urun': dict(u), 'rota': rota, 'tanimlar': tanimlar,
+                    'bolumler': {r['bolum']: round(float(r['sure_sn']), 1) for r in conn.execute(
+                        "SELECT bolum, sure_sn FROM kapasite_urun_bolum WHERE kod=?", (kod,))}})
 
 
 # ── DURUŞ SEBEBİ YÖNETİMİ (kullanıcı 2026-09-16) ────────────────────────────

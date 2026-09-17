@@ -1756,6 +1756,21 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "🧮 Kapasite — Ürün Havuzu": {"en": "🧮 Capacity — Product Pool", "it": "🧮 Capacità — Anagrafica prodotti"},
+  "Ürün Havuzu": {"en": "Product Pool", "it": "Anagrafica prodotti"},
+  "Kapasite": {"en": "Capacity", "it": "Capacità"},
+  "📦 Ürünler": {"en": "📦 Products", "it": "📦 Prodotti"},
+  "🔗 ERP kaynağı → bölüm eşlemesi": {"en": "🔗 ERP resource → department mapping", "it": "🔗 Risorsa ERP → reparto"},
+  "🔗 Kaynak Eşlemesi": {"en": "🔗 Resource mapping", "it": "🔗 Mappatura risorse"},
+  "Bölümü atanmamış": {"en": "Unassigned department", "it": "Reparto non assegnato"},
+  "Tanımlı ama süresiz": {"en": "Defined but no time", "it": "Definito senza tempo"},
+  "Süresi tanımlı": {"en": "Time defined", "it": "Tempo definito"},
+  "ERP rotası yok": {"en": "No ERP routing", "it": "Nessun ciclo ERP"},
+  "Üretim (P)": {"en": "Production (P)", "it": "Produzione (P)"},
+  "Fason (A)": {"en": "Subcontract (A)", "it": "Conto terzi (A)"},
+  "Bölüme ata": {"en": "Assign to department", "it": "Assegna al reparto"},
+  "Ata + ERP süresini yaz": {"en": "Assign + write ERP time", "it": "Assegna + scrivi tempo ERP"},
+  "Seçimi bırak": {"en": "Clear selection", "it": "Annulla selezione"},
   "⏸️ Duruş Sebepleri": {"en": "⏸️ Downtime Reasons", "it": "⏸️ Motivi di fermo"},
   "Duruş Sebepleri": {"en": "Downtime Reasons", "it": "Motivi di fermo"},
   "Duruş Analizi": {"en": "Downtime Analysis", "it": "Analisi fermi"},
@@ -5299,6 +5314,14 @@ window.__I18N_SOZLUK__ = {
             </div>
 
             <div class="nav-group">
+                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Kapasite</span><span class="ok">▼</span></button>
+                <div class="nav-group-govde">
+                <a class="nav-item" data-sayfa="kapasite" onclick="sayfaAc('kapasite')">
+                    <span class="nav-icon">🧮</span> Ürün Havuzu</a>
+                </div>
+            </div>
+
+            <div class="nav-group">
                 <button class="nav-group-title" id="ng-bolum-title" onclick="navGrupTogle(this)"><span>Aktif Bölüm</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
                 <a class="nav-item" data-sayfa="bolum" onclick="sayfaAc('bolum')">
@@ -6923,6 +6946,142 @@ window.__I18N_SOZLUK__ = {
                  tanımlamak istiyorum, her seferinde Excel'e yazıp oradan güncellemek zor
                  oluyor." Excel ana liste olarak kalır; buradan eklenen sebep operatör
                  mobiline ve zaman çizelgesine aynı anda düşer. -->
+            <!-- KAPASİTE — ÜRÜN HAVUZU (kullanıcı 2026-09-17): AS400'deki bütün kodlar
+                 çekilir, P (üretim) olanlar ayrılır ve ERP rotasından hangi bölümde kaç
+                 saniye işlendiği türetilir. Panel yalnız EŞLEME ve İSTİSNA alır: atama
+                 referans_listesi'ne yazılır, böylece OEE ile kapasite tek tanımı paylaşır. -->
+            <section class="page" id="page-kapasite">
+                <div style="margin-bottom:18px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">🧮 Kapasite — Ürün Havuzu</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                        AS400'deki tüm kodlar: P = üretim, A = fason. Üretim kodlarının hangi bölümde kaç saniye işlendiği ERP rotasından gelir; buradan bölüme atayıp süreyi tek tıkla yazabilirsiniz. Yazdığınız süre OEE hesabında da kullanılır.
+                    </p>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card k-hedef">
+                        <div class="kpi-label">🏭 Üretim kodu (P)</div>
+                        <div class="kpi-value" id="kap-k-uretim" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="kap-k-uretim-sub">&nbsp;</div>
+                    </div>
+                    <div class="kpi-card k-oee">
+                        <div class="kpi-label">🧭 ERP rotası olan</div>
+                        <div class="kpi-value" id="kap-k-rota" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="kap-k-rota-sub">&nbsp;</div>
+                    </div>
+                    <div class="kpi-card k-ok">
+                        <div class="kpi-label">✅ Bizde tanımlı</div>
+                        <div class="kpi-value" id="kap-k-tanimli" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="kap-k-tanimli-sub">&nbsp;</div>
+                    </div>
+                    <div class="kpi-card k-durus">
+                        <div class="kpi-label">⏳ Süresi yok</div>
+                        <div class="kpi-value" id="kap-k-suresiz" style="font-size:1.7rem">—</div>
+                        <div class="kpi-sub" id="kap-k-suresiz-sub">&nbsp;</div>
+                    </div>
+                </div>
+
+                <div class="ky-filtre">
+                    <div class="f-group">
+                        <label>Durum</label>
+                        <select id="kap-durum" style="min-width:190px" onchange="kapYukle(0)">
+                            <option value="atanmamis">Bölümü atanmamış</option>
+                            <option value="suresiz">Tanımlı ama süresiz</option>
+                            <option value="tanimli">Süresi tanımlı</option>
+                            <option value="rotasiz">ERP rotası yok</option>
+                            <option value="">Tümü</option>
+                        </select>
+                    </div>
+                    <div class="f-group">
+                        <label>ERP bölümü</label>
+                        <select id="kap-bolum" style="min-width:150px" onchange="kapYukle(0)"></select>
+                    </div>
+                    <div class="f-group">
+                        <label>Tip</label>
+                        <select id="kap-prov" style="min-width:140px" onchange="kapYukle(0)">
+                            <option value="P">Üretim (P)</option>
+                            <option value="A">Fason (A)</option>
+                            <option value="">Hepsi</option>
+                        </select>
+                    </div>
+                    <div class="f-group">
+                        <label>Ara</label>
+                        <input type="text" id="kap-ara" placeholder="kod ya da açıklama" style="min-width:190px"
+                               onkeydown="if(event.key==='Enter')kapYukle(0)">
+                    </div>
+                    <button onclick="kapYukle(0)" style="padding:9px 18px;min-height:40px;border:0;background:var(--grad-violet);color:#fff;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;font-family:var(--font-main)">
+                        🔍 Listele
+                    </button>
+                    <button class="btn btn-outline" onclick="kapKaynakAc()" title="ERP kaynağı (WELDING, LASERCUT, NROPE…) hangi bölümümüze sayılıyor">🔗 Kaynak Eşlemesi</button>
+                    <button class="btn btn-outline" id="kap-senk-btn" onclick="kapSenkron()" title="AS400'den ürün ve rota listesini yeniden çeker (yaklaşık yarım dakika)">⬇️ AS400'den Çek</button>
+                    <div id="kap-durum-bilgi" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
+                </div>
+
+                <div id="kap-kaynak-kart" class="panel-card" style="display:none">
+                    <div class="panel-header">
+                        <h3>🔗 ERP kaynağı → bölüm eşlemesi</h3>
+                        <span class="adet-info" id="kap-kaynak-bilgi"></span>
+                    </div>
+                    <div style="padding:14px 20px">
+                        <div style="font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:12px">
+                            Sınıflandırmanın kaynağı budur: ERP rotasındaki her kaynak bir bölümümüze sayılır. "Sayılmaz" seçilen kaynaklar (dış işlem, kaplama, test) kapasiteye girmez. Değiştirdiğinizde tüm ürünlerin bölümleri anında yeniden türetilir.
+                        </div>
+                        <div class="table-wrap" style="max-height:420px;overflow:auto">
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Kaynak</th>
+                                        <th>ERP bölümü</th>
+                                        <th style="width:110px">Kullanım</th>
+                                        <th style="width:190px">Bizim bölüm</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kap-kaynak-liste"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="kap-toplu" class="panel-card" style="display:none">
+                    <div style="padding:12px 20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                        <b id="kap-secili-bilgi" style="font-size:.86rem"></b>
+                        <select id="kap-toplu-bolum" class="rt-row-select" style="min-width:160px"></select>
+                        <span style="font-size:.8rem;color:var(--muted)" id="kap-toplu-lok"></span>
+                        <button class="btn btn-primary" onclick="kapAta(false)">Bölüme ata</button>
+                        <button class="btn btn-outline" onclick="kapAta(true)" title="ERP rotasındaki süreyi hedef cycle time olarak yazar">Ata + ERP süresini yaz</button>
+                        <button class="btn btn-ghost" onclick="kapSecimTemizle()">Seçimi bırak</button>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>📦 Ürünler</h3>
+                        <span class="adet-info" id="kap-sayi"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:34px"><input type="checkbox" id="kap-hepsi" onchange="kapHepsiSec(this.checked)"></th>
+                                    <th style="width:170px">Kod</th>
+                                    <th>Açıklama</th>
+                                    <th style="width:230px">ERP rotası</th>
+                                    <th style="width:230px">Bizdeki tanım</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kap-liste">
+                                <tr><td colspan="5"><div class="empty-state">Listelemek için filtre seçin.</div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="padding:12px 20px;display:flex;gap:10px;align-items:center;justify-content:center">
+                        <button class="btn btn-ghost" id="kap-onceki" onclick="kapSayfa(-1)">← Önceki</button>
+                        <span id="kap-sayfa-bilgi" style="font-size:.82rem;color:var(--muted)"></span>
+                        <button class="btn btn-ghost" id="kap-sonraki" onclick="kapSayfa(1)">Sonraki →</button>
+                    </div>
+                </div>
+            </section>
+
             <section class="page" id="page-durus-sebepleri">
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">⏸️ Duruş Sebepleri</h2>
@@ -8718,6 +8877,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'zaman-cizelgesi') ? 'page-zaman-cizelgesi'
                         : (sayfa === 'durus-sebepleri') ? 'page-durus-sebepleri'
                         : (sayfa === 'durus-analizi') ? 'page-durus-analizi'
+                        : (sayfa === 'kapasite') ? 'page-kapasite'
                         : (sayfa === 'ariza-onay') ? 'page-ariza-onay'
                         : (sayfa === 'proje-takip') ? 'page-proje-takip'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
@@ -8764,6 +8924,7 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'zaman-cizelgesi') zcSekmeAcildi();
             if (sayfa === 'durus-sebepleri') dsSekmeAcildi();
             if (sayfa === 'durus-analizi') daSekmeAcildi();
+            if (sayfa === 'kapasite') kapSekmeAcildi();
             if (sayfa === 'raporlar') initRaporlar();
             if (sayfa === 'operator-performans') initOperatorPerformans();
             if (sayfa === 'analiz') initAnaliz();
@@ -8808,6 +8969,8 @@ window.__I18N_SOZLUK__ = {
             } else if (aktifSayfa === 'sinyal-analizi') {
                 // Sinyal analizi kendi iç bölüm seçicisini taşır (v2 bölüm bağlamı zorlanmaz)
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Sinyal Analizi</b>';
+            } else if (aktifSayfa === 'kapasite') {
+                bc.innerHTML = 'Kapasite ▸ <b>Ürün Havuzu</b> <span style="color:var(--dim)">· AS400</span>';
             } else if (aktifSayfa === 'durus-sebepleri') {
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Duruş Sebepleri</b>';
             } else if (aktifSayfa === 'durus-analizi') {
@@ -8880,6 +9043,9 @@ window.__I18N_SOZLUK__ = {
             // seçici yeniden doldurulmazsa TK1'de TK2 bölümleri görünüyordu.
             else if (aktifSayfa === 'durus-sebepleri') dsSekmeAcildi();
             else if (aktifSayfa === 'durus-analizi') daSekmeAcildi();
+            // Kapasite: "bizde tanımlı mı" sorusu LOKASYONA göre yanıtlanır; atama
+            // bölümleri de tesise göre değişir (TK1'de montaj/plastik/tel)
+            else if (aktifSayfa === 'kapasite') { kapTopluBolumDoldur(); kapOzet(); kapYukle(); }
         }
 
         function lokasyonGorunum() {
@@ -16760,6 +16926,8 @@ window.__I18N_SOZLUK__ = {
             // 2026-09-16: duruş sebebi tanımlama + duruş analizi
             'durus-sebepleri': 'Duruş Sebepleri (bölüme duruş sebebi tanımla)',
             'durus-analizi': 'Duruş Analizi (Pareto + hat/operatör kırılımı)',
+            // 2026-09-17 kapasite modülü: AS400 ürün havuzu + bölüm/süre ataması
+            'kapasite': 'Kapasite — Ürün Havuzu (AS400 kodlarını bölüme/süreye atama)',
             'ariza-onay': 'Arıza Onay (operatör bildirimlerini bakıma iletme)',
             // 2026-09-15 Proje Takip: yönetim izni sayfayı da açar
             'proje-takip': 'Proje Takip (görüntüle + kendine atanan işin terminini gir)',
@@ -18338,6 +18506,281 @@ window.__I18N_SOZLUK__ = {
         var _zcVeri = null;          // son çekilen /api/zaman_cizelgesi yanıtı
         var _zcEksen = null;         // { bas: Date, bit: Date } — ortak ölçek
         var _zcSecili = null;        // modalda açık duruş {vid, durus}
+
+        // ══ KAPASİTE — ÜRÜN HAVUZU (kullanıcı 2026-09-17) ══════════════════════
+        // "Önce TK1 ve TK2'deki bütün referansları AS400'den çekip P olan kodları
+        //  ayıralım… sonra bölümlere göre ayıracağız… süre tanımlamaları da gerekecek."
+        // Sınıflandırma ELLE DEĞİL ERP ROTASINDAN gelir (BSPEF1): kod hangi kaynakta
+        // kaç saniye işleniyorsa o bölüme sayılır. Panel eşlemeyi ve istisnaları alır.
+        var _kap = { veri: null, offset: 0, limit: 100, secili: {} };
+
+        function kapSekmeAcildi() {
+            var sel = document.getElementById('kap-bolum');
+            if (sel && !sel.options.length) {
+                sel.innerHTML = '<option value="">Tüm bölümler</option>' +
+                    BOLUM_SIRA.concat(['tel', 'plastik', 'bukum']).filter(function (b, i, a) { return a.indexOf(b) === i; })
+                        .map(function (b) {
+                            return '<option value="' + b + '">' + esc((BOLUMLER[b] || {}).ad || b) + '</option>';
+                        }).join('');
+            }
+            kapTopluBolumDoldur();
+            kapOzet();
+            kapYukle(0);
+        }
+
+        function kapTopluBolumDoldur() {
+            var sel = document.getElementById('kap-toplu-bolum');
+            if (!sel) return;
+            // Atama referans_listesi'ne yazılır → yalnız GERÇEK üretim bölümleri
+            sel.innerHTML = '<option value="">Bölüm seçin…</option>' + lokBolumleri().map(function (b) {
+                return '<option value="' + b + '">' + esc(bolumAdi(b)) + '</option>';
+            }).join('');
+        }
+
+        async function kapOzet() {
+            try {
+                var r = await panelFetch('/api/kapasite/ozet?lokasyon=' + encodeURIComponent(aktifLokasyon));
+                var d = await r.json();
+                if (!r.ok) return;
+                var yaz = function (id, m) { var e = document.getElementById(id); if (e) e.textContent = m; };
+                var bin = function (n) { return (n || 0).toLocaleString('tr-TR'); };
+                yaz('kap-k-uretim', bin(d.uretim));
+                yaz('kap-k-uretim-sub', bin(d.fason) + ' fason (A) · ' + bin(d.iptal) + ' iptal');
+                yaz('kap-k-rota', bin(d.rotali));
+                yaz('kap-k-rota-sub', d.uretim ? ('üretim kodlarının %' + Math.round(100 * d.rotali / d.uretim)) : ' ');
+                yaz('kap-k-tanimli', bin(d.tanimli));
+                yaz('kap-k-tanimli-sub', aktifLokasyon + ' · ' + bin(d.atanmamis) + ' kod henüz atanmamış');
+                yaz('kap-k-suresiz', bin(d.suresiz));
+                yaz('kap-k-suresiz-sub', 'tanımlı ama hedef süresi yok');
+                var bilgi = document.getElementById('kap-durum-bilgi');
+                if (bilgi) {
+                    bilgi.textContent = d.son_senk
+                        ? ('son çekim ' + d.son_senk.tarih + ' · ' + bin(d.son_senk.urun) + ' ürün')
+                        : 'Henüz AS400\'den çekilmedi';
+                }
+            } catch (e) { /* özet kritik değil */ }
+        }
+
+        async function kapYukle(offset) {
+            if (typeof offset === 'number') _kap.offset = Math.max(0, offset);
+            var govde = document.getElementById('kap-liste');
+            if (govde) govde.innerHTML = '<tr><td colspan="5"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
+            var q = '/api/kapasite/urunler?limit=' + _kap.limit + '&offset=' + _kap.offset +
+                '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
+                '&durum=' + encodeURIComponent((document.getElementById('kap-durum') || {}).value || '') +
+                '&bolum=' + encodeURIComponent((document.getElementById('kap-bolum') || {}).value || '') +
+                '&prov=' + encodeURIComponent((document.getElementById('kap-prov') || {}).value || '') +
+                '&ara=' + encodeURIComponent((document.getElementById('kap-ara') || {}).value || '');
+            try {
+                var r = await panelFetch(q);
+                var d = await r.json();
+                if (!r.ok) {
+                    govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">' + esc(d.hata || 'Yüklenemedi') + '</div></td></tr>';
+                    return;
+                }
+                _kap.veri = d;
+                kapCiz(d);
+            } catch (e) {
+                govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        function kapRotaRozet(rota, disi) {
+            var b = Object.keys(rota || {});
+            if (!b.length) return '<span style="color:var(--dim);font-size:.78rem">rota yok</span>';
+            return b.sort().map(function (x) {
+                var yok = (disi || []).indexOf(x) !== -1;    // bizde bölüm olarak tanımlı değil
+                return '<span title="' + (yok ? 'Bu bölüm sistemde tanımlı değil' : 'ERP rotasındaki süre') +
+                    '" style="display:inline-block;margin:1px 3px 1px 0;padding:2px 7px;border-radius:6px;font-size:.74rem;font-weight:700;' +
+                    (yok ? 'background:rgba(245,158,11,0.16);color:var(--warn)' : 'background:var(--primary-soft);color:var(--primary)') +
+                    '">' + esc((BOLUMLER[x] || {}).ad || x) + ' ' + rota[x] + ' sn' + (yok ? ' ⚠' : '') + '</span>';
+            }).join('');
+        }
+
+        function kapCiz(d) {
+            var govde = document.getElementById('kap-liste');
+            var sayi = document.getElementById('kap-sayi');
+            if (sayi) sayi.textContent = (d.toplam || 0).toLocaleString('tr-TR') + ' kod';
+            var bilgi = document.getElementById('kap-sayfa-bilgi');
+            if (bilgi) {
+                var bas = d.toplam ? (d.offset + 1) : 0;
+                bilgi.textContent = bas + '–' + Math.min(d.offset + d.limit, d.toplam) + ' / ' + (d.toplam || 0).toLocaleString('tr-TR');
+            }
+            var onc = document.getElementById('kap-onceki'), son = document.getElementById('kap-sonraki');
+            if (onc) onc.disabled = d.offset <= 0;
+            if (son) son.disabled = d.offset + d.limit >= d.toplam;
+            if (!d.satirlar.length) {
+                govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">Bu filtreye uyan kod yok.</div></td></tr>';
+                return;
+            }
+            govde.innerHTML = d.satirlar.map(function (x) {
+                var tanim = (x.tanimlar || []).map(function (t) {
+                    return '<div style="font-size:.78rem"><b>' + esc(bolumAdi(t.bolum, t.lokasyon)) + '</b> · ' +
+                        (t.ct > 0 ? (t.ct + ' sn') : '<span style="color:var(--warn)">süre yok</span>') + '</div>';
+                }).join('');
+                var digeri = (x.diger_tesis || []).length
+                    ? '<div style="font-size:.74rem;color:var(--dim)">diğer tesiste: ' +
+                      x.diger_tesis.map(function (t) { return esc(t.lokasyon + '/' + t.bolum); }).join(', ') + '</div>'
+                    : '';
+                if (!tanim) tanim = '<span style="color:var(--dim);font-size:.78rem">tanım yok</span>';
+                return '<tr data-kod="' + esc(x.kod) + '">' +
+                    '<td><input type="checkbox" onchange="kapSec(this, \'' + esc(x.kod).replace(/'/g, "\\'") + '\')"' +
+                    (_kap.secili[x.kod] ? ' checked' : '') + '></td>' +
+                    '<td><a onclick="kapDetay(\'' + esc(x.kod).replace(/'/g, "\\'") + '\')" ' +
+                    'style="font-weight:700;cursor:pointer;color:var(--primary)">' + esc(x.kod) + '</a>' +
+                    (x.guncel ? '' : '<div style="font-size:.7rem;color:var(--warn)">ERP\'de yok</div>') + '</td>' +
+                    '<td style="font-size:.82rem">' + esc(x.aciklama || '—') + '</td>' +
+                    '<td>' + kapRotaRozet(x.rota, (_kap.veri || {}).bolum_disi) + '</td>' +
+                    '<td>' + tanim + digeri + '</td></tr>';
+            }).join('');
+            var hepsi = document.getElementById('kap-hepsi');
+            if (hepsi) hepsi.checked = false;
+        }
+
+        function kapSec(el, kod) {
+            if (el.checked) _kap.secili[kod] = true; else delete _kap.secili[kod];
+            kapSecimGoster();
+        }
+
+        function kapHepsiSec(ac) {
+            ((_kap.veri || {}).satirlar || []).forEach(function (x) {
+                if (ac) _kap.secili[x.kod] = true; else delete _kap.secili[x.kod];
+            });
+            document.querySelectorAll('#kap-liste input[type=checkbox]').forEach(function (c) { c.checked = ac; });
+            kapSecimGoster();
+        }
+
+        function kapSecimTemizle() {
+            _kap.secili = {};
+            document.querySelectorAll('#kap-liste input[type=checkbox]').forEach(function (c) { c.checked = false; });
+            var h = document.getElementById('kap-hepsi');
+            if (h) h.checked = false;
+            kapSecimGoster();
+        }
+
+        function kapSecimGoster() {
+            var n = Object.keys(_kap.secili).length;
+            var kart = document.getElementById('kap-toplu');
+            if (kart) kart.style.display = n ? '' : 'none';
+            var b = document.getElementById('kap-secili-bilgi');
+            if (b) b.textContent = n + ' kod seçildi →';
+            var l = document.getElementById('kap-toplu-lok');
+            if (l) l.textContent = aktifLokasyon + ' tesisine yazılacak';
+        }
+
+        function kapSayfa(yon) {
+            kapYukle(_kap.offset + yon * _kap.limit);
+        }
+
+        async function kapAta(erpSuresi) {
+            var kodlar = Object.keys(_kap.secili);
+            var bolum = (document.getElementById('kap-toplu-bolum') || {}).value || '';
+            if (!kodlar.length) { toast('Önce kod seçin', 'err'); return; }
+            if (!bolum) { toast('Bölüm seçin', 'err'); return; }
+            if (kodlar.length > 500) { toast('Tek seferde en fazla 500 kod', 'err'); return; }
+            try {
+                var r = await panelFetch('/api/kapasite/ata', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kodlar: kodlar, bolum: bolum, lokasyon: aktifLokasyon,
+                                           erp_suresi: !!erpSuresi })
+                });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Atanamadı', 'err'); return; }
+                toast(d.mesaj, 'ok');
+                kapSecimTemizle();
+                kapOzet();
+                kapYukle();
+            } catch (e) {
+                toast('Atanamadı: ' + e.message, 'err');
+            }
+        }
+
+        async function kapDetay(kod) {
+            try {
+                var r = await panelFetch('/api/kapasite/urun/' + encodeURIComponent(kod));
+                var d = await r.json();
+                if (!r.ok) { toast(d.hata || 'Okunamadı', 'err'); return; }
+                var satir = (d.rota || []).map(function (x) {
+                    return '• ' + (x.kaynak_kod || '') + (x.kaynak_ad ? ' (' + x.kaynak_ad + ')' : '') +
+                        ' → ' + (x.bolum ? ((BOLUMLER[x.bolum] || {}).ad || x.bolum) : 'sayılmaz') +
+                        ' · ' + (x.sure_sn || 0).toFixed(1) + ' sn' + (x.surum ? ' [' + x.surum + ']' : '');
+                }).join('\n') || 'ERP rotası yok';
+                var tanim = (d.tanimlar || []).map(function (t) {
+                    return '• ' + t.lokasyon + ' / ' + t.bolum + ' · ' + (t.hedef_cycle_time_sn || 0) + ' sn';
+                }).join('\n') || 'Bizde tanım yok';
+                alert(kod + ' — ' + (d.urun.aciklama || '') + '\n\nERP ROTASI\n' + satir + '\n\nBİZDEKİ TANIM\n' + tanim);
+            } catch (e) {
+                toast('Okunamadı: ' + e.message, 'err');
+            }
+        }
+
+        async function kapSenkron() {
+            if (!confirm('AS400\'den ürün ve rota listesi yeniden çekilecek.\n\n60 binden fazla kod okunur; ölçümde 19 saniye sürdü, sunucuda biraz uzayabilir. Devam edilsin mi?')) return;
+            var btn = document.getElementById('kap-senk-btn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Çekiliyor…'; }
+            try {
+                var r = await panelFetch('/api/kapasite/senkron', { method: 'POST' });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Çekilemedi', 'err'); return; }
+                toast(d.mesaj, 'ok');
+                kapOzet();
+                kapYukle(0);
+            } catch (e) {
+                toast('Çekilemedi: ' + e.message, 'err');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '⬇️ AS400\'den Çek'; }
+            }
+        }
+
+        async function kapKaynakAc() {
+            var kart = document.getElementById('kap-kaynak-kart');
+            if (!kart) return;
+            if (kart.style.display !== 'none') { kart.style.display = 'none'; return; }
+            kart.style.display = '';
+            var govde = document.getElementById('kap-kaynak-liste');
+            govde.innerHTML = '<tr><td colspan="4"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
+            try {
+                var r = await panelFetch('/api/kapasite/kaynaklar');
+                var d = await r.json();
+                if (!r.ok) { govde.innerHTML = '<tr><td colspan="4"><div class="empty-state">' + esc(d.hata || '') + '</div></td></tr>'; return; }
+                var secenek = function (secili) {
+                    return '<option value="">— sayılmaz —</option>' +
+                        d.bolumler.concat(d.bolum_disi).map(function (b) {
+                            return '<option value="' + b + '"' + (b === secili ? ' selected' : '') + '>' +
+                                esc((BOLUMLER[b] || {}).ad || b) + (d.bolum_disi.indexOf(b) !== -1 ? ' (bölüm yok)' : '') + '</option>';
+                        }).join('');
+                };
+                var bilgi = document.getElementById('kap-kaynak-bilgi');
+                if (bilgi) bilgi.textContent = d.kaynaklar.length + ' kaynak';
+                govde.innerHTML = d.kaynaklar.map(function (x) {
+                    return '<tr' + (x.iptal ? ' style="opacity:.5"' : '') + '>' +
+                        '<td><b>' + esc(x.kaynak_kod) + '</b><div style="font-size:.76rem;color:var(--muted)">' +
+                        esc(x.aciklama || '') + (x.iscilik ? ' · işçilik' : '') + '</div></td>' +
+                        '<td style="font-size:.8rem;color:var(--muted)">' + esc(x.reparto_ad || '—') + '</td>' +
+                        '<td>' + (x.kullanim || 0).toLocaleString('tr-TR') + ' kod</td>' +
+                        '<td><select class="rt-row-select" style="width:175px" onchange="kapKaynakKaydet(\'' +
+                        esc(x.kaynak_kod).replace(/'/g, "\\'") + '\', this.value)">' + secenek(x.bolum) + '</select></td></tr>';
+                }).join('');
+            } catch (e) {
+                govde.innerHTML = '<tr><td colspan="4"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        async function kapKaynakKaydet(kaynak, bolum) {
+            try {
+                var r = await panelFetch('/api/kapasite/kaynak', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kaynak_kod: kaynak, bolum: bolum })
+                });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Kaydedilemedi', 'err'); return; }
+                toast(d.mesaj, 'ok');
+                kapOzet();
+                kapYukle();
+            } catch (e) {
+                toast('Kaydedilemedi: ' + e.message, 'err');
+            }
+        }
 
         // ── DURUŞ SEBEPLERİ (kullanıcı 2026-09-16) ─────────────────────────────
         // "Robot kaynak için ekstra bir duruş tanımlamak istiyorum, her seferinde
