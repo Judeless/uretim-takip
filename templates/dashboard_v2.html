@@ -7057,7 +7057,7 @@ window.__I18N_SOZLUK__ = {
                     </div>
                     <div style="padding:14px 20px">
                         <div style="font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:12px">
-                            <b>Süreler bu Excel'den gelir</b> (süre = 3600 ÷ saatlik üretim adedi), <b>bölüm/tesis dağılımı ise Forge'daki tanımdan</b>. Excel'in üretim hattı yalnızca Forge'da hiç tanımı olmayan kodlarda kullanılır. Metal enjeksiyon süreleri Excel'den alınmaz (bizimkiler parça başına). Çalışma Saati sayfası da bölümlerin haftalık kapasitesini verir.
+                            <b>Süreler bu Excel'den gelir ve YALNIZ kapasite hesabında kullanılır</b> (süre = 3600 ÷ saatlik üretim adedi) — Forge'daki referans süreleri ve OEE hesabı etkilenmez. <b>Bölüm/tesis dağılımı Forge'daki tanımdan</b> gelir; Excel'in üretim hattı yalnızca Forge'da hiç tanımı olmayan kodlarda kullanılır. Metal enjeksiyon süreleri alınmaz (bizimkiler parça başına). Çalışma Saati sayfası bölümlerin haftalık kapasitesini verir.
                         </div>
                         <div class="rt-form" style="grid-template-columns:2fr auto auto">
                             <div>
@@ -18705,7 +18705,9 @@ window.__I18N_SOZLUK__ = {
                         var kap = (b.kapasite || {});
                         // Bölüm ataması NEREDEN geldi (Forge tanımı / ERP rotası) ve
                         // süre NEREDEN geldi — ikisi ayrı sorudur.
-                        var kaynak = '<span style="color:var(--success)">' + b.sure_forge + ' Forge süresi</span>' +
+                        var kaynak = (b.sure_excel ? '<span style="color:var(--primary);font-weight:700">' +
+                                b.sure_excel + ' Excel süresi</span> · ' : '') +
+                            '<span style="color:var(--success)">' + b.sure_forge + ' Forge süresi</span>' +
                             (b.sure_erp ? ' · <span style="color:var(--b-kaynak)">' + b.sure_erp + ' ERP süresi</span>' : '') +
                             (b.suresiz_kod ? ' · <span style="color:var(--danger);font-weight:700">' + b.suresiz_kod + ' süresiz</span>' : '') +
                             '<div style="color:var(--dim);font-size:.72rem">bölüm: ' + b.forge_kod +
@@ -18758,8 +18760,8 @@ window.__I18N_SOZLUK__ = {
             yaz('kap-k-tanimli', bin(t.gecikmis_emir) + ' emir');
             yaz('kap-k-tanimli-sub', bin(t.gecikmis_adet) + ' adet gecikmiş');
             yaz('kap-k-suresiz', bin((t.sure_erp || 0) + (t.suresiz_kod || 0)));
-            yaz('kap-k-suresiz-sub', bin(t.sure_erp) + ' kod ERP süresiyle · ' +
-                bin(t.suresiz_kod) + ' kod süresiz · ' + bin(t.sure_forge) + ' kod Forge');
+            yaz('kap-k-suresiz-sub', bin(t.sure_excel) + ' Excel · ' + bin(t.sure_forge) + ' Forge · ' +
+                bin(t.sure_erp) + ' ERP · ' + bin(t.suresiz_kod) + ' süresiz');
         }
 
         // ── ÜRETİM MÜDÜRÜ KAPASİTE EXCEL'İ ─────────────────────────────────────
@@ -18844,7 +18846,7 @@ window.__I18N_SOZLUK__ = {
                 h += '<div style="margin-top:14px"><b style="font-size:.86rem;color:var(--warn)">⚠ %50\'den fazla fark: ' +
                     bin(d.sure.buyuk_fark_sayisi) + ' kod · ' + bin(d.sure.buyuk_fark_saat) +
                     ' saatlik etki</b> <span style="font-size:.78rem;color:var(--muted)">(açık ihtiyaç adediyle çarpılmış). ' +
-                    'Süreler ana Excel dosyasından gelir; bu kodlarda hangisinin doğru olduğu belirsiz, ' +
+                    'Kapasitede Excel süresi kullanılır; bu kodlarda hangisinin doğru olduğu belirsiz, ' +
                     'bu yüzden "%50 üstü farklıları şimdilik atla" seçiliyken YAZILMAZLAR — kontrol edip tiki kaldırın.</span>' +
                     '<div class="table-wrap" style="max-height:320px;overflow:auto"><table class="admin-table"><thead><tr>' +
                     '<th>Kod</th><th style="width:110px">Tesis / bölüm</th><th style="width:90px">Forge</th>' +
@@ -18877,7 +18879,7 @@ window.__I18N_SOZLUK__ = {
             h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center">' +
                 '<label style="font-size:.82rem"><input type="checkbox" id="kap-xls-sure" checked> Süreleri yaz</label>' +
                 '<label style="font-size:.82rem"><input type="checkbox" id="kap-xls-calisma" checked> Çalışma saatlerini kapasite yap</label>' +
-                '<label style="font-size:.82rem" title="Süreler ana Excel dosyasından gelir; işaretlenirse mevcut süreler korunur"><input type="checkbox" id="kap-xls-bos"> Yalnız süresi olmayanlara yaz</label>' +
+                '<label style="font-size:.82rem" title="İşaretlenirse Forge süresi olan kodlarda kapasite de Forge süresini kullanır"><input type="checkbox" id="kap-xls-bos"> Yalnız Forge süresi olmayanlara uygula</label>' +
                 '<label style="font-size:.82rem" title="Forge ile farkı çok olanlar yazılmaz, önce kontrol listesinden bakılır"><input type="checkbox" id="kap-xls-fark" checked> %50 üstü farklıları şimdilik atla</label>' +
                 '<label style="font-size:.82rem"><input type="checkbox" id="kap-xls-opr"> Yalnız açık ihtiyacı olan kodlar</label>' +
                 '<button class="btn btn-primary" onclick="kapXlsUygula()">Uygula</button></div>';
@@ -18893,7 +18895,7 @@ window.__I18N_SOZLUK__ = {
             govde.append('sadece_opr', sec('kap-xls-opr'));
             govde.append('sadece_bos', sec('kap-xls-bos'));
             govde.append('fark_atla', sec('kap-xls-fark'));
-            if (!confirm('Excel uygulanacak. Süreler referans listesine yazılır ve OEE hesabında da kullanılır.\n\nDevam edilsin mi?')) return;
+            if (!confirm('Excel uygulanacak.\n\nSüreler YALNIZ kapasite hesabında kullanılır; Forge referans süreleriniz ve OEE değişmez.\n\nDevam edilsin mi?')) return;
             try {
                 var r = await panelFetch('/api/kapasite/excel_uygula', { method: 'POST', body: govde });
                 var d = await r.json();

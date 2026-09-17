@@ -1446,6 +1446,23 @@ def init_db():
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS ix_kapasite_talep_kod ON kapasite_talep (kod)")
+    # KAPASİTE SÜRELERİ (kullanıcı 2026-09-17): üretim müdürünün Excel'inden gelen
+    # süreler BURAYA yazılır, referans_listesi'ne DEĞİL — "mevcut Forge'daki sürelerin
+    # üzerine bir şey yazmayalım, sadece kapasite hesabı için geçerli olsun".
+    # OEE ve üretim kayıtları Forge süresini kullanmaya devam eder; kapasite planı
+    # önce buraya bakar (yoksa Forge, o da yoksa ERP rota süresi).
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_sure (
+            kod TEXT NOT NULL,
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            bolum TEXT NOT NULL,
+            sure_sn REAL NOT NULL DEFAULT 0,
+            kaynak TEXT DEFAULT 'excel',
+            guncelleyen TEXT DEFAULT '',
+            updated_at TEXT,
+            PRIMARY KEY (kod, lokasyon, bolum)
+        )
+    """)
     # BÖLÜM KAPASİTE PARAMETRELERİ (kullanıcı 2026-09-17: "makine/hat, vardiya, vardiya
     # saati, verimlilik kısmı düzenlenebilir olmalı"). Haftalık kapasite =
     #   makine × vardiya × vardiya_saat × gun × verimlilik

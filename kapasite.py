@@ -331,6 +331,8 @@ def excel_sure_uygula(conn, veri, kullanici='', lokasyon='', sadece_opr=False,
     """
     talep = {r['kod'] for r in conn.execute("SELECT DISTINCT kod FROM kapasite_talep WHERE kalan > 0")}
     f_tam, f_kok = _excel_forge_haritasi(conn)
+    mevcut = {(r['kod'], r['lokasyon'], r['bolum']): float(r['sure_sn'] or 0)
+              for r in conn.execute("SELECT kod, lokasyon, bolum, sure_sn FROM kapasite_sure")}
     yeni = guncel = ayni = 0
     atlanan = {'metal': 0, 'adim': 0, 'buyuk_fark': 0}
     for x in veri['sureler']:
@@ -342,42 +344,37 @@ def excel_sure_uygula(conn, veri, kullanici='', lokasyon='', sadece_opr=False,
             continue
         if kaynak == 'excel':
             hedefler = [(x['lokasyon'], x['bolum'], None)]
-        for hedef_lok, hedef_bolum, _eski in hedefler:
+        for hedef_lok, hedef_bolum, _eski in hedefler:   # _eski = Forge'daki süre
             if lokasyon and hedef_lok != lokasyon:
                 continue
             if hedef_bolum in EXCEL_SURE_DISI:
                 atlanan['metal'] += 1      # metal süresi Forge'den kalır
                 continue
-            r = conn.execute(
-                "SELECT id, COALESCE(hedef_cycle_time_sn,0) ct FROM referans_listesi "
-                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) AND bolum=? "
-                "AND COALESCE(lokasyon,'TK2')=?", (x['kod'], hedef_bolum, hedef_lok)).fetchone()
-            if r is None:
-                conn.execute("INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, bolum, "
-                             "lokasyon) VALUES (?,?,?,?)",
-                             (x['kod'], x['sure_sn'], hedef_bolum, hedef_lok))
-                yeni += 1
-            elif sadece_bos and float(r['ct'] or 0) > 0:
-                ayni += 1        # süresi var, dokunma (mevcut tanım korunur)
+            forge_ct = _eski if _eski is not None else 0.0
+            if sadece_bos and forge_ct > 0:
+                ayni += 1        # Forge'da süre var, kapasiteye de onu bırak
                 continue
-            elif (fark_atla and float(r['ct'] or 0) > 0 and
-                  abs(x['sure_sn'] - float(r['ct'])) / float(r['ct']) * 100 > fark_esik):
+            if (fark_atla and forge_ct > 0 and
+                    abs(x['sure_sn'] - forge_ct) / forge_ct * 100 > fark_esik):
                 atlanan['buyuk_fark'] += 1   # kontrol listesinde: hangisi doğru belirsiz
                 continue
-            elif abs(float(r['ct']) - x['sure_sn']) >= 0.05:
-                conn.execute("UPDATE referans_listesi SET hedef_cycle_time_sn=? WHERE id=?",
-                             (x['sure_sn'], r['id']))
-                guncel += 1
-            else:
+            anahtar = (x['kod'], hedef_lok, hedef_bolum)
+            onceki = mevcut.get(anahtar)
+            if onceki is not None and abs(onceki - x['sure_sn']) < 0.05:
                 ayni += 1
                 continue
-            # Geçmiş üretim kayıtlarının cycle'ı — /api/referanslar ve sure_yukle ile aynı kural
+            # KAPASİTE SÜRESİ — referans_listesi'ne (Forge) DOKUNULMAZ, OEE etkilenmez
             conn.execute(
-                "UPDATE uretim_kayitlari SET cycle_time_sn=? "
-                "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
-                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
-                "                   AND COALESCE(bolum,'kaynak')=?)",
-                (x['sure_sn'], x['kod'], hedef_lok, hedef_bolum))
+                "INSERT INTO kapasite_sure (kod, lokasyon, bolum, sure_sn, kaynak, guncelleyen, "
+                "updated_at) VALUES (?,?,?,?, 'excel', ?, datetime('now','localtime')) "
+                "ON CONFLICT(kod, lokasyon, bolum) DO UPDATE SET sure_sn=excluded.sure_sn, "
+                "kaynak='excel', guncelleyen=excluded.guncelleyen, "
+                "updated_at=datetime('now','localtime')",
+                (x['kod'], hedef_lok, hedef_bolum, x['sure_sn'], kullanici))
+            if onceki is None:
+                yeni += 1
+            else:
+                guncel += 1
     conn.commit()
     return {'yeni': yeni, 'guncel': guncel, 'ayni': ayni, 'atlanan': atlanan}
 
@@ -694,6 +691,12 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
     gecerli = set(LOKASYON_BOLUMLERI.get(lokasyon, LOKASYON_BOLUMLERI['TK2']))
     f_tam, f_kok = forge_haritasi(conn, lokasyon)
     d_tam, d_kok = forge_haritasi(conn, diger_lok)
+    # KAPASİTE SÜRESİ (üretim müdürü Excel'i) — Forge'un üzerine YAZILMAZ, yalnız
+    # kapasite hesabında öncelikli kullanılır (kullanıcı 2026-09-17).
+    kap_sure = {}
+    for r in conn.execute("SELECT kod, bolum, sure_sn FROM kapasite_sure "
+                          "WHERE COALESCE(lokasyon,'TK2')=? AND sure_sn > 0", (lokasyon,)):
+        kap_sure[(_norm(r['kod']), r['bolum'])] = float(r['sure_sn'])
     rota = {}
     for r in conn.execute("SELECT kod, bolum, sure_sn FROM kapasite_urun_bolum"):
         rota.setdefault(r['kod'], {})[r['bolum']] = float(r['sure_sn'] or 0)
@@ -714,7 +717,10 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
             for b, v in forge.items():
                 if b not in gecerli:
                     continue
-                if v['sn'] > 0:
+                kap = kap_sure.get((_norm(kod), b))
+                if kap:
+                    dagilim[b] = (kap, 'forge', 'excel')       # süre Excel'den (kapasite)
+                elif v['sn'] > 0:
                     dagilim[b] = (v['sn'], 'forge', 'forge')
                 else:
                     dagilim[b] = (erp_sn.get(b, 0.0), 'forge', 'erp' if erp_sn.get(b) else 'yok')
@@ -741,7 +747,10 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
                     siniflanamayan['kod'].add(kod)
                     siniflanamayan['adet'] += kalan
                 continue
-            dagilim = {b: (sn, 'erp', 'erp' if sn else 'yok') for b, sn in erp.items()}
+            dagilim = {}
+            for b, sn in erp.items():
+                kap = kap_sure.get((_norm(kod), b))
+                dagilim[b] = ((kap, 'erp', 'excel') if kap else (sn, 'erp', 'erp' if sn else 'yok'))
         if not bitis:
             tarihsiz['adet'] += kalan
             tarihsiz['emir'] += 1
@@ -749,11 +758,13 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
         for bolum, (sn, bolum_kaynak, sure_kaynak) in dagilim.items():
             b = bolumler.setdefault(bolum, {
                 'bolum': bolum, 'kod': set(), 'suresiz_kod': set(), 'forge_kod': set(),
-                'erp_kod': set(), 'sure_forge': set(), 'sure_erp': set(),
+                'erp_kod': set(), 'sure_forge': set(), 'sure_erp': set(), 'sure_excel': set(),
                 'adet': 0.0, 'gecikmis_adet': 0.0, 'gecikmis_sn': 0.0,
                 'hafta': {h: {'adet': 0.0, 'sn': 0.0} for h in haftalar}})
             (b['forge_kod'] if bolum_kaynak == 'forge' else b['erp_kod']).add(kod)
-            if sure_kaynak == 'forge':
+            if sure_kaynak == 'excel':
+                b['sure_excel'].add(kod)
+            elif sure_kaynak == 'forge':
                 b['sure_forge'].add(kod)
             elif sure_kaynak == 'erp':
                 b['sure_erp'].add(kod)
@@ -773,7 +784,8 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
         out.append({
             'bolum': b['bolum'], 'kod_sayisi': len(b['kod']),
             'forge_kod': len(b['forge_kod']), 'erp_kod': len(b['erp_kod']),
-            'sure_forge': len(b['sure_forge']), 'sure_erp': len(b['sure_erp']),
+            'sure_excel': len(b['sure_excel']), 'sure_forge': len(b['sure_forge']),
+            'sure_erp': len(b['sure_erp']),
             'suresiz_kod': len(b['suresiz_kod']),
             'adet': round(b['adet']), 'gecikmis_adet': round(b['gecikmis_adet']),
             'gecikmis_saat': round(b['gecikmis_sn'] / 3600, 1),
@@ -825,6 +837,7 @@ def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
               'suresiz_kod': sum(b['suresiz_kod'] for b in out),
               'erp_kod': sum(b['erp_kod'] for b in out),
               'forge_kod': sum(b['forge_kod'] for b in out),
+              'sure_excel': sum(b['sure_excel'] for b in out),
               'sure_forge': sum(b['sure_forge'] for b in out),
               'sure_erp': sum(b['sure_erp'] for b in out),
               'saat': {str(h): round(sum(b['hafta'][str(h)]['saat'] for b in out), 1) for h in haftalar},

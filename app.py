@@ -7111,8 +7111,9 @@ def kapasite_excel_onizle():
 def kapasite_excel_uygula():
     """Excel'i uygular. Form alanları:
       dosya (multipart) ya da yol · sureler=1 · calisma=1 · lokasyon= · sadece_opr=1
-    Süreler referans_listesi'ne yazılır (OEE de aynı tanımı kullanır); çalışma saatleri
-    bölümün haftalık kapasitesi olur."""
+      · sadece_bos=0 · fark_atla=1 · fark_esik=50
+    Süreler YALNIZ kapasite tablosuna (kapasite_sure) yazılır — referans_listesi ve OEE
+    ETKİLENMEZ. Çalışma saatleri bölümün haftalık kapasitesi olur."""
     kaynak, ad = _kapasite_excel_kaynak()
     if kaynak is None:
         return jsonify({'hata': ad}), 400
@@ -7138,7 +7139,8 @@ def kapasite_excel_uygula():
             fark_atla=al('fark_atla', '1') == '1',        # varsayılan: aykırıları bekletir
             fark_esik=max(1.0, min(1000.0, esik)))
         _s = sonuc['sure']
-        parca.append(f"{_s['yeni']} yeni + {_s['guncel']} güncel süre")
+        parca.append(f"{_s['yeni']} yeni + {_s['guncel']} güncel KAPASİTE süresi "
+                     f"(Forge süreleri değişmedi)")
         if _s.get('atlanan', {}).get('buyuk_fark'):
             parca.append(f"{_s['atlanan']['buyuk_fark']} kod kontrol listesinde bekliyor "
                          f"(fark > %{esik:g})")
