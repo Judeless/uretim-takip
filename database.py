@@ -1428,6 +1428,24 @@ def init_db():
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS ix_kapasite_ub_bolum ON kapasite_urun_bolum (bolum)")
+    # AÇIK ÜRETİM İHTİYACI (OPR) — AS400 XPRO90 (kullanıcı 2026-09-17):
+    # "OPR'si yani üretim ihtiyacı oluşmuş referanslara bakacağız." Kapasite yükü
+    # BURADAN gelir; havuzdaki diğer 27 bin kod planlamayı ilgilendirmez.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_talep (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kod TEXT NOT NULL,
+            durum TEXT DEFAULT '',        -- 10 OPR, 40/45/50 acik launch
+            emir_no TEXT DEFAULT '',
+            adet REAL DEFAULT 0,
+            teyit REAL DEFAULT 0,
+            kalan REAL DEFAULT 0,         -- adet - teyit (uretilecek olan)
+            bitis TEXT DEFAULT '',        -- termin (ERP "fine produzione"), YYYY-MM-DD
+            baslangic TEXT DEFAULT '',
+            senk_at TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS ix_kapasite_talep_kod ON kapasite_talep (kod)")
     c.execute("""
         CREATE TABLE IF NOT EXISTS kapasite_kaynak (
             kaynak_kod TEXT PRIMARY KEY,

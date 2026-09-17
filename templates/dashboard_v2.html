@@ -1756,6 +1756,18 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "📅 Açık üretim ihtiyacı (OPR) — bölüm bazlı iş yükü": {"en": "📅 Open production demand (OPR) — load by department", "it": "📅 Fabbisogno di produzione (OPR) — carico per reparto"},
+  "Yalnız OPR'si olanlar": {"en": "Only with open demand", "it": "Solo con fabbisogno"},
+  "OPR'si olmayanlar": {"en": "Without open demand", "it": "Senza fabbisogno"},
+  "Açık ihtiyaç": {"en": "Open demand", "it": "Fabbisogno aperto"},
+  "Termini geçmiş": {"en": "Overdue", "it": "In ritardo"},
+  "2 hafta": {"en": "2 weeks", "it": "2 settimane"},
+  "4 hafta": {"en": "4 weeks", "it": "4 settimane"},
+  "6 hafta": {"en": "6 hafta", "it": "6 settimane"},
+  "8 hafta": {"en": "8 weeks", "it": "8 settimane"},
+  "Süre kaynağı": {"en": "Time source", "it": "Origine tempo"},
+  "🔄 İhtiyacı Tazele": {"en": "🔄 Refresh demand", "it": "🔄 Aggiorna fabbisogno"},
+  "Bizdeki tanım / süre": {"en": "Our definition / time", "it": "Nostra definizione / tempo"},
   "🧮 Kapasite — Ürün Havuzu": {"en": "🧮 Capacity — Product Pool", "it": "🧮 Capacità — Anagrafica prodotti"},
   "Ürün Havuzu": {"en": "Product Pool", "it": "Anagrafica prodotti"},
   "Kapasite": {"en": "Capacity", "it": "Capacità"},
@@ -6981,15 +6993,55 @@ window.__I18N_SOZLUK__ = {
                     </div>
                 </div>
 
+                <!-- HAFTALIK İŞ YÜKÜ (kullanıcı 2026-09-17): "2, 4, 6 ve 8 haftalık bölüm
+                     bazlı kapasite hesabına bakıyor olmamız gerekiyor." Bu kart yükün
+                     KENDİSİNİ gösterir (kaç saat iş var); kapasite (vardiya × operatör)
+                     karşılaştırması bir sonraki adımda eklenecek. -->
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>📅 Açık üretim ihtiyacı (OPR) — bölüm bazlı iş yükü</h3>
+                        <span class="adet-info" id="kap-talep-bilgi"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Bölüm</th>
+                                    <th style="width:90px">Kod</th>
+                                    <th style="width:110px">Adet</th>
+                                    <th style="width:120px">Termini geçmiş</th>
+                                    <th style="width:90px">2 hafta</th>
+                                    <th style="width:90px">4 hafta</th>
+                                    <th style="width:90px">6 hafta</th>
+                                    <th style="width:90px">8 hafta</th>
+                                    <th style="width:190px">Süre kaynağı</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kap-talep-liste">
+                                <tr><td colspan="9"><div class="yukleniyor">Yükleniyor…</div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="padding:10px 20px;font-size:.78rem;color:var(--muted);line-height:1.6" id="kap-talep-not"></div>
+                </div>
+
                 <div class="ky-filtre">
+                    <div class="f-group">
+                        <label>Talep</label>
+                        <select id="kap-talep" style="min-width:170px" onchange="kapYukle(0)">
+                            <option value="1">Yalnız OPR'si olanlar</option>
+                            <option value="0">OPR'si olmayanlar</option>
+                            <option value="">Hepsi</option>
+                        </select>
+                    </div>
                     <div class="f-group">
                         <label>Durum</label>
                         <select id="kap-durum" style="min-width:190px" onchange="kapYukle(0)">
+                            <option value="">Tümü</option>
                             <option value="atanmamis">Bölümü atanmamış</option>
                             <option value="suresiz">Tanımlı ama süresiz</option>
                             <option value="tanimli">Süresi tanımlı</option>
                             <option value="rotasiz">ERP rotası yok</option>
-                            <option value="">Tümü</option>
                         </select>
                     </div>
                     <div class="f-group">
@@ -7013,7 +7065,8 @@ window.__I18N_SOZLUK__ = {
                         🔍 Listele
                     </button>
                     <button class="btn btn-outline" onclick="kapKaynakAc()" title="ERP kaynağı (WELDING, LASERCUT, NROPE…) hangi bölümümüze sayılıyor">🔗 Kaynak Eşlemesi</button>
-                    <button class="btn btn-outline" id="kap-senk-btn" onclick="kapSenkron()" title="AS400'den ürün ve rota listesini yeniden çeker (yaklaşık yarım dakika)">⬇️ AS400'den Çek</button>
+                    <button class="btn btn-outline" id="kap-talep-btn" onclick="kapSenkron(true)" title="Yalnız açık üretim ihtiyacını (OPR) tazeler — birkaç saniye">🔄 İhtiyacı Tazele</button>
+                    <button class="btn btn-outline" id="kap-senk-btn" onclick="kapSenkron()" title="AS400'den ürün, rota ve ihtiyaç listesini yeniden çeker (yaklaşık yarım dakika)">⬇️ AS400'den Çek</button>
                     <div id="kap-durum-bilgi" style="font-size:.7rem;color:var(--muted);margin-left:auto;align-self:center"></div>
                 </div>
 
@@ -7065,12 +7118,13 @@ window.__I18N_SOZLUK__ = {
                                     <th style="width:34px"><input type="checkbox" id="kap-hepsi" onchange="kapHepsiSec(this.checked)"></th>
                                     <th style="width:170px">Kod</th>
                                     <th>Açıklama</th>
-                                    <th style="width:230px">ERP rotası</th>
-                                    <th style="width:230px">Bizdeki tanım</th>
+                                    <th style="width:150px">Açık ihtiyaç</th>
+                                    <th style="width:210px">ERP rotası</th>
+                                    <th style="width:250px">Bizdeki tanım / süre</th>
                                 </tr>
                             </thead>
                             <tbody id="kap-liste">
-                                <tr><td colspan="5"><div class="empty-state">Listelemek için filtre seçin.</div></td></tr>
+                                <tr><td colspan="6"><div class="empty-state">Listelemek için filtre seçin.</div></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -9045,7 +9099,7 @@ window.__I18N_SOZLUK__ = {
             else if (aktifSayfa === 'durus-analizi') daSekmeAcildi();
             // Kapasite: "bizde tanımlı mı" sorusu LOKASYONA göre yanıtlanır; atama
             // bölümleri de tesise göre değişir (TK1'de montaj/plastik/tel)
-            else if (aktifSayfa === 'kapasite') { kapTopluBolumDoldur(); kapOzet(); kapYukle(); }
+            else if (aktifSayfa === 'kapasite') { kapTopluBolumDoldur(); kapOzet(); kapTalepOzet(); kapYukle(); }
         }
 
         function lokasyonGorunum() {
@@ -18525,6 +18579,7 @@ window.__I18N_SOZLUK__ = {
             }
             kapTopluBolumDoldur();
             kapOzet();
+            kapTalepOzet();
             kapYukle(0);
         }
 
@@ -18535,6 +18590,64 @@ window.__I18N_SOZLUK__ = {
             sel.innerHTML = '<option value="">Bölüm seçin…</option>' + lokBolumleri().map(function (b) {
                 return '<option value="' + b + '">' + esc(bolumAdi(b)) + '</option>';
             }).join('');
+        }
+
+        // Haftalık iş yükü (OPR) — kullanıcı 2026-09-17: "kaynak bölümü için 20.000
+        // adetlik OPR oluşmuş, cycle time / operatör / vardiyaya göre kapasitemiz ne
+        // durumda". Bu tablo yükün SAAT karşılığını verir; kapasite karşılaştırması
+        // (vardiya × operatör × OEE) bir sonraki adımda gelecek.
+        async function kapTalepOzet() {
+            var govde = document.getElementById('kap-talep-liste');
+            if (!govde) return;
+            try {
+                var r = await panelFetch('/api/kapasite/talep_ozet?lokasyon=' + encodeURIComponent(aktifLokasyon));
+                var d = await r.json();
+                if (!r.ok) { govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">' + esc(d.hata || '') + '</div></td></tr>'; return; }
+                var bin = function (n) { return Math.round(n || 0).toLocaleString('tr-TR'); };
+                var bilgi = document.getElementById('kap-talep-bilgi');
+                if (bilgi) bilgi.textContent = d.senk_at ? ('ihtiyaç listesi ' + d.senk_at) : 'ihtiyaç çekilmedi';
+                if (!d.bolumler.length) {
+                    govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">Açık üretim ihtiyacı yok ya da ihtiyaç listesi çekilmedi.</div></td></tr>';
+                } else {
+                    govde.innerHTML = d.bolumler.map(function (b) {
+                        var saat = function (h) {
+                            var v = (b.hafta[h] || {}).saat || 0;
+                            return '<td style="font-weight:700">' + bin(v) + ' sa</td>';
+                        };
+                        var kaynak = '<span style="color:var(--success)">' + b.bizim_sureli_kod + ' bizim</span>' +
+                            (b.erp_sureli_kod ? ' · <span style="color:var(--b-kaynak)">' + b.erp_sureli_kod + ' ERP</span>' : '') +
+                            (b.suresiz_kod ? ' · <span style="color:var(--danger);font-weight:700">' + b.suresiz_kod + ' süresiz</span>' : '');
+                        return '<tr><td style="font-weight:700"><a onclick="kapBolumSuz(\'' + b.bolum + '\')" ' +
+                            'style="cursor:pointer;color:var(--primary)">' + esc(bolumAdi(b.bolum)) + '</a></td>' +
+                            '<td>' + b.kod_sayisi + '</td><td>' + bin(b.adet) + '</td>' +
+                            '<td style="color:' + (b.gecikmis_saat ? 'var(--danger)' : 'var(--muted)') + '">' +
+                            bin(b.gecikmis_saat) + ' sa</td>' +
+                            saat('2') + saat('4') + saat('6') + saat('8') +
+                            '<td style="font-size:.76rem">' + kaynak + '</td></tr>';
+                    }).join('');
+                }
+                var not = document.getElementById('kap-talep-not');
+                if (not) {
+                    not.innerHTML = 'Saatler <b>kümülatiftir</b>: "4 hafta" sütunu bugünden 28 gün sonrasına kadar olan işi ve termini geçmiş işi birlikte sayar. ' +
+                        'Süre önceliği: bizim tanımımız → ERP rota süresi. ' +
+                        (d.dis_islem && d.dis_islem.kod ? ('<br>' + bin(d.dis_islem.adet) + ' adetlik ' + d.dis_islem.kod +
+                            ' kod tamamen dış işlem/kaplama rotasına sahip — bizim kapasitemize yük getirmez.') : '') +
+                        (d.tarihsiz && d.tarihsiz.emir ? ('<br><span style="color:var(--warn)">' + d.tarihsiz.emir +
+                            ' emrin termini yok, haftalık kovalara girmedi.</span>') : '');
+                }
+            } catch (e) {
+                govde.innerHTML = '<tr><td colspan="9"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        function kapBolumSuz(bolum) {
+            var sel = document.getElementById('kap-bolum');
+            if (sel) sel.value = bolum;
+            var t = document.getElementById('kap-talep');
+            if (t) t.value = '1';
+            kapYukle(0);
+            var kart = document.getElementById('kap-liste');
+            if (kart) kart.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         async function kapOzet() {
@@ -18567,6 +18680,7 @@ window.__I18N_SOZLUK__ = {
             if (govde) govde.innerHTML = '<tr><td colspan="5"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
             var q = '/api/kapasite/urunler?limit=' + _kap.limit + '&offset=' + _kap.offset +
                 '&lokasyon=' + encodeURIComponent(aktifLokasyon) +
+                '&talep=' + encodeURIComponent((document.getElementById('kap-talep') || {}).value || '') +
                 '&durum=' + encodeURIComponent((document.getElementById('kap-durum') || {}).value || '') +
                 '&bolum=' + encodeURIComponent((document.getElementById('kap-bolum') || {}).value || '') +
                 '&prov=' + encodeURIComponent((document.getElementById('kap-prov') || {}).value || '') +
@@ -18575,13 +18689,35 @@ window.__I18N_SOZLUK__ = {
                 var r = await panelFetch(q);
                 var d = await r.json();
                 if (!r.ok) {
-                    govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">' + esc(d.hata || 'Yüklenemedi') + '</div></td></tr>';
+                    govde.innerHTML = '<tr><td colspan="6"><div class="empty-state">' + esc(d.hata || 'Yüklenemedi') + '</div></td></tr>';
                     return;
                 }
                 _kap.veri = d;
                 kapCiz(d);
             } catch (e) {
-                govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+                govde.innerHTML = '<tr><td colspan="6"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        async function kapSatirSure(inp) {
+            if (!inp) return;
+            var kod = inp.getAttribute('data-sure-kod');
+            var bolum = inp.getAttribute('data-sure-bolum');
+            var v = (inp.value || '').trim();
+            if (v === '' || !(Number(v) >= 0)) { toast('Süre yazın', 'err'); return; }
+            try {
+                var r = await panelFetch('/api/kapasite/ata', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kodlar: [kod], bolum: bolum, lokasyon: aktifLokasyon,
+                                           sure_sn: Number(v) })
+                });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Kaydedilemedi', 'err'); return; }
+                toast(kod + ' · ' + bolumAdi(bolum) + ' = ' + v + ' sn', 'ok');
+                kapTalepOzet();
+                kapOzet();
+            } catch (e) {
+                toast('Kaydedilemedi: ' + e.message, 'err');
             }
         }
 
@@ -18610,7 +18746,7 @@ window.__I18N_SOZLUK__ = {
             if (onc) onc.disabled = d.offset <= 0;
             if (son) son.disabled = d.offset + d.limit >= d.toplam;
             if (!d.satirlar.length) {
-                govde.innerHTML = '<tr><td colspan="5"><div class="empty-state">Bu filtreye uyan kod yok.</div></td></tr>';
+                govde.innerHTML = '<tr><td colspan="6"><div class="empty-state">Bu filtreye uyan kod yok.</div></td></tr>';
                 return;
             }
             govde.innerHTML = d.satirlar.map(function (x) {
@@ -18623,6 +18759,29 @@ window.__I18N_SOZLUK__ = {
                       x.diger_tesis.map(function (t) { return esc(t.lokasyon + '/' + t.bolum); }).join(', ') + '</div>'
                     : '';
                 if (!tanim) tanim = '<span style="color:var(--dim);font-size:.78rem">tanım yok</span>';
+                // Satır içi süre: bölümü belli olan kodda süreyi burada yazabilmek
+                // ("süresi olmayanlara da süre tanımlaması yapalım").
+                var tekBolum = Object.keys(x.rota || {});
+                tekBolum = (tekBolum.length === 1) ? tekBolum[0] : '';
+                var mevcutCt = ((x.tanimlar || []).filter(function (t) { return t.bolum === tekBolum; })[0] || {}).ct || '';
+                if (tekBolum && lokBolumleri().indexOf(tekBolum) !== -1) {
+                    tanim += '<div style="display:flex;gap:5px;align-items:center;margin-top:5px">' +
+                        '<input type="number" min="0" step="0.1" class="rt-row-input" style="width:86px;text-align:right" ' +
+                        'value="' + (mevcutCt || '') + '" placeholder="sn" ' +
+                        'data-sure-kod="' + esc(x.kod) + '" data-sure-bolum="' + tekBolum + '" ' +
+                        'onkeydown="if(event.key===\'Enter\')kapSatirSure(this)">' +
+                        '<button class="btn btn-ghost" style="padding:2px 9px;font-size:.74rem" ' +
+                        'onclick="kapSatirSure(this.previousElementSibling)">Kaydet</button>' +
+                        (x.rota[tekBolum] ? '<span style="font-size:.72rem;color:var(--dim)">ERP ' + x.rota[tekBolum] + ' sn</span>' : '') +
+                        '</div>';
+                }
+                var talep = x.talep
+                    ? ('<b>' + (x.talep.kalan || 0).toLocaleString('tr-TR') + '</b> adet' +
+                       '<div style="font-size:.74rem;color:' +
+                       (x.talep.ilk_termin && x.talep.ilk_termin < new Date().toISOString().slice(0, 10) ? 'var(--danger)' : 'var(--muted)') +
+                       '">' + (x.talep.ilk_termin ? ('termin ' + esc(x.talep.ilk_termin)) : 'termin yok') +
+                       ' · ' + x.talep.emir + ' emir</div>')
+                    : '<span style="color:var(--dim);font-size:.78rem">ihtiyaç yok</span>';
                 return '<tr data-kod="' + esc(x.kod) + '">' +
                     '<td><input type="checkbox" onchange="kapSec(this, \'' + esc(x.kod).replace(/'/g, "\\'") + '\')"' +
                     (_kap.secili[x.kod] ? ' checked' : '') + '></td>' +
@@ -18630,6 +18789,7 @@ window.__I18N_SOZLUK__ = {
                     'style="font-weight:700;cursor:pointer;color:var(--primary)">' + esc(x.kod) + '</a>' +
                     (x.guncel ? '' : '<div style="font-size:.7rem;color:var(--warn)">ERP\'de yok</div>') + '</td>' +
                     '<td style="font-size:.82rem">' + esc(x.aciklama || '—') + '</td>' +
+                    '<td>' + talep + '</td>' +
                     '<td>' + kapRotaRozet(x.rota, (_kap.veri || {}).bolum_disi) + '</td>' +
                     '<td>' + tanim + digeri + '</td></tr>';
             }).join('');
@@ -18689,6 +18849,7 @@ window.__I18N_SOZLUK__ = {
                 toast(d.mesaj, 'ok');
                 kapSecimTemizle();
                 kapOzet();
+                kapTalepOzet();
                 kapYukle();
             } catch (e) {
                 toast('Atanamadı: ' + e.message, 'err');
@@ -18714,7 +18875,23 @@ window.__I18N_SOZLUK__ = {
             }
         }
 
-        async function kapSenkron() {
+        async function kapSenkron(sadeceTalep) {
+            if (sadeceTalep) {
+                var tbtn = document.getElementById('kap-talep-btn');
+                if (tbtn) { tbtn.disabled = true; tbtn.textContent = '⏳ Tazeleniyor…'; }
+                try {
+                    var tr = await panelFetch('/api/kapasite/senkron?sadece_talep=1', { method: 'POST' });
+                    var td = await tr.json();
+                    if (!tr.ok || td.hata) { toast(td.hata || 'Çekilemedi', 'err'); return; }
+                    toast(td.mesaj, 'ok');
+                    kapTalepOzet(); kapOzet(); kapYukle();
+                } catch (e) {
+                    toast('Çekilemedi: ' + e.message, 'err');
+                } finally {
+                    if (tbtn) { tbtn.disabled = false; tbtn.textContent = '🔄 İhtiyacı Tazele'; }
+                }
+                return;
+            }
             if (!confirm('AS400\'den ürün ve rota listesi yeniden çekilecek.\n\n60 binden fazla kod okunur; ölçümde 19 saniye sürdü, sunucuda biraz uzayabilir. Devam edilsin mi?')) return;
             var btn = document.getElementById('kap-senk-btn');
             if (btn) { btn.disabled = true; btn.textContent = '⏳ Çekiliyor…'; }
@@ -18724,6 +18901,7 @@ window.__I18N_SOZLUK__ = {
                 if (!r.ok || d.hata) { toast(d.hata || 'Çekilemedi', 'err'); return; }
                 toast(d.mesaj, 'ok');
                 kapOzet();
+                kapTalepOzet();
                 kapYukle(0);
             } catch (e) {
                 toast('Çekilemedi: ' + e.message, 'err');

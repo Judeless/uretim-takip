@@ -7017,20 +7017,51 @@ def kapasite_ozet_api():
 @app.route('/api/kapasite/senkron', methods=['POST'])
 @panel_gerekli(izin='kapasite')
 def kapasite_senkron_api():
-    """AS400'den ürün havuzunu + rotaları çeker (60 bin ürün, 34 bin rota satırı).
-    ELLE TETİKLENİR: ERP'yi her istekte taramak ne gerekli ne de nazik."""
+    """AS400'den ürün havuzunu + rotaları + AÇIK ÜRETİM İHTİYACINI (OPR) çeker.
+    ELLE TETİKLENİR: ERP'yi her istekte taramak ne gerekli ne de nazik.
+    ?sadece_talep=1 → yalnız OPR listesini tazeler (saniyeler sürer; ürün/rota
+    ayda bir değişir, ihtiyaç her gün)."""
+    sadece_talep = str(request.args.get('sadece_talep') or '') == '1'
     try:
-        sonuc = KAP.senkron(get_db(), g.panel_ku['kullanici_adi'])
-        sonuc['turetilen'] = KAP.turet(get_db())
+        if sadece_talep:
+            sonuc = {'talep': KAP.talep_senkron(get_db(), g.panel_ku['kullanici_adi'])}
+        else:
+            sonuc = KAP.senkron(get_db(), g.panel_ku['kullanici_adi'])
+            sonuc['turetilen'] = KAP.turet(get_db())
+            sonuc['talep'] = KAP.talep_senkron(get_db(), g.panel_ku['kullanici_adi'])
     except Exception as e:
         # Kimlik/profil hatasında as400_config KİLİT koyar (COFLEFORGE disabilitato
         # olayı) — mesajı olduğu gibi göster, kullanıcı kilidi bilsin.
         return jsonify({'hata': f'AS400 okunamadı: {e}'}), 502
-    mesaj = (f"{sonuc['uretim']:,} üretim (P) + {sonuc['fason']:,} fason (A) kodu, "
-             f"{sonuc['rota']:,} rota satırı alındı".replace(',', '.'))
-    if sonuc['yeni_kaynak']:
-        mesaj += f" · bölümü atanmamış YENİ kaynak: {', '.join(sonuc['yeni_kaynak'][:6])}"
+    t = sonuc.get('talep') or {}
+    if sadece_talep:
+        mesaj = (f"{t.get('acik', 0):,} açık emir · {t.get('kod', 0):,} kod · "
+                 f"{t.get('adet', 0):,} adet".replace(',', '.'))
+    else:
+        mesaj = (f"{sonuc['uretim']:,} üretim (P) + {sonuc['fason']:,} fason (A) kodu, "
+                 f"{sonuc['rota']:,} rota satırı, {t.get('acik', 0):,} açık üretim ihtiyacı "
+                 f"({t.get('kod', 0):,} kod) alındı".replace(',', '.'))
+        if sonuc.get('yeni_kaynak'):
+            mesaj += f" · bölümü atanmamış YENİ kaynak: {', '.join(sonuc['yeni_kaynak'][:6])}"
+    if t.get('gecikmis'):
+        mesaj += f" · {t['gecikmis']:,} emrin termini GEÇMİŞ".replace(',', '.')
     return jsonify({'basarili': True, 'mesaj': mesaj, **sonuc})
+
+
+@app.route('/api/kapasite/talep_ozet', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def kapasite_talep_ozet_api():
+    """Bölüm bazlı haftalık iş yükü: 2 / 4 / 6 / 8 haftada kaç adet ve kaç SAAT iş var.
+    ?lokasyon=TK2&haftalar=2,4,6,8
+    Süre önceliği bizim tanımımız → ERP rotası; süresi hiç olmayan kod ayrıca sayılır
+    (kapasite o kodlar için EKSİK hesaplanır, panel bunu söyler)."""
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    try:
+        haftalar = tuple(sorted({max(1, min(52, int(h)))
+                                 for h in (request.args.get('haftalar') or '2,4,6,8').split(',') if h.strip()}))
+    except (TypeError, ValueError):
+        return jsonify({'hata': 'haftalar sayı listesi olmalı (2,4,6,8)'}), 400
+    return jsonify(KAP.talep_ozet(get_db(), lokasyon, haftalar or (2, 4, 6, 8)))
 
 
 @app.route('/api/kapasite/urunler', methods=['GET'])
@@ -7050,6 +7081,7 @@ def kapasite_urunler_api():
                   lokasyon=(a.get('lokasyon') or '').strip().upper(),
                   ara=(a.get('ara') or '').strip(),
                   sirala=(a.get('sirala') or 'kod').strip(),
+                  talep=(a.get('talep') if a.get('talep') is not None else '1').strip(),
                   limit=limit, offset=offset)
     d['bolum_disi'] = list(KAP.BOLUM_DISI)
     return jsonify(d)

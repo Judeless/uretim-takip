@@ -24,7 +24,7 @@ TASARIM KARARLARI
     kod referans_listesi'nde varsa oradan, yoksa atamada kullanıcı seçer.
 """
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 # Kaynak (ERP risorsa) → bizim bölüm. Sınıflandırmanın ÇEKİRDEĞİ; panelden
 # değiştirilebilir (kapasite_kaynak tablosu), burası yalnız İLK kurulum değeridir.
@@ -32,7 +32,9 @@ from datetime import datetime
 VARSAYILAN_KAYNAK_BOLUM = {
     'WELDING': 'kaynak',
     'LASERCUT': 'lazer',
-    'CNCBEND': 'bukum',            # ⚠ 'bukum' bölümü sistemde YOK — bkz. BOLUM_DISI
+    # Kullanıcı 2026-09-17: "CNCBEND bölümü abkant olarak tanımlı bizde. Mechanical
+    # press ile CNC bend'i bizdeki pres/abkant bölümü olarak düşüneceğiz."
+    'CNCBEND': 'pres',
     'OUTCASE': 'tel',
     'MEC.20T': 'pres', 'MEC.40T': 'pres', 'MEC.60T': 'pres', 'MEC.80T': 'pres',
     'MEC.200T': 'pres',
@@ -62,9 +64,9 @@ VARSAYILAN_KAYNAK_BOLUM = {
 # yoksa iş montajdır; makine kaynağı da varsa işçilik o makinenin yanında sayılır.
 ISCILIK_KAYNAKLARI = ('NROPE', 'NROPEAA', 'OPERAIO', 'SPECOPEPP', 'WRKGENERIC', 'T0006')
 
-# Sistemde üretim bölümü olarak TANIMLI OLMAYAN kapasite bölümleri. Atama yapılamaz
-# (referans_listesi bu bölümü kabul etmez); panelde "bölüm sistemde yok" uyarısı çıkar.
-BOLUM_DISI = ('bukum',)
+# Sistemde üretim bölümü olarak TANIMLI OLMAYAN kapasite bölümleri (atama yapılamaz).
+# 2026-09-17: 'bukum' buradan ÇIKTI — CNC büküm bizde Pres/Abkant bölümünün parçası.
+BOLUM_DISI = ()
 
 # Zaman birimleri (ERP Y1IVUM) → saniye çarpanı. AD/KG/NR malzeme satırıdır, süre değil.
 UM_SANIYE = {'SS': 1.0, 'MN': 60.0, 'HH': 3600.0}
@@ -82,6 +84,19 @@ SQL_ROTA = f"""
     JOIN {AS400_SEMA}.BARTF0 a ON a.A0ARTI = r.Y1ARTI
     WHERE a.A0PROV = 'P' AND (a.A0ARAN IS NULL OR a.A0ARAN <> 'A')
 """
+# AÇIK ÜRETİM İHTİYACI (OPR). XPRO90 = yalnız açık emirler görünümü:
+#   Q0AVAN 10 = OPR — MRP ihtiyaç yarattı, launch alınmadı (asıl kapasite yükü burada)
+#          40 = launch açık · 45/50 = TK1 akışı
+#   Q0QTOR sipariş adedi · Q0QTRI teyit edilen → KALAN = ordine - rientrata
+#   Q0FPD* = "Dt fine produzione" (termin): haftalık kovalar buna göre kurulur.
+SQL_TALEP = f"""
+    SELECT Q0ARTI, Q0AVAN, Q0QTOR, Q0QTRI, Q0RED1, Q0RED2, Q0RENU,
+           Q0FPD1, Q0FPD2, Q0FPD3, Q0FPD4, Q0IPD1, Q0IPD2, Q0IPD3, Q0IPD4
+    FROM {AS400_SEMA}.XPRO90
+"""
+TALEP_DURUM_AD = {'10': 'OPR (ihtiyaç)', '40': 'Launch açık', '45': 'Launch (TK1)',
+                  '50': 'Launch (TK1)'}
+
 SQL_KAYNAK = f"""
     SELECT r.ARRICD, r.ARRIDS, r.ARRPCD, d.B35003, r.ARRIAN
     FROM {AS400_SEMA}.BRISF0 r
@@ -173,6 +188,12 @@ def senkron(conn, kullanici='', baglan=None):
         else:
             c.execute("UPDATE kapasite_kaynak SET aciklama=?, reparto=?, reparto_ad=?, iptal=? "
                       "WHERE kaynak_kod=?", (ad, rep, rep_ad, iptal, kod))
+            # Kod içindeki VARSAYILAN değişmişse (ör. 2026-09-17 CNCBEND 'bukum' → 'pres')
+            # elle dokunulmamış satır yeni varsayılana geçer; elle=1 satıra ASLA dokunma.
+            if not var['elle']:
+                vars_yeni = VARSAYILAN_KAYNAK_BOLUM.get(kod.upper(), var['bolum'] or '')
+                if vars_yeni != (var['bolum'] or ''):
+                    c.execute("UPDATE kapasite_kaynak SET bolum=? WHERE kaynak_kod=?", (vars_yeni, kod))
     uretim = sum(1 for u in urunler if u[2] == 'P' and not u[3])
     fason = sum(1 for u in urunler if u[2] == 'A' and not u[3])
     c.execute("INSERT INTO kapasite_senk (tarih, kullanici, urun, uretim, fason, rota, kaynak) "
@@ -182,6 +203,147 @@ def senkron(conn, kullanici='', baglan=None):
     return {'urun': len(urunler), 'uretim': uretim, 'fason': fason, 'rota': yazilan,
             'mukerrer_rota': mukerrer, 'kaynak': len(kaynaklar), 'yeni_kaynak': yeni,
             'tarih': simdi}
+
+
+def _erp_tarih(ss, aa, mm, gg):
+    """ERP tarihi (yüzyıl/yıl/ay/gün ayrı kolonlar) → 'YYYY-MM-DD'. Geçersizse ''.
+    DİKKAT: SS = YÜZYIL (20), AA = yıl (26) → 2026. '1900+' varsayımı 3926 üretir."""
+    try:
+        ss, aa, mm, gg = int(_f(ss)), int(_f(aa)), int(_f(mm)), int(_f(gg))
+        if not (mm and gg):
+            return ''
+        yil = ss * 100 + aa if ss >= 19 else 2000 + aa
+        return date(yil, mm, gg).isoformat()
+    except (ValueError, TypeError):
+        return ''
+
+
+def talep_senkron(conn, kullanici='', baglan=None):
+    """Açık üretim ihtiyacını (OPR + açık launch) AS400'den çeker.
+
+    Kullanıcı 2026-09-17: "biz sistemde şu anda OPR'si yani üretim ihtiyacı oluşmuş
+    referanslara bakacağız çünkü o kodları üretmemiz gerekiyor." Havuzdaki 29 bin
+    koddan yalnız bunlar kapasiteyi ilgilendirir (2026-09-17: 1.900 civarı kod)."""
+    if baglan is None:
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'as400'))
+        import as400_config as CFG
+        baglan = CFG.baglan
+    cn = baglan(timeout=60)
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        cur = cn.cursor()
+        cur.execute(SQL_TALEP)
+        ham = cur.fetchall()
+    finally:
+        try:
+            cn.close()
+        except Exception:
+            pass
+    satirlar = []
+    for r in ham:
+        kod = _t(r[0])
+        if not kod:
+            continue
+        adet, teyit = _f(r[2]), _f(r[3])
+        emir = f'{int(_f(r[4])):02d}-{int(_f(r[5])):02d}-{int(_f(r[6]))}'
+        satirlar.append((kod, _t(r[1]), emir, adet, teyit, max(0.0, adet - teyit),
+                         _erp_tarih(r[7], r[8], r[9], r[10]), _erp_tarih(r[11], r[12], r[13], r[14]),
+                         simdi))
+    c = conn.cursor()
+    c.execute("DELETE FROM kapasite_talep")      # tam yenileme: kapanan emir bizde kalmasın
+    c.executemany(
+        "INSERT INTO kapasite_talep (kod, durum, emir_no, adet, teyit, kalan, bitis, baslangic, "
+        "senk_at) VALUES (?,?,?,?,?,?,?,?,?)", satirlar)
+    conn.commit()
+    bugun = date.today().isoformat()
+    acik = [x for x in satirlar if x[5] > 0]
+    return {'emir': len(satirlar), 'acik': len(acik),
+            'kod': len({x[0] for x in acik}),
+            'adet': round(sum(x[5] for x in acik)),
+            'gecikmis': sum(1 for x in acik if x[6] and x[6] < bugun),
+            'gecikmis_adet': round(sum(x[5] for x in acik if x[6] and x[6] < bugun)),
+            'tarihsiz': sum(1 for x in acik if not x[6]),
+            'tarih': simdi}
+
+
+def _sure_haritasi(conn):
+    """{(normalize_kod, bolum, lokasyon): sn} — BİZİM tanımlı sürelerimiz (ct > 0)."""
+    return {(r['k'], r['bolum'], r['lok']): float(r['ct']) for r in conn.execute(
+        "SELECT UPPER(REPLACE(referans_kodu,' ','')) k, COALESCE(bolum,'kaynak') bolum, "
+        "COALESCE(lokasyon,'TK2') lok, COALESCE(hedef_cycle_time_sn,0) ct "
+        "FROM referans_listesi WHERE COALESCE(hedef_cycle_time_sn,0) > 0")}
+
+
+def talep_ozet(conn, lokasyon='TK2', haftalar=(2, 4, 6, 8)):
+    """Bölüm bazlı haftalık ihtiyaç: kaç adet ve kaç SAAT iş var.
+
+    · Kovalar KÜMÜLATİF: "4 hafta" = bugünden 28 gün sonrasına kadar olan tüm iş +
+      TERMİNİ GEÇMİŞ işler. Gecikmiş iş ayrı da gösterilir — kapasite planında onu
+      saymamak, yükü olduğundan küçük gösterir (2026-09-17'de 486 bin adet gecikmiş).
+    · Süre önceliği: BİZİM tanımımız (referans_listesi, seçili tesis) → ERP rota süresi.
+      Hangisinin kullanıldığı sayılır: 'bizim_kod' / 'erp_kod' (kalan iş için).
+    · Termini olmayan emirler 'tarihsiz' olarak ayrı raporlanır, kovalara girmez.
+    """
+    bugun = date.today()
+    sinir = {h: (bugun + timedelta(days=7 * h)).isoformat() for h in haftalar}
+    bizim = _sure_haritasi(conn)
+    rota = {}
+    for r in conn.execute("SELECT kod, bolum, sure_sn FROM kapasite_urun_bolum"):
+        rota.setdefault(r['kod'], {})[r['bolum']] = float(r['sure_sn'] or 0)
+    bolumler = {}
+    dis_islem = {'kod': set(), 'adet': 0.0}    # rotası yalnız dış işlem/kaplama: bize yük gelmez
+    tarihsiz = {'adet': 0.0, 'emir': 0}
+    for t in conn.execute("SELECT kod, kalan, bitis FROM kapasite_talep WHERE kalan > 0"):
+        kod, kalan, bitis = t['kod'], float(t['kalan'] or 0), (t['bitis'] or '')
+        dagilim = rota.get(kod)
+        if not dagilim:
+            dis_islem['kod'].add(kod)
+            dis_islem['adet'] += kalan
+            continue
+        if not bitis:
+            tarihsiz['adet'] += kalan
+            tarihsiz['emir'] += 1
+        gecikmis = bool(bitis) and bitis < bugun.isoformat()
+        for bolum, erp_sn in dagilim.items():
+            b = bolumler.setdefault(bolum, {
+                'bolum': bolum, 'kod': set(), 'suresiz_kod': set(), 'bizim_kod': set(),
+                'adet': 0.0, 'gecikmis_adet': 0.0, 'gecikmis_sn': 0.0,
+                'hafta': {h: {'adet': 0.0, 'sn': 0.0} for h in haftalar}})
+            sn = bizim.get((kod.upper(), bolum, lokasyon))
+            if sn:
+                b['bizim_kod'].add(kod)
+            else:
+                sn = erp_sn
+                if not sn:
+                    b['suresiz_kod'].add(kod)
+            b['kod'].add(kod)
+            b['adet'] += kalan
+            if gecikmis:
+                b['gecikmis_adet'] += kalan
+                b['gecikmis_sn'] += kalan * (sn or 0)
+            for h in haftalar:
+                if gecikmis or (bitis and bitis <= sinir[h]):
+                    b['hafta'][h]['adet'] += kalan
+                    b['hafta'][h]['sn'] += kalan * (sn or 0)
+    out = []
+    for b in bolumler.values():
+        out.append({
+            'bolum': b['bolum'], 'kod_sayisi': len(b['kod']),
+            'bizim_sureli_kod': len(b['bizim_kod']),
+            'erp_sureli_kod': len(b['kod']) - len(b['bizim_kod']) - len(b['suresiz_kod']),
+            'suresiz_kod': len(b['suresiz_kod']),
+            'adet': round(b['adet']), 'gecikmis_adet': round(b['gecikmis_adet']),
+            'gecikmis_saat': round(b['gecikmis_sn'] / 3600, 1),
+            'hafta': {str(h): {'adet': round(v['adet']), 'saat': round(v['sn'] / 3600, 1)}
+                      for h, v in b['hafta'].items()},
+        })
+    out.sort(key=lambda x: -x['hafta'][str(max(haftalar))]['saat'])
+    son = conn.execute("SELECT MAX(senk_at) s FROM kapasite_talep").fetchone()
+    return {'lokasyon': lokasyon, 'haftalar': list(haftalar), 'bolumler': out,
+            'dis_islem': {'kod': len(dis_islem['kod']), 'adet': round(dis_islem['adet'])},
+            'tarihsiz': {'emir': tarihsiz['emir'], 'adet': round(tarihsiz['adet'])},
+            'senk_at': (son['s'] if son else None)}
 
 
 def kaynak_haritasi(conn):
@@ -203,25 +365,27 @@ def rota_bolumleri(satirlar, harita):
     surumler = {str(s.get('surum') or '').strip() for s in satirlar}
     sec = '' if '' in surumler else (sorted(surumler)[0] if surumler else '')
     satirlar = [s for s in satirlar if str(s.get('surum') or '').strip() == sec]
-    makine, iscilik = {}, 0.0
+    makine, iscilik, iscilik_var = {}, 0.0, False
     for s in satirlar:
         kod = str(s.get('kaynak_kod') or '').strip().upper()
         sn = float(s.get('sure_sn') or 0)
-        if sn <= 0:
-            continue
         bolum = (harita.get(kod, ('', ''))[0] or '').strip()
         if not bolum:
-            continue                                   # dış işlem / malzeme
+            continue                                   # dış işlem / malzeme / test
         if kod in ISCILIK_KAYNAKLARI:
-            iscilik += sn
+            iscilik_var = True
+            iscilik += max(0.0, sn)
         else:
-            makine[bolum] = makine.get(bolum, 0.0) + sn
+            # SÜRESİ 0 OLAN ADIM DA BÖLÜME YAZILIR (2026-09-17): ERP'de rota var ama
+            # süre girilmemişse kod "bölümü yok" diye kaybolmamalı — tam tersine
+            # süre tanımlanacaklar listesinde görünmesi gerekiyor.
+            makine[bolum] = makine.get(bolum, 0.0) + max(0.0, sn)
     if makine:
         if iscilik:
             enb = max(makine, key=lambda b: makine[b])
             makine[enb] += iscilik
         return {b: round(v, 2) for b, v in makine.items()}
-    return {'montaj': round(iscilik, 2)} if iscilik else {}
+    return {'montaj': round(iscilik, 2)} if iscilik_var else {}
 
 
 def turet(conn):
@@ -237,8 +401,7 @@ def turet(conn):
     satirlar = []
     for kod, rota in ham.items():
         for bolum, sn in rota_bolumleri(rota, harita).items():
-            if sn > 0:
-                satirlar.append((kod, bolum, sn))
+            satirlar.append((kod, bolum, sn))     # sn=0 → 'süresi tanımsız' olarak görünür
     c = conn.cursor()
     c.execute("DELETE FROM kapasite_urun_bolum")
     c.executemany("INSERT INTO kapasite_urun_bolum (kod, bolum, sure_sn) VALUES (?,?,?)", satirlar)
@@ -300,7 +463,7 @@ def ozet(conn, lokasyon=''):
 
 
 def liste(conn, prov='P', durum='', bolum='', lokasyon='', ara='', sirala='kod',
-          limit=100, offset=0):
+          talep='1', limit=100, offset=0):
     """Ürün havuzu — her satırda ERP rotası (bölüm + saniye) ve bizdeki tanım(lar).
 
     durum: '' hepsi · 'atanmamis' (bizde tanım yok) · 'suresiz' (tanım var, süre yok)
@@ -318,6 +481,12 @@ def liste(conn, prov='P', durum='', bolum='', lokasyon='', ara='', sirala='kod',
     if bolum:
         kosul.append("EXISTS (SELECT 1 FROM kapasite_urun_bolum b WHERE b.kod=u.kod AND b.bolum=?)")
         par.append(bolum)
+    if talep == '1':
+        # Kullanıcı 2026-09-17: "hepsini süzmeye ve atamaya gerek yok, OPR'si oluşmuş
+        # referanslara bakacağız" → varsayılan süzgeç açık üretim ihtiyacıdır.
+        kosul.append("EXISTS (SELECT 1 FROM kapasite_talep t WHERE t.kod=u.kod AND t.kalan > 0)")
+    elif talep == '0':
+        kosul.append("NOT EXISTS (SELECT 1 FROM kapasite_talep t WHERE t.kod=u.kod AND t.kalan > 0)")
     var = f"u.kod IN ({_tanimli_sql(lokasyon)})"
     sureli = f"u.kod IN ({_tanimli_sql(lokasyon, True)})"
     if durum == 'atanmamis':
@@ -333,8 +502,14 @@ def liste(conn, prov='P', durum='', bolum='', lokasyon='', ara='', sirala='kod',
         kosul.append("NOT EXISTS (SELECT 1 FROM kapasite_urun_bolum b WHERE b.kod = u.kod)")
     nere = " WHERE " + " AND ".join(kosul)
     toplam = conn.execute("SELECT COUNT(*) n FROM kapasite_urun u" + nere, par).fetchone()['n']
-    duzen = ("ORDER BY (SELECT COALESCE(SUM(sure_sn),0) FROM kapasite_urun_bolum b "
-             "WHERE b.kod=u.kod) DESC, u.kod" if sirala == 'sure' else "ORDER BY u.kod")
+    if sirala == 'sure':
+        duzen = ("ORDER BY (SELECT COALESCE(SUM(sure_sn),0) FROM kapasite_urun_bolum b "
+                 "WHERE b.kod=u.kod) DESC, u.kod")
+    elif sirala == 'talep':      # en çok iş bekleyen kod üstte — süre girişi oradan başlasın
+        duzen = ("ORDER BY (SELECT COALESCE(SUM(kalan),0) FROM kapasite_talep t "
+                 "WHERE t.kod=u.kod) DESC, u.kod")
+    else:
+        duzen = "ORDER BY u.kod"
     satirlar = [dict(r) for r in conn.execute(
         "SELECT u.kod, u.aciklama, u.prov, u.tip, u.urun_hatti, u.guncel FROM kapasite_urun u"
         + nere + ' ' + duzen + " LIMIT ? OFFSET ?", par + [int(limit), int(offset)])]
@@ -353,7 +528,15 @@ def liste(conn, prov='P', durum='', bolum='', lokasyon='', ara='', sirala='kod',
                 f"UPPER(REPLACE(referans_kodu,' ','')) IN ({isaret})", kodlar):
             tanim.setdefault(_norm(r['referans_kodu']), []).append(
                 {'bolum': r['bolum'], 'lokasyon': r['lokasyon'], 'ct': round(float(r['ct'] or 0), 1)})
+        talepler = {}
+        for r in conn.execute(
+                "SELECT kod, SUM(kalan) kalan, MIN(CASE WHEN bitis <> '' THEN bitis END) ilk_termin, "
+                "COUNT(*) emir FROM kapasite_talep WHERE kalan > 0 AND kod IN "
+                f"({isaret}) GROUP BY kod", kodlar):
+            talepler[r['kod']] = {'kalan': round(float(r['kalan'] or 0)),
+                                  'ilk_termin': r['ilk_termin'] or '', 'emir': r['emir']}
         for s in satirlar:
+            s['talep'] = talepler.get(s['kod'])
             s['rota'] = rota.get(s['kod'], {})
             hepsi = tanim.get(s['kod'], [])
             s['tanimlar'] = [t for t in hepsi if not lokasyon or t['lokasyon'] == lokasyon]
