@@ -14404,15 +14404,16 @@ def _ariza_satir(r, conn=None):
     return d
 
 
-def _ariza_amirlere_haber(cfg, kayit):
-    """Yeni/yükseltilen bildirimde amirlere push. Push yoksa sessiz geçer —
-    panel kuyruğu ve rozet zaten her açılışta gösteriyor."""
+def _ariza_amirlere_haber(cfg, kayit, hatirlatma=False):
+    """Yeni bildirimde (ya da onay gecikince) amirlere push. Push yoksa sessiz
+    geçer — panel kuyruğu ve rozet zaten her açılışta gösteriyor."""
     amirler = _ariza_amirler(cfg, kayit.get('lokasyon'))
     adlar = [a['ad'] for a in amirler if a['ad']]
     if not adlar:
         return
     acil = (kayit.get('oncelik') == 'acil')
-    baslik = ('🚨 ACİL arıza bildirimi' if acil else '🔧 Yeni arıza bildirimi')
+    baslik = ('⏰ Arıza bildirimi ONAY BEKLİYOR' if hatirlatma
+              else ('🚨 ACİL arıza bildirimi' if acil else '🔧 Yeni arıza bildirimi'))
     govde = (f"{kayit.get('makine')} · {kayit.get('operator_adi')} — "
              f"{(kayit.get('aciklama') or '')[:80]}")
     try:
@@ -14927,17 +14928,22 @@ def ariza_reddet(aid):
     return jsonify({'basarili': True})
 
 
-def ariza_yukseltme_job():
-    """Amir belirli sürede bakmadıysa bildirimi yükseltir (periyodik).
+def ariza_hatirlatma_job():
+    """Amir onayı bekleyen bildirimlerde AMİRE HATIRLATMA (periyodik).
 
-    Gökhan Bey'in "amir sahada/izinli/gece vardiyasında olabilir" endişesi:
-    bekleyen bildirim config'teki süreyi aşarsa (varsayılan 30 dk) bakıma
-    OTOMATİK düşer. work-order ucu tanımlı değilse gönderim yapılamaz —
-    o hâlde amirlere tekrar push atılır ve kayıt beklemede kalır (sessizce
-    kaybolmasın). Süre 0 ise yükseltme kapalıdır."""
+    KURAL (kullanıcı 2026-09-18): "Acil talepler hariç, MES üzerinden onay
+    verilmeden bakıma talep iletilmesin." Eskiden bekleyen bildirim 30 dakikayı
+    aşınca bakıma OTOMATİK düşüyordu (gonderim_yolu='zaman_asimi'); bu yol
+    KALDIRILDI. Artık yalnız 'acil' işaretli bildirim amiri beklemeden gider;
+    düşük/normal/yüksek önceliklilerin hepsi amir onayında bekler.
+
+    İş, bekleyen bildirimi bakıma GÖNDERMEZ — amirlere hatırlatma push'u atar ve
+    damgalar. Damga olmasa 5 dakikalık periyotta her turda push giderdi.
+    Süre config'ten: hatirlatma_dk (eski ad yukseltme_dk), 0 = hatırlatma kapalı.
+    Kayıt hiçbir hâlde kendiliğinden kapanmaz; amir onaylar ya da reddeder."""
     cfg = _bakim_config()
     try:
-        dk = int(cfg.get('yukseltme_dk', 30))
+        dk = int(cfg.get('hatirlatma_dk', cfg.get('yukseltme_dk', 30)))
     except (TypeError, ValueError):
         dk = 30
     if dk <= 0:
@@ -14945,24 +14951,20 @@ def ariza_yukseltme_job():
     conn = db_connect()
     try:
         rows = conn.execute(
-            f"SELECT * FROM ariza_bildirimleri WHERE durum='bekliyor' "
-            f"  AND olusturma_ts <= datetime('now','localtime','-{dk} minutes')").fetchall()
+            "SELECT * FROM ariza_bildirimleri WHERE durum='bekliyor' "
+            f"  AND olusturma_ts <= datetime('now','localtime','-{dk} minutes') "
+            "  AND (hatirlatma_ts IS NULL OR "
+            f"       hatirlatma_ts <= datetime('now','localtime','-{dk} minutes'))").fetchall()
         for r in rows:
             kayit = dict(r)
-            ok, mesaj, _u = _ariza_bakima_gonder(conn, kayit, 'zaman_asimi')
-            if ok:
-                conn.execute(
-                    "UPDATE ariza_bildirimleri SET durum='gonderildi', "
-                    "gonderim_yolu='zaman_asimi', karar_ts=datetime('now','localtime'), "
-                    "karar_notu=COALESCE(karar_notu,'') || ? WHERE id=?",
-                    (f'[{dk} dk amir onayı beklendi, otomatik iletildi]', kayit['id']))
-                conn.commit()
-                print(f'[ARIZA] #{kayit["id"]} zaman aşımı → bakıma iletildi')
-            else:
-                _ariza_amirlere_haber(cfg, kayit)
-                print(f'[ARIZA] #{kayit["id"]} {dk} dk bekliyor — amirlere hatırlatıldı ({mesaj})')
+            _ariza_amirlere_haber(cfg, kayit, hatirlatma=True)
+            conn.execute(
+                "UPDATE ariza_bildirimleri SET hatirlatma_ts=datetime('now','localtime'), "
+                "hatirlatma_sayisi=COALESCE(hatirlatma_sayisi,0)+1 WHERE id=?", (kayit['id'],))
+            conn.commit()
+            print(f'[ARIZA] #{kayit["id"]} {dk} dk onay bekliyor — amirlere hatırlatıldı')
     except Exception as e:
-        print(f'[ARIZA] yükseltme işi hatası: {e}')
+        print(f'[ARIZA] hatırlatma işi hatası: {e}')
     finally:
         conn.close()
 
@@ -16066,7 +16068,7 @@ if __name__ == '__main__':
                             periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit'),
                                                 (_nbd, agent_nobet_job, 'Teyit-Agent Nöbeti'),
                                                 # Amir onayı gecikmiş arıza bildirimleri
-                                                (5, ariza_yukseltme_job, 'Arıza Yükseltme'),
+                                                (5, ariza_hatirlatma_job, 'Arıza Hatırlatma'),
                                                 # Bakıma iletilmiş talebin durumu (v0.9.8 ucu)
                                                 (5, ariza_durum_job, 'Arıza Bakım Durumu')])
         except Exception as _e:

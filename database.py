@@ -622,12 +622,21 @@ def init_db():
             amir TEXT,                         -- karari veren panel kullanicisi
             karar_ts TEXT,
             karar_notu TEXT,                   -- red sebebi / amir notu
-            gonderim_yolu TEXT,                -- amir|acil|zaman_asimi
+            gonderim_yolu TEXT,                -- amir|acil (zaman_asimi 2026-09-18'de KALDIRILDI)
             bakim_talep_no TEXT,               -- bakim sisteminden donerse
             bakim_durum TEXT,                  -- ikinci faz: durum sorgulamasi
             bakim_durum_ts TEXT
         )
     ''')
+    # AMİR HATIRLATMASI (kullanıcı 2026-09-18): süre aşımında bildirim artık bakıma
+    # OTOMATİK GİTMEZ, amire hatırlatma push'u atılır. Damga olmadan 5 dakikada bir
+    # çalışan iş her turda push atar ve amirleri bunaltırdı.
+    for _kolon, _tip in (('hatirlatma_ts', 'TEXT'), ('hatirlatma_sayisi', 'INTEGER DEFAULT 0')):
+        try:
+            c.execute(f'ALTER TABLE ariza_bildirimleri ADD COLUMN {_kolon} {_tip}')
+        except Exception:
+            pass          # kolon zaten var
+
     for _sql in ("CREATE INDEX IF NOT EXISTS ix_ariza_durum ON ariza_bildirimleri(durum, lokasyon)",
                  "CREATE INDEX IF NOT EXISTS ix_ariza_ts ON ariza_bildirimleri(olusturma_ts)"):
         try:

@@ -16,12 +16,12 @@
     "TK1": [{"panel": "ibrahim.kirmizitas", "ad": "Ibrahim Kirmizitas"}]
   },
 
-  "_acil_notu": "true: 'acil' isaretli bildirim amiri BEKLEMEDEN bakima duser, amire bilgi kopyasi gider.",
+  "_acil_notu": "true: 'acil' isaretli bildirim amiri BEKLEMEDEN bakima duser, amire bilgi kopyasi gider. ACIL DISINDA HICBIR BILDIRIM AMIR ONAYI OLMADAN BAKIMA GITMEZ (kullanici 2026-09-18).",
   "acil_hizli_yol": true,
 
-  "_yukseltme_notu": "Amir bu sure icinde bakmazsa bildirim otomatik bakima duser. 0 = kapali.",
-  "yukseltme_dk": 30,
+  "_hatirlatma_notu": "Amir bu sure icinde karar vermezse AMIRE HATIRLATMA push'u gider (ayni aralikla tekrarlanir). Bildirim bakima OTOMATIK GONDERILMEZ. 0 = hatirlatma kapali. Eski ad: yukseltme_dk.",
+  "hatirlatma_dk": 30,
 
-  "_work_order_notu": "Halil Bey'in v0.9.0 work-order ucunun yolu (or. /api/integrations/forge/work-order). BOSSA handoff kullanilir: amir bakim formunda tamamlar. Acil/zaman asimi yukseltmeleri icin bu uc GEREKLI (ekran yok).",
+  "_work_order_notu": "Halil Bey'in v0.9.0 work-order ucunun yolu (or. /api/integrations/forge/work-order). BOSSA handoff kullanilir: amir bakim formunda tamamlar. Acil hizli yol icin bu uc GEREKLI (ekran yok).",
   "work_order_yolu": ""
 }

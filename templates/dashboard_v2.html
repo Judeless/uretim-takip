@@ -18030,7 +18030,9 @@ window.__I18N_SOZLUK__ = {
           var talepNo = b.bakim_talep_no
             ? ' <span style="font-weight:600;color:var(--muted)">· ' + esc(b.bakim_talep_no) + '</span>' : '';
           // Gönderim yolu: amir onayı mı, acil hızlı yol mu, zaman aşımı mı?
-          var yol = { amir: '', acil: ' (acil hızlı yol)', zaman_asimi: ' (süre aşımı — otomatik)' }[b.gonderim_yolu] || '';
+          // Gönderim yolu. 'zaman_asimi' 2026-09-18'de KALDIRILDI (acil dışında hiçbir
+          // bildirim amir onayı olmadan gitmez) — eski kayıtlarda görünmeye devam eder.
+          var yol = { amir: '', acil: ' (acil hızlı yol)', zaman_asimi: ' (süre aşımı — eski akış)' }[b.gonderim_yolu] || '';
           var h = '<div class="panel-card" style="margin-bottom:12px;border-left:3px solid ' + renk + '">' +
             '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">' +
               '<div style="font-weight:800;font-size:1rem">' + esc(b.makine) +
@@ -18057,6 +18059,9 @@ window.__I18N_SOZLUK__ = {
               '👤 ' + esc(b.operator_adi) + ' · ' + esc((b.olusturma_ts || '').slice(0, 16)) +
               ' · öncelik: <b>' + (ARIZA_ONC_AD[b.oncelik] || b.oncelik) + '</b>' +
               (b.bekleme_dk != null ? ' · ' + b.bekleme_dk + ' dk' + (bekliyor ? ' bekliyor' : '') : '') +
+              // Onay gecikirse amire hatırlatma gider; kaç kez gittiği burada görünür
+              (bekliyor && b.hatirlatma_sayisi ? ' · <b style="color:var(--warn)">' +
+                b.hatirlatma_sayisi + ' kez hatırlatıldı</b>' : '') +
               (b.durus_id ? ' · duruş #' + b.durus_id : '') +
             '</div>';
           if (b.karar_notu) {
