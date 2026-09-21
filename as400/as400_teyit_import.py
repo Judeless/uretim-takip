@@ -33,6 +33,11 @@ için yazdığımız satırın hangi ortamda işlendiğini Simone'ye doğrulatı
 deneme bu yüzden 'A' (ara teyit) ve küçük adetle yapılır, satır J0STE2 ile geri
 bulunur.
 
+DOĞRULANDI (2026-09-21): sahte emir 26-999999 ile yazılan satır ~2 SANİYEDE işlendi;
+J0STAT=2, J0NOTE='[01E-Incorrect order]'. Program tablo üzerinde canlı çalışıyor ve
+bizim satırlarımızı görüyor. J0TIME İTALYA SAATİNDE damgalanır (TR'den 1 saat geri) —
+gecikmeyi J0TIME ile yerel saati çıkararak hesaplama.
+
 ODBC: as400_config ile aynı bağlantı; INSERT yetkisi yalnız COFLEFORGE'da.
 """
 import re

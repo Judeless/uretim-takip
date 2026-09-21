@@ -26,6 +26,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import as400_teyit_import as TI
 
+# Windows konsolu cp1254: ok/tire gibi karakterler cokerdi (cikti kaybolur,
+# yazim hic yapilmaz). Ciktiyi UTF-8'e cevir, cevrilemeyeni '?' yap.
+for _akim in (sys.stdout, sys.stderr):
+    try:
+        _akim.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 
 def yaz(b, *sat):
     print('\n' + b)
