@@ -38,6 +38,11 @@ J0STAT=2, J0NOTE='[01E-Incorrect order]'. Program tablo üzerinde canlı çalı�
 bizim satırlarımızı görüyor. J0TIME İTALYA SAATİNDE damgalanır (TR'den 1 saat geri) —
 gecikmeyi J0TIME ile yerel saati çıkararak hesaplama.
 
+ENGEL (2026-09-21): CANLI açık emir 26-202269 (XPRO90'da var, durum 40, kalan 25) de
+'01E-Incorrect order' aldı. Program canlı üretim emirlerini GÖRMÜYOR — test ortamına
+(COFLETKPR) bakıyor. Canlıya almadan önce İtalya'nın programı canlı ortama yöneltmesi
+gerekiyor; o güne kadar teyit PCOMM ekran robotuyla verilmeye devam eder.
+
 ODBC: as400_config ile aynı bağlantı; INSERT yetkisi yalnız COFLEFORGE'da.
 """
 import re
