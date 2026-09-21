@@ -39,7 +39,8 @@ bizim satırlarımızı görüyor. J0TIME İTALYA SAATİNDE damgalanır (TR'den 
 gecikmeyi J0TIME ile yerel saati çıkararak hesaplama.
 
 ENGEL (2026-09-21): CANLI açık emir 26-202269 (XPRO90'da var, durum 40, kalan 25) de
-'01E-Incorrect order' aldı. Program canlı üretim emirlerini GÖRMÜYOR — test ortamına
+'01E-Incorrect order' aldı; durum 45'teki 26-202046 da aynı cevabı verdi (emir durumu
+kuralı DEĞİL). Program canlı üretim emirlerini GÖRMÜYOR — test ortamına
 (COFLETKPR) bakıyor. Canlıya almadan önce İtalya'nın programı canlı ortama yöneltmesi
 gerekiyor; o güne kadar teyit PCOMM ekran robotuyla verilmeye devam eder.
 
