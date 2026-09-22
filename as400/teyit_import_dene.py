@@ -12,6 +12,7 @@ KULLANIM
   python as400/teyit_import_dene.py --son 10                    # tablodaki son satirlar
   python as400/teyit_import_dene.py --emir 26-200385 --adet 2   # DENEME TEYIDI (A)
   python as400/teyit_import_dene.py --emir 26-200385 --adet 2 --flsa S --onayla
+  python as400/teyit_import_dene.py --emir 26-200385 --adet 1 --causale 001 --depo 001
   python as400/teyit_import_dene.py --rrn 123                   # satirin durumunu oku
 
 GUVENLIK
@@ -65,6 +66,13 @@ def main():
     ap.add_argument('--son', type=int, help='BPRCF0I tablosundaki son N satiri goster')
     ap.add_argument('--bizim', action='store_true', help="--son icin yalniz bizim satirlarimiz")
     ap.add_argument('--rrn', type=int, help='tek satirin durumunu oku')
+    ap.add_argument('--kod', help='J0ARTI olarak yazilacak referans kodu '
+                                 '(verilmezse ERP kaydindaki article yazilir)')
+    ap.add_argument('--kodsuz', action='store_true',
+                    help='J0ARTI hic yazma (ilk denemelerdeki sade hali)')
+    ap.add_argument('--causale', help='J0CRCD rientro neden kodu (5250 ekranindaki deger)')
+    ap.add_argument('--depo', help='J0MGPR ana depo kodu')
+    ap.add_argument('--commessa', help='J0COMM is emri referansi')
     ap.add_argument('--onayla', action='store_true', help='S bayragi / buyuk adet icin onay')
     a = ap.parse_args()
 
@@ -109,6 +117,16 @@ def main():
             f'emir        : {a.emir}  →  J0RED1={parcali[0]}, J0RED2={parcali[1]}, J0RENU={parcali[2]}',
             f'adet (J0QTRI): {a.adet:g}',
             f"bayrak (J0FLSA): {a.flsa}  ({'ARA teyit' if a.flsa == 'A' else 'KAPANIS teyidi — emri kapatir'})")
+        ekler = {}
+        if not a.kodsuz:
+            kod = a.kod or (bilgi or {}).get('article') or ''
+            if kod:
+                ekler['J0ARTI'] = kod
+        for ad, deger in (('J0CRCD', a.causale), ('J0MGPR', a.depo), ('J0COMM', a.commessa)):
+            if deger:
+                ekler[ad] = deger
+        if ekler:
+            print('   ek alanlar  : ' + ' · '.join(f'{x}={y}' for x, y in ekler.items()))
         if bilgi:
             print('   ERP kaydi   : %s · durum %s · adet %.0f · teyit %.0f · KALAN %.0f'
                   % (bilgi['article'], bilgi['durum'], bilgi['adet'], bilgi['teyit'], bilgi['kalan']))
@@ -126,7 +144,7 @@ def main():
             print('   DURDURULDU: deneme icin adet siniri 5. Daha fazlasi icin --onayla ekle.')
             return
 
-        sonuc = TI.teyit_yaz(a.emir, a.adet, flsa=a.flsa, cn=cn, bekleme_sn=a.bekle)
+        sonuc = TI.teyit_yaz(a.emir, a.adet, flsa=a.flsa, cn=cn, bekleme_sn=a.bekle, ekler=ekler)
         yaz('SONUC',
             f"durum      : {sonuc.get('durum')}  (ok={sonuc.get('ok')})",
             f"anahtar    : {sonuc.get('anahtar', '')}   ← ERP'de J0STE2 bu deger",

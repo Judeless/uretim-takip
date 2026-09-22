@@ -161,12 +161,15 @@ def _satir_oku(cn, k, t, rrn):
 
 def teyit_yaz(emir, adet, flsa='A', referans=None, kutuphane=KUTUPHANE, tablo=TABLO,
               bekleme_sn=60, yokla_sn=3, zorla=False, cn=None, sadece_yaz=False,
-              kullanici=None):
+              kullanici=None, ekler=None):
     """Bir üretim emri teyidi yazar ve programın işlemesini bekler.
 
     emir : '26-200385' (yıl-numara) ya da (20, 26, 200385)
     adet : teyit edilecek adet (J0QTRI)
     flsa : 'A' ara teyit (VARSAYILAN) · 'S' kapanış teyidi — 'S' emri KAPATIR
+    ekler: isteğe bağlı kolonlar {'J0ARTI': referans kodu, 'J0CRCD': rientro
+           neden kodu, 'J0MGPR': ana depo, 'J0COMM': iş emri} — Simone'nin
+           listesinde yoklar ama tabloda varlar; '01E' alırsak sırayla denenir
 
     Döner: {ok, durum, teyit_sira, hareket_no, not, rrn, anahtar, alanlar, sql}
       islendi     : J0STAT='1'
@@ -211,6 +214,15 @@ def teyit_yaz(emir, adet, flsa='A', referans=None, kutuphane=KUTUPHANE, tablo=TA
             except (TypeError, ValueError):
                 uz = 0
             alanlar[REFERANS_KOLONU] = ref[:uz] if uz else ref
+
+        for _k, _v in (ekler or {}).items():
+            _k = str(_k).strip().upper()
+            if _v is None or str(_v).strip() == '':
+                continue
+            if _k not in mevcut_kolonlar:
+                return {'ok': False, 'durum': 'hata',
+                        'not': f'{k}.{t} içinde {_k} kolonu yok'}
+            alanlar[_k] = str(_v).strip() if isinstance(_v, str) else _v
 
         with _KILIT:
             cur = cn.cursor()
