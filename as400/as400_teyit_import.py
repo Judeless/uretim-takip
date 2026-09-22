@@ -38,6 +38,12 @@ J0STAT=2, J0NOTE='[01E-Incorrect order]'. Program tablo üzerinde canlı çalı�
 bizim satırlarımızı görüyor. J0TIME İTALYA SAATİNDE damgalanır (TR'den 1 saat geri) —
 gecikmeyi J0TIME ile yerel saati çıkararak hesaplama.
 
+ÇALIŞTI (2026-09-22): COFLETKPR'de açılan test emri 18-222 (10.300.1372, 300 adet)
+J0STAT=1 ile teyit edildi, depo hareketi 20-26-70-10 / 20-26-71-20, J0CNPR=200.
+Asgari alan seti YETERLİ (J0RED1/2/NU + J0QTRI + J0FLSA + J0STE2); J0ARTI, J0CRCD,
+J0MGPR gerekmiyor. EMİR ANAHTARI 'registrazione' yılıdır — test emri bugün açıldığı
+hâlde anahtarı 18/222; '26-xxxxxx' varsayma, anahtarı XPRO90'dan/ekrandan al.
+
 ENGEL (2026-09-21): CANLI açık emir 26-202269 (XPRO90'da var, durum 40, kalan 25) de
 '01E-Incorrect order' aldı; durum 45'teki 26-202046 da aynı cevabı verdi (emir durumu
 kuralı DEĞİL). Program canlı üretim emirlerini GÖRMÜYOR — test ortamına
