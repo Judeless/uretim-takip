@@ -42,18 +42,6 @@ def yaz(b, *sat):
         print('   ' + s)
 
 
-def emir_bilgi(cn, parcali):
-    d1, d2, nu = parcali
-    r = cn.cursor().execute(
-        "SELECT Q0ARTI, Q0AVAN, Q0QTOR, Q0QTRI FROM TKC0301F.XPRO90 "
-        "WHERE Q0RED1=? AND Q0RED2=? AND Q0RENU=?", (d1, d2, nu)).fetchone()
-    if not r:
-        return None
-    adet, teyit = float(r[2] or 0), float(r[3] or 0)
-    return {'article': str(r[0] or '').strip(), 'durum': str(r[1] or '').strip(),
-            'adet': adet, 'teyit': teyit, 'kalan': max(0.0, adet - teyit)}
-
-
 def main():
     ap = argparse.ArgumentParser(description='BPRCF0I teyit aktarimi denemesi')
     ap.add_argument('--emir', help="uretim emri: '26-200385' ya da '20-26-200385'")
@@ -112,7 +100,7 @@ def main():
             ap.error('--emir ve --adet gerekli (ya da --liste / --son / --rrn)')
 
         parcali = TI.emir_parcala(a.emir)
-        bilgi = emir_bilgi(cn, parcali)
+        bilgi = TI.emir_bilgi(parcali, cn=cn)
         yaz('YAZILACAK TEYIT',
             f'emir        : {a.emir}  →  J0RED1={parcali[0]}, J0RED2={parcali[1]}, J0RENU={parcali[2]}',
             f'adet (J0QTRI): {a.adet:g}',
@@ -144,7 +132,8 @@ def main():
             print('   DURDURULDU: deneme icin adet siniri 5. Daha fazlasi icin --onayla ekle.')
             return
 
-        sonuc = TI.teyit_yaz(a.emir, a.adet, flsa=a.flsa, cn=cn, bekleme_sn=a.bekle, ekler=ekler)
+        sonuc = TI.teyit_yaz(a.emir, a.adet, flsa=a.flsa, cn=cn, bekleme_sn=a.bekle,
+                             ekler=ekler, kalan_kontrol=not a.onayla)
         yaz('SONUC',
             f"durum      : {sonuc.get('durum')}  (ok={sonuc.get('ok')})",
             f"anahtar    : {sonuc.get('anahtar', '')}   ← ERP'de J0STE2 bu deger",

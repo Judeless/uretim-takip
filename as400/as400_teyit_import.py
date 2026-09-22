@@ -165,14 +165,44 @@ def _satir_oku(cn, k, t, rrn):
             'teyit_sira': d.get('j0cnpr', ''), 'hareket_no': hareket}
 
 
+def emir_bilgi(emir, cn=None, kullanici=None):
+    """Üretim emrini CANLI kütüphanede arar: {article, durum, adet, teyit, kalan} ya da None.
+
+    Test ortamındaki emirler burada BULUNMAZ (COFLETKPR bizim ODBC profilimize kapalı),
+    bu yüzden None dönmesi 'emir yok' demek değildir — yalnız 'kontrol edemedim' demektir.
+    """
+    try:
+        d1, d2, nu = emir_parcala(emir)
+    except ValueError:
+        return None
+    kapat = cn is None
+    cn = cn or baglan(kullanici=kullanici)
+    try:
+        r = cn.cursor().execute(
+            "SELECT Q0ARTI, Q0AVAN, Q0QTOR, Q0QTRI FROM TKC0301F.XPRO90 "
+            "WHERE Q0RED1=? AND Q0RED2=? AND Q0RENU=?", (d1, d2, nu)).fetchone()
+    finally:
+        if kapat:
+            cn.close()
+    if not r:
+        return None
+    adet, teyit = float(r[2] or 0), float(r[3] or 0)
+    return {'article': str(r[0] or '').strip(), 'durum': str(r[1] or '').strip(),
+            'adet': adet, 'teyit': teyit, 'kalan': max(0.0, adet - teyit)}
+
+
 def teyit_yaz(emir, adet, flsa='A', referans=None, kutuphane=KUTUPHANE, tablo=TABLO,
               bekleme_sn=60, yokla_sn=3, zorla=False, cn=None, sadece_yaz=False,
-              kullanici=None, ekler=None):
+              kullanici=None, ekler=None, kalan_kontrol=True):
     """Bir üretim emri teyidi yazar ve programın işlemesini bekler.
 
     emir : '26-200385' (yıl-numara) ya da (20, 26, 200385)
     adet : teyit edilecek adet (J0QTRI)
     flsa : 'A' ara teyit (VARSAYILAN) · 'S' kapanış teyidi — 'S' emri KAPATIR
+    kalan_kontrol: FAZLA TEYİT FRENİ — emir canlı XPRO90'da bulunursa adet kalan
+           adedi aşamaz. ERP'nin KENDİ freni YOKTUR: 2026-09-22 testinde 297 kalan
+           emre 500 adet gönderildi ve J0STAT=1 ile KABUL EDİLDİ. Bilerek fazla
+           göndermek gerekirse kalan_kontrol=False.
     ekler: isteğe bağlı kolonlar {'J0ARTI': referans kodu, 'J0CRCD': rientro
            neden kodu, 'J0MGPR': ana depo, 'J0COMM': iş emri} — Simone'nin
            listesinde yoklar ama tabloda varlar; '01E' alırsak sırayla denenir
@@ -205,6 +235,13 @@ def teyit_yaz(emir, adet, flsa='A', referans=None, kutuphane=KUTUPHANE, tablo=TA
     kapat = cn is None
     cn = cn or baglan(kullanici=kullanici)
     try:
+        if kalan_kontrol:
+            bilgi = emir_bilgi((d1, d2, nu), cn=cn)
+            if bilgi and adet_f > bilgi['kalan']:
+                return {'ok': False, 'durum': 'hata', 'emir_bilgi': bilgi,
+                        'not': (f"fazla teyit: {adet_f:g} adet isteniyor ama emirde "
+                                f"{bilgi['kalan']:.0f} adet kaldı (emir {d2:02d}-{nu:06d}, "
+                                f"{bilgi['article']}). ERP bunu KABUL EDER, freni biz koyuyoruz.")}
         mevcut_kolonlar = {c['ad'] for c in kolonlar(k, t, cn=cn)}
         eksik = [c for c in ZORUNLU + ('J0STAT',) if c not in mevcut_kolonlar]
         if eksik:
