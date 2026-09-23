@@ -14172,7 +14172,12 @@ def _bakim_katalog_yaz(conn, liste):
 
 
 def _bakim_katalog_tohumla(conn):
-    """Tablo BOŞSA tohum dosyasından doldurur (süreç başına bir kez denenir).
+    """AKTİF kayıt yoksa tohum dosyasından doldurur (süreç başına bir kez).
+
+    Ölçüt 'tablo boş' DEĞİL 'aktif kayıt yok': 2026-09-08'de bakım API'si tek
+    makinelik bir liste döndürdü ve tazeleme kalan 347 makineyi silindi
+    işaretledi — katalog dolu görünüyordu ama operatörün/amirin listeleri
+    bomboştu. Bu hâlde bilinen anlık görüntüye geri dönmek, boş ekrandan iyidir.
 
     Neden tembel: katalog yalnız arıza ekranlarında gerekiyor; başlangıç
     sırasına yeni bir dosya okuması eklemek istemedik."""
@@ -14181,11 +14186,17 @@ def _bakim_katalog_tohumla(conn):
         return
     _BAKIM_TOHUMLANDI = True
     try:
-        if conn.execute("SELECT COUNT(*) c FROM bakim_makineleri").fetchone()['c']:
+        sayi = conn.execute(
+            "SELECT COUNT(*) toplam, SUM(CASE WHEN durum='aktif' THEN 1 ELSE 0 END) aktif "
+            "FROM bakim_makineleri").fetchone()
+        if sayi['aktif']:
             return
         with open(_BAKIM_KATALOG_TOHUM, encoding='utf-8-sig') as f:
             liste = json.load(f)
-        print(f'[BAKIM] makine kataloğu tohumlandı: {_bakim_katalog_yaz(conn, liste)} makine')
+        n = _bakim_katalog_yaz(conn, liste)
+        uyari = (' — aktif kayıt kalmamıştı, tazeleme eksik liste döndürmüş olabilir'
+                 if sayi['toplam'] else '')
+        print(f'[BAKIM] makine kataloğu tohumlandı: {n} makine{uyari}')
     except FileNotFoundError:
         print('[BAKIM] katalog tohum dosyası yok — makine listeleri boş kalacak')
     except Exception as e:
@@ -14566,6 +14577,77 @@ def ariza_secenek():
     return jsonify({'tip': 'makine', 'makine': makine, 'durum': 'yok'})
 
 
+def _ariza_ara_norm(metin):
+    """Arama için Türkçe-duyarsız normalleştirme: 'Büküm' → 'BUKUM'."""
+    m = str(metin or '')
+    for a, b in (('İ', 'I'), ('ı', 'i'), ('Ğ', 'G'), ('ğ', 'g'), ('Ü', 'U'), ('ü', 'u'),
+                 ('Ş', 'S'), ('ş', 's'), ('Ö', 'O'), ('ö', 'o'), ('Ç', 'C'), ('ç', 'c')):
+        m = m.replace(a, b)
+    return m.upper()
+
+
+def _bakim_qr_kod(conn, metin):
+    """QR/barkod içeriğinden bakım makine kodunu çıkarır; yoksa ''.
+
+    Etiketteki QR bazen düz kod ('TKHP12'), bazen adres taşıyor
+    ('https://bakim.cofletk.com.tr/makine/TKHP12'). Metindeki her harf+rakam
+    parçasını KATALOGLA doğrularız — uydurma kod kabul edilmez."""
+    m = _ariza_ara_norm(metin)
+    for kod in re.findall(r'[A-Z]{2,5}[0-9]{1,4}', m):
+        r = conn.execute(
+            "SELECT kod FROM bakim_makineleri WHERE kod=? AND durum='aktif'", (kod,)).fetchone()
+        if r:
+            return r['kod']
+    return ''
+
+
+@app.route('/api/ariza/katalog', methods=['GET'])
+@operator_required
+def ariza_katalog():
+    """Operatörün seçebileceği BAKIM makineleri + teknik birimler (arama/QR).
+
+    Kullanıcı 2026-09-23: "operatör sadece çalıştığı makineyi değil, bakım
+    uygulamasındaki makineleri, makine dışı ise teknik birim bölümlerini
+    görsün; arayabilsin, gerekirse makinedeki QR'ı okutup adı bulabilsin."
+
+    ?q= arama metni ya da QR içeriği · ?lokasyon= · ?hepsi=1 (iki tesis birden)
+    Dönen: {makineler, birimler, qr_kod, toplam, kesildi}
+
+    PIN ŞART: uç internete açık (coflemanage.online) ve makine envanterimizi
+    döküyor — /api/ariza/secenek ile aynı kalıp."""
+    if not g.operator_adi:
+        return jsonify({'hata': 'Operatör girişi gerekli — PIN ile giriş yapın'}), 401
+    conn = get_db()
+    lok = (request.args.get('lokasyon') or g.operator_lokasyon or 'TK2').upper()
+    hepsi = str(request.args.get('hepsi') or '') in ('1', 'true', 'evet')
+    q = ' '.join(str(request.args.get('q') or '').split())
+    lok_suz = None if hepsi else (lok if lok in ('TK1', 'TK2') else None)
+    satirlar = _bakim_katalog(conn, lok_suz)
+    qr = _bakim_qr_kod(conn, q) if q else ''
+    if qr:
+        # QR okundu: makineyi lokasyon süzgecine BAKMADAN getir — operatör
+        # hangi makinenin başındaysa onun etiketini okutur.
+        satirlar = [r for r in _bakim_katalog(conn) if r['kod'] == qr]
+    elif q:
+        parcalar = [x for x in _ariza_ara_norm(q).split(' ') if x]
+        satirlar = [r for r in satirlar
+                    if all(x in _ariza_ara_norm(
+                        f"{r['kod']} {r['ad']} {r['birim']} {r['yol']}") for x in parcalar)]
+    toplam = len(satirlar)
+    makineler = [{'kod': r['kod'], 'ad': r['ad'], 'birim': (r['birim'] or '').strip(),
+                  'yer': (r['yol'] or '').split('›')[-1].strip(),
+                  'lokasyon': r['lokasyon'] or ''} for r in satirlar[:150]]
+    birim_sayac = {}
+    for r in satirlar:
+        ad = (r['birim'] or '').strip()
+        if not ad:
+            continue
+        b = birim_sayac.setdefault(ad, {'ad': ad, 'lokasyon': r['lokasyon'] or '', 'makine': 0})
+        b['makine'] += 1
+    birimler = sorted(birim_sayac.values(), key=lambda b: b['ad'])
+    return jsonify({'makineler': makineler, 'birimler': birimler, 'qr_kod': qr,
+                    'toplam': toplam, 'kesildi': toplam > len(makineler), 'lokasyon': lok})
+
 @app.route('/api/ariza', methods=['POST'])
 @operator_required
 def ariza_bildir():
@@ -14595,6 +14677,14 @@ def ariza_bildir():
         bas_ts = ''
 
     conn = get_db()
+    # TEKNİK BİRİM (makine dışı arıza): operatör bakım uygulamasındaki birimi
+    # seçer, makine kodu boş kalır — atamayı amir yapar. Katalogda DOĞRULANIR.
+    birim = ' '.join(str(d.get('bakim_birim') or '').split())
+    if birim and not conn.execute(
+            "SELECT 1 FROM bakim_makineleri WHERE birim=? AND durum='aktif' LIMIT 1",
+            (birim,)).fetchone():
+        return jsonify({'hata': f'{birim} bakım birim listesinde yok'}), 400
+
     # MÜKERRER FRENİ: aynı makine için son 30 dk'da bekleyen bildirim varsa
     # ikincisini açma — iki operatör aynı arızayı arka arkaya bildirebiliyor
     # (Gökhan Bey'in "mükerrer talepler" maddesi, MES tarafında da geçerli).
@@ -14610,31 +14700,24 @@ def ariza_bildir():
 
     cur = conn.execute(
         "INSERT INTO ariza_bildirimleri (olusturma_ts, lokasyon, bolum, makine, vardiya_id, "
-        "  durus_id, baslangic_ts, operator_adi, aciklama, oncelik, durum, bakim_kodu) "
-        "VALUES (datetime('now','localtime'),?,?,?,?,?,?,?,?,?,'bekliyor',?)",
+        "  durus_id, baslangic_ts, operator_adi, aciklama, oncelik, durum, bakim_kodu, "
+        "  bakim_birim) "
+        "VALUES (datetime('now','localtime'),?,?,?,?,?,?,?,?,?,'bekliyor',?,?)",
         (lokasyon, (d.get('bolum') or '').strip() or None, makine,
          d.get('vardiya_id') or None, d.get('durus_id') or None,
          bas_ts.replace('T', ' ')[:19] or None, g.operator_adi, aciklama, oncelik,
-         bkod or _bakim_kodu(_bakim_config(), makine, lokasyon, conn) or None))
+         bkod or _bakim_kodu(_bakim_config(), makine, lokasyon, conn) or None,
+         birim or None))
     conn.commit()
     kayit = dict(conn.execute("SELECT * FROM ariza_bildirimleri WHERE id=?",
                               (cur.lastrowid,)).fetchone())
     cfg = _bakim_config()
     _ariza_amirlere_haber(cfg, kayit)
 
-    # ACİL HIZLI YOL (Gökhan Bey'in "acil işaretli bildirimler için hızlı yol"
-    # maddesi): amiri BEKLETMEDEN bakıma düşer, amire bilgi kopyası gider.
-    # Config'te acil_hizli_yol kapatılabilir.
-    if kayit['oncelik'] == 'acil' and cfg.get('acil_hizli_yol', True):
-        ok, mesaj, _url = _ariza_bakima_gonder(conn, kayit, 'acil')
-        if ok:
-            conn.execute("UPDATE ariza_bildirimleri SET durum='gonderildi', "
-                         "gonderim_yolu='acil', karar_ts=datetime('now','localtime') WHERE id=?",
-                         (kayit['id'],))
-            conn.commit()
-            kayit['durum'] = 'gonderildi'
-        else:
-            print(f'[ARIZA] acil hızlı yol başarısız (#{kayit["id"]}): {mesaj}')
+    # ACİL DAHİL HİÇBİR BİLDİRİM AMİR ONAYI OLMADAN BAKIMA GİTMEZ (kullanıcı
+    # 2026-09-23). Eskiden 'acil' işaretli bildirim amiri beklemeden bakıma
+    # düşüyordu (acil_hizli_yol); o yol KALDIRILDI. Acil bildirim de kuyruğa
+    # girer — ayrıcalığı amire giden push'un başlığı ve kuyrukta öne çıkması.
     print(f'[ARIZA] #{kayit["id"]} {kayit["makine"]} · {g.operator_adi} · {oncelik} → {kayit["durum"]}')
     return jsonify({'basarili': True, 'id': kayit['id'], 'durum': kayit['durum']}), 201
 
@@ -14931,11 +15014,11 @@ def ariza_reddet(aid):
 def ariza_hatirlatma_job():
     """Amir onayı bekleyen bildirimlerde AMİRE HATIRLATMA (periyodik).
 
-    KURAL (kullanıcı 2026-09-18): "Acil talepler hariç, MES üzerinden onay
-    verilmeden bakıma talep iletilmesin." Eskiden bekleyen bildirim 30 dakikayı
-    aşınca bakıma OTOMATİK düşüyordu (gonderim_yolu='zaman_asimi'); bu yol
-    KALDIRILDI. Artık yalnız 'acil' işaretli bildirim amiri beklemeden gider;
-    düşük/normal/yüksek önceliklilerin hepsi amir onayında bekler.
+    KURAL (kullanıcı 2026-09-23): "Talep acil bile olsa amir kontrolüne düşsün,
+    hiçbir şekilde bakım programına otomatik iletilmesin." İki otomatik yol da
+    kaldırıldı: 30 dakikalık zaman aşımı (2026-09-18) ve acil hızlı yolu
+    (2026-09-23). Acil bildirimin ayrıcalığı yalnız kuyrukta öne çıkması ve
+    amire giden push'un başlığıdır.
 
     İş, bekleyen bildirimi bakıma GÖNDERMEZ — amirlere hatırlatma push'u atar ve
     damgalar. Damga olmasa 5 dakikalık periyotta her turda push giderdi.

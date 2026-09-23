@@ -2398,6 +2398,12 @@ window.__I18N_SOZLUK__ = {
   "Arıza Bildir": {"en": "Report Fault", "it": "Segnala guasto"},
   "🔧 Arıza Bildir": {"en": "🔧 Report Fault", "it": "🔧 Segnala guasto"},
   "Arıza nedir?": {"en": "What is the fault?", "it": "Qual è il guasto?"},
+  "Başka makine ya da birim seç": {"en": "Choose another machine or unit", "it": "Scegli un'altra macchina o unità"},
+  "Teknik birim": {"en": "Technical unit", "it": "Unità tecnica"},
+  "QR Okut": {"en": "Scan QR", "it": "Scansiona QR"},
+  "Kamerayı kapat": {"en": "Close camera", "it": "Chiudi fotocamera"},
+  "Diğer tesisi de listele": {"en": "Show the other plant too", "it": "Mostra anche l'altro stabilimento"},
+  "Makinenin üzerindeki QR etiketini kameraya gösterin.": {"en": "Show the QR label on the machine to the camera.", "it": "Mostra alla fotocamera l'etichetta QR sulla macchina."},
   "Arızayı kısaca yazın": {"en": "Describe the fault briefly", "it": "Descrivi brevemente il guasto"},
   "Bağlantı hatası:": {"en": "Connection error:", "it": "Errore di connessione:"},
   "Bildirim üretim amirine gider; amir kontrol edip bakıma iletir.": {"en": "The report goes to the production supervisor, who checks it and forwards it to maintenance.", "it": "La segnalazione va al responsabile di produzione, che la verifica e la inoltra alla manutenzione."},
@@ -3199,6 +3205,33 @@ window.__I18N_SOZLUK__ = {
           <select id="ariza-makine-sec" onchange="arizaMakineSec(this.value)"
             style="display:none;width:100%;margin-top:8px;padding:11px;border:1px solid var(--line-strong);border-radius:10px;font-size:.92rem;font-family:inherit;background:var(--card)"></select>
           <div id="ariza-baglam" style="font-size:.76rem;color:var(--muted);margin-top:2px"></div>
+        </div>
+
+        <!-- BAKIM KATALOĞU (kullanıcı 2026-09-23): arıza her zaman operatörün
+             kendi makinesinde olmuyor. Bakım uygulamasındaki TÜM makineler ve
+             makine dışı işler için TEKNİK BİRİMLER burada aranabilir; makinenin
+             üzerindeki QR okutulursa doğru kayıt tek dokunuşta bulunur. -->
+        <button type="button" id="ariza-kat-btn" onclick="arizaKatalogAc()"
+          style="width:100%;margin-bottom:12px;background:var(--card);color:var(--text);border:1px solid var(--line-strong);border-radius:12px;padding:11px;font-weight:700;font-size:.85rem;cursor:pointer">Başka makine ya da birim seç</button>
+        <div id="ariza-kat-wrap" style="display:none;border:1px solid var(--line-strong);border-radius:14px;padding:12px;margin-bottom:14px">
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <button type="button" id="ariza-kat-t-makine" class="ariza-kat-t" onclick="arizaKatalogTip(&quot;makine&quot;)" style="flex:1;padding:9px;border-radius:10px;border:1px solid var(--line-strong);background:var(--card);font-weight:800;font-size:.82rem;cursor:pointer">Makine</button>
+            <button type="button" id="ariza-kat-t-birim" class="ariza-kat-t" onclick="arizaKatalogTip(&quot;birim&quot;)" style="flex:1;padding:9px;border-radius:10px;border:1px solid var(--line-strong);background:var(--card);font-weight:800;font-size:.82rem;cursor:pointer">Teknik birim</button>
+          </div>
+          <div style="display:flex;gap:6px">
+            <input id="ariza-kat-q" type="search" oninput="arizaKatalogAra()" placeholder="Ara: pres, TKHP12, kesim hattı…" style="flex:1;min-width:0;padding:11px;border:1px solid var(--line-strong);border-radius:10px;font-size:.92rem;font-family:inherit;background:var(--card)">
+            <button type="button" id="ariza-qr-btn" onclick="arizaQrAc()" style="background:var(--primary-soft);color:var(--text);border:1px solid var(--primary-line);border-radius:10px;padding:0 14px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">QR Okut</button>
+          </div>
+          <div id="ariza-qr-alan" style="display:none;margin-top:8px">
+            <video id="ariza-qr-video" playsinline muted style="width:100%;max-height:220px;border-radius:12px;background:#000;object-fit:cover"></video>
+            <div id="ariza-qr-not" style="font-size:.74rem;color:var(--muted);margin-top:6px">Makinenin üzerindeki QR etiketini kameraya gösterin.</div>
+            <button type="button" onclick="arizaQrKapat()" style="margin-top:6px;background:var(--card);color:var(--text);border:1px solid var(--line-strong);border-radius:10px;padding:8px 14px;font-size:.8rem;cursor:pointer">Kamerayı kapat</button>
+          </div>
+          <div id="ariza-kat-liste" style="max-height:240px;overflow-y:auto;margin-top:10px"></div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.78rem;color:var(--muted)">
+            <input type="checkbox" id="ariza-kat-hepsi" onchange="arizaKatalogAra()" style="width:16px;height:16px">
+            <span>Diğer tesisi de listele</span>
+          </label>
         </div>
 
         <!-- BAKIM MAKİNESİ: kesim ve hidrolik pres alanlarında adlarımız bakım
@@ -4946,6 +4979,9 @@ window.__I18N_SOZLUK__ = {
     // hat adı DEĞİL, operatörün seçtiği makine. _arizaBakimKodu ise bakım
     // sistemindeki karşılığı (tanımlıysa otomatik, değilse operatör seçer).
     var _arizaMakine = '', _arizaBakimKodu = '', _arizaBakimSart = false;
+    // Katalogdan seçim (2026-09-23): _arizaBirim doluysa arıza bir MAKİNEDE
+    // değil teknik birimde demektir; makine kodu boş gider, atamayı amir yapar.
+    var _arizaBirim = '', _arizaKatTip = 'makine', _arizaKatZaman = null, _arizaQrAkim = null;
 
     function arizaAc(dr) {
       var mak = (aktifVardiyaData && aktifVardiyaData.robot_no) || '';
@@ -4963,6 +4999,9 @@ window.__I18N_SOZLUK__ = {
       document.getElementById('ariza-aciklama').value =
         (dr && dr.durus_sebebi && !dr.id) ? dr.durus_sebebi : '';
       arizaOncelikSec('yuksek');
+      _arizaBirim = '';
+      document.getElementById('ariza-kat-wrap').style.display = 'none';
+      document.getElementById('ariza-kat-q').value = '';
       document.getElementById('ariza-modal').style.display = 'flex';
       arizaGecmisYukle();
     }
@@ -4978,7 +5017,171 @@ window.__I18N_SOZLUK__ = {
       }
       arizaAc(dr);
     }
-    function arizaKapat() { document.getElementById('ariza-modal').style.display = 'none'; }
+    function arizaKapat() {
+      arizaQrKapat();
+      document.getElementById('ariza-modal').style.display = 'none';
+    }
+
+    // ── BAKIM KATALOĞU: ARAMA + QR (kullanıcı 2026-09-23) ──────────────
+    // "operatör sadece çalıştığı makineyi değil, bakım uygulamasındaki makine
+    //  ve makine dışı ise teknik birim bölümlerini görsün, arayabilsin, QR ile
+    //  bulabilsin." Liste sunucudan gelir; kod UYDURULAMAZ, katalogda doğrulanır.
+    function arizaKatalogAc() {
+      var w = document.getElementById('ariza-kat-wrap');
+      var acik = (w.style.display !== 'none');
+      if (acik) { arizaQrKapat(); w.style.display = 'none'; return; }
+      w.style.display = '';
+      arizaKatalogTip(_arizaKatTip);
+    }
+    function arizaKatalogTip(t) {
+      _arizaKatTip = t;
+      ['makine', 'birim'].forEach(function (x) {
+        var b = document.getElementById('ariza-kat-t-' + x);
+        if (!b) return;
+        var sec = (x === t);
+        b.style.background = sec ? 'var(--primary)' : 'var(--card)';
+        b.style.color = sec ? '#fff' : 'var(--text)';
+        b.style.borderColor = sec ? 'var(--primary)' : 'var(--line-strong)';
+      });
+      arizaKatalogYukle();
+    }
+    function arizaKatalogAra() {
+      clearTimeout(_arizaKatZaman);
+      _arizaKatZaman = setTimeout(arizaKatalogYukle, 250);
+    }
+    function arizaKatalogYukle() {
+      var q = (document.getElementById('ariza-kat-q').value || '').trim();
+      var hepsi = document.getElementById('ariza-kat-hepsi').checked ? '&hepsi=1' : '';
+      var kutu = document.getElementById('ariza-kat-liste');
+      kutu.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:.8rem">Yükleniyor…</div>';
+      fetch('/api/ariza/katalog?q=' + encodeURIComponent(q) + hepsi)
+        .then(function (r) {
+          // Uç PIN istiyor: oturum düşmüşse sebebini yaz, 'liste alınamadı' deme.
+          return (r.status === 401 || r.status === 403) ? 'yetki' : (r.ok ? r.json() : null);
+        })
+        .then(function (d) {
+          if (d === 'yetki') {
+            kutu.innerHTML = '<div style="padding:10px;color:var(--danger);font-size:.8rem">Önce PIN ile giriş yapın</div>';
+            return;
+          }
+          if (!d) { kutu.innerHTML = '<div style="padding:10px;color:var(--danger);font-size:.8rem">Liste alınamadı</div>'; return; }
+          arizaKatalogCiz(d);
+        }).catch(function () {
+          kutu.innerHTML = '<div style="padding:10px;color:var(--danger);font-size:.8rem">Liste alınamadı</div>';
+        });
+    }
+    function arizaKatalogCiz(d) {
+      var kutu = document.getElementById('ariza-kat-liste'), h = '';
+      var sat = 'width:100%;text-align:left;background:var(--card);border:1px solid var(--line);' +
+                'border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;font-family:inherit';
+      if (_arizaKatTip === 'birim') {
+        (d.birimler || []).forEach(function (b) {
+          h += '<button type="button" style="' + sat + '" onclick="arizaBirimSec(this.dataset.ad)" data-ad="' +
+               arizaKac(b.ad) + '"><div style="font-weight:800;font-size:.86rem">' + arizaKac(b.ad) +
+               '</div><div style="font-size:.74rem;color:var(--muted)">' + (b.lokasyon || '') +
+               ' · ' + b.makine + ' makine</div></button>';
+        });
+        if (!h) h = '<div style="padding:10px;color:var(--muted);font-size:.8rem">Birim bulunamadı</div>';
+      } else {
+        (d.makineler || []).forEach(function (m) {
+          h += '<button type="button" style="' + sat + '" onclick="arizaKatalogSec(this.dataset.kod, this.dataset.ad, this.dataset.yer)"' +
+               ' data-kod="' + arizaKac(m.kod) + '" data-ad="' + arizaKac(m.ad) + '" data-yer="' + arizaKac(m.yer || '') + '">' +
+               '<div style="font-weight:800;font-size:.86rem">' + arizaKac(m.ad) + '</div>' +
+               '<div style="font-size:.74rem;color:var(--muted)">' + arizaKac(m.kod) +
+               (m.yer ? ' · ' + arizaKac(m.yer) : '') + '</div></button>';
+        });
+        if (!h) h = '<div style="padding:10px;color:var(--muted);font-size:.8rem">Makine bulunamadı</div>';
+        else if (d.kesildi) h += '<div style="padding:6px 10px;color:var(--muted);font-size:.74rem">' +
+               d.toplam + ' kayıttan ilk ' + (d.makineler || []).length + ' tanesi — aramayı daraltın</div>';
+      }
+      kutu.innerHTML = h;
+    }
+    function arizaKac(x) {
+      return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function arizaKatalogSec(kod, ad, yer) {
+      _arizaMakine = ad + (yer ? ' · ' + yer : '');
+      _arizaBakimKodu = kod; _arizaBakimSart = false; _arizaBirim = '';
+      document.getElementById('ariza-makine').textContent = _arizaMakine;
+      document.getElementById('ariza-makine-sec').style.display = 'none';
+      document.getElementById('ariza-bkm-wrap').style.display = 'none';
+      var bilgi = document.getElementById('ariza-bkm-bilgi');
+      bilgi.textContent = 'Bakım kaydı: ' + ad + ' (' + kod + ')';
+      bilgi.style.display = '';
+      arizaQrKapat();
+      document.getElementById('ariza-kat-wrap').style.display = 'none';
+    }
+    function arizaBirimSec(ad) {
+      _arizaMakine = ad; _arizaBakimKodu = ''; _arizaBakimSart = false; _arizaBirim = ad;
+      document.getElementById('ariza-makine').textContent = ad;
+      document.getElementById('ariza-makine-sec').style.display = 'none';
+      document.getElementById('ariza-bkm-wrap').style.display = 'none';
+      var bilgi = document.getElementById('ariza-bkm-bilgi');
+      bilgi.textContent = 'Teknik birim bildirimi — makine atamasını amir yapacak.';
+      bilgi.style.display = '';
+      arizaQrKapat();
+      document.getElementById('ariza-kat-wrap').style.display = 'none';
+    }
+
+    // QR: tarayıcının kendi BarcodeDetector'ı kullanılır (ek kütüphane yok).
+    // Kamera YALNIZ güvenli bağlantıda açılır — http://ip adresinden girildiğinde
+    // tarayıcı izin vermez, o yüzden kullanıcıya bunu açıkça söylüyoruz.
+    function arizaQrAc() {
+      var alan = document.getElementById('ariza-qr-alan');
+      var not = document.getElementById('ariza-qr-not');
+      if (!window.isSecureContext || !navigator.mediaDevices) {
+        toast('QR için https adresinden girin (coflemanage.online)', 'error'); return;
+      }
+      if (!('BarcodeDetector' in window)) {
+        toast('Bu tarayıcı QR okuyamıyor — kodu arama kutusuna yazın', 'error'); return;
+      }
+      alan.style.display = '';
+      not.textContent = 'Makinenin üzerindeki QR etiketini kameraya gösterin.';
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+        .then(function (akim) {
+          _arizaQrAkim = akim;
+          var v = document.getElementById('ariza-qr-video');
+          v.srcObject = akim; v.play();
+          var dedektor = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'data_matrix'] });
+          var tara = function () {
+            if (!_arizaQrAkim) return;
+            dedektor.detect(v).then(function (kodlar) {
+              if (kodlar && kodlar.length) { arizaQrBulundu(kodlar[0].rawValue || ''); return; }
+              setTimeout(tara, 350);
+            }).catch(function () { setTimeout(tara, 600); });
+          };
+          setTimeout(tara, 400);
+        }).catch(function () {
+          alan.style.display = 'none';
+          toast('Kamera açılamadı — izin verilmemiş olabilir', 'error');
+        });
+    }
+    function arizaQrKapat() {
+      if (_arizaQrAkim) {
+        try { _arizaQrAkim.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+        _arizaQrAkim = null;
+      }
+      var alan = document.getElementById('ariza-qr-alan');
+      if (alan) alan.style.display = 'none';
+    }
+    function arizaQrBulundu(metin) {
+      if (!metin) return;
+      fetch('/api/ariza/katalog?q=' + encodeURIComponent(metin))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && d.qr_kod && (d.makineler || []).length) {
+            var m = d.makineler[0];
+            arizaKatalogSec(m.kod, m.ad, m.yer);
+            toast(m.ad + ' seçildi', 'success');
+            return;
+          }
+          document.getElementById('ariza-qr-not').textContent =
+            'Bu QR bakım listesinde bulunamadı: ' + metin.slice(0, 40);
+          document.getElementById('ariza-kat-q').value = metin.slice(0, 40);
+          arizaKatalogYukle();
+        }).catch(function () {});
+    }
 
     // ── MAKİNE SEÇİMİ (kullanıcı 2026-09-07) ────────────────────────────
     // Sunucu üç durumdan birini söyler:
@@ -4987,7 +5190,7 @@ window.__I18N_SOZLUK__ = {
     //   secim   → kesim/pres grubu; operatör bakım makinesini kendi seçer
     //   yok     → bu adla gönderilir, atamayı AMİR yapar (sonra kalıcı olur)
     function arizaSecimKur(mak) {
-      _arizaMakine = mak; _arizaBakimKodu = ''; _arizaBakimSart = false;
+      _arizaMakine = mak; _arizaBakimKodu = ''; _arizaBakimSart = false; _arizaBirim = '';
       var sel = document.getElementById('ariza-makine-sec');
       sel.style.display = 'none'; sel.innerHTML = '';
       arizaBakimAlaniGizle();
@@ -5009,7 +5212,7 @@ window.__I18N_SOZLUK__ = {
     }
 
     function arizaMakineSec(mak) {
-      _arizaMakine = mak; _arizaBakimKodu = ''; _arizaBakimSart = false;
+      _arizaMakine = mak; _arizaBakimKodu = ''; _arizaBakimSart = false; _arizaBirim = '';
       arizaBakimAlaniGizle();
       if (!mak) return;
       fetch('/api/ariza/secenek?makine=' + encodeURIComponent(mak))
@@ -5054,8 +5257,10 @@ window.__I18N_SOZLUK__ = {
         b.style.borderColor = sec ? 'var(--danger)' : 'var(--line-strong)';
       });
       // ACİL = amiri beklemeden bakıma düşer; operatör bunu bilerek seçsin.
+      // ACİL DE AMİR ONAYINDAN GEÇER (kullanıcı 2026-09-23): eskiden acil
+      // bildirim doğrudan bakıma düşüyordu, o yol kaldırıldı.
       document.getElementById('ariza-onc-not').textContent = (o === 'acil')
-        ? 'ACİL: bildirim doğrudan bakıma iletilir, amire bilgi verilir. Hat durduran arızalarda kullanın.'
+        ? 'ACİL: amire anında bildirim gider, kuyrukta en üste çıkar. Bakıma iletmeyi yine amir onaylar.'
         : 'Bildirim üretim amirine gider; amir kontrol edip bakıma iletir.';
     }
 
@@ -5071,6 +5276,7 @@ window.__I18N_SOZLUK__ = {
       var govde = {
         makine: _arizaMakine,
         bakim_kodu: bkod || '',
+        bakim_birim: _arizaBirim || '',
         bolum: (aktifVardiyaData && aktifVardiyaData.bolum) || '',
         vardiya_id: aktifVardiyaId || null,
         aciklama: acik,

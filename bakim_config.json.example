@@ -16,8 +16,7 @@
     "TK1": [{"panel": "ibrahim.kirmizitas", "ad": "Ibrahim Kirmizitas"}]
   },
 
-  "_acil_notu": "true: 'acil' isaretli bildirim amiri BEKLEMEDEN bakima duser, amire bilgi kopyasi gider. ACIL DISINDA HICBIR BILDIRIM AMIR ONAYI OLMADAN BAKIMA GITMEZ (kullanici 2026-09-18).",
-  "acil_hizli_yol": true,
+  "_acil_notu": "HICBIR BILDIRIM AMIR ONAYI OLMADAN BAKIMA GITMEZ - ACIL DAHIL (kullanici 2026-09-23). Acil bildirimin farki: amire aninda push gider ve kuyrukta en uste cikar. Eski 'acil_hizli_yol' anahtari ARTIK OKUNMUYOR; configte kalmasi zararsiz.",
 
   "_hatirlatma_notu": "Amir bu sure icinde karar vermezse AMIRE HATIRLATMA push'u gider (ayni aralikla tekrarlanir). Bildirim bakima OTOMATIK GONDERILMEZ. 0 = hatirlatma kapali. Eski ad: yukseltme_dk.",
   "hatirlatma_dk": 30,

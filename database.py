@@ -631,7 +631,11 @@ def init_db():
     # AMİR HATIRLATMASI (kullanıcı 2026-09-18): süre aşımında bildirim artık bakıma
     # OTOMATİK GİTMEZ, amire hatırlatma push'u atılır. Damga olmadan 5 dakikada bir
     # çalışan iş her turda push atar ve amirleri bunaltırdı.
-    for _kolon, _tip in (('hatirlatma_ts', 'TEXT'), ('hatirlatma_sayisi', 'INTEGER DEFAULT 0')):
+    # TEKNIK BIRIM (kullanici 2026-09-23): ariza her zaman bir MAKINEDE olmuyor
+    # (bina elektrigi, hava hatti, teknik birim). Operator bakim uygulamasindaki
+    # birimi secerse adi buraya yazilir; makine kodu bos kalir, atamayi amir yapar.
+    for _kolon, _tip in (('hatirlatma_ts', 'TEXT'), ('hatirlatma_sayisi', 'INTEGER DEFAULT 0'),
+                         ('bakim_birim', 'TEXT')):
         try:
             c.execute(f'ALTER TABLE ariza_bildirimleri ADD COLUMN {_kolon} {_tip}')
         except Exception:
