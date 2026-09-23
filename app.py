@@ -10927,6 +10927,45 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
             sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': 'hata', 'mesaj': f'Ön okuma hatası: {e}'})
             continue
 
+        # TABLODAN TEYİT (Simone Rota; program canlıya 28.09.2026 10:00 İtalya
+        # saatinde alınıyor). Ekran robotu yerine COFLEFORGE.BPRCF0I: satır ~2 sn
+        # içinde işlenir. CFI'daki kalıp: etkin + canli_onay İKİSİ BİRDEN gerekir.
+        # Doğrulama yine BPROF0'dan okunur — tabloya yazmak 'teyit oldu' demek değil.
+        _timp = (_oto_config().get('teyit_import') or {})
+        if _timp.get('etkin') and not _timp.get('canli_onay'):
+            print('[TEYIT-IMPORT] etkin ama canli_onay yok — program test veritabanında olabilir; robot yolu kullanılıyor')
+        if _timp.get('etkin') and _timp.get('canli_onay'):
+            sonuc, mesaj, _tr = _teyit_import_gonder(yil, no, adet, bayrak, _timp, zorla)
+            try:
+                sonra, sonra_durum = _as400_launch_durum(yil, no)
+            except Exception:
+                sonra, sonra_durum = None, None
+            if sonuc == 'ok':
+                teyit_ok = (once is not None and sonra is not None
+                            and abs(sonra - once - adet) < 0.001)
+                kapanma_ok = (bayrak == 'A') or (sonra_durum == 70)
+                if not teyit_ok:
+                    sonuc = 'hata'
+                    mesaj += (f' ⚠ AMA launch teyitlisi beklendiği gibi artmadı '
+                              f'(önce {once} sonra {sonra}) — ERP tarafını kontrol edin')
+                elif not kapanma_ok:
+                    sonuc = 'hata'
+                    mesaj += (f' · teyit işlendi ({once:g}→{sonra:g}) ama S ile KAPANMADI '
+                              f'(durum {sonra_durum}) — kontrol edin')
+                else:
+                    mesaj += f' · doğrulandı: teyitli {once:g} → {sonra:g}'
+                    mesaj += _is_emri_dus_router(conn, referans, adet, article)
+            conn.execute(
+                "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, teyitli_once, teyitli_sonra, olusturan) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (u_tarih, yil, no, referans, article, adet, bayrak, sonuc, mesaj,
+                 once, sonra, kullanici))
+            conn.commit()
+            _import_log_yaz(conn, 'RPR', article, referans, adet, '', '', u_tarih,
+                            sonuc, mesaj, _tr, kullanici)
+            sonuclar.append({**kayit, 'bayrak': bayrak, 'sonuc': sonuc, 'mesaj': mesaj,
+                             'teyitli_once': once, 'teyitli_sonra': sonra, 'yol': 'tablo'})
+            continue
         cikti, robot_hata = _as400_robot_calistir('teyit_gir.js', [yil, no, article, adet, bayrak], 150)
         if robot_hata:
             # ROBOT HATA VERDİ AMA YAZMIŞ OLABİLİR (2026-08-17). Eskiden burada
@@ -11486,6 +11525,49 @@ def _as400_import_modulu():
     import as400_import as _ai
     return _ai
 
+
+def _as400_teyit_import_modulu():
+    import sys as _sys
+    _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import as400_teyit_import as _ti
+    return _ti
+
+
+def _teyit_import_gonder(yil, no, adet, bayrak, imp, zorla=False):
+    """Launch teyidini COFLEFORGE.BPRCF0I ile verir. (sonuc, mesaj, ayrinti).
+
+    EKRAN ROBOTUNUN YERİNE. Emir anahtarı: yüzyıl 20 + panelin yıl/launch numarası
+    (XPRO90'daki Q0RED1/Q0RED2/Q0RENU ile birebir).
+    kalan_kontrol: ERP FAZLA TEYİDİ KABUL EDİYOR (2026-09-22 testi: 297 kalanlı
+    emre 500 adet J0STAT=1 ile geçti) — fren BİZDE; panelin "yine de gönder"
+    (zorla) seçeneği bunu bilerek aşar."""
+    try:
+        _ti = _as400_teyit_import_modulu()
+        r = _ti.teyit_yaz((20, int(yil), int(no)), adet, flsa=bayrak,
+                          bekleme_sn=int(imp.get('bekleme_sn') or 60),
+                          zorla=zorla, kalan_kontrol=not zorla)
+    except Exception as e:
+        print(f'[TEYIT-IMPORT] {yil}-{no} {adet}: {e!r}')
+        return 'hata', f'Teyit import hatası: {e!r}', {}
+    d = r.get('durum')
+    if r.get('ok'):
+        mesaj = (f'Teyit tablodan verildi: {adet} adet ({bayrak}) · hareket '
+                 f'{r.get("hareket_no") or "?"} · sıra {r.get("teyit_sira") or "?"}'
+                 + (f' · UYARI: {r.get("not") or ""}' if str(r.get('j0stat')) == '3' else '')
+                 + (f' · {r["anahtar"]}' if r.get('anahtar') else ''))
+        return 'ok', mesaj, r
+    if d == 'reddedildi':
+        return 'hata', (f'Tablo REDDETTİ (J0STAT=2): {r.get("not") or "?"} '
+                        f'— satır RRN {r.get("rrn")}'), r
+    if d == 'mevcut':
+        return 'hata', (f'Aynı teyit kuyrukta ya da işlenmiş (RRN {r.get("rrn")}) '
+                        f'— ikinci satır YAZILMADI'), r
+    if d == 'zaman_asimi':
+        return 'hata', (f'Teyit {imp.get("bekleme_sn") or 60} sn içinde işlenmedi '
+                        f'(RRN {r.get("rrn")}) — satır tabloda duruyor, program çalışıyor mu?'), r
+    return 'hata', f'Teyit import: {r.get("not") or d}', r
 
 def _import_log_yaz(conn, causal, article, referans, adet, wh, cp, u_tarih, sonuc, mesaj, r, olusturan):
     """Import ile yazılan hareketi as400_import_log'a işler (kullanıcı 2026-09-09:
@@ -12132,6 +12214,14 @@ def as400_import_durum():
            'bekleme_sn': imp.get('bekleme_sn'), 'dogrulama_bmmaf0': bool(imp.get('dogrulama_bmmaf0')),
            'tarih_gonder': bool(imp.get('tarih_gonder')), 'causals': imp.get('causals') or ['CFI'],
            'kullanici': imp.get('kullanici') or 'COFLEFORGE'}
+    # LAUNCH TEYİDİ (BPRCF0I) ayrı bir anahtar: CFI import'tan bağımsız açılır.
+    # Yazım ODBC okuma profiliyle yapılır (ayrı COFLEFORGE şifresi gerekmez).
+    timp = _oto_config().get('teyit_import') or {}
+    out['teyit'] = {'etkin': bool(timp.get('etkin')),
+                    'canli_onay': bool(timp.get('canli_onay')),
+                    'aktif': bool(timp.get('etkin') and timp.get('canli_onay')),
+                    'tablo': 'COFLEFORGE.BPRCF0I',
+                    'bekleme_sn': timp.get('bekleme_sn') or 60}
     # ODBC okuma profili (odbc_config.json → as400_config.DB_KULLANICI, 2026-09-10):
     # panelde görünsün ki geçiş sunucuda gerçekten oldu mu bir bakışta anlaşılsın.
     try:
@@ -12961,6 +13051,13 @@ _OTO_VARSAYILAN = {
     # yaşadığı için sunucu yeniden başlarsa kimse fark etmeden günlerce ölü
     # kalabiliyor (hafta sonu olayı). Nöbetçi bunu dakikalar içinde maille haber
     # verir. 'alicilar' boşsa mail SMTP gönderen adresine (şirket kutusu) gider.
+    # LAUNCH TEYİDİNİ (rientro) EKRAN ROBOTU yerine IT'nin staging tablosuyla ver
+    # (Simone Rota: COFLEFORGE.BPRCF0I; program ~2 sn'de işler, J0STAT/J0NOTE geri
+    # yazar — 2026-09-22'de test ortamında uçtan uca doğrulandı).
+    # VARSAYILAN KAPALI. canli_onay: program 28.09.2026 10:00 (İtalya saati)
+    # tarihine kadar TEST veritabanına (COFLETKPR) bakıyordu; o saatten önce
+    # açılırsa teyit canlı ERP'ye DÜŞMEZ ve satırlar '01E' ile reddedilir.
+    'teyit_import':   {'etkin': False, 'canli_onay': False, 'bekleme_sn': 60},
     'agent_nobeti':   {'etkin': True, 'kontrol_dk': 10, 'hatirlatma_saat': 6,
                        'alicilar': []},
     # CFI/COP'u EKRAN ROBOTU yerine IT'nin staging tablosuyla yaz (Simone Rota,
@@ -13968,8 +14065,11 @@ def as400_oto_config_degistir():
     # panelden tek düğmeyle etkin + canli_onay + dogrulama_bmmaf0 birlikte
     # açılır/kapanır — sunucuda JSON elle düzenlenmesin (bozuk config dersi).
     # kutuphane/tablo/causals DOSYADAN: IT sözleşmesi, panelden değişmez.
-    if tur == 'cfi_import':
-        for k in ('canli_onay', 'dogrulama_bmmaf0'):
+    if tur in ('cfi_import', 'teyit_import'):
+        # teyit_import'ta dogrulama_bmmaf0 YOK: teyidin doğrulaması launch'ın
+        # teyitli adedinden (BPROF0) okunur, ayrı bayrak gerekmiyor.
+        for k in (('canli_onay', 'dogrulama_bmmaf0') if tur == 'cfi_import'
+                  else ('canli_onay',)):
             if k in data:
                 cfg[tur][k] = bool(data.get(k))
     try:

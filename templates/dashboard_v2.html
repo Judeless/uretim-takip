@@ -7706,6 +7706,16 @@ window.__I18N_SOZLUK__ = {
                             <button class="btn btn-ghost" id="as4-imp-kapat" style="display:none" onclick="as4ImportCanli(false)">↩ Robota dön (import kapat)</button>
                             <span id="as4-imp-not" style="font-size:.76rem;color:var(--muted)"></span>
                         </div>
+                        <!-- LAUNCH TEYİDİ (rientro) — COFLEFORGE.BPRCF0I.
+                             Simone Rota: program 28.09.2026 10:00 (İtalya saati) canlıya alındı.
+                             O ana kadar açılırsa satırlar test ortamına düşer ve 01E ile reddedilir. -->
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding-top:8px;border-top:1px solid var(--card-border)">
+                            <span style="font-size:.8rem;font-weight:700">Launch teyidi (rientro):</span>
+                            <span class="adet-info" id="as4-tey-mod">—</span>
+                            <button class="btn btn-primary" id="as4-tey-ac" style="display:none" onclick="as4TeyitCanli(true)">🚀 Teyidi tabloya al (BPRCF0I)</button>
+                            <button class="btn btn-ghost" id="as4-tey-kapat" style="display:none" onclick="as4TeyitCanli(false)">↩ Teyidi robota döndür</button>
+                            <span id="as4-tey-not" style="font-size:.76rem;color:var(--muted)"></span>
+                        </div>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
                             <input id="as4-imp-article" class="rt-row-select" style="max-width:190px" placeholder="article (ör: 10.300.1866-10W)">
                             <input id="as4-imp-adet" class="rt-row-select" style="max-width:90px" type="number" min="1" placeholder="adet">
@@ -15359,6 +15369,20 @@ window.__I18N_SOZLUK__ = {
                 if (mod) mod.style.color = (j.sifre_var === false) ? 'var(--danger)' : '';
                 _as4ImpAktif = !!j.aktif;
                 _as4ImpSifreYok = (j.sifre_var === false);
+                // Launch teyidi anahtarı (BPRCF0I) — CFI'dan bağımsız
+                var t = j.teyit || {}, tMod = document.getElementById('as4-tey-mod');
+                if (tMod) tMod.textContent = (t.aktif ? '● TABLODAN gidiyor — ' + (t.tablo || '')
+                    : (t.etkin ? '⚠ etkin ama canli_onay yok — robot kullanılıyor'
+                               : '○ ekran robotu (PCOMM) kullanılıyor'));
+                var tAc = document.getElementById('as4-tey-ac'),
+                    tKapat = document.getElementById('as4-tey-kapat'),
+                    tNot = document.getElementById('as4-tey-not');
+                if (tAc) tAc.style.display = (res.ok && !t.aktif) ? '' : 'none';
+                if (tKapat) tKapat.style.display = (res.ok && t.aktif) ? '' : 'none';
+                if (tNot) tNot.textContent = !res.ok ? '' : (t.aktif
+                    ? 'Doğrulama: launch teyitlisi artmazsa satır hata sayılır · bekleme '
+                      + (t.bekleme_sn || 60) + ' sn'
+                    : 'İtalya programı 28.09.2026 10:00 (İtalya saati) canlıya aldı — o saatten sonra açın');
                 var bAc = document.getElementById('as4-imp-ac'), bKapat = document.getElementById('as4-imp-kapat'), bNot = document.getElementById('as4-imp-not');
                 if (bAc) bAc.style.display = (res.ok && !j.aktif) ? '' : 'none';
                 if (bKapat) bKapat.style.display = (res.ok && j.aktif) ? '' : 'none';
@@ -15400,6 +15424,25 @@ window.__I18N_SOZLUK__ = {
               .then(function (res) {
                 if (!res.ok) { toast(res.j.hata || 'Ayar yazılamadı', 'error'); return; }
                 toast(ac ? '🚀 CFI import\'a alındı — RPR/COP robotta' : '↩ Import kapatıldı — CFI robota döndü', 'success');
+                as4ImportYukle(false, 0);
+              }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+        // Launch teyidini tabloya al / robota dön (2026-09-23, Simone: canlı 28/09 10:00).
+        // CFI anahtarından BAĞIMSIZ: biri tabloda biri robotta olabilir.
+        function as4TeyitCanli(ac) {
+            var metin = ac
+                ? 'Launch teyitleri (rientro) COFLEFORGE.BPRCF0I tablosuna yazılacak; ekran robotu (PCOMM) devreden çıkacak.\n\n' +
+                  'ÖN ŞART: IT programı CANLI ortama alınmış olmalı (Simone: 28.09.2026 10:00 İtalya saati). Daha erken açarsanız satırlar test ortamına düşer ve 01E ile reddedilir.\n\n' +
+                  'Açtıktan sonra İLK satırı tek başına gönderin: sonuç "ok" ve launch teyitlisi artmış olmalı. Devam?'
+                : 'Tablo yolu kapatılacak; launch teyitleri yeniden ekran robotuyla verilecek. Devam?';
+            if (!confirm(metin)) return;
+            var govde = ac ? { tur: 'teyit_import', etkin: true, canli_onay: true }
+                           : { tur: 'teyit_import', etkin: false, canli_onay: false };
+            panelFetch('/api/as400/oto_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde) })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ')' } }; }); })
+              .then(function (res) {
+                if (!res.ok) { toast(res.j.hata || 'Ayar yazılamadı', 'error'); return; }
+                toast(ac ? '🚀 Teyit tabloya alındı — PCOMM devre dışı' : '↩ Teyit robota döndü', 'success');
                 as4ImportYukle(false, 0);
               }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }
