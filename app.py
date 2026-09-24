@@ -10633,6 +10633,24 @@ def _article_gecersiz_mi(article):
         if var is None:          # sorgu/bağlantı hatası — karar verme
             return None
         if _la.kanonik(article) in var:
+            # KOD VAR AMA İPTAL Mİ? (2026-09-23): 10.300.5292C-S master'da
+            # duruyordu ama A0ARAN='A' (Annullo) idi; import programı satırı
+            # '[01-Item code error]' ile reddetti. Varlık kontrolü bunu görmüyor.
+            try:
+                iptal = _la.article_iptalleri([article])
+            except Exception:
+                iptal = None
+            if iptal and _la.kanonik(article) in iptal:
+                try:
+                    aile = _la.article_canli_aile(article)
+                except Exception:
+                    aile = []
+                return (f'ERP\'de bu kod İPTAL EDİLMİŞ (Annullo): "{article}" — '
+                        f'teyit/CFI gönderimi "01-Item code error" ile reddedilir. '
+                        + (f'Aynı ailede geçerli kodlar: {", ".join(aile)}. '
+                           if aile else '')
+                        + 'Üretimin hangi kodla teyit edileceğini planlamaya sorun; '
+                          'kayıttaki referans kodunu düzeltip tekrar gönderin.')
             return None
         return (f'ERP\'de böyle bir article YOK: "{article}" — operatör kodu yanlış '
                 f'yazmış olabilir (örn. kod alanına operasyon bilgisi karışmış). '

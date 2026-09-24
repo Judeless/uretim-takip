@@ -368,6 +368,72 @@ def article_tanimli(kodlar):
     return var
 
 
+def article_iptalleri(kodlar):
+    """ERP'de IPTAL edilmis (BARTF0.A0ARAN='A' — 'Annullo') kodlarin kumesi.
+
+    NEDEN (2026-09-23): 10.300.5292C-S kodlu 28 adetlik CFI, IT import programi
+    tarafindan '[01-Item code error]' ile reddedildi. Kod master'da VARDI, ama
+    iptal bayragi tasiyordu; article_tanimli yalniz VARLIGA baktigi icin fren
+    calismadi ve hata ancak ERP cevabinda goruldu. Iptal kod sayisi 1076/61k.
+    Sorgu patlarsa None doner — bilinmiyorken gonderimi bloklamayiz."""
+    if not kodlar:
+        return set()
+    _guvenli = re.compile(r'^[\x00-\x7F]{1,21}$')
+    ham = {str(k).strip() for k in kodlar
+           if str(k or '').strip() and _guvenli.match(str(k).strip())}
+    liste = sorted(ham | {k.upper() for k in ham})
+    if not liste:
+        return set()
+    try:
+        cn = CFG.baglan(timeout=60)
+    except Exception as e:
+        print(f'[launch_esle] iptal sorgusu baglanti HATASI: {e}')
+        return None
+    iptal = set()
+    try:
+        cu = cn.cursor()
+        for i in range(0, len(liste), 60):
+            grup = liste[i:i + 60]
+            sql = ("SELECT A0ARTI FROM tkc0301F.BARTF0 WHERE A0ARAN='A' "
+                   "AND A0ARTI IN (%s)" % ','.join('?' * len(grup)))
+            for r in cu.execute(sql, grup):
+                iptal.add(kanonik(r[0]))
+    except Exception as e:
+        print(f'[launch_esle] iptal sorgu HATASI: {e}')
+        return None
+    finally:
+        cn.close()
+    return iptal
+
+
+def article_canli_aile(kod, sinir=6):
+    """Ayni aileden IPTAL OLMAYAN kodlar: iptal kod uyarisinda alternatif onerir.
+
+    Aile = kodun son sayi grubuna kadarki bolumu ('10.300.5292C-S' -> '10.300.5292').
+    Bulunamazsa bos liste; sorgu patlarsa da bos — bu yalnizca yardimci bilgi."""
+    k = str(kod or '').strip()
+    m = re.match(r'^(.*\d)[^0-9]*$', k)
+    kok = m.group(1) if m else k
+    kok = re.sub(r'[A-Za-z\-_.]+$', '', kok)
+    if len(kok) < 5:
+        return []
+    try:
+        cn = CFG.baglan(timeout=30)
+    except Exception:
+        return []
+    try:
+        rows = cn.cursor().execute(
+            # Yalniz URETIM (P) kodlari onerilir: fason (A) kodunu teyit
+            # edemeyiz, oneri listesinde gorunmesi yanlis yone iter.
+            "SELECT A0ARTI FROM tkc0301F.BARTF0 WHERE A0ARTI LIKE ? "
+            "AND (A0ARAN IS NULL OR A0ARAN='') AND A0PROV='P' ORDER BY A0ARTI",
+            (kok + '%',)).fetchall()
+    except Exception:
+        return []
+    finally:
+        cn.close()
+    return [str(r[0]).rstrip() for r in rows][:sinir]
+
 def teyit_hareketleri(articles):
     """Verilen ARTICLE'larin RPR (uretim teyidi) hareketlerini dondurur —
     LAUNCH'TAN BAGIMSIZ. Cunku operator ayni urunu baska bir launch'a girip
