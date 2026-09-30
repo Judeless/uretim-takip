@@ -19,8 +19,8 @@ Diğer depolar (01W, REP, MDT...) rapora bilgi olarak yazılır ama hesaba GİRM
 
 NEGATİF STOK: ERP'de eksi bakiye olabiliyor (girilmemiş hareket, ters kayıt).
 Eksi bakiye "o kadar üretilebilir" demek değildir → 0 sayılır ve işaretlenir.
-Sıfırlama DEPO BAZINDA yapılır (2026-09-30): bir deponun eksisi başka depodaki
-gerçek stoğu götürmez — bkz. hesapla().
+İSTİSNA yalnız CF2 (2026-09-30): 01D'deki eksi CF2'deki stoğu götürmez; diğer
+depolar (MK2, MT2, CF) 01D ile NETLEŞİR — bkz. hesapla().
 
 KULLANIM:
     python kaynak_plan_kontrol.py
@@ -39,6 +39,8 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 KOK = os.path.dirname(os.path.abspath(__file__))
 VARSAYILAN_PLAN = r"Q:\UretimPlanlama\Yarımamul Üretim Planları\Kaynak ihtiyaçları 260729.xlsb"
 SAYILAN_DEPOLAR = ('01D', 'CF2')          # kullanıcının kuralı
+# 01D eksisiyle NETLEŞMEYEN depolar — yalnız CF2 (bkz. hesapla).
+AYRI_SAYILAN_DEPOLAR = ('CF2',)
 GOSTERILEN_DEPOLAR = ('01D', 'CF2', '01W', 'REP', 'MDT', 'MK2', 'MT2')
 GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,21}$')
 # Acik uretim emirleri gorunumu (as400_config.KAYNAK_TABLO ile ayni kaynak)
@@ -443,14 +445,20 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
         for alt, birim, um in sorted(parcalar):
             depolar = stok.get(alt, {})
             ham = sum(depolar.get(d, 0) for d in sayilan)        # net bakiye (bilgi)
-            # EKSİ BAKİYE DEPO BAZINDA SIFIRLANIR (kullanıcı 2026-09-30): "Bir ürünün
-            # stoğu CF2'de varsa ve 01D eksideyse, ürünü CF2'ye taşımışlar fakat alt
-            # koddan üst kodun 01D stoğuna henüz aktarım yapmamış demektir; CF2 stoğunu
-            # doğru sayıp kontrollere devam edebiliriz." Eskiden depolar TOPLANIP sonra
-            # sıfırlanıyordu: 01D −310 + CF2 +500 = 190 sayılıyor, 01D −600 olunca da
-            # eldeki 500 adet hiç görünmüyordu. 01D'deki eksi bir kayıt gecikmesi,
-            # fiziksel stok diğer depoda duruyor.
-            eldeki = sum(max(0.0, depolar.get(d, 0)) for d in sayilan)
+            # CF2 AYRI SAYILIR, DİĞERLERİ 01D İLE NETLEŞİR (kullanıcı 2026-09-30):
+            #   · "Stok CF2'de varsa ve 01D eksideyse, ürünü CF2'ye taşımışlar fakat alt
+            #     koddan üst kodun 01D stoğuna henüz aktarım yapmamış demektir; CF2
+            #     stoğunu doğru sayabiliriz." → CF2, 01D eksisinden ETKİLENMEZ.
+            #   · "Ürün gelmiş, kullanılmış ve 01D eksiye düşmüş; sadece MK2'den 01D'ye
+            #     aktarım bekliyor olabilir. SADECE CF2 için bu durum geçerli." → MK2 /
+            #     MT2 / CF'deki artı, 01D'deki eksiyle AYNI malın iki kaydıdır: o stok
+            #     çoktan tüketilmiş, serbest değildir. Bunlar toplanıp sonra sıfırlanır.
+            # İlk denemede kural bütün depolara genellenmişti (depo bazında sıfırlama);
+            # MK2'deki tüketilmiş stoğu 'var' gösteriyordu — kullanıcı düzeltti.
+            eldeki = (max(0.0, sum(depolar.get(d, 0) for d in sayilan
+                               if d not in AYRI_SAYILAN_DEPOLAR))
+                      + sum(max(0.0, depolar.get(d, 0)) for d in sayilan
+                            if d in AYRI_SAYILAN_DEPOLAR))
             _iz = (iz.get(s['kaynak_kod']) or {}).get(alt) or {}
             _muaf = _kisit_disi_mi(alt)
             if _iz.get('hayali') or _muaf:
@@ -462,7 +470,7 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
                 kap = None                  # birim tanımsız → kısıt sayma, işaretle
             s['parcalar'].append({
                 'kod': alt, 'birim': birim, 'um': um,
-                # stok_sayilan = SAYILAN stok (depo bazında eksiler atılmış); net bakiye
+                # stok_sayilan = SAYILAN stok (CF2 ayrı, diğerleri netleşmiş); net bakiye
                 # ayrıca saklanır ki panel 'eksi var' uyarısını gösterebilsin.
                 'stok_sayilan': eldeki, 'stok_net': ham,
                 'eksi_bakiye': any(depolar.get(d, 0) < 0 for d in sayilan),
