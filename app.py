@@ -12437,6 +12437,14 @@ def _kp_modul():
 #   hayali_seviye : hayali (fictitious, BARTF0.A0PROD='2') alt parçalar kaç seviye
 #                   açılır — 0 = açma (kaynak: sac parçalar tek seviye)
 # Depolar oto_config'te aynı adlı anahtarla EZİLEBİLİR (panelden değiştirilir).
+#
+# SAYILMAYAN DEPOLAR — kullanıcı 2026-09-30, bu kuralı bozmadan önce oku:
+#   REP : "Bir ürüne launch aldığımızda (durum 40) alt parçaları REP stoğa çekilir."
+#         Yani REP'teki stok BAŞKA bir emre REZERVE; onu 'malzeme var, launch
+#         alınabilir' diye saymak aynı malzemeyi iki emre vermek olur.
+#   01W : kayıp depo — içindeki bakiye (çoğu eksi) gerçek stok değil.
+# Ölçümde 01W+CF+REP eklenince 'malzemesi tam' ürün 1'den 20'ye çıkıyordu; o
+# artış gerçek değil, rezerve/kayıp stoğun sayılmasıydı.
 KP_PROFILLER = {
     'kaynak': {
         'anahtar': 'kaynak', 'ad': 'Kaynak planı', 'kod_baslik': 'Kaynak kodu',
@@ -12453,10 +12461,11 @@ KP_PROFILLER = {
         'tablo': 'montaj_plan', 'parca': 'montaj_plan_parca', 'bildirim': 'montaj_plan_bildirim',
         'bolum': 'montaj', 'lokasyon': 'TK2', 'eski_kodlar': False,
         'config': 'montaj_plan', 'izin': 'montaj-plan',
-        # Mamul montaj stoğu ağırlıkla 01W'de duruyor (2026-09-30 ölçümü: 643
-        # referans / 35.494 adet; 01D 127 referans) — kaynaktaki G GI (01D+MDT)
-        # kuralı burada stoğun çoğunu görmezdi.
-        'ref_depolar': ('01W', '01D'),
+        # Mamul stoğu kaynak planıyla AYNI kural: G GI = 01D + MDT. Montaj mamulünün
+        # ERP bakiyesi ağırlıkla 01W'de görünüyor (643 referans / 35.494 adet) ama
+        # 01W KAYIP DEPO — kullanıcı: "bunu dahil edemeyiz". İlk sürümde 01W+01D
+        # sayılıyordu ve GEREKEN olduğundan düşük çıkıyordu.
+        'ref_depolar': ('01D', 'MDT'),
         # Kullanıcı: "alt parçalar 01D, CF2, MK2, MT2 depolarından geliyor."
         'alt_depolar': ('01D', 'CF2', 'MK2', 'MT2'),
         # Kırılımda GÖSTERİLEN depolar sayılanlardan geniş: montaj parçalarının stoğu
@@ -12723,12 +12732,19 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
             s.get('_opr_satirlar'), s['stok_ggi'], _ufuk)
         # AÇILACAK EMİR: gerekenin launch'la karşılanmayan kısmı — bildirimin ölçütü
         s['emir_gereken'] = max(0.0, s['gereken'] - (s.get('launch_adet') or 0))
+        # MALZEME KARARI yalnız YENİ EMİR için (kullanıcı 2026-09-30): launch alınan
+        # adedin alt parçaları zaten REP'e çekilmiş — serbest stokta (01D/CF2/…)
+        # aranmaz. Eskiden üretilebilir adet GEREKEN'in tamamıyla kıyaslanıyordu;
+        # launch'ı alınmış bir ürün, malzemesi REP'te durduğu hâlde 'malzeme yok'
+        # görünüyordu. Artık ölçüt emir_gereken = gereken − launch alınan.
         u = s.get('uretilebilir')
         if not s['kaynatilmali']:
             s['karar'] = 'GEREK YOK'
+        elif s['emir_gereken'] <= 0:
+            s['karar'] = 'LAUNCH VAR'      # ihtiyacın tamamı launch'ta — yeni emir gerekmez
         elif u is None:
             s['karar'] = 'ELLE BAK'
-        elif u >= s['gereken']:
+        elif u >= s['emir_gereken']:
             s['karar'] = 'TALIMAT VER'
         elif u > 0:
             s['karar'] = 'KISMI'
@@ -13034,6 +13050,7 @@ def kaynak_plan_yenile(plan):
 
 
 KP_MALZEME_ETIKET = {'TALIMAT VER': 'Tam', 'KISMI': 'Kısmi', 'MALZEME YOK': 'Yok',
+                     'LAUNCH VAR': "Launch'ta (rezerve)",
                      'ELLE BAK': 'Bilinmiyor', 'GEREK YOK': '—'}
 
 

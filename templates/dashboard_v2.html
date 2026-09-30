@@ -5098,6 +5098,7 @@ window.__I18N_SOZLUK__ = {
   "🔥 Kaynatılmalı:": {"en": "🔥 To be welded:", "it": "🔥 Da saldare:"},
   "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
   "Montaj Planı": {"en": "Assembly Plan", "it": "Piano montaggio"},
+  "✔ Launch yeterli:": {"en": "✔ Launch sufficient:", "it": "✔ Lancio sufficiente:"},
   "🔥 Üretilmeli:": {"en": "🔥 To be produced:", "it": "🔥 Da produrre:"},
   "Üretilmeli?": {"en": "To produce?", "it": "Da produrre?"},
   "🔩 Montaj Planı (TK2) — üretilebilirlik takibi": {"en": "🔩 Assembly Plan (TK2) — producibility tracking", "it": "🔩 Piano montaggio (TK2) — producibilità"},
@@ -7887,6 +7888,7 @@ window.__I18N_SOZLUK__ = {
                                 <option value="artan">Stoğu artanlar</option>
                                 <option value="azalan">Stoğu azalanlar</option>
                                 <option value="launchli">Launch alınmış olanlar</option>
+                                <option value="LAUNCH VAR">Launch yeterli (yeni emir gerekmiyor)</option>
                                 <option value="emir">Emir açılacaklar</option>
                                 <option value="GEREK YOK">Launch gerekmeyenler</option>
                                 <option value="notlu">Notu olanlar</option>
@@ -14780,6 +14782,7 @@ window.__I18N_SOZLUK__ = {
                     (o.artan ? kpCip('var(--success)', '▲ Stoğu artan: ' + o.artan, false, 'artan') : '') +
                     (o.azalan ? kpCip('var(--danger)', '▼ Stoğu azalan: ' + o.azalan, false, 'azalan') : '') +
                     (o.launchli ? kpCip('var(--primary)', '🚀 Launch alınmış: ' + o.launchli, false, 'launchli') : '') +
+                    (o['LAUNCH VAR'] ? kpCip('var(--primary)', '✔ Launch yeterli: ' + o['LAUNCH VAR'], false, 'LAUNCH VAR') : '') +
                     (o.emir_acilacak ? kpCip('var(--danger)', '📣 Emir açılacak: ' + o.emir_acilacak, false, 'emir') : '') +
                     kpCip('var(--muted)', 'Launch gerekmeyen: ' + (o['GEREK YOK'] || 0), true, 'GEREK YOK');
             }
@@ -14821,14 +14824,18 @@ window.__I18N_SOZLUK__ = {
                 kpBaslik('uretilebilir', 'Üretilebilir', 'alt parça stoğuyla üretilebilecek adet — sayılan depolar: ' + kpDepoMetni('alt_depolar'), true, -1) +
                 kpBaslik('degisim', 'Değişim', 'önceki ölçüme göre üretilebilir farkı', true, -1) +
                 '<th title="6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan">' + kpFiil() + '?</th>' +
-                '<th title="alt parçaların 01D+CF2 stoğu gerekeni karşılıyor mu">Malzeme</th>' +
+                '<th title="' + esc('serbest stok (' + kpDepoMetni('alt_depolar') + ') YENİ açılacak emri karşılıyor mu — launch alınan adedin malzemesi REP’te rezerve, burada aranmaz') + '">Malzeme</th>' +
                 '<th>Kısıtlayan</th>' +
                 '<th style="min-width:190px">Not</th></tr></thead><tbody>';
             liste.forEach(function (s) {
                 var kr = { 'TALIMAT VER': 'var(--success)', 'KISMI': 'var(--warn)',
-                           'MALZEME YOK': 'var(--danger)', 'ELLE BAK': 'var(--primary)' }[s.karar] || 'var(--dim)';
+                           'MALZEME YOK': 'var(--danger)', 'ELLE BAK': 'var(--primary)',
+                           'LAUNCH VAR': 'var(--primary)' }[s.karar] || 'var(--dim)';
                 // Malzeme sütunu metni: "kaynatmam lazım mı" sorusundan AYRI dursun.
+                // MALZEME yalnız YENİ EMİR için değerlendirilir: launch alınan adedin alt
+                // parçaları REP'e çekilmiştir (rezerve), serbest stokta aranmaz.
                 var mlz = !s.kaynatilmali ? '—'
+                        : (s.karar === 'LAUNCH VAR') ? '🚀 launch’ta'
                         : (s.karar === 'TALIMAT VER') ? '✓ Tam'
                         : (s.karar === 'KISMI') ? '◐ Kısmi (' + fmt(s.uretilebilir) + ')'
                         : (s.karar === 'MALZEME YOK') ? '✖ Yok'
@@ -14892,7 +14899,10 @@ window.__I18N_SOZLUK__ = {
                     '<td style="text-align:right">' + dg + '</td>' +
                     '<td style="font-weight:800;font-size:.8rem;color:' +
                         (s.kaynatilmali ? 'var(--danger)' : 'var(--dim)') + '">' +
-                        (s.kaynatilmali ? 'EVET · ' + fmt(s.gereken || 0) : '—') + '</td>' +
+                        (s.kaynatilmali ? 'EVET · ' + fmt(s.gereken || 0) : '—') +
+                        ((s.kaynatilmali && (s.launch_adet || 0) > 0)
+                            ? '<div style="font-size:.7rem;font-weight:600;color:var(--muted)">yeni emir: ' +
+                              fmt(s.emir_gereken || 0) + '</div>' : '') + '</td>' +
                     '<td style="color:' + kr + ';font-weight:700;font-size:.78rem">' + esc(mlz) + '</td>' +
                     '<td style="font-size:.78rem">' + esc(s.kisitlayan || '') +
                         (s.kisit_stok ? ' <span style="color:var(--dim)">(' + fmt(s.kisit_stok) + ')</span>' : '') + '</td>' +

@@ -397,6 +397,9 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
     # görünür. Onu kısıt saymak ürünü sonsuza dek 'malzeme yok' gösterirdi
     # (canlıda 50.002.109: 103 üründe, ağacı yok, her depoda 0). Listede
     # GÖSTERİLİR ama üretilebilir adedi KISITLAMAZ.
+    # Kullanıcı teyidi 2026-09-30: "50.002.109 kablo ve hayali tanımlı; hayali
+    # tanımlı referansta stok hareketi yapılmaz, launch alınırken de hesaba
+    # katılmaz — sadece görüntü olarak reçetede durur."
     iz = iz or {}
     for s in satirlar:
         if ref_stok is not None:
