@@ -14726,6 +14726,8 @@ window.__I18N_SOZLUK__ = {
                     '<input type="text" id="kp-ayar-refdepo" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.ref_depolar || []).join(', ')) + '">' +
                     '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Alt parça stoğu hangi depolardan sayılsın (ÜRETİLEBİLİR adet bundan) — değişiklik bir sonraki yenilemede geçerli</div>' +
                     '<input type="text" id="kp-ayar-altdepo" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.alt_depolar || []).join(', ')) + '">' +
+                    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Stoğu kontrol EDİLMEYECEK alt parçalar (etiket, sarf) — kodları virgülle ayırın; ön ek için sonuna * koyun</div>' +
+                    '<input type="text" id="kp-ayar-kisitdisi" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.kisit_disi_parcalar || []).join(', ')) + '" placeholder="50.010.700">' +
                     '<button class="btn btn-primary" onclick="kpAyarKaydet()">Kaydet</button></div></div>';
                 el.innerHTML = h;
             }).catch(function () {});
@@ -14740,7 +14742,8 @@ window.__I18N_SOZLUK__ = {
                 bildirim_push: (document.getElementById('kp-ayar-push') || {}).value || '',
                 bildirim_mail: (document.getElementById('kp-ayar-mail') || {}).value || '',
                 ref_depolar: (document.getElementById('kp-ayar-refdepo') || {}).value || '',
-                alt_depolar: (document.getElementById('kp-ayar-altdepo') || {}).value || ''
+                alt_depolar: (document.getElementById('kp-ayar-altdepo') || {}).value || '',
+                kisit_disi_parcalar: (document.getElementById('kp-ayar-kisitdisi') || {}).value || ''
             };
             fetch(kpApi() + '/bildirim_ayar', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde)
@@ -15019,6 +15022,7 @@ window.__I18N_SOZLUK__ = {
                             // HAYALİ AÇILIM (montaj): parça hangi hayali düğümün altından geldi;
                             // açılamayan hayali parça kısıt sayılmaz, yalnız gösterilir.
                             (x.hayali ? ' <span style="color:var(--warn);font-size:.72rem" title="hayali (fictitious) parça: stokta tutulmaz ve alt ağacı yok — üretilebilir adedi kısıtlamaz">HAYALİ · sayılmadı</span>' : '') +
+                            (x.muaf ? ' <span style="color:var(--muted);font-size:.72rem" title="kısıt dışı listesinde (etiket / sarf) — stoğu kontrol edilmez">KONTROL DIŞI · sayılmadı</span>' : '') +
                             ((x.seviye || 1) > 1 ? '<div style="font-size:.7rem;color:var(--dim);font-weight:400">↳ ' + x.seviye +
                                 '. seviye · ' + esc(x.yol || '') + ' altından</div>' : '') + '</td>' +
                         '<td style="text-align:right">' + fmt(x.birim) + ' ' + esc(x.um || '') + '</td>' +

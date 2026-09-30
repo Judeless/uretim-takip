@@ -12455,6 +12455,7 @@ KP_PROFILLER = {
         'alt_depolar': ('01D', 'CF2'),
         'gosterilen': ('01D', 'CF2', '01W', 'REP', 'MDT', 'MK2', 'MT2'),
         'hayali_seviye': 0, 'excel_yukleme': True, 'kontrol_disi_onek': (),
+        'haric_onek': (), 'kisit_disi_parcalar': (),
     },
     'montaj': {
         'anahtar': 'montaj', 'ad': 'Montaj planı (TK2)', 'kod_baslik': 'Montaj kodu',
@@ -12485,6 +12486,13 @@ KP_PROFILLER = {
         # Ölçüm: tel malzemeleri 20.950.008A / 20.000.123B yalnız 93.* ürünlerin
         # 1. seviyesinde geçiyordu ve 230 kadar ürünü 'malzeme yok' gösteriyordu.
         'kontrol_disi_onek': ('93.',),
+        # PLANA HİÇ GİRMEYEN ürünler — kullanıcı 2026-09-30: "teller TK2'de
+        # üretilmiyor, sadece alt parça olarak kullanıyoruz; başlı başına tel satışı
+        # TK2'den olmuyor." Forge referans listesinde bölüm=montaj/TK2 görünen 485
+        # tel (93.*) plan satırı OLMAZ; mekanizmanın alt parçası olarak stoğu sayılır.
+        'haric_onek': ('93.',),
+        # Stoğu kontrol edilmeyecek alt parçalar (etiket, sarf). Panelden değişir.
+        'kisit_disi_parcalar': ('50.010.700',),
     },
 }
 
@@ -12504,6 +12512,13 @@ def _kp_depolar(pf):
 
     ref, alt = liste('ref_depolar'), liste('alt_depolar')
     return ref, alt, tuple(dict.fromkeys(alt + tuple(pf['gosterilen'])))
+
+
+def _kp_kisit_disi(pf):
+    """Stoğu kontrol edilmeyecek parça kodları — oto_config'teki liste profili ezer."""
+    cfg = _oto_config().get(pf['config']) or {}
+    v = [str(x).strip() for x in (cfg.get('kisit_disi_parcalar') or []) if str(x).strip()]
+    return tuple(v) or tuple(pf.get('kisit_disi_parcalar') or ())
 
 
 def _kp_yetki(fn):
@@ -12742,7 +12757,7 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
             s['launch_adet'], s['launch_sayisi'], s['launch_ozet'] = 0, 0, ''
             s['_opr_satirlar'] = []
     kp.hesapla(satirlar, agac, stok, ref_stok, sayilan=_alt_depo,
-               gosterilen=_gosterilen, iz=agac_iz)
+               gosterilen=_gosterilen, iz=agac_iz, kisit_disi=_kp_kisit_disi(pf))
     # Ürünün KENDİ stoğu profilin ref_depolar'ından: kaynakta G GI = 01D + MDT
     # (ERP ekranındaki stok), montajda 01W + 01D. GEREKEN bunun üzerinden.
     for s in satirlar:
@@ -12815,15 +12830,16 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
             conn.execute(
                 f"INSERT INTO {pf['parca']} (kaynak_kod, alt_kod, birim, um, stok_01d, stok_cf2, "
                 "stok_sayilan, kapasite, eksi_bakiye, diger_depolar, onceki_stok, olculdu, "
-                "seviye, yol, hayali) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "seviye, yol, hayali, muaf) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (s['kaynak_kod'], p['kod'], p['birim'], p['um'],
                  p['depolar'].get('01D', 0), p['depolar'].get('CF2', 0), p['stok_sayilan'],
                  p['kapasite'], 1 if p['eksi_bakiye'] else 0,
                  ' '.join(f'{d}:{v:g}' for d, v in p['depolar'].items()
                           if d not in kp.SAYILAN_DEPOLAR),
                  onceki_stoklar.get(p['kod']), simdi,
-                 p.get('seviye') or 1, p.get('yol') or '', 1 if p.get('hayali') else 0))
+                 p.get('seviye') or 1, p.get('yol') or '', 1 if p.get('hayali') else 0,
+                 1 if p.get('muaf') else 0))
     # Stok artık bilindiği için sıra ÖNCELİK PUANINA göre yeniden verilir
     # (yalnız liste AS400'den kurulduysa; Excel planında planlamanın sırası kalır).
     _kp_siralari_yenile(conn, pf)
@@ -12956,7 +12972,8 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
         # Kaynakta planlamanın Excel'inden gelmiş kodlar listede kalır.
         kodlar |= {r['kaynak_kod'] for r in conn.execute(
             f"SELECT kaynak_kod FROM {pf['tablo']}").fetchall()}
-    kodlar = sorted(k for k in kodlar if k)
+    _haric = tuple(pf.get('haric_onek') or ())
+    kodlar = sorted(k for k in kodlar if k and not (_haric and k.startswith(_haric)))
     if not kodlar:
         return None, (f"Sistemde {pf['bolum']} referansı yok — önce referans "
                       f"listesini kurun"), 400
@@ -13403,7 +13420,8 @@ def kaynak_plan_bildirimler(plan):
                              'saatler': cfg.get('saatler') or [],
                              'bildirim_push': cfg.get('bildirim_push') or [],
                              'bildirim_mail': cfg.get('bildirim_mail') or [],
-                             'ref_depolar': list(_rd), 'alt_depolar': list(_ad)}})
+                             'ref_depolar': list(_rd), 'alt_depolar': list(_ad),
+                             'kisit_disi_parcalar': list(_kp_kisit_disi(pf))}})
 
 
 @app.route('/api/kaynak_plan/bildirim/<int:bid>/kapat', methods=['POST'], defaults={'plan': 'kaynak'})
@@ -13447,6 +13465,16 @@ def kaynak_plan_bildirim_ayar(plan):
             if kotu:
                 return jsonify({'hata': f'Geçersiz depo kodu: {", ".join(kotu)}'}), 400
             k[alan] = depolar
+    # Stoğu kontrol edilmeyecek parçalar (etiket, sarf…) — boş liste = profil varsayılanı
+    if 'kisit_disi_parcalar' in data:
+        ham = data.get('kisit_disi_parcalar') or []
+        if isinstance(ham, str):
+            ham = re.split(r'[;,\n]+', ham)
+        kodlar = [str(x).strip() for x in ham if str(x).strip()][:100]
+        kotu = [x for x in kodlar if not re.match(r'^[A-Za-z0-9./\-_ ]{3,21}\*?$', x)]
+        if kotu:
+            return jsonify({'hata': f'Geçersiz parça kodu: {", ".join(kotu)}'}), 400
+        k['kisit_disi_parcalar'] = kodlar
     for alan in ('bildirim_push', 'bildirim_mail'):
         if alan in data:
             ham = data.get(alan) or []
@@ -13788,7 +13816,7 @@ _OTO_VARSAYILAN = {
     # 01D+CF2+MK2+MT2); panelden girilirse onu ezer.
     'montaj_plan':    {'etkin': True, 'saatler': ['07:05', '13:05'], 'ufuk_gun': 42,
                        'bildirim_push': [], 'bildirim_mail': [],
-                       'ref_depolar': [], 'alt_depolar': []},
+                       'ref_depolar': [], 'alt_depolar': [], 'kisit_disi_parcalar': []},
     'agent_nobeti':   {'etkin': True, 'kontrol_dk': 10, 'hatirlatma_saat': 6,
                        'alicilar': []},
     # CFI/COP'u EKRAN ROBOTU yerine IT'nin staging tablosuyla yaz (Simone Rota,

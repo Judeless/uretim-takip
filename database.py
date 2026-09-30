@@ -1861,7 +1861,9 @@ def init_db():
     # altindan geldi; 'hayali'=1 ise acilamadi ve kisit sayilmadi.
     for _tablo in ('kaynak_plan_parca', 'montaj_plan_parca'):
         for _kol, _tip in (('seviye', 'INTEGER DEFAULT 1'), ('yol', "TEXT DEFAULT ''"),
-                           ('hayali', 'INTEGER DEFAULT 0')):
+                           ('hayali', 'INTEGER DEFAULT 0'),
+                           # kisit disi parca (etiket/sarf): stogu kontrol edilmez
+                           ('muaf', 'INTEGER DEFAULT 0')):
             try:
                 c.execute(f'ALTER TABLE {_tablo} ADD COLUMN {_kol} {_tip}')
             except Exception:

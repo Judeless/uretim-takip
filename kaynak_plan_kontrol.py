@@ -387,7 +387,8 @@ def stok_ggi(cn, kodlar):
             for k, v in ham.items()}
 
 
-def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, iz=None):
+def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, iz=None,
+            kisit_disi=None):
     """Her plan satırına üretilebilir adet ve kısıtlayan parçayı ekler.
 
     ref_stok verilirse (kullanıcı 2026-07-31: "referans stoklarını excelden değil
@@ -410,6 +411,14 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
     # tanımlı referansta stok hareketi yapılmaz, launch alınırken de hesaba
     # katılmaz — sadece görüntü olarak reçetede durur."
     iz = iz or {}
+    # kisit_disi: stoğu kontrol EDİLMEYECEK parçalar (etiket, sarf…). Kullanıcı
+    # 2026-09-30: "50.010.700 etiket olduğu için kontrolden çıkartalım, bakmaya
+    # gerek yok" — tek başına 25 mekanizmayı kilitliyordu (bakiyesi yalnız kayıp
+    # depo 01W'de). Kod tam eşleşir; sonu '*' ise ön ek ('50.010.*').
+    kisit_disi = tuple(str(k).strip() for k in (kisit_disi or ()) if str(k).strip())
+
+    def _kisit_disi_mi(kod):
+        return any(kod == k or (k.endswith('*') and kod.startswith(k[:-1])) for k in kisit_disi)
     for s in satirlar:
         if ref_stok is not None:
             d = ref_stok.get(s['kaynak_kod'], {})
@@ -434,8 +443,9 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
             ham = sum(depolar.get(d, 0) for d in sayilan)
             eldeki = max(0.0, ham)          # eksi bakiye "üretilebilir" değildir
             _iz = (iz.get(s['kaynak_kod']) or {}).get(alt) or {}
-            if _iz.get('hayali'):
-                kap = None                  # hayali: gösterilir, kısıt sayılmaz
+            _muaf = _kisit_disi_mi(alt)
+            if _iz.get('hayali') or _muaf:
+                kap = None                  # hayali / kısıt dışı: gösterilir, sayılmaz
             elif birim > 0:
                 kap = int(math.floor(eldeki / birim))
                 kapasiteler.append((kap, alt))
@@ -447,7 +457,7 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
                 'kapasite': kap,
                 'depolar': {d: depolar[d] for d in gosterilen if depolar.get(d)},
                 'seviye': _iz.get('seviye', 1), 'yol': _iz.get('yol', ''),
-                'hayali': bool(_iz.get('hayali')),
+                'hayali': bool(_iz.get('hayali')), 'muaf': _muaf,
             })
         if not kapasiteler:
             s['durum'] = 'BIRIM YOK'
