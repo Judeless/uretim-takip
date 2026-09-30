@@ -13350,6 +13350,10 @@ def kaynak_plan_excel(plan):
         yon = -1 if int(request.args.get('yon') or 1) < 0 else 1
     except (TypeError, ValueError):
         yon = 1
+    # 'Öne çıkanlar'dan gelen ürün süzgeci: ekranda ne görünüyorsa o insin
+    _kodlar = {k.strip() for k in (request.args.get('kodlar') or '').split(',') if k.strip()}
+    if _kodlar:
+        satirlar = [s for s in satirlar if s['kaynak_kod'] in _kodlar]
     satirlar = _kp_sirala(satirlar, request.args.get('sirala') or 'sira', yon)
     ad = f"{pf['anahtar']}_plani_{datetime.now():%Y%m%d_%H%M}.xlsx"
     return send_file(_kp_excel(satirlar, pf['ad'], pf['kod_baslik']),
@@ -13576,6 +13580,118 @@ def montaj_plan_oto_job():
     """07:05 ve 13:05 — TK2 montaj planı (kaynak turundan 5 dk sonra: iki tur
     aynı anda AS400'e yüklenmesin; montaj turu ~1 dakika sürer)."""
     _kp_oto_job('montaj')
+
+
+# ── ÖNE ÇIKANLAR: darboğaz parçalar + otomatik notlar (kullanıcı 2026-09-30) ──
+# "Hangi referansın kaç adet ürünü kilitlediğini görmek çok mantıklı; bu ürünün
+#  tedariğini tamamlayıp önemli bir şey yapılmış olur. Bu gibi önemli notları
+#  dashboardda plan sayfasında görebilmeliyim."
+# Satır satır bakınca görünmeyen soru: TEK bir parçayı getirmek kaç ürünü açar?
+def _kp_notlar(conn, pf):
+    """Yeni emir AÇILAMAYAN ürünleri (karar MALZEME YOK / KISMI) alt parçaya göre toplar.
+
+    YETERSİZ parça = o parçadan üretilebilecek adet, açılacak emri karşılamıyor
+    (kapasite < emir_gereken). Hayali ve kısıt dışı parçalar sayılmaz.
+      urun_sayisi : bu parçayı bekleyen ürün sayısı
+      tek_basina  : YALNIZ bu parçayı bekleyen ürün sayısı — parça gelince başka
+                    hiçbir şey beklemeden açılır (tedarikte en hızlı kazanım)
+      eksik_adet  : bekleyen ürünlerin toplam talebi − eldeki sayılan stok"""
+    satirlar = _kp_satirlar(conn, pf)
+    aktif = {s['kaynak_kod'] for s in satirlar}
+    hedef = {s['kaynak_kod']: s for s in satirlar
+             if (s.get('karar') or '') in ('MALZEME YOK', 'KISMI')}
+    tel_onek = tuple(pf.get('kontrol_disi_onek') or ())
+    yetersiz, bilgi, eksi_parca = {}, {}, set()
+    for p in conn.execute(
+            f"SELECT kaynak_kod, alt_kod, birim, stok_sayilan, kapasite, hayali, muaf, "
+            f"diger_depolar, eksi_bakiye FROM {pf['parca']}"):
+        kod, alt = p['kaynak_kod'], p['alt_kod']
+        if kod not in aktif:
+            continue                      # plandan çıkmış ürünün eski kırılımı
+        if p['eksi_bakiye']:
+            eksi_parca.add(alt)
+        s = hedef.get(kod)
+        if not s or p['hayali'] or p['muaf'] or p['kapasite'] is None:
+            continue
+        emir = s.get('emir_gereken') or 0
+        if p['kapasite'] >= emir:
+            continue
+        yetersiz.setdefault(kod, []).append(alt)
+        b = bilgi.setdefault(alt, {
+            'alt_kod': alt, 'urunler': [], 'tek_basina': 0, 'talep': 0.0,
+            'stok_sayilan': p['stok_sayilan'] or 0, 'diger_depolar': p['diger_depolar'] or '',
+            'tel': bool(tel_onek and alt.startswith(tel_onek))})
+        b['urunler'].append(kod)
+        b['talep'] += emir * (p['birim'] or 0)
+    tek_eksik = sorted(u for u, alts in yetersiz.items() if len(alts) == 1)
+    for u in tek_eksik:
+        bilgi[yetersiz[u][0]]['tek_basina'] += 1
+    for b in bilgi.values():
+        b['urun_sayisi'] = len(b['urunler'])
+        b['eksik_adet'] = round(max(0.0, b['talep'] - max(0.0, b['stok_sayilan'])), 2)
+        b['talep'] = round(b['talep'], 2)
+    kilit = sorted(bilgi.values(), key=lambda b: (-b['urun_sayisi'], -b['tek_basina'], b['alt_kod']))
+
+    notlar = []
+    hazir = [s for s in satirlar if (s.get('karar') or '') == 'TALIMAT VER']
+    if hazir:
+        notlar.append({
+            'tur': 'hazir', 'kodlar': sorted(s['kaynak_kod'] for s in hazir), 'etiket': 'malzemesi tam ürünler',
+            'metin': f"{len(hazir)} ürünün malzemesi tam — toplam "
+                     f"{sum(s.get('emir_gereken') or 0 for s in hazir):g} adetlik yeni emir hemen açılabilir."})
+    if tek_eksik:
+        notlar.append({
+            'tur': 'firsat', 'kodlar': tek_eksik, 'etiket': 'tek parçası eksik ürünler',
+            'metin': f"{len(tek_eksik)} ürünün yalnız TEK parçası eksik — o parça gelince yeni emir açılabilir."})
+    if kilit:
+        k = kilit[0]
+        notlar.append({
+            'tur': 'darbogaz', 'kodlar': sorted(k['urunler']), 'etiket': f"{k['alt_kod']} bekleyen ürünler",
+            'metin': f"En çok ürünü kilitleyen parça {k['alt_kod']}: {k['urun_sayisi']} ürün bekliyor"
+                     + (f", {k['tek_basina']} tanesi yalnız bunu bekliyor" if k['tek_basina'] else '')
+                     + f". Eksik miktar {k['eksik_adet']:g}."})
+        e = max(kilit, key=lambda b: (b['tek_basina'], b['urun_sayisi']))
+        if e['tek_basina'] and e['alt_kod'] != k['alt_kod']:
+            notlar.append({
+                'tur': 'firsat', 'kodlar': sorted(e['urunler']), 'etiket': f"{e['alt_kod']} bekleyen ürünler",
+                'metin': f"En hızlı kazanım {e['alt_kod']}: tedarik edilirse {e['tek_basina']} ürün "
+                         f"başka hiçbir parça beklemeden açılır."})
+        ilk5 = set()
+        for b in kilit[:5]:
+            ilk5 |= set(b['urunler'])
+        if len(kilit) > 5 and hedef:
+            notlar.append({
+                'tur': 'darbogaz', 'kodlar': sorted(ilk5), 'etiket': 'ilk 5 parçayı bekleyen ürünler',
+                'metin': f"İlk 5 parça birlikte {len(ilk5)} ürünü etkiliyor (yeni emir açılamayan "
+                         f"{len(hedef)} ürün içinde %{round(100 * len(ilk5) / len(hedef))})."})
+    if tel_onek:
+        tel_urun = sorted(u for u, alts in yetersiz.items() if any(a.startswith(tel_onek) for a in alts))
+        yalniz_tel = [u for u in tel_urun if all(a.startswith(tel_onek) for a in yetersiz[u])]
+        if tel_urun:
+            notlar.append({
+                'tur': 'darbogaz', 'kodlar': tel_urun, 'etiket': 'tel bekleyen ürünler',
+                'metin': f"{len(tel_urun)} mekanizma tel bekliyor; {len(yalniz_tel)} tanesinin tek eksiği tel "
+                         f"— bu ürünleri TK1 / fason tel terminleri belirliyor."})
+    if eksi_parca:
+        notlar.append({
+            'tur': 'veri', 'kodlar': [], 'etiket': '',
+            'metin': f"{len(eksi_parca)} alt parçanın sayılan depolarında eksi bakiye var — ERP'de aktarım "
+                     f"bekliyor olabilir; bu parçalarda 'stok yok' sonucu olduğundan kötü görünebilir."})
+    return {'notlar': notlar, 'kilitleyen': kilit[:25],
+            'ozet': {'acilamayan': len(hedef), 'tek_eksik': len(tek_eksik),
+                     'kilitleyen_parca': len(kilit)}}
+
+
+@app.route('/api/kaynak_plan/notlar', methods=['GET'], defaults={'plan': 'kaynak'})
+@app.route('/api/montaj_plan/notlar', methods=['GET'], defaults={'plan': 'montaj'})
+@_kp_yetki
+def kaynak_plan_notlar(plan):
+    """Plan sayfasının 'Öne çıkanlar' kartı: kilitleyen parçalar + otomatik notlar."""
+    pf = _kp_profil(plan)
+    try:
+        return jsonify(_kp_notlar(get_db(), pf))
+    except Exception as e:
+        return jsonify({'hata': f'Notlar hesaplanamadı: {e}'}), 500
 
 
 @app.route('/api/kaynak_plan/oto_calistir', methods=['POST'], defaults={'plan': 'kaynak'})

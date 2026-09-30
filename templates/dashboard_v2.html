@@ -5110,6 +5110,8 @@ window.__I18N_SOZLUK__ = {
   "🔥 Kaynatılmalı:": {"en": "🔥 To be welded:", "it": "🔥 Da saldare:"},
   "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
   "Montaj Planı": {"en": "Assembly Plan", "it": "Piano montaggio"},
+  "💡 Öne çıkanlar": {"en": "💡 Highlights", "it": "💡 In evidenza"},
+  "ürünleri göster": {"en": "show products", "it": "mostra prodotti"},
   "✔ Launch yeterli:": {"en": "✔ Launch sufficient:", "it": "✔ Lancio sufficiente:"},
   "⚙ Mekanizmalar:": {"en": "⚙ Mechanisms:", "it": "⚙ Meccanismi:"},
   "🧵 Tel · kontrol dışı:": {"en": "🧵 Cables · not checked:", "it": "🧵 Cavi · non controllati:"},
@@ -7918,6 +7920,8 @@ window.__I18N_SOZLUK__ = {
                     <!-- EMİR AÇILACAKLAR (2026-09-30): üretilebilir adedi artan ve emir
                          açılması gereken referanslar; push/mail kaçsa da burada bekler. -->
                     <div id="kp-bildirim" style="padding:12px 20px 0"></div>
+                    <!-- ÖNE ÇIKANLAR (2026-09-30): kilitleyen parçalar + otomatik notlar -->
+                    <div id="kp-notlar" style="padding:12px 20px 0"></div>
                     <div id="kp-cipler" style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px 0"></div>
                     <div id="kp-icerik" style="padding:12px 20px 20px">
                         <div style="color:var(--muted);font-size:.9rem">Yükleniyor…</div>
@@ -14580,6 +14584,8 @@ window.__I18N_SOZLUK__ = {
                 var f = document.getElementById('kp-filtre'); if (f) f.value = 'aksiyon';
                 var a = document.getElementById('kp-ara'); if (a) a.value = '';
                 var b = document.getElementById('kp-bildirim'); if (b) b.innerHTML = '';
+                var nk = document.getElementById('kp-notlar'); if (nk) nk.innerHTML = '';
+                _kpKodSuzgec = null; _kpNotVeri = { notlar: [], kilitleyen: [] };
             }
             _kpPlan = plan;
             var montaj = (plan === 'montaj');
@@ -14616,6 +14622,7 @@ window.__I18N_SOZLUK__ = {
                 }
                 kpCiz();
                 kpBildirimYukle();
+                kpNotlarYukle();
             }).catch(function (e) {
                 el.innerHTML = '<div style="color:var(--danger)">Yüklenemedi: ' + esc(String(e)) + '</div>';
             });
@@ -14643,6 +14650,7 @@ window.__I18N_SOZLUK__ = {
         function kpFiltreSec(f) {
             var sel = document.getElementById('kp-filtre'); if (!sel) return;
             sel.value = (sel.value === f) ? (f === 'aksiyon' ? 'hepsi' : 'aksiyon') : f;
+            _kpKodSuzgec = null;
             kpCiz();
         }
 
@@ -14677,12 +14685,83 @@ window.__I18N_SOZLUK__ = {
                 ' title="' + esc((ipucu ? ipucu + ' — ' : '') + 'sıralamak için tıklayın') + '">' +
                 metin + (secili ? (_kpSirala.yon > 0 ? ' ▲' : ' ▼') : '') + '</th>';
         }
+        // ── ÖNE ÇIKANLAR (kullanıcı 2026-09-30) ────────────────────────────────────
+        // "Hangi referansın kaç ürünü kilitlediğini görmek çok mantıklı; bu gibi önemli
+        //  notları plan sayfasında görebilmeliyim." Satır satır bakınca görünmeyen soru:
+        // TEK bir parçayı getirmek kaç ürünü açar? Not ya da parça satırındaki "ürünleri
+        // göster" listeyi o ürünlere süzer.
+        var _kpNotVeri = { notlar: [], kilitleyen: [] };
+        var _kpKodSuzgec = null;      // { etiket, kodlar: {kod: true} } — aktifse liste buna süzülür
+        function kpNotlarYukle() {
+            var el = document.getElementById('kp-notlar'); if (!el) return;
+            fetch(kpApi() + '/notlar').then(function (r) { return r.json(); }).then(function (d) {
+                if (d.hata) { el.innerHTML = ''; return; }
+                _kpNotVeri = d;
+                kpNotlarCiz();
+            }).catch(function () { el.innerHTML = ''; });
+        }
+        function kpNotlarCiz() {
+            var el = document.getElementById('kp-notlar'); if (!el) return;
+            var d = _kpNotVeri, notlar = d.notlar || [], kilit = d.kilitleyen || [];
+            if (!notlar.length && !kilit.length) { el.innerHTML = ''; return; }
+            var simge = { hazir: '🟢', firsat: '🎯', darbogaz: '🔒', veri: '⚠' };
+            var h = '<div style="border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;background:var(--card)">' +
+                '<div style="font-weight:800;font-size:.9rem;margin-bottom:6px">💡 Öne çıkanlar</div>';
+            notlar.forEach(function (n, i) {
+                h += '<div style="display:flex;gap:8px;align-items:baseline;font-size:.84rem;line-height:1.5;padding:2px 0">' +
+                    '<span>' + (simge[n.tur] || '•') + '</span><span style="flex:1">' + esc(n.metin) + '</span>' +
+                    ((n.kodlar || []).length
+                        ? '<a href="#" style="white-space:nowrap;font-size:.76rem;font-weight:700" onclick="kpKodSuzgecKur(&quot;not&quot;,' + i + ');return false">ürünleri göster</a>'
+                        : '') + '</div>';
+            });
+            if (kilit.length) {
+                h += '<div style="font-weight:800;font-size:.8rem;margin:10px 0 4px">🔒 En çok ürünü kilitleyen parçalar' +
+                    ' <span style="font-weight:600;color:var(--muted)">— tedarik önceliği</span></div>' +
+                    '<div class="table-wrap" style="max-height:250px;overflow:auto"><table class="admin-table" style="margin:0"><thead><tr>' +
+                    '<th>Parça</th>' +
+                    '<th style="text-align:right" title="bu parça yetmediği için yeni emri açılamayan ürün sayısı">Bekleyen ürün</th>' +
+                    '<th style="text-align:right" title="YALNIZ bu parçayı bekleyen ürün: parça gelince başka hiçbir şey beklemeden açılır">Yalnız bunu bekleyen</th>' +
+                    '<th style="text-align:right" title="bekleyen ürünlerin toplam talebi − sayılan stok">Eksik miktar</th>' +
+                    '<th style="text-align:right" title="sayılan depolardaki stok">Sayılan stok</th>' +
+                    '<th>Sayılmayan depolar</th><th></th></tr></thead><tbody>';
+                kilit.forEach(function (k, i) {
+                    h += '<tr><td style="font-weight:800">' + esc(k.alt_kod) +
+                            (k.tel ? ' <span style="font-size:.7rem;color:var(--muted);font-weight:600">tel · TK1/fason</span>' : '') + '</td>' +
+                        '<td style="text-align:right;font-weight:800;color:var(--danger)">' + k.urun_sayisi + '</td>' +
+                        '<td style="text-align:right;font-weight:700;color:' + (k.tek_basina ? 'var(--success)' : 'var(--dim)') + '">' +
+                            (k.tek_basina || '—') + '</td>' +
+                        '<td style="text-align:right">' + fmt(k.eksik_adet || 0) + '</td>' +
+                        '<td style="text-align:right;color:' + ((k.stok_sayilan || 0) > 0 ? 'var(--text)' : 'var(--dim)') + '">' + fmt(k.stok_sayilan || 0) + '</td>' +
+                        '<td style="font-size:.74rem;color:var(--dim)">' + esc(k.diger_depolar || '') + '</td>' +
+                        '<td style="text-align:right"><a href="#" style="white-space:nowrap;font-size:.76rem;font-weight:700" ' +
+                            'onclick="kpKodSuzgecKur(&quot;parca&quot;,' + i + ');return false">ürünleri göster</a></td></tr>';
+                });
+                h += '</tbody></table></div>';
+            }
+            el.innerHTML = h + '</div>';
+        }
+        function kpKodSuzgecKur(tur, i) {
+            var kaynak = (tur === 'not') ? (_kpNotVeri.notlar || [])[i] : (_kpNotVeri.kilitleyen || [])[i];
+            if (!kaynak) return;
+            var kodlar = {};
+            ((tur === 'not') ? kaynak.kodlar : kaynak.urunler || []).forEach(function (k) { kodlar[k] = true; });
+            _kpKodSuzgec = { etiket: (tur === 'not') ? (kaynak.etiket || 'seçili ürünler') : (kaynak.alt_kod + ' bekleyen ürünler'),
+                             kodlar: kodlar };
+            // Diğer süzgeçler bu listeyi boşaltmasın
+            var f = document.getElementById('kp-filtre'); if (f) f.value = 'hepsi';
+            var a = document.getElementById('kp-ara'); if (a) a.value = '';
+            kpCiz();
+            var ic = document.getElementById('kp-cipler'); if (ic) ic.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
+        function kpKodSuzgecKaldir() { _kpKodSuzgec = null; kpCiz(); }
+
         function kpExcel() {
             var f = (document.getElementById('kp-filtre') || {}).value || 'aksiyon';
             var ara = (document.getElementById('kp-ara') || {}).value || '';
             window.location.href = kpApi() + '/excel?filtre=' + encodeURIComponent(f) +
                 '&ara=' + encodeURIComponent(ara) + '&sirala=' + encodeURIComponent(_kpSirala.alan) +
-                '&yon=' + _kpSirala.yon;
+                '&yon=' + _kpSirala.yon +
+                (_kpKodSuzgec ? '&kodlar=' + encodeURIComponent(Object.keys(_kpKodSuzgec.kodlar).join(',')) : '');
         }
 
         // ── EMİR AÇILACAKLAR / BİLDİRİM (kullanıcı 2026-09-30) ──────────────────
@@ -14793,6 +14872,10 @@ window.__I18N_SOZLUK__ = {
             var cip = document.getElementById('kp-cipler');
             if (cip) {
                 cip.innerHTML =
+                    (_kpKodSuzgec
+                        ? '<span onclick="kpKodSuzgecKaldir()" title="süzgeci kaldır" style="border:1px solid var(--primary);background:var(--surface-2);color:var(--primary);border-radius:999px;padding:5px 12px;font-size:.78rem;font-weight:800;cursor:pointer;box-shadow:0 0 0 2px var(--primary)">🔎 ' +
+                          esc(_kpKodSuzgec.etiket) + ' ✕</span>'
+                        : '') +
                     kpCip('var(--danger)', '🔥 ' + kpFiil() + ': ' + (o.kaynatilmali || 0), false, 'aksiyon') +
                     kpCip('var(--success)', '✅ Malzemesi tam: ' + (o['TALIMAT VER'] || 0), false, 'TALIMAT VER') +
                     kpCip('var(--warn)', '◐ Malzeme kısmi: ' + (o['KISMI'] || 0), false, 'KISMI') +
@@ -14812,6 +14895,7 @@ window.__I18N_SOZLUK__ = {
             var f = (document.getElementById('kp-filtre') || {}).value || 'aksiyon';
             var ara = ((document.getElementById('kp-ara') || {}).value || '').toUpperCase().replace(/\s/g, '');
             var liste = hepsi.filter(function (s) {
+                if (_kpKodSuzgec && !_kpKodSuzgec.kodlar[s.kaynak_kod]) return false;
                 if (ara && (s.kaynak_kod + ' ' + (s.urun || '')).toUpperCase().replace(/\s/g, '').indexOf(ara) < 0) return false;
                 if (f === 'hepsi') return true;
                 if (f === 'aksiyon') return (s.gereken || 0) > 0;
