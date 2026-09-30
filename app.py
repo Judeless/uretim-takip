@@ -2106,11 +2106,62 @@ def _yerel_ag_istegi():
 _YEDEK_DOSYALAR = {'excel': 'uretim_verileri.xlsx', 'excel_tk1': 'Tk1 Veriler.xlsx'}
 
 
-@app.route('/api/yedek/bilgi', methods=['GET'])
+# YEDEK ANAHTARI (kullanıcı 2026-09-30: "laptoptaki Excel'i kullanman gerektiğinde
+# sen otomatik olarak güncelle"). Otomatik çekim için yönetici ŞİFRESİ bir yerde
+# saklanamaz; onun yerine YALNIZ yedek indirmeye yarayan ayrı bir anahtar var:
+#   · Sunucuda yalnız ÖZETİ durur (genel_ayarlar.yedek_anahtar_ozet) — düz hâli yok.
+#   · Düz hâli üretildiği an laptopun Windows Kimlik Kasası'na yazılır, ekrana basılmaz.
+#   · Yalnız yerel ağdan geçerlidir; panelden yeniden üretmek eskisini iptal eder.
+def _yedek_yetkili():
+    """(izinli, kim): yönetici oturumu YA DA yerel ağdan geçerli yedek anahtarı."""
+    ku = panel_kullanici()
+    if ku and ku['admin']:
+        return True, ku['kullanici_adi']
+    anahtar = (request.headers.get('X-Yedek-Anahtari') or '').strip()
+    if anahtar and _yerel_ag_istegi():
+        try:
+            r = get_db().execute(
+                "SELECT deger FROM genel_ayarlar WHERE anahtar='yedek_anahtar_ozet'").fetchone()
+            if r and r['deger'] and check_password_hash(r['deger'], anahtar):
+                return True, 'yedek-anahtari'
+        except Exception as e:
+            print(f'[YEDEK] anahtar kontrolü yapılamadı: {e}')
+    return False, ''
+
+
+@app.route('/api/yedek/anahtar_uret', methods=['POST'])
 @panel_gerekli(admin=True)
+def yedek_anahtar_uret():
+    """Yeni yedek anahtarı üretir; düz hâli YALNIZ bu yanıtta döner, sunucuda özeti
+    saklanır. Eski anahtar geçersiz olur. Yalnız yerel ağdan (Sunucudan_Veri_Cek --kur)."""
+    if not _yerel_ag_istegi():
+        return jsonify({'hata': 'Yedek anahtarı yalnız yerel ağdan üretilebilir'}), 403
+    anahtar = secrets.token_urlsafe(32)
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO genel_ayarlar (anahtar, deger) VALUES ('yedek_anahtar_ozet', ?)",
+                 (generate_password_hash(anahtar),))
+    conn.commit()
+    print(f"[YEDEK] yeni yedek anahtarı üretildi: {g.panel_ku['kullanici_adi']} @ {request.remote_addr}")
+    return jsonify({'ok': True, 'anahtar': anahtar})
+
+
+@app.route('/api/yedek/anahtar_iptal', methods=['POST'])
+@panel_gerekli(admin=True)
+def yedek_anahtar_iptal():
+    """Yedek anahtarını iptal eder — otomatik çekim yeniden --kur yapılana dek durur."""
+    conn = get_db()
+    conn.execute("DELETE FROM genel_ayarlar WHERE anahtar='yedek_anahtar_ozet'")
+    conn.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/yedek/bilgi', methods=['GET'])
 def yedek_bilgi():
     """Bu kurulumun kimliği + veri özeti — Sunucudan_Veri_Cek doğru makineye
     bağlandığını ve ne indireceğini buradan görür."""
+    _izinli, _kim = _yedek_yetkili()
+    if not _izinli:
+        return jsonify({'hata': 'Oturum ya da yedek anahtarı gerekli', 'giris_gerekli': True}), 401
     import socket
     from database import DB_PATH as _db_yol
     conn = get_db()
@@ -2119,6 +2170,7 @@ def yedek_bilgi():
         'host': socket.gethostname(),
         'zaman': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'gelistirme_kopyasi': bool(_gelistirme_kopyasi()),
+        'kimlik': _kim,
         'db_boyut': os.path.getsize(_db_yol) if os.path.exists(_db_yol) else 0,
         'referans': conn.execute("SELECT COUNT(*) c FROM referans_listesi").fetchone()['c'],
         'vardiya': conn.execute("SELECT COUNT(*) c FROM vardiyalar").fetchone()['c'],
@@ -2128,7 +2180,6 @@ def yedek_bilgi():
 
 
 @app.route('/api/yedek/indir', methods=['GET'])
-@panel_gerekli(admin=True)
 def yedek_indir():
     """Canlı verinin TUTARLI kopyası. ?ne=db | excel | excel_tk1
 
@@ -2136,11 +2187,14 @@ def yedek_indir():
     yarım sayfa taşıyabilir; backup() tutarlı bir anlık görüntü verir.
     YALNIZ yönetici ve YALNIZ yerel ağdan: dosyada operatör PIN'leri ve panel
     şifre özetleri var, internete açık adresten (coflemanage.online) inmez."""
+    _izinli, _kim = _yedek_yetkili()
+    if not _izinli:
+        return jsonify({'hata': 'Oturum ya da yedek anahtarı gerekli', 'giris_gerekli': True}), 401
     if not _yerel_ag_istegi():
         return jsonify({'hata': 'Yedek yalnız yerel ağdan indirilebilir (internet üzerinden kapalı)'}), 403
     import io as _io
     ne = (request.args.get('ne') or 'db').strip().lower()
-    kim = g.panel_ku['kullanici_adi']
+    kim = _kim
     if ne == 'db':
         import sqlite3 as _sq
         import tempfile
