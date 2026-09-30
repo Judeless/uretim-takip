@@ -14817,6 +14817,8 @@ window.__I18N_SOZLUK__ = {
                     '<input type="text" id="kp-ayar-refdepo" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.ref_depolar || []).join(', ')) + '">' +
                     '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Alt parça stoğu hangi depolardan sayılsın (ÜRETİLEBİLİR adet bundan) — değişiklik bir sonraki yenilemede geçerli</div>' +
                     '<input type="text" id="kp-ayar-altdepo" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.alt_depolar || []).join(', ')) + '">' +
+                    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Eksi bakiyesi serbest stoktan DÜŞÜLECEK depolar (mal 01D kaydında ama bu depodan tüketilmiş)</div>' +
+                    '<input type="text" id="kp-ayar-eksidepo" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.eksi_dusulen || []).join(', ')) + '">' +
                     '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Stoğu kontrol EDİLMEYECEK alt parçalar (etiket, sarf) — kodları virgülle ayırın; ön ek için sonuna * koyun</div>' +
                     '<input type="text" id="kp-ayar-kisitdisi" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.kisit_disi_parcalar || []).join(', ')) + '" placeholder="50.010.700">' +
                     '<button class="btn btn-primary" onclick="kpAyarKaydet()">Kaydet</button></div></div>';
@@ -14834,6 +14836,7 @@ window.__I18N_SOZLUK__ = {
                 bildirim_mail: (document.getElementById('kp-ayar-mail') || {}).value || '',
                 ref_depolar: (document.getElementById('kp-ayar-refdepo') || {}).value || '',
                 alt_depolar: (document.getElementById('kp-ayar-altdepo') || {}).value || '',
+                eksi_dusulen: (document.getElementById('kp-ayar-eksidepo') || {}).value || '',
                 kisit_disi_parcalar: (document.getElementById('kp-ayar-kisitdisi') || {}).value || ''
             };
             fetch(kpApi() + '/bildirim_ayar', {
@@ -15100,7 +15103,8 @@ window.__I18N_SOZLUK__ = {
                 var h = '<table class="admin-table" style="margin:0"><thead><tr>' +
                     '<th>Alt Parça</th><th style="text-align:right">Birim</th>' +
                     '<th style="text-align:right">01D</th><th style="text-align:right">CF2</th>' +
-                    '<th style="text-align:right" title="' + esc('sayılan depolar: ' + kpDepoMetni('alt_depolar')) +
+                    '<th style="text-align:right" title="' + esc('sayılan depolar: ' + kpDepoMetni('alt_depolar') +
+                        ' · eksi bakiyesi düşülen: ' + kpDepoMetni('eksi_dusulen')) +
                         '">Sayılan</th><th style="text-align:right">Değişim</th>' +
                     '<th style="text-align:right">Bu parçadan</th><th>Diğer depolar</th></tr></thead><tbody>';
                 p.forEach(function (x) {

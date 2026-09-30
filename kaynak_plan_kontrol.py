@@ -41,7 +41,9 @@ VARSAYILAN_PLAN = r"Q:\UretimPlanlama\Yarımamul Üretim Planları\Kaynak ihtiya
 SAYILAN_DEPOLAR = ('01D', 'CF2')          # kullanıcının kuralı
 # 01D eksisiyle NETLEŞMEYEN depolar — yalnız CF2 (bkz. hesapla).
 AYRI_SAYILAN_DEPOLAR = ('CF2',)
-GOSTERILEN_DEPOLAR = ('01D', 'CF2', '01W', 'REP', 'MDT', 'MK2', 'MT2')
+# Stoğu SAYILMAYAN ama EKSİ bakiyesi serbest stoktan DÜŞÜLEN depolar (bkz. hesapla).
+EKSI_DUSULEN_DEPOLAR = ('REP', '02')
+GOSTERILEN_DEPOLAR = ('01D', 'CF2', '01W', 'REP', '02', 'MDT', 'MK2', 'MT2')
 GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,21}$')
 # Acik uretim emirleri gorunumu (as400_config.KAYNAK_TABLO ile ayni kaynak)
 OPR_TABLO = 'tkc0301F.XPRO90'
@@ -392,7 +394,7 @@ def stok_ggi(cn, kodlar):
 
 
 def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, iz=None,
-            kisit_disi=None):
+            kisit_disi=None, eksi_dusulen=None):
     """Her plan satırına üretilebilir adet ve kısıtlayan parçayı ekler.
 
     ref_stok verilirse (kullanıcı 2026-07-31: "referans stoklarını excelden değil
@@ -405,6 +407,7 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
     Verilmezse kaynak planının kuralı (01D+CF2). Montaj planı 01D+CF2+MK2+MT2
     sayar — kaynaktan gelen yarı mamul transit depolarda (MK2/MT2) bekler."""
     sayilan = tuple(sayilan or SAYILAN_DEPOLAR)
+    eksi_dusulen = tuple(EKSI_DUSULEN_DEPOLAR if eksi_dusulen is None else eksi_dusulen)
     gosterilen = tuple(gosterilen or GOSTERILEN_DEPOLAR)
     # iz: urun_agaci_hayali'nin ikinci çıktısı. 'hayali' işaretli parça (ağacı
     # olmayan ya da azami seviyede hâlâ hayali) stokta TUTULMAZ — stoğu hep 0
@@ -455,8 +458,16 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
             #     çoktan tüketilmiş, serbest değildir. Bunlar toplanıp sonra sıfırlanır.
             # İlk denemede kural bütün depolara genellenmişti (depo bazında sıfırlama);
             # MK2'deki tüketilmiş stoğu 'var' gösteriyordu — kullanıcı düzeltti.
+            # REP / 02 EKSİSİ SERBEST STOKTAN DÜŞÜLÜR (kullanıcı 2026-09-30, 10.300.4982G/10):
+            # 01D 179 görünüyor ama REP −126 ve 02 −50: "REP ve 02 stoklarındaki eksi
+            # miktarlara bakınca 01D adediyle örtüştüğünü görüyoruz; yani 01D'deki ürün
+            # KULLANILMIŞ, stokta bulunmamakta. Bu kod launch alınabilir gibi
+            # görünmemeli." Tüketim REP/02'den düşülmüş, mal kaydı hâlâ 01D'de. Bu
+            # depoların ARTI bakiyesi sayılmaz (REP artısı başka emre rezerve).
+            tuketilmis = sum(min(0.0, depolar.get(d, 0)) for d in eksi_dusulen
+                             if d not in sayilan)
             eldeki = (max(0.0, sum(depolar.get(d, 0) for d in sayilan
-                               if d not in AYRI_SAYILAN_DEPOLAR))
+                               if d not in AYRI_SAYILAN_DEPOLAR) + tuketilmis)
                       + sum(max(0.0, depolar.get(d, 0)) for d in sayilan
                             if d in AYRI_SAYILAN_DEPOLAR))
             _iz = (iz.get(s['kaynak_kod']) or {}).get(alt) or {}

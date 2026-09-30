@@ -12646,9 +12646,15 @@ KP_PROFILLER = {
         'config': 'kaynak_plan', 'izin': 'kaynak-plan',
         'ref_depolar': ('01D', 'MDT'),          # ERP ekranındaki G GI
         'alt_depolar': ('01D', 'CF2'),
-        'gosterilen': ('01D', 'CF2', '01W', 'REP', 'MDT', 'MK2', 'MT2'),
+        'gosterilen': ('01D', 'CF2', '01W', 'REP', '02', 'MDT', 'MK2', 'MT2'),
         'hayali_seviye': 0, 'excel_yukleme': True, 'kontrol_disi_onek': (),
         'haric_onek': (), 'kisit_disi_parcalar': (),
+        # Stoğu sayılmayan ama EKSİ bakiyesi serbest stoktan düşülen depolar.
+        'eksi_dusulen': ('REP', '02'),
+        # ÜST KOD → KAYNAKLI ALT KOD (kullanıcı 2026-09-30): planlamanın eski
+        # Excel'inden kalan '10.300.4534' gibi kodlar kaynak işi değil — tek alt
+        # parçası kaynaklı kod (10.300.4534W). Plana W'li kod girer, üst kod girmez.
+        'ust_kod_indir': True,
     },
     'montaj': {
         'anahtar': 'montaj', 'ad': 'Montaj planı (TK2)', 'kod_baslik': 'Montaj kodu',
@@ -12667,7 +12673,8 @@ KP_PROFILLER = {
         # Kırılımda GÖSTERİLEN depolar sayılanlardan geniş: montaj parçalarının stoğu
         # ağırlıkla 01W / REP / CF'de duruyor (2026-09-30 ölçümü) — kural değişecekse
         # kullanıcı stoğun nerede olduğunu ekranda görebilmeli.
-        'gosterilen': ('01D', 'CF2', 'MK2', 'MT2', '01W', 'REP', 'CF', '01', 'MDT'),
+        'gosterilen': ('01D', 'CF2', 'MK2', 'MT2', '01W', 'REP', '02', 'CF', '01', 'MDT'),
+        'eksi_dusulen': ('REP', '02'), 'ust_kod_indir': False,
         # Kullanıcı: "1. seviye fictitious ise 2. seviyeye, o da fictitious ise 3.'ye."
         'hayali_seviye': 3, 'excel_yukleme': False,
         # TEL (93.TK / 93.00 / 93.01 …) — kullanıcı 2026-09-30: "bu teller TK1'de ya
@@ -12705,6 +12712,16 @@ def _kp_depolar(pf):
 
     ref, alt = liste('ref_depolar'), liste('alt_depolar')
     return ref, alt, tuple(dict.fromkeys(alt + tuple(pf['gosterilen'])))
+
+
+def _kp_eksi_depolar(pf):
+    """Eksi bakiyesi serbest stoktan düşülecek depolar — oto_config profili ezer."""
+    cfg = _oto_config().get(pf['config']) or {}
+    v = [str(x).strip().upper() for x in (cfg.get('eksi_dusulen') or []) if str(x).strip()]
+    return tuple(v) or tuple(pf.get('eksi_dusulen') or ())
+
+
+_KAYNAKLI_KOD = re.compile(r'W(/\d+)?$', re.I)      # 10.300.4534W · 10.300.4179W/20
 
 
 def _kp_kisit_disi(pf):
@@ -12852,6 +12869,7 @@ def kaynak_plan_liste(plan):
                              'kod_baslik': pf['kod_baslik'],
                              'ref_depolar': list(_rd), 'alt_depolar': list(_ad),
                              'hayali_seviye': pf['hayali_seviye'],
+                             'eksi_dusulen': list(_kp_eksi_depolar(pf)),
                              'excel_yukleme': pf['excel_yukleme']}})
 
 
@@ -12950,7 +12968,8 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
             s['launch_adet'], s['launch_sayisi'], s['launch_ozet'] = 0, 0, ''
             s['_opr_satirlar'] = []
     kp.hesapla(satirlar, agac, stok, ref_stok, sayilan=_alt_depo,
-               gosterilen=_gosterilen, iz=agac_iz, kisit_disi=_kp_kisit_disi(pf))
+               gosterilen=_gosterilen, iz=agac_iz, kisit_disi=_kp_kisit_disi(pf),
+               eksi_dusulen=_kp_eksi_depolar(pf))
     # Ürünün KENDİ stoğu profilin ref_depolar'ından: kaynakta G GI = 01D + MDT
     # (ERP ekranındaki stok), montajda 01W + 01D. GEREKEN bunun üzerinden.
     for s in satirlar:
@@ -13161,6 +13180,7 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
         _sql += " AND COALESCE(lokasyon,'TK2')=?"
         _par.append(pf['lokasyon'])
     kodlar = {r['referans_kodu'].strip() for r in conn.execute(_sql, _par).fetchall()}
+    _ref_kodlar = set(kodlar)
     if pf['eski_kodlar']:
         # Kaynakta planlamanın Excel'inden gelmiş kodlar listede kalır.
         kodlar |= {r['kaynak_kod'] for r in conn.execute(
@@ -13174,7 +13194,23 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
         cn = kp.erp_baglan()
     except Exception as e:
         return None, f'AS400 bağlantısı kurulamadı: {e}', 424
+    indirilen = {}
     try:
+        if pf.get('ust_kod_indir'):
+            # Referans listesinde OLMAYAN (eski plandan kalmış) kodların ağacına bak:
+            # tek alt parçası kaynaklı kodsa (…W) plana o girer. Böyle bir üst kod
+            # kaynakta üretilmez; aynı işi iki satır olarak gösteriyor ve W'li kodun
+            # yerine görünüyordu.
+            _ref_disi = [k for k in kodlar if k not in _ref_kodlar]
+            _agac = kp.urun_agaci(cn, _ref_disi) if _ref_disi else {}
+            _kume = set(kodlar)
+            for k in _ref_disi:
+                alt = _agac.get(k) or []
+                if len(alt) == 1 and _KAYNAKLI_KOD.search(alt[0][0]) and not _KAYNAKLI_KOD.search(k):
+                    _kume.discard(k)
+                    _kume.add(alt[0][0])
+                    indirilen[k] = alt[0][0]
+            kodlar = sorted(_kume)
         opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk)
         # Stok burada da okunur: öncelik puanı "stokla kapanmayan adet" üzerinden
         # hesaplanıyor, stoksuz puanla kurulan sıra ilk yenilemeye kadar yanlış olurdu.
@@ -13215,7 +13251,11 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
              d['_ggi'], d['_puan'], d['_gun'], d['launch_adet'], d['launch_sayisi'],
              d['launch_ozet'], d['_emir']))
     conn.commit()
+    if indirilen:
+        print(f"[{pf['anahtar'].upper()}-PLAN] üst kod → kaynaklı kod: "
+              + ', '.join(f'{u}→{a}' for u, a in sorted(indirilen.items())))
     return {'satir': len(sirali), 'ufuk_gun': ufuk, 'taranan_kod': len(kodlar),
+            'indirilen': indirilen,
             'launchli': sum(1 for _, d in sirali if d['launch_adet'] > 0)}, None, 200
 
 
@@ -13730,7 +13770,8 @@ def kaynak_plan_bildirimler(plan):
                              'bildirim_push': cfg.get('bildirim_push') or [],
                              'bildirim_mail': cfg.get('bildirim_mail') or [],
                              'ref_depolar': list(_rd), 'alt_depolar': list(_ad),
-                             'kisit_disi_parcalar': list(_kp_kisit_disi(pf))}})
+                             'kisit_disi_parcalar': list(_kp_kisit_disi(pf)),
+                             'eksi_dusulen': list(_kp_eksi_depolar(pf))}})
 
 
 @app.route('/api/kaynak_plan/bildirim/<int:bid>/kapat', methods=['POST'], defaults={'plan': 'kaynak'})
@@ -13764,7 +13805,7 @@ def kaynak_plan_bildirim_ayar(plan):
         k['etkin'] = bool(data.get('etkin'))
     # DEPO KURALI panelden değişir (2026-09-30): hangi depoların sayılacağı bir
     # iş kuralı, kod değişikliği gerektirmesin. Boş liste = profil varsayılanı.
-    for alan in ('ref_depolar', 'alt_depolar'):
+    for alan in ('ref_depolar', 'alt_depolar', 'eksi_dusulen'):
         if alan in data:
             ham = data.get(alan) or []
             if isinstance(ham, str):
@@ -14125,7 +14166,8 @@ _OTO_VARSAYILAN = {
     # 01D+CF2+MK2+MT2); panelden girilirse onu ezer.
     'montaj_plan':    {'etkin': True, 'saatler': ['07:05', '13:05'], 'ufuk_gun': 42,
                        'bildirim_push': [], 'bildirim_mail': [],
-                       'ref_depolar': [], 'alt_depolar': [], 'kisit_disi_parcalar': []},
+                       'ref_depolar': [], 'alt_depolar': [], 'kisit_disi_parcalar': [],
+                       'eksi_dusulen': []},
     'agent_nobeti':   {'etkin': True, 'kontrol_dk': 10, 'hatirlatma_saat': 6,
                        'alicilar': []},
     # CFI/COP'u EKRAN ROBOTU yerine IT'nin staging tablosuyla yaz (Simone Rota,
