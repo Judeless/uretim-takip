@@ -5096,6 +5096,14 @@ window.__I18N_SOZLUK__ = {
   "🔑 Şifre": {"en": "🔑 Password", "it": "🔑 Password"},
   "🔑 Şifre Değiştir": {"en": "🔑 Change Password", "it": "🔑 Cambia password"},
   "🔥 Kaynatılmalı:": {"en": "🔥 To be welded:", "it": "🔥 Da saldare:"},
+  "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
+  "📣 Emir açılacak:": {"en": "📣 Order to open:", "it": "📣 Ordine da aprire:"},
+  "📣 Emir açılacaklar:": {"en": "📣 Orders to open:", "it": "📣 Ordini da aprire:"},
+  "✓ Emir açtım": {"en": "✓ Order opened", "it": "✓ Ordine aperto"},
+  "⚙ Bildirim ayarı": {"en": "⚙ Notification settings", "it": "⚙ Impostazioni notifiche"},
+  "▶ Şimdi çalıştır": {"en": "▶ Run now", "it": "▶ Esegui ora"},
+  "📊 Excel": {"en": "📊 Excel", "it": "📊 Excel"},
+  "Öncelik": {"en": "Priority", "it": "Priorità"},
   "🔧 Arıza Onay Kuyruğu": {"en": "🔧 Fault Approval Queue", "it": "🔧 Coda approvazione guasti"},
   "🔧 Makine listesini tazele": {"en": "🔧 Refresh machine list", "it": "🔧 Aggiorna elenco macchine"},
   "🗑 Notu sil": {"en": "🗑 Delete note", "it": "🗑 Elimina nota"},
@@ -7813,7 +7821,7 @@ window.__I18N_SOZLUK__ = {
                                     <div class="as4-adim-baslik">Plan alınır</div>
                                     <div class="as4-adim-metin">İhtiyaç doğrudan AS400'den:
                                     açık üretim emirlerinin (OPR) kalan adetleri. Excel dosyası
-                                    gerekmez. Sıra en eski teslim tarihine göre.</div></div></div>
+                                    gerekmez. Sıra öncelik puanına göre: stokla kapanmayan adet × gün ağırlığı (tarih ve adet birlikte). Sütun başlığına tıklayarak başka sütuna göre dizebilirsiniz; liste her gün 07:00 ve 13:00'te kendiliğinden yenilenir.</div></div></div>
                                 <div class="as4-adim"><div class="as4-adim-no">2</div><div>
                                     <div class="as4-adim-baslik">ERP hesaplar</div>
                                     <div class="as4-adim-metin">Her kodun 1. seviye ürün ağacı ve alt
@@ -7857,6 +7865,7 @@ window.__I18N_SOZLUK__ = {
                                onchange="kpDosyadanYukle(this)">
                         <button class="btn" onclick="document.getElementById('kp-dosya').click()"
                                 title="Sunucu Q: sürücüsünü göremiyorsa dosyayı buradan yükleyin">📎 Dosyadan</button>
+                        <button class="btn" onclick="kpExcel()" title="Ekrandaki listeyi (aynı süzgeç ve sırayla) Excel olarak indirir">📊 Excel</button>
                         <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">
                             Göster:
                             <select id="kp-filtre" class="as4g-inp" onchange="kpCiz()">
@@ -7867,6 +7876,11 @@ window.__I18N_SOZLUK__ = {
                                 <option value="KISMI">Kaynatılmalı · malzeme kısmi</option>
                                 <option value="MALZEME YOK">Kaynatılmalı · malzeme yok</option>
                                 <option value="degisen">Stoğu değişenler</option>
+                                <option value="artan">Stoğu artanlar</option>
+                                <option value="azalan">Stoğu azalanlar</option>
+                                <option value="launchli">Launch alınmış olanlar</option>
+                                <option value="emir">Emir açılacaklar</option>
+                                <option value="GEREK YOK">Launch gerekmeyenler</option>
                                 <option value="notlu">Notu olanlar</option>
                             </select>
                         </label>
@@ -7875,6 +7889,9 @@ window.__I18N_SOZLUK__ = {
                         <span id="kp-durum" style="font-size:.8rem;color:var(--muted);margin-left:auto"></span>
                     </div>
 
+                    <!-- EMİR AÇILACAKLAR (2026-09-30): üretilebilir adedi artan ve emir
+                         açılması gereken referanslar; push/mail kaçsa da burada bekler. -->
+                    <div id="kp-bildirim" style="padding:12px 20px 0"></div>
                     <div id="kp-cipler" style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px 0"></div>
                     <div id="kp-icerik" style="padding:12px 20px 20px">
                         <div style="color:var(--muted);font-size:.9rem">Yükleniyor…</div>
@@ -14536,15 +14553,161 @@ window.__I18N_SOZLUK__ = {
                         : 'plan yüklenmedi — "Haftalık Planı Al" ile başlayın';
                 }
                 kpCiz();
+                kpBildirimYukle();
             }).catch(function (e) {
                 el.innerHTML = '<div style="color:var(--danger)">Yüklenemedi: ' + esc(String(e)) + '</div>';
             });
         }
 
-        function kpCip(renk, txt, sonuk) {
-            return '<span style="border:1px solid var(--card-border);background:var(--card);color:' + renk +
+        function kpCip(renk, txt, sonuk, filtre) {
+            // ÇİPLER TIKLANABİLİR (kullanıcı 2026-09-30): çipe basınca liste o gruba
+            // süzülür; aynı çipe tekrar basınca varsayılan görünüme döner.
+            var f = (document.getElementById('kp-filtre') || {}).value || 'aksiyon';
+            var secili = !!filtre && f === filtre;
+            return '<span' +
+                (filtre ? ' onclick="kpFiltreSec(&quot;' + filtre + '&quot;)" title="bu gruba süz — tekrar tıklayınca süzgeç kalkar"' : '') +
+                ' style="border:1px solid ' + (secili ? renk : 'var(--card-border)') +
+                ';background:' + (secili ? 'var(--surface-2)' : 'var(--card)') + ';color:' + renk +
                 ';border-radius:999px;padding:5px 12px;font-size:.78rem;font-weight:' + (sonuk ? '600' : '800') +
-                (sonuk ? ';opacity:.75' : '') + '">' + txt + '</span>';
+                (sonuk && !secili ? ';opacity:.75' : '') + (filtre ? ';cursor:pointer;user-select:none' : '') +
+                (secili ? ';box-shadow:0 0 0 2px ' + renk : '') + '">' + txt + '</span>';
+        }
+        function kpFiltreSec(f) {
+            var sel = document.getElementById('kp-filtre'); if (!sel) return;
+            sel.value = (sel.value === f) ? (f === 'aksiyon' ? 'hepsi' : 'aksiyon') : f;
+            kpCiz();
+        }
+
+        // SIRALAMA (kullanıcı 2026-09-30): varsayılan = ÖNCELİK sırası. Backend 'sira'yı
+        // öncelik puanına göre veriyor (stokla kapanmayan adet × gün ağırlığı) — yalnız
+        // en eski tarih değil: 2 adetlik eski kalıntı, 300 adetlik güncel işin önüne
+        // geçmesin. Sütun başlığına tıklayınca o sütuna göre dizilir, tekrar tıklayınca
+        // yön değişir; boş değerler yön ne olursa olsun sonda kalır.
+        var _kpSirala = { alan: 'sira', yon: 1 };
+        function kpSiraliListe(liste) {
+            var a = _kpSirala.alan, y = _kpSirala.yon;
+            function bosMu(s) { return s[a] === null || s[a] === undefined || s[a] === ''; }
+            var dolu = liste.filter(function (s) { return !bosMu(s); });
+            var bos = liste.filter(bosMu);
+            dolu.sort(function (x, z) {
+                var p = x[a], q = z[a];
+                var d = (typeof p === 'number' && typeof q === 'number')
+                    ? (p - q) : String(p).localeCompare(String(q), 'tr');
+                return (d * y) || ((x.sira || 0) - (z.sira || 0));
+            });
+            return dolu.concat(bos);
+        }
+        function kpSirala(alan, ilkYon) {
+            if (_kpSirala.alan === alan) _kpSirala.yon = -_kpSirala.yon;
+            else _kpSirala = { alan: alan, yon: ilkYon || 1 };
+            kpCiz();
+        }
+        function kpBaslik(alan, metin, ipucu, sag, ilkYon) {
+            var secili = _kpSirala.alan === alan;
+            return '<th style="cursor:pointer;white-space:nowrap;user-select:none' + (sag ? ';text-align:right' : '') +
+                (secili ? ';color:var(--primary)' : '') + '" onclick="kpSirala(&quot;' + alan + '&quot;,' + (ilkYon || 1) + ')"' +
+                ' title="' + esc((ipucu ? ipucu + ' — ' : '') + 'sıralamak için tıklayın') + '">' +
+                metin + (secili ? (_kpSirala.yon > 0 ? ' ▲' : ' ▼') : '') + '</th>';
+        }
+        function kpExcel() {
+            var f = (document.getElementById('kp-filtre') || {}).value || 'aksiyon';
+            var ara = (document.getElementById('kp-ara') || {}).value || '';
+            window.location.href = '/api/kaynak_plan/excel?filtre=' + encodeURIComponent(f) +
+                '&ara=' + encodeURIComponent(ara) + '&sirala=' + encodeURIComponent(_kpSirala.alan) +
+                '&yon=' + _kpSirala.yon;
+        }
+
+        // ── EMİR AÇILACAKLAR / BİLDİRİM (kullanıcı 2026-09-30) ──────────────────
+        // Üretilebilir adedi ARTAN ve hâlâ emir açılması gereken referanslar burada
+        // bekler. Push/mail kaçsa da liste kaybolmaz; ERP'de launch görülünce satır
+        // kendiliğinden kapanır, "Emir açtım" ile elle de kapatılır.
+        var _kpAyarAcik = false;
+        function kpBildirimYukle() {
+            var el = document.getElementById('kp-bildirim'); if (!el) return;
+            fetch('/api/kaynak_plan/bildirimler').then(function (r) { return r.json(); }).then(function (d) {
+                if (d.hata) { el.innerHTML = ''; return; }
+                var a = d.ayar || {}, acik = d.acik || [];
+                var h = '<div style="border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;background:var(--card)">' +
+                    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+                    '<b style="font-size:.9rem;color:' + (acik.length ? 'var(--danger)' : 'var(--text)') + '">📣 Emir açılacaklar: ' + acik.length + '</b>' +
+                    '<span style="font-size:.76rem;color:var(--muted)">otomatik yenileme: ' +
+                        (a.etkin ? esc((a.saatler || []).join(' · ')) : 'KAPALI') +
+                        ' · push ' + (a.bildirim_push || []).length + ' kişi · mail ' + (a.bildirim_mail || []).length + ' adres</span>' +
+                    '<span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' +
+                    '<button class="btn" id="kp-oto-btn" onclick="kpOtoCalistir()" title="AS400 kur + stokları yenile + artışları duyur — 07:00/13:00 koşusunun aynısı">▶ Şimdi çalıştır</button>' +
+                    '<button class="btn" onclick="kpAyarAc()">⚙ Bildirim ayarı</button></span></div>';
+                if (acik.length) {
+                    // Uzun listede asıl plan tablosunu aşağı itmesin: kart kendi içinde kayar.
+                    h += '<div class="table-wrap" style="margin-top:10px;max-height:280px;overflow:auto"><table class="admin-table" style="margin:0"><thead><tr>' +
+                        '<th>Kaynak Kodu</th><th style="text-align:right">Üretilebilir</th><th style="text-align:right">Artış</th>' +
+                        '<th style="text-align:right">Emir açılacak</th><th style="text-align:right">Launch alınan</th>' +
+                        '<th>En Eski OPR</th><th>Oluştu</th><th>Duyuruldu</th><th></th></tr></thead><tbody>';
+                    acik.forEach(function (o) {
+                        h += '<tr><td style="font-weight:800">' + esc(o.kaynak_kod) + '</td>' +
+                            '<td style="text-align:right">' + esc(String(o.onceki_uretilebilir)) + ' → <b>' + esc(String(o.uretilebilir)) + '</b></td>' +
+                            '<td style="text-align:right;color:var(--success);font-weight:800">▲ +' + fmt(o.artis || 0) + '</td>' +
+                            '<td style="text-align:right;font-weight:800">' + fmt(o.emir_gereken || 0) + '</td>' +
+                            '<td style="text-align:right;color:var(--muted)">' + fmt(o.launch_adet || 0) + '</td>' +
+                            '<td style="font-size:.78rem">' + esc(o.en_eski_opr || '—') + '</td>' +
+                            '<td style="font-size:.76rem;color:var(--muted)">' + esc((o.guncelleme_ts || o.olusturma_ts || '').slice(5)) + '</td>' +
+                            '<td style="font-size:.76rem;color:' + (o.bildirildi_ts ? 'var(--muted)' : 'var(--warn)') + '">' +
+                                (o.bildirildi_ts ? esc(o.bildirildi_ts.slice(5)) : 'bekliyor') + '</td>' +
+                            '<td style="text-align:right"><button class="btn" style="padding:4px 10px;font-size:.76rem;white-space:nowrap" ' +
+                                'onclick="kpBildirimKapat(' + o.id + ')">✓ Emir açtım</button></td></tr>';
+                    });
+                    h += '</tbody></table></div>';
+                } else {
+                    h += '<div style="font-size:.8rem;color:var(--muted);margin-top:6px">Bekleyen yok. Üretilebilir adedi artan ve emir açılması gereken referans olduğunda burada görünür.</div>';
+                }
+                h += '<div id="kp-ayar" style="display:' + (_kpAyarAcik ? 'block' : 'none') + ';margin-top:12px;padding-top:12px;border-top:1px dashed var(--card-border)">' +
+                    '<label style="display:flex;align-items:center;gap:8px;font-size:.84rem;margin-bottom:8px">' +
+                        '<input type="checkbox" id="kp-ayar-etkin"' + (a.etkin ? ' checked' : '') + '> <span>Otomatik yenileme açık (' + esc((a.saatler || []).join(' ve ')) + ')</span></label>' +
+                    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Push alacaklar — operatör uygulamasında bildirime izin vermiş kişinin ADI, virgülle ayırın</div>' +
+                    '<input type="text" id="kp-ayar-push" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.bildirim_push || []).join(', ')) + '" placeholder="Emre Dogutekin">' +
+                    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Mail alacaklar — adresleri virgülle ayırın (liste Excel olarak eklenir)</div>' +
+                    '<input type="text" id="kp-ayar-mail" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.bildirim_mail || []).join(', ')) + '" placeholder="ad.soyad@cofletk.com.tr">' +
+                    '<button class="btn btn-primary" onclick="kpAyarKaydet()">Kaydet</button></div></div>';
+                el.innerHTML = h;
+            }).catch(function () {});
+        }
+        function kpAyarAc() {
+            _kpAyarAcik = !_kpAyarAcik;
+            var e = document.getElementById('kp-ayar'); if (e) e.style.display = _kpAyarAcik ? 'block' : 'none';
+        }
+        function kpAyarKaydet() {
+            var govde = {
+                etkin: !!(document.getElementById('kp-ayar-etkin') || {}).checked,
+                bildirim_push: (document.getElementById('kp-ayar-push') || {}).value || '',
+                bildirim_mail: (document.getElementById('kp-ayar-mail') || {}).value || ''
+            };
+            fetch('/api/kaynak_plan/bildirim_ayar', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde)
+            }).then(function (r) { return r.json(); }).then(function (d) {
+                if (d.hata) { toast(d.hata, 'err'); return; }
+                toast('Bildirim ayarı kaydedildi', 'ok');
+                kpBildirimYukle();
+            }).catch(function (e) { toast('Kaydedilemedi: ' + e, 'err'); });
+        }
+        function kpBildirimKapat(id) {
+            fetch('/api/kaynak_plan/bildirim/' + id + '/kapat', { method: 'POST' })
+                .then(function (r) { return r.json(); }).then(function (d) {
+                    if (d.hata) { toast(d.hata, 'err'); return; }
+                    toast('Kapatıldı', 'ok');
+                    kpYukle();
+                }).catch(function (e) { toast('Kapatılamadı: ' + e, 'err'); });
+        }
+        function kpOtoCalistir() {
+            var b = document.getElementById('kp-oto-btn');
+            if (b) { b.disabled = true; b.textContent = '⏳ AS400 okunuyor…'; }
+            fetch('/api/kaynak_plan/oto_calistir', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bildir: true })
+            }).then(function (r) { return r.json(); }).then(function (d) {
+                if (d.hata) { toast(d.hata, 'err'); kpBildirimYukle(); return; }
+                var bl = d.bildirim || {};
+                toast(d.satir + ' referans · ' + d.olculen + ' ölçüldü · yeni ' + (bl.acilan || 0) +
+                      ' · kapanan ' + (bl.kapanan || 0), 'ok');
+                kpYukle();
+            }).catch(function (e) { toast('Çalıştırılamadı: ' + e, 'err'); kpBildirimYukle(); });
         }
 
         function kpCiz() {
@@ -14553,14 +14716,16 @@ window.__I18N_SOZLUK__ = {
             var cip = document.getElementById('kp-cipler');
             if (cip) {
                 cip.innerHTML =
-                    kpCip('var(--danger)', '🔥 Kaynatılmalı: ' + (o.kaynatilmali || 0)) +
-                    kpCip('var(--success)', '✅ Malzemesi tam: ' + (o['TALIMAT VER'] || 0)) +
-                    kpCip('var(--warn)', '◐ Malzeme kısmi: ' + (o['KISMI'] || 0)) +
-                    kpCip('var(--danger)', '✖ Malzeme yok: ' + (o['MALZEME YOK'] || 0)) +
-                    (o.gecikmis_adet ? kpCip('var(--danger)', '⚠ Teslimi geçmiş: ' + o.gecikmis_adet) : '') +
-                    (o.artan ? kpCip('var(--success)', '▲ Stoğu artan: ' + o.artan) : '') +
-                    (o.azalan ? kpCip('var(--danger)', '▼ Stoğu azalan: ' + o.azalan) : '') +
-                    kpCip('var(--muted)', 'Launch gerekmeyen: ' + (o['GEREK YOK'] || 0), true);
+                    kpCip('var(--danger)', '🔥 Kaynatılmalı: ' + (o.kaynatilmali || 0), false, 'aksiyon') +
+                    kpCip('var(--success)', '✅ Malzemesi tam: ' + (o['TALIMAT VER'] || 0), false, 'TALIMAT VER') +
+                    kpCip('var(--warn)', '◐ Malzeme kısmi: ' + (o['KISMI'] || 0), false, 'KISMI') +
+                    kpCip('var(--danger)', '✖ Malzeme yok: ' + (o['MALZEME YOK'] || 0), false, 'MALZEME YOK') +
+                    (o.gecikmis_adet ? kpCip('var(--danger)', '⚠ Teslimi geçmiş: ' + o.gecikmis_adet, false, 'gecikmis') : '') +
+                    (o.artan ? kpCip('var(--success)', '▲ Stoğu artan: ' + o.artan, false, 'artan') : '') +
+                    (o.azalan ? kpCip('var(--danger)', '▼ Stoğu azalan: ' + o.azalan, false, 'azalan') : '') +
+                    (o.launchli ? kpCip('var(--primary)', '🚀 Launch alınmış: ' + o.launchli, false, 'launchli') : '') +
+                    (o.emir_acilacak ? kpCip('var(--danger)', '📣 Emir açılacak: ' + o.emir_acilacak, false, 'emir') : '') +
+                    kpCip('var(--muted)', 'Launch gerekmeyen: ' + (o['GEREK YOK'] || 0), true, 'GEREK YOK');
             }
             var f = (document.getElementById('kp-filtre') || {}).value || 'aksiyon';
             var ara = ((document.getElementById('kp-ara') || {}).value || '').toUpperCase().replace(/\s/g, '');
@@ -14570,20 +14735,17 @@ window.__I18N_SOZLUK__ = {
                 if (f === 'aksiyon') return (s.gereken || 0) > 0;
                 if (f === 'gecikmis') return (s.gecikmis || 0) > 0;
                 if (f === 'degisen') return s.degisim !== null && s.degisim !== 0;
+                if (f === 'artan') return (s.degisim || 0) > 0;
+                if (f === 'azalan') return (s.degisim || 0) < 0;
+                if (f === 'launchli') return (s.launch_adet || 0) > 0;
+                if (f === 'emir') return !!s.bildirim_id;
                 if (f === 'notlu') return !!(s.aciklama || '').trim();
                 return s.karar === f;
             });
-            // Karar önceliği: talimat verilebilirler üstte, sonra plan sırası
-            var oncelik = { 'TALIMAT VER': 0, 'KISMI': 1, 'MALZEME YOK': 2, 'ELLE BAK': 3, 'GEREK YOK': 4 };
-            // Aciliyet sırası (en eski OPR) BOZULMASIN — backend zaten öyle
-            // sıralıyor. Yalnız "malzemesi tam" olanlar öne alınır ki hemen
-            // başlanabilecek işler görünsün; içlerinde yine tarih sırası korunur.
-            if (f === 'aksiyon') {
-                liste.sort(function (a, b) {
-                    var d = (oncelik[a.karar] || 9) - (oncelik[b.karar] || 9);
-                    return d || (a.sira - b.sira);
-                });
-            }
+            // Sıra: varsayılan öncelik puanı; başlığa tıklanan sütun (bkz. kpSiraliListe).
+            // "Malzemesi tam olanlar üstte" gruplaması kaldırıldı — o görünüm artık
+            // '✅ Malzemesi tam' çipine tıklayarak alınıyor.
+            liste = kpSiraliListe(liste);
             document.getElementById('kp-durum').textContent = liste.length + ' satır gösteriliyor';
             if (!liste.length) {
                 el.innerHTML = '<div style="color:var(--muted);font-size:.9rem;padding:10px 0">' +
@@ -14592,14 +14754,16 @@ window.__I18N_SOZLUK__ = {
                 return;
             }
             var h = '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
-                '<th style="width:44px">#</th>' +
-                '<th title="en eski açık üretim emrinin teslim tarihi — aciliyet sırası bundan">En Eski OPR</th>' +
-                '<th>Kaynak Kodu</th>' +
-                '<th style="text-align:right" title="ufuk içindeki açık OPR&#39;lerin kalan toplamı">İhtiyaç (OPR)</th>' +
-                '<th style="text-align:right" title="AS400 ekranındaki G GI = 01D + MDT">Stok (G GI)</th>' +
-                '<th style="text-align:right" title="ihtiyaç − stok">GEREKEN</th>' +
-                '<th style="text-align:right">Üretilebilir</th>' +
-                '<th style="text-align:right">Değişim</th>' +
+                kpBaslik('sira', '#', 'öncelik sırası', false, 1) +
+                kpBaslik('oncelik_puan', 'Öncelik', 'stokla kapanmayan adet × (ufuk + gecikme günü): tarih ve adet birlikte', true, -1) +
+                kpBaslik('en_eski_opr', 'En Eski OPR', 'en eski açık üretim emrinin teslim tarihi', false, 1) +
+                kpBaslik('kaynak_kod', 'Kaynak Kodu', '', false, 1) +
+                kpBaslik('iht_6h', 'İhtiyaç (OPR)', 'ufuk içindeki açık emirlerin kalan toplamı', true, -1) +
+                kpBaslik('stok_ggi', 'Stok (G GI)', 'AS400 ekranındaki G GI = 01D + MDT', true, -1) +
+                kpBaslik('gereken', 'GEREKEN', 'ihtiyaç − stok', true, -1) +
+                kpBaslik('launch_adet', 'Launch', 'launch alınmış emirlerin (durum 40/45/50) kalan adedi', true, -1) +
+                kpBaslik('uretilebilir', 'Üretilebilir', 'alt parça stoğuyla kaynatılabilecek adet', true, -1) +
+                kpBaslik('degisim', 'Değişim', 'önceki ölçüme göre üretilebilir farkı', true, -1) +
                 '<th title="6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan">Kaynatılmalı?</th>' +
                 '<th title="alt parçaların 01D+CF2 stoğu gerekeni karşılıyor mu">Malzeme</th>' +
                 '<th>Kısıtlayan</th>' +
@@ -14631,12 +14795,19 @@ window.__I18N_SOZLUK__ = {
                           : (s.karar === 'MALZEME YOK') ? 'var(--danger-soft)' : '';
                 h += '<tr' + (zemin ? ' style="background:' + zemin + '"' : '') + '>' +
                     '<td style="color:var(--dim);font-size:.78rem">' + s.sira + '</td>' +
+                    '<td style="text-align:right;font-size:.8rem;font-weight:700;color:' +
+                        ((s.oncelik_puan || 0) > 0 ? 'var(--text)' : 'var(--dim)') + '" title="' +
+                        esc(s.gecikme_gun === null || s.gecikme_gun === undefined ? 'stok ihtiyacı karşılıyor'
+                            : (s.gecikme_gun > 0 ? s.gecikme_gun + ' gün gecikmiş' : (-s.gecikme_gun) + ' gün sonra teslim')) + '">' +
+                        ((s.oncelik_puan || 0) > 0 ? fmt(Math.round(s.oncelik_puan)) : '—') + '</td>' +
                     '<td style="font-size:.78rem;white-space:nowrap;color:' +
                         (s.gecikmis > 0 ? 'var(--danger);font-weight:800' : 'var(--muted)') + '"' +
                         (s.gecikmis > 0 ? ' title="teslim tarihi geçmiş: ' + fmt(s.gecikmis) + ' adet"' : '') + '>' +
                         esc(s.en_eski_opr || '—') + (s.gecikmis > 0 ? ' ⚠' : '') + '</td>' +
                     '<td style="font-weight:700"><a href="#" onclick="kpParcaAc(\'' + esc(s.kaynak_kod) + '\');return false"' +
                         ' title="alt parçaları göster">' + esc(s.kaynak_kod) + '</a>' +
+                        (s.bildirim_id ? ' <span title="malzemesi geldi (+' + esc(String(s.bildirim_artis || 0)) +
+                            ') — emir açılabilir" style="font-size:.85rem">📣</span>' : '') +
                         (s.eksi_var ? ' <span title="bazı parçalarda ERP\'de eksi bakiye var" style="color:var(--danger)">⚠</span>' : '') +
                         ((s.agac_farki && s.agac_farki.length) ? ' <span title="ERP ağacı plandakinden farklı: ' +
                             esc(s.agac_farki.join(', ')) + '" style="color:var(--warn)">≠</span>' : '') + '</td>' +
@@ -14649,6 +14820,17 @@ window.__I18N_SOZLUK__ = {
                             ((s.stok_ggi || 0) < 0 ? " | ERP'de eksi bakiye" : '')) + '">' +
                         fmt(s.stok_ggi || 0) + '</td>' +
                     '<td style="text-align:right;font-weight:800">' + fmt(s.gereken || 0) + '</td>' +
+                    // LAUNCH (kullanıcı 2026-09-30): parçaya launch alındıysa görünsün —
+                    // durum 40/45/50 emirlerin kalan adedi. Gerekeni karşılıyorsa yeni emir gerekmez.
+                    '<td style="text-align:right;font-size:.8rem;white-space:nowrap">' +
+                        ((s.launch_adet || 0) > 0
+                            ? '<span style="color:var(--primary);font-weight:800" title="' +
+                                esc('launch alınmış — durum ' + (s.launch_ozet || '') +
+                                    ((s.emir_gereken || 0) > 0 ? ' · açılacak emir: ' + fmt(s.emir_gereken)
+                                                               : ' · gerekeni karşılıyor, yeni emir gerekmiyor')) + '">🚀 ' +
+                              fmt(s.launch_adet) + '</span>' +
+                              ' <span style="color:var(--dim);font-size:.7rem">' + esc(s.launch_ozet || '') + '</span>'
+                            : '<span style="color:var(--dim)">—</span>') + '</td>' +
                     '<td style="text-align:right;font-weight:800">' +
                         (s.uretilebilir === null ? '<span style="color:var(--dim)">—</span>' : fmt(s.uretilebilir)) + '</td>' +
                     '<td style="text-align:right">' + dg + '</td>' +
@@ -14664,9 +14846,9 @@ window.__I18N_SOZLUK__ = {
                         (s.not_guncelleyen ? ' title="' + esc(s.not_guncelleyen + ' · ' + (s.not_guncellendi || '')) + '"' : '') +
                         '></td></tr>' +
                     '<tr id="kp-parca-' + esc(s.kaynak_kod).replace(/[^A-Za-z0-9]/g, '_') + '" style="display:none">' +
-                    '<td colspan="13" style="background:var(--surface-2);padding:0"></td></tr>' +
+                    '<td colspan="15" style="background:var(--surface-2);padding:0"></td></tr>' +
                     '<tr id="kp-opr-' + esc(s.kaynak_kod).replace(/[^A-Za-z0-9]/g, '_') + '" style="display:none">' +
-                    '<td colspan="13" style="background:var(--surface-2);padding:0"></td></tr>';
+                    '<td colspan="15" style="background:var(--surface-2);padding:0"></td></tr>';
             });
             h += '</tbody></table></div>';
             el.innerHTML = h;

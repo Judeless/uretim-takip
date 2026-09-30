@@ -12428,22 +12428,86 @@ def _kp_modul():
     return _kp
 
 
-@app.route('/api/kaynak_plan', methods=['GET'])
-@panel_gerekli(izin='kaynak-plan')
-def kaynak_plan_liste():
-    """Plan satırları + son ölçüm + önceki ölçüme göre değişim."""
-    conn = get_db()
+def _kp_satirlar(conn):
+    """Aktif plan satırları + türetilmiş alanlar. Liste, Excel ve bildirim maili
+    AYNI kaynaktan beslenir — üçünün birbirinden sapmaması için tek yer."""
+    satirlar = [dict(r) for r in conn.execute(
+        "SELECT * FROM kaynak_plan WHERE aktif=1 ORDER BY sira").fetchall()]
+    acik = {}
     try:
-        satirlar = [dict(r) for r in conn.execute(
-            "SELECT * FROM kaynak_plan WHERE aktif=1 ORDER BY sira").fetchall()]
-    except Exception as e:
-        return jsonify({'hata': f'Tablo yok ya da okunamadı: {e}'}), 500
+        for r in conn.execute(
+                "SELECT * FROM kaynak_plan_bildirim WHERE durum='acik' ORDER BY id"):
+            acik[r['kaynak_kod']] = dict(r)
+    except Exception:
+        pass          # tablo henüz yoksa (eski kurulum) bildirimsiz devam
     for s in satirlar:
         onceki, simdi = s.get('onceki_uretilebilir'), s.get('uretilebilir')
         s['degisim'] = (simdi - onceki) if (onceki is not None and simdi is not None) else None
         s['agac_farki'] = [x for x in (s.get('agac_farki') or '').split('|') if x]
         # "Bu ürünü kaynatmam gerekiyor mu?" — panelde ayrı sütun (2026-07-31)
         s['kaynatilmali'] = (s.get('gereken') or 0) > 0
+        b = acik.get(s['kaynak_kod'])
+        s['bildirim_id'] = b['id'] if b else None
+        s['bildirim_artis'] = b['artis'] if b else None
+    return satirlar
+
+
+def _kp_filtrele(satirlar, filtre='hepsi', ara=''):
+    """Paneldeki 'Göster' seçimi ve çiplerle AYNI kurallar (Excel indirme ekranda
+    görünen listeyi vermeli)."""
+    ara = re.sub(r'\s', '', str(ara or '')).upper()
+    f = str(filtre or 'hepsi')
+
+    def uyar(s):
+        if ara and ara not in re.sub(r'\s', '', f"{s['kaynak_kod']} {s.get('urun') or ''}").upper():
+            return False
+        dg = s.get('degisim')
+        if f == 'hepsi':
+            return True
+        if f == 'aksiyon':
+            return (s.get('gereken') or 0) > 0
+        if f == 'gecikmis':
+            return (s.get('gecikmis') or 0) > 0
+        if f == 'degisen':
+            return dg not in (None, 0)
+        if f == 'artan':
+            return (dg or 0) > 0
+        if f == 'azalan':
+            return (dg or 0) < 0
+        if f == 'notlu':
+            return bool((s.get('aciklama') or '').strip())
+        if f == 'launchli':
+            return (s.get('launch_adet') or 0) > 0
+        if f == 'emir':
+            return bool(s.get('bildirim_id'))
+        return (s.get('karar') or '') == f
+
+    return [s for s in satirlar if uyar(s)]
+
+
+KP_SIRALAMA_ALANLARI = ('sira', 'oncelik_puan', 'en_eski_opr', 'kaynak_kod', 'iht_6h', 'stok_ggi',
+                        'gereken', 'uretilebilir', 'degisim', 'launch_adet', 'emir_gereken')
+
+
+def _kp_sirala(satirlar, alan='sira', yon=1):
+    """alan'a göre sıralar; boş değerler yön ne olursa olsun SONDA kalır."""
+    if alan not in KP_SIRALAMA_ALANLARI:
+        alan = 'sira'
+    dolu = [s for s in satirlar if s.get(alan) not in (None, '')]
+    bos = [s for s in satirlar if s.get(alan) in (None, '')]
+    dolu.sort(key=lambda s: (s[alan], s.get('sira') or 0), reverse=(yon < 0))
+    return dolu + bos
+
+
+@app.route('/api/kaynak_plan', methods=['GET'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_liste():
+    """Plan satırları + son ölçüm + önceki ölçüme göre değişim."""
+    conn = get_db()
+    try:
+        satirlar = _kp_satirlar(conn)
+    except Exception as e:
+        return jsonify({'hata': f'Tablo yok ya da okunamadı: {e}'}), 500
     ozet = {'toplam': len(satirlar)}
     for s in satirlar:
         ozet[s['karar'] or 'YOK'] = ozet.get(s['karar'] or 'YOK', 0) + 1
@@ -12451,12 +12515,19 @@ def kaynak_plan_liste():
     ozet['gecikmis_adet'] = sum(1 for s in satirlar if (s.get('gecikmis') or 0) > 0)
     ozet['artan'] = sum(1 for s in satirlar if (s['degisim'] or 0) > 0)
     ozet['azalan'] = sum(1 for s in satirlar if (s['degisim'] or 0) < 0)
+    ozet['launchli'] = sum(1 for s in satirlar if (s.get('launch_adet') or 0) > 0)
+    ozet['emir_acilacak'] = sum(1 for s in satirlar if s.get('bildirim_id'))
     son = max((s.get('olculdu') or '' for s in satirlar), default='')
     dosya = next((s.get('plan_dosya') for s in satirlar if s.get('plan_dosya')), '')
+    kcfg = _oto_config().get('kaynak_plan') or {}
     return jsonify({'satirlar': satirlar, 'ozet': ozet, 'son_olcum': son,
                     'plan_dosya': dosya,
                     'plan_yuklendi': next((s.get('plan_yuklendi') for s in satirlar
-                                           if s.get('plan_yuklendi')), '')})
+                                           if s.get('plan_yuklendi')), ''),
+                    'oto': {'etkin': bool(kcfg.get('etkin', True)),
+                            'saatler': kcfg.get('saatler') or [],
+                            'bildirim_push': kcfg.get('bildirim_push') or [],
+                            'bildirim_mail': kcfg.get('bildirim_mail') or []}})
 
 
 @app.route('/api/kaynak_plan/parcalar', methods=['GET'])
@@ -12492,7 +12563,7 @@ def kaynak_plan_not(pid):
     return jsonify({'ok': True, 'aciklama': metin})
 
 
-def _kaynak_plan_olc(conn, kodlar=None):
+def _kaynak_plan_olc(conn, kodlar=None, ufuk=None):
     """ERP'den ağaç + stok çekip ölçümü günceller. Notlara DOKUNMAZ.
     Önceki ölçüm onceki_* alanlarına taşınır → değişim görünür."""
     kp = _kp_modul()
@@ -12513,7 +12584,8 @@ def _kaynak_plan_olc(conn, kodlar=None):
         # dosyasındaki stok sütunu dosyanın çekildiği günün fotoğrafı.
         ref_stok = kp.stoklar(cn, [s['kaynak_kod'] for s in satirlar])
         # İhtiyaç da ERP'den tazelenir (OPR'ler gün içinde değişir)
-        opr = kp.opr_ihtiyaclari(cn, [s['kaynak_kod'] for s in satirlar])
+        _ufuk = _kp_ufuk(ufuk)
+        opr = kp.opr_ihtiyaclari(cn, [s['kaynak_kod'] for s in satirlar], _ufuk)
     finally:
         try:
             cn.close()
@@ -12526,11 +12598,18 @@ def _kaynak_plan_olc(conn, kodlar=None):
             s['en_eski_opr'] = d['en_eski'] or ''
             s['opr_sayisi'] = d['opr_sayisi']
             s['gecikmis'] = d['gecikmis']
+            # Launch alınmış mı (durum 40/45/50) — kodun yanında rozet
+            s['launch_adet'] = d['launch_adet']
+            s['launch_sayisi'] = d['launch_sayisi']
+            s['launch_ozet'] = d['launch_ozet']
+            s['_opr_satirlar'] = d['satirlar']
         else:
             s['iht_6h'] = s.get('iht_6h') or 0
             s['en_eski_opr'] = s.get('en_eski_opr') or ''
             s['opr_sayisi'] = s.get('opr_sayisi') or 0
             s['gecikmis'] = s.get('gecikmis') or 0
+            s['launch_adet'], s['launch_sayisi'], s['launch_ozet'] = 0, 0, ''
+            s['_opr_satirlar'] = []
     kp.hesapla(satirlar, agac, stok, ref_stok)
     # G GI = 01D + MDT (ERP ekranındaki stok) — GEREKEN bunun üzerinden
     for s in satirlar:
@@ -12539,6 +12618,11 @@ def _kaynak_plan_olc(conn, kodlar=None):
         s['toplam_stok'] = s['stok_ggi']
         s['gereken'] = max(0.0, (s.get('iht_6h') or 0) - s['stok_ggi'])
         s['kaynatilmali'] = s['gereken'] > 0
+        # ÖNCELİK PUANI (2026-09-30): tarih × adet, stokla kapanmayan emirler üzerinden
+        s['oncelik_puan'], _acik, s['gecikme_gun'] = kp.oncelik_puani(
+            s.get('_opr_satirlar'), s['stok_ggi'], _ufuk)
+        # AÇILACAK EMİR: gerekenin launch'la karşılanmayan kısmı — bildirimin ölçütü
+        s['emir_gereken'] = max(0.0, s['gereken'] - (s.get('launch_adet') or 0))
         u = s.get('uretilebilir')
         if not s['kaynatilmali']:
             s['karar'] = 'GEREK YOK'
@@ -12557,11 +12641,14 @@ def _kaynak_plan_olc(conn, kodlar=None):
         # İlk ölçümde "önceki" yok; sonrakilerde bir öncekini taşı.
         onc_u = eski['uretilebilir'] if eski else None
         onc_t = eski['olculdu'] if eski else ''
+        s['_onceki_u'] = onc_u          # bildirim: üretilebilir ARTTI mı?
+        s['_onceki_t'] = onc_t          # bayat ölçümle kıyas yapılmaz
         conn.execute(
             "UPDATE kaynak_plan SET uretilebilir=?, kisitlayan=?, kisit_stok=?, parca_sayisi=?, "
             "durum=?, karar=?, eksi_var=?, olculdu=?, onceki_uretilebilir=?, onceki_olculdu=?, "
             "toplam_stok=?, gereken=?, ref_depolar=?, iht_6h=?, en_eski_opr=?, "
-            "opr_sayisi=?, gecikmis=?, stok_ggi=? "
+            "opr_sayisi=?, gecikmis=?, stok_ggi=?, oncelik_puan=?, gecikme_gun=?, "
+            "launch_adet=?, launch_sayisi=?, launch_ozet=?, emir_gereken=? "
             "WHERE kaynak_kod=?",
             (s.get('uretilebilir'), s.get('kisitlayan', ''),
              next((p['stok_sayilan'] for p in s.get('parcalar', [])
@@ -12572,6 +12659,9 @@ def _kaynak_plan_olc(conn, kodlar=None):
              ' '.join(f'{d}:{v:g}' for d, v in (s.get('ref_depolar') or {}).items()),
              s.get('iht_6h') or 0, s.get('en_eski_opr') or '', s.get('opr_sayisi') or 0,
              s.get('gecikmis') or 0, s.get('stok_ggi') or 0,
+             s.get('oncelik_puan') or 0, s.get('gecikme_gun'),
+             s.get('launch_adet') or 0, s.get('launch_sayisi') or 0,
+             s.get('launch_ozet') or '', s.get('emir_gereken') or 0,
              s['kaynak_kod']))
         # parça kırılımı: önceki stoğu koru, satırları tazele
         onceki_stoklar = {r['alt_kod']: r['stok_sayilan'] for r in conn.execute(
@@ -12589,8 +12679,12 @@ def _kaynak_plan_olc(conn, kodlar=None):
                  ' '.join(f'{d}:{v:g}' for d, v in p['depolar'].items()
                           if d not in kp.SAYILAN_DEPOLAR),
                  onceki_stoklar.get(p['kod']), simdi))
+    # Stok artık bilindiği için sıra ÖNCELİK PUANINA göre yeniden verilir
+    # (yalnız liste AS400'den kurulduysa; Excel planında planlamanın sırası kalır).
+    _kp_siralari_yenile(conn)
+    bildirim = _kp_bildirim_guncelle(conn, satirlar, simdi)
     conn.commit()
-    return {'olculen': len(satirlar), 'olculdu': simdi}
+    return {'olculen': len(satirlar), 'olculdu': simdi, 'bildirim': bildirim}
 
 
 @app.route('/api/kaynak_plan/yukle', methods=['POST'])
@@ -12666,6 +12760,98 @@ def kaynak_plan_yukle():
                 pass
 
 
+def _kp_ufuk(deger=None):
+    """Ufuk günü: istekte verilmişse o, yoksa config, yoksa 42 (6 hafta)."""
+    try:
+        return max(1, min(365, int(deger or (_oto_config().get('kaynak_plan') or {}).get('ufuk_gun') or 42)))
+    except (TypeError, ValueError):
+        return 42
+
+
+def _kp_siralari_yenile(conn):
+    """Sırayı ÖNCELİK PUANINA göre yeniden verir (kullanıcı 2026-09-30).
+
+    Yalnız liste AS400'den kurulmuşsa: planlamanın Excel'i yüklendiyse sıra
+    PLANLAMANIN sırasıdır, ona dokunulmaz (panelde sütun başlığına tıklayarak
+    yine puana göre dizilebilir). Eşit puanda en eski OPR öne gelir."""
+    excel = conn.execute(
+        "SELECT COUNT(*) c FROM kaynak_plan WHERE aktif=1 "
+        "AND COALESCE(plan_dosya,'') NOT LIKE 'AS400%'").fetchone()['c']
+    if excel:
+        return False
+    rows = conn.execute(
+        "SELECT id FROM kaynak_plan WHERE aktif=1 ORDER BY COALESCE(oncelik_puan,0) DESC, "
+        "CASE WHEN COALESCE(en_eski_opr,'')='' THEN '9999-12-31' ELSE en_eski_opr END, "
+        "kaynak_kod").fetchall()
+    conn.executemany("UPDATE kaynak_plan SET sira=? WHERE id=?",
+                     [(i, r['id']) for i, r in enumerate(rows, start=1)])
+    return True
+
+
+def _kaynak_plan_erpden_kur(conn, ufuk=None):
+    """Listeyi TAMAMEN ERP'den kurar; (sonuc, hata, http_kodu) döner.
+
+    Panel düğmesi VE 07:00/13:00 otomatik koşusu aynı çekirdeği kullanır.
+    conn: çağıranın bağlantısı (istekte get_db, thread'de db_connect)."""
+    ufuk = _kp_ufuk(ufuk)
+    kp = _kp_modul()
+    kodlar = {r['referans_kodu'].strip() for r in conn.execute(
+        "SELECT referans_kodu FROM referans_listesi "
+        "WHERE COALESCE(bolum,'kaynak')='kaynak' AND COALESCE(referans_kodu,'')<>''").fetchall()}
+    kodlar |= {r['kaynak_kod'] for r in conn.execute(
+        "SELECT kaynak_kod FROM kaynak_plan").fetchall()}
+    kodlar = sorted(k for k in kodlar if k)
+    if not kodlar:
+        return None, 'Sistemde kaynak referansı yok — önce referans listesini kurun', 400
+    try:
+        cn = kp.erp_baglan()
+    except Exception as e:
+        return None, f'AS400 bağlantısı kurulamadı: {e}', 424
+    try:
+        opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk)
+        # Stok burada da okunur: öncelik puanı "stokla kapanmayan adet" üzerinden
+        # hesaplanıyor, stoksuz puanla kurulan sıra ilk yenilemeye kadar yanlış olurdu.
+        ref_stok = kp.stoklar(cn, sorted(opr)) if opr else {}
+    finally:
+        try:
+            cn.close()
+        except Exception:
+            pass
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+    for kod, d in opr.items():
+        st = ref_stok.get(kod, {})
+        d['_ggi'] = st.get('01D', 0) + st.get('MDT', 0)
+        d['_puan'], _acik, d['_gun'] = kp.oncelik_puani(d['satirlar'], d['_ggi'], ufuk)
+        d['_gereken'] = max(0.0, d['ihtiyac'] - d['_ggi'])
+        d['_emir'] = max(0.0, d['_gereken'] - d['launch_adet'])
+    # ÖNCELİK: puan (tarih × adet) yüksek olan önce; eşitlikte en eski OPR.
+    sirali = sorted(opr.items(), key=lambda kv: (-kv[1]['_puan'],
+                                                 kv[1]['en_eski'] or '9999-12-31', kv[0]))
+    conn.execute("UPDATE kaynak_plan SET aktif=0")
+    for i, (kod, d) in enumerate(sirali, start=1):
+        conn.execute(
+            "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, iht_6h, acik_launch, gereken, "
+            "en_eski_opr, opr_sayisi, gecikmis, plan_dosya, plan_yuklendi, agac_farki, aktif, "
+            "stok_ggi, oncelik_puan, gecikme_gun, launch_adet, launch_sayisi, launch_ozet, "
+            "emir_gereken) "
+            "VALUES (?,?,'',?,0,?,?,?,?,'AS400 (OPR)',?,'',1,?,?,?,?,?,?,?) "
+            "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, "
+            "iht_6h=excluded.iht_6h, gereken=excluded.gereken, "
+            "en_eski_opr=excluded.en_eski_opr, opr_sayisi=excluded.opr_sayisi, "
+            "gecikmis=excluded.gecikmis, plan_dosya=excluded.plan_dosya, "
+            "plan_yuklendi=excluded.plan_yuklendi, aktif=1, stok_ggi=excluded.stok_ggi, "
+            "oncelik_puan=excluded.oncelik_puan, gecikme_gun=excluded.gecikme_gun, "
+            "launch_adet=excluded.launch_adet, launch_sayisi=excluded.launch_sayisi, "
+            "launch_ozet=excluded.launch_ozet, emir_gereken=excluded.emir_gereken",
+            (kod, i, d['ihtiyac'], d['_gereken'], d['en_eski'] or '',
+             d['opr_sayisi'], d['gecikmis'], simdi,
+             d['_ggi'], d['_puan'], d['_gun'], d['launch_adet'], d['launch_sayisi'],
+             d['launch_ozet'], d['_emir']))
+    conn.commit()
+    return {'satir': len(sirali), 'ufuk_gun': ufuk, 'taranan_kod': len(kodlar),
+            'launchli': sum(1 for _, d in sirali if d['launch_adet'] > 0)}, None, 200
+
+
 @app.route('/api/kaynak_plan/erpden_kur', methods=['POST'])
 @panel_gerekli(izin='kaynak-plan')
 def kaynak_plan_erpden_kur():
@@ -12675,57 +12861,20 @@ def kaynak_plan_erpden_kur():
     Kod kümesi : sistemdeki kaynak referansları (referans_listesi bolum='kaynak')
                  + daha önce listeye girmiş kodlar (Excel'den gelmiş olabilir)
     İhtiyaç    : XPRO90 açık OPR'lerin ufuk içindeki KALAN toplamı
-    Öncelik    : en eski OPR teslim tarihi (aciliyet sırası)
+    Öncelik    : ÖNCELİK PUANI = stokla kapanmayan adet × gün ağırlığı (2026-09-30;
+                 eskiden yalnız en eski OPR tarihiydi — 2 adetlik eski kalıntı,
+                 300 adetlik güncel işin önüne geçiyordu)
     Stok       : G GI = 01D + MDT
     Notlar KORUNUR; ihtiyacı kalmayan kodlar aktif=0 olur (not kaybolmasın).
     Body: {ufuk_gun: 42}"""
     data = request.get_json(silent=True) or {}
-    try:
-        ufuk = max(1, min(365, int(data.get('ufuk_gun') or 42)))
-    except (TypeError, ValueError):
-        ufuk = 42
-    kp = _kp_modul()
-    conn = get_db()
-    kodlar = {r['referans_kodu'].strip() for r in conn.execute(
-        "SELECT referans_kodu FROM referans_listesi "
-        "WHERE COALESCE(bolum,'kaynak')='kaynak' AND COALESCE(referans_kodu,'')<>''").fetchall()}
-    kodlar |= {r['kaynak_kod'] for r in conn.execute(
-        "SELECT kaynak_kod FROM kaynak_plan").fetchall()}
-    kodlar = sorted(k for k in kodlar if k)
-    if not kodlar:
-        return jsonify({'hata': 'Sistemde kaynak referansı yok — önce referans listesini kurun'}), 400
-    try:
-        cn = kp.erp_baglan()
-    except Exception as e:
-        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 424
-    try:
-        opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk)
-    finally:
-        try:
-            cn.close()
-        except Exception:
-            pass
-    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
-    # Aciliyet sırası: en eski OPR tarihi önce; tarihi olmayan sona
-    sirali = sorted(opr.items(), key=lambda kv: (kv[1]['en_eski'] or '9999-12-31', kv[0]))
-    conn.execute("UPDATE kaynak_plan SET aktif=0")
-    for i, (kod, d) in enumerate(sirali, start=1):
-        conn.execute(
-            "INSERT INTO kaynak_plan (kaynak_kod, sira, urun, iht_6h, acik_launch, gereken, "
-            "en_eski_opr, opr_sayisi, gecikmis, plan_dosya, plan_yuklendi, agac_farki, aktif) "
-            "VALUES (?,?,'',?,0,?,?,?,?,'AS400 (OPR)',?,'',1) "
-            "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, "
-            "iht_6h=excluded.iht_6h, gereken=excluded.gereken, "
-            "en_eski_opr=excluded.en_eski_opr, opr_sayisi=excluded.opr_sayisi, "
-            "gecikmis=excluded.gecikmis, plan_dosya=excluded.plan_dosya, "
-            "plan_yuklendi=excluded.plan_yuklendi, aktif=1",
-            (kod, i, d['ihtiyac'], d['ihtiyac'], d['en_eski'] or '',
-             d['opr_sayisi'], d['gecikmis'], simdi))
-    conn.commit()
-    return jsonify({'ok': True, 'satir': len(sirali), 'ufuk_gun': ufuk,
-                    'taranan_kod': len(kodlar),
-                    'mesaj': f'{len(sirali)} referansın açık üretim emri var '
-                             f'({ufuk} günlük ufuk). Sıralama en eski OPR tarihine göre. '
+    sonuc, hata, kod = _kaynak_plan_erpden_kur(get_db(), data.get('ufuk_gun'))
+    if hata:
+        return jsonify({'hata': hata}), kod
+    return jsonify({'ok': True, **sonuc,
+                    'mesaj': f'{sonuc["satir"]} referansın açık üretim emri var '
+                             f'({sonuc["ufuk_gun"]} günlük ufuk), {sonuc["launchli"]} tanesinde '
+                             f'launch alınmış. Sıralama öncelik puanına göre (tarih × adet). '
                              f'Şimdi "Stokları Yenile" ile malzeme kontrolünü çalıştırın.'})
 
 
@@ -12762,6 +12911,350 @@ def kaynak_plan_yenile():
     except Exception as e:
         return jsonify({'hata': f'ERP ölçümü başarısız: {e}'}), 424
     return jsonify({'ok': True, **sonuc})
+
+
+KP_MALZEME_ETIKET = {'TALIMAT VER': 'Tam', 'KISMI': 'Kısmi', 'MALZEME YOK': 'Yok',
+                     'ELLE BAK': 'Bilinmiyor', 'GEREK YOK': '—'}
+
+
+def _kp_excel(satirlar):
+    """Verilen satırları VERİLDİĞİ SIRAYLA xlsx'e yazar; BytesIO döner.
+    Panel indirmesi ve bildirim maili aynı biçimi kullanır."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
+    from openpyxl.utils import get_column_letter
+    import io
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Kaynak Planı'
+    basliklar = ['#', 'Öncelik puanı', 'En eski OPR', 'Gecikme (gün)', 'Kaynak kodu',
+                 'İhtiyaç (OPR)', 'Stok (G GI)', 'Gereken', 'Launch alınan', 'Launch durumu',
+                 'Emir açılacak', 'Üretilebilir', 'Değişim', 'Malzeme', 'Kısıtlayan parça',
+                 'Kısıt stoğu', 'Teslimi geçmiş adet', 'Not', 'Son ölçüm']
+    ws.append(basliklar)
+    _bf, _bd = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor='6D28D9')
+    for h in ws[1]:
+        h.font, h.fill = _bf, _bd
+        h.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    zemin = {'TALIMAT VER': 'DCFCE7', 'KISMI': 'FEF9C3', 'MALZEME YOK': 'FEE2E2'}
+    for i, s in enumerate(satirlar, start=1):
+        ws.append([i, round(s.get('oncelik_puan') or 0), s.get('en_eski_opr') or '',
+                   s.get('gecikme_gun'), s.get('kaynak_kod'),
+                   s.get('iht_6h') or 0, s.get('stok_ggi') or 0, s.get('gereken') or 0,
+                   s.get('launch_adet') or 0, s.get('launch_ozet') or '',
+                   s.get('emir_gereken') or 0, s.get('uretilebilir'), s.get('degisim'),
+                   KP_MALZEME_ETIKET.get(s.get('karar') or '', s.get('karar') or ''),
+                   s.get('kisitlayan') or '', s.get('kisit_stok') or 0,
+                   s.get('gecikmis') or 0, s.get('aciklama') or '', s.get('olculdu') or ''])
+        renk = zemin.get(s.get('karar')) if (s.get('gereken') or 0) > 0 else None
+        if renk:
+            for c in ws[ws.max_row]:
+                c.fill = PatternFill('solid', fgColor=renk)
+    for i, b in enumerate(basliklar, start=1):
+        harf = get_column_letter(i)
+        en = max([len(str(b))] + [len(str(c.value or '')) for c in ws[harf]][:400])
+        ws.column_dimensions[harf].width = min(max(en + 3, 9), 44)
+    ws.freeze_panes = 'A2'
+    ws.auto_filter.ref = ws.dimensions
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+@app.route('/api/kaynak_plan/excel', methods=['GET'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_excel():
+    """Ekrandaki listeyi (aynı süzgeç + aynı sıra) Excel olarak indirir.
+    ?filtre=aksiyon&ara=&sirala=oncelik_puan&yon=-1"""
+    satirlar = _kp_filtrele(_kp_satirlar(get_db()),
+                            request.args.get('filtre') or 'hepsi', request.args.get('ara') or '')
+    try:
+        yon = -1 if int(request.args.get('yon') or 1) < 0 else 1
+    except (TypeError, ValueError):
+        yon = 1
+    satirlar = _kp_sirala(satirlar, request.args.get('sirala') or 'sira', yon)
+    ad = f'kaynak_plani_{datetime.now():%Y%m%d_%H%M}.xlsx'
+    return send_file(_kp_excel(satirlar), as_attachment=True, download_name=ad,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ── KAYNAK PLANI BİLDİRİMLERİ (kullanıcı 2026-09-30) ────────────────────
+# "Değişim kısmında artış olan referanslar için bildirim alıp üretim için emir
+#  oluşturmam gerekiyor." OLAY = malzemesi gelen (üretilebilir ARTMIŞ) ve hâlâ
+# emir açılması gereken (gereken − launch alınan > 0) referans.
+#   · Olay panelde "Emir açılacaklar" listesinde BEKLER — push/mail kaçsa da kaybolmaz.
+#   · ERP'de launch görülünce (durum 40) ya da ihtiyaç/malzeme kalmayınca KENDİ kapanır.
+#   · "Emir açtım" ile elle de kapatılır.
+KP_KIYAS_SAAT = 96        # önceki ölçüm bundan eskiyse 'artış' kıyası yapılmaz
+
+
+def _kp_olcum_taze(onceki_ts, simdi_ts):
+    """Önceki ölçüm kıyas için yeterince yeni mi?
+
+    Günde iki koşuda aralık en çok ~18 saat. Sunucu günlerce kapalı kaldıysa
+    ya da özellik ilk kez devreye giriyorsa 'önceki' değer BAYATTIR: aradaki
+    fark bir günün değil haftaların birikimidir ve onlarca sahte 'malzeme geldi'
+    bildirimi üretir (ilk denemede 22 olay açıldı). O koşu yalnızca yeni baz
+    ölçüm olur; bildirim bir sonrakinden itibaren başlar."""
+    try:
+        a = datetime.strptime(str(onceki_ts)[:16], '%Y-%m-%d %H:%M')
+        b = datetime.strptime(str(simdi_ts)[:16], '%Y-%m-%d %H:%M')
+    except (TypeError, ValueError):
+        return True          # damga yok/okunamadı: kıyası engelleme
+    return (b - a).total_seconds() <= KP_KIYAS_SAAT * 3600
+
+
+def _kp_bildirim_guncelle(conn, satirlar, simdi):
+    """Ölçüm sonrası olayları açar/günceller/kapatır. {'acilan','guncellenen','kapanan'}."""
+    sayac = {'acilan': 0, 'guncellenen': 0, 'kapanan': 0}
+    for s in satirlar:
+        kod = s['kaynak_kod']
+        u, onc = s.get('uretilebilir'), s.get('_onceki_u')
+        emir = s.get('emir_gereken') or 0
+        launch = s.get('launch_adet') or 0
+        acik = conn.execute(
+            "SELECT * FROM kaynak_plan_bildirim WHERE kaynak_kod=? AND durum='acik' "
+            "ORDER BY id DESC LIMIT 1", (kod,)).fetchone()
+        if acik:
+            sebep = None
+            if emir <= 0:
+                sebep = ('launch_alindi' if launch > (acik['launch_adet'] or 0)
+                         else 'ihtiyac_kalmadi')
+            elif not u:
+                sebep = 'malzeme_kalmadi'
+            if sebep:
+                conn.execute(
+                    "UPDATE kaynak_plan_bildirim SET durum='kapandi', kapanma_ts=?, "
+                    "kapatan='sistem', kapanma_sebebi=? WHERE id=?", (simdi, sebep, acik['id']))
+                sayac['kapanan'] += 1
+                acik = None
+        taze = _kp_olcum_taze(s.get('_onceki_t'), simdi)
+        artis = (u - onc) if (taze and u is not None and onc is not None) else 0
+        if emir > 0 and (u or 0) > 0 and artis > 0:
+            if acik:
+                # Aynı referans yeniden arttı: satırı tazele ve YENİDEN duyur.
+                conn.execute(
+                    "UPDATE kaynak_plan_bildirim SET guncelleme_ts=?, onceki_uretilebilir=?, "
+                    "uretilebilir=?, artis=?, gereken=?, emir_gereken=?, launch_adet=?, "
+                    "oncelik_puan=?, en_eski_opr=?, bildirildi_ts=NULL WHERE id=?",
+                    (simdi, onc, u, artis, s.get('gereken') or 0, emir, launch,
+                     s.get('oncelik_puan') or 0, s.get('en_eski_opr') or '', acik['id']))
+                sayac['guncellenen'] += 1
+            else:
+                conn.execute(
+                    "INSERT INTO kaynak_plan_bildirim (olusturma_ts, kaynak_kod, tur, "
+                    "onceki_uretilebilir, uretilebilir, artis, gereken, emir_gereken, launch_adet, "
+                    "oncelik_puan, en_eski_opr, durum) VALUES (?,?,'malzeme_geldi',?,?,?,?,?,?,?,?,'acik')",
+                    (simdi, kod, onc, u, artis, s.get('gereken') or 0, emir, launch,
+                     s.get('oncelik_puan') or 0, s.get('en_eski_opr') or ''))
+                sayac['acilan'] += 1
+    return sayac
+
+
+def _kp_bildirim_mail(conn, olaylar, alicilar):
+    """Olay listesini mail atar (Excel ekli). (basarili, aciklama) döner."""
+    try:
+        import tempfile
+        import mail_raporu as _mr
+        cfg = _mr.config_yukle()
+        if not cfg or not cfg.get('etkin'):
+            return False, 'mail yapılandırılmamış'
+        if not _mr.host_uygun(cfg):
+            return False, 'bu makine gönderim için yetkili değil (sadece_host)'
+        konu = f'Cofle Forge — Kaynak planı: {len(olaylar)} referans için emir açılabilir'
+        satir_txt = '\n'.join(
+            f"  {o['kaynak_kod']:<22} üretilebilir {o['onceki_uretilebilir']} → {o['uretilebilir']} "
+            f"(+{o['artis']}) · emir açılacak {o['emir_gereken']:g} · en eski OPR {o['en_eski_opr'] or '—'}"
+            for o in olaylar)
+        govde = ('Malzemesi gelen ve üretim emri açılması gereken referanslar:\n\n' + satir_txt +
+                 '\n\nListe öncelik puanına göre sıralıdır. Emir açıldığında (launch) satır '
+                 'kendiliğinden kapanır.\nPanel: https://coflemanage.online/dashboard')
+        html = ('<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px">'
+                '<p><b>Malzemesi gelen ve üretim emri açılması gereken referanslar</b></p>'
+                '<table cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:13px">'
+                '<tr style="background:#6D28D9;color:#fff"><th align="left">Kaynak kodu</th>'
+                '<th>Üretilebilir</th><th>Artış</th><th>Emir açılacak</th><th>Launch alınan</th>'
+                '<th>En eski OPR</th></tr>' +
+                ''.join(
+                    f'<tr style="border-bottom:1px solid #e5e7eb"><td><b>{o["kaynak_kod"]}</b></td>'
+                    f'<td align="right">{o["onceki_uretilebilir"]} → {o["uretilebilir"]}</td>'
+                    f'<td align="right" style="color:#15803d"><b>+{o["artis"]}</b></td>'
+                    f'<td align="right">{o["emir_gereken"]:g}</td>'
+                    f'<td align="right">{(o["launch_adet"] or 0):g}</td>'
+                    f'<td>{o["en_eski_opr"] or "—"}</td></tr>' for o in olaylar) +
+                '</table><p style="color:#6b7280;font-size:12px">Liste öncelik puanına göre '
+                'sıralıdır. Emir açıldığında (launch) satır kendiliğinden kapanır.</p></div>')
+        kodlar = {o['kaynak_kod'] for o in olaylar}
+        ek = _kp_sirala([s for s in _kp_satirlar(conn) if s['kaynak_kod'] in kodlar],
+                        'oncelik_puan', -1)
+        yol = os.path.join(tempfile.gettempdir(),
+                           f'kaynak_plani_emir_{datetime.now():%Y%m%d_%H%M}.xlsx')
+        with open(yol, 'wb') as f:
+            f.write(_kp_excel(ek).getvalue())
+        try:
+            if _mr.yontem_al(cfg) == 'outlook':
+                _mr._outlook_gonder(alicilar, konu, govde, yol, html)
+            else:
+                _mr._smtp_gonder(cfg, alicilar, konu, govde, yol, html)
+        finally:
+            try:
+                os.remove(yol)
+            except OSError:
+                pass
+        return True, ', '.join(alicilar)
+    except Exception as e:
+        return False, f'{type(e).__name__}: {e}'
+
+
+def _kp_bildirim_gonder(conn, cfg=None):
+    """Henüz DUYURULMAMIŞ açık olayları push + mail ile duyurur.
+
+    Hiçbir kanal tanımlı değilse olaylar 'duyurulmadı' kalır ve panelde bekler —
+    alıcı sonradan eklenince ilk koşuda gider."""
+    cfg = cfg if cfg is not None else (_oto_config().get('kaynak_plan') or {})
+    olaylar = [dict(r) for r in conn.execute(
+        "SELECT * FROM kaynak_plan_bildirim WHERE durum='acik' AND bildirildi_ts IS NULL "
+        "ORDER BY COALESCE(oncelik_puan,0) DESC, id").fetchall()]
+    sonuc = {'olay': len(olaylar), 'push': 0, 'mail': ''}
+    if not olaylar:
+        return sonuc
+    push_adlar = [str(a).strip() for a in (cfg.get('bildirim_push') or []) if str(a).strip()]
+    mail_adres = [str(a).strip() for a in (cfg.get('bildirim_mail') or []) if '@' in str(a)]
+    gitti = False
+    if push_adlar:
+        ilk = ', '.join(f"{o['kaynak_kod']} (+{o['artis']})" for o in olaylar[:5])
+        try:
+            _push_gonder_async(
+                push_adlar, f'🔥 Kaynak planı: {len(olaylar)} referans için emir açılabilir',
+                ilk + (f' … +{len(olaylar) - 5} referans' if len(olaylar) > 5 else ''),
+                '/dashboard')
+            sonuc['push'] = len(push_adlar)
+            gitti = True
+        except Exception as e:
+            print(f'[KAYNAK-PLAN] push atlandı: {e}')
+    if mail_adres:
+        ok, aciklama = _kp_bildirim_mail(conn, olaylar, mail_adres)
+        sonuc['mail'] = aciklama
+        gitti = gitti or ok
+        if not ok:
+            print(f'[KAYNAK-PLAN] mail gönderilemedi: {aciklama}')
+    if gitti:
+        simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+        conn.executemany("UPDATE kaynak_plan_bildirim SET bildirildi_ts=? WHERE id=?",
+                         [(simdi, o['id']) for o in olaylar])
+        conn.commit()
+    return sonuc
+
+
+def _kaynak_plan_oto_calistir(conn, bildir=True):
+    """Tam tur: AS400'den kur → stok/malzeme ölç → olayları güncelle → duyur."""
+    cfg = _oto_config().get('kaynak_plan') or {}
+    ufuk = _kp_ufuk(cfg.get('ufuk_gun'))
+    kur, hata, _http = _kaynak_plan_erpden_kur(conn, ufuk)
+    if hata:
+        raise RuntimeError(hata)
+    olc = _kaynak_plan_olc(conn, None, ufuk)
+    gonderim = _kp_bildirim_gonder(conn, cfg) if bildir else {'olay': 0, 'push': 0, 'mail': ''}
+    return {'satir': kur['satir'], 'olculen': olc.get('olculen', 0),
+            'olculdu': olc.get('olculdu', ''), 'bildirim': olc.get('bildirim', {}),
+            'gonderim': gonderim}
+
+
+def kaynak_plan_oto_job():
+    """07:00 ve 13:00 — kaynak planını AS400'den yeniler ve artışları duyurur.
+    (kullanıcı 2026-09-30) Saatler oto_config.kaynak_plan.saatler; değişiklik
+    restart ister (zamanlayıcı saatleri açılışta okur), etkin/alıcılar taze okunur."""
+    cfg = _oto_config().get('kaynak_plan') or {}
+    if not cfg.get('etkin', True):
+        print('[KAYNAK-PLAN] otomatik yenileme kapalı (oto_config) — atlandı')
+        return
+    conn = db_connect()
+    try:
+        o = _kaynak_plan_oto_calistir(conn)
+        b = o.get('bildirim') or {}
+        print(f"[KAYNAK-PLAN] oto yenileme: {o['satir']} referans, {o['olculen']} ölçüldü · "
+              f"olay +{b.get('acilan', 0)} ~{b.get('guncellenen', 0)} -{b.get('kapanan', 0)} · "
+              f"duyurulan {o['gonderim'].get('olay', 0)}")
+    except Exception as e:
+        print(f'[KAYNAK-PLAN] oto yenileme HATASI: {e}')
+    finally:
+        conn.close()
+
+
+@app.route('/api/kaynak_plan/oto_calistir', methods=['POST'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_oto_calistir():
+    """Otomatik turu ŞİMDİ çalıştırır (kur + ölç + olaylar). Body: {bildir: true}
+    bildir=false ise push/mail atılmaz — yalnız liste ve olaylar tazelenir."""
+    data = request.get_json(silent=True) or {}
+    try:
+        o = _kaynak_plan_oto_calistir(get_db(), bool(data.get('bildir', True)))
+    except Exception as e:
+        return jsonify({'hata': f'Yenileme başarısız: {e}'}), 424
+    return jsonify({'ok': True, **o})
+
+
+@app.route('/api/kaynak_plan/bildirimler', methods=['GET'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_bildirimler():
+    """Emir açılacaklar (açık olaylar) + son kapananlar + bildirim ayarı."""
+    conn = get_db()
+    acik = [dict(r) for r in conn.execute(
+        "SELECT * FROM kaynak_plan_bildirim WHERE durum='acik' "
+        "ORDER BY COALESCE(oncelik_puan,0) DESC, id").fetchall()]
+    kapanan = [dict(r) for r in conn.execute(
+        "SELECT * FROM kaynak_plan_bildirim WHERE durum='kapandi' "
+        "ORDER BY kapanma_ts DESC, id DESC LIMIT 15").fetchall()]
+    cfg = _oto_config().get('kaynak_plan') or {}
+    return jsonify({'acik': acik, 'kapanan': kapanan,
+                    'ayar': {'etkin': bool(cfg.get('etkin', True)),
+                             'saatler': cfg.get('saatler') or [],
+                             'bildirim_push': cfg.get('bildirim_push') or [],
+                             'bildirim_mail': cfg.get('bildirim_mail') or []}})
+
+
+@app.route('/api/kaynak_plan/bildirim/<int:bid>/kapat', methods=['POST'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_bildirim_kapat(bid):
+    """'Emir açtım' — olayı elle kapatır."""
+    conn = get_db()
+    cur = conn.execute(
+        "UPDATE kaynak_plan_bildirim SET durum='kapandi', kapanma_ts=datetime('now','localtime'), "
+        "kapatan=?, kapanma_sebebi='elle' WHERE id=? AND durum='acik'",
+        (g.panel_ku['kullanici_adi'], bid))
+    conn.commit()
+    if not cur.rowcount:
+        return jsonify({'hata': 'Bildirim bulunamadı ya da zaten kapalı'}), 404
+    return jsonify({'ok': True})
+
+
+@app.route('/api/kaynak_plan/bildirim_ayar', methods=['POST'])
+@panel_gerekli(izin='kaynak-plan')
+def kaynak_plan_bildirim_ayar():
+    """Otomatik yenileme + alıcılar. Body: {etkin?, bildirim_push?: [ad], bildirim_mail?: [adres]}
+    Saatler dosyadan değişir (restart ister); etkin ve alıcılar her koşuda taze okunur."""
+    data = request.get_json(silent=True) or {}
+    cfg = _oto_config()
+    k = cfg.setdefault('kaynak_plan', {})
+    if 'etkin' in data:
+        k['etkin'] = bool(data.get('etkin'))
+    for alan in ('bildirim_push', 'bildirim_mail'):
+        if alan in data:
+            ham = data.get(alan) or []
+            if isinstance(ham, str):
+                ham = re.split(r'[;,\n]', ham)
+            liste = [str(x).strip() for x in ham if str(x).strip()][:20]
+            if alan == 'bildirim_mail':
+                kotu = [x for x in liste if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', x)]
+                if kotu:
+                    return jsonify({'hata': f'Geçersiz e-posta: {", ".join(kotu)}'}), 400
+            k[alan] = liste
+    try:
+        _oto_config_yaz(cfg)
+    except Exception as e:
+        return jsonify({'hata': f'config yazılamadı: {e}'}), 500
+    return jsonify({'ok': True, 'ayar': k})
 
 
 @app.route('/api/as400/planlama', methods=['GET'])
@@ -13076,6 +13569,12 @@ _OTO_VARSAYILAN = {
     # tarihine kadar TEST veritabanına (COFLETKPR) bakıyordu; o saatten önce
     # açılırsa teyit canlı ERP'ye DÜŞMEZ ve satırlar '01E' ile reddedilir.
     'teyit_import':   {'etkin': False, 'canli_onay': False, 'bekleme_sn': 60},
+    # KAYNAK PLANI (kullanıcı 2026-09-30): AS400'den kur + stokları yenile günde
+    # iki kez OTOMATİK; üretilebilir adedi ARTAN ve emir açılması gereken
+    # referanslar push (operatör adı) ve/veya mail ile duyurulur. Alıcılar
+    # panelden girilir; saat değişikliği restart ister.
+    'kaynak_plan':    {'etkin': True, 'saatler': ['07:00', '13:00'], 'ufuk_gun': 42,
+                       'bildirim_push': [], 'bildirim_mail': []},
     'agent_nobeti':   {'etkin': True, 'kontrol_dk': 10, 'hatirlatma_saat': 6,
                        'alicilar': []},
     # CFI/COP'u EKRAN ROBOTU yerine IT'nin staging tablosuyla yaz (Simone Rota,
@@ -16260,6 +16759,13 @@ if __name__ == '__main__':
             # Bakım makine kataloğu günde bir (Halil Bey: günde bir yeterli);
             # anahtar yoksa iş sessizce döner.
             _ek.append((6, 30, bakim_katalog_job, 'Bakım Makine Kataloğu'))
+            # Kaynak planı: AS400'den kur + stok ölç + artışları duyur (07:00, 13:00).
+            for _ks in ((_ocfg.get('kaynak_plan') or {}).get('saatler') or ['07:00', '13:00']):
+                try:
+                    _kh, _km = (int(x) for x in str(_ks).split(':'))
+                    _ek.append((_kh, _km, kaynak_plan_oto_job, f'Kaynak Planı Yenile ({_ks})'))
+                except (TypeError, ValueError):
+                    print(f'[SCHED] kaynak_plan saati okunamadı: {_ks!r}')
             # AGENT NÖBETİ: agent/gözcü düşerse mail (bkz. agent_nobet_job).
             try:
                 _nbd = max(1, int((_ocfg.get('agent_nobeti') or {}).get('kontrol_dk') or 10))

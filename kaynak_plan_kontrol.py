@@ -224,7 +224,16 @@ def opr_ihtiyaclari(cn, kodlar, ufuk_gun=42):
             except (TypeError, ValueError):
                 t = None
             d = sonuc.setdefault(kod, {'ihtiyac': 0.0, 'en_eski': None, 'opr_sayisi': 0,
-                                       'gecikmis': 0.0, 'satirlar': []})
+                                       'gecikmis': 0.0, 'satirlar': [],
+                                       'launch_adet': 0.0, 'launch_sayisi': 0,
+                                       'launch_durum': {}})
+            # LAUNCH ALINMIŞ MI? (kullanıcı 2026-09-30): durum 40/45/50 = üretim
+            # emri açılmış. Ufuktan BAĞIMSIZ sayılır — açık launch açık launch'tır;
+            # amaç aynı parçaya ikinci kez emir açmamak.
+            if durum != '10':
+                d['launch_adet'] += kalan
+                d['launch_sayisi'] += 1
+                d['launch_durum'][durum] = d['launch_durum'].get(durum, 0) + 1
             d['satirlar'].append({'opr': f"{str(r[4]).strip()}-{str(r[5]).strip()}",
                                   'durum': durum, 'adet': adet, 'teyit': teyit,
                                   'kalan': kalan, 'tarih': t.isoformat() if t else '',
@@ -238,7 +247,50 @@ def opr_ihtiyaclari(cn, kodlar, ufuk_gun=42):
                     d['en_eski'] = t.isoformat()
     for d in sonuc.values():
         d['satirlar'].sort(key=lambda x: (x['tarih'] or '9999'))
+        # '40×2 · 45×1' — panelde kodun yanındaki rozet
+        d['launch_ozet'] = ' · '.join(f'{k}×{v}' for k, v in sorted(d['launch_durum'].items()))
     return sonuc
+
+
+def oncelik_puani(opr_satirlar, stok, ufuk_gun=IHTIYAC_UFUK_GUN, bugun=None):
+    """Aciliyet puanı: TARİH ile ADEDİ birlikte tartar. (puan, acik_adet, en_gec_gun)
+
+    NEDEN (kullanıcı 2026-09-30): sıralama yalnız 'en eski OPR tarihi'ne göreydi.
+    120 gün gecikmiş 2 adetlik bir kalıntı, 20 gün gecikmiş 300 adetlik işin
+    önüne geçiyordu — oysa hattı durduracak olan ikincisi.
+
+    HESAP: eldeki stok emirlere TARİH SIRASIYLA dağıtılır (en eski önce); stokla
+    kapanmayan her emir için  açık adet × gün ağırlığı  toplanır.
+        gün ağırlığı = ufuk + gecikme günü   (en az 1)
+    Bugün teslim edilecek emir 'ufuk' kadar, 30 gün gecikmiş olan ufuk+30 kadar,
+    ufkun sonundaki emir 1 kadar ağırlık alır — gecikme arttıkça ve adet
+    büyüdükçe puan yükselir, ikisi birbirini dengeleyebilir.
+        120 gün gecikmiş 2 adet   → 2 × 162  =    324
+         20 gün gecikmiş 300 adet → 300 × 62 = 18.600  (öne geçer)
+
+    en_gec_gun: stokla kapanmayan en eski emrin gecikme günü (+ = gecikmiş)."""
+    from datetime import date
+    bugun = bugun or date.today()
+    kalan_stok = max(0.0, float(stok or 0))
+    puan, acik_toplam, en_gec = 0.0, 0.0, None
+    for x in sorted(opr_satirlar or [], key=lambda r: (r.get('tarih') or '9999')):
+        if not x.get('ufukta') or not x.get('tarih'):
+            continue
+        kalan = float(x.get('kalan') or 0)
+        karsilanan = min(kalan_stok, kalan)
+        kalan_stok -= karsilanan
+        acik = kalan - karsilanan
+        if acik <= 0:
+            continue
+        try:
+            gun = (bugun - date.fromisoformat(x['tarih'])).days
+        except (TypeError, ValueError):
+            continue
+        puan += acik * max(1, int(ufuk_gun) + gun)
+        acik_toplam += acik
+        if en_gec is None or gun > en_gec:
+            en_gec = gun
+    return round(puan, 1), acik_toplam, en_gec
 
 
 def stok_ggi(cn, kodlar):

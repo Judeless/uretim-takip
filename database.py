@@ -1715,6 +1715,13 @@ def init_db():
         ('opr_sayisi', 'INTEGER DEFAULT 0'),
         ('gecikmis', 'REAL DEFAULT 0'),      # teslim tarihi gecmis OPR adedi
         ('stok_ggi', 'REAL DEFAULT 0'),      # ERP ekranindaki G GI (01D+MDT)
+        # ONCELIK + LAUNCH (kullanici 2026-09-30)
+        ('oncelik_puan', 'REAL DEFAULT 0'),  # acik adet x gun agirligi (tarih+adet)
+        ('gecikme_gun', 'INTEGER'),          # stokla kapanmayan en eski emrin gecikmesi
+        ('launch_adet', 'REAL DEFAULT 0'),   # durum 40/45/50 emirlerin kalan adedi
+        ('launch_sayisi', 'INTEGER DEFAULT 0'),
+        ('launch_ozet', "TEXT DEFAULT ''"),  # '40x2 · 45x1'
+        ('emir_gereken', 'REAL DEFAULT 0'),  # gereken - launch alinan = ACILACAK emir
     ):
         try:
             c.execute(f'ALTER TABLE kaynak_plan ADD COLUMN {_kol} {_tip}')
@@ -1727,6 +1734,35 @@ def init_db():
             print(f'[MIGRATION] kaynak_plan_parca.{_kol} eklendi')
         except Exception:
             pass
+
+    # ── KAYNAK PLANI BILDIRIMLERI (kullanici 2026-09-30) ────────────────────
+    # "Degisim kisminda artis olan referanslar icin bildirim alip uretim icin
+    #  emir olusturmam gerekiyor." Her olay bir SATIR: malzemesi gelen ve hala
+    # emir acilmasi gereken referans. Push/mail kacirilsa bile panelde bekler;
+    # 'emir actim' ile ya da ERP'de launch gorulunce KENDILIGINDEN kapanir.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS kaynak_plan_bildirim (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            olusturma_ts TEXT NOT NULL,
+            guncelleme_ts TEXT,
+            kaynak_kod TEXT NOT NULL,
+            tur TEXT NOT NULL DEFAULT 'malzeme_geldi',
+            onceki_uretilebilir INTEGER,
+            uretilebilir INTEGER,
+            artis INTEGER,
+            gereken REAL,
+            emir_gereken REAL,
+            launch_adet REAL,
+            oncelik_puan REAL,
+            en_eski_opr TEXT,
+            durum TEXT NOT NULL DEFAULT 'acik',   -- acik | kapandi
+            kapanma_ts TEXT,
+            kapatan TEXT,
+            kapanma_sebebi TEXT,                 -- elle | launch_alindi | ihtiyac_kalmadi | malzeme_kalmadi
+            bildirildi_ts TEXT                   -- push/mail gonderildigi an
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS ix_kp_bildirim ON kaynak_plan_bildirim(durum, kaynak_kod)')
 
     # ─────────────────────────────────────────────────────────────
     # AS400 TRANSFER İPTAL log'u (2026-07-27). TK1 hayali stok transferleri
