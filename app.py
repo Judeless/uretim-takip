@@ -2039,6 +2039,145 @@ def operator_legacy_sayfasi():
     return render_template('mobile.html')
 
 
+# ══════════════════════════════════════════════════════════════════════
+# GELİŞTİRME KOPYASI + SUNUCUDAN VERİ ÇEKME (kullanıcı 2026-09-30)
+# "Sunucudaki Excel ile laptoptaki Excel karışıklığını engellemek için bir
+#  çözüm bulamaz mıyız?"
+# SORUN: canlı sistem sunucuda (192.168.20.210) çalışıyor ama laptopta da aynı
+# kodun AYRI veritabanı ve AYRI Excel'i duruyor. İkisi zamanla ayrışıyor ve
+# hangisinin gerçek olduğu karışıyor — 2026-09-30'da montaj planı laptoptaki eski
+# referans listesiyle ölçüldü (244 kod), sunucuda 175 kod çıktı.
+# ÇÖZÜM — tek kaynak SUNUCU, veri akışı TEK YÖN (sunucu → laptop):
+#   · data/GELISTIRME_KOPYASI.json varsa bu kurulum GELİŞTİRME KOPYASIDIR:
+#     panelde şerit çıkar, zamanlanmış işler başlamaz, AS400'e yazan uçlar ve
+#     Excel'e yazım kapalıdır. Dosya yalnız laptopta bulunur (data/ git'te değil);
+#     sunucuda YOKTUR, orada hiçbir davranış değişmez.
+#   · Sunucudan_Veri_Cek.bat canlı DB + Excel'in tutarlı kopyasını indirir.
+# ══════════════════════════════════════════════════════════════════════
+_GELISTIRME_YOL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               'data', 'GELISTIRME_KOPYASI.json')
+
+
+def _gelistirme_kopyasi():
+    """Bu kurulum geliştirme kopyası mı? İşaret dosyasının içeriği (dict) ya da None.
+    Her çağrıda dosyaya bakılır — ucuz, ve işaret silinince restart gerekmez."""
+    try:
+        with open(_GELISTIRME_YOL, encoding='utf-8-sig') as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {'cekildi': ''}
+    except FileNotFoundError:
+        return None
+    except Exception:
+        # Dosya var ama okunamıyor: EMNİYETLİ taraf geliştirme kopyası saymaktır —
+        # bozuk bir işaret yüzünden laptop AS400'e yazmaya başlamasın.
+        return {'cekildi': '', 'not': 'işaret dosyası okunamadı'}
+
+
+@app.context_processor
+def _gelistirme_ctx():
+    return {'gelistirme_kopyasi': _gelistirme_kopyasi()}
+
+
+@app.before_request
+def _gelistirme_as400_kapisi():
+    """Geliştirme kopyasından AS400'e YAZILMAZ. Sunucudan çekilen veritabanında
+    bekleyen teyit kuyruğu da gelir; buradan gönderilirse canlı sistemle aynı
+    teyit ikinci kez verilir (ERP fazla teyidi kabul ediyor). Okuma serbest."""
+    if (request.method in ('POST', 'PUT', 'PATCH', 'DELETE')
+            and request.path.startswith('/api/as400/') and _gelistirme_kopyasi()):
+        return jsonify({'hata': 'Bu kurulum GELİŞTİRME KOPYASI — AS400\'e gönderim ve AS400 '
+                                'ayarları yalnız canlı sunucudan yapılır.',
+                        'gelistirme_kopyasi': True}), 403
+
+
+def _yerel_ag_istegi():
+    """İstek DOĞRUDAN yerel ağdan mı geliyor? Cloudflare tünelinden gelen istek de
+    remote_addr olarak yerel görünür, ama CF başlıkları taşır — onlar reddedilir."""
+    if any(request.headers.get(b) for b in ('CF-Connecting-IP', 'Cf-Ray', 'X-Forwarded-For')):
+        return False
+    try:
+        import ipaddress
+        ip = ipaddress.ip_address(request.remote_addr or '')
+        return ip.is_private or ip.is_loopback
+    except ValueError:
+        return False
+
+
+_YEDEK_DOSYALAR = {'excel': 'uretim_verileri.xlsx', 'excel_tk1': 'Tk1 Veriler.xlsx'}
+
+
+@app.route('/api/yedek/bilgi', methods=['GET'])
+@panel_gerekli(admin=True)
+def yedek_bilgi():
+    """Bu kurulumun kimliği + veri özeti — Sunucudan_Veri_Cek doğru makineye
+    bağlandığını ve ne indireceğini buradan görür."""
+    import socket
+    from database import DB_PATH as _db_yol
+    conn = get_db()
+    veri_kok = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+    return jsonify({
+        'host': socket.gethostname(),
+        'zaman': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'gelistirme_kopyasi': bool(_gelistirme_kopyasi()),
+        'db_boyut': os.path.getsize(_db_yol) if os.path.exists(_db_yol) else 0,
+        'referans': conn.execute("SELECT COUNT(*) c FROM referans_listesi").fetchone()['c'],
+        'vardiya': conn.execute("SELECT COUNT(*) c FROM vardiyalar").fetchone()['c'],
+        'son_vardiya': conn.execute("SELECT MAX(tarih) t FROM vardiyalar").fetchone()['t'],
+        'dosyalar': {k: os.path.exists(os.path.join(veri_kok, v)) for k, v in _YEDEK_DOSYALAR.items()},
+    })
+
+
+@app.route('/api/yedek/indir', methods=['GET'])
+@panel_gerekli(admin=True)
+def yedek_indir():
+    """Canlı verinin TUTARLI kopyası. ?ne=db | excel | excel_tk1
+
+    db: SQLite yedekleme arayüzüyle alınır — yazım sürerken dosyayı kopyalamak
+    yarım sayfa taşıyabilir; backup() tutarlı bir anlık görüntü verir.
+    YALNIZ yönetici ve YALNIZ yerel ağdan: dosyada operatör PIN'leri ve panel
+    şifre özetleri var, internete açık adresten (coflemanage.online) inmez."""
+    if not _yerel_ag_istegi():
+        return jsonify({'hata': 'Yedek yalnız yerel ağdan indirilebilir (internet üzerinden kapalı)'}), 403
+    import io as _io
+    ne = (request.args.get('ne') or 'db').strip().lower()
+    kim = g.panel_ku['kullanici_adi']
+    if ne == 'db':
+        import sqlite3 as _sq
+        import tempfile
+        yol = os.path.join(tempfile.gettempdir(),
+                           f'forge_yedek_{os.getpid()}_{secrets.token_hex(4)}.db')
+        kaynak = db_connect()
+        try:
+            hedef = _sq.connect(yol)
+            try:
+                kaynak.backup(hedef)
+            finally:
+                hedef.close()
+        finally:
+            kaynak.close()
+        try:
+            with open(yol, 'rb') as f:
+                veri = f.read()
+        finally:
+            try:
+                os.remove(yol)
+            except OSError:
+                pass
+        print(f'[YEDEK] veritabanı indirildi: {kim} @ {request.remote_addr} · {len(veri) // 1024} KB')
+        return send_file(_io.BytesIO(veri), as_attachment=True, download_name='uretim.db',
+                         mimetype='application/octet-stream')
+    if ne in _YEDEK_DOSYALAR:
+        yol = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', _YEDEK_DOSYALAR[ne])
+        if not os.path.exists(yol):
+            return jsonify({'hata': f'{_YEDEK_DOSYALAR[ne]} sunucuda yok'}), 404
+        with open(yol, 'rb') as f:
+            veri = f.read()
+        print(f'[YEDEK] {_YEDEK_DOSYALAR[ne]} indirildi: {kim} @ {request.remote_addr}')
+        return send_file(_io.BytesIO(veri), as_attachment=True, download_name=_YEDEK_DOSYALAR[ne],
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return jsonify({'hata': 'ne: db | excel | excel_tk1'}), 400
+
+
 @app.route('/dashboard')
 def dashboard_sayfasi():
     """Yönetici dashboard — YENİ tasarım (v2: önce genel bakış, gruplu menü, i18n).
@@ -16965,7 +17104,15 @@ if __name__ == '__main__':
 
     # Scheduler — sadece bir kez başlat (reloader child process'inde başlat,
     # debug modda da main process'te çift olmasın)
-    if not os.environ.get('FLASK_DEBUG') or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    # GELİŞTİRME KOPYASINDA zamanlanmış işler BAŞLAMAZ (2026-09-30): 16:45 transfer
+    # iptali, 17:10 oto teyit, mail, plan yenileme… hepsi canlı sunucunun işi. Laptop
+    # sunucudan çekilmiş veritabanıyla açık kalırsa aynı işleri ikinci kez yapardı.
+    _gk = _gelistirme_kopyasi()
+    if _gk:
+        print('[SCHED] GELİŞTİRME KOPYASI — zamanlanmış işler başlatılmadı '
+              '(canlı yapmak için data\\GELISTIRME_KOPYASI.json silinir)')
+    if (not _gk) and (not os.environ.get('FLASK_DEBUG')
+                      or os.environ.get('WERKZEUG_RUN_MAIN') == 'true'):
         try:
             from scheduler import start_scheduler
             # AS400 oto koşuları (2026-07-27): saatler oto_config.json'dan.

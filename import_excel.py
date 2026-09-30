@@ -1027,6 +1027,12 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
     """
     if (lokasyon or 'TK2').upper() == 'TK1':
         return {'basarili': True, 'atlandi': 'TK1 (cycle time export yok)', 'yazilan': 0}
+    # GELİŞTİRME KOPYASI (2026-09-30): buradaki Excel sunucudan indirilmiş SALT OKUNUR
+    # bir kopyadır. Yazmaya çalışmak 'dosya açık' hatası verir ve daha kötüsü, iki
+    # ayrı Excel'in ayrışmasını yeniden başlatır. Tek kaynak sunucudaki dosya.
+    if os.path.exists(os.path.join(PROJECT_DIR, 'data', 'GELISTIRME_KOPYASI.json')):
+        return {'basarili': True, 'yazilan': 0,
+                'atlandi': 'geliştirme kopyası — Excel yalnız canlı sunucuda güncellenir'}
     if not os.path.exists(EXCEL_YOL):
         return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
 

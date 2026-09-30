@@ -1744,6 +1744,18 @@
 </head>
 
 <body>
+    {% if gelistirme_kopyasi %}
+    <!-- GELİŞTİRME KOPYASI ŞERİDİ (2026-09-30): bu kurulum canlı sistem DEĞİL. İşaret
+         dosyası (data/GELISTIRME_KOPYASI.json) yalnız laptopta bulunur. -->
+    <!-- Altta SABİT durur (position:fixed): sayfa akışına girmez, üst çubuğu ve menüyü
+         örtmez, kaydırmadan bağımsız hep görünür. -->
+    <div id="gelistirme-seridi" style="position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#1e293b;color:#fff;font:700 13px/1.45 system-ui,sans-serif;padding:7px 16px;text-align:center;border-top:2px dashed #f87171">
+        🧪 GELİŞTİRME KOPYASI — canlı sistem değil.
+        {% if gelistirme_kopyasi.cekildi %}Veri sunucudan {{ gelistirme_kopyasi.cekildi }} tarihinde alındı.
+        {% else %}Veri henüz sunucudan çekilmedi — eski olabilir (Sunucudan_Veri_Cek.bat).{% endif %}
+        Buradaki değişiklikler canlıya gitmez; AS400 gönderimi ve zamanlanmış işler kapalı.
+    </div>
+    {% endif %}
     <div class="bg-noise" aria-hidden="true"></div>
 
     <!-- ══════════ PANEL OTURUM/YETKİ (sunucudan enjekte) ══════════ -->
