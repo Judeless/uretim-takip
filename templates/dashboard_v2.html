@@ -5099,6 +5099,8 @@ window.__I18N_SOZLUK__ = {
   "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
   "Montaj Planı": {"en": "Assembly Plan", "it": "Piano montaggio"},
   "✔ Launch yeterli:": {"en": "✔ Launch sufficient:", "it": "✔ Lancio sufficiente:"},
+  "⚙ Mekanizmalar:": {"en": "⚙ Mechanisms:", "it": "⚙ Meccanismi:"},
+  "🧵 Tel · kontrol dışı:": {"en": "🧵 Cables · not checked:", "it": "🧵 Cavi · non controllati:"},
   "🔥 Üretilmeli:": {"en": "🔥 To be produced:", "it": "🔥 Da produrre:"},
   "Üretilmeli?": {"en": "To produce?", "it": "Da produrre?"},
   "🔩 Montaj Planı (TK2) — üretilebilirlik takibi": {"en": "🔩 Assembly Plan (TK2) — producibility tracking", "it": "🔩 Piano montaggio (TK2) — producibilità"},
@@ -7889,6 +7891,8 @@ window.__I18N_SOZLUK__ = {
                                 <option value="azalan">Stoğu azalanlar</option>
                                 <option value="launchli">Launch alınmış olanlar</option>
                                 <option value="LAUNCH VAR">Launch yeterli (yeni emir gerekmiyor)</option>
+                                <option value="mekanizma">Mekanizmalar (tel hariç)</option>
+                                <option value="tel">Tel — kontrol dışı (TK1 / fason)</option>
                                 <option value="emir">Emir açılacaklar</option>
                                 <option value="GEREK YOK">Launch gerekmeyenler</option>
                                 <option value="notlu">Notu olanlar</option>
@@ -14784,6 +14788,10 @@ window.__I18N_SOZLUK__ = {
                     (o.launchli ? kpCip('var(--primary)', '🚀 Launch alınmış: ' + o.launchli, false, 'launchli') : '') +
                     (o['LAUNCH VAR'] ? kpCip('var(--primary)', '✔ Launch yeterli: ' + o['LAUNCH VAR'], false, 'LAUNCH VAR') : '') +
                     (o.emir_acilacak ? kpCip('var(--danger)', '📣 Emir açılacak: ' + o.emir_acilacak, false, 'emir') : '') +
+                    // TEL (93.*) montaj planında kontrol dışı: TK1/fason üretimi. 'Mekanizmalar'
+                    // çipi listeyi tel hariç gösterir.
+                    (o.tel ? kpCip('var(--primary)', '⚙ Mekanizmalar: ' + (o.mekanizma || 0), false, 'mekanizma') : '') +
+                    (o.tel ? kpCip('var(--muted)', '🧵 Tel · kontrol dışı: ' + o.tel, true, 'tel') : '') +
                     kpCip('var(--muted)', 'Launch gerekmeyen: ' + (o['GEREK YOK'] || 0), true, 'GEREK YOK');
             }
             var f = (document.getElementById('kp-filtre') || {}).value || 'aksiyon';
@@ -14792,6 +14800,8 @@ window.__I18N_SOZLUK__ = {
                 if (ara && (s.kaynak_kod + ' ' + (s.urun || '')).toUpperCase().replace(/\s/g, '').indexOf(ara) < 0) return false;
                 if (f === 'hepsi') return true;
                 if (f === 'aksiyon') return (s.gereken || 0) > 0;
+                if (f === 'mekanizma') return (s.gereken || 0) > 0 && !s.kontrol_disi;
+                if (f === 'tel') return !!s.kontrol_disi;
                 if (f === 'gecikmis') return (s.gecikmis || 0) > 0;
                 if (f === 'degisen') return s.degisim !== null && s.degisim !== 0;
                 if (f === 'artan') return (s.degisim || 0) > 0;
@@ -14836,6 +14846,7 @@ window.__I18N_SOZLUK__ = {
                 // parçaları REP'e çekilmiştir (rezerve), serbest stokta aranmaz.
                 var mlz = !s.kaynatilmali ? '—'
                         : (s.karar === 'LAUNCH VAR') ? '🚀 launch’ta'
+                        : (s.karar === 'KONTROL DISI') ? '🧵 TK1 / fason'
                         : (s.karar === 'TALIMAT VER') ? '✓ Tam'
                         : (s.karar === 'KISMI') ? '◐ Kısmi (' + fmt(s.uretilebilir) + ')'
                         : (s.karar === 'MALZEME YOK') ? '✖ Yok'

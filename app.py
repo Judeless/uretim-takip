@@ -12454,7 +12454,7 @@ KP_PROFILLER = {
         'ref_depolar': ('01D', 'MDT'),          # ERP ekranındaki G GI
         'alt_depolar': ('01D', 'CF2'),
         'gosterilen': ('01D', 'CF2', '01W', 'REP', 'MDT', 'MK2', 'MT2'),
-        'hayali_seviye': 0, 'excel_yukleme': True,
+        'hayali_seviye': 0, 'excel_yukleme': True, 'kontrol_disi_onek': (),
     },
     'montaj': {
         'anahtar': 'montaj', 'ad': 'Montaj planı (TK2)', 'kod_baslik': 'Montaj kodu',
@@ -12466,14 +12466,25 @@ KP_PROFILLER = {
         # 01W KAYIP DEPO — kullanıcı: "bunu dahil edemeyiz". İlk sürümde 01W+01D
         # sayılıyordu ve GEREKEN olduğundan düşük çıkıyordu.
         'ref_depolar': ('01D', 'MDT'),
-        # Kullanıcı: "alt parçalar 01D, CF2, MK2, MT2 depolarından geliyor."
-        'alt_depolar': ('01D', 'CF2', 'MK2', 'MT2'),
+        # Kullanıcı: "alt parçalar 01D, CF2, MK2, MT2 depolarından geliyor" +
+        # "TK2'de kullandığımız bazı alt parçalar TK1'deki CF stoğunda olabilir,
+        # CF depoyu da kontrol stoğuna ekleyelim" (2026-09-30).
+        'alt_depolar': ('01D', 'CF2', 'MK2', 'MT2', 'CF'),
         # Kırılımda GÖSTERİLEN depolar sayılanlardan geniş: montaj parçalarının stoğu
         # ağırlıkla 01W / REP / CF'de duruyor (2026-09-30 ölçümü) — kural değişecekse
         # kullanıcı stoğun nerede olduğunu ekranda görebilmeli.
         'gosterilen': ('01D', 'CF2', 'MK2', 'MT2', '01W', 'REP', 'CF', '01', 'MDT'),
         # Kullanıcı: "1. seviye fictitious ise 2. seviyeye, o da fictitious ise 3.'ye."
         'hayali_seviye': 3, 'excel_yukleme': False,
+        # TEL (93.TK / 93.00 / 93.01 …) — kullanıcı 2026-09-30: "bu teller TK1'de ya
+        # da fasonda üretiliyor; 93 ile başlayan referansların alt parçalarını kısıt
+        # olarak kontrol etmemize gerek yok." İki yerde uygulanır:
+        #   · plandaki 93.* ÜRÜN: alt parça/stok kontrolü yapılmaz (karar KONTROL DISI)
+        #   · bir mekanizmanın 93.* ALT PARÇASI: kendi stoğuyla sayılır ama hayali
+        #     olsa da alt parçalarına inilmez
+        # Ölçüm: tel malzemeleri 20.950.008A / 20.000.123B yalnız 93.* ürünlerin
+        # 1. seviyesinde geçiyordu ve 230 kadar ürünü 'malzeme yok' gösteriyordu.
+        'kontrol_disi_onek': ('93.',),
     },
 }
 
@@ -12518,6 +12529,7 @@ def _kp_satirlar(conn, pf=None):
     pf = pf or KP_PROFILLER['kaynak']
     satirlar = [dict(r) for r in conn.execute(
         f"SELECT * FROM {pf['tablo']} WHERE aktif=1 ORDER BY sira").fetchall()]
+    _muaf = tuple(pf.get('kontrol_disi_onek') or ())
     acik = {}
     try:
         for r in conn.execute(
@@ -12534,6 +12546,9 @@ def _kp_satirlar(conn, pf=None):
         b = acik.get(s['kaynak_kod'])
         s['bildirim_id'] = b['id'] if b else None
         s['bildirim_artis'] = b['artis'] if b else None
+        # Tel mi (93.*)? KODDAN belirlenir, karardan değil: launch'ı alınmış ya da
+        # ihtiyacı kalmamış tel de teldir; 'mekanizmalar' görünümüne karışmasın.
+        s['kontrol_disi'] = bool(_muaf and s['kaynak_kod'].startswith(_muaf))
     return satirlar
 
 
@@ -12551,6 +12566,10 @@ def _kp_filtrele(satirlar, filtre='hepsi', ara=''):
             return True
         if f == 'aksiyon':
             return (s.get('gereken') or 0) > 0
+        if f == 'mekanizma':          # üretilmesi gerekenler, tel (93.*) hariç
+            return (s.get('gereken') or 0) > 0 and not s.get('kontrol_disi')
+        if f == 'tel':                # 93.* — TK1/fason üretimi, alt parça kontrolü yok
+            return bool(s.get('kontrol_disi'))
         if f == 'gecikmis':
             return (s.get('gecikmis') or 0) > 0
         if f == 'degisen':
@@ -12603,6 +12622,9 @@ def kaynak_plan_liste(plan):
     ozet['artan'] = sum(1 for s in satirlar if (s['degisim'] or 0) > 0)
     ozet['azalan'] = sum(1 for s in satirlar if (s['degisim'] or 0) < 0)
     ozet['launchli'] = sum(1 for s in satirlar if (s.get('launch_adet') or 0) > 0)
+    ozet['mekanizma'] = sum(1 for s in satirlar if (s.get('gereken') or 0) > 0
+                            and not s.get('kontrol_disi'))
+    ozet['tel'] = sum(1 for s in satirlar if s.get('kontrol_disi'))
     ozet['emir_acilacak'] = sum(1 for s in satirlar if s.get('bildirim_id'))
     son = max((s.get('olculdu') or '' for s in satirlar), default='')
     dosya = next((s.get('plan_dosya') for s in satirlar if s.get('plan_dosya')), '')
@@ -12680,9 +12702,11 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
     try:
         # HAYALİ (fictitious) alt parçalar profilde istenen derinliğe kadar açılır
         # (montaj: 3 seviye); kaynakta sac parçalar tek seviye, açılım yok.
-        _kodlar = [s['kaynak_kod'] for s in satirlar]
+        _muaf = tuple(pf.get('kontrol_disi_onek') or ())
+        _kodlar = [s['kaynak_kod'] for s in satirlar
+                   if not (_muaf and s['kaynak_kod'].startswith(_muaf))]
         if pf['hayali_seviye']:
-            agac, agac_iz = kp.urun_agaci_hayali(cn, _kodlar, pf['hayali_seviye'])
+            agac, agac_iz = kp.urun_agaci_hayali(cn, _kodlar, pf['hayali_seviye'], _muaf)
         else:
             agac, agac_iz = kp.urun_agaci(cn, _kodlar), {}
         alt = sorted({a for lst in agac.values() for a, _, _ in lst})
@@ -12742,6 +12766,9 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
             s['karar'] = 'GEREK YOK'
         elif s['emir_gereken'] <= 0:
             s['karar'] = 'LAUNCH VAR'      # ihtiyacın tamamı launch'ta — yeni emir gerekmez
+        elif _muaf and s['kaynak_kod'].startswith(_muaf):
+            # Tel (93.*): TK1/fason üretimi — alt parçası TK2'nin kısıtı değil.
+            s['karar'] = 'KONTROL DISI'
         elif u is None:
             s['karar'] = 'ELLE BAK'
         elif u >= s['emir_gereken']:
@@ -13051,6 +13078,7 @@ def kaynak_plan_yenile(plan):
 
 KP_MALZEME_ETIKET = {'TALIMAT VER': 'Tam', 'KISMI': 'Kısmi', 'MALZEME YOK': 'Yok',
                      'LAUNCH VAR': "Launch'ta (rezerve)",
+                     'KONTROL DISI': 'Kontrol dışı (tel — TK1/fason)',
                      'ELLE BAK': 'Bilinmiyor', 'GEREK YOK': '—'}
 
 

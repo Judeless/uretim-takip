@@ -182,7 +182,7 @@ def hayali_kodlar(cn, kodlar):
     return bulunan
 
 
-def urun_agaci_hayali(cn, kodlar, azami_seviye=3):
+def urun_agaci_hayali(cn, kodlar, azami_seviye=3, acilmayan_onekler=()):
     """Ürün ağacı — HAYALİ alt parçalar kendi alt parçalarına AÇILIR. (agac, iz)
 
     Kullanıcı 2026-09-30 (TK2 montaj planı): "1. seviye alt parçalara bakacağız;
@@ -194,7 +194,12 @@ def urun_agaci_hayali(cn, kodlar, azami_seviye=3):
           yaprak birden çok yoldan geliyorsa TOPLANIR.
     iz:   {ust: {alt: {'seviye', 'yol', 'hayali'}}} — panelde parçanın hangi hayali
           düğümün altından geldiği; 'hayali' True ise azami seviyede HÂLÂ hayali
-          (ya da ağacı yok) — o parça stoksuz görünür, elle bakılmalı."""
+          (ya da ağacı yok) — o parça stoksuz görünür, elle bakılmalı.
+
+    acilmayan_onekler: bu ön ekle başlayan alt parça hayali OLSA BİLE açılmaz
+          (montaj: '93.' = tel; TK1'de ya da fasonda üretilir, alt parçaları
+          TK2'nin kısıtı değildir — kullanıcı 2026-09-30)."""
+    acilmayan_onekler = tuple(acilmayan_onekler or ())
     duz = urun_agaci(cn, kodlar)
     calisma = {u: [(a, q, um, 1, '') for a, q, um in lst] for u, lst in duz.items()}
     hayali_kalan = set()
@@ -203,6 +208,10 @@ def urun_agaci_hayali(cn, kodlar, azami_seviye=3):
         if not adaylar:
             break
         hayali = hayali_kodlar(cn, adaylar)
+        if acilmayan_onekler:
+            muaf = {h for h in hayali if h.startswith(acilmayan_onekler)}
+            hayali_kalan |= muaf            # açılmaz; kısıt da sayılmaz
+            hayali -= muaf
         if not hayali:
             break
         if seviye >= azami_seviye:
