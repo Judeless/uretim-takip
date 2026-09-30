@@ -19,6 +19,8 @@ Diğer depolar (01W, REP, MDT...) rapora bilgi olarak yazılır ama hesaba GİRM
 
 NEGATİF STOK: ERP'de eksi bakiye olabiliyor (girilmemiş hareket, ters kayıt).
 Eksi bakiye "o kadar üretilebilir" demek değildir → 0 sayılır ve işaretlenir.
+Sıfırlama DEPO BAZINDA yapılır (2026-09-30): bir deponun eksisi başka depodaki
+gerçek stoğu götürmez — bkz. hesapla().
 
 KULLANIM:
     python kaynak_plan_kontrol.py
@@ -440,8 +442,15 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
         kapasiteler = []
         for alt, birim, um in sorted(parcalar):
             depolar = stok.get(alt, {})
-            ham = sum(depolar.get(d, 0) for d in sayilan)
-            eldeki = max(0.0, ham)          # eksi bakiye "üretilebilir" değildir
+            ham = sum(depolar.get(d, 0) for d in sayilan)        # net bakiye (bilgi)
+            # EKSİ BAKİYE DEPO BAZINDA SIFIRLANIR (kullanıcı 2026-09-30): "Bir ürünün
+            # stoğu CF2'de varsa ve 01D eksideyse, ürünü CF2'ye taşımışlar fakat alt
+            # koddan üst kodun 01D stoğuna henüz aktarım yapmamış demektir; CF2 stoğunu
+            # doğru sayıp kontrollere devam edebiliriz." Eskiden depolar TOPLANIP sonra
+            # sıfırlanıyordu: 01D −310 + CF2 +500 = 190 sayılıyor, 01D −600 olunca da
+            # eldeki 500 adet hiç görünmüyordu. 01D'deki eksi bir kayıt gecikmesi,
+            # fiziksel stok diğer depoda duruyor.
+            eldeki = sum(max(0.0, depolar.get(d, 0)) for d in sayilan)
             _iz = (iz.get(s['kaynak_kod']) or {}).get(alt) or {}
             _muaf = _kisit_disi_mi(alt)
             if _iz.get('hayali') or _muaf:
@@ -453,7 +462,10 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
                 kap = None                  # birim tanımsız → kısıt sayma, işaretle
             s['parcalar'].append({
                 'kod': alt, 'birim': birim, 'um': um,
-                'stok_sayilan': ham, 'eksi_bakiye': ham < 0,
+                # stok_sayilan = SAYILAN stok (depo bazında eksiler atılmış); net bakiye
+                # ayrıca saklanır ki panel 'eksi var' uyarısını gösterebilsin.
+                'stok_sayilan': eldeki, 'stok_net': ham,
+                'eksi_bakiye': any(depolar.get(d, 0) < 0 for d in sayilan),
                 'kapasite': kap,
                 'depolar': {d: depolar[d] for d in gosterilen if depolar.get(d)},
                 'seviye': _iz.get('seviye', 1), 'yol': _iz.get('yol', ''),
