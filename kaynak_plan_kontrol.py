@@ -160,6 +160,79 @@ def urun_agaci(cn, kodlar):
     return agac
 
 
+HAYALI_BAYRAK = '2'       # BARTF0.A0PROD — ekranda 'Product.Explos. 2 = fictit. assembly'
+
+
+def hayali_kodlar(cn, kodlar):
+    """kodlar içinden HAYALİ MONTAJ (fictitious assembly) olanların kümesi.
+
+    Kaynak: BARTF0.A0PROD = '2'. Hayali parça stokta TUTULMAZ — yalnızca ürün
+    ağacında bir gruplama düğümüdür; stoğuna bakmak her zaman 0 verir ve ürünü
+    'malzeme yok' gösterir. Doğrusu kendi alt parçalarına inmektir."""
+    kodlar = [k for k in kodlar if GUVENLI_KOD.match(k)]
+    bulunan = set()
+    cu = cn.cursor()
+    for i in range(0, len(kodlar), 50):
+        grup = kodlar[i:i + 50]
+        yer = ','.join('?' * len(grup))
+        cu.execute(
+            f"SELECT TRIM(A0ARTI) FROM TKC0301F.BARTF0 "
+            f"WHERE A0PROD='{HAYALI_BAYRAK}' AND A0ARTI IN ({yer})", grup)
+        bulunan.update(r[0] for r in cu.fetchall())
+    return bulunan
+
+
+def urun_agaci_hayali(cn, kodlar, azami_seviye=3):
+    """Ürün ağacı — HAYALİ alt parçalar kendi alt parçalarına AÇILIR. (agac, iz)
+
+    Kullanıcı 2026-09-30 (TK2 montaj planı): "1. seviye alt parçalara bakacağız;
+    1. seviye parça fictitious tanımlıysa onun 2. seviye alt parçalarına, o da
+    fictitious ise 3. seviye alt parçalarına bakacağız."
+
+    agac: {ust: [(alt, birim, um)]} — hesapla() ile AYNI biçim. Miktarlar yol
+          boyunca ÇARPILIR (üstte 2 adet hayali × altında 3 adet parça = 6); aynı
+          yaprak birden çok yoldan geliyorsa TOPLANIR.
+    iz:   {ust: {alt: {'seviye', 'yol', 'hayali'}}} — panelde parçanın hangi hayali
+          düğümün altından geldiği; 'hayali' True ise azami seviyede HÂLÂ hayali
+          (ya da ağacı yok) — o parça stoksuz görünür, elle bakılmalı."""
+    duz = urun_agaci(cn, kodlar)
+    calisma = {u: [(a, q, um, 1, '') for a, q, um in lst] for u, lst in duz.items()}
+    hayali_kalan = set()
+    for seviye in range(1, max(1, int(azami_seviye)) + 1):
+        adaylar = sorted({a for lst in calisma.values() for a, _q, _u, sv, _y in lst if sv == seviye})
+        if not adaylar:
+            break
+        hayali = hayali_kodlar(cn, adaylar)
+        if not hayali:
+            break
+        if seviye >= azami_seviye:
+            hayali_kalan |= hayali          # daha derine inilmez; işaretle
+            break
+        alt_agac = urun_agaci(cn, sorted(hayali))
+        hayali_kalan |= {h for h in hayali if not alt_agac.get(h)}   # ağaçsız hayali
+        for u, lst in calisma.items():
+            yeni = []
+            for a, q, um, sv, yol in lst:
+                if sv == seviye and a in hayali and alt_agac.get(a):
+                    for a2, q2, um2 in alt_agac[a]:
+                        yeni.append((a2, q * q2, um2, sv + 1, (yol + ' › ' if yol else '') + a))
+                else:
+                    yeni.append((a, q, um, sv, yol))
+            calisma[u] = yeni
+    agac, iz = {}, {}
+    for u, lst in calisma.items():
+        toplam = {}
+        for a, q, um, sv, yol in lst:
+            d = toplam.setdefault(a, {'q': 0.0, 'um': um, 'seviye': sv, 'yollar': []})
+            d['q'] += q
+            d['seviye'] = min(d['seviye'], sv)
+            if yol and yol not in d['yollar']:
+                d['yollar'].append(yol)
+        agac[u] = [(a, d['q'], d['um']) for a, d in toplam.items()]
+        iz[u] = {a: {'seviye': d['seviye'], 'yol': ' | '.join(d['yollar']),
+                     'hayali': a in hayali_kalan} for a, d in toplam.items()}
+    return agac, iz
+
 def stoklar(cn, kodlar):
     """{artikel: {depo: stok}} — tüm depolar (hesapta yalnız SAYILAN_DEPOLAR)."""
     st = {}
@@ -305,14 +378,26 @@ def stok_ggi(cn, kodlar):
             for k, v in ham.items()}
 
 
-def hesapla(satirlar, agac, stok, ref_stok=None):
+def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, iz=None):
     """Her plan satırına üretilebilir adet ve kısıtlayan parçayı ekler.
 
     ref_stok verilirse (kullanıcı 2026-07-31: "referans stoklarını excelden değil
     as400'den kontrol edelim") referansın KENDİ stoğu ERP'den alınır ve GEREKEN
     yeniden hesaplanır. Plan dosyasındaki stok sütunu haftalık — dosya çekildiği
     günün fotoğrafı; ölçüldü: 230 satırın yalnız 11'i ERP ile birebir tutuyor.
-    Depo kuralı alt parçalarla AYNI: 01D + CF2."""
+    Depo kuralı alt parçalarla AYNI: 01D + CF2.
+
+    sayilan / gosterilen: alt parça stoğunda SAYILAN ve kırılımda GÖSTERİLEN depolar.
+    Verilmezse kaynak planının kuralı (01D+CF2). Montaj planı 01D+CF2+MK2+MT2
+    sayar — kaynaktan gelen yarı mamul transit depolarda (MK2/MT2) bekler."""
+    sayilan = tuple(sayilan or SAYILAN_DEPOLAR)
+    gosterilen = tuple(gosterilen or GOSTERILEN_DEPOLAR)
+    # iz: urun_agaci_hayali'nin ikinci çıktısı. 'hayali' işaretli parça (ağacı
+    # olmayan ya da azami seviyede hâlâ hayali) stokta TUTULMAZ — stoğu hep 0
+    # görünür. Onu kısıt saymak ürünü sonsuza dek 'malzeme yok' gösterirdi
+    # (canlıda 50.002.109: 103 üründe, ağacı yok, her depoda 0). Listede
+    # GÖSTERİLİR ama üretilebilir adedi KISITLAMAZ.
+    iz = iz or {}
     for s in satirlar:
         if ref_stok is not None:
             d = ref_stok.get(s['kaynak_kod'], {})
@@ -334,9 +419,12 @@ def hesapla(satirlar, agac, stok, ref_stok=None):
         kapasiteler = []
         for alt, birim, um in sorted(parcalar):
             depolar = stok.get(alt, {})
-            ham = sum(depolar.get(d, 0) for d in SAYILAN_DEPOLAR)
+            ham = sum(depolar.get(d, 0) for d in sayilan)
             eldeki = max(0.0, ham)          # eksi bakiye "üretilebilir" değildir
-            if birim > 0:
+            _iz = (iz.get(s['kaynak_kod']) or {}).get(alt) or {}
+            if _iz.get('hayali'):
+                kap = None                  # hayali: gösterilir, kısıt sayılmaz
+            elif birim > 0:
                 kap = int(math.floor(eldeki / birim))
                 kapasiteler.append((kap, alt))
             else:
@@ -345,7 +433,9 @@ def hesapla(satirlar, agac, stok, ref_stok=None):
                 'kod': alt, 'birim': birim, 'um': um,
                 'stok_sayilan': ham, 'eksi_bakiye': ham < 0,
                 'kapasite': kap,
-                'depolar': {d: depolar[d] for d in GOSTERILEN_DEPOLAR if depolar.get(d)},
+                'depolar': {d: depolar[d] for d in gosterilen if depolar.get(d)},
+                'seviye': _iz.get('seviye', 1), 'yol': _iz.get('yol', ''),
+                'hayali': bool(_iz.get('hayali')),
             })
         if not kapasiteler:
             s['durum'] = 'BIRIM YOK'

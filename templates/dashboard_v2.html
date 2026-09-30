@@ -5097,6 +5097,10 @@ window.__I18N_SOZLUK__ = {
   "🔑 Şifre Değiştir": {"en": "🔑 Change Password", "it": "🔑 Cambia password"},
   "🔥 Kaynatılmalı:": {"en": "🔥 To be welded:", "it": "🔥 Da saldare:"},
   "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
+  "Montaj Planı": {"en": "Assembly Plan", "it": "Piano montaggio"},
+  "🔥 Üretilmeli:": {"en": "🔥 To be produced:", "it": "🔥 Da produrre:"},
+  "Üretilmeli?": {"en": "To produce?", "it": "Da produrre?"},
+  "🔩 Montaj Planı (TK2) — üretilebilirlik takibi": {"en": "🔩 Assembly Plan (TK2) — producibility tracking", "it": "🔩 Piano montaggio (TK2) — producibilità"},
   "📣 Emir açılacak:": {"en": "📣 Order to open:", "it": "📣 Ordine da aprire:"},
   "📣 Emir açılacaklar:": {"en": "📣 Orders to open:", "it": "📣 Ordini da aprire:"},
   "✓ Emir açtım": {"en": "✓ Order opened", "it": "✓ Ordine aperto"},
@@ -5435,6 +5439,10 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">📊</span> Planlama</a>
                 <a class="nav-item" data-sayfa="kaynak-plan" onclick="sayfaAc('kaynak-plan')">
                     <span class="nav-icon">🧩</span> Kaynak Planı</a>
+                <!-- MONTAJ PLANI (TK2, 2026-09-30): AYNI sayfa bölümü ve AYNI motor;
+                     yalnız plan anahtarı değişir (bkz. kpPlanKur). -->
+                <a class="nav-item" data-sayfa="montaj-plan" onclick="sayfaAc('montaj-plan')">
+                    <span class="nav-icon">🔩</span> Montaj Planı</a>
                 <!-- EOQ (2026-08-19): veri AS400'den (BARTF0.A0QTMI) geldiği için bu
                      grupta. AYRI SAYFA — dashboard SPA'sına sekme eklemek yerine kendi
                      şablonunda (/kaynak_eoq), yeni sekmede açılır. -->
@@ -7809,7 +7817,7 @@ window.__I18N_SOZLUK__ = {
                      ══════════════════════════════════════════════════════════ -->
                 <div class="panel-card">
                     <div class="panel-baslik">
-                        <h3>🧩 Kaynak Planı — üretilebilirlik takibi</h3>
+                        <h3 id="kp-baslik">🧩 Kaynak Planı — üretilebilirlik takibi</h3>
                         <span class="adet-info" id="kp-kaynak-bilgi">plan yüklenmedi</span>
                     </div>
 
@@ -7858,12 +7866,12 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-primary" onclick="kpErptenKur()" id="kp-erp-btn"
                                 title="Açık üretim emirlerinden (OPR) listeyi kurar — Excel gerekmez">⚡ AS400'den Kur</button>
                         <button class="btn btn-primary" onclick="kpYenile()" id="kp-yenile-btn">🔄 Stokları Yenile</button>
-                        <button class="btn" onclick="kpPlanYukleSor()" id="kp-yukle-btn"
+                        <button class="btn kp-yalniz-kaynak" onclick="kpPlanYukleSor()" id="kp-yukle-btn"
                                 title="İsteğe bağlı — planlamanın haftalık dosyasını da alabilirsiniz">📥 Excel'den (opsiyonel)</button>
                         <!-- Sunucu Q: sürücüsünü göremiyorsa dosya doğrudan yüklenebilir -->
                         <input type="file" id="kp-dosya" accept=".xlsb,.xlsx" style="display:none"
                                onchange="kpDosyadanYukle(this)">
-                        <button class="btn" onclick="document.getElementById('kp-dosya').click()"
+                        <button class="btn kp-yalniz-kaynak" onclick="document.getElementById('kp-dosya').click()"
                                 title="Sunucu Q: sürücüsünü göremiyorsa dosyayı buradan yükleyin">📎 Dosyadan</button>
                         <button class="btn" onclick="kpExcel()" title="Ekrandaki listeyi (aynı süzgeç ve sırayla) Excel olarak indirir">📊 Excel</button>
                         <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">
@@ -9026,6 +9034,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'analiz') ? 'page-analiz'
                         : (sayfa === 'as400-teyit') ? 'page-as400-teyit'
                         : (sayfa === 'kaynak-plan') ? 'page-kaynak-plan'
+                        : (sayfa === 'montaj-plan') ? 'page-kaynak-plan'
                         : (sayfa === 'as400-transfer') ? 'page-as400-transfer'
                         : (sayfa === 'as400-planlama') ? 'page-as400-planlama'
                         : (sayfa === 'kullanicilar') ? 'page-kullanicilar'
@@ -9084,7 +9093,10 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'operator-performans') initOperatorPerformans();
             if (sayfa === 'analiz') initAnaliz();
             if (sayfa === 'as400-teyit') initAS400Teyit();
-            if (sayfa === 'kaynak-plan') kpYukle();
+            if (sayfa === 'kaynak-plan' || sayfa === 'montaj-plan') {
+                kpPlanKur(sayfa === 'montaj-plan' ? 'montaj' : 'kaynak');
+                kpYukle();
+            }
             if (sayfa === 'proje-takip') projeSekmeAcildi();
             // Transfer sayfası da oto koşu panelini yükler (2026-07-29: transfer
             // logları buraya taşındı; teyit sayfası açılmadan da güncel olmalı)
@@ -14538,11 +14550,43 @@ window.__I18N_SOZLUK__ = {
         // KAYNAK PLANI (2026-07-31) — haftalık plan + üretilebilirlik takibi
         // ══════════════════════════════════════════════════════════════════
         var _kpVeri = { satirlar: [], ozet: {} };
+        // AKTİF PLAN (2026-09-30): 'kaynak' | 'montaj'. Sayfa bölümü, çipler, sıralama,
+        // Excel, bildirim kartı ortak; yalnız API tabanı ve birkaç etiket değişir.
+        var _kpPlan = 'kaynak';
+        function kpApi() { return '/api/' + _kpPlan + '_plan'; }
+        function kpPlanKur(plan) {
+            if (plan !== _kpPlan) {
+                // Plan değişti: diğer planın verisi/süzgeci ekranda kalmasın.
+                _kpVeri = { satirlar: [], ozet: {} };
+                _kpSirala = { alan: 'sira', yon: 1 };
+                var f = document.getElementById('kp-filtre'); if (f) f.value = 'aksiyon';
+                var a = document.getElementById('kp-ara'); if (a) a.value = '';
+                var b = document.getElementById('kp-bildirim'); if (b) b.innerHTML = '';
+            }
+            _kpPlan = plan;
+            var montaj = (plan === 'montaj');
+            var h = document.getElementById('kp-baslik');
+            if (h) h.textContent = montaj ? '🔩 Montaj Planı (TK2) — üretilebilirlik takibi'
+                                          : '🧩 Kaynak Planı — üretilebilirlik takibi';
+            // Planlamanın Excel'i yalnız kaynak planının biçimi — montajda gizli.
+            document.querySelectorAll('.kp-yalniz-kaynak').forEach(function (e) {
+                e.style.display = montaj ? 'none' : '';
+            });
+            // 'Göster' seçeneklerinin metni de plana uysun
+            var ad = montaj ? 'Üretilmeli' : 'Kaynatılmalı';
+            var secenek = { 'aksiyon': montaj ? 'Üretilmesi gerekenler' : 'Kaynatılması gerekenler',
+                            'TALIMAT VER': ad + ' · malzemesi tam', 'KISMI': ad + ' · malzeme kısmi',
+                            'MALZEME YOK': ad + ' · malzeme yok' };
+            var sel = document.getElementById('kp-filtre');
+            if (sel) Array.prototype.forEach.call(sel.options, function (o) {
+                if (secenek[o.value]) o.textContent = secenek[o.value];
+            });
+        }
 
         function kpYukle() {
             var el = document.getElementById('kp-icerik');
             if (el) el.innerHTML = '<div style="color:var(--muted);font-size:.9rem">Yükleniyor…</div>';
-            fetch('/api/kaynak_plan').then(function (r) { return r.json(); }).then(function (d) {
+            fetch(kpApi()).then(function (r) { return r.json(); }).then(function (d) {
                 if (d.hata) { el.innerHTML = '<div style="color:var(--danger)">' + esc(d.hata) + '</div>'; return; }
                 _kpVeri = d;
                 var bilgi = document.getElementById('kp-kaynak-bilgi');
@@ -14571,6 +14615,12 @@ window.__I18N_SOZLUK__ = {
                 ';border-radius:999px;padding:5px 12px;font-size:.78rem;font-weight:' + (sonuk ? '600' : '800') +
                 (sonuk && !secili ? ';opacity:.75' : '') + (filtre ? ';cursor:pointer;user-select:none' : '') +
                 (secili ? ';box-shadow:0 0 0 2px ' + renk : '') + '">' + txt + '</span>';
+        }
+        // Kaynakta iş 'kaynatmak', montajda 'üretmek' — aynı sütun, plana göre ad.
+        function kpFiil() { return _kpPlan === 'montaj' ? 'Üretilmeli' : 'Kaynatılmalı'; }
+        function kpDepoMetni(anahtar) {
+            var d = (_kpVeri.plan && _kpVeri.plan[anahtar]) || [];
+            return d.length ? d.join(' + ') : '—';
         }
         function kpFiltreSec(f) {
             var sel = document.getElementById('kp-filtre'); if (!sel) return;
@@ -14612,7 +14662,7 @@ window.__I18N_SOZLUK__ = {
         function kpExcel() {
             var f = (document.getElementById('kp-filtre') || {}).value || 'aksiyon';
             var ara = (document.getElementById('kp-ara') || {}).value || '';
-            window.location.href = '/api/kaynak_plan/excel?filtre=' + encodeURIComponent(f) +
+            window.location.href = kpApi() + '/excel?filtre=' + encodeURIComponent(f) +
                 '&ara=' + encodeURIComponent(ara) + '&sirala=' + encodeURIComponent(_kpSirala.alan) +
                 '&yon=' + _kpSirala.yon;
         }
@@ -14624,7 +14674,7 @@ window.__I18N_SOZLUK__ = {
         var _kpAyarAcik = false;
         function kpBildirimYukle() {
             var el = document.getElementById('kp-bildirim'); if (!el) return;
-            fetch('/api/kaynak_plan/bildirimler').then(function (r) { return r.json(); }).then(function (d) {
+            fetch(kpApi() + '/bildirimler').then(function (r) { return r.json(); }).then(function (d) {
                 if (d.hata) { el.innerHTML = ''; return; }
                 var a = d.ayar || {}, acik = d.acik || [];
                 var h = '<div style="border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;background:var(--card)">' +
@@ -14666,6 +14716,10 @@ window.__I18N_SOZLUK__ = {
                     '<input type="text" id="kp-ayar-push" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.bildirim_push || []).join(', ')) + '" placeholder="Emre Dogutekin">' +
                     '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Mail alacaklar — adresleri virgülle ayırın (liste Excel olarak eklenir)</div>' +
                     '<input type="text" id="kp-ayar-mail" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.bildirim_mail || []).join(', ')) + '" placeholder="ad.soyad@cofletk.com.tr">' +
+                    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Ürünün kendi stoğu hangi depolardan sayılsın (GEREKEN = ihtiyaç − bu stok)</div>' +
+                    '<input type="text" id="kp-ayar-refdepo" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.ref_depolar || []).join(', ')) + '">' +
+                    '<div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Alt parça stoğu hangi depolardan sayılsın (ÜRETİLEBİLİR adet bundan) — değişiklik bir sonraki yenilemede geçerli</div>' +
+                    '<input type="text" id="kp-ayar-altdepo" class="as4g-inp" style="width:100%;margin-bottom:8px" value="' + esc((a.alt_depolar || []).join(', ')) + '">' +
                     '<button class="btn btn-primary" onclick="kpAyarKaydet()">Kaydet</button></div></div>';
                 el.innerHTML = h;
             }).catch(function () {});
@@ -14678,9 +14732,11 @@ window.__I18N_SOZLUK__ = {
             var govde = {
                 etkin: !!(document.getElementById('kp-ayar-etkin') || {}).checked,
                 bildirim_push: (document.getElementById('kp-ayar-push') || {}).value || '',
-                bildirim_mail: (document.getElementById('kp-ayar-mail') || {}).value || ''
+                bildirim_mail: (document.getElementById('kp-ayar-mail') || {}).value || '',
+                ref_depolar: (document.getElementById('kp-ayar-refdepo') || {}).value || '',
+                alt_depolar: (document.getElementById('kp-ayar-altdepo') || {}).value || ''
             };
-            fetch('/api/kaynak_plan/bildirim_ayar', {
+            fetch(kpApi() + '/bildirim_ayar', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(govde)
             }).then(function (r) { return r.json(); }).then(function (d) {
                 if (d.hata) { toast(d.hata, 'err'); return; }
@@ -14689,7 +14745,7 @@ window.__I18N_SOZLUK__ = {
             }).catch(function (e) { toast('Kaydedilemedi: ' + e, 'err'); });
         }
         function kpBildirimKapat(id) {
-            fetch('/api/kaynak_plan/bildirim/' + id + '/kapat', { method: 'POST' })
+            fetch(kpApi() + '/bildirim/' + id + '/kapat', { method: 'POST' })
                 .then(function (r) { return r.json(); }).then(function (d) {
                     if (d.hata) { toast(d.hata, 'err'); return; }
                     toast('Kapatıldı', 'ok');
@@ -14699,7 +14755,7 @@ window.__I18N_SOZLUK__ = {
         function kpOtoCalistir() {
             var b = document.getElementById('kp-oto-btn');
             if (b) { b.disabled = true; b.textContent = '⏳ AS400 okunuyor…'; }
-            fetch('/api/kaynak_plan/oto_calistir', {
+            fetch(kpApi() + '/oto_calistir', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bildir: true })
             }).then(function (r) { return r.json(); }).then(function (d) {
                 if (d.hata) { toast(d.hata, 'err'); kpBildirimYukle(); return; }
@@ -14716,7 +14772,7 @@ window.__I18N_SOZLUK__ = {
             var cip = document.getElementById('kp-cipler');
             if (cip) {
                 cip.innerHTML =
-                    kpCip('var(--danger)', '🔥 Kaynatılmalı: ' + (o.kaynatilmali || 0), false, 'aksiyon') +
+                    kpCip('var(--danger)', '🔥 ' + kpFiil() + ': ' + (o.kaynatilmali || 0), false, 'aksiyon') +
                     kpCip('var(--success)', '✅ Malzemesi tam: ' + (o['TALIMAT VER'] || 0), false, 'TALIMAT VER') +
                     kpCip('var(--warn)', '◐ Malzeme kısmi: ' + (o['KISMI'] || 0), false, 'KISMI') +
                     kpCip('var(--danger)', '✖ Malzeme yok: ' + (o['MALZEME YOK'] || 0), false, 'MALZEME YOK') +
@@ -14757,14 +14813,14 @@ window.__I18N_SOZLUK__ = {
                 kpBaslik('sira', '#', 'öncelik sırası', false, 1) +
                 kpBaslik('oncelik_puan', 'Öncelik', 'stokla kapanmayan adet × (ufuk + gecikme günü): tarih ve adet birlikte', true, -1) +
                 kpBaslik('en_eski_opr', 'En Eski OPR', 'en eski açık üretim emrinin teslim tarihi', false, 1) +
-                kpBaslik('kaynak_kod', 'Kaynak Kodu', '', false, 1) +
+                kpBaslik('kaynak_kod', (_kpVeri.plan && _kpVeri.plan.kod_baslik) || 'Kaynak Kodu', '', false, 1) +
                 kpBaslik('iht_6h', 'İhtiyaç (OPR)', 'ufuk içindeki açık emirlerin kalan toplamı', true, -1) +
-                kpBaslik('stok_ggi', 'Stok (G GI)', 'AS400 ekranındaki G GI = 01D + MDT', true, -1) +
+                kpBaslik('stok_ggi', 'Stok', 'ürünün kendi stoğu: ' + kpDepoMetni('ref_depolar'), true, -1) +
                 kpBaslik('gereken', 'GEREKEN', 'ihtiyaç − stok', true, -1) +
                 kpBaslik('launch_adet', 'Launch', 'launch alınmış emirlerin (durum 40/45/50) kalan adedi', true, -1) +
-                kpBaslik('uretilebilir', 'Üretilebilir', 'alt parça stoğuyla kaynatılabilecek adet', true, -1) +
+                kpBaslik('uretilebilir', 'Üretilebilir', 'alt parça stoğuyla üretilebilecek adet — sayılan depolar: ' + kpDepoMetni('alt_depolar'), true, -1) +
                 kpBaslik('degisim', 'Değişim', 'önceki ölçüme göre üretilebilir farkı', true, -1) +
-                '<th title="6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan">Kaynatılmalı?</th>' +
+                '<th title="6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan">' + kpFiil() + '?</th>' +
                 '<th title="alt parçaların 01D+CF2 stoğu gerekeni karşılıyor mu">Malzeme</th>' +
                 '<th>Kısıtlayan</th>' +
                 '<th style="min-width:190px">Not</th></tr></thead><tbody>';
@@ -14815,7 +14871,7 @@ window.__I18N_SOZLUK__ = {
                         ' title="açık üretim emirlerini göster">' + fmt(s.iht_6h || 0) + '</a>' +
                         (s.opr_sayisi ? ' <span style="color:var(--dim);font-size:.72rem">(' + s.opr_sayisi + ')</span>' : '') + '</td>' +
                     '<td style="text-align:right;color:' + ((s.stok_ggi || 0) < 0 ? 'var(--danger)' : 'var(--muted)') +
-                        '" title="' + esc('G GI = 01D + MDT' +
+                        '" title="' + esc('stok = ' + kpDepoMetni('ref_depolar') +
                             (s.ref_depolar ? ' | tüm depolar: ' + s.ref_depolar : '') +
                             ((s.stok_ggi || 0) < 0 ? " | ERP'de eksi bakiye" : '')) + '">' +
                         fmt(s.stok_ggi || 0) + '</td>' +
@@ -14864,7 +14920,7 @@ window.__I18N_SOZLUK__ = {
             tr.style.display = '';
             var td = tr.firstElementChild;
             td.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:.82rem">AS400 okunuyor…</div>';
-            fetch('/api/kaynak_plan/oprler?kod=' + encodeURIComponent(kod))
+            fetch(kpApi() + '/oprler?kod=' + encodeURIComponent(kod))
                 .then(function (r) { return r.json(); }).then(function (d) {
                 if (d.hata) { td.innerHTML = '<div style="padding:10px 14px;color:var(--danger)">' + esc(d.hata) + '</div>'; return; }
                 var l = d.satirlar || [];
@@ -14896,7 +14952,7 @@ window.__I18N_SOZLUK__ = {
         function kpErptenKur() {
             var b = document.getElementById('kp-erp-btn');
             b.disabled = true; b.textContent = '⏳ AS400 okunuyor…';
-            fetch('/api/kaynak_plan/erpden_kur', {
+            fetch(kpApi() + '/erpden_kur', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ufuk_gun: 42 })
             }).then(function (r) { return r.json(); }).then(function (d) {
@@ -14917,14 +14973,15 @@ window.__I18N_SOZLUK__ = {
             tr.style.display = '';
             var td = tr.firstElementChild;
             td.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:.82rem">Yükleniyor…</div>';
-            fetch('/api/kaynak_plan/parcalar?kod=' + encodeURIComponent(kod))
+            fetch(kpApi() + '/parcalar?kod=' + encodeURIComponent(kod))
                 .then(function (r) { return r.json(); }).then(function (d) {
                 var p = d.parcalar || [];
                 if (!p.length) { td.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:.82rem">Alt parça kaydı yok — "Stokları Yenile" çalıştırın.</div>'; return; }
                 var h = '<table class="admin-table" style="margin:0"><thead><tr>' +
                     '<th>Alt Parça</th><th style="text-align:right">Birim</th>' +
                     '<th style="text-align:right">01D</th><th style="text-align:right">CF2</th>' +
-                    '<th style="text-align:right">Toplam</th><th style="text-align:right">Değişim</th>' +
+                    '<th style="text-align:right" title="' + esc('sayılan depolar: ' + kpDepoMetni('alt_depolar')) +
+                        '">Sayılan</th><th style="text-align:right">Değişim</th>' +
                     '<th style="text-align:right">Bu parçadan</th><th>Diğer depolar</th></tr></thead><tbody>';
                 p.forEach(function (x) {
                     var kisit = false;
@@ -14937,7 +14994,12 @@ window.__I18N_SOZLUK__ = {
                     }
                     h += '<tr' + (kisit ? ' style="background:var(--danger-soft)"' : '') + '>' +
                         '<td style="font-weight:' + (kisit ? '800' : '600') + '">' + esc(x.alt_kod) +
-                            (kisit ? ' <span style="color:var(--danger);font-size:.72rem">KISIT</span>' : '') + '</td>' +
+                            (kisit ? ' <span style="color:var(--danger);font-size:.72rem">KISIT</span>' : '') +
+                            // HAYALİ AÇILIM (montaj): parça hangi hayali düğümün altından geldi;
+                            // açılamayan hayali parça kısıt sayılmaz, yalnız gösterilir.
+                            (x.hayali ? ' <span style="color:var(--warn);font-size:.72rem" title="hayali (fictitious) parça: stokta tutulmaz ve alt ağacı yok — üretilebilir adedi kısıtlamaz">HAYALİ · sayılmadı</span>' : '') +
+                            ((x.seviye || 1) > 1 ? '<div style="font-size:.7rem;color:var(--dim);font-weight:400">↳ ' + x.seviye +
+                                '. seviye · ' + esc(x.yol || '') + ' altından</div>' : '') + '</td>' +
                         '<td style="text-align:right">' + fmt(x.birim) + ' ' + esc(x.um || '') + '</td>' +
                         '<td style="text-align:right' + (x.stok_01d < 0 ? ';color:var(--danger)' : '') + '">' + fmt(x.stok_01d) + '</td>' +
                         '<td style="text-align:right">' + fmt(x.stok_cf2) + '</td>' +
@@ -14953,7 +15015,7 @@ window.__I18N_SOZLUK__ = {
         function kpNotKaydet(id, inp) {
             var eski = inp.defaultValue;
             inp.style.borderColor = 'var(--primary)';
-            fetch('/api/kaynak_plan/' + id + '/not', {
+            fetch(kpApi() + '/' + id + '/not', {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ aciklama: inp.value })
             }).then(function (r) { return r.json(); }).then(function (d) {
@@ -14972,7 +15034,7 @@ window.__I18N_SOZLUK__ = {
                 toast('Önce haftalık planı alın', 'err'); return;
             }
             b.disabled = true; b.textContent = '⏳ ERP okunuyor…';
-            fetch('/api/kaynak_plan/yenile', {
+            fetch(kpApi() + '/yenile', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
             }).then(function (r) { return r.json(); }).then(function (d) {
                 b.disabled = false; b.textContent = '🔄 Stokları Yenile';
@@ -14989,7 +15051,7 @@ window.__I18N_SOZLUK__ = {
             var f = inp.files && inp.files[0]; if (!f) return;
             var fd = new FormData(); fd.append('dosya', f);
             toast('Dosya okunuyor…');
-            fetch('/api/kaynak_plan/yukle', { method: 'POST', body: fd })
+            fetch(kpApi() + '/yukle', { method: 'POST', body: fd })
                 .then(function (r) { return r.json(); }).then(function (d) {
                     inp.value = '';
                     if (d.hata) { toast(d.hata, 'err'); return; }
@@ -15006,7 +15068,7 @@ window.__I18N_SOZLUK__ = {
             if (yol === null) return;
             var b = document.getElementById('kp-yukle-btn');
             b.disabled = true; b.textContent = '⏳ Okunuyor…';
-            fetch('/api/kaynak_plan/yukle', {
+            fetch(kpApi() + '/yukle', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ yol: yol })
             }).then(function (r) { return r.json(); }).then(function (d) {
@@ -17276,6 +17338,7 @@ window.__I18N_SOZLUK__ = {
             'operator-performans': 'Operatör Performansı (kişi bazlı OEE)', 'analiz': 'Analiz (otomatik bulgular)',
             'as400-teyit': 'AS400 İşlemler (teyit + aktarım)',
             'kaynak-plan': 'Kaynak Planı (üretilebilirlik takibi)',
+            'montaj-plan': 'Montaj Planı — TK2 (üretilebilirlik takibi)',
             // 2026-09-07: bu ikisi PANEL_SAYFALAR'da vardı ama BURADA YOKTU —
             // kutucukları çıkmadığı için yöneticiler izni panelden veremiyordu
             // (yalnız admin görebiliyordu). Arıza Onay eklenirken fark edildi.
