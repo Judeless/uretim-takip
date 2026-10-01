@@ -365,12 +365,27 @@
       border: 1px solid var(--line);
       min-height: 32px;
     }
+    /* Soluklaştırma satıra değil ÖĞELERE (2026-10-01): tamamlanan ADET rozeti tam
+       parlak kalsın. Zemin/çerçeve alfası eski görünümle aynı olacak şekilde düşürüldü
+       (0.06 × 0.65 ≈ 0.04, 0.15 × 0.65 ≈ 0.10). */
     .ref-row.done {
-      background: rgba(52,211,153,0.06);
-      border-color: rgba(52,211,153,0.15);
-      opacity: 0.65;
+      background: rgba(52,211,153,0.04);
+      border-color: rgba(52,211,153,0.10);
     }
-    .ref-row.done .ref-code { text-decoration: line-through; }
+    .ref-row.done > :not(.ref-adet) { opacity: 0.65; }
+    .ref-row.done .ref-code { text-decoration: line-through; min-width: min(5em, calc(100% - 22px)); }
+    /* Dar istasyon hücresinde kod görünmez olmasın: adet rozeti alt satıra iner */
+    .ref-row.done { flex-wrap: wrap; row-gap: 3px; }
+    /* Tamamlanan referansın adedi — yeni ürüne geçilince eskisi kaç adet bitti */
+    .ref-adet {
+      font-size: 0.8rem; font-weight: 800;
+      color: var(--c-emerald);
+      background: rgba(52,211,153,0.14);
+      border: 1px solid rgba(52,211,153,0.35);
+      border-radius: 8px; padding: 1px 8px;
+      font-family: var(--font-mono);
+      white-space: nowrap; flex-shrink: 0;
+    }
 
     .ref-code {
       font-size: var(--andon-ref-fs);
@@ -476,6 +491,7 @@
       text-align: center;
     }
     body[data-bolum="metal"] .ref-launch      { font-size: 0.90rem; }
+    body[data-bolum="metal"] .ref-adet        { font-size: 0.90rem; }
     body[data-bolum="metal"] .ref-empty       { font-size: 1.0rem; padding: 12px; }
 
     /* Robotla çalışıyor (tam otomasyon) rozeti — sol üst köşede */
@@ -1316,14 +1332,21 @@ window.__I18N_SOZLUK__ = {
         : '';
       // Test cihazı sayaç kaynağı: canlı adet rozeti (ESP32 pulse yerine test cihazından sayılır;
       // pilot sayaç rozeti bu hatlarda boş kalır — adet buradan izlenir)
-      const tcc = (i.test_cihaz == 1)
+      const tcc = (i.test_cihaz == 1 && !i.tamamlandi)
         ? `<span title="Adet test cihazından canlı sayılıyor" style="display:inline-block;margin-left:10px;padding:1px 9px;border-radius:8px;background:rgba(52,211,153,.16);color:#6ee7b7;font-size:.82em;font-weight:800;white-space:nowrap">🔬 ${i.ok || 0}</span>`
         : '';
       // Uyarı ikonu — vardiya amiri görsün
       let uyari = '';
       if (uyariSuresiz)       uyari = `<span class="ref-uyari ref-uyari-kirmizi" title="Süre tanımlı değil — dashboard'dan süre tanımla!">⚠️</span>`;
       else if (uyariTeyitsiz) uyari = `<span class="ref-uyari ref-uyari-sari" title="Süre tanımlı ama sahada teyit edilmemiş — ölç ve dashboard'da teyit ver">⏳</span>`;
-      return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${uyari}${ctc}${tcc}${lc}</div>`;
+      // TAMAMLANAN ADET (kullanıcı 2026-10-01: "bir referans tamamlandığında yeni ürüne
+      // geçildiğinde, tamamlanan ürünün yanında adeti de yazsın"). Test cihazlı satırın
+      // 🔬 rozeti aynı sayıyı gösterdiğinden tamamlanınca onun yerine bu çıkar.
+      // 'adet' ayrı metin düğümü — sözlük EN/IT'ye çevirir (pcs / pz).
+      const adt = i.tamamlandi
+        ? `<span class="ref-adet" title="Tamamlanan adet (OK)">${Number(i.ok || 0).toLocaleString('tr-TR')} <span>adet</span></span>`
+        : '';
+      return `<div class="${cls}">${ic}<span class="ref-code">${escapeHtml(i.ref)}</span>${uyari}${adt}${ctc}${tcc}${lc}</div>`;
     };
 
     // Saha sayaç rozeti (pilot ESP32 cihazlarından) — robot_no'ya göre map'ten oku
