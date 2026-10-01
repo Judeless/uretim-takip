@@ -894,6 +894,23 @@
         .mp-ust { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .mp-durum { font-size: .8rem; color: var(--muted); }
         .mp-ipucu { font-size: .78rem; color: var(--dim); }
+        .mp-govde { flex: 1; min-height: 0; display: flex; gap: 10px; }
+        .mp-katalog { width: 300px; flex-shrink: 0; }
+        .mp-kat-liste { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex;
+                        flex-direction: column; gap: 5px; }
+        .mp-kat { border-radius: 8px; padding: 6px 8px; font-size: .76rem; line-height: 1.35; cursor: grab;
+                  user-select: none; touch-action: none; background: var(--cam); border: 1px solid var(--border); }
+        .mp-kat.panoda { opacity: .55; }
+        .mp-kat .mp-kod { font-weight: 800; font-size: .82rem; }
+        .mp-kat button { font-size: .7rem; padding: 1px 7px; margin: 3px 4px 0 0; border-radius: 6px; cursor: pointer;
+                         border: 1px solid var(--primary-line); background: var(--primary-soft); color: var(--text); }
+        .mp-rozet-stok { font-size: .68rem; font-weight: 800; padding: 0 6px; border-radius: 6px;
+                         background: var(--primary-soft); color: var(--primary); white-space: nowrap; }
+        .mp-kart .mp-sil { float: right; border: 0; background: none; color: var(--muted); cursor: pointer;
+                           font-size: .9rem; padding: 0 2px; }
+        .mp-kart input.eksik { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger-soft); }
+        @media (max-width: 760px) { .mp-govde { flex-direction: column; overflow-y: auto; }
+                                    .mp-katalog { width: auto; min-height: 320px; } }
         .mp-kolonlar { flex: 1; min-height: 0; display: grid; gap: 10px;
                        grid-template-columns: repeat(4, minmax(240px, 1fr)); overflow-x: auto; }
         .mp-kolon { display: flex; flex-direction: column; min-height: 0; border-radius: 12px;
@@ -5148,6 +5165,9 @@ window.__I18N_SOZLUK__ = {
   "↩ Hepsini havuza al": {"en": "↩ Move all to pool", "it": "↩ Riporta tutto al pool"},
   "🖨 Yazdır": {"en": "🖨 Print", "it": "🖨 Stampa"},
   "Havuz (atanmamış)": {"en": "Pool (unassigned)", "it": "Pool (non assegnati)"},
+  "📋 Tüm kodlar": {"en": "📋 All codes", "it": "📋 Tutti i codici"},
+  "yalnız ihtiyacı olmayanlar": {"en": "only codes without demand", "it": "solo codici senza fabbisogno"},
+  "📦 stok üretimi": {"en": "📦 stock production", "it": "📦 produzione a magazzino"},
   "Kartı sürükleyip makineye bırakın; sütun içinde sırayı da sürükleyerek değiştirin.": {"en": "Drag a card onto a machine; drag within a column to reorder.", "it": "Trascina una scheda su una macchina; trascina nella colonna per riordinare."},
   "🏭 Metal Enjeksiyon Planı (TK2) — üretilebilirlik takibi": {"en": "🏭 Die Casting Plan (TK2) — producibility tracking", "it": "🏭 Piano pressofusione (TK2) — producibilità"},
   "Üretilmesi gerekenler": {"en": "To be produced", "it": "Da produrre"},
@@ -8199,12 +8219,27 @@ window.__I18N_SOZLUK__ = {
                 <button class="btn" onclick="mpOneriyeGore()"
                         title="Havuzdaki kartları, sahada en çok basıldıkları makineye yerleştirir">✨ Geçmişe göre dağıt</button>
                 <button class="btn" onclick="mpHavuzaAl()">↩ Hepsini havuza al</button>
+                <button class="btn" onclick="mpKatalogAcKapa()" title="Bütün metal kodları — stok üretimi için seç">📋 Tüm kodlar</button>
                 <button class="btn btn-primary" onclick="mpYazdir()">🖨 Yazdır</button>
                 <button class="btn" onclick="mpKapat()">✕ Kapat</button>
             </div>
         </div>
         <div class="mp-ipucu">Kartı sürükleyip makineye bırakın; sütun içinde sırayı da sürükleyerek değiştirin.</div>
-        <div class="mp-kolonlar" id="mp-kolonlar"></div>
+        <div class="mp-govde">
+            <div class="mp-kolonlar" id="mp-kolonlar"></div>
+            <!-- TÜM KODLAR (kullanıcı 2026-10-01): stok üretimi için ihtiyacı olmayan kod da seçilebilir -->
+            <aside class="mp-kolon mp-katalog" id="mp-katalog">
+                <div class="mp-kolon-bas">
+                    <b>📋 Tüm kodlar</b>
+                    <div class="mp-kolon-oz" id="mp-kat-oz"></div>
+                    <input type="text" id="mp-kat-ara" class="as4g-inp" placeholder="kod ara…" oninput="mpKatalogCiz()"
+                           style="width:100%;margin-top:6px">
+                    <label style="display:flex;gap:6px;align-items:center;font-size:.76rem;color:var(--muted);margin-top:5px">
+                        <input type="checkbox" id="mp-kat-ihtiyacsiz" onchange="mpKatalogCiz()"> yalnız ihtiyacı olmayanlar</label>
+                </div>
+                <div class="mp-kat-liste" id="mp-kat-liste"></div>
+            </aside>
+        </div>
     </div>
 
     <div id="gem-modal" class="modal-overlay">
@@ -14737,7 +14772,8 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('mp-durum').textContent = 'yükleniyor…';
             fetch('/api/metal_plan/pano').then(function (r) { return r.json(); }).then(function (d) {
                 if (d.hata) { document.getElementById('mp-durum').textContent = '⚠ ' + d.hata; return; }
-                _mp = { makineler: d.makineler || [], kart: {}, kol: { havuz: [] }, olculdu: d.olculdu || '' };
+                _mp = { makineler: d.makineler || [], kart: {}, kol: { havuz: [] }, olculdu: d.olculdu || '',
+                        tum: d.tum_kodlar || [], tumTarih: d.tum_kodlar_tarih || '', kaldir: [] };
                 _mp.makineler.forEach(function (m) { _mp.kol[m] = []; });
                 (d.kartlar || []).forEach(function (k) {
                     _mp.kart[k.kod] = k;
@@ -14760,7 +14796,8 @@ window.__I18N_SOZLUK__ = {
         function mpSaat(k) { return k.ct ? mpAdet(k) * k.ct / 3600 : null; }
         function mpSaatYaz(s) { return s === null ? '—' : s.toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' sa'; }
         function mpMalzeme(k) {
-            return k.gereksiz ? 'artık gerek yok'
+            return (k.stok_uretim && !(k.gereken > 0)) ? 'stok üretimi'
+                 : k.gereksiz ? 'artık gerek yok'
                  : k.karar === 'TALIMAT VER' ? 'malzeme tam'
                  : k.karar === 'KISMI' ? 'malzeme kısmi (' + fmt(k.uretilebilir) + ')'
                  : k.karar === 'MALZEME YOK' ? 'malzeme yok'
@@ -14790,22 +14827,92 @@ window.__I18N_SOZLUK__ = {
                     var k = _mp.kart[kod];
                     var gec = (k.gecmis || []).map(function (x) { return x[0] + '×' + x[1]; }).join(', ');
                     h += '<div class="mp-kart' + (k.gereksiz ? ' gereksiz' : '') + '" data-kod="' + esc(kod) + '" ' +
-                         'style="border-left-color:' + mpRenk(k) + '" onpointerdown="mpBasla(event)">' +
-                         '<div class="mp-kod">' + esc(kod) + (k.ust_kod ? ' <span class="mp-alt" style="font-weight:500">↑ ' + esc(k.ust_kod) + '</span>' : '') + '</div>' +
+                         'style="border-left-color:' + (k.stok_uretim ? 'var(--primary)' : mpRenk(k)) + '" onpointerdown="mpBasla(event)">' +
+                         (k.stok_uretim ? '<button class="mp-sil" title="stok üretimini panodan çıkar" ' +
+                            'onpointerdown="event.stopPropagation()" onclick="mpKaldir(\'' + esc(kod) + '\')">✕</button>' : '') +
+                         '<div class="mp-kod">' + esc(kod) + (k.ust_kod ? ' <span class="mp-alt" style="font-weight:500">↑ ' + esc(k.ust_kod) + '</span>' : '') +
+                            (k.stok_uretim ? ' <span class="mp-rozet-stok">📦 stok üretimi</span>' : '') + '</div>' +
                          '<div>Gereken <b>' + fmt(k.gereken) + '</b>' +
                             (k.launch_adet ? ' · launch ' + fmt(k.launch_adet) : '') +
                             ' · <span style="color:' + mpRenk(k) + '">' + esc(mpMalzeme(k)) + '</span></div>' +
-                         '<div class="mp-alt">' + (k.en_eski_opr ? 'en eski OPR ' + esc(k.en_eski_opr) + (k.gecikmis > 0 ? ' ⚠' : '') : '') +
+                         '<div class="mp-alt">stok ' + fmt(k.stok || 0) +
+                            (k.en_eski_opr ? ' · en eski OPR ' + esc(k.en_eski_opr) + (k.gecikmis > 0 ? ' ⚠' : '') : '') +
                             (k.ct ? ' · CT ' + fmt(k.ct) + ' sn · ' + mpSaatYaz(mpSaat(k)) : ' · süre tanımsız') + '</div>' +
                          (gec ? '<div class="mp-alt" title="sahada basıldığı makineler (kayıt sayısı)">geçmiş: ' + esc(gec) + '</div>' : '') +
-                         (kol === 'havuz' ? '' : '<div style="margin-top:3px">Plan adedi <input type="number" min="0" step="1" value="' +
-                            esc(mpAdet(k)) + '" onchange="mpAdetDegis(\'' + esc(kod) + '\', this.value)" ' +
+                         ((kol === 'havuz' && !k.stok_uretim) ? '' : '<div style="margin-top:3px">Plan adedi <input type="number" min="0" step="1" value="' +
+                            esc(mpAdet(k)) + '"' + (mpAdet(k) > 0 ? '' : ' class="eksik" title="stok üretimi için adet girin"') +
+                            ' onchange="mpAdetDegis(\'' + esc(kod) + '\', this.value)" ' +
                             'onpointerdown="event.stopPropagation()"></div>') +
                          '</div>';
                 });
                 h += '</div></div>';
             });
             document.getElementById('mp-kolonlar').innerHTML = h;
+            mpKatalogCiz();
+        }
+
+        // ── TÜM KODLAR bölmesi: ihtiyacı olmayan kod da stok üretimi için eklenir ──
+        function mpKatalogBul(kod) {
+            for (var i = 0; i < (_mp.tum || []).length; i++) if (_mp.tum[i].kod === kod) return _mp.tum[i];
+            return null;
+        }
+        function mpKonum(kod) {
+            var bulunan = '';
+            Object.keys(_mp.kol).forEach(function (k) { if (_mp.kol[k].indexOf(kod) >= 0) bulunan = k; });
+            return bulunan;
+        }
+        function mpKatalogCiz() {
+            var kutu = document.getElementById('mp-kat-liste'); if (!kutu) return;
+            var ara = (document.getElementById('mp-kat-ara').value || '').toUpperCase().replace(/\s/g, '');
+            var ihtiyacsiz = document.getElementById('mp-kat-ihtiyacsiz').checked;
+            var liste = (_mp.tum || []).filter(function (t) {
+                if (ihtiyacsiz && t.gereken > 0) return false;
+                return !ara || (t.kod + ' ' + t.ust_kod).toUpperCase().replace(/\s/g, '').indexOf(ara) >= 0;
+            });
+            document.getElementById('mp-kat-oz').textContent = (_mp.tum || []).length
+                ? liste.length + ' / ' + _mp.tum.length + ' kod · liste ' + (_mp.tumTarih || '—')
+                : 'liste boş — metal planında ⚡ AS400\'den Kur ile dolar';
+            kutu.innerHTML = liste.map(function (t) {
+                var yer = mpKonum(t.kod);
+                var gec = (t.gecmis || []).map(function (x) { return x[0] + '×' + x[1]; }).join(', ');
+                return '<div class="mp-kat' + (yer ? ' panoda' : '') + '" data-kod="' + esc(t.kod) + '" onpointerdown="mpBasla(event)" ' +
+                       'title="' + esc(t.depolar || '') + '">' +
+                       '<div class="mp-kod">' + esc(t.kod) + (t.ust_kod ? ' <span class="mp-alt" style="font-weight:500">↑ ' + esc(t.ust_kod) + '</span>' : '') + '</div>' +
+                       '<div class="mp-alt">stok ' + fmt(t.stok) + ' · ' + (t.gereken > 0 ? 'ihtiyaç ' + fmt(t.gereken) : 'ihtiyaç yok') +
+                          (t.eoq ? ' · EOQ ' + fmt(t.eoq) : '') + (t.ct ? ' · CT ' + fmt(t.ct) + ' sn' : '') + '</div>' +
+                       (gec ? '<div class="mp-alt">geçmiş: ' + esc(gec) + '</div>' : '') +
+                       (yer ? '<div class="mp-alt" style="color:var(--primary);font-weight:700">panoda: ' + esc(yer === 'havuz' ? 'havuz' : yer) + '</div>'
+                            : '<div>' + _mp.makineler.map(function (m) {
+                                  return '<button onpointerdown="event.stopPropagation()" onclick="mpKatalogEkle(\'' + esc(t.kod) + '\', \'' + esc(m) + '\')"' +
+                                         (t.oneri === m ? ' style="font-weight:800" title="en çok burada basılmış"' : '') + '>＋ ' + esc(m) + '</button>';
+                              }).join('') + '</div>') +
+                       '</div>';
+            }).join('');
+        }
+        function mpKatalogAcKapa() {
+            var a = document.getElementById('mp-katalog');
+            a.style.display = (a.style.display === 'none') ? '' : 'none';
+        }
+        // Katalogdaki kod panoda kart değilse STOK ÜRETİMİ kartı açılır (adet: EOQ, yoksa boş)
+        function mpKartHazirla(kod) {
+            if (_mp.kart[kod]) { _mp.kart[kod].stok_uretim = _mp.kart[kod].stok_uretim || !(_mp.kart[kod].gereken > 0); return true; }
+            var t = mpKatalogBul(kod); if (!t) return false;
+            _mp.kart[kod] = { kod: kod, ust_kod: t.ust_kod, gereken: t.gereken || 0, emir_gereken: 0, launch_adet: 0,
+                              karar: t.karar || '', en_eski_opr: '', gecikmis: 0, sira: 99999, stok: t.stok,
+                              ct: t.ct, gecmis: t.gecmis, oneri: t.oneri, eoq: t.eoq, makine: '', makine_sira: null,
+                              plan_adet: t.eoq || null, stok_uretim: true, gereksiz: false };
+            return true;
+        }
+        function mpKatalogEkle(kod, makine) {
+            if (!mpKartHazirla(kod)) return;
+            mpTasi(kod, makine, (_mp.kol[makine] || []).length);
+        }
+        function mpKaldir(kod) {
+            Object.keys(_mp.kol).forEach(function (k) { _mp.kol[k] = _mp.kol[k].filter(function (x) { return x !== kod; }); });
+            delete _mp.kart[kod];
+            _mp.kaldir.push(kod);
+            mpCiz();
+            mpKaydet();
         }
 
         // SÜRÜKLEME — pointer olaylarıyla (HTML5 sürükle-bırak dokunmatik ekranda çalışmıyor).
@@ -14874,7 +14981,7 @@ window.__I18N_SOZLUK__ = {
             var hd = (surukledi && liste) ? mpHedefIndeks(liste, ev.clientY) : null;
             mpTemizle();
             _mpSurukle = null;
-            if (!surukledi || !liste || !_mp.kart[s.kod]) return;
+            if (!surukledi || !liste || !mpKartHazirla(s.kod)) return;
             mpTasi(s.kod, liste.getAttribute('data-kol'), hd.i);
         }
         function mpTasi(kod, hedef, indeks) {
@@ -14922,9 +15029,12 @@ window.__I18N_SOZLUK__ = {
             Object.keys(_mp.kol).forEach(function (kol) {
                 _mp.kol[kol].forEach(function (kod, i) {
                     atamalar.push({ kod: kod, makine: kol === 'havuz' ? '' : kol,
-                                    sira: kol === 'havuz' ? null : i + 1, plan_adet: _mp.kart[kod].plan_adet });
+                                    sira: kol === 'havuz' ? null : i + 1, plan_adet: _mp.kart[kod].plan_adet,
+                                    stok_uretim: !!_mp.kart[kod].stok_uretim });
                 });
             });
+            (_mp.kaldir || []).forEach(function (kod) { atamalar.push({ kod: kod, kaldir: true }); });
+            _mp.kaldir = [];
             var durum = document.getElementById('mp-durum');
             durum.textContent = 'kaydediliyor…';
             return fetch('/api/metal_plan/pano', { method: 'POST', headers: { 'Content-Type': 'application/json' },

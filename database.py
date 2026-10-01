@@ -1881,6 +1881,25 @@ def init_db():
             c.execute(f'ALTER TABLE metal_plan ADD COLUMN {_kol} {_tip}')
         except Exception:
             pass                              # zaten var
+    # STOK URETIMI (kullanici 2026-10-01): ihtiyaci olmayan kod panodaki 'Tum kodlar'
+    # bolmesinden secilip makineye konabilir. Boyle satir aktif=0 kalir (plan
+    # listesine girmez), stok_uretim=1 ile panoda gorunur.
+    try:
+        c.execute('ALTER TABLE metal_plan ADD COLUMN stok_uretim INTEGER DEFAULT 0')
+    except Exception:
+        pass
+    # PLANIN TUM KOD KUMESI — AS400'den kurulumda yazilir (OPR'si olmayanlar dahil)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS kp_kod_kumesi (
+            plan TEXT NOT NULL,
+            kod TEXT NOT NULL,
+            ust_kod TEXT DEFAULT '',
+            stok_ggi REAL DEFAULT 0,
+            depolar TEXT DEFAULT '',
+            guncellendi TEXT DEFAULT '',
+            PRIMARY KEY (plan, kod)
+        )
+    ''')
     for _tablo in ('kaynak_plan_parca', 'montaj_plan_parca', 'metal_plan_parca'):
         for _kol, _tip in (('seviye', 'INTEGER DEFAULT 1'), ('yol', "TEXT DEFAULT ''"),
                            ('hayali', 'INTEGER DEFAULT 0'),

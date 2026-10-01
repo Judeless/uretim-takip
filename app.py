@@ -13290,6 +13290,9 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
         # Stok burada da okunur: öncelik puanı "stokla kapanmayan adet" üzerinden
         # hesaplanıyor, stoksuz puanla kurulan sıra ilk yenilemeye kadar yanlış olurdu.
         ref_stok = kp.stoklar(cn, sorted(opr)) if opr else {}
+        # TÜM KODLAR (metal panosu, 2026-10-01): OPR'si olmayan kod da stok üretimi
+        # için seçilebilsin — kod kümesi ve stoğu saklanır.
+        tum_stok = kp.stoklar(cn, kodlar) if pf.get('makineler') else {}
     finally:
         try:
             cn.close()
@@ -13328,6 +13331,15 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
              d['opr_sayisi'], d['gecikmis'], simdi,
              d['_ggi'], d['_puan'], d['_gun'], d['launch_adet'], d['launch_sayisi'],
              d['launch_ozet'], d['_emir'], ', '.join(sorted(set(ust_izi.get(kod, []))))))
+    if pf.get('makineler'):
+        conn.execute("DELETE FROM kp_kod_kumesi WHERE plan=?", (pf['anahtar'],))
+        conn.executemany(
+            "INSERT INTO kp_kod_kumesi (plan, kod, ust_kod, stok_ggi, depolar, guncellendi) "
+            "VALUES (?,?,?,?,?,?)",
+            [(pf['anahtar'], k, ', '.join(sorted(set(ust_izi.get(k, [])))),
+              sum((tum_stok.get(k) or {}).get(x, 0) for x in _ref_depo),
+              ' '.join(f'{dp}:{v:g}' for dp, v in (tum_stok.get(k) or {}).items() if v), simdi)
+             for k in kodlar])
     conn.commit()
     if indirilen:
         print(f"[{pf['anahtar'].upper()}-PLAN] üst kod → plana giren alt kod: "
@@ -13864,9 +13876,11 @@ def _kp_kod_norm(k):
 
 def _metal_pano(conn, pf):
     makineler = list(pf.get('makineler') or ())
+    # Panoda: ihtiyacı olanlar + makineye atanmış olanlar + stok üretimi kartları.
+    # Atanmış ama artık listede olmayan (emri kapanmış) satır 'artık gerek yok' görünür.
     satirlar = [dict(r) for r in conn.execute(
-        f"SELECT * FROM {pf['tablo']} WHERE aktif=1 AND (COALESCE(gereken,0)>0 "
-        "OR COALESCE(makine,'')<>'') ORDER BY sira").fetchall()]
+        f"SELECT * FROM {pf['tablo']} WHERE (aktif=1 AND COALESCE(gereken,0)>0) "
+        "OR COALESCE(makine,'')<>'' OR COALESCE(stok_uretim,0)=1 ORDER BY aktif DESC, sira").fetchall()]
     # Geçmiş: hangi makinede kaç kayıt (kod normalize — Forge'da boşluk/küçük harf olabiliyor)
     gecmis = {}
     if makineler:
@@ -13878,15 +13892,19 @@ def _metal_pano(conn, pf):
             g = gecmis.setdefault(_kp_kod_norm(r['k']), {}).setdefault(r['m'], [0, ''])
             g[0] += r['n']
             g[1] = max(g[1], r['son'] or '')
-    ct = {}
+    ct, eoq = {}, {}
     for r in conn.execute(
-            "SELECT referans_kodu, hedef_cycle_time_sn, kalip_goz FROM referans_listesi "
+            "SELECT referans_kodu, hedef_cycle_time_sn, eoq FROM referans_listesi "
             "WHERE COALESCE(bolum,'kaynak')=?", (pf['bolum'],)):
+        n = _kp_kod_norm(r['referans_kodu'])
         if (r['hedef_cycle_time_sn'] or 0) > 0:
-            ct.setdefault(_kp_kod_norm(r['referans_kodu']), r['hedef_cycle_time_sn'])
-    kartlar = []
-    for s in satirlar:
-        kodlar = [s['kaynak_kod']] + [x.strip() for x in (s.get('ust_kod') or '').split(',') if x.strip()]
+            ct.setdefault(n, r['hedef_cycle_time_sn'])
+        if (r['eoq'] or 0) > 0:
+            eoq.setdefault(n, r['eoq'])
+
+    def bilgi(kod, ust):
+        """Kod + Forge üst kodları üzerinden geçmiş makineler, öneri, CT, EOQ."""
+        kodlar = [kod] + [x.strip() for x in (ust or '').split(',') if x.strip()]
         birlesik = {}
         for k in kodlar:
             for m, (n, son) in (gecmis.get(_kp_kod_norm(k)) or {}).items():
@@ -13894,29 +13912,53 @@ def _metal_pano(conn, pf):
                 b[0] += n
                 b[1] = max(b[1], son)
         # en çok basıldığı makine önce; eşitlikte en son basılan
-        g = sorted(([m, n, son] for m, (n, son) in birlesik.items()),
-                   key=lambda x: (x[1], x[2]), reverse=True)
+        gl = sorted(([m, n, son] for m, (n, son) in birlesik.items()),
+                    key=lambda x: (x[1], x[2]), reverse=True)
+        bul = lambda tablo: next((tablo[_kp_kod_norm(k)] for k in kodlar if _kp_kod_norm(k) in tablo), None)
+        return {'gecmis': gl, 'oneri': gl[0][0] if gl else '', 'ct': bul(ct), 'eoq': bul(eoq)}
+
+    kartlar = []
+    for s in satirlar:
+        aktif = bool(s.get('aktif'))
+        gereken = (s.get('gereken') or 0) if aktif else 0     # pasif satırın gerekeni bayat
+        su = bool(s.get('stok_uretim'))
         kartlar.append({
             'kod': s['kaynak_kod'], 'ust_kod': s.get('ust_kod') or '',
-            'gereken': s.get('gereken') or 0, 'emir_gereken': s.get('emir_gereken') or 0,
-            'launch_adet': s.get('launch_adet') or 0, 'launch_ozet': s.get('launch_ozet') or '',
-            'karar': s.get('karar') or '', 'uretilebilir': s.get('uretilebilir'),
-            'kisitlayan': s.get('kisitlayan') or '', 'en_eski_opr': s.get('en_eski_opr') or '',
-            'gecikmis': s.get('gecikmis') or 0, 'sira': s.get('sira'),
-            'ct': next((ct[_kp_kod_norm(k)] for k in kodlar if _kp_kod_norm(k) in ct), None),
-            'gecmis': g, 'oneri': g[0][0] if g else '',
+            'gereken': gereken, 'emir_gereken': (s.get('emir_gereken') or 0) if aktif else 0,
+            'launch_adet': (s.get('launch_adet') or 0) if aktif else 0,
+            'launch_ozet': s.get('launch_ozet') or '' if aktif else '',
+            'karar': (s.get('karar') or '') if aktif else '', 'uretilebilir': s.get('uretilebilir'),
+            'kisitlayan': s.get('kisitlayan') or '', 'en_eski_opr': (s.get('en_eski_opr') or '') if aktif else '',
+            'gecikmis': (s.get('gecikmis') or 0) if aktif else 0, 'sira': s.get('sira'),
+            'stok': s.get('stok_ggi') or 0, 'stok_uretim': su,
             'makine': s.get('makine') or '', 'makine_sira': s.get('makine_sira'),
             'plan_adet': s.get('plan_adet'),
-            'gereksiz': (s.get('gereken') or 0) <= 0,
+            'gereksiz': gereken <= 0 and not su,
+            **bilgi(s['kaynak_kod'], s.get('ust_kod')),
         })
-    son = max((s.get('olculdu') or '' for s in satirlar), default='')
-    return {'makineler': makineler, 'kartlar': kartlar, 'olculdu': son}
+    # TÜM KODLAR bölmesi (kullanıcı 2026-10-01: "ayrı bir bölmede bütün kodları da
+    # görebileyim, stok üretimi yapmak için gerekirse oradan da kod seçebileyim")
+    plan_satir = {r['kaynak_kod']: dict(r) for r in conn.execute(
+        f"SELECT kaynak_kod, gereken, karar FROM {pf['tablo']} WHERE aktif=1")}
+    tum = []
+    guncel = ''
+    for r in conn.execute("SELECT * FROM kp_kod_kumesi WHERE plan=? ORDER BY kod", (pf['anahtar'],)):
+        p = plan_satir.get(r['kod']) or {}
+        guncel = max(guncel, r['guncellendi'] or '')
+        tum.append({'kod': r['kod'], 'ust_kod': r['ust_kod'] or '', 'stok': r['stok_ggi'] or 0,
+                    'depolar': r['depolar'] or '', 'gereken': p.get('gereken') or 0,
+                    'karar': p.get('karar') or '', **bilgi(r['kod'], r['ust_kod'])})
+    son = max((s.get('olculdu') or '' for s in satirlar if s.get('aktif')), default='')
+    return {'makineler': makineler, 'kartlar': kartlar, 'olculdu': son,
+            'tum_kodlar': tum, 'tum_kodlar_tarih': guncel}
 
 
 @app.route('/api/metal_plan/pano', methods=['GET', 'POST'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_pano(plan):
-    """GET: pano verisi. POST {atamalar: [{kod, makine ('' = havuz), sira, plan_adet}]}"""
+    """GET: pano verisi. POST {atamalar: [{kod, makine ('' = havuz), sira, plan_adet,
+    stok_uretim?, kaldir?}]} — stok_uretim: 'Tüm kodlar'dan eklenen kod (satırı yoksa açılır);
+    kaldir: stok üretimi kartını panodan çıkarır."""
     pf = _kp_profil(plan)
     if not pf.get('makineler'):
         return jsonify({'hata': 'Bu planda makine ataması yok'}), 404
@@ -13937,6 +13979,26 @@ def kaynak_plan_pano(plan):
         makine = str(x.get('makine') or '').strip()
         if not kod or (makine and makine not in pf['makineler']):
             return jsonify({'hata': f'Geçersiz atama: {kod} → {makine}'}), 400
+        var = conn.execute(f"SELECT id FROM {pf['tablo']} WHERE kaynak_kod=?", (kod,)).fetchone()
+        if x.get('kaldir'):
+            if var:
+                n += conn.execute(
+                    f"UPDATE {pf['tablo']} SET stok_uretim=0, makine='', makine_sira=NULL, plan_adet=NULL, "
+                    "atama_guncelleyen=?, atama_guncellendi=? WHERE kaynak_kod=?", (kim, simdi, kod)).rowcount
+            continue
+        if x.get('stok_uretim'):
+            if not var:
+                kk = conn.execute("SELECT ust_kod, stok_ggi FROM kp_kod_kumesi WHERE plan=? AND kod=?",
+                                  (pf['anahtar'], kod)).fetchone()
+                if not kk:
+                    return jsonify({'hata': f'{kod} plan kod listesinde yok'}), 400
+                # aktif=0: plan listesine/ölçüme girmez, yalnız panoda (stok_uretim=1)
+                conn.execute(
+                    f"INSERT INTO {pf['tablo']} (kaynak_kod, aktif, stok_uretim, ust_kod, stok_ggi, "
+                    "plan_dosya, plan_yuklendi) VALUES (?,0,1,?,?,'STOK ÜRETİMİ',?)",
+                    (kod, kk['ust_kod'] or '', kk['stok_ggi'] or 0, simdi))
+            else:
+                conn.execute(f"UPDATE {pf['tablo']} SET stok_uretim=1 WHERE kaynak_kod=?", (kod,))
         try:
             sira = int(x['sira']) if (makine and x.get('sira') is not None) else None
             pa = x.get('plan_adet')
