@@ -1863,6 +1863,14 @@ def init_db():
         c.execute(f'CREATE INDEX IF NOT EXISTS {_bix} ON {_p}_bildirim(durum, kaynak_kod)')
     # HAYALI (fictitious) acilim izi: parca hangi seviyeden, hangi hayali dugumun
     # altindan geldi; 'hayali'=1 ise acilamadi ve kisit sayilmadi.
+    # UST KOD izi (2026-10-01): plana alt kod girdiyse (kaynak: 10.300.4534 →
+    # 4534W; metal: isleme kodu 10.300.1369 → dokum kodu 1369W) panel satirda
+    # Forge'daki ust kodu gosterir — kullanici kodu tanisin.
+    for _tablo in ('kaynak_plan', 'montaj_plan', 'metal_plan'):
+        try:
+            c.execute(f"ALTER TABLE {_tablo} ADD COLUMN ust_kod TEXT DEFAULT ''")
+        except Exception:
+            pass                              # zaten var
     for _tablo in ('kaynak_plan_parca', 'montaj_plan_parca', 'metal_plan_parca'):
         for _kol, _tip in (('seviye', 'INTEGER DEFAULT 1'), ('yol', "TEXT DEFAULT ''"),
                            ('hayali', 'INTEGER DEFAULT 0'),

@@ -12709,13 +12709,23 @@ KP_PROFILLER = {
         'config': 'metal_plan', 'izin': 'metal-plan',
         # Mamul: kaynak/montajla aynı G GI kuralı (01D + MDT); 01W kayıp depo.
         'ref_depolar': ('01D', 'MDT'),
-        # VARSAYIM (kullanıcıya soruldu, 2026-10-01): montajın depo kümesi. Keşifte
-        # alüminyum 01D'de (3.148 kg), REP'te 414 kg (rezerve — sayılmaz), 01W'de
-        # −40.388 kg (kayıp depo — sayılmaz, düşülmez); 10.DTC.796 CF2'de.
-        # Panelden (Bildirim ayarı → depolar) değiştirilebilir.
-        'alt_depolar': ('01D', 'CF2', 'MK2', 'MT2', 'CF'),
-        'gosterilen': ('01D', 'CF2', 'MK2', 'MT2', 'CF', '01W', 'REP', '02', '01', 'MDT'),
+        # Montajın depo kümesi + MDT (kullanıcı 2026-10-01: "alt parça MDT deposu
+        # sayılsın"). Alüminyum 01D'de; REP rezerve (sayılmaz), 01W kayıp depo
+        # (sayılmaz, düşülmez). Panelden (Bildirim ayarı → depolar) değişir.
+        'alt_depolar': ('01D', 'CF2', 'MK2', 'MT2', 'CF', 'MDT'),
+        'gosterilen': ('01D', 'CF2', 'MK2', 'MT2', 'CF', 'MDT', '01W', 'REP', '02', '01'),
         'eksi_dusulen': ('REP', '02'), 'ust_kod_indir': False,
+        # DÖKÜM KODUNA İN (kullanıcı 2026-10-01): plana Forge referansının kendisi
+        # değil, hammaddenin (21.*) bir üst kademesi — enjeksiyonda BASILAN kod —
+        # girer. Forge'daki 10.300.1369 / 1370 / 1374 / 3201 / 4708 / 5719 /
+        # 10.DTC.796A işleme (fason) kodları; onların ihtiyacı işleme planının işi.
+        # '21.' = alüminyum 21.AL.150 / 21.AL.036 + zamak 21.Z005 (3 kod).
+        'hammadde_onek': ('21.',),
+        # OPR NET (2026-10-01 ölçümü): döküm kodunun emri ERP'de stoğu DÜŞEREK açılmış —
+        # 10.300.1369 emri 463, 1369W emri 189: aradaki 274 = 1369W'nin 01D −30 + MDT
+        # 304 (fasondaki döküm). 3201: 288 − 166 = 122, 1370: 283 − 0 = 283 birebir.
+        # Stoğu bir daha düşmek ihtiyacı iki kez azaltır → GEREKEN = açık emir.
+        'opr_net': True,
         # 10.130.3778'in altındaki 10.130.3778W HAYALİ — alüminyum onun altında;
         # açılmazsa en büyük ihtiyaçlı ürün (8.470 adet) hammaddesiz görünür.
         'hayali_seviye': 3, 'excel_yukleme': False,
@@ -12898,6 +12908,7 @@ def kaynak_plan_liste(plan):
                              'ref_depolar': list(_rd), 'alt_depolar': list(_ad),
                              'hayali_seviye': pf['hayali_seviye'],
                              'eksi_dusulen': list(_kp_eksi_depolar(pf)),
+                             'opr_net': bool(pf.get('opr_net')),
                              'excel_yukleme': pf['excel_yukleme']}})
 
 
@@ -13006,11 +13017,13 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
         d = ref_stok.get(s['kaynak_kod'], {})
         s['stok_ggi'] = sum(d.get(x, 0) for x in _ref_depo)
         s['toplam_stok'] = s['stok_ggi']
-        s['gereken'] = max(0.0, (s.get('iht_6h') or 0) - s['stok_ggi'])
+        # opr_net (metal): ERP emri stoğu düşerek açmış — stok ikinci kez düşülmez
+        _dus = 0.0 if pf.get('opr_net') else s['stok_ggi']
+        s['gereken'] = max(0.0, (s.get('iht_6h') or 0) - _dus)
         s['kaynatilmali'] = s['gereken'] > 0
         # ÖNCELİK PUANI (2026-09-30): tarih × adet, stokla kapanmayan emirler üzerinden
         s['oncelik_puan'], _acik, s['gecikme_gun'] = kp.oncelik_puani(
-            s.get('_opr_satirlar'), s['stok_ggi'], _ufuk)
+            s.get('_opr_satirlar'), _dus, _ufuk)
         # AÇILACAK EMİR: gerekenin launch'la karşılanmayan kısmı — bildirimin ölçütü
         s['emir_gereken'] = max(0.0, s['gereken'] - (s.get('launch_adet') or 0))
         # MALZEME KARARI yalnız YENİ EMİR için (kullanıcı 2026-09-30): launch alınan
@@ -13224,7 +13237,7 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
         cn = kp.erp_baglan()
     except Exception as e:
         return None, f'AS400 bağlantısı kurulamadı: {e}', 424
-    indirilen = {}
+    indirilen, ust_izi = {}, {}
     try:
         if pf.get('ust_kod_indir'):
             # Referans listesinde OLMAYAN (eski plandan kalmış) kodların ağacına bak:
@@ -13240,6 +13253,24 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
                     _kume.discard(k)
                     _kume.add(alt[0][0])
                     indirilen[k] = alt[0][0]
+                    ust_izi.setdefault(alt[0][0], []).append(k)
+            kodlar = sorted(_kume)
+        if pf.get('hammadde_onek'):
+            # DÖKÜM KODUNA İN (metal): Forge referansı → enjeksiyonda basılan kod.
+            # ERP kodları büyük harf; Forge'da '10.130.3914w' gibi küçük harfle
+            # girilmiş referans ERP'de bulunmuyordu.
+            _esle = kp.dokum_kodlari(cn, [k.upper() for k in kodlar], pf['hammadde_onek'])
+            _kume = set()
+            for k in kodlar:
+                dk = _esle.get(k.upper()) or []
+                if not dk:
+                    _kume.add(k)          # hammaddeye inilemedi — olduğu gibi kalır (ağaç yok → ELLE BAK)
+                    continue
+                _kume.update(dk)
+                if dk != [k.upper()]:
+                    indirilen[k] = ', '.join(dk)
+                    for x in dk:
+                        ust_izi.setdefault(x, []).append(k)
             kodlar = sorted(_kume)
         opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk)
         # Stok burada da okunur: öncelik puanı "stokla kapanmayan adet" üzerinden
@@ -13254,8 +13285,10 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
     for kod, d in opr.items():
         st = ref_stok.get(kod, {})
         d['_ggi'] = sum(st.get(x, 0) for x in _ref_depo)
-        d['_puan'], _acik, d['_gun'] = kp.oncelik_puani(d['satirlar'], d['_ggi'], ufuk)
-        d['_gereken'] = max(0.0, d['ihtiyac'] - d['_ggi'])
+        # opr_net: emir stoğu düşerek açılmış — stok ikinci kez düşülmez (bkz. profil)
+        _dus = 0.0 if pf.get('opr_net') else d['_ggi']
+        d['_puan'], _acik, d['_gun'] = kp.oncelik_puani(d['satirlar'], _dus, ufuk)
+        d['_gereken'] = max(0.0, d['ihtiyac'] - _dus)
         d['_emir'] = max(0.0, d['_gereken'] - d['launch_adet'])
     # ÖNCELİK: puan (tarih × adet) yüksek olan önce; eşitlikte en eski OPR.
     sirali = sorted(opr.items(), key=lambda kv: (-kv[1]['_puan'],
@@ -13266,8 +13299,8 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
             f"INSERT INTO {pf['tablo']} (kaynak_kod, sira, urun, iht_6h, acik_launch, gereken, "
             "en_eski_opr, opr_sayisi, gecikmis, plan_dosya, plan_yuklendi, agac_farki, aktif, "
             "stok_ggi, oncelik_puan, gecikme_gun, launch_adet, launch_sayisi, launch_ozet, "
-            "emir_gereken) "
-            "VALUES (?,?,'',?,0,?,?,?,?,'AS400 (OPR)',?,'',1,?,?,?,?,?,?,?) "
+            "emir_gereken, ust_kod) "
+            "VALUES (?,?,'',?,0,?,?,?,?,'AS400 (OPR)',?,'',1,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, "
             "iht_6h=excluded.iht_6h, gereken=excluded.gereken, "
             "en_eski_opr=excluded.en_eski_opr, opr_sayisi=excluded.opr_sayisi, "
@@ -13275,14 +13308,15 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
             "plan_yuklendi=excluded.plan_yuklendi, aktif=1, stok_ggi=excluded.stok_ggi, "
             "oncelik_puan=excluded.oncelik_puan, gecikme_gun=excluded.gecikme_gun, "
             "launch_adet=excluded.launch_adet, launch_sayisi=excluded.launch_sayisi, "
-            "launch_ozet=excluded.launch_ozet, emir_gereken=excluded.emir_gereken",
+            "launch_ozet=excluded.launch_ozet, emir_gereken=excluded.emir_gereken, "
+            "ust_kod=excluded.ust_kod",
             (kod, i, d['ihtiyac'], d['_gereken'], d['en_eski'] or '',
              d['opr_sayisi'], d['gecikmis'], simdi,
              d['_ggi'], d['_puan'], d['_gun'], d['launch_adet'], d['launch_sayisi'],
-             d['launch_ozet'], d['_emir']))
+             d['launch_ozet'], d['_emir'], ', '.join(sorted(set(ust_izi.get(kod, []))))))
     conn.commit()
     if indirilen:
-        print(f"[{pf['anahtar'].upper()}-PLAN] üst kod → kaynaklı kod: "
+        print(f"[{pf['anahtar'].upper()}-PLAN] üst kod → plana giren alt kod: "
               + ', '.join(f'{u}→{a}' for u, a in sorted(indirilen.items())))
     return {'satir': len(sirali), 'ufuk_gun': ufuk, 'taranan_kod': len(kodlar),
             'indirilen': indirilen,
@@ -13688,9 +13722,12 @@ def _kp_notlar(conn, pf):
     tel_onek = tuple(pf.get('kontrol_disi_onek') or ())
     yetersiz, bilgi, eksi_parca = {}, {}, set()
     # ORTAK PARÇA (2026-10-01, metal planı): kapasite her ürün için AYRI hesaplanır —
-    # aynı alüminyum 42 ürünün her birine ayrı ayrı 'yeter' der. 'Malzemesi tam'
-    # ürünlerin hepsi birlikte açılırsa ortak parça yetmeyebilir; not bunu gösterir.
-    hazir_kod = {s['kaynak_kod']: s for s in satirlar if (s.get('karar') or '') == 'TALIMAT VER'}
+    # aynı alüminyum 32 ürünün her birine ayrı ayrı 'yeter' der. Yeni emir bekleyen
+    # ürünlerin hepsi birlikte açılırsa ortak parça yetmeyebilir; not bunu gösterir
+    # (içlerinde 'malzemesi tam' görünen varsa — yoksa kilitleyen notu zaten söyler).
+    hazir_kod = {s['kaynak_kod']: s for s in satirlar
+                 if (s.get('karar') or '') in ('TALIMAT VER', 'KISMI', 'MALZEME YOK')
+                 and (s.get('emir_gereken') or 0) > 0}
     ortak = {}
     for p in conn.execute(
             f"SELECT kaynak_kod, alt_kod, birim, um, stok_sayilan, kapasite, hayali, muaf, "
@@ -13760,14 +13797,16 @@ def _kp_notlar(conn, pf):
                 'metin': f"İlk 5 parça birlikte {len(ilk5)} ürünü etkiliyor (yeni emir açılamayan "
                          f"{len(hedef)} ürün içinde %{round(100 * len(ilk5) / len(hedef))})."})
     for o in sorted(ortak.values(), key=lambda o: -(o['talep'] - o['stok'])):
-        if len(o['urunler']) < 2 or o['talep'] <= max(0.0, o['stok']) + 1e-9:
+        tam = sum(1 for u in o['urunler'] if (hazir_kod[u].get('karar') or '') == 'TALIMAT VER')
+        if len(o['urunler']) < 2 or not tam or o['talep'] <= max(0.0, o['stok']) + 1e-9:
             continue
         notlar.append({
             'tur': 'darbogaz', 'kodlar': sorted(o['urunler']),
-            'etiket': f"{o['alt_kod']} kullanan hazır ürünler",
-            'metin': f"Ortak parça {o['alt_kod']}: malzemesi tam görünen {len(o['urunler'])} ürünün "
-                     f"HEPSİNE birlikte yetmez — toplam {_kp_sayi(o['talep'])} {o['um']} gerekiyor, "
-                     f"sayılan stok {_kp_sayi(o['stok'])} {o['um']}. Emirleri öncelik sırasıyla açın."})
+            'etiket': f"{o['alt_kod']} kullanan ürünler",
+            'metin': f"Ortak parça {o['alt_kod']}: yeni emir bekleyen {len(o['urunler'])} ürün birlikte "
+                     f"{_kp_sayi(o['talep'])} {o['um']} istiyor, sayılan stok {_kp_sayi(o['stok'])} {o['um']} "
+                     f"— 'malzemesi tam' görünen {tam} ürün dahil HEPSİNE yetmez. "
+                     f"Emirleri öncelik sırasıyla açın."})
     if tel_onek:
         tel_urun = sorted(u for u, alts in yetersiz.items() if any(a.startswith(tel_onek) for a in alts))
         yalniz_tel = [u for u in tel_urun if all(a.startswith(tel_onek) for a in yetersiz[u])]

@@ -14955,7 +14955,9 @@ window.__I18N_SOZLUK__ = {
                 kpBaslik('launch_adet', 'Launch', 'launch alınmış emirlerin (durum 40/45/50) kalan adedi', true, -1) +
                 kpBaslik('uretilebilir', 'Üretilebilir', 'alt parça stoğuyla üretilebilecek adet — sayılan depolar: ' + kpDepoMetni('alt_depolar'), true, -1) +
                 kpBaslik('degisim', 'Değişim', 'önceki ölçüme göre üretilebilir farkı', true, -1) +
-                '<th title="6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan">' + kpFiil() + '?</th>' +
+                '<th title="' + esc((_kpVeri.plan && _kpVeri.plan.opr_net)
+                    ? 'açık emir adedi — ERP döküm emrini stoğu düşerek açtığı için stok ikinci kez düşülmez'
+                    : '6 haftalık ihtiyaç, stok ve üretimdekiler düşüldükten sonra kalan') + '">' + kpFiil() + '?</th>' +
                 '<th title="' + esc('serbest stok (' + kpDepoMetni('alt_depolar') + ') YENİ açılacak emri karşılıyor mu — launch alınan adedin malzemesi REP’te rezerve, burada aranmaz') + '">Malzeme</th>' +
                 '<th>Kısıtlayan</th>' +
                 '<th style="min-width:190px">Not</th></tr></thead><tbody>';
@@ -15002,6 +15004,11 @@ window.__I18N_SOZLUK__ = {
                         esc(s.en_eski_opr || '—') + (s.gecikmis > 0 ? ' ⚠' : '') + '</td>' +
                     '<td style="font-weight:700"><a href="#" onclick="kpParcaAc(\'' + esc(s.kaynak_kod) + '\');return false"' +
                         ' title="alt parçaları göster">' + esc(s.kaynak_kod) + '</a>' +
+                        // Forge'daki üst kod (işleme / kaynak sonrası) — plana alt kod girdi
+                        (s.ust_kod ? ' <span style="font-size:.72rem;font-weight:500;color:var(--muted)" title="' +
+                            esc('Forge referansı ' + s.ust_kod + ' — plana bunun ' +
+                                (_kpPlan === 'metal' ? 'enjeksiyonda basılan (döküm) kodu' : 'alt kodu') + ' girdi') +
+                            '">↑ ' + esc(s.ust_kod) + '</span>' : '') +
                         (s.bildirim_id ? ' <span title="malzemesi geldi (+' + esc(String(s.bildirim_artis || 0)) +
                             ') — emir açılabilir" style="font-size:.85rem">📣</span>' : '') +
                         (s.eksi_var ? ' <span title="bazı parçalarda ERP\'de eksi bakiye var" style="color:var(--danger)">⚠</span>' : '') +

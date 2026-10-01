@@ -188,6 +188,51 @@ def hayali_kodlar(cn, kodlar):
     return bulunan
 
 
+def dokum_kodlari(cn, kodlar, hammadde_onek=('21.',), azami_seviye=4):
+    """ENJEKSİYONDA BASILAN KOD — {kod: [döküm kodları]}.
+
+    Kullanıcı 2026-10-01: "Enjeksiyon kodlarında en alt kademedeki 21.AL.150 ya da
+    21.AL.036 hammaddesinin 1 kademe üstündeki referans bizim enjeksiyonda bastığımız
+    kod oluyor; diğer üst kodlar sonraki işleme adımları için." Örnek: Forge'daki
+    10.300.1369 bir İŞLEME kodu (fason); enjeksiyonda basılan 10.300.1369W.
+
+    Ağaçta aşağı inilir; doğrudan alt parçası hammadde (hammadde_onek) olan kod
+    DÖKÜM KODUDUR. Hayali (fictitious) ara kod ŞEFFAFTIR: altındaki hammadde
+    ebeveynine sayılır — hayali kod stoklanmaz, emri ebeveyne açılır
+    (10.130.3778 → hayali 10.130.3778W → 21.AL.036: döküm kodu 10.130.3778).
+    Birden çok kademe olabilir: 10.300.4708 → 4708C → 4708W → 21.AL.150.
+    Hammaddeye inilemeyen kodun listesi BOŞ döner (ağacı yok / başka malzeme)."""
+    hammadde_onek = tuple(hammadde_onek)
+    agac, hayali = {}, set()
+    sinir = [x for x in dict.fromkeys(kodlar) if x]
+    for _ in range(azami_seviye + 1):
+        sinir = [x for x in sinir if x not in agac]
+        if not sinir:
+            break
+        agac.update({x: [] for x in sinir})
+        agac.update(urun_agaci(cn, sinir))
+        cocuk = sorted({a for x in sinir for a, _, _ in agac[x] if not a.startswith(hammadde_onek)})
+        if cocuk:
+            hayali |= hayali_kodlar(cn, cocuk)
+        sinir = cocuk
+
+    def etkin(x, d=0):
+        for a, _, _ in agac.get(x, []):
+            if a in hayali and d < azami_seviye:
+                yield from etkin(a, d + 1)
+            else:
+                yield a
+
+    def bul(x, d=0):
+        alt = list(etkin(x))
+        if any(a.startswith(hammadde_onek) for a in alt):
+            return [x]
+        if d >= azami_seviye:
+            return []
+        return sorted({y for a in alt if not a.startswith(hammadde_onek) for y in bul(a, d + 1)})
+    return {x: bul(x) for x in dict.fromkeys(kodlar) if x}
+
+
 def urun_agaci_hayali(cn, kodlar, azami_seviye=3, acilmayan_onekler=()):
     """Ürün ağacı — HAYALİ alt parçalar kendi alt parçalarına AÇILIR. (agac, iz)
 
