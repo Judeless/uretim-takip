@@ -12657,6 +12657,11 @@ KP_PROFILLER = {
         # Excel'inden kalan '10.300.4534' gibi kodlar kaynak işi değil — tek alt
         # parçası kaynaklı kod (10.300.4534W). Plana W'li kod girer, üst kod girmez.
         'ust_kod_indir': True,
+        # OPR NET (kullanıcı 2026-10-01 onayı): açık emir ERP'de stok düşülerek
+        # açılmış — 10.300.4534 emri 100, 4534W stoğu 72 → W emri 28. Eskiden
+        # GEREKEN = emir − stok idi; stok iki kez düşülüyor, ürün 'gerek yok'
+        # görünüyordu. Ayrıntı: metal profilindeki not.
+        'opr_net': True,
     },
     'montaj': {
         'anahtar': 'montaj', 'ad': 'Montaj planı (TK2)', 'kod_baslik': 'Montaj kodu',
@@ -12695,6 +12700,8 @@ KP_PROFILLER = {
         'haric_onek': ('93.',),
         # Stoğu kontrol edilmeyecek alt parçalar (etiket, sarf). Panelden değişir.
         'kisit_disi_parcalar': ('50.010.700',),
+        # OPR NET (kullanıcı 2026-10-01 onayı) — bkz. kaynak / metal profili.
+        'opr_net': True,
     },
     # METAL ENJEKSİYON — TK2 (kullanıcı 2026-10-01: "metal enjeksiyon referansları
     # için de bir plan modülü oluşturalım, referansları bizim Forge'dan alalım").
@@ -12725,6 +12732,8 @@ KP_PROFILLER = {
         # 10.300.1369 emri 463, 1369W emri 189: aradaki 274 = 1369W'nin 01D −30 + MDT
         # 304 (fasondaki döküm). 3201: 288 − 166 = 122, 1370: 283 − 0 = 283 birebir.
         # Stoğu bir daha düşmek ihtiyacı iki kez azaltır → GEREKEN = açık emir.
+        # SINIR: MRP koşusundan SONRA gelen stok emre yansımaz (2609W: 01D 460
+        # duruyor, emir 1.017) — panel stok sütununu yine gösterir.
         'opr_net': True,
         # 10.130.3778'in altındaki 10.130.3778W HAYALİ — alüminyum onun altında;
         # açılmazsa en büyük ihtiyaçlı ürün (8.470 adet) hammaddesiz görünür.
@@ -13001,6 +13010,7 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
             s['launch_sayisi'] = d['launch_sayisi']
             s['launch_ozet'] = d['launch_ozet']
             s['_opr_satirlar'] = d['satirlar']
+            s['_opr_kaynakli'] = True
         else:
             s['iht_6h'] = s.get('iht_6h') or 0
             s['en_eski_opr'] = s.get('en_eski_opr') or ''
@@ -13017,8 +13027,10 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
         d = ref_stok.get(s['kaynak_kod'], {})
         s['stok_ggi'] = sum(d.get(x, 0) for x in _ref_depo)
         s['toplam_stok'] = s['stok_ggi']
-        # opr_net (metal): ERP emri stoğu düşerek açmış — stok ikinci kez düşülmez
-        _dus = 0.0 if pf.get('opr_net') else s['stok_ggi']
+        # opr_net: ERP emri stoğu düşerek açmış — stok ikinci kez düşülmez. Yalnız
+        # ihtiyaç bu ölçümde OPR'den geldiyse: planlamanın Excel'inden gelen ihtiyaç
+        # (kaynak, Excel modu) brüt olabilir — onda stok eskisi gibi düşülür.
+        _dus = 0.0 if (pf.get('opr_net') and s.get('_opr_kaynakli')) else s['stok_ggi']
         s['gereken'] = max(0.0, (s.get('iht_6h') or 0) - _dus)
         s['kaynatilmali'] = s['gereken'] > 0
         # ÖNCELİK PUANI (2026-09-30): tarih × adet, stokla kapanmayan emirler üzerinden
@@ -13285,7 +13297,7 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
     for kod, d in opr.items():
         st = ref_stok.get(kod, {})
         d['_ggi'] = sum(st.get(x, 0) for x in _ref_depo)
-        # opr_net: emir stoğu düşerek açılmış — stok ikinci kez düşülmez (bkz. profil)
+        # opr_net: emir stoğu düşerek açılmış — stok ikinci kez düşülmez (bkz. metal profili)
         _dus = 0.0 if pf.get('opr_net') else d['_ggi']
         d['_puan'], _acik, d['_gun'] = kp.oncelik_puani(d['satirlar'], _dus, ufuk)
         d['_gereken'] = max(0.0, d['ihtiyac'] - _dus)
