@@ -206,6 +206,8 @@ PANEL_SAYFALAR = [
     'ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
     'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
     'as400-teyit', 'kaynak-plan', 'montaj-plan',
+    # 2026-10-01: metal enjeksiyon planı — yeni sayfa, mevcut kullanıcılarda yok
+    'metal-plan',
     # 2026-08-21: operatör performansı KİŞİ SIRALAR — yeni sayfa olarak eklendi,
     # mevcut kullanıcıların izin listesinde YOK (yalnız admin görür, yönetici
     # tek tek yetki verir). 'analiz' de aynı gerekçeyle ayrı.
@@ -12694,6 +12696,31 @@ KP_PROFILLER = {
         # Stoğu kontrol edilmeyecek alt parçalar (etiket, sarf). Panelden değişir.
         'kisit_disi_parcalar': ('50.010.700',),
     },
+    # METAL ENJEKSİYON — TK2 (kullanıcı 2026-10-01: "metal enjeksiyon referansları
+    # için de bir plan modülü oluşturalım, referansları bizim Forge'dan alalım").
+    # Kod kümesi = Forge referans listesi bölüm=metal, TK2 (74 kod; 46'sının açık
+    # OPR'si var — 2026-10-01 keşfi). Ürün ağacı montajdan çok sade: 46 ürünün
+    # 53 alt parça satırı, 12 farklı parça; 42 ürünün hammaddesi alüminyum
+    # 21.AL.150 (birim KG — kapasite = stok kg / parça başı kg).
+    'metal': {
+        'anahtar': 'metal', 'ad': 'Metal enjeksiyon planı (TK2)', 'kod_baslik': 'Metal kodu',
+        'tablo': 'metal_plan', 'parca': 'metal_plan_parca', 'bildirim': 'metal_plan_bildirim',
+        'bolum': 'metal', 'lokasyon': 'TK2', 'eski_kodlar': False,
+        'config': 'metal_plan', 'izin': 'metal-plan',
+        # Mamul: kaynak/montajla aynı G GI kuralı (01D + MDT); 01W kayıp depo.
+        'ref_depolar': ('01D', 'MDT'),
+        # VARSAYIM (kullanıcıya soruldu, 2026-10-01): montajın depo kümesi. Keşifte
+        # alüminyum 01D'de (3.148 kg), REP'te 414 kg (rezerve — sayılmaz), 01W'de
+        # −40.388 kg (kayıp depo — sayılmaz, düşülmez); 10.DTC.796 CF2'de.
+        # Panelden (Bildirim ayarı → depolar) değiştirilebilir.
+        'alt_depolar': ('01D', 'CF2', 'MK2', 'MT2', 'CF'),
+        'gosterilen': ('01D', 'CF2', 'MK2', 'MT2', 'CF', '01W', 'REP', '02', '01', 'MDT'),
+        'eksi_dusulen': ('REP', '02'), 'ust_kod_indir': False,
+        # 10.130.3778'in altındaki 10.130.3778W HAYALİ — alüminyum onun altında;
+        # açılmazsa en büyük ihtiyaçlı ürün (8.470 adet) hammaddesiz görünür.
+        'hayali_seviye': 3, 'excel_yukleme': False,
+        'kontrol_disi_onek': (), 'haric_onek': (), 'kisit_disi_parcalar': (),
+    },
 }
 
 
@@ -12732,7 +12759,7 @@ def _kp_kisit_disi(pf):
 
 
 def _kp_yetki(fn):
-    """Plan uçlarının izin kontrolü: izin PROFİLDEN gelir (kaynak-plan / montaj-plan).
+    """Plan uçlarının izin kontrolü: izin PROFİLDEN gelir (kaynak-plan / montaj-plan / metal-plan).
     panel_gerekli sabit izin aldığı için iki planı tek görünümle sunan uçlarda
     kullanılamıyor; davranış onunla aynı (401 giriş yok, 403 yetki yok)."""
     @wraps(fn)
@@ -12830,6 +12857,7 @@ def _kp_sirala(satirlar, alan='sira', yon=1):
 
 @app.route('/api/kaynak_plan', methods=['GET'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan', methods=['GET'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan', methods=['GET'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_liste(plan):
     """Plan satırları + son ölçüm + önceki ölçüme göre değişim."""
@@ -12875,6 +12903,7 @@ def kaynak_plan_liste(plan):
 
 @app.route('/api/kaynak_plan/parcalar', methods=['GET'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/parcalar', methods=['GET'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/parcalar', methods=['GET'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_parcalar(plan):
     """Tek kodun alt parça kırılımı (satır genişletildiğinde)."""
@@ -12893,6 +12922,7 @@ def kaynak_plan_parcalar(plan):
 
 @app.route('/api/kaynak_plan/<int:pid>/not', methods=['PATCH'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/<int:pid>/not', methods=['PATCH'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/<int:pid>/not', methods=['PATCH'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_not(pid, plan):
     """Referans notu — hafta boyunca takip için. Yenilemede KORUNUR."""
@@ -13261,6 +13291,7 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
 
 @app.route('/api/kaynak_plan/erpden_kur', methods=['POST'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/erpden_kur', methods=['POST'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/erpden_kur', methods=['POST'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_erpden_kur(plan):
     """Listeyi TAMAMEN ERP'den kurar — plan dosyasına gerek yok (2026-07-31).
@@ -13289,6 +13320,7 @@ def kaynak_plan_erpden_kur(plan):
 
 @app.route('/api/kaynak_plan/oprler', methods=['GET'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/oprler', methods=['GET'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/oprler', methods=['GET'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_oprler(plan):
     """Tek kodun açık üretim emirleri (satır genişletildiğinde gösterilir)."""
@@ -13313,6 +13345,7 @@ def kaynak_plan_oprler(plan):
 
 @app.route('/api/kaynak_plan/yenile', methods=['POST'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/yenile', methods=['POST'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/yenile', methods=['POST'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_yenile(plan):
     """ERP'den ağaç + stokları tazeler. Notlar ve plan satırları korunur."""
@@ -13379,6 +13412,7 @@ def _kp_excel(satirlar, sayfa_adi='Kaynak Planı', kod_baslik='Kaynak kodu'):
 
 @app.route('/api/kaynak_plan/excel', methods=['GET'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/excel', methods=['GET'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/excel', methods=['GET'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_excel(plan):
     """Ekrandaki listeyi (aynı süzgeç + aynı sıra) Excel olarak indirir.
@@ -13622,11 +13656,22 @@ def montaj_plan_oto_job():
     _kp_oto_job('montaj')
 
 
+def metal_plan_oto_job():
+    """07:10 ve 13:10 — TK2 metal enjeksiyon planı (montaj turundan 5 dk sonra)."""
+    _kp_oto_job('metal')
+
+
 # ── ÖNE ÇIKANLAR: darboğaz parçalar + otomatik notlar (kullanıcı 2026-09-30) ──
 # "Hangi referansın kaç adet ürünü kilitlediğini görmek çok mantıklı; bu ürünün
 #  tedariğini tamamlayıp önemli bir şey yapılmış olur. Bu gibi önemli notları
 #  dashboardda plan sayfasında görebilmeliyim."
 # Satır satır bakınca görünmeyen soru: TEK bir parçayı getirmek kaç ürünü açar?
+def _kp_sayi(x):
+    """Not metni için sayı: 3148.3 → '3.148,3' · 1200 → '1.200' (TR biçimi)."""
+    s = f'{x:,.1f}'.rstrip('0').rstrip('.')
+    return s.replace(',', '#').replace('.', ',').replace('#', '.')
+
+
 def _kp_notlar(conn, pf):
     """Yeni emir AÇILAMAYAN ürünleri (karar MALZEME YOK / KISMI) alt parçaya göre toplar.
 
@@ -13642,14 +13687,24 @@ def _kp_notlar(conn, pf):
              if (s.get('karar') or '') in ('MALZEME YOK', 'KISMI')}
     tel_onek = tuple(pf.get('kontrol_disi_onek') or ())
     yetersiz, bilgi, eksi_parca = {}, {}, set()
+    # ORTAK PARÇA (2026-10-01, metal planı): kapasite her ürün için AYRI hesaplanır —
+    # aynı alüminyum 42 ürünün her birine ayrı ayrı 'yeter' der. 'Malzemesi tam'
+    # ürünlerin hepsi birlikte açılırsa ortak parça yetmeyebilir; not bunu gösterir.
+    hazir_kod = {s['kaynak_kod']: s for s in satirlar if (s.get('karar') or '') == 'TALIMAT VER'}
+    ortak = {}
     for p in conn.execute(
-            f"SELECT kaynak_kod, alt_kod, birim, stok_sayilan, kapasite, hayali, muaf, "
+            f"SELECT kaynak_kod, alt_kod, birim, um, stok_sayilan, kapasite, hayali, muaf, "
             f"diger_depolar, eksi_bakiye FROM {pf['parca']}"):
         kod, alt = p['kaynak_kod'], p['alt_kod']
         if kod not in aktif:
             continue                      # plandan çıkmış ürünün eski kırılımı
         if p['eksi_bakiye']:
             eksi_parca.add(alt)
+        if kod in hazir_kod and not p['hayali'] and not p['muaf'] and (p['birim'] or 0) > 0:
+            o = ortak.setdefault(alt, {'alt_kod': alt, 'um': p['um'] or '', 'urunler': [],
+                                       'talep': 0.0, 'stok': p['stok_sayilan'] or 0})
+            o['urunler'].append(kod)
+            o['talep'] += (hazir_kod[kod].get('emir_gereken') or 0) * p['birim']
         s = hedef.get(kod)
         if not s or p['hayali'] or p['muaf'] or p['kapasite'] is None:
             continue
@@ -13704,6 +13759,15 @@ def _kp_notlar(conn, pf):
                 'tur': 'darbogaz', 'kodlar': sorted(ilk5), 'etiket': 'ilk 5 parçayı bekleyen ürünler',
                 'metin': f"İlk 5 parça birlikte {len(ilk5)} ürünü etkiliyor (yeni emir açılamayan "
                          f"{len(hedef)} ürün içinde %{round(100 * len(ilk5) / len(hedef))})."})
+    for o in sorted(ortak.values(), key=lambda o: -(o['talep'] - o['stok'])):
+        if len(o['urunler']) < 2 or o['talep'] <= max(0.0, o['stok']) + 1e-9:
+            continue
+        notlar.append({
+            'tur': 'darbogaz', 'kodlar': sorted(o['urunler']),
+            'etiket': f"{o['alt_kod']} kullanan hazır ürünler",
+            'metin': f"Ortak parça {o['alt_kod']}: malzemesi tam görünen {len(o['urunler'])} ürünün "
+                     f"HEPSİNE birlikte yetmez — toplam {_kp_sayi(o['talep'])} {o['um']} gerekiyor, "
+                     f"sayılan stok {_kp_sayi(o['stok'])} {o['um']}. Emirleri öncelik sırasıyla açın."})
     if tel_onek:
         tel_urun = sorted(u for u, alts in yetersiz.items() if any(a.startswith(tel_onek) for a in alts))
         yalniz_tel = [u for u in tel_urun if all(a.startswith(tel_onek) for a in yetersiz[u])]
@@ -13724,6 +13788,7 @@ def _kp_notlar(conn, pf):
 
 @app.route('/api/kaynak_plan/notlar', methods=['GET'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/notlar', methods=['GET'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/notlar', methods=['GET'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_notlar(plan):
     """Plan sayfasının 'Öne çıkanlar' kartı: kilitleyen parçalar + otomatik notlar."""
@@ -13736,6 +13801,7 @@ def kaynak_plan_notlar(plan):
 
 @app.route('/api/kaynak_plan/oto_calistir', methods=['POST'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/oto_calistir', methods=['POST'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/oto_calistir', methods=['POST'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_oto_calistir(plan):
     """Otomatik turu ŞİMDİ çalıştırır (kur + ölç + olaylar). Body: {bildir: true}
@@ -13751,6 +13817,7 @@ def kaynak_plan_oto_calistir(plan):
 
 @app.route('/api/kaynak_plan/bildirimler', methods=['GET'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/bildirimler', methods=['GET'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/bildirimler', methods=['GET'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_bildirimler(plan):
     """Emir açılacaklar (açık olaylar) + son kapananlar + bildirim ayarı."""
@@ -13776,6 +13843,7 @@ def kaynak_plan_bildirimler(plan):
 
 @app.route('/api/kaynak_plan/bildirim/<int:bid>/kapat', methods=['POST'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/bildirim/<int:bid>/kapat', methods=['POST'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/bildirim/<int:bid>/kapat', methods=['POST'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_bildirim_kapat(bid, plan):
     """'Emir açtım' — olayı elle kapatır."""
@@ -13793,6 +13861,7 @@ def kaynak_plan_bildirim_kapat(bid, plan):
 
 @app.route('/api/kaynak_plan/bildirim_ayar', methods=['POST'], defaults={'plan': 'kaynak'})
 @app.route('/api/montaj_plan/bildirim_ayar', methods=['POST'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/bildirim_ayar', methods=['POST'], defaults={'plan': 'metal'})
 @_kp_yetki
 def kaynak_plan_bildirim_ayar(plan):
     """Otomatik yenileme + alıcılar. Body: {etkin?, bildirim_push?: [ad], bildirim_mail?: [adres]}
@@ -14165,6 +14234,12 @@ _OTO_VARSAYILAN = {
     # burada BOŞ = KP_PROFILLER varsayılanı (mamul 01W+01D, alt parça
     # 01D+CF2+MK2+MT2); panelden girilirse onu ezer.
     'montaj_plan':    {'etkin': True, 'saatler': ['07:05', '13:05'], 'ufuk_gun': 42,
+                       'bildirim_push': [], 'bildirim_mail': [],
+                       'ref_depolar': [], 'alt_depolar': [], 'kisit_disi_parcalar': [],
+                       'eksi_dusulen': []},
+    # METAL ENJEKSİYON PLANI — TK2 (kullanıcı 2026-10-01): aynı motor. Boş liste =
+    # KP_PROFILLER['metal'] varsayılanı; panelden girilirse onu ezer.
+    'metal_plan':     {'etkin': True, 'saatler': ['07:10', '13:10'], 'ufuk_gun': 42,
                        'bildirim_push': [], 'bildirim_mail': [],
                        'ref_depolar': [], 'alt_depolar': [], 'kisit_disi_parcalar': [],
                        'eksi_dusulen': []},
@@ -17373,6 +17448,12 @@ if __name__ == '__main__':
                     _ek.append((_kh, _km, montaj_plan_oto_job, f'Montaj Planı Yenile ({_ks})'))
                 except (TypeError, ValueError):
                     print(f'[SCHED] montaj_plan saati okunamadı: {_ks!r}')
+            for _ks in ((_ocfg.get('metal_plan') or {}).get('saatler') or ['07:10', '13:10']):
+                try:
+                    _kh, _km = (int(x) for x in str(_ks).split(':'))
+                    _ek.append((_kh, _km, metal_plan_oto_job, f'Metal Planı Yenile ({_ks})'))
+                except (TypeError, ValueError):
+                    print(f'[SCHED] metal_plan saati okunamadı: {_ks!r}')
             # AGENT NÖBETİ: agent/gözcü düşerse mail (bkz. agent_nobet_job).
             try:
                 _nbd = max(1, int((_ocfg.get('agent_nobeti') or {}).get('kontrol_dk') or 10))

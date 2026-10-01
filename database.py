@@ -1769,97 +1769,101 @@ def init_db():
     # Neden ayri: kaynak_plan.kaynak_kod UNIQUE; iki bolumu tek tabloda tutmak
     # canli tabloyu yeniden kurmayi gerektirirdi. Kolon adlari bilerek ayni
     # ('kaynak_kod' burada montaj kodudur) — kod paylasimi icin.
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS montaj_plan (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kaynak_kod TEXT NOT NULL UNIQUE,
-            sira INTEGER DEFAULT 0,
-            urun TEXT DEFAULT '',
-            acik_launch REAL DEFAULT 0,
-            gereken REAL DEFAULT 0,
-            kontrol6 INTEGER,
-            gun_stok REAL DEFAULT 0,
-            bakiye REAL DEFAULT 0,
-            toplam_stok REAL DEFAULT 0,
-            plan_stok REAL,
-            ref_depolar TEXT DEFAULT '',
-            en_eski_opr TEXT DEFAULT '',
-            opr_sayisi INTEGER DEFAULT 0,
-            gecikmis REAL DEFAULT 0,
-            stok_ggi REAL DEFAULT 0,
-            iht_2h REAL DEFAULT 0,
-            iht_6h REAL DEFAULT 0,
-            plan_dosya TEXT DEFAULT '',
-            plan_yuklendi TEXT DEFAULT '',
-            uretilebilir INTEGER,
-            kisitlayan TEXT DEFAULT '',
-            kisit_stok REAL DEFAULT 0,
-            parca_sayisi INTEGER DEFAULT 0,
-            durum TEXT DEFAULT '',
-            karar TEXT DEFAULT '',
-            agac_farki TEXT DEFAULT '',
-            eksi_var INTEGER DEFAULT 0,
-            olculdu TEXT DEFAULT '',
-            onceki_uretilebilir INTEGER,
-            onceki_olculdu TEXT DEFAULT '',
-            aciklama TEXT DEFAULT '',
-            not_guncelleyen TEXT DEFAULT '',
-            not_guncellendi TEXT DEFAULT '',
-            aktif INTEGER DEFAULT 1,
-            oncelik_puan REAL DEFAULT 0,
-            gecikme_gun INTEGER,
-            launch_adet REAL DEFAULT 0,
-            launch_sayisi INTEGER DEFAULT 0,
-            launch_ozet TEXT DEFAULT '',
-            emir_gereken REAL DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now', 'localtime'))
-        )
-    ''')
-    c.execute('CREATE INDEX IF NOT EXISTS ix_montaj_plan_sira ON montaj_plan(aktif, sira)')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS montaj_plan_parca (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kaynak_kod TEXT NOT NULL,
-            alt_kod TEXT NOT NULL,
-            birim REAL DEFAULT 0,
-            um TEXT DEFAULT '',
-            stok_01d REAL DEFAULT 0,
-            stok_cf2 REAL DEFAULT 0,
-            stok_sayilan REAL DEFAULT 0,
-            kapasite INTEGER,
-            eksi_bakiye INTEGER DEFAULT 0,
-            diger_depolar TEXT DEFAULT '',
-            onceki_stok REAL,
-            olculdu TEXT DEFAULT ''
-        )
-    ''')
-    c.execute('CREATE INDEX IF NOT EXISTS ix_montaj_plan_parca_kod ON montaj_plan_parca(kaynak_kod)')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS montaj_plan_bildirim (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            olusturma_ts TEXT NOT NULL,
-            guncelleme_ts TEXT,
-            kaynak_kod TEXT NOT NULL,
-            tur TEXT NOT NULL DEFAULT 'malzeme_geldi',
-            onceki_uretilebilir INTEGER,
-            uretilebilir INTEGER,
-            artis INTEGER,
-            gereken REAL,
-            emir_gereken REAL,
-            launch_adet REAL,
-            oncelik_puan REAL,
-            en_eski_opr TEXT,
-            durum TEXT NOT NULL DEFAULT 'acik',
-            kapanma_ts TEXT,
-            kapatan TEXT,
-            kapanma_sebebi TEXT,
-            bildirildi_ts TEXT
-        )
-    ''')
-    c.execute('CREATE INDEX IF NOT EXISTS ix_mp_bildirim ON montaj_plan_bildirim(durum, kaynak_kod)')
+    # METAL ENJEKSIYON PLANI — TK2 (kullanici 2026-10-01): montajla AYNI sema,
+    # ayri tablolar. Iki plan tek dongude: ileride eklenen kolon ikisine de gelsin.
+    # (ix_mp_bildirim montajin eski indeks adi — degistirilirse ikinci indeks olusur)
+    for _p, _bix in (('montaj_plan', 'ix_mp_bildirim'), ('metal_plan', 'ix_metal_plan_bildirim')):
+        c.execute(f'''
+            CREATE TABLE IF NOT EXISTS {_p} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kaynak_kod TEXT NOT NULL UNIQUE,
+                sira INTEGER DEFAULT 0,
+                urun TEXT DEFAULT '',
+                acik_launch REAL DEFAULT 0,
+                gereken REAL DEFAULT 0,
+                kontrol6 INTEGER,
+                gun_stok REAL DEFAULT 0,
+                bakiye REAL DEFAULT 0,
+                toplam_stok REAL DEFAULT 0,
+                plan_stok REAL,
+                ref_depolar TEXT DEFAULT '',
+                en_eski_opr TEXT DEFAULT '',
+                opr_sayisi INTEGER DEFAULT 0,
+                gecikmis REAL DEFAULT 0,
+                stok_ggi REAL DEFAULT 0,
+                iht_2h REAL DEFAULT 0,
+                iht_6h REAL DEFAULT 0,
+                plan_dosya TEXT DEFAULT '',
+                plan_yuklendi TEXT DEFAULT '',
+                uretilebilir INTEGER,
+                kisitlayan TEXT DEFAULT '',
+                kisit_stok REAL DEFAULT 0,
+                parca_sayisi INTEGER DEFAULT 0,
+                durum TEXT DEFAULT '',
+                karar TEXT DEFAULT '',
+                agac_farki TEXT DEFAULT '',
+                eksi_var INTEGER DEFAULT 0,
+                olculdu TEXT DEFAULT '',
+                onceki_uretilebilir INTEGER,
+                onceki_olculdu TEXT DEFAULT '',
+                aciklama TEXT DEFAULT '',
+                not_guncelleyen TEXT DEFAULT '',
+                not_guncellendi TEXT DEFAULT '',
+                aktif INTEGER DEFAULT 1,
+                oncelik_puan REAL DEFAULT 0,
+                gecikme_gun INTEGER,
+                launch_adet REAL DEFAULT 0,
+                launch_sayisi INTEGER DEFAULT 0,
+                launch_ozet TEXT DEFAULT '',
+                emir_gereken REAL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+        ''')
+        c.execute(f'CREATE INDEX IF NOT EXISTS ix_{_p}_sira ON {_p}(aktif, sira)')
+        c.execute(f'''
+            CREATE TABLE IF NOT EXISTS {_p}_parca (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kaynak_kod TEXT NOT NULL,
+                alt_kod TEXT NOT NULL,
+                birim REAL DEFAULT 0,
+                um TEXT DEFAULT '',
+                stok_01d REAL DEFAULT 0,
+                stok_cf2 REAL DEFAULT 0,
+                stok_sayilan REAL DEFAULT 0,
+                kapasite INTEGER,
+                eksi_bakiye INTEGER DEFAULT 0,
+                diger_depolar TEXT DEFAULT '',
+                onceki_stok REAL,
+                olculdu TEXT DEFAULT ''
+            )
+        ''')
+        c.execute(f'CREATE INDEX IF NOT EXISTS ix_{_p}_parca_kod ON {_p}_parca(kaynak_kod)')
+        c.execute(f'''
+            CREATE TABLE IF NOT EXISTS {_p}_bildirim (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                olusturma_ts TEXT NOT NULL,
+                guncelleme_ts TEXT,
+                kaynak_kod TEXT NOT NULL,
+                tur TEXT NOT NULL DEFAULT 'malzeme_geldi',
+                onceki_uretilebilir INTEGER,
+                uretilebilir INTEGER,
+                artis INTEGER,
+                gereken REAL,
+                emir_gereken REAL,
+                launch_adet REAL,
+                oncelik_puan REAL,
+                en_eski_opr TEXT,
+                durum TEXT NOT NULL DEFAULT 'acik',
+                kapanma_ts TEXT,
+                kapatan TEXT,
+                kapanma_sebebi TEXT,
+                bildirildi_ts TEXT
+            )
+        ''')
+        c.execute(f'CREATE INDEX IF NOT EXISTS {_bix} ON {_p}_bildirim(durum, kaynak_kod)')
     # HAYALI (fictitious) acilim izi: parca hangi seviyeden, hangi hayali dugumun
     # altindan geldi; 'hayali'=1 ise acilamadi ve kisit sayilmadi.
-    for _tablo in ('kaynak_plan_parca', 'montaj_plan_parca'):
+    for _tablo in ('kaynak_plan_parca', 'montaj_plan_parca', 'metal_plan_parca'):
         for _kol, _tip in (('seviye', 'INTEGER DEFAULT 1'), ('yol', "TEXT DEFAULT ''"),
                            ('hayali', 'INTEGER DEFAULT 0'),
                            # kisit disi parca (etiket/sarf): stogu kontrol edilmez

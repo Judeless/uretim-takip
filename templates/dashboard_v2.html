@@ -5110,6 +5110,9 @@ window.__I18N_SOZLUK__ = {
   "🔥 Kaynatılmalı:": {"en": "🔥 To be welded:", "it": "🔥 Da saldare:"},
   "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
   "Montaj Planı": {"en": "Assembly Plan", "it": "Piano montaggio"},
+  "Metal Planı": {"en": "Die Casting Plan", "it": "Piano pressofusione"},
+  "🏭 Metal Enjeksiyon Planı (TK2) — üretilebilirlik takibi": {"en": "🏭 Die Casting Plan (TK2) — producibility tracking", "it": "🏭 Piano pressofusione (TK2) — producibilità"},
+  "Üretilmesi gerekenler": {"en": "To be produced", "it": "Da produrre"},
   "💡 Öne çıkanlar": {"en": "💡 Highlights", "it": "💡 In evidenza"},
   "ürünleri göster": {"en": "show products", "it": "mostra prodotti"},
   "✔ Launch yeterli:": {"en": "✔ Launch sufficient:", "it": "✔ Lancio sufficiente:"},
@@ -5460,6 +5463,9 @@ window.__I18N_SOZLUK__ = {
                      yalnız plan anahtarı değişir (bkz. kpPlanKur). -->
                 <a class="nav-item" data-sayfa="montaj-plan" onclick="sayfaAc('montaj-plan')">
                     <span class="nav-icon">🔩</span> Montaj Planı</a>
+                <!-- METAL ENJEKSİYON PLANI (TK2, 2026-10-01): yine aynı sayfa + aynı motor -->
+                <a class="nav-item" data-sayfa="metal-plan" onclick="sayfaAc('metal-plan')">
+                    <span class="nav-icon">🏭</span> Metal Planı</a>
                 <!-- EOQ (2026-08-19): veri AS400'den (BARTF0.A0QTMI) geldiği için bu
                      grupta. AYRI SAYFA — dashboard SPA'sına sekme eklemek yerine kendi
                      şablonunda (/kaynak_eoq), yeni sekmede açılır. -->
@@ -9057,6 +9063,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'as400-teyit') ? 'page-as400-teyit'
                         : (sayfa === 'kaynak-plan') ? 'page-kaynak-plan'
                         : (sayfa === 'montaj-plan') ? 'page-kaynak-plan'
+                        : (sayfa === 'metal-plan') ? 'page-kaynak-plan'
                         : (sayfa === 'as400-transfer') ? 'page-as400-transfer'
                         : (sayfa === 'as400-planlama') ? 'page-as400-planlama'
                         : (sayfa === 'kullanicilar') ? 'page-kullanicilar'
@@ -9115,8 +9122,8 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'operator-performans') initOperatorPerformans();
             if (sayfa === 'analiz') initAnaliz();
             if (sayfa === 'as400-teyit') initAS400Teyit();
-            if (sayfa === 'kaynak-plan' || sayfa === 'montaj-plan') {
-                kpPlanKur(sayfa === 'montaj-plan' ? 'montaj' : 'kaynak');
+            if (sayfa === 'kaynak-plan' || sayfa === 'montaj-plan' || sayfa === 'metal-plan') {
+                kpPlanKur(sayfa === 'montaj-plan' ? 'montaj' : sayfa === 'metal-plan' ? 'metal' : 'kaynak');
                 kpYukle();
             }
             if (sayfa === 'proje-takip') projeSekmeAcildi();
@@ -14588,24 +14595,37 @@ window.__I18N_SOZLUK__ = {
                 _kpKodSuzgec = null; _kpNotVeri = { notlar: [], kilitleyen: [] };
             }
             _kpPlan = plan;
-            var montaj = (plan === 'montaj');
+            var m = KP_PLAN_METIN[plan] || KP_PLAN_METIN.kaynak;
             var h = document.getElementById('kp-baslik');
-            if (h) h.textContent = montaj ? '🔩 Montaj Planı (TK2) — üretilebilirlik takibi'
-                                          : '🧩 Kaynak Planı — üretilebilirlik takibi';
-            // Planlamanın Excel'i yalnız kaynak planının biçimi — montajda gizli.
+            if (h) h.textContent = m.baslik;
+            // Planlamanın Excel'i yalnız kaynak planının biçimi — montaj/metalde gizli.
             document.querySelectorAll('.kp-yalniz-kaynak').forEach(function (e) {
-                e.style.display = montaj ? 'none' : '';
+                e.style.display = (plan === 'kaynak') ? '' : 'none';
             });
             // 'Göster' seçeneklerinin metni de plana uysun
-            var ad = montaj ? 'Üretilmeli' : 'Kaynatılmalı';
-            var secenek = { 'aksiyon': montaj ? 'Üretilmesi gerekenler' : 'Kaynatılması gerekenler',
+            var ad = m.fiil;
+            var secenek = { 'aksiyon': m.aksiyon,
                             'TALIMAT VER': ad + ' · malzemesi tam', 'KISMI': ad + ' · malzeme kısmi',
                             'MALZEME YOK': ad + ' · malzeme yok' };
             var sel = document.getElementById('kp-filtre');
             if (sel) Array.prototype.forEach.call(sel.options, function (o) {
                 if (secenek[o.value]) o.textContent = secenek[o.value];
+                // Mekanizma / tel süzgeçleri yalnız montajda anlamlı (93.* tel kuralı)
+                if (o.value === 'mekanizma' || o.value === 'tel') {
+                    o.hidden = (plan !== 'montaj');
+                    if (o.hidden && sel.value === o.value) sel.value = 'aksiyon';
+                }
             });
         }
+        // Plan → ekrandaki başlık / fiil. Yeni plan = buraya bir satır + KP_PROFILLER.
+        var KP_PLAN_METIN = {
+            kaynak: { baslik: '🧩 Kaynak Planı — üretilebilirlik takibi',
+                      fiil: 'Kaynatılmalı', aksiyon: 'Kaynatılması gerekenler' },
+            montaj: { baslik: '🔩 Montaj Planı (TK2) — üretilebilirlik takibi',
+                      fiil: 'Üretilmeli', aksiyon: 'Üretilmesi gerekenler' },
+            metal:  { baslik: '🏭 Metal Enjeksiyon Planı (TK2) — üretilebilirlik takibi',
+                      fiil: 'Üretilmeli', aksiyon: 'Üretilmesi gerekenler' }
+        };
 
         function kpYukle() {
             var el = document.getElementById('kp-icerik');
@@ -14642,7 +14662,7 @@ window.__I18N_SOZLUK__ = {
                 (secili ? ';box-shadow:0 0 0 2px ' + renk : '') + '">' + txt + '</span>';
         }
         // Kaynakta iş 'kaynatmak', montajda 'üretmek' — aynı sütun, plana göre ad.
-        function kpFiil() { return _kpPlan === 'montaj' ? 'Üretilmeli' : 'Kaynatılmalı'; }
+        function kpFiil() { return (KP_PLAN_METIN[_kpPlan] || KP_PLAN_METIN.kaynak).fiil; }
         function kpDepoMetni(anahtar) {
             var d = (_kpVeri.plan && _kpVeri.plan[anahtar]) || [];
             return d.length ? d.join(' + ') : '—';
@@ -17464,6 +17484,7 @@ window.__I18N_SOZLUK__ = {
             'as400-teyit': 'AS400 İşlemler (teyit + aktarım)',
             'kaynak-plan': 'Kaynak Planı (üretilebilirlik takibi)',
             'montaj-plan': 'Montaj Planı — TK2 (üretilebilirlik takibi)',
+            'metal-plan': 'Metal Enjeksiyon Planı — TK2 (üretilebilirlik takibi)',
             // 2026-09-07: bu ikisi PANEL_SAYFALAR'da vardı ama BURADA YOKTU —
             // kutucukları çıkmadığı için yöneticiler izni panelden veremiyordu
             // (yalnız admin görebiliyordu). Arıza Onay eklenirken fark edildi.
