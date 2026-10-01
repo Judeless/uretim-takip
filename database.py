@@ -1871,6 +1871,16 @@ def init_db():
             c.execute(f"ALTER TABLE {_tablo} ADD COLUMN ust_kod TEXT DEFAULT ''")
         except Exception:
             pass                              # zaten var
+    # METAL PLANI MAKINE ATAMASI (kullanici 2026-10-01): panodaki surukle-birak
+    # atamasi plan satirinda durur — liste AS400'den yeniden kurulsa da kaybolmaz.
+    # plan_adet NULL = gereken kadar.
+    for _kol, _tip in (('makine', "TEXT DEFAULT ''"), ('makine_sira', 'INTEGER'),
+                       ('plan_adet', 'REAL'), ('atama_guncelleyen', "TEXT DEFAULT ''"),
+                       ('atama_guncellendi', "TEXT DEFAULT ''")):
+        try:
+            c.execute(f'ALTER TABLE metal_plan ADD COLUMN {_kol} {_tip}')
+        except Exception:
+            pass                              # zaten var
     for _tablo in ('kaynak_plan_parca', 'montaj_plan_parca', 'metal_plan_parca'):
         for _kol, _tip in (('seviye', 'INTEGER DEFAULT 1'), ('yol', "TEXT DEFAULT ''"),
                            ('hayali', 'INTEGER DEFAULT 0'),

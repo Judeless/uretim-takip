@@ -888,6 +888,37 @@
         .toast.err { background: var(--danger); color: #fff; border-color: transparent; }
 
         /* Genel amaçlı modal (gem) */
+        /* ── Metal planı makine atama panosu (2026-10-01) ── */
+        .mp-pano { position: fixed; inset: 0; z-index: 2500; background: var(--bg);
+                   display: flex; flex-direction: column; padding: 14px 16px; gap: 8px; }
+        .mp-ust { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .mp-durum { font-size: .8rem; color: var(--muted); }
+        .mp-ipucu { font-size: .78rem; color: var(--dim); }
+        .mp-kolonlar { flex: 1; min-height: 0; display: grid; gap: 10px;
+                       grid-template-columns: repeat(4, minmax(240px, 1fr)); overflow-x: auto; }
+        .mp-kolon { display: flex; flex-direction: column; min-height: 0; border-radius: 12px;
+                    background: var(--card); border: 1px solid var(--card-border); }
+        .mp-kolon.havuz { background: var(--surface-2); }
+        .mp-kolon-bas { padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); }
+        .mp-kolon-bas b { font-size: 1rem; }
+        .mp-kolon-oz { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+        .mp-liste { flex: 1; min-height: 60px; overflow-y: auto; padding: 8px; display: flex;
+                    flex-direction: column; gap: 6px; }
+        .mp-liste.uzerinde { outline: 2px dashed var(--primary); outline-offset: -4px; }
+        .mp-kart { border-radius: 9px; padding: 7px 9px; cursor: grab; user-select: none; touch-action: none;
+                   background: var(--cam); border: 1px solid var(--border); border-left-width: 4px;
+                   font-size: .78rem; line-height: 1.35; }
+        .mp-kart.surukleniyor { opacity: .4; }
+        .mp-kart.gereksiz { opacity: .55; text-decoration: line-through; }
+        .mp-kart .mp-kod { font-weight: 800; font-size: .86rem; }
+        .mp-kart .mp-alt { color: var(--muted); }
+        .mp-kart input { width: 78px; padding: 1px 5px; font-size: .78rem; border-radius: 6px;
+                         border: 1px solid var(--border-input); background: var(--bg); color: var(--text); }
+        .mp-yer { height: 6px; border-radius: 4px; background: var(--primary); flex-shrink: 0; }
+        .mp-hayalet { position: fixed; z-index: 2600; pointer-events: none; opacity: .9;
+                      box-shadow: 0 10px 28px rgba(0,0,0,.35); transform: rotate(1.5deg); }
+        @media (max-width: 760px) { .mp-kolonlar { grid-template-columns: repeat(4, 85vw); } }
+
         .modal-overlay {
             position: fixed; inset: 0; background: rgba(4, 8, 20, 0.6);
             backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
@@ -5111,6 +5142,13 @@ window.__I18N_SOZLUK__ = {
   "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
   "Montaj Planı": {"en": "Assembly Plan", "it": "Piano montaggio"},
   "Metal Planı": {"en": "Die Casting Plan", "it": "Piano pressofusione"},
+  "🖨 Plan Çıktısı": {"en": "🖨 Plan Printout", "it": "🖨 Stampa piano"},
+  "🏭 Metal Enjeksiyon — Makine Ataması": {"en": "🏭 Die Casting — Machine Assignment", "it": "🏭 Pressofusione — Assegnazione macchine"},
+  "✨ Geçmişe göre dağıt": {"en": "✨ Distribute by history", "it": "✨ Distribuisci per storico"},
+  "↩ Hepsini havuza al": {"en": "↩ Move all to pool", "it": "↩ Riporta tutto al pool"},
+  "🖨 Yazdır": {"en": "🖨 Print", "it": "🖨 Stampa"},
+  "Havuz (atanmamış)": {"en": "Pool (unassigned)", "it": "Pool (non assegnati)"},
+  "Kartı sürükleyip makineye bırakın; sütun içinde sırayı da sürükleyerek değiştirin.": {"en": "Drag a card onto a machine; drag within a column to reorder.", "it": "Trascina una scheda su una macchina; trascina nella colonna per riordinare."},
   "🏭 Metal Enjeksiyon Planı (TK2) — üretilebilirlik takibi": {"en": "🏭 Die Casting Plan (TK2) — producibility tracking", "it": "🏭 Piano pressofusione (TK2) — producibilità"},
   "Üretilmesi gerekenler": {"en": "To be produced", "it": "Da produrre"},
   "💡 Öne çıkanlar": {"en": "💡 Highlights", "it": "💡 In evidenza"},
@@ -7871,8 +7909,8 @@ window.__I18N_SOZLUK__ = {
                                 Rakama tıklayınca emir dökümü açılır.</span></div>
                                 <div class="as4-terim"><b>Stok (G GI)</b><span>AS400 ekranındaki stok:
                                 01D + MDT (fasondaki dahil).</span></div>
-                                <div class="as4-terim"><b>GEREKEN</b><span>İhtiyaç − stok. Kaynatılması
-                                gereken adet.</span></div>
+                                <div class="as4-terim"><b>GEREKEN</b><span>6 haftalık açık emir adedi. ERP
+                                emri stoğu düşerek açtığı için stok bir daha düşülmez (2026-10-01).</span></div>
                                 <div class="as4-terim"><b>⚠ gecikmiş</b><span>Teslim tarihi geçmiş açık
                                 emir var — en acil işler.</span></div>
                                 <div class="as4-terim"><b>TALİMAT VER</b><span>Gereken adet var ve
@@ -7897,6 +7935,9 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn kp-yalniz-kaynak" onclick="document.getElementById('kp-dosya').click()"
                                 title="Sunucu Q: sürücüsünü göremiyorsa dosyayı buradan yükleyin">📎 Dosyadan</button>
                         <button class="btn" onclick="kpExcel()" title="Ekrandaki listeyi (aynı süzgeç ve sırayla) Excel olarak indirir">📊 Excel</button>
+                        <!-- METAL: makine atama panosu + plan çıktısı (2026-10-01) -->
+                        <button class="btn btn-primary kp-yalniz-metal" onclick="mpAc()" style="display:none"
+                                title="Gereken parçaları 300T / 400T / 550T'ye sürükleyip ata, makine bazlı planı yazdır">🖨 Plan Çıktısı</button>
                         <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">
                             Göster:
                             <select id="kp-filtre" class="as4g-inp" onchange="kpCiz()">
@@ -8149,6 +8190,23 @@ window.__I18N_SOZLUK__ = {
     </div>
 
     <!-- ══════ GENEL AMAÇLI MODAL (gem) — eski dashboard kalıbı ══════ -->
+    <!-- METAL PLANI — MAKİNE ATAMA PANOSU (kullanıcı 2026-10-01) -->
+    <div id="mp-pano" class="mp-pano" style="display:none">
+        <div class="mp-ust">
+            <b style="font-size:1.05rem">🏭 Metal Enjeksiyon — Makine Ataması</b>
+            <span id="mp-durum" class="mp-durum"></span>
+            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn" onclick="mpOneriyeGore()"
+                        title="Havuzdaki kartları, sahada en çok basıldıkları makineye yerleştirir">✨ Geçmişe göre dağıt</button>
+                <button class="btn" onclick="mpHavuzaAl()">↩ Hepsini havuza al</button>
+                <button class="btn btn-primary" onclick="mpYazdir()">🖨 Yazdır</button>
+                <button class="btn" onclick="mpKapat()">✕ Kapat</button>
+            </div>
+        </div>
+        <div class="mp-ipucu">Kartı sürükleyip makineye bırakın; sütun içinde sırayı da sürükleyerek değiştirin.</div>
+        <div class="mp-kolonlar" id="mp-kolonlar"></div>
+    </div>
+
     <div id="gem-modal" class="modal-overlay">
         <div class="modal">
             <h3 id="gem-title">Düzenle</h3>
@@ -14602,6 +14660,9 @@ window.__I18N_SOZLUK__ = {
             document.querySelectorAll('.kp-yalniz-kaynak').forEach(function (e) {
                 e.style.display = (plan === 'kaynak') ? '' : 'none';
             });
+            document.querySelectorAll('.kp-yalniz-metal').forEach(function (e) {
+                e.style.display = (plan === 'metal') ? '' : 'none';
+            });
             // 'Göster' seçeneklerinin metni de plana uysun
             var ad = m.fiil;
             var secenek = { 'aksiyon': m.aksiyon,
@@ -14663,6 +14724,260 @@ window.__I18N_SOZLUK__ = {
         }
         // Kaynakta iş 'kaynatmak', montajda 'üretmek' — aynı sütun, plana göre ad.
         function kpFiil() { return (KP_PLAN_METIN[_kpPlan] || KP_PLAN_METIN.kaynak).fiil; }
+
+        // ═══ METAL PLANI — MAKİNE ATAMA PANOSU + PLAN ÇIKTISI (kullanıcı 2026-10-01) ═══
+        // "300, 400 ve 550 ton makineye göre ihtiyaç olan parçaları tutup sürükleyip makine
+        //  atamalarını yapıp plan çıktısı yazdırabileyim." Atama sunucuda (metal_plan) durur;
+        // her bırakışta kaydedilir. Çıktı tarayıcıda, yeni pencerede yazdırılır.
+        var _mp = { makineler: [], kart: {}, kol: {}, olculdu: '' };
+        var _mpKayitZamani = null, _mpSurukle = null;
+
+        function mpAc() {
+            document.getElementById('mp-pano').style.display = 'flex';
+            document.getElementById('mp-durum').textContent = 'yükleniyor…';
+            fetch('/api/metal_plan/pano').then(function (r) { return r.json(); }).then(function (d) {
+                if (d.hata) { document.getElementById('mp-durum').textContent = '⚠ ' + d.hata; return; }
+                _mp = { makineler: d.makineler || [], kart: {}, kol: { havuz: [] }, olculdu: d.olculdu || '' };
+                _mp.makineler.forEach(function (m) { _mp.kol[m] = []; });
+                (d.kartlar || []).forEach(function (k) {
+                    _mp.kart[k.kod] = k;
+                    (_mp.kol[k.makine] || _mp.kol.havuz).push(k.kod);
+                });
+                _mp.makineler.forEach(function (m) {
+                    _mp.kol[m].sort(function (a, b) {
+                        return (_mp.kart[a].makine_sira || 9999) - (_mp.kart[b].makine_sira || 9999);
+                    });
+                });
+                document.getElementById('mp-durum').textContent = 'son ölçüm ' + (_mp.olculdu || '—');
+                mpCiz();
+            }).catch(function (e) { document.getElementById('mp-durum').textContent = '⚠ ' + e; });
+        }
+        function mpKapat() {
+            document.getElementById('mp-pano').style.display = 'none';
+            if (typeof kpYukle === 'function') kpYukle();
+        }
+        function mpAdet(k) { return (k.plan_adet === null || k.plan_adet === undefined) ? (k.gereken || 0) : k.plan_adet; }
+        function mpSaat(k) { return k.ct ? mpAdet(k) * k.ct / 3600 : null; }
+        function mpSaatYaz(s) { return s === null ? '—' : s.toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' sa'; }
+        function mpMalzeme(k) {
+            return k.gereksiz ? 'artık gerek yok'
+                 : k.karar === 'TALIMAT VER' ? 'malzeme tam'
+                 : k.karar === 'KISMI' ? 'malzeme kısmi (' + fmt(k.uretilebilir) + ')'
+                 : k.karar === 'MALZEME YOK' ? 'malzeme yok'
+                 : k.karar === 'LAUNCH VAR' ? 'launch’ta' : (k.karar || '—');
+        }
+        function mpRenk(k) {
+            return k.gereksiz ? 'var(--dim)' : { 'TALIMAT VER': 'var(--success)', 'KISMI': 'var(--warn)',
+                'MALZEME YOK': 'var(--danger)', 'LAUNCH VAR': 'var(--primary)' }[k.karar] || 'var(--dim)';
+        }
+
+        function mpCiz() {
+            var kolonlar = ['havuz'].concat(_mp.makineler);
+            var h = '';
+            kolonlar.forEach(function (kol) {
+                var liste = _mp.kol[kol] || [];
+                var adet = 0, saat = 0, ctsiz = 0;
+                liste.forEach(function (kod) {
+                    var k = _mp.kart[kod]; adet += mpAdet(k);
+                    var s = mpSaat(k); if (s === null) ctsiz++; else saat += s;
+                });
+                h += '<div class="mp-kolon' + (kol === 'havuz' ? ' havuz' : '') + '">' +
+                     '<div class="mp-kolon-bas"><b>' + (kol === 'havuz' ? 'Havuz (atanmamış)' : esc(kol)) + '</b>' +
+                     '<div class="mp-kolon-oz">' + liste.length + ' iş · ' + fmt(adet) + ' adet' +
+                        (kol === 'havuz' ? '' : ' · ' + mpSaatYaz(saat) + (ctsiz ? ' (+' + ctsiz + ' süresiz)' : '')) + '</div></div>' +
+                     '<div class="mp-liste" data-kol="' + esc(kol) + '">';
+                liste.forEach(function (kod) {
+                    var k = _mp.kart[kod];
+                    var gec = (k.gecmis || []).map(function (x) { return x[0] + '×' + x[1]; }).join(', ');
+                    h += '<div class="mp-kart' + (k.gereksiz ? ' gereksiz' : '') + '" data-kod="' + esc(kod) + '" ' +
+                         'style="border-left-color:' + mpRenk(k) + '" onpointerdown="mpBasla(event)">' +
+                         '<div class="mp-kod">' + esc(kod) + (k.ust_kod ? ' <span class="mp-alt" style="font-weight:500">↑ ' + esc(k.ust_kod) + '</span>' : '') + '</div>' +
+                         '<div>Gereken <b>' + fmt(k.gereken) + '</b>' +
+                            (k.launch_adet ? ' · launch ' + fmt(k.launch_adet) : '') +
+                            ' · <span style="color:' + mpRenk(k) + '">' + esc(mpMalzeme(k)) + '</span></div>' +
+                         '<div class="mp-alt">' + (k.en_eski_opr ? 'en eski OPR ' + esc(k.en_eski_opr) + (k.gecikmis > 0 ? ' ⚠' : '') : '') +
+                            (k.ct ? ' · CT ' + fmt(k.ct) + ' sn · ' + mpSaatYaz(mpSaat(k)) : ' · süre tanımsız') + '</div>' +
+                         (gec ? '<div class="mp-alt" title="sahada basıldığı makineler (kayıt sayısı)">geçmiş: ' + esc(gec) + '</div>' : '') +
+                         (kol === 'havuz' ? '' : '<div style="margin-top:3px">Plan adedi <input type="number" min="0" step="1" value="' +
+                            esc(mpAdet(k)) + '" onchange="mpAdetDegis(\'' + esc(kod) + '\', this.value)" ' +
+                            'onpointerdown="event.stopPropagation()"></div>') +
+                         '</div>';
+                });
+                h += '</div></div>';
+            });
+            document.getElementById('mp-kolonlar').innerHTML = h;
+        }
+
+        // SÜRÜKLEME — pointer olaylarıyla (HTML5 sürükle-bırak dokunmatik ekranda çalışmıyor).
+        // 6 px'ten az oynayan basış sürükleme sayılmaz (kart içindeki girişe tıklanabilsin).
+        function mpBasla(ev) {
+            if (ev.button !== undefined && ev.button !== 0) return;
+            var kart = ev.currentTarget;
+            _mpSurukle = { kod: kart.getAttribute('data-kod'), kart: kart, x: ev.clientX, y: ev.clientY,
+                           dx: ev.clientX - kart.getBoundingClientRect().left,
+                           dy: ev.clientY - kart.getBoundingClientRect().top, hayalet: null, liste: null };
+            document.addEventListener('pointermove', mpHareket);
+            document.addEventListener('pointerup', mpBirak);
+            document.addEventListener('pointercancel', mpIptal);
+        }
+        function mpHedefIndeks(liste, y) {
+            var kartlar = Array.prototype.filter.call(liste.querySelectorAll('.mp-kart'), function (k) {
+                return k.getAttribute('data-kod') !== (_mpSurukle && _mpSurukle.kod);
+            });
+            for (var i = 0; i < kartlar.length; i++) {
+                var r = kartlar[i].getBoundingClientRect();
+                if (y < r.top + r.height / 2) return { i: i, once: kartlar[i] };
+            }
+            return { i: kartlar.length, once: null };
+        }
+        function mpHareket(ev) {
+            var s = _mpSurukle; if (!s) return;
+            if (!s.hayalet) {
+                if (Math.abs(ev.clientX - s.x) + Math.abs(ev.clientY - s.y) < 6) return;
+                var r = s.kart.getBoundingClientRect();
+                s.hayalet = s.kart.cloneNode(true);
+                s.hayalet.classList.add('mp-hayalet');
+                s.hayalet.style.width = r.width + 'px';
+                document.body.appendChild(s.hayalet);
+                s.kart.classList.add('surukleniyor');
+            }
+            ev.preventDefault();
+            s.hayalet.style.left = (ev.clientX - s.dx) + 'px';
+            s.hayalet.style.top = (ev.clientY - s.dy) + 'px';
+            var el = document.elementFromPoint(ev.clientX, ev.clientY);
+            var liste = el && el.closest ? el.closest('.mp-liste') : null;
+            document.querySelectorAll('.mp-liste.uzerinde').forEach(function (x) { if (x !== liste) x.classList.remove('uzerinde'); });
+            var yer = document.querySelector('.mp-yer');
+            s.liste = liste;
+            if (!liste) { if (yer) yer.remove(); return; }
+            liste.classList.add('uzerinde');
+            // Uzun sütunda kenara gelince kaydır
+            var lr = liste.getBoundingClientRect();
+            if (ev.clientY < lr.top + 40) liste.scrollTop -= 12;
+            else if (ev.clientY > lr.bottom - 40) liste.scrollTop += 12;
+            var hd = mpHedefIndeks(liste, ev.clientY);
+            if (!yer) { yer = document.createElement('div'); yer.className = 'mp-yer'; }
+            if (hd.once) liste.insertBefore(yer, hd.once); else liste.appendChild(yer);
+        }
+        function mpTemizle() {
+            document.removeEventListener('pointermove', mpHareket);
+            document.removeEventListener('pointerup', mpBirak);
+            document.removeEventListener('pointercancel', mpIptal);
+            document.querySelectorAll('.mp-yer, .mp-hayalet').forEach(function (x) { x.remove(); });
+            document.querySelectorAll('.mp-liste.uzerinde').forEach(function (x) { x.classList.remove('uzerinde'); });
+            document.querySelectorAll('.mp-kart.surukleniyor').forEach(function (x) { x.classList.remove('surukleniyor'); });
+        }
+        function mpIptal() { mpTemizle(); _mpSurukle = null; }
+        function mpBirak(ev) {
+            var s = _mpSurukle;
+            var surukledi = s && s.hayalet, liste = s && s.liste;
+            var hd = (surukledi && liste) ? mpHedefIndeks(liste, ev.clientY) : null;
+            mpTemizle();
+            _mpSurukle = null;
+            if (!surukledi || !liste || !_mp.kart[s.kod]) return;
+            mpTasi(s.kod, liste.getAttribute('data-kol'), hd.i);
+        }
+        function mpTasi(kod, hedef, indeks) {
+            Object.keys(_mp.kol).forEach(function (k) {
+                _mp.kol[k] = _mp.kol[k].filter(function (x) { return x !== kod; });
+            });
+            if (hedef === 'havuz') {
+                // Havuz planın öncelik sırasıyla durur — bırakılan yer önemsiz
+                _mp.kol.havuz.push(kod);
+                _mp.kol.havuz.sort(function (a, b) { return (_mp.kart[a].sira || 0) - (_mp.kart[b].sira || 0); });
+            } else {
+                _mp.kol[hedef].splice(Math.min(indeks, _mp.kol[hedef].length), 0, kod);
+            }
+            mpCiz();
+            mpKaydet();
+        }
+        function mpAdetDegis(kod, v) {
+            var k = _mp.kart[kod]; if (!k) return;
+            var n = (v === '' || v === null) ? null : Math.max(0, Number(v));
+            k.plan_adet = (n === null || isNaN(n)) ? null : n;
+            mpCiz();
+            mpKaydet();
+        }
+        function mpOneriyeGore() {
+            var tasinan = 0;
+            _mp.kol.havuz = _mp.kol.havuz.filter(function (kod) {
+                var o = _mp.kart[kod].oneri;
+                if (o && _mp.kol[o] && !_mp.kart[kod].gereksiz) { _mp.kol[o].push(kod); tasinan++; return false; }
+                return true;
+            });
+            document.getElementById('mp-durum').textContent = tasinan + ' kart geçmişine göre yerleştirildi' +
+                (_mp.kol.havuz.length ? ' · ' + _mp.kol.havuz.length + ' kartın geçmişi yok, elle atayın' : '');
+            mpCiz();
+            mpKaydet();
+        }
+        function mpHavuzaAl() {
+            if (!confirm('Tüm makine atamaları kaldırılıp kartlar havuza alınsın mı?')) return;
+            _mp.makineler.forEach(function (m) { _mp.kol.havuz = _mp.kol.havuz.concat(_mp.kol[m]); _mp.kol[m] = []; });
+            _mp.kol.havuz.sort(function (a, b) { return (_mp.kart[a].sira || 0) - (_mp.kart[b].sira || 0); });
+            mpCiz();
+            mpKaydet();
+        }
+        function mpKaydet() {
+            var atamalar = [];
+            Object.keys(_mp.kol).forEach(function (kol) {
+                _mp.kol[kol].forEach(function (kod, i) {
+                    atamalar.push({ kod: kod, makine: kol === 'havuz' ? '' : kol,
+                                    sira: kol === 'havuz' ? null : i + 1, plan_adet: _mp.kart[kod].plan_adet });
+                });
+            });
+            var durum = document.getElementById('mp-durum');
+            durum.textContent = 'kaydediliyor…';
+            return fetch('/api/metal_plan/pano', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                   body: JSON.stringify({ atamalar: atamalar }) })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    durum.textContent = d.hata ? '⚠ ' + d.hata : '✓ kaydedildi ' + (d.zaman || '').slice(11);
+                    if (!d.hata) _mpKayitZamani = d.zaman;
+                }).catch(function (e) { durum.textContent = '⚠ kaydedilemedi: ' + e; });
+        }
+
+        function mpYazdir() {
+            var w = window.open('', '_blank');
+            if (!w) { alert('Açılır pencere engellendi — tarayıcıda bu site için açılır pencereye izin verin.'); return; }
+            var simdi = new Date();
+            var tarih = simdi.toLocaleDateString('tr-TR') + ' ' + simdi.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+            var kim = (window.PANEL_KU && (window.PANEL_KU.ad_soyad || window.PANEL_KU.kullanici_adi)) || '';
+            var govde = '', bos = 0;
+            _mp.makineler.forEach(function (m) {
+                var liste = _mp.kol[m] || [];
+                if (!liste.length) { bos++; return; }
+                var adet = 0, saat = 0;
+                var satir = liste.map(function (kod, i) {
+                    var k = _mp.kart[kod], s = mpSaat(k);
+                    adet += mpAdet(k); if (s !== null) saat += s;
+                    return '<tr><td class="c">' + (i + 1) + '</td><td><b>' + esc(kod) + '</b></td><td>' + esc(k.ust_kod || '') + '</td>' +
+                           '<td class="r"><b>' + fmt(mpAdet(k)) + '</b></td><td class="r">' + fmt(k.gereken) + '</td>' +
+                           '<td class="r">' + (k.launch_adet ? fmt(k.launch_adet) : '') + '</td>' +
+                           '<td>' + esc(mpMalzeme(k)) + '</td><td>' + esc(k.en_eski_opr || '') + (k.gecikmis > 0 ? ' ⚠' : '') + '</td>' +
+                           '<td class="r">' + (k.ct ? fmt(k.ct) : '—') + '</td><td class="r">' + (s === null ? '—' : s.toLocaleString('tr-TR', { maximumFractionDigits: 1 })) + '</td>' +
+                           '<td class="bos"></td></tr>';
+                }).join('');
+                govde += '<h2>' + esc(m) + ' <span>' + liste.length + ' iş · ' + fmt(adet) + ' adet · ' + mpSaatYaz(saat) + '</span></h2>' +
+                         '<table><thead><tr><th>Sıra</th><th>Döküm kodu</th><th>Forge / üst kod</th><th>Plan adedi</th><th>Gereken</th>' +
+                         '<th>Launch</th><th>Malzeme</th><th>En eski OPR</th><th>CT (sn)</th><th>Süre (sa)</th><th>Not / imza</th></tr></thead>' +
+                         '<tbody>' + satir + '</tbody></table>';
+            });
+            if (!govde) govde = '<p>Henüz hiçbir makineye iş atanmadı.</p>';
+            var html = '<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Metal Enjeksiyon Planı ' + esc(tarih) + '</title>' +
+                '<style>@page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}' +
+                'h1{font-size:17px;margin:0 0 2px}.ust{color:#555;margin-bottom:10px}' +
+                'h2{font-size:14px;margin:14px 0 4px;border-bottom:2px solid #111;padding-bottom:2px}h2 span{font-weight:400;font-size:11px;color:#444}' +
+                'table{width:100%;border-collapse:collapse;page-break-inside:auto}tr{page-break-inside:avoid}' +
+                'th,td{border:1px solid #999;padding:3px 5px;text-align:left}th{background:#eee;font-size:10px}' +
+                '.r{text-align:right}.c{text-align:center}.bos{width:120px}.alt{margin-top:12px;color:#555;font-size:10px}</style></head><body>' +
+                '<h1>Metal Enjeksiyon Üretim Planı — TK2</h1>' +
+                '<div class="ust">Hazırlandı: ' + esc(tarih) + (kim ? ' · ' + esc(kim) : '') +
+                    ' · AS400 son ölçüm: ' + esc(_mp.olculdu || '—') + '</div>' + govde +
+                '<div class="alt">Gereken = 6 haftalık açık emir adedi. Süre = plan adedi × cycle time (parça başı). ' +
+                    (_mp.kol.havuz.length ? _mp.kol.havuz.length + ' iş hiçbir makineye atanmadı (çıktıda yok).' : '') + '</div>' +
+                '<script>window.onload=function(){window.print();}<\/script></body></html>';
+            w.document.open(); w.document.write(html); w.document.close();
+        }
         function kpDepoMetni(anahtar) {
             var d = (_kpVeri.plan && _kpVeri.plan[anahtar]) || [];
             return d.length ? d.join(' + ') : '—';

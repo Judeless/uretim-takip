@@ -12739,6 +12739,8 @@ KP_PROFILLER = {
         # açılmazsa en büyük ihtiyaçlı ürün (8.470 adet) hammaddesiz görünür.
         'hayali_seviye': 3, 'excel_yukleme': False,
         'kontrol_disi_onek': (), 'haric_onek': (), 'kisit_disi_parcalar': (),
+        # Makine atama panosu + plan çıktısı (kullanıcı 2026-10-01)
+        'makineler': ('300T', '400T', '550T'),
     },
 }
 
@@ -13848,6 +13850,106 @@ def kaynak_plan_notlar(plan):
         return jsonify(_kp_notlar(get_db(), pf))
     except Exception as e:
         return jsonify({'hata': f'Notlar hesaplanamadı: {e}'}), 500
+
+
+# ── METAL PLANI: MAKİNE ATAMA PANOSU + PLAN ÇIKTISI (kullanıcı 2026-10-01) ──
+# "Plan çıktısı yazdır gibi buton olsun; 300, 400 ve 550 ton makineye göre ihtiyaç
+#  olan parçaları tutup sürükleyip makine atamalarını yapıp plan çıktısı
+#  yazdırabileyim." Atama metal_plan satırında (makine / makine_sira / plan_adet).
+# Öneri: kodun (ya da Forge'daki üst kodunun) en çok basıldığı makine — sahadaki
+# üretim kayıtlarından; çıktı panelde (tarayıcı) üretilir.
+def _kp_kod_norm(k):
+    return re.sub(r'\s', '', str(k or '')).upper()
+
+
+def _metal_pano(conn, pf):
+    makineler = list(pf.get('makineler') or ())
+    satirlar = [dict(r) for r in conn.execute(
+        f"SELECT * FROM {pf['tablo']} WHERE aktif=1 AND (COALESCE(gereken,0)>0 "
+        "OR COALESCE(makine,'')<>'') ORDER BY sira").fetchall()]
+    # Geçmiş: hangi makinede kaç kayıt (kod normalize — Forge'da boşluk/küçük harf olabiliyor)
+    gecmis = {}
+    if makineler:
+        for r in conn.execute(
+                "SELECT u.referans_kodu k, v.robot_no m, COUNT(*) n, MAX(v.tarih) son "
+                "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id=u.vardiya_id "
+                f"WHERE v.bolum=? AND v.robot_no IN ({','.join('?' * len(makineler))}) "
+                "GROUP BY u.referans_kodu, v.robot_no", [pf['bolum']] + makineler):
+            g = gecmis.setdefault(_kp_kod_norm(r['k']), {}).setdefault(r['m'], [0, ''])
+            g[0] += r['n']
+            g[1] = max(g[1], r['son'] or '')
+    ct = {}
+    for r in conn.execute(
+            "SELECT referans_kodu, hedef_cycle_time_sn, kalip_goz FROM referans_listesi "
+            "WHERE COALESCE(bolum,'kaynak')=?", (pf['bolum'],)):
+        if (r['hedef_cycle_time_sn'] or 0) > 0:
+            ct.setdefault(_kp_kod_norm(r['referans_kodu']), r['hedef_cycle_time_sn'])
+    kartlar = []
+    for s in satirlar:
+        kodlar = [s['kaynak_kod']] + [x.strip() for x in (s.get('ust_kod') or '').split(',') if x.strip()]
+        birlesik = {}
+        for k in kodlar:
+            for m, (n, son) in (gecmis.get(_kp_kod_norm(k)) or {}).items():
+                b = birlesik.setdefault(m, [0, ''])
+                b[0] += n
+                b[1] = max(b[1], son)
+        # en çok basıldığı makine önce; eşitlikte en son basılan
+        g = sorted(([m, n, son] for m, (n, son) in birlesik.items()),
+                   key=lambda x: (x[1], x[2]), reverse=True)
+        kartlar.append({
+            'kod': s['kaynak_kod'], 'ust_kod': s.get('ust_kod') or '',
+            'gereken': s.get('gereken') or 0, 'emir_gereken': s.get('emir_gereken') or 0,
+            'launch_adet': s.get('launch_adet') or 0, 'launch_ozet': s.get('launch_ozet') or '',
+            'karar': s.get('karar') or '', 'uretilebilir': s.get('uretilebilir'),
+            'kisitlayan': s.get('kisitlayan') or '', 'en_eski_opr': s.get('en_eski_opr') or '',
+            'gecikmis': s.get('gecikmis') or 0, 'sira': s.get('sira'),
+            'ct': next((ct[_kp_kod_norm(k)] for k in kodlar if _kp_kod_norm(k) in ct), None),
+            'gecmis': g, 'oneri': g[0][0] if g else '',
+            'makine': s.get('makine') or '', 'makine_sira': s.get('makine_sira'),
+            'plan_adet': s.get('plan_adet'),
+            'gereksiz': (s.get('gereken') or 0) <= 0,
+        })
+    son = max((s.get('olculdu') or '' for s in satirlar), default='')
+    return {'makineler': makineler, 'kartlar': kartlar, 'olculdu': son}
+
+
+@app.route('/api/metal_plan/pano', methods=['GET', 'POST'], defaults={'plan': 'metal'})
+@_kp_yetki
+def kaynak_plan_pano(plan):
+    """GET: pano verisi. POST {atamalar: [{kod, makine ('' = havuz), sira, plan_adet}]}"""
+    pf = _kp_profil(plan)
+    if not pf.get('makineler'):
+        return jsonify({'hata': 'Bu planda makine ataması yok'}), 404
+    conn = get_db()
+    if request.method == 'GET':
+        return jsonify(_metal_pano(conn, pf))
+    data = request.get_json(silent=True) or {}
+    atamalar = data.get('atamalar')
+    if not isinstance(atamalar, list) or len(atamalar) > 2000:
+        return jsonify({'hata': 'atamalar listesi gerekli'}), 400
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+    kim = g.panel_ku['kullanici_adi']
+    n = 0
+    for x in atamalar:
+        if not isinstance(x, dict):
+            continue
+        kod = str(x.get('kod') or '').strip()
+        makine = str(x.get('makine') or '').strip()
+        if not kod or (makine and makine not in pf['makineler']):
+            return jsonify({'hata': f'Geçersiz atama: {kod} → {makine}'}), 400
+        try:
+            sira = int(x['sira']) if (makine and x.get('sira') is not None) else None
+            pa = x.get('plan_adet')
+            pa = None if pa in (None, '') else float(pa)
+            if pa is not None and not (0 <= pa <= 10_000_000):
+                raise ValueError
+        except (TypeError, ValueError):
+            return jsonify({'hata': f'Geçersiz sıra/adet: {kod}'}), 400
+        n += conn.execute(
+            f"UPDATE {pf['tablo']} SET makine=?, makine_sira=?, plan_adet=?, atama_guncelleyen=?, "
+            "atama_guncellendi=? WHERE kaynak_kod=?", (makine, sira, pa, kim, simdi, kod)).rowcount
+    conn.commit()
+    return jsonify({'ok': True, 'guncellenen': n, 'zaman': simdi})
 
 
 @app.route('/api/kaynak_plan/oto_calistir', methods=['POST'], defaults={'plan': 'kaynak'})
