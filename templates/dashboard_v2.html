@@ -1811,6 +1811,98 @@
     // Giriş yapan kullanıcının rol/izin bilgisi (app.py /dashboard render'ından).
     // admin → tüm sayfalar + Kullanıcılar yönetimi. kullanici → yalnız izinler[].
     window.PANEL_KU = {{ panel_ku|default('null')|safe }};
+
+    // ── PANEL İSTEKLERİ DAYANIKLILIĞI (kullanıcı 2026-10-02: "iş yönetimine girince veri
+    // yüklenmiyor; üretim kayıtlarına bakarken kapatıp açmam gerekiyor") ──
+    // Sayfa yükleyicileri fetch'i zaman aşımsız ve yeniden denemesiz çağırıyordu: servis
+    // yeniden başlarken (her güncellemede), Cloudflare tüneli bir an koptuğunda ya da
+    // bağlantı askıda kaldığında istek ya sessizce düşüyor ya da hiç dönmüyordu → ekran
+    // "Yükleniyor…"da kalıyor, ancak sayfayı yenileyince düzeliyordu.
+    // YALNIZ aynı kökenli GET /api/* sarılır:
+    //   · ağ hatası ve geçici ağ geçidi yanıtı (502/503/504, Cloudflare 52x/530) →
+    //     1,5 / 4 / 8 sn arayla en çok 3 kez daha denenir (servis açılışı ~10 sn sürer)
+    //   · yanıt hiç gelmezse zaman aşımı (90 sn; AS400/plan/kapasite gibi uzun işlerde
+    //     300 sn) → yeni bağlantıyla bir kez daha, sonra anlaşılır hata
+    //   · kurtarılan ve kurtarılamayan istek sunucuya bildirilir (/api/istemci_hata)
+    // POST/PATCH/DELETE SARILMAZ: yan etkili istek (AS400 teyidi vb.) asla tekrarlanmaz.
+    (function () {
+        if (!window.fetch || window.__cofleFetchSarili) return;
+        window.__cofleFetchSarili = true;
+        var asil = window.fetch.bind(window);
+        var UZUN = /^\/api\/(as400|kapasite|kaynak_plan|montaj_plan|metal_plan|analiz|rapor|yedek)/;
+        var GECICI = [502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 527, 530];
+        var BEKLE = [1500, 4000, 8000];
+        function apiYolu(url) {
+            if (typeof url !== 'string') return '';
+            if (url.indexOf(location.origin) === 0) url = url.slice(location.origin.length);
+            return url.indexOf('/api/') === 0 ? url : '';
+        }
+        function bekle(ms) { return new Promise(function (c) { setTimeout(c, ms); }); }
+        // Sunucu tamamen erişilemezken bildirim de gidemez → tarayıcıda bekler (en çok 20),
+        // bir sonraki başarılı bildirimde / sayfa açılışında gönderilir.
+        var KUYRUK = 'cofle_istemci_hata_kuyruk';
+        function kuyrukOku() { try { return JSON.parse(localStorage.getItem(KUYRUK) || '[]') || []; } catch (e) { return []; } }
+        function kuyrukYaz(l) { try { localStorage.setItem(KUYRUK, JSON.stringify(l.slice(-20))); } catch (e) {} }
+        function gonder(kayit) {
+            return asil('/api/istemci_hata', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                               body: JSON.stringify(kayit) })
+                .then(function (r) { if (!r.ok && r.status !== 429) throw new Error('HTTP ' + r.status); });
+        }
+        function kuyruguBosalt() {
+            var l = kuyrukOku();
+            if (!l.length) return;
+            kuyrukYaz([]);
+            l.reduce(function (p, k) { return p.then(function () { return gonder(k); }); }, Promise.resolve())
+             .catch(function () { kuyrukYaz(kuyrukOku().concat(l)); });
+        }
+        window.istemciHataBildir = function (yol, durum, hata, sureMs, deneme) {
+            try {
+                if (!yol || yol.indexOf('/api/istemci_hata') === 0) return;
+                var kayit = { yol: String(yol).slice(0, 300), durum: durum || 0,
+                              hata: String(hata || '').slice(0, 300), sure_ms: Math.round(sureMs || 0),
+                              deneme: deneme || 0, sayfa: (typeof aktifSayfa !== 'undefined' ? aktifSayfa : ''),
+                              zaman: new Date().toISOString() };
+                gonder(kayit).then(kuyruguBosalt, function () { kuyrukYaz(kuyrukOku().concat([kayit])); });
+            } catch (e) {}
+        };
+        setTimeout(kuyruguBosalt, 5000);
+        window.fetch = function (girdi, opts) {
+            var yol = apiYolu(typeof girdi === 'string' ? girdi : (girdi && girdi.url));
+            var yontem = String((opts && opts.method) || (girdi && typeof girdi !== 'string' && girdi.method) || 'GET').toUpperCase();
+            if (!yol || yontem !== 'GET' || (opts && opts.signal) || typeof AbortController === 'undefined')
+                return asil(girdi, opts);
+            var sure = UZUN.test(yol) ? 300000 : 90000;
+            var bas = Date.now();
+            function dene(n, zaSayisi) {
+                var ac = new AbortController(), za = false;
+                var t = setTimeout(function () { za = true; ac.abort(); }, sure);
+                var o = {};
+                for (var k in (opts || {})) o[k] = opts[k];
+                o.signal = ac.signal;
+                return asil(girdi, o).then(function (r) {
+                    clearTimeout(t);
+                    var gecici = GECICI.indexOf(r.status) >= 0;
+                    if (gecici && n < BEKLE.length)
+                        return bekle(BEKLE[n]).then(function () { return dene(n + 1, zaSayisi); });
+                    if (gecici) istemciHataBildir(yol, r.status, 'geçici ağ geçidi yanıtı', Date.now() - bas, n);
+                    else if (n > 0) istemciHataBildir(yol, r.status, 'yeniden denemeyle kurtarıldı', Date.now() - bas, n);
+                    return r;
+                }, function (e) {
+                    clearTimeout(t);
+                    if (za) {
+                        if (zaSayisi < 1) return dene(n + 1, zaSayisi + 1);
+                        istemciHataBildir(yol, 0, 'zaman aşımı', Date.now() - bas, n);
+                        throw new Error('Sunucu ' + Math.round(sure / 1000) + ' sn içinde yanıt vermedi');
+                    }
+                    if (n < BEKLE.length)
+                        return bekle(BEKLE[n]).then(function () { return dene(n + 1, zaSayisi); });
+                    istemciHataBildir(yol, 0, (e && e.message) || 'ağ hatası', Date.now() - bas, n);
+                    throw new Error('Sunucuya ulaşılamadı — bağlantıyı kontrol edip tekrar deneyin');
+                });
+            }
+            return dene(0, 0);
+        };
+    })();
     </script>
 
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
@@ -8690,6 +8782,13 @@ window.__I18N_SOZLUK__ = {
         // ═══════════════════════════════════════════════════════
         // YARDIMCILAR
         // ═══════════════════════════════════════════════════════
+        // Yüklenemeyen tablo: sonsuz "Yükleniyor…" yerine sebep + Tekrar dene (2026-10-02)
+        function yuklemeHataSatiri(sutun, mesaj, yeniden) {
+            return '<tr><td colspan="' + sutun + '"><div class="empty" style="color:var(--danger)">' +
+                   '⚠ Veri yüklenemedi: ' + esc(mesaj || 'bilinmeyen hata') +
+                   ' <button class="btn btn-ghost" style="margin-left:10px;padding:3px 10px;font-size:.78rem" onclick="' +
+                   yeniden + '">↻ Tekrar dene</button></div></td></tr>';
+        }
         function esc(s) {
             return String(s === null || s === undefined ? '' : s)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -10048,6 +10147,7 @@ window.__I18N_SOZLUK__ = {
                 const res = await fetch(url);
                 const veri = await res.json();
                 if (istek !== kayitlarIstekNo) return; // bayat yanıt — at
+                if (!res.ok) throw new Error((veri && veri.hata) || ('HTTP ' + res.status));
                 kyOzetData = veri;
 
                 // Seçenekler HER YANITTA tazelenir: tarih aralığı ya da bölüm
@@ -10060,6 +10160,8 @@ window.__I18N_SOZLUK__ = {
                 kayitYenidenCiz();                        // tüm paneller tek yerden
             } catch (e) {
                 console.error(e);
+                if (istek !== kayitlarIstekNo) return;    // yerine yenisi istendi
+                document.getElementById('tbl-body').innerHTML = yuklemeHataSatiri(9, e.message, 'yukleKayitlar()');
                 toast('Veri yüklenemedi: ' + e.message, 'err');
             }
         }
@@ -11875,12 +11977,22 @@ window.__I18N_SOZLUK__ = {
             bolumDegistir(b);   // aktifBolum'u değiştirir + is-yonetimi sayfasındaysa paneli yeniler
         }
 
+        // Sıra numarası: bölüm hızlı değiştirilince eski yanıt yenisinin üstüne yazmasın
+        var _rtIstekNo = 0;
         async function yukleRefTakipPanel() {
+            const istek = ++_rtIstekNo;
+            const tb0 = document.getElementById('ref-takip-tbody');
+            if (tb0 && !tb0.querySelector('tr')) tb0.innerHTML = '<tr><td colspan="9"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
             try {
                 rtBolumTablariCiz();
+                // İki istek PARALEL: art arda beklenince kesintide hata ekranı ~50 sn sürüyordu
+                const listeIstegi = fetch('/api/referans_takip?bolum=' + encodeURIComponent(aktifBolum));
+                listeIstegi.catch(function () {});          // reddi aşağıda await yakalar
                 await rtRobotListesiniYukle();
-                const res = await fetch('/api/referans_takip?bolum=' + encodeURIComponent(aktifBolum));
+                const res = await listeIstegi;
                 const list = await res.json();
+                if (istek !== _rtIstekNo) return;            // bayat yanıt — at
+                if (!res.ok || !Array.isArray(list)) throw new Error((list && list.hata) || ('HTTP ' + res.status));
 
                 const count = document.getElementById('ref-takip-count');
                 if (count) {
@@ -11969,6 +12081,11 @@ window.__I18N_SOZLUK__ = {
                 }).join('');
             } catch(e) {
                 console.error(e);
+                // SESSİZ KALMA (2026-10-02): eskiden hata konsola gidiyor, tablo boş/eski
+                // kalıyordu — kullanıcı "veri yüklenmiyor" diye bildirdi.
+                if (istek !== _rtIstekNo) return;
+                const tb = document.getElementById('ref-takip-tbody');
+                if (tb) tb.innerHTML = yuklemeHataSatiri(9, e.message, 'yukleRefTakipPanel()');
             }
         }
 

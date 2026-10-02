@@ -2080,6 +2080,107 @@ def _gelistirme_ctx():
     return {'gelistirme_kopyasi': _gelistirme_kopyasi()}
 
 
+# ── İSTEK SÜRESİ TANISI (kullanıcı 2026-10-02: panelde "veri yüklenmiyor") ──
+# Werkzeug erişim logu süreyi yazmıyor; 5 sn'yi aşan /api isteği yavas_istek_log'a
+# (ve NSSM loguna) düşer. Kayıt AYRI kısa bağlantıyla: isteğin kendi bağlantısında
+# yarım kalmış işlem olabilir.
+_YAVAS_ISTEK_SN = 5.0
+
+
+def _erisim_turu():
+    return 'cloudflare' if (request.headers.get('Cf-Ray') or request.headers.get('CF-Connecting-IP')) else 'lan'
+
+
+@app.before_request
+def _istek_sure_bas():
+    import time as _t
+    g._istek_t0 = _t.monotonic()
+
+
+@app.after_request
+def _istek_sure_kaydet(resp):
+    try:
+        import time as _t
+        t0 = getattr(g, '_istek_t0', None)
+        if t0 is None or not request.path.startswith('/api/'):
+            return resp
+        sure = _t.monotonic() - t0
+        if sure >= _YAVAS_ISTEK_SN:
+            print(f'[YAVAS] {request.method} {request.full_path.rstrip("?")} {sure:.1f}s {resp.status_code}')
+            cn = db_connect()
+            try:
+                cn.execute("INSERT INTO yavas_istek_log (yontem, yol, sure_sn, durum, erisim) VALUES (?,?,?,?,?)",
+                           (request.method, request.full_path.rstrip('?')[:300], round(sure, 2),
+                            resp.status_code, _erisim_turu()))
+                cn.execute("DELETE FROM yavas_istek_log WHERE ts < datetime('now','localtime','-30 days')")
+                cn.commit()
+            finally:
+                cn.close()
+    except Exception as e:
+        print(f'[YAVAS] kayıt atlandı: {e}')
+    return resp
+
+
+_ISTEMCI_HATA_SON = {}       # ip → [zaman damgaları] — basit hız sınırı
+
+
+@app.route('/api/istemci_hata', methods=['POST'])
+def istemci_hata_kaydet():
+    """Panelin yükleyemediği (ya da ancak yeniden denemeyle yükleyebildiği) isteği
+    kaydeder. Oturumsuz da kabul edilir (oturum düşmüş olabilir) — IP başına 10 dk'da
+    en çok 40 kayıt, alanlar kırpılır."""
+    import time as _t
+    ip = request.headers.get('CF-Connecting-IP') or request.remote_addr or '?'
+    simdi = _t.time()
+    son = [x for x in _ISTEMCI_HATA_SON.get(ip, []) if simdi - x < 600]
+    if len(son) >= 40:
+        return jsonify({'ok': False, 'sinir': True}), 429
+    son.append(simdi)
+    _ISTEMCI_HATA_SON[ip] = son
+    d = request.get_json(silent=True) or {}
+    ku = None
+    try:
+        ku = panel_kullanici()
+    except Exception:
+        pass
+
+    def _int(v):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return 0
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO istemci_hata_log (kullanici, erisim, yol, durum, hata, sure_ms, deneme, sayfa, "
+        "istemci_zaman) VALUES (?,?,?,?,?,?,?,?,?)",
+        ((ku or {}).get('kullanici_adi', '') if ku else '', _erisim_turu(),
+         str(d.get('yol') or '')[:300], _int(d.get('durum')), str(d.get('hata') or '')[:300],
+         _int(d.get('sure_ms')), _int(d.get('deneme')), str(d.get('sayfa') or '')[:60],
+         str(d.get('zaman') or '')[:30]))
+    conn.execute("DELETE FROM istemci_hata_log WHERE ts < datetime('now','localtime','-30 days')")
+    conn.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/istemci_hata', methods=['GET'])
+@panel_gerekli(admin=True)
+def istemci_hata_listesi():
+    """Tanı: son istemci hataları + yavaş istekler (?gun=7)."""
+    try:
+        gun = max(1, min(30, int(request.args.get('gun') or 7)))
+    except ValueError:
+        gun = 7
+    conn = get_db()
+    sinir = f'-{gun} days'
+    return jsonify({
+        'istemci': [dict(r) for r in conn.execute(
+            "SELECT * FROM istemci_hata_log WHERE ts >= datetime('now','localtime',?) "
+            "ORDER BY id DESC LIMIT 300", (sinir,))],
+        'yavas': [dict(r) for r in conn.execute(
+            "SELECT * FROM yavas_istek_log WHERE ts >= datetime('now','localtime',?) "
+            "ORDER BY id DESC LIMIT 300", (sinir,))]})
+
+
 @app.before_request
 def _gelistirme_as400_kapisi():
     """Geliştirme kopyasından AS400'e YAZILMAZ. Sunucudan çekilen veritabanında
@@ -9194,7 +9295,8 @@ def referans_takip_listesi():
         params.append(lokasyon)
     sql += " GROUP BY rt.id ORDER BY (rt.oncelik IS NULL), rt.oncelik ASC, rt.olusturma_tarihi DESC"
     rows = conn.execute(sql, params).fetchall()
-    conn.close()
+    # conn.close() YOK: get_db istek boyunca paylaşılır, teardown kapatır
+    # (bkz. 'get_db request-paylaşımlı' — kapatmak aynı istekte sonraki erişimi kırar).
     return jsonify([dict(r) for r in rows])
 
 def _oncelik_clamp(c, bolum, yeni_oncelik, eski_oncelik=None, exclude_id=None, lokasyon=None):

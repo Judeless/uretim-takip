@@ -1888,6 +1888,41 @@ def init_db():
         c.execute('ALTER TABLE metal_plan ADD COLUMN stok_uretim INTEGER DEFAULT 0')
     except Exception:
         pass
+    # PANEL YUKLEME TANISI (kullanici 2026-10-02: "veri yuklenmiyor, kapatip acmam
+    # gerekiyor"). Istemci: yeniden denemeyle kurtarilan / hic yuklenemeyen istekler.
+    # Sunucu: 5 sn'den uzun suren /api istekleri. Ikisi birlikte nedenin sunucu mu
+    # (yavas) ag mi (Cloudflare/yeniden baslatma) oldugunu gosterir.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS istemci_hata_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT DEFAULT (datetime('now', 'localtime')),
+            kullanici TEXT DEFAULT '',
+            erisim TEXT DEFAULT '',
+            yol TEXT DEFAULT '',
+            durum INTEGER DEFAULT 0,
+            hata TEXT DEFAULT '',
+            sure_ms INTEGER DEFAULT 0,
+            deneme INTEGER DEFAULT 0,
+            sayfa TEXT DEFAULT '',
+            istemci_zaman TEXT DEFAULT ''
+        )
+    ''')
+    try:
+        # sunucuya ulaşılamazken tarayıcıda bekleyen bildirimin ASIL oluştuğu an
+        c.execute("ALTER TABLE istemci_hata_log ADD COLUMN istemci_zaman TEXT DEFAULT ''")
+    except Exception:
+        pass
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS yavas_istek_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT DEFAULT (datetime('now', 'localtime')),
+            yontem TEXT DEFAULT '',
+            yol TEXT DEFAULT '',
+            sure_sn REAL DEFAULT 0,
+            durum INTEGER DEFAULT 0,
+            erisim TEXT DEFAULT ''
+        )
+    ''')
     # PLANIN TUM KOD KUMESI — AS400'den kurulumda yazilir (OPR'si olmayanlar dahil)
     c.execute('''
         CREATE TABLE IF NOT EXISTS kp_kod_kumesi (
