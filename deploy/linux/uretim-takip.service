@@ -1,0 +1,22 @@
+[Unit]
+Description=Uretim takip sistemi (markali kurulum)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=uretim
+Group=uretim
+WorkingDirectory=/opt/uretim
+# waitress = uretim sunucusu; yalniz yerel dinler, disariya Caddy (HTTPS) acar
+Environment=COFLE_WSGI=waitress
+Environment=COFLE_HOST=127.0.0.1
+Environment=COFLE_PORT=5000
+Environment=COFLE_THREADS=16
+Environment=PYTHONIOENCODING=utf-8
+Environment=TZ=Europe/Istanbul
+ExecStart=/opt/uretim/.venv/bin/python app.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

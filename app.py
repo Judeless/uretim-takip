@@ -14,6 +14,9 @@ from database import get_db as db_connect, init_db
 from oee import hesapla_oee, hesapla_oee_ozet
 from import_excel import import_data, durus_sebepleri_yukle, import_tum, export_referans_cycle_times, import_tk1
 from export_excel import export_arsiv
+# KURULUM PROFİLİ (2026-10-02): aynı kodun başka firmaya markalı kurulumu.
+# data/kurulum.json YOKSA (Cofle) her şey bugünkü gibi — bkz. kurulum.py
+import kurulum as KUR
 # Tel proses mantığı — TK1_ROBOT_NOLARI (aşağıda) TEL_HATLARI'ndan türediği için
 # import DOSYA BAŞINDA olmak zorunda. Ayrıntılı açıklama tanımın yanında.
 from tel_proses import (TEL_ADIMLARI, TEL_ADIM_SIRA, TEL_HATLARI,      # noqa: F401
@@ -202,6 +205,15 @@ def _varsayilan_dil_ctx():
     return {'varsayilan_dil': VARSAYILAN_DIL}
 
 
+@app.context_processor
+def _kurulum_ctx():
+    """Şablonlara marka + modül bilgisi. Cofle'de (profil dosyası yok) değerler bugünkü
+    sabit metinlerle aynıdır; şablonlar {{ marka.ad }}, {% if modul('as400') %} kullanır."""
+    oz = KUR.istemci_ozeti()
+    oz['kapali_sayfalar'] = [s for s in _TUM_PANEL_SAYFALARI if not _sayfa_acik(s)]
+    return {'kurulum': oz, 'marka': KUR.marka(), 'modul': KUR.modul, 'bolum_var': KUR.bolum_var}
+
+
 PANEL_SAYFALAR = [
     'ozet', 'bolum', 'kayitlar', 'is-yonetimi', 'fikstur', 'referanslar',
     'operatorler', 'saha-cihazlari', 'sinyal-analizi', 'andon-ayarlari', 'raporlar',
@@ -231,6 +243,25 @@ PANEL_SAYFALAR = [
     # Yeni → mevcut kullanıcılarda yok, yönetici tek tek verir.
     'proje-takip', 'proje-yonetim',
 ]
+
+# KURULUM PROFİLİ: kapalı modülün sayfası izin listesine (kullanıcı yönetimi
+# kutucukları + yöneticinin izinleri) hiç girmez; panel menüsü de gizler.
+_SAYFA_MODUL = {
+    'as400-teyit': 'as400', 'kaynak-plan': 'planlar', 'montaj-plan': 'planlar',
+    'metal-plan': 'planlar', 'kapasite': 'kapasite', 'ariza-onay': 'bakim',
+    'proje-takip': 'proje', 'proje-yonetim': 'proje', 'saha-cihazlari': 'sayac',
+    'sinyal-analizi': 'sayac', 'andon-ayarlari': 'andon', 'is-yonetimi': 'is_yonetimi',
+}
+
+
+def _sayfa_acik(sayfa):
+    if sayfa == 'fikstur':                     # robot fikstürü yalnız kaynak bölümünde
+        return KUR.bolum_var('kaynak')
+    return KUR.modul(_SAYFA_MODUL.get(sayfa, ''))
+
+
+_TUM_PANEL_SAYFALARI = PANEL_SAYFALAR[:] + ['as400-transfer', 'as400-planlama']
+PANEL_SAYFALAR = [s for s in PANEL_SAYFALAR if _sayfa_acik(s)]
 
 def panel_kullanici():
     """Aktif oturumdaki panel kullanıcısını DB'den taze çeker (izin/aktiflik anlık).
@@ -2181,6 +2212,46 @@ def istemci_hata_listesi():
             "ORDER BY id DESC LIMIT 300", (sinir,))]})
 
 
+# KURULUM PROFİLİ: kapalı modülün uçları bu kurulumda YOK hükmünde (404). Menüden
+# gizlemek yetmez — adresi bilen biri AS400/plan uçlarını çağırabilirdi. Sıra önemli:
+# daha özel önek önce ('/andon_tk1' → tk1, sonra '/andon' → andon).
+_MODUL_YOLLARI = (
+    ('/api/as400/', 'as400'), ('/api/kaynak_eoq', 'as400'), ('/kaynak_eoq', 'as400'),
+    ('/api/kaynak_plan', 'planlar'), ('/api/montaj_plan', 'planlar'), ('/api/metal_plan', 'planlar'),
+    ('/api/kapasite', 'kapasite'), ('/api/proje', 'proje'),
+    ('/api/bakim', 'bakim'), ('/api/ariza', 'bakim'),
+    ('/tk1', 'tk1'), ('/andon_tk1', 'tk1'),
+    ('/api/test_cihazlari', 'test_cihaz'),
+    ('/api/import_excel', 'excel_senkron'), ('/api/veri/', 'excel_senkron'),
+    ('/api/referanslar/export_excel', 'excel_senkron'),
+    ('/dashboard_eski', 'eski_sayfalar'), ('/dashboard_legacy', 'eski_sayfalar'),
+    ('/dashboard_v3', 'eski_sayfalar'), ('/dashboard/onizleme', 'eski_sayfalar'),
+    ('/onizleme', 'eski_sayfalar'), ('/mobile_legacy', 'eski_sayfalar'),
+    ('/andon_legacy', 'eski_sayfalar'), ('/andon_v2', 'eski_sayfalar'), ('/andon_v4', 'eski_sayfalar'),
+    ('/andon_montaj_legacy', 'eski_sayfalar'), ('/andon_metal_legacy', 'eski_sayfalar'),
+    ('/andon', 'andon'), ('/api/andon', 'andon'),
+)
+_ANDON_BOLUM_YOLU = {'kaynak': '/andon', 'montaj': '/andon_montaj', 'metal': '/andon_metal'}
+
+
+@app.before_request
+def _kurulum_modul_kapisi():
+    if KUR.cofle_mi():
+        return None
+    p = request.path
+    for onek, modul in _MODUL_YOLLARI:
+        if p.startswith(onek) and not KUR.modul(modul):
+            if p.startswith('/api/'):
+                return jsonify({'hata': 'Bu özellik bu kurulumda kapalı', 'modul': modul}), 404
+            return 'Bu sayfa bu kurulumda yok.', 404
+    # Bölümü olmayan andon (örn. kaynak) → kurulumun ilk andonlu bölümüne
+    for b, yol in _ANDON_BOLUM_YOLU.items():
+        if p == yol and not KUR.bolum_var(b):
+            hedef = next((y for bb, y in _ANDON_BOLUM_YOLU.items() if KUR.bolum_var(bb)), None)
+            return redirect(hedef) if hedef else ('Bu sayfa bu kurulumda yok.', 404)
+    return None
+
+
 @app.before_request
 def _gelistirme_as400_kapisi():
     """Geliştirme kopyasından AS400'e YAZILMAZ. Sunucudan çekilen veritabanında
@@ -2702,6 +2773,36 @@ def panel_kullanici_sil(uid):
     return jsonify({'basarili': True}), 200
 
 
+def _kurulum_logo():
+    """Markalı kurulumun logosu: profildeki dosya; yoksa firma adından yazı-logo (SVG).
+    Cofle logosu bu kurulumda HİÇBİR koşulda servis edilmez."""
+    from xml.sax.saxutils import escape as _x
+    m = KUR.marka()
+    tip = (request.args.get('tip') or '').strip()
+    koyu = (request.args.get('tema') or '').strip() == 'koyu'
+    alan = 'ikon' if tip == 'mark' else ('logo_koyu' if koyu else 'logo')
+    yol = (m.get(alan) or (m.get('logo') if alan == 'logo_koyu' else '') or '').strip()
+    if yol:
+        tam = yol if os.path.isabs(yol) else os.path.join(KUR.KOK, yol)
+        if os.path.exists(tam):
+            return send_file(tam)
+    ad = m.get('kisa') or m.get('ad') or ''
+    renk = '#FFFFFF' if koyu else (m.get('renk') or '#1F2A44')
+    if tip == 'mark':
+        harf = _x((ad[:1] or '?').upper())
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+               f'<rect width="512" height="512" rx="96" fill="{m.get("renk") or "#1F2A44"}"/>'
+               f'<text x="256" y="340" font-family="Segoe UI,Arial,sans-serif" font-size="300" '
+               f'font-weight="800" text-anchor="middle" fill="#FFFFFF">{harf}</text></svg>')
+    else:
+        genislik = max(320, 34 * len(ad) + 40)
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {genislik} 120">'
+               f'<text x="{genislik // 2}" y="78" font-family="Segoe UI,Arial,sans-serif" font-size="60" '
+               f'font-weight="800" letter-spacing="2" text-anchor="middle" fill="{renk}">{_x(ad.upper())}</text>'
+               f'</svg>')
+    return app.response_class(svg, mimetype='image/svg+xml')
+
+
 @app.route('/logo')
 def logo_serve():
     """Marka logosu (COFLE FORGE — 2026-07-29 kimlik yenilemesi).
@@ -2718,6 +2819,8 @@ def logo_serve():
     varsa bile repodaki resmi logo kazanır (handoff README'si tersini söylüyor,
     o bilgi static/logo.svg'deki bayat yoruma dayanıyor — kod hep böyleydi)."""
     proje_dir = os.path.dirname(os.path.abspath(__file__))
+    if not KUR.cofle_mi():
+        return _kurulum_logo()
     if (request.args.get('tip') or '').strip() == 'mark':
         mark = os.path.join(proje_dir, 'static', 'logo_mark.png')
         if os.path.exists(mark):
@@ -2781,6 +2884,19 @@ def web_manifest():
     # ("scope": "/") düşüyor ve /dashboard operatör uygulamasının penceresinde,
     # onun ayarlarıyla açılıyordu — "ölçeklendirme bozuk" şikâyetinin kaynağı.
     # id/scope '/dashboard' → panel, telefonda AYRI uygulama olarak yaşar.
+    if not KUR.cofle_mi():
+        m = KUR.marka()
+        panel = (request.args.get('sayfa') or '') == 'panel'
+        return jsonify({
+            "id": "/dashboard" if panel else "/",
+            "name": m['ad'] + (' Panel' if panel else ''),
+            "short_name": (m.get('kisa') or m['ad']) + (' Panel' if panel else ''),
+            "description": m['ad'] + ' — ' + (m.get('alt_baslik') or ''),
+            "start_url": "/dashboard" if panel else "/",
+            "scope": "/dashboard" if panel else "/",
+            "display": "standalone", "orientation": "any",
+            "background_color": "#ECECF1", "theme_color": "#ECECF1", "lang": "tr",
+            "icons": [{"src": "/logo?tip=mark", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]})
     if (request.args.get('sayfa') or '') == 'panel':
         return jsonify({
             "id": "/dashboard",
@@ -5542,6 +5658,14 @@ def robot_listesi():
     """
     bolum = request.args.get('bolum', 'kaynak')
     lokasyon = request.args.get('lokasyon', 'TK2')
+    # KURULUM PROFİLİ: profilde makine listesi varsa o (sabit taban) + bu bölümde
+    # geçmişte kullanılmış adlar (eski kayıtlar filtrelerden düşmesin).
+    _km = KUR.makineler(bolum)
+    if _km:
+        rows = get_db().execute(
+            "SELECT DISTINCT robot_no FROM vardiyalar WHERE COALESCE(bolum,'kaynak')=? "
+            "AND robot_no IS NOT NULL AND robot_no != '' ORDER BY robot_no", (bolum,)).fetchall()
+        return jsonify(_km + [r['robot_no'] for r in rows if r['robot_no'] not in _km])
     # Plastik enjeksiyon (TK1, 2026-07-23): sabit 2 makine + operatörün eklediği ekstralar.
     # TK1 montaj-hat kısayolundan ÖNCE — aksi halde plastik montaj hatlarıyla ezilirdi.
     if bolum == 'plastik':
@@ -17789,22 +17913,32 @@ if __name__ == '__main__':
                 _nbd = max(1, int((_ocfg.get('agent_nobeti') or {}).get('kontrol_dk') or 10))
             except (TypeError, ValueError):
                 _nbd = 10
-            start_scheduler(ek_gorevler=_ek,
-                            periyodik_gorevler=[(_ekd, erken_teyit_job, 'AS400 Erken Teyit'),
-                                                (_nbd, agent_nobet_job, 'Teyit-Agent Nöbeti'),
-                                                # Amir onayı gecikmiş arıza bildirimleri
-                                                (5, ariza_hatirlatma_job, 'Arıza Hatırlatma'),
-                                                # Bakıma iletilmiş talebin durumu (v0.9.8 ucu)
-                                                (5, ariza_durum_job, 'Arıza Bakım Durumu')])
+            _periyodik = [(_ekd, erken_teyit_job, 'AS400 Erken Teyit'),
+                          (_nbd, agent_nobet_job, 'Teyit-Agent Nöbeti'),
+                          # Amir onayı gecikmiş arıza bildirimleri
+                          (5, ariza_hatirlatma_job, 'Arıza Hatırlatma'),
+                          # Bakıma iletilmiş talebin durumu (v0.9.8 ucu)
+                          (5, ariza_durum_job, 'Arıza Bakım Durumu')]
+            # KURULUM PROFİLİ: kapalı modülün işi hiç kurulmaz (AS400'süz bir
+            # kurulumda 16:45/17:10 koşuları ve açılış telafisi denemesin).
+            _GOREV_MODUL = {oto_transfer_iptal_job: 'as400', oto_teyit_job: 'as400',
+                            erken_teyit_job: 'as400', agent_nobet_job: 'as400',
+                            bakim_katalog_job: 'bakim', ariza_hatirlatma_job: 'bakim',
+                            ariza_durum_job: 'bakim', kaynak_plan_oto_job: 'planlar',
+                            montaj_plan_oto_job: 'planlar', metal_plan_oto_job: 'planlar'}
+            _ek = [j for j in _ek if KUR.modul(_GOREV_MODUL.get(j[2], ''))]
+            _periyodik = [j for j in _periyodik if KUR.modul(_GOREV_MODUL.get(j[1], ''))]
+            start_scheduler(ek_gorevler=_ek, periyodik_gorevler=_periyodik)
         except Exception as _e:
             print(f'[SCHED] başlatılamadı: {_e}')
 
     print("\n" + "="*55)
-    print("  COFLE MANAGE - URETIM TAKIP SISTEMI CALISIYOR")
+    _adres = (KUR.marka().get('alan_adi') or '').rstrip('/')
+    print(f"  {KUR.marka()['ad'].upper()} - URETIM TAKIP SISTEMI CALISIYOR")
     print("="*55)
-    print("  Operator Formu : https://coflemanage.online")
-    print("  Yonetici Panel : https://coflemanage.online/dashboard")
-    print("  Andon Ekrani   : https://coflemanage.online/andon")
+    print(f"  Operator Formu : {_adres}")
+    print(f"  Yonetici Panel : {_adres}/dashboard")
+    print(f"  Andon Ekrani   : {_adres}/andon")
     print("="*55)
     print("  Sistem artik bu adresten yayinlanmaktadir.")
     print("  Otomatik arsiv : Her gun 18:00 (data/arsiv/)")
@@ -17816,4 +17950,13 @@ if __name__ == '__main__':
     # cevap alamaz — "sistem durdu" belirtisi). Çok-thread'de web responsive kalır,
     # robot yine _AS400_KILIT ile tek tek çalışır. (get_db flask.g request-scoped →
     # her thread kendi bağlantısını açar, SQLite thread-güvenli; yazımlar busy-timeout.)
-    app.run(host='0.0.0.0', port=5000, threaded=True, debug=(os.environ.get('COFLE_DEBUG') == '1'))
+    # BULUT KURULUMU (2026-10-02): adres/port ortam değişkeninden (Cofle'de tanımsız →
+    # 0.0.0.0:5000, davranış aynı). COFLE_WSGI=waitress → üretim sunucusu (Linux VPS'te
+    # ters vekil arkasında). Zamanlayıcı yukarıda başladı; ikisi de bu süreçte koşar.
+    _host = os.environ.get('COFLE_HOST', '0.0.0.0')
+    _port = int(os.environ.get('COFLE_PORT', '5000'))
+    if os.environ.get('COFLE_WSGI') == 'waitress':
+        from waitress import serve
+        serve(app, host=_host, port=_port, threads=int(os.environ.get('COFLE_THREADS', '16')))
+    else:
+        app.run(host=_host, port=_port, threaded=True, debug=(os.environ.get('COFLE_DEBUG') == '1'))

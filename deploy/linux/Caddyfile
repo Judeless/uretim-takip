@@ -1,0 +1,8 @@
+# kur.sh ALAN_ADI'nı gerçek alan adıyla değiştirir. Caddy sertifikayı kendisi alır/yeniler.
+ALAN_ADI {
+	encode gzip
+	reverse_proxy 127.0.0.1:5000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+	}
+}

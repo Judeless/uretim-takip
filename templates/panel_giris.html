@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cofle Forge — Giriş</title>
+    <title>{{ marka.ad }} — Giriş</title>
     <link rel="icon" href="/logo?tip=mark">
     <style>
         /* ═══════════════════════════════════════════════════════════════
@@ -159,8 +159,8 @@
         </div>
 
         <div class="logo-alan">
-            <img id="giris-logo" src="/logo" alt="Cofle" onerror="this.style.display='none'">
-            <h1>Cofle Forge</h1>
+            <img id="giris-logo" src="/logo" alt="{{ marka.ad }}" onerror="this.style.display='none'">
+            <h1>{{ marka.ad }}</h1>
             <p data-i18n="altbaslik">Yönetici Paneli</p>
         </div>
 
@@ -195,7 +195,7 @@
         </form>
 
         <div class="mesaj" id="mesaj"></div>
-        <div class="alt-bilgi" data-i18n="altbilgi">© Cofle Forge · Üretim Takip Sistemi</div>
+        <div class="alt-bilgi" data-i18n="altbilgi">© {{ marka.ad }} · Üretim Takip Sistemi</div>
     </div>
 
     <script>
@@ -211,7 +211,7 @@
                 sifre_kisa: 'Şifre en az 6 karakter olmalı', sifre_uyusmaz: 'Şifreler uyuşmuyor',
                 kaydediliyor: 'Kaydediliyor…', basarili: 'Giriş başarılı, yönlendiriliyorsunuz…',
                 sunucu_hata: 'Sunucu hatası, tekrar deneyin',
-                altbilgi: '© Cofle Forge · Üretim Takip Sistemi', tema_baslik: 'Açık / koyu tema'
+                altbilgi: '© ' + {{ marka.ad|tojson }} + ' · Üretim Takip Sistemi', tema_baslik: 'Açık / koyu tema'
             },
             en: {
                 altbaslik: 'Admin Panel', kullanici: 'Username', sifre: 'Password',
@@ -223,7 +223,7 @@
                 sifre_kisa: 'Password must be at least 6 characters', sifre_uyusmaz: 'Passwords do not match',
                 kaydediliyor: 'Saving…', basarili: 'Login successful, redirecting…',
                 sunucu_hata: 'Server error, please try again',
-                altbilgi: '© Cofle Forge · Production Tracking System', tema_baslik: 'Light / dark theme'
+                altbilgi: '© ' + {{ marka.ad|tojson }} + ' · Production Tracking System', tema_baslik: 'Light / dark theme'
             },
             it: {
                 altbaslik: 'Pannello Admin', kullanici: 'Nome utente', sifre: 'Password',
@@ -235,7 +235,7 @@
                 sifre_kisa: 'La password deve avere almeno 6 caratteri', sifre_uyusmaz: 'Le password non coincidono',
                 kaydediliyor: 'Salvataggio…', basarili: 'Accesso riuscito, reindirizzamento…',
                 sunucu_hata: 'Errore del server, riprova',
-                altbilgi: '© Cofle Forge · Sistema di monitoraggio produzione', tema_baslik: 'Tema chiaro / scuro'
+                altbilgi: '© ' + {{ marka.ad|tojson }} + ' · Sistema di monitoraggio produzione', tema_baslik: 'Tema chiaro / scuro'
             }
         };
         // ── TEMA (2026-07-30) — dashboard ile ORTAK anahtar: app_tema.

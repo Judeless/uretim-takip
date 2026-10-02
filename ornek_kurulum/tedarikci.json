@@ -1,0 +1,29 @@
+{
+  "_aciklama": "Tedarikçi kurulumu (2026-10-02). data/kurulum.json olarak kopyalanır; değişiklik uygulamanın yeniden başlatılmasını ister. Firma adı / alan adı / makineler doldurulacak.",
+  "kimlik": "tedarikci",
+  "marka": {
+    "ad": "Firma Üretim Takip",
+    "kisa": "Firma",
+    "alt_baslik": "Üretim Takip Sistemi",
+    "alan_adi": "https://alanadi.com",
+    "logo": "",
+    "logo_koyu": "",
+    "ikon": "",
+    "renk": "#1F2A44"
+  },
+  "lokasyonlar": [{"kod": "TK2", "ad": "Merkez"}],
+  "bolumler": ["metal", "isleme", "montaj"],
+  "bolum_adlari": {"metal": "Metal Enjeksiyon", "isleme": "CNC İşleme", "montaj": "Montaj"},
+  "makineler": {
+    "metal": ["50 Ton", "100 Ton"],
+    "isleme": ["CNC 1"],
+    "montaj": ["Montaj Hattı 1"]
+  },
+  "moduller": {
+    "as400": false, "planlar": false, "kapasite": false, "bakim": false, "proje": false,
+    "tk1": false, "sayac": false, "test_cihaz": false, "excel_senkron": false,
+    "eski_sayfalar": false,
+    "andon": true, "is_yonetimi": true, "mail": true
+  },
+  "varsayilan_yonetici": false
+}

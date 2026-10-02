@@ -1033,6 +1033,14 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
     if os.path.exists(os.path.join(PROJECT_DIR, 'data', 'GELISTIRME_KOPYASI.json')):
         return {'basarili': True, 'yazilan': 0,
                 'atlandi': 'geliştirme kopyası — Excel yalnız canlı sunucuda güncellenir'}
+    # KURULUM PROFİLİ: Excel senkronu kapalı kurulumda (referanslar yalnız veritabanında)
+    # her süre teyidinde 'Excel bulunamadı' uyarısı çıkmasın.
+    try:
+        import kurulum as _kur
+        if not _kur.modul('excel_senkron'):
+            return {'basarili': True, 'yazilan': 0, 'atlandi': 'Excel senkronu bu kurulumda kapalı'}
+    except Exception:
+        pass
     if not os.path.exists(EXCEL_YOL):
         return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
 

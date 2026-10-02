@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cofle Forge · {{ bolum_ad|default('Robot Kaynak') }} · Andon</title>
+  <title>{{ marka.ad }} · {{ bolum_ad|default('Robot Kaynak') }} · Andon</title>
   <link rel="icon" type="image/png" href="/logo?tip=mark">
   <link rel="shortcut icon" href="/logo?tip=mark">
   <link rel="apple-touch-icon" href="/logo?tip=mark">
   <link rel="manifest" href="/manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Cofle Andon">
+  <meta name="apple-mobile-web-app-title" content="{{ marka.kisa }} Andon">
   <meta name="theme-color" content="#060414">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1201,7 +1201,7 @@ window.__I18N_SOZLUK__ = {
     <!-- Üst bar -->
     <header class="topbar">
       <div class="brand">
-        <img class="brand-logo" src="/logo?tema=koyu" alt="Cofle Logo" onerror="this.style.display='none'">
+        <img class="brand-logo" src="/logo?tema=koyu" alt="{{ marka.ad }}" onerror="this.style.display='none'">
         <div class="brand-text">
           <!-- brand-name KALDIRILDI (2026-07-30): logo görselinin kendisi
                "COFLE FORGE" wordmark'i, yanına metin koyunca marka yan yana
@@ -1245,7 +1245,7 @@ window.__I18N_SOZLUK__ = {
     <footer class="ticker">
       <span class="ticker-tag">Duyuru</span>
       <div class="ticker-marquee">
-        <div class="ticker-text paused" id="ticker-text">Cofle Forge Üretim Takip Sistemi aktif.</div>
+        <div class="ticker-text paused" id="ticker-text">{{ marka.ad }} Üretim Takip Sistemi aktif.</div>
       </div>
       <span class="ticker-ts" id="ticker-ts">--:--:--</span>
     </footer>
@@ -1270,6 +1270,8 @@ window.__I18N_SOZLUK__ = {
 
   const BOLUM        = '{{ bolum|default("kaynak") }}';
   const LOKASYON     = '{{ lokasyon|default("TK2") }}';
+  // KURULUM PROFİLİ: makine listesi profilde varsa yedek liste o (Cofle'de boş → değişmez)
+  const KURULUM_MAKINE = {{ (kurulum.makineler or {})|tojson }};
   const API_URL      = '/api/andon?bolum=' + encodeURIComponent(BOLUM) + '&lokasyon=' + encodeURIComponent(LOKASYON);
   const SETTINGS_URL = '/api/andon_robot_ayarlari';
   const ANNOUNCE_URL = '/api/andon/mesaj';
@@ -1529,7 +1531,7 @@ window.__I18N_SOZLUK__ = {
   function setTicker(text) {
     const el = document.getElementById('ticker-text');
     el.classList.remove('paused');
-    el.textContent = text || 'Cofle Forge Üretim Takip Sistemi aktif.';
+    el.textContent = text || ({{ marka.ad|tojson }} + ' Üretim Takip Sistemi aktif.');
   }
 
   // ── Robot/Hat/Makine listesi — 3 bolum icin de dashboard'daki sirali liste kullanilir
@@ -1550,6 +1552,7 @@ window.__I18N_SOZLUK__ = {
         ? ['Pull','Push-Pull','Iveco','LF-LFP']
         : (BOLUM === 'kaynak')
           ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
+          : (KURULUM_MAKINE[BOLUM] && KURULUM_MAKINE[BOLUM].length) ? KURULUM_MAKINE[BOLUM].slice()
           : (BOLUM === 'metal' ? ['300T','400T','550T'] : ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12']);
     }
     return _robots;
@@ -1641,6 +1644,7 @@ window.__I18N_SOZLUK__ = {
 
       const fallback = (LOKASYON === 'TK1') ? ['Pull','Push-Pull','Iveco','LF-LFP']
                      : (BOLUM === 'kaynak') ? ['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8']
+                     : (KURULUM_MAKINE[BOLUM] && KURULUM_MAKINE[BOLUM].length) ? KURULUM_MAKINE[BOLUM].slice()
                      : (BOLUM === 'metal')  ? ['300T','400T','550T','Şerit Testere']
                                             : ['HAT 1'];
       const target = _robots.length ? _robots : fallback;

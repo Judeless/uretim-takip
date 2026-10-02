@@ -161,9 +161,15 @@ def _migrate_bolum_composite_unique(c):
         print(f'[MIGRATION] operatorler (bolum) hata: {e}')
 
 
-def init_db():
+def init_db(_ikinci_tur=False):
     conn = get_db()
     c = conn.cursor()
+    # KURULUM PROFİLİ (2026-10-02): Cofle'ye özgü tohumlar (demo referanslar, ABB/M1-M12/
+    # 300T andon kartları, PIN'i 9999 olan 'Admin' operatörü) yalnız Cofle'de eklenir.
+    # Bunlar her açılışta INSERT OR IGNORE ile tazeleniyor; markalı kurulumda silinseler
+    # bile geri gelirlerdi. Profil yoksa (Cofle) _cofle=True → davranış aynı.
+    import kurulum as _kur
+    _cofle = _kur.cofle_mi()
 
     # Vardiyalar tablosu
     c.execute('''
@@ -722,10 +728,11 @@ def init_db():
         ('REF-004', 'Taban Plakasi', 60),
         ('REF-005', 'Ust Kapak', 41),
     ]
-    c.executemany(
-        'INSERT OR IGNORE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn) VALUES (?,?,?)',
-        referanslar
-    )
+    if _cofle:
+        c.executemany(
+            'INSERT OR IGNORE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn) VALUES (?,?,?)',
+            referanslar
+        )
 
     # Fikstür Adresleri Tablosu
     c.execute('''
@@ -875,37 +882,44 @@ def init_db():
     # Varsayılan ayarları ekle
     c.execute("INSERT OR IGNORE INTO genel_ayarlar (anahtar, deger) VALUES ('andon_font_size', '0.57')")
 
-    # Varsayılan robot satırlarını ekle (mevcut değilse) — 3 bölüm için
-    # KAYNAK: ABB1..ABB9 (ABB9 default gizli)
-    # 2026-08-21: 'Punta Kaynak' eklendi (tek istasyonlu, sayaç modülü yok).
-    # SONA eklenir — sıra numaraları andon dizilişidir, araya girmek mevcut
-    # robotların yerini kaydırırdı.
-    for i, rno in enumerate(['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9',
-                             'Punta Kaynak']):
-        goster = 0 if rno == 'ABB9' else 1
-        c.execute(
-            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
-            (rno, 'kaynak', goster, i)
-        )
-    # MONTAJ: M1..M12 (default hepsi gizli — operatör vardiya açtığında dinamik gelir)
-    for i, mno in enumerate([f'M{n}' for n in range(1, 13)]):
-        c.execute(
-            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
-            (mno, 'montaj', 1, i)
-        )
-    # METAL: 300T, 400T, 550T (hepsi default görünür)
-    for i, mno in enumerate(['300T','400T','550T']):
-        c.execute(
-            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
-            (mno, 'metal', 1, i)
-        )
-    # TK1 (yan tesis) hatları — montaj mantığı, lokasyon='TK1'. PK (robot_no, bolum)
-    # ile TK2 montaj M1-M12'den ayrı (farklı robot_no). Hepsi default görünür.
-    for i, hat in enumerate(['Pull', 'Push-Pull', 'Iveco', 'LF-LFP']):
-        c.execute(
-            'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira, lokasyon) VALUES (?, ?, ?, ?, ?)',
-            (hat, 'montaj', 1, i, 'TK1')
-        )
+    if _cofle:
+        # Varsayılan robot satırlarını ekle (mevcut değilse) — 3 bölüm için
+        # KAYNAK: ABB1..ABB9 (ABB9 default gizli)
+        # 2026-08-21: 'Punta Kaynak' eklendi (tek istasyonlu, sayaç modülü yok).
+        # SONA eklenir — sıra numaraları andon dizilişidir, araya girmek mevcut
+        # robotların yerini kaydırırdı.
+        for i, rno in enumerate(['ABB1','ABB2','ABB3','ABB4','ABB5','ABB6','ABB7','ABB8','ABB9',
+                                 'Punta Kaynak']):
+            goster = 0 if rno == 'ABB9' else 1
+            c.execute(
+                'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
+                (rno, 'kaynak', goster, i)
+            )
+        # MONTAJ: M1..M12 (default hepsi gizli — operatör vardiya açtığında dinamik gelir)
+        for i, mno in enumerate([f'M{n}' for n in range(1, 13)]):
+            c.execute(
+                'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
+                (mno, 'montaj', 1, i)
+            )
+        # METAL: 300T, 400T, 550T (hepsi default görünür)
+        for i, mno in enumerate(['300T','400T','550T']):
+            c.execute(
+                'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) VALUES (?, ?, ?, ?)',
+                (mno, 'metal', 1, i)
+            )
+        # TK1 (yan tesis) hatları — montaj mantığı, lokasyon='TK1'. PK (robot_no, bolum)
+        # ile TK2 montaj M1-M12'den ayrı (farklı robot_no). Hepsi default görünür.
+        for i, hat in enumerate(['Pull', 'Push-Pull', 'Iveco', 'LF-LFP']):
+            c.execute(
+                'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira, lokasyon) VALUES (?, ?, ?, ?, ?)',
+                (hat, 'montaj', 1, i, 'TK1')
+            )
+    else:
+        # Markalı kurulum: andon kartları profildeki makinelerden (bölüm sırasıyla)
+        for _b, _liste in ((_kur.yukle().get('makineler') or {}).items()):
+            for i, _mk in enumerate(_liste or []):
+                c.execute('INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira) '
+                          'VALUES (?, ?, 1, ?)', (_mk, _b, i))
 
     # Fikstür Raf Tablosu (KAYNAKHANE FİKSTÜR RAF LİSTESİ.ods'tan gelir)
     c.execute('''
@@ -1151,7 +1165,8 @@ def init_db():
     # Bu adla PIN girişi yapan mobilde TÜM vardiyalara erişir (app.py ADMIN_ADI).
     # INSERT OR IGNORE: PIN panelden değiştirilmişse ezilmez. Migration'dan SONRA
     # (UNIQUE(ad,lokasyon) aktifken) çalışmalı ki iki lokasyon kaydı da eklenebilsin.
-    for _lok in ('TK2', 'TK1'):
+    # Markalı kurulumda bilinen PIN'li Admin AÇILMAZ — kurulum_hazirla.py rastgele PIN'le açar.
+    for _lok in (('TK2', 'TK1') if _cofle else ()):
         try:
             c.execute("INSERT OR IGNORE INTO operatorler (ad, bolum, pin, lokasyon) VALUES ('Admin', 'montaj', '9999', ?)", (_lok,))
         except Exception:
@@ -1987,20 +2002,33 @@ def init_db():
         )
     ''')
 
-    # Seed: ilk admin (emre.dogutekin). Geçici şifre 'cofle1234' — ilk girişte
-    # değiştirilir. INSERT OR IGNORE: şifre/izin panelden değiştirilmişse ezilmez.
-    try:
-        from werkzeug.security import generate_password_hash
-        c.execute(
-            "INSERT OR IGNORE INTO panel_kullanicilari (kullanici_adi, ad_soyad, sifre_hash, rol, izinler, aktif, sifre_gecici) "
-            "VALUES (?, ?, ?, 'admin', '[]', 1, 1)",
-            ('emre.dogutekin', 'Emre Doğutekin', generate_password_hash('cofle1234'))
-        )
-    except Exception as _seed_err:
-        print('Panel admin seed hatası:', _seed_err)
+    # KURULUM PROFİLİ: bilinen şifreli yönetici YALNIZ Cofle'de açılır. Markalı
+    # kurulumun (internete açık yeni sunucu) yöneticisini kurulum_hazirla.py
+    # rastgele şifreyle oluşturur.
+    import kurulum as _kur
+    if _kur.yukle().get('varsayilan_yonetici', True):
+        # Seed: ilk admin (emre.dogutekin). Geçici şifre 'cofle1234' — ilk girişte
+        # değiştirilir. INSERT OR IGNORE: şifre/izin panelden değiştirilmişse ezilmez.
+        try:
+            from werkzeug.security import generate_password_hash
+            c.execute(
+                "INSERT OR IGNORE INTO panel_kullanicilari (kullanici_adi, ad_soyad, sifre_hash, rol, izinler, aktif, sifre_gecici) "
+                "VALUES (?, ?, ?, 'admin', '[]', 1, 1)",
+                ('emre.dogutekin', 'Emre Doğutekin', generate_password_hash('cofle1234'))
+            )
+        except Exception as _seed_err:
+            print('Panel admin seed hatası:', _seed_err)
 
     conn.commit()
+    # SIFIRDAN KURULAN VERİTABANI (2026-10-02, markalı kurulum denemesinde bulundu):
+    # referans_listesi / uretim_kayitlari kolon eklemelerinin (kalip_goz, paket_adedi,
+    # eoq, depo_kodu…) bir kısmı tablo OLUŞTURULMADAN ÖNCE çalışıyor; boş veritabanında
+    # sessizce boşa düşüyorlardı. Mevcut veritabanında hepsi zaten var → bu dal hiç
+    # çalışmaz. Yeni veritabanında ikinci tur eksik kolonları tamamlar.
+    eksik = 'kalip_goz' not in {r[1] for r in c.execute('PRAGMA table_info(referans_listesi)')}
     conn.close()
+    if eksik and not _ikinci_tur:
+        init_db(_ikinci_tur=True)
 
 
 

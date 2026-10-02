@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Cofle Forge — Operatör{% if lokasyon == 'TK1' %} (TK1){% endif %}</title>
+  <title>{{ marka.ad }} — Operatör{% if lokasyon == 'TK1' %} (TK1){% endif %}</title>
   <meta name="theme-color" content="#ECECF1">
   <link rel="icon" type="image/png" href="/logo?tip=mark">
   <link rel="shortcut icon" href="/logo?tip=mark">
@@ -13,7 +13,7 @@
   <link rel="manifest" href="/manifest.json?lokasyon={{ lokasyon|default('TK2') }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="{% if lokasyon == 'TK1' %}Cofle TK1{% else %}Cofle Operatör{% endif %}">
+  <meta name="apple-mobile-web-app-title" content="{% if lokasyon == 'TK1' %}{{ marka.kisa }} TK1{% else %}{{ marka.kisa }} Operatör{% endif %}">
   <!-- WEBFONT KALDIRILDI (2026-07-29): burada Google Fonts'tan Inter (6 ağırlık)
        + JetBrains Mono (3 ağırlık) çekiliyordu. Fabrika telefonları bu isteği
        çoğu zaman geç tamamlıyor ya da hiç tamamlamıyordu; sonuç zaten sistem
@@ -2551,7 +2551,7 @@ window.__I18N_SOZLUK__ = {
       <img src="/logo" alt="Logo" onerror="this.style.display='none'">
     </div>
     <div>
-      <h1>Cofle Forge</h1>
+      <h1>{{ marka.ad }}</h1>
       <p><span class="live-dot"></span><span id="tarih-goster">Yükleniyor...</span></p>
     </div>
     <select id="dil-secici" aria-label="Dil / Language" onchange="dilDegistir(this.value)"
@@ -2568,8 +2568,8 @@ window.__I18N_SOZLUK__ = {
     <div class="screen active" id="screen-A">
       <div class="home-hero">
         <div class="home-hero-icon">🏭</div>
-        <div class="home-hero-title">Cofle Forge</div>
-        <div class="home-hero-sub">Üretim Takip Sistemi</div>
+        <div class="home-hero-title">{{ marka.ad }}</div>
+        <div class="home-hero-sub">{{ marka.alt_baslik }}</div>
       </div>
 
       <button class="btn-new-shift" onclick="yeniVardiyaBaslat()">
@@ -3382,6 +3382,31 @@ window.__I18N_SOZLUK__ = {
       } catch (e) {}
     }
 
+    // ── KURULUM PROFİLİ (2026-10-02): markalı kurulumda yalnız profildeki bölümler;
+    // robot kaynağa özgü Fikstürler/Robotlar sekmeleri kaynak yoksa gizli. Cofle'de
+    // profil yok (bolumler null) → bu blok hiçbir şey yapmaz.
+    var KURULUM = {{ kurulum|tojson }};
+    if (KURULUM.bolumler) {
+      try {
+        document.querySelectorAll('.bolum-btn').forEach(function (el) {
+          var mm = (el.getAttribute('onclick') || '').match(/(?:bolumSec|raporAc)\('([a-z]+)'\)/);
+          if (!mm) return;
+          var var_ = KURULUM.bolumler.indexOf(mm[1]) !== -1;
+          el.style.display = var_ ? '' : 'none';
+          var ad = (KURULUM.bolum_adlari || {})[mm[1]];
+          var t = el.querySelector('.bolum-title');
+          if (var_ && ad && t) t.textContent = ad;
+        });
+        if (KURULUM.bolumler.indexOf('kaynak') === -1)
+          document.querySelectorAll('#bottom-menu .bm-tab[data-tab="F"], #bottom-menu .bm-tab[data-tab="G"]')
+            .forEach(function (el) { el.style.display = 'none'; });
+      } catch (e) {}
+    }
+    function kurulumMakineleri(bolum, varsayilan) {
+      var l = (KURULUM.makineler || {})[bolum];
+      return (l && l.length) ? l : varsayilan;
+    }
+
     (function () {
       var origFetch = window.fetch.bind(window);
       // GUVENLIK: Operator PIN'i SADECE kendi sunucumuza (same-origin) gitmeli.
@@ -3830,10 +3855,9 @@ window.__I18N_SOZLUK__ = {
         robotWrap.style.display = 'block';
         if (robotLabel) robotLabel.textContent = 'Makine';
         rsel.innerHTML = '<option value="">Seçin...</option>' +
-                         '<option value="300T">300T</option>' +
-                         '<option value="400T">400T</option>' +
-                         '<option value="550T">550T</option>' +
-                         '<option value="Şerit Testere">Şerit Testere</option>';
+                         kurulumMakineleri('metal', ['300T', '400T', '550T', 'Şerit Testere']).map(function (mk) {
+                           return '<option value="' + esc(mk) + '">' + esc(mk) + '</option>';
+                         }).join('');
         sonHatUygula(bolum);
       } else if (bolum === 'lazer') {
         // Lazer: 6 makineyi ayni operator ES ZAMANLI calistirabilir — makine VARDIYADA degil
@@ -3895,8 +3919,13 @@ window.__I18N_SOZLUK__ = {
           rsel.innerHTML = '<option value="TK1 Montaj" selected>TK1 Montaj</option>';
           rsel.onchange = null;
         } else {
-          for (var i = 1; i <= 12; i++) {
-            montajHatlari += '<option value="M' + i + '">M' + i + ' Hattı</option>';
+          var _kmh = kurulumMakineleri('montaj', null);
+          if (_kmh) {
+            _kmh.forEach(function (mk) { montajHatlari += '<option value="' + esc(mk) + '">' + esc(mk) + '</option>'; });
+          } else {
+            for (var i = 1; i <= 12; i++) {
+              montajHatlari += '<option value="M' + i + '">M' + i + ' Hattı</option>';
+            }
           }
           montajHatlari += '<option value="__yeni__">+ Yeni hat ekle...</option>';
           rsel.innerHTML = montajHatlari;
@@ -5131,7 +5160,7 @@ window.__I18N_SOZLUK__ = {
       var alan = document.getElementById('ariza-qr-alan');
       var not = document.getElementById('ariza-qr-not');
       if (!window.isSecureContext || !navigator.mediaDevices) {
-        toast('QR için https adresinden girin (coflemanage.online)', 'error'); return;
+        toast('QR için https adresinden girin ({{ marka.alan_adi|replace('https://', '') }})', 'error'); return;
       }
       if (!('BarcodeDetector' in window)) {
         toast('Bu tarayıcı QR okuyamıyor — kodu arama kutusuna yazın', 'error'); return;

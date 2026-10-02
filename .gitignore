@@ -74,3 +74,6 @@ as400/baglanti_kilidi.json
 
 # Sunucudan_Veri_Cek: yarim kalan indirme
 *.indirilen
+
+# Markalı kurulum (bulut sunucu) günlük yedekleri — deploy/linux/yedek.sh
+yedek/

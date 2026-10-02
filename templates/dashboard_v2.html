@@ -7,7 +7,7 @@
          açılışta çentikli telefonlarda içerik güvenli alana otursun (safe-area
          padding aşağıda). maximum-scale KOYMUYORUZ — panelde yakınlaşma meşru. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Cofle Forge — Yönetici Paneli</title>
+    <title>{{ marka.ad }} — Yönetici Paneli</title>
     <link rel="icon" type="image/png" href="/logo?tip=mark">
     <!-- theme-color KOYU TEMA ARTIĞIYDI (#0f172a): uygulama tezgâh paletine
          (açık) geçti ama Android araç çubuğu/splash lacivert kalıyordu —
@@ -19,7 +19,7 @@
     <link rel="apple-touch-icon" href="/logo?tip=mark">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Cofle Panel">
+    <meta name="apple-mobile-web-app-title" content="{{ marka.kisa }} Panel">
     <meta name="color-scheme" content="light">
     <!-- Sinyal Analizi grafiği — eski paneldeki çizim kodu Chart.js + eklentilerini
          kullanır (annotation: duruş bantları, zoom: sürükle-yakınlaş). Aynen taşındı. -->
@@ -1811,6 +1811,9 @@
     // Giriş yapan kullanıcının rol/izin bilgisi (app.py /dashboard render'ından).
     // admin → tüm sayfalar + Kullanıcılar yönetimi. kullanici → yalnız izinler[].
     window.PANEL_KU = {{ panel_ku|default('null')|safe }};
+    // KURULUM PROFİLİ (2026-10-02): marka, bölümler, makineler, açık modüller.
+    // Cofle'de profil dosyası yok → bolumler/lokasyonlar null, tüm modüller açık.
+    window.KURULUM = {{ kurulum|tojson }};
 
     // ── PANEL İSTEKLERİ DAYANIKLILIĞI (kullanıcı 2026-10-02: "iş yönetimine girince veri
     // yüklenmiyor; üretim kayıtlarına bakarken kapatıp açmam gerekiyor") ──
@@ -5494,9 +5497,9 @@ window.__I18N_SOZLUK__ = {
         <!-- ══════════════════ SOL MENÜ ══════════════════ -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
-                <img src="/logo" alt="Cofle Logo" data-logo
+                <img src="/logo" alt="{{ marka.ad }}" data-logo
                     onerror="this.style.display='none';document.getElementById('sb-logo-txt').style.display='block'">
-                <div id="sb-logo-txt" style="display:none"><h2>Cofle Forge</h2></div>
+                <div id="sb-logo-txt" style="display:none"><h2>{{ marka.ad }}</h2></div>
                 <p>Yönetici Paneli</p>
             </div>
 
@@ -5507,16 +5510,21 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">🏠</span> Fabrika Özeti</a>
                 <!-- İş Yönetimi SABİT (bölümden bağımsız) — sayfa içi bölüm sekmeleriyle
                      kaynak/montaj/metal arası geçilir; artık Üretim&OEE'ye gitmeye gerek yok. -->
+                {% if modul('is_yonetimi') %}
                 <a class="nav-item" data-sayfa="is-yonetimi" onclick="sayfaAc('is-yonetimi')">
                     <span class="nav-icon">📌</span> İş Yönetimi</a>
+                {% endif %}
+                {% if modul('bakim') %}
                 <a class="nav-item" data-sayfa="ariza-onay" onclick="sayfaAc('ariza-onay')">
                     <span class="nav-icon">🔧</span> Arıza Onay
                     <span id="ariza-nav-rozet" style="display:none;margin-left:auto;background:var(--danger);color:#fff;border-radius:999px;padding:1px 8px;font-size:.7rem;font-weight:800"></span></a>
+                {% endif %}
                 </div>
             </div>
 
             <!-- PROJE YÖNETİMİ (kullanıcı 2026-09-15: "bölüm olarak, proje olarak ayrı bir kısımda").
                  İlk ziyarette AÇIK (data-varsayilan); kapalıyken başlıkta atanmış iş rozeti. -->
+            {% if modul('proje') %}
             <div class="nav-group" data-varsayilan="acik">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Proje Yönetimi</span>
                     <span id="proje-grup-rozet" class="ng-rozet" style="display:none;margin-left:auto;margin-right:8px;background:var(--primary);color:#fff;border-radius:999px;padding:0 7px;font-size:.66rem;font-weight:800;letter-spacing:0"></span><span class="ok">▼</span></button>
@@ -5528,7 +5536,9 @@ window.__I18N_SOZLUK__ = {
                     <span id="proje-nav-rozet" style="display:none;margin-left:auto;background:var(--primary);color:#fff;border-radius:999px;padding:1px 8px;font-size:.7rem;font-weight:800"></span></a>
                 </div>
             </div>
+            {% endif %}
 
+            {% if modul('kapasite') %}
             <div class="nav-group">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Kapasite</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
@@ -5536,6 +5546,7 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">🧮</span> Ürün Havuzu</a>
                 </div>
             </div>
+            {% endif %}
 
             <div class="nav-group">
                 <button class="nav-group-title" id="ng-bolum-title" onclick="navGrupTogle(this)"><span>Aktif Bölüm</span><span class="ok">▼</span></button>
@@ -5545,8 +5556,10 @@ window.__I18N_SOZLUK__ = {
                 <a class="nav-item" data-sayfa="kayitlar" onclick="sayfaAc('kayitlar')">
                     <span class="nav-icon">📋</span> Kayıtlar</a>
                 <!-- Fikstür rafları yalnız robot kaynak bölümünde -->
+                {% if bolum_var('kaynak') %}
                 <a class="nav-item" data-sayfa="fikstur" data-bolum-only="kaynak" onclick="sayfaAc('fikstur')">
                     <span class="nav-icon">🔧</span> Fikstür</a>
+                {% endif %}
                 </div>
             </div>
 
@@ -5562,6 +5575,7 @@ window.__I18N_SOZLUK__ = {
                 </div>
             </div>
 
+            {% if modul('sayac') %}
             <div class="nav-group">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Cihaz &amp; Sinyal</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
@@ -5575,6 +5589,7 @@ window.__I18N_SOZLUK__ = {
                      yapılandırdığı ekranların yanında dursun (Andon grubu). -->
                 </div>
             </div>
+            {% endif %}
 
             
 
@@ -5598,6 +5613,7 @@ window.__I18N_SOZLUK__ = {
                 </div>
             </div>
 
+            {% if modul('as400') or modul('planlar') %}
             <div class="nav-group">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>AS400 İşlemler</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
@@ -5623,7 +5639,9 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">🧮</span> Kaynak EOQ</a>
                 </div>
             </div>
+            {% endif %}
 
+            {% if modul('andon') %}
             <div class="nav-group">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Andon</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
@@ -5631,16 +5649,25 @@ window.__I18N_SOZLUK__ = {
                      'Cihaz & Sinyal' altındaydı, ekranlar ise ayrı gruptaydı. -->
                 <a class="nav-item" data-sayfa="andon-ayarlari" onclick="sayfaAc('andon-ayarlari')">
                     <span class="nav-icon">⚙️</span> Andon Ayarları</a>
+                {% if bolum_var('kaynak') %}
                 <a class="nav-item" href="/andon" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Robot Kaynak andon (yeni sekme)">
                     <span class="andon-dot" style="background:var(--b-kaynak)"></span> Kaynak <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                {% endif %}
+                {% if bolum_var('montaj') %}
                 <a class="nav-item" href="/andon_montaj" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Montaj andon (yeni sekme)">
                     <span class="andon-dot" style="background:var(--b-montaj)"></span> Montaj <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                {% endif %}
+                {% if bolum_var('metal') %}
                 <a class="nav-item" href="/andon_metal" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Metal Enjeksiyon andon (yeni sekme)">
                     <span class="andon-dot" style="background:var(--b-metal)"></span> Metal <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                {% endif %}
+                {% if modul('tk1') %}
                 <a class="nav-item" href="/andon_tk1" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="TK1 montaj andon (yeni sekme)">
                     <span class="andon-dot" style="background:var(--b-montaj);opacity:.6"></span> TK1 <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                {% endif %}
                 </div>
             </div>
+            {% endif %}
 
 <div class="nav-group" id="ng-sistem" style="display:none">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Sistem</span><span class="ok">▼</span></button>
@@ -5666,7 +5693,9 @@ window.__I18N_SOZLUK__ = {
                             style="flex:1;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--lg-red);border-radius:8px;padding:7px;font-size:.74rem;font-weight:700;cursor:pointer">⎋ Çıkış</button>
                     </div>
                 </div>
+                {% if modul('eski_sayfalar') %}
                 <a href="/dashboard_eski" target="_blank" rel="noopener" data-admin-only="1" title="Eski yönetim paneli (yeni sekme)">🗂 Eski Dashboard</a>
+                {% endif %}
             </div>
         </aside>
 
@@ -5696,18 +5725,25 @@ window.__I18N_SOZLUK__ = {
                          sayaçlarından bugün gelen HAM sinyal. Üretim adedi değildir
                          (bölen/çarpan uygulanmaz, vardiya kapısı yoktur); sistemin
                          canlı olduğunun tek bakışta kanıtı. Tıklayınca Saha Cihazları. -->
+                    {% if modul('sayac') %}
                     <button type="button" class="sayac-rozet" id="sayac-rozet"
                             onclick="sayfaAc('saha-cihazlari')" title="Yükleniyor…">
                         <span class="sr-ikon">📡</span>
                         <span class="sr-deger" id="sayac-rozet-deger">—</span>
                     </button>
+                    {% endif %}
                     <button type="button" class="tema-anahtar" id="tema-anahtar"
                             onclick="temaDegistir()" title="Açık / koyu tema"
                             aria-label="Tema değiştir">🌙</button>
+                    {% if modul('tk1') %}
                     <div class="lok-segment" role="tablist" aria-label="Lokasyon seçimi">
                         <button class="lok-btn active" id="lok-tk2" onclick="lokasyonDegistir('TK2')" title="TK2 — mevcut fabrika">TK2</button>
                         <button class="lok-btn" id="lok-tk1" onclick="lokasyonDegistir('TK1')" title="TK1 — yan tesis (montaj)">TK1</button>
                     </div>
+                    {% else %}
+                    <!-- Tek tesisli kurulum: segment YOK ama kodun beklediği düğmeler gizli durur -->
+                    <div style="display:none"><button id="lok-tk2" class="lok-btn active"></button><button id="lok-tk1" class="lok-btn"></button></div>
+                    {% endif %}
                     <div id="dil-secici" class="dil-grup" role="group" aria-label="Dil / Language">
                         <button type="button" class="dil-btn" data-dil="tr" onclick="dilDegistir('tr')" title="Türkçe">
                             <svg viewBox="0 0 18 12" aria-hidden="true"><rect width="18" height="12" rx="1.5" fill="#e30a17"/><circle cx="7" cy="6" r="3" fill="#fff"/><circle cx="7.9" cy="6" r="2.4" fill="#e30a17"/><polygon points="11.6,4.6 12.02,5.52 13.02,5.57 12.26,6.24 12.5,7.2 11.6,6.68 10.7,7.2 10.94,6.24 10.18,5.57 11.18,5.52" fill="#fff"/></svg>
@@ -8668,6 +8704,12 @@ window.__I18N_SOZLUK__ = {
             tel:     { ad: 'Tel Üretimi', ikon: '🧵', renk: '#B45309', parlak: '#F59E0B', mark: '#B45309', rgb: '180,83,9', tekil: 'Proses Adımı' }
         };
         var BOLUM_SIRA = ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'];
+        // KURULUM PROFİLİ: markalı kurulumun bölümleri ve adları (Cofle'de profil yok → değişmez)
+        if (window.KURULUM && KURULUM.bolumler && KURULUM.bolumler.length) BOLUM_SIRA = KURULUM.bolumler.slice();
+        if (window.KURULUM && KURULUM.bolum_adlari) Object.keys(KURULUM.bolum_adlari).forEach(function (b) {
+            if (BOLUMLER[b]) BOLUMLER[b].ad = KURULUM.bolum_adlari[b];
+        });
+        function tk1Acik() { return !(window.KURULUM && KURULUM.moduller && KURULUM.moduller.tk1 === false); }
 
         // ── LOKASYONA GÖRE BÖLÜM LİSTESİ (2026-08-04) ────────────────────────
         // TK1 eskiden TEK bölümlü (montaj) varsayılıyordu ve bu varsayım 10'dan
@@ -8681,6 +8723,7 @@ window.__I18N_SOZLUK__ = {
             TK2: BOLUM_SIRA,
             TK1: ['montaj', 'plastik', 'tel']
         };
+        if (!tk1Acik()) delete LOKASYON_BOLUMLERI.TK1;
         function lokBolumleri(lok) {
             return LOKASYON_BOLUMLERI[lok || aktifLokasyon] || BOLUM_SIRA;
         }
@@ -8749,10 +8792,10 @@ window.__I18N_SOZLUK__ = {
         // ═══════════════════════════════════════════════════════
         // DURUM (localStorage: dbv2_*)
         // ═══════════════════════════════════════════════════════
-        var aktifLokasyon = (localStorage.getItem('dbv2_lokasyon') === 'TK1') ? 'TK1' : 'TK2';
+        var aktifLokasyon = (localStorage.getItem('dbv2_lokasyon') === 'TK1' && tk1Acik()) ? 'TK1' : 'TK2';
         var aktifBolum = (function () {
             var v = localStorage.getItem('dbv2_bolum');
-            return BOLUM_SIRA.indexOf(v) !== -1 ? v : 'kaynak';
+            return BOLUM_SIRA.indexOf(v) !== -1 ? v : BOLUM_SIRA[0];
         })();
         // Hatırlanan bölüm bu lokasyonda yoksa (ör. TK2'de 'kaynak' iken TK1'e
         // geçilmiş) o lokasyonun İLK bölümüne düş — eskiden koşulsuz 'montaj'dı.
@@ -19358,6 +19401,8 @@ window.__I18N_SOZLUK__ = {
             // 'AS400 İşlemler' grubu TEK izinle yönetilir: as400-teyit izni olan
             // teyit + 02'den aktarım + planlama sayfalarını görür (2026-07-23).
             if (sayfa === 'as400-transfer' || sayfa === 'as400-planlama') sayfa = 'as400-teyit';
+            // KURULUM PROFİLİ: bu kurulumda olmayan modülün sayfası admin için de kapalı
+            if (window.KURULUM && (KURULUM.kapali_sayfalar || []).indexOf(sayfa) !== -1) return false;
             if (!window.PANEL_KU) return sayfa !== 'kullanicilar'; // eski backend (gate yok) → kısıtlama yok
             if (panelAdmin()) return true;
             if (sayfa === 'kullanicilar') return false;      // yalnız admin

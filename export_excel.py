@@ -9,6 +9,14 @@ from database import get_db
 from oee import hesapla_oee
 
 MASAUSTU = r'C:\Users\selcu\OneDrive\Masaüstü'
+# KURULUM PROFİLİ (2026-10-02): markalı kurulumda (bulut/Linux sunucu) masaüstü yok —
+# arşiv uygulamanın data/ klasörüne yazılır. Cofle'de (profil yok) yol aynı kalır.
+try:
+    import kurulum as _kur
+    if not _kur.cofle_mi():
+        MASAUSTU = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+except Exception:
+    pass
 DOSYA_ADI = 'UretimTakipArsiv.xlsx'
 DOSYA_YOLU = os.path.join(MASAUSTU, DOSYA_ADI)
 

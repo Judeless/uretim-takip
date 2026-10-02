@@ -48,6 +48,28 @@ BOLUM_AD = {
 # ─────────────────────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────────────────────
+
+
+def _marka_ad():
+    """Kurulum profilindeki program adı (Cofle'de 'Cofle Forge')."""
+    try:
+        import kurulum
+        return kurulum.marka().get('ad') or 'Cofle Forge'
+    except Exception:
+        return 'Cofle Forge'
+
+
+def _lokasyon_ad(kod):
+    """Tek tesisli markalı kurulumda iç kod (TK2) yerine profildeki tesis adı."""
+    try:
+        import kurulum
+        for l in (kurulum.yukle().get('lokasyonlar') or []):
+            if l.get('kod') == kod:
+                return l.get('ad') or kod
+    except Exception:
+        pass
+    return kod
+
 def config_yukle():
     """mail_config.json'u okur. Yoksa/bozuksa None döner.
     encoding='utf-8-sig': Notepad (özellikle Server 2019) UTF-8 dosyaya BOM ekler;
@@ -592,7 +614,7 @@ def _html_sayfa(tarih_tr, icerik, tesis=''):
         f'<tr><td style="background:#ECECF1;padding:20px 4px 4px">{icerik}</td></tr>'
         f'<tr><td style="padding:16px 4px 0;font-family:Segoe UI,Arial,sans-serif;'
         f'font-size:10px;color:{gri};border-top:1px solid {cizgi};margin-top:10px">'
-        f'Bu e-posta Cofle Forge üretim takip sistemi tarafından otomatik gönderilmiştir.'
+        f'Bu e-posta {_marka_ad()} üretim takip sistemi tarafından otomatik gönderilmiştir.'
         f'</td></tr></table></td></tr></table></body></html>')
 
 
@@ -860,7 +882,7 @@ def _smtp_gonder(cfg, alicilar, konu, govde, ek_yol, html=None):
     """Tek SMTP oturumunda maili kurar ve gönderir. Hata fırlatır (çağıran yakalar)."""
     msg = MIMEMultipart()
     gonderen = cfg['gonderen']
-    msg['From'] = formataddr((cfg.get('gonderen_ad', 'Cofle Forge'), gonderen))
+    msg['From'] = formataddr((cfg.get('gonderen_ad', _marka_ad()), gonderen))
     msg['To'] = ', '.join(alicilar)
     msg['Subject'] = konu
     # multipart/alternative: HTML gosteremeyen istemci duz metni gorur.
@@ -1101,11 +1123,11 @@ def _tek_rapor_gonder(cfg, tarih, paket, alicilar, yontem):
                 'lokasyon': lokasyon,
                 'mesaj': f'{_tarih_tr(tarih)} ({lokasyon}) tarihinde üretim yok — mail gönderilmedi.'}
     tarih_tr = _tarih_tr(tarih)
-    konu = f'Cofle Forge — Günlük Üretim Raporu — {lokasyon} ({tarih_tr})'
+    konu = f'{_marka_ad()} — Günlük Üretim Raporu — {_lokasyon_ad(lokasyon)} ({tarih_tr})'
     govde = (f'Merhaba,\n\n{tarih_tr} tarihli günlük üretim raporu ektedir.\n\n'
              + _paket_metin(paket, tarih_tr)
              + f'\nDetaylar ekteki Excel dosyasındadır.\n\n'
-             f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.'
+             f'Bu e-posta {_marka_ad()} tarafından otomatik gönderilmiştir.'
              ).replace('\n', chr(10))
     html = _html_sayfa(tarih_tr, _paket_icerik_html(paket, tarih_tr, selamla=True), lokasyon)
     ekler = [paket['dosya']] if paket['satir'] else []
@@ -1136,7 +1158,7 @@ def _birlesik_gonder(cfg, tarih, paketler, alicilar, yontem):
                 'mesaj': f'{_tarih_tr(tarih)} tarihinde iki tesiste de üretim yok — mail gönderilmedi.'}
     tarih_tr = _tarih_tr(tarih)
     adlar = ' + '.join(p['lokasyon'] for p in paketler)
-    konu = f'Cofle Forge — Günlük Üretim Raporu — {adlar} ({tarih_tr})'
+    konu = f'{_marka_ad()} — Günlük Üretim Raporu — {adlar} ({tarih_tr})'
 
     govde = (f'Merhaba,\n\n{tarih_tr} tarihli günlük üretim raporu ektedir '
              f'({adlar} — her tesis ayrı Excel eki olarak).\n\n').replace('\n', chr(10))
@@ -1155,7 +1177,7 @@ def _birlesik_gonder(cfg, tarih, paketler, alicilar, yontem):
             f'padding-left:10px">{p["lokasyon"]}</div></td></tr></table>'
             + _paket_icerik_html(p, tarih_tr, selamla=False))
     govde += (f'Detaylar ekteki Excel dosyalarındadır.{chr(10)}{chr(10)}'
-              f'Bu e-posta Cofle Forge tarafından otomatik gönderilmiştir.')
+              f'Bu e-posta {_marka_ad()} tarafından otomatik gönderilmiştir.')
     html = _html_sayfa(tarih_tr, ''.join(icerikler), adlar)
     ekler = [p['dosya'] for p in dolu if p.get('satir')]
     try:
