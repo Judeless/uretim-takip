@@ -10546,6 +10546,13 @@ def as400_teyit_isaret():
         ref_norm = _le.kanonik(referans)
     except Exception:
         ref_norm = referans.upper().replace(' ', '')
+    # EKLİ REFERANS (kullanıcı 2026-10-02, '10.300.2757W-10(hazırlık)'): eşleşme anahtarı
+    # parantez / op / ist ekini atar → kalıcı işaret ANA ÜRÜNÜ (10.300.2757W-10) her gün
+    # teyit dışı yapardı ve hazırlık satırı yine listede kalırdı. Bu satırlar için
+    # 'gerek yok' panelde o güne özel verilir; kalıcı istenirse burada durdurulur.
+    if kapsam == 'kalici' and not kaldir and ref_norm != re.sub(r'\s+', '', referans).upper():
+        return jsonify({'hata': f'"{referans}" kalıcı işaretlenirse ana ürün {ref_norm} de HER GÜN '
+                                f'teyit dışı olur. Bu satır için "gerek yok" o güne özel verilir.'}), 409
     conn = get_db()
     kullanici = g.panel_ku['kullanici_adi']
     try:
@@ -11753,14 +11760,16 @@ def _teyit_import_gonder(yil, no, adet, bayrak, imp, zorla=False):
 
     EKRAN ROBOTUNUN YERİNE. Emir anahtarı: yüzyıl 20 + panelin yıl/launch numarası
     (XPRO90'daki Q0RED1/Q0RED2/Q0RENU ile birebir).
-    kalan_kontrol: ERP FAZLA TEYİDİ KABUL EDİYOR (2026-09-22 testi: 297 kalanlı
-    emre 500 adet J0STAT=1 ile geçti) — fren BİZDE; panelin "yine de gönder"
-    (zorla) seçeneği bunu bilerek aşar."""
+    LAUNCH ADEDİ FRENİ YOK (kullanıcı 2026-10-02: "launch adedinden fazla launch
+    kapatma emri gönderebilmeliyim"). ERP fazla teyidi kabul ediyor (2026-09-22:
+    297 kalanlı emre 500 adet J0STAT=1). Fazla stok riskine karşı fren LAUNCH'a
+    değil ÜRETİME bağlı ve teyit_gonder'de zaten duruyor: günün üretimi, bizim
+    gönderdiğimiz, ERP'deki teyit hareketleri (kesin/kısmi) ve kapasite."""
     try:
         _ti = _as400_teyit_import_modulu()
         r = _ti.teyit_yaz((20, int(yil), int(no)), adet, flsa=bayrak,
                           bekleme_sn=int(imp.get('bekleme_sn') or 60),
-                          zorla=zorla, kalan_kontrol=not zorla)
+                          zorla=zorla, kalan_kontrol=False)
     except Exception as e:
         print(f'[TEYIT-IMPORT] {yil}-{no} {adet}: {e!r}')
         return 'hata', f'Teyit import hatası: {e!r}', {}
@@ -14917,6 +14926,10 @@ def _oto_kuyruk_olustur(conn, tarihler):
             if im == 'kontrol':
                 continue
             temiz = [l for l in ls if not l.get('zombi')]
+            if not temiz and im == 'teyit_ver' and ls:
+                # ZOMBİ + '➕ teyit ver' (kullanıcı 2026-10-02): launch adedini aşan
+                # üretim yine de teyit edilir; kalan ≤ 0 olduğundan bayrak S (kapat).
+                temiz = ls
             if not temiz:
                 sabaha('zombi', t, r, 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — elle S ile kapatın',
                        (ls[0] or {}).get('launch', '') if ls else '')

@@ -16417,6 +16417,30 @@ window.__I18N_SOZLUK__ = {
                 'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" title="Bu satırı kontrol ettim (o güne özel)">✓ kontrol</button>';
         }
 
+        // '⊘ gerek yok' — satırın KÖKENİNE göre doğru işaret (kullanıcı 2026-10-02):
+        //   · ara operasyon '➕ teyit ver' ile CFI'ya alınmışsa → o işaret kaldırılır
+        //     (satır ara-op bilgisine döner, teyit almaz)
+        //   · referansta ek var ('(hazırlık)', '1.op', '2.ist') → o güne özel 'kontrol';
+        //     kalıcı işaret eşleşme anahtarına (eksiz kod) yazılır ve ANA ÜRÜNÜ her gün
+        //     teyit dışı yapardı (10.300.2757W-10(hazırlık) vakası)
+        //   · eksiz referans → eskisi gibi kalıcı
+        function as4GerekYokBtn(r, tarih, araop) {
+            var ref = esc(r.referans), bol = esc(r.bolum || ''), tar = esc(tarih || '');
+            var stil = 'padding:1px 6px;font-size:.68rem;margin-left:5px';
+            if (araop && r.isaret && r.isaret.durum === 'teyit_ver')
+                return '<button class="btn btn-ghost" style="' + stil + '" ' +
+                    'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'teyit_ver\',this.dataset.tar,true)" ' +
+                    'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" ' +
+                    'title="Ara operasyon — ➕ teyit ver işaretini kaldırır, teyit gönderilmez">⊘ gerek yok</button>';
+            var ekli = /\([^)]*\)/.test(r.referans || '') || /\d+\.?\s*(op|ist)\.?\s*$/i.test(r.referans || '');
+            if (ekli)
+                return '<button class="btn btn-ghost" style="' + stil + '" ' +
+                    'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'kontrol\',this.dataset.tar)" ' +
+                    'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" ' +
+                    'title="Bu güne özel — referansta ek var; kalıcı işaret ana ürünü de teyit dışı yapardı">⊘ gerek yok</button>';
+            return as4IsaretBtn(r, tarih, 'gerek_yok');
+        }
+
         // ── 02→01 AÇIK TRANSFERLER (TK1 hayali stok — iptal unutulanlar) ──
         var _as4Transferler = null;
         async function as4TransferYukle() {
@@ -16787,7 +16811,12 @@ window.__I18N_SOZLUK__ = {
                         return;
                     }
                     var temiz = ls.filter(function (l) { return !l.zombi; });
-                    if (!temiz.length) { dikkat.push({ tip: 'zombi', tarih: g.tarih, r: r, l: ls[0] }); return; }
+                    if (!temiz.length) {
+                        // ZOMBİ launch (kalan ≤ 0) + '➕ teyit ver' (kullanıcı 2026-10-02): launch
+                        // adedini aşan üretim de teyit edilir; kuyrukta bayrak S önerilir.
+                        if (!teyitVer || !ls.length) { dikkat.push({ tip: 'zombi', tarih: g.tarih, r: r, l: ls[0] }); return; }
+                        temiz = ls;
+                    }
                     // 'olasi' şüphesi ➕ teyit ver ile EZİLEBİLİR (karar insanın)
                     if (olasi && !teyitVer) { dikkat.push({ tip: olasi.zaten_teyitli || 'olasi', tarih: g.tarih, r: r, l: olasi }); return; }
                     _as4Bekleyen.push({ tarih: g.tarih, r: r, launchlar: temiz, bugunMu: g.tarih === bugun });
@@ -16835,7 +16864,7 @@ window.__I18N_SOZLUK__ = {
                 }
                 // LAUNCH'SIZ uretim (OPR10 + YOK, teyitsiz) → CFI KUYRUGU (kullanici
                 // 2026-07-20: launch olan launch teyidi, olmayan CFI; secilebilir tablo).
-                function cfiKuyruk(r, article) {
+                function cfiKuyruk(r, article, araop) {
                     if (sadeceHurda(r)) return;   // teyit edilecek adet yok → yalnız COP
                     var teyitVer = (r.isaret && r.isaret.durum === 'teyit_ver');
                     if (r.zaten_teyitli === 'kesin') { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
@@ -16843,12 +16872,12 @@ window.__I18N_SOZLUK__ = {
                     // ('➕ teyit ver' HARİÇ — o kuyruğa girmek İÇİN konur)
                     if (r.isaret && !teyitVer) { teyitli.push({ tarih: g.tarih, r: r, l: { zaten_hareket: r.zaten_hareket || [] } }); return; }
                     if (as4SupheliMi(r.zaten_teyitli) && !teyitVer) { dikkat.push({ tip: r.zaten_teyitli, tarih: g.tarih, r: r, l: { article: '', launch: '', zaten_hareket: r.zaten_hareket || [] } }); return; }
-                    _as4CfiBekleyen.push({ tarih: g.tarih, r: r, article: article || '', bugunMu: g.tarih === bugun });
+                    _as4CfiBekleyen.push({ tarih: g.tarih, r: r, article: article || '', bugunMu: g.tarih === bugun, araop: !!araop });
                 }
                 (L.OPR10 || []).forEach(function (r) { cfiKuyruk(r, ((r.launchlar || [])[0] || {}).article); });
                 (L.ARAOP || []).forEach(function (r) {
                     // ➕ teyit ver işaretli ara-op = kullanıcı 'bu satır teyit almalı' dedi → CFI
-                    if (r.isaret && r.isaret.durum === 'teyit_ver') { cfiKuyruk(r, ''); return; }
+                    if (r.isaret && r.isaret.durum === 'teyit_ver') { cfiKuyruk(r, '', true); return; }
                     araList.push({ tarih: g.tarih, r: r });
                 });
                 (L.YOK || []).forEach(function (r) { cfiKuyruk(r, ''); });
@@ -17056,7 +17085,7 @@ window.__I18N_SOZLUK__ = {
                                 (r.hurda > 0 ? '<div style="font-size:.7rem;color:var(--lg-red);font-weight:700">♻ hurda ' + fmt(r.hurda) + ' → COP girilecek</div>' : '') +
                                 '<div style="margin-top:3px">' +
                                 '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem" onclick="refRenameAc(this.dataset.kod)" data-kod="' + esc(r.orijinal_referans || r.referans) + '" title="Referans kodunu AS400 koduna göre düzelt (tüm sayfalarda)">🔁 düzelt</button>' +
-                                as4IsaretBtn(r, b.tarih, 'gerek_yok') +
+                                as4GerekYokBtn(r, b.tarih, b.araop) +
                                 '</div></td>' +
                             '<td style="text-align:right;font-weight:800;color:var(--success)">' + fmt(r.adet) + '</td>' +
                             '<td style="font-size:.8rem">' + esc(b.article || r.referans) +
@@ -17156,7 +17185,7 @@ window.__I18N_SOZLUK__ = {
             if (dikkat.length) {
                 var TIP = {
                     varyant: ['var(--warn)', 'Yazım/varyant farkı — referans kodunu AS400 koduna göre düzelt'],
-                    zombi:   ['var(--danger)', 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — S ile kapatın; üretim sürecekse yeni launch alınmalı'],
+                    zombi:   ['var(--danger)', 'Launch kalanı ≤ 0 (S unutulmuş olabilir) — üretim launch adedini aştıysa ➕ teyit ver ile gönderin (S ile kapanır)'],
                     olasi:   ['var(--warn)', 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin'],
                     // 'kismi' (2026-08-21, 94.LTK.09): günün BİR PARÇASI zaten teyitli.
                     // Adet sütununda kalan gösterilir — gün toplamı gönderilirse
@@ -17192,9 +17221,9 @@ window.__I18N_SOZLUK__ = {
                              : isrD.durum === 'teyit_ver' ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">➕ teyit verilecek</span>' : '') +
                             '<div style="margin-top:3px">' +
                             '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem" onclick="refRenameAc(this.dataset.kod)" data-kod="' + esc(x.r.orijinal_referans || x.r.referans) + '" title="Referans kodunu AS400 koduna göre düzelt (tüm sayfalarda)">🔁 düzelt</button>' +
-                            as4IsaretBtn(x.r, x.tarih, 'gerek_yok') +
+                            as4GerekYokBtn(x.r, x.tarih, false) +
                             as4IsaretBtn(x.r, x.tarih, 'kontrol') +
-                            (x.tip !== 'zombi' ? as4IsaretBtn(x.r, x.tarih, 'teyit_ver') : '') +
+                            as4IsaretBtn(x.r, x.tarih, 'teyit_ver') +
                             '</div></td>' +
                         '<td style="text-align:right">' + fmt(x.r.adet) +
                             (x.tip === 'kismi' && x.r.kalan_adet != null
