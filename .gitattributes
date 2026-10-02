@@ -1,0 +1,3 @@
+# Linux sunucuda calisan dosyalar Windows satir sonuyla (CRLF) bozulmasin
+*.sh text eol=lf
+deploy/linux/* text eol=lf
