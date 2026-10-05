@@ -5636,6 +5636,11 @@ window.__I18N_SOZLUK__ = {
                 <!-- METAL ENJEKSİYON PLANI (TK2, 2026-10-01): yine aynı sayfa + aynı motor -->
                 <a class="nav-item" data-sayfa="metal-plan" onclick="sayfaAc('metal-plan')">
                     <span class="nav-icon">🏭</span> Metal Planı</a>
+                <!-- SATIŞ PLANI (2026-10-05): 10-05-03-06 / S650B9 günlük arşivi + dünle fark -->
+                {% if modul('as400') %}
+                <a class="nav-item" data-sayfa="satis-plani" onclick="sayfaAc('satis-plani')">
+                    <span class="nav-icon">📈</span> Satış Planı</a>
+                {% endif %}
                 <!-- EOQ (2026-08-19): veri AS400'den (BARTF0.A0QTMI) geldiği için bu
                      grupta. AYRI SAYFA — dashboard SPA'sına sekme eklemek yerine kendi
                      şablonunda (/kaynak_eoq), yeni sekmede açılır. -->
@@ -7219,6 +7224,47 @@ window.__I18N_SOZLUK__ = {
                  çekilir, P (üretim) olanlar ayrılır ve ERP rotasından hangi bölümde kaç
                  saniye işlendiği türetilir. Panel yalnız EŞLEME ve İSTİSNA alır: atama
                  referans_listesi'ne yazılır, böylece OEE ile kapasite tek tanımı paylaşır. -->
+            <!-- ══════ SAYFA: SATIŞ PLANI (2026-10-05) ══════
+                 AS400 10-05-03-06 sonucu (S650B9) — Forge 30 dk'da bir bakar, değiştiyse
+                 günün kopyasını saklar. Metinler TEK SATIR (i18n motoru metin düğümü bazlı). -->
+            <section class="page" id="page-satis-plani">
+                <div style="margin-bottom:18px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">📈 Satış Planı — günlük arşiv</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                        AS400'de 10-05-03-06 ekranı (Periyot S · Detay S · Wh. Dft DB 01D · I) F6 ile çalıştırıldığında sonuç buraya kendiliğinden gelir; Forge 30 dakikada bir bakar. Her gün o günün adıyla saklanır ve bir önceki günle karşılaştırılır.
+                    </p>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>🕒 Son çekim</h3>
+                        <span class="adet-info" style="margin-left:10px" id="sp-durum-bilgi"></span>
+                        <button class="btn btn-primary" id="sp-cek-btn" onclick="spCek()" style="margin-left:auto">🔄 Şimdi kontrol et</button>
+                    </div>
+                    <div style="padding:12px 20px;font-size:.84rem;line-height:1.7" id="sp-durum">—</div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>🧾 Ana Veri'de olmayan kodlar</h3>
+                        <span class="adet-info" style="margin-left:10px" id="sp-eksik-bilgi"></span>
+                        <button class="btn btn-outline" onclick="spEksikIndir()" style="margin-left:auto" title="Ana Veri sütun düzeninde indirir — masaüstündeki Ana Veri'ye ekleyip bölüm atayın">⬇️ Ana Veri biçiminde indir</button>
+                    </div>
+                    <div style="padding:12px 20px;overflow-x:auto" id="sp-eksik">—</div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>🔀 Önceki günle fark</h3>
+                        <span class="adet-info" style="margin-left:10px" id="sp-fark-bilgi"></span>
+                        <select id="sp-gun" onchange="spFarkYukle()" style="margin-left:auto"></select>
+                    </div>
+                    <div style="padding:10px 20px 0" id="sp-fark-filtre"></div>
+                    <div style="padding:8px 20px 14px;overflow-x:auto" id="sp-fark">—</div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-header"><h3>🗂 Arşiv</h3></div>
+                    <div style="padding:12px 20px" id="sp-arsiv">—</div>
+                </div>
+            </section>
+
             <section class="page" id="page-kapasite">
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">🧮 Kapasite — Ürün Havuzu</h2>
@@ -9316,6 +9362,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'durus-sebepleri') ? 'page-durus-sebepleri'
                         : (sayfa === 'durus-analizi') ? 'page-durus-analizi'
                         : (sayfa === 'kapasite') ? 'page-kapasite'
+                        : (sayfa === 'satis-plani') ? 'page-satis-plani'
                         : (sayfa === 'ariza-onay') ? 'page-ariza-onay'
                         : (sayfa === 'proje-takip') ? 'page-proje-takip'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
@@ -9363,6 +9410,7 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'durus-sebepleri') dsSekmeAcildi();
             if (sayfa === 'durus-analizi') daSekmeAcildi();
             if (sayfa === 'kapasite') kapSekmeAcildi();
+            if (sayfa === 'satis-plani') spSekmeAcildi();
             if (sayfa === 'raporlar') initRaporlar();
             if (sayfa === 'operator-performans') initOperatorPerformans();
             if (sayfa === 'analiz') initAnaliz();
@@ -9412,6 +9460,8 @@ window.__I18N_SOZLUK__ = {
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Sinyal Analizi</b>';
             } else if (aktifSayfa === 'kapasite') {
                 bc.innerHTML = 'Kapasite ▸ <b>Ürün Havuzu</b> <span style="color:var(--dim)">· AS400</span>';
+            } else if (aktifSayfa === 'satis-plani') {
+                bc.innerHTML = 'AS400 ▸ <b>Satış Planı</b> <span style="color:var(--dim)">· 10-05-03-06</span>';
             } else if (aktifSayfa === 'durus-sebepleri') {
                 bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Duruş Sebepleri</b>';
             } else if (aktifSayfa === 'durus-analizi') {
@@ -11993,6 +12043,145 @@ window.__I18N_SOZLUK__ = {
                 '<button class="btn btn-ghost" onclick="anaVeriVazgec()">Vazgeç</button></div>';
             el.innerHTML = h;
             el.style.display = '';
+        }
+
+        // ══ SATIŞ PLANI (2026-10-05) ══════════════════════════════════════════
+        // 10-05-03-06 sonucu (S650B9) günlük arşivi · önceki günle fark · Ana Veri'de
+        // olmayan kodlar. Veri sunucuda; bu sayfa yalnız gösterir/indirir.
+        var spFarkVeri = null, spFarkTur = 'hepsi';
+        var SP_TUR = {
+            yakin_artis: ['Araya giren (yakın haftaya yeni talep)', 'var(--danger)'],
+            one_cekildi: ['Öne çekilen', 'var(--danger)'],
+            yeni: ['Yeni (müşteride yeni kod)', 'var(--warn)'],
+            kalkti: ['Kalkan (sevk ya da iptal)', 'var(--muted)'],
+            ertelendi: ['Ertelenen', '#0284C7'],
+            azaldi: ['Azalan (sevk ya da iptal)', 'var(--muted)'],
+            artti: ['İleri haftalara ek talep', 'var(--success)']
+        };
+        function spTarihTr(t) { return t ? t.slice(8, 10) + '.' + t.slice(5, 7) + '.' + t.slice(0, 4) : ''; }
+        async function spSekmeAcildi() {
+            await spDurumYukle();
+            spFarkYukle();          // seçili günün eksik kodlarını da yükler
+        }
+        async function spDurumYukle() {
+            var el = document.getElementById('sp-durum');
+            try {
+                var r = await panelFetch('/api/satis_plani/durum');
+                var d = await r.json();
+                if (!r.ok) { el.textContent = d.hata || ('HTTP ' + r.status); return; }
+                var s = d.son;
+                if (!s) {
+                    el.innerHTML = '<span style="color:var(--warn)">Henüz çekim yok. AS400\'de 10-05-03-06\'yı çalıştırıp "Şimdi kontrol et"e basın.</span>';
+                } else {
+                    var bugun = s.tarih === d.bugun;
+                    var depo = s.depo || '?';
+                    el.innerHTML = '<b>' + esc(s.ts) + '</b> · ' + fmt(s.satir) + ' satır · ' + fmt(s.kod) + ' kod · depo <b>' + esc(depo) + '</b>' +
+                        (s.depo && s.depo.indexOf('01D') < 0 ? ' <span style="color:var(--danger)">⚠ bu çekim 01D ile yapılmamış olabilir</span>' : '') +
+                        (bugun ? '' : '<div style="color:var(--warn);margin-top:4px">Bugün 10-05-03-06 henüz çalıştırılmamış (ya da sonuç dünkünden farksız) — son değişiklik ' + esc(spTarihTr(s.tarih)) + '.</div>');
+                }
+                document.getElementById('sp-durum-bilgi').textContent = (d.gunler || []).length ? (d.gunler.length + ' gün arşivde') : '';
+                var sel = document.getElementById('sp-gun');
+                var onceki = sel.value;
+                sel.innerHTML = (d.gunler || []).map(function (g) {
+                    return '<option value="' + esc(g.tarih) + '">' + esc(spTarihTr(g.tarih)) + '</option>';
+                }).join('');
+                if (onceki && (d.gunler || []).some(function (g) { return g.tarih === onceki; })) sel.value = onceki;
+                document.getElementById('sp-arsiv').innerHTML = (d.gunler || []).length
+                    ? '<table style="width:100%;border-collapse:collapse;font-size:.8rem"><tr style="text-align:left;color:var(--muted)"><th>Gün</th><th>Çekim</th><th>Satır</th><th>Kod</th><th>Depo</th><th></th></tr>' +
+                      d.gunler.map(function (g) {
+                          return '<tr style="border-top:1px solid var(--card-border)"><td><b>' + esc(spTarihTr(g.tarih)) + '</b></td><td>' + esc((g.ts || '').slice(11, 16)) +
+                              '</td><td>' + fmt(g.satir) + '</td><td>' + fmt(g.kod) + '</td><td>' + esc(g.depo || '') + '</td><td>' +
+                              (g.dosya_var ? '<button class="btn btn-ghost" style="padding:2px 10px" onclick="spIndir(\'' + esc(g.tarih) + '\')">⬇️ ' + esc(g.dosya) + '</button>' : '') + '</td></tr>';
+                      }).join('') + '</table>'
+                    : '<span style="color:var(--muted)">Arşiv boş.</span>';
+            } catch (e) { el.textContent = 'Yüklenemedi: ' + e.message; }
+        }
+        async function spCek() {
+            var btn = document.getElementById('sp-cek-btn');
+            var eski = btn.textContent;
+            btn.disabled = true; btn.textContent = '⏳ AS400 okunuyor…';
+            try {
+                var r = await panelFetch('/api/satis_plani/cek', { method: 'POST' });
+                var d = await r.json();
+                if (!r.ok) { toast(d.hata || ('HTTP ' + r.status), 'err'); return; }
+                toast(d.degisti ? ('✅ Yeni satış planı kaydedildi: ' + d.satir + ' satır, ' + d.kod + ' kod') : 'S650B9 son çekimle aynı — yeni bir şey yok', d.degisti ? 'ok' : 'info');
+                await spSekmeAcildi();
+            } catch (e) { toast('Okunamadı: ' + e.message, 'err'); }
+            finally { btn.disabled = false; btn.textContent = eski; }
+        }
+        async function spEksikYukle() {
+            var el = document.getElementById('sp-eksik');
+            var tarih = (document.getElementById('sp-gun') || {}).value || '';
+            try {
+                var r = await panelFetch('/api/satis_plani/eksik' + (tarih ? '?tarih=' + encodeURIComponent(tarih) : ''));
+                var d = await r.json();
+                if (!r.ok) { el.textContent = d.hata || ('HTTP ' + r.status); return; }
+                document.getElementById('sp-eksik-bilgi').textContent = fmt(d.eksik.length) + ' eksik · ' + fmt(d.kontrol_edilen) + ' P kodu kontrol edildi';
+                var tablo = function (liste, notBaslik) {
+                    return '<table style="width:100%;border-collapse:collapse;font-size:.8rem"><tr style="text-align:left;color:var(--muted)"><th>Kod</th><th>Açık sipariş</th><th>Gecikmiş</th><th>İlk hafta</th><th>Müşteri</th><th>' + notBaslik + '</th></tr>' +
+                        liste.map(function (x) {
+                            return '<tr style="border-top:1px solid var(--card-border)"><td><b>' + esc(x.kod) + '</b></td><td>' + fmt(x.toplam) + '</td><td style="' + (x.gecikmis ? 'color:var(--danger);font-weight:700' : '') + '">' + fmt(x.gecikmis) +
+                                '</td><td>' + esc(x.ilk_hafta || '') + '</td><td>' + esc((x.musteriler || []).join(', ')) + '</td><td style="color:var(--muted)">' + esc((x.benzer || []).join(', ')) + '</td></tr>';
+                        }).join('') + '</table>';
+                };
+                el.innerHTML = (d.eksik.length ? tablo(d.eksik, 'Ana Veri\'de benzer kod') : '<span style="color:var(--success)">Bu çekimdeki tüm P kodları Ana Veri\'de kayıtlı.</span>') +
+                    (d.islem_hali.length ? '<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted)">' + fmt(d.islem_hali.length) + ' kod Ana Veri\'de W / -S hâliyle kayıtlı (eksik sayılmadı)</summary>' + tablo(d.islem_hali, 'Kayıtlı hâli') + '</details>' : '');
+            } catch (e) { el.textContent = 'Yüklenemedi: ' + e.message; }
+        }
+        async function spDosyaIndir(url, varsayilanAd) {
+            try {
+                var r = await panelFetch(url);
+                if (!r.ok) { var h = ''; try { h = (await r.json()).hata || ''; } catch (e) {} toast(h || ('İndirilemedi (HTTP ' + r.status + ')'), 'err'); return; }
+                var blob = await r.blob();
+                var ad = varsayilanAd;
+                var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(r.headers.get('Content-Disposition') || '');
+                if (m && m[1]) { try { ad = decodeURIComponent(m[1]); } catch (e) { ad = m[1]; } }
+                var u = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = u; a.download = ad; document.body.appendChild(a); a.click();
+                a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+                toast('📊 ' + ad + ' indirildi', 'ok');
+            } catch (e) { toast('İndirilemedi: ' + e.message, 'err'); }
+        }
+        function spEksikIndir() {
+            var tarih = document.getElementById('sp-gun').value || '';
+            spDosyaIndir('/api/satis_plani/eksik.xlsx' + (tarih ? '?tarih=' + encodeURIComponent(tarih) : ''), 'AnaVeri_eksik_kodlar.xlsx');
+        }
+        function spIndir(tarih) { spDosyaIndir('/api/satis_plani/indir?tarih=' + encodeURIComponent(tarih), 'Satis_Plani_' + tarih + '.xlsx'); }
+        async function spFarkYukle() {
+            var el = document.getElementById('sp-fark');
+            var tarih = document.getElementById('sp-gun').value || '';
+            spEksikYukle();
+            try {
+                var r = await panelFetch('/api/satis_plani/fark' + (tarih ? '?tarih=' + encodeURIComponent(tarih) : ''));
+                var d = await r.json();
+                if (!r.ok) { el.textContent = d.hata || ('HTTP ' + r.status); spFarkVeri = null; return; }
+                spFarkVeri = d;
+                document.getElementById('sp-fark-bilgi').textContent = d.eski
+                    ? spTarihTr(d.yeni.tarih) + ' ↔ ' + spTarihTr(d.eski.tarih) + ' · ' + fmt(d.toplam_satir || 0) + ' değişiklik'
+                    : (d.mesaj || '');
+                spFarkCiz();
+            } catch (e) { el.textContent = 'Yüklenemedi: ' + e.message; }
+        }
+        function spFarkFiltre(t) { spFarkTur = t; spFarkCiz(); }
+        function spFarkCiz() {
+            var d = spFarkVeri, el = document.getElementById('sp-fark'), fl = document.getElementById('sp-fark-filtre');
+            if (!d || !d.eski) { fl.innerHTML = ''; el.innerHTML = '<span style="color:var(--muted)">' + esc((d && d.mesaj) || 'Karşılaştırma yok') + '</span>'; return; }
+            var oz = d.ozet || {};
+            fl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+                [['hepsi', 'Hepsi', d.toplam_satir || 0]].concat(Object.keys(SP_TUR).filter(function (k) { return oz[k]; }).map(function (k) { return [k, SP_TUR[k][0], oz[k]]; }))
+                .map(function (x) {
+                    return '<button class="btn ' + (spFarkTur === x[0] ? 'btn-primary' : 'btn-outline') + '" style="padding:3px 10px;font-size:.76rem" onclick="spFarkFiltre(\'' + x[0] + '\')">' + esc(x[1]) + ' · ' + fmt(x[2]) + '</button>';
+                }).join('') + '</div>';
+            var liste = (d.satirlar || []).filter(function (s) { return spFarkTur === 'hepsi' || s.tur === spFarkTur; });
+            el.innerHTML = liste.length ? '<table style="width:100%;border-collapse:collapse;font-size:.79rem"><tr style="text-align:left;color:var(--muted)"><th>Tür</th><th>Müşteri</th><th>Kod</th><th>Yakın (gecikmiş + 2 hf)</th><th>Toplam</th><th>Değişen haftalar</th></tr>' +
+                liste.slice(0, 800).map(function (s) {
+                    var t = SP_TUR[s.tur] || [s.tur, 'inherit'];
+                    return '<tr style="border-top:1px solid var(--card-border)"><td style="color:' + t[1] + ';font-weight:700">' + esc(t[0]) + '</td><td>' + esc(s.musteri) +
+                        '</td><td><b>' + esc(s.article) + '</b></td><td>' + fmt(s.onceki_yakin) + ' → <b>' + fmt(s.yeni_yakin) + '</b></td><td>' + fmt(s.onceki_toplam) + ' → <b>' + fmt(s.yeni_toplam) +
+                        '</b></td><td style="color:var(--muted)">' + s.degisim.map(function (h) { return esc(h.hafta) + ': ' + fmt(h.onceki) + '→' + fmt(h.yeni); }).join(' · ') + '</td></tr>';
+                }).join('') + '</table>' + (liste.length > 800 ? '<div style="color:var(--muted);margin-top:6px">İlk 800 satır gösteriliyor.</div>' : '')
+                : '<span style="color:var(--muted)">Bu türde değişiklik yok.</span>';
         }
 
         // ── REFERANSLARI .XLSX OLARAK İNDİR (2026-08-04) ──────────────────────
@@ -18309,6 +18498,7 @@ window.__I18N_SOZLUK__ = {
             'durus-analizi': 'Duruş Analizi (Pareto + hat/operatör kırılımı)',
             // 2026-09-17 kapasite modülü: AS400 ürün havuzu + bölüm/süre ataması
             'kapasite': 'Kapasite — Ürün Havuzu (AS400 kodlarını bölüme/süreye atama)',
+            'satis-plani': 'Satış Planı (günlük arşiv, dünle fark, Ana Veri\'de olmayan kodlar)',
             'ariza-onay': 'Arıza Onay (operatör bildirimlerini bakıma iletme)',
             // 2026-09-15 Proje Takip: yönetim izni sayfayı da açar
             'proje-takip': 'Proje Takip (görüntüle + kendine atanan işin terminini gir)',

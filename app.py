@@ -237,6 +237,9 @@ PANEL_SAYFALAR = [
     'durus-sebepleri', 'durus-analizi',
     # 2026-09-17: kapasite modülü (AS400 ürün havuzu + bölüm/süre ataması)
     'kapasite',
+    # 2026-10-05: satış planı arşivi (AS400 10-05-03-06 / S650B9) — günlük kopya,
+    # dünle karşılaştırma, Ana Veri'de olmayan kodlar. Yeni → yönetici tek tek verir.
+    'satis-plani',
     # 2026-09-15 PROJE TAKİP: 'proje-takip' = sayfayı görür + KENDİNE atanan işin
     # üretim terminini/durumunu girer; 'proje-yonetim' = proje açar, parça/iş ekler,
     # kişi atar, talep termini girer (sayfa değil yetki; sayfayı da açar).
@@ -249,6 +252,7 @@ PANEL_SAYFALAR = [
 _SAYFA_MODUL = {
     'as400-teyit': 'as400', 'kaynak-plan': 'planlar', 'montaj-plan': 'planlar',
     'metal-plan': 'planlar', 'kapasite': 'kapasite', 'ariza-onay': 'bakim',
+    'satis-plani': 'as400',
     'proje-takip': 'proje', 'proje-yonetim': 'proje', 'saha-cihazlari': 'sayac',
     'sinyal-analizi': 'sayac', 'andon-ayarlari': 'andon', 'is-yonetimi': 'is_yonetimi',
 }
@@ -7628,6 +7632,128 @@ def _kapasite_bolum_gecerli(bolum):
     return bolum in GECERLI_BOLUMLER
 
 
+# ══ SATIŞ PLANI ARŞİVİ (kullanıcı 2026-10-05) ════════════════════════════════
+# "Satış planını her gün çekip o günün adıyla saklayalım; araya girilen / silinen
+#  siparişleri yakalayalım; Ana Veri'de olmayan kodları çıkaralım." Ayrıntı: satis_plani.py
+def _sp_gun_cekimi(conn, tarih=None):
+    """tarih günü (yoksa en son gün) ve ondan bir önceki günün son çekimi."""
+    import satis_plani as SP
+    gunler = SP.gunluk_cekimler(conn, limit=400)
+    if not gunler:
+        return None, None, gunler
+    if tarih:
+        i = next((j for j, g in enumerate(gunler) if g['tarih'] == tarih), None)
+        if i is None:
+            return None, None, gunler
+    else:
+        i = 0
+    return gunler[i], (gunler[i + 1] if i + 1 < len(gunler) else None), gunler
+
+
+@app.route('/api/satis_plani/durum', methods=['GET'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_durum():
+    import satis_plani as SP
+    conn = get_db()
+    SP.tablolari_kur(conn)
+    son = conn.execute("SELECT id, ts, tarih, satir, kod, depo, haftalar, kullanici FROM satis_plani_cekim "
+                       "ORDER BY id DESC LIMIT 1").fetchone()
+    gunler = SP.gunluk_cekimler(conn, limit=120)
+    for g in gunler:
+        g['dosya_var'] = bool(g['dosya']) and os.path.exists(os.path.join(SP.KLASOR, g['dosya']))
+        g.pop('haftalar', None)
+    return jsonify({'son': dict(son) if son else None, 'gunler': gunler,
+                    'bugun': datetime.now().strftime('%Y-%m-%d')})
+
+
+@app.route('/api/satis_plani/cek', methods=['POST'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_cek():
+    """Elle çekim: S650B9 değiştiyse saklar. AS400'e yalnız SELECT gider."""
+    import satis_plani as SP
+    try:
+        sonuc = SP.cek(get_db(), kullanici=g.panel_ku['kullanici_adi'])
+    except Exception as e:
+        return jsonify({'hata': f'AS400 okunamadı: {e}'}), 502
+    return jsonify(sonuc)
+
+
+@app.route('/api/satis_plani/fark', methods=['GET'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_fark():
+    """?tarih=YYYY-MM-DD (yoksa son gün) — o günün son çekimi ↔ bir önceki gün."""
+    import satis_plani as SP
+    conn = get_db()
+    yeni, eski, _g = _sp_gun_cekimi(conn, request.args.get('tarih'))
+    if not yeni:
+        return jsonify({'hata': 'Bu güne ait çekim yok'}), 404
+    if not eski:
+        return jsonify({'yeni': yeni, 'eski': None, 'satirlar': [], 'ozet': {},
+                        'mesaj': 'Karşılaştırılacak önceki gün yok (ilk çekim)'})
+    satirlar = SP.fark(conn, yeni['id'], eski['id'])
+    ozet = {}
+    for s in satirlar:
+        ozet[s['tur']] = ozet.get(s['tur'], 0) + 1
+    return jsonify({'yeni': yeni, 'eski': eski, 'satirlar': satirlar[:3000], 'ozet': ozet,
+                    'toplam_satir': len(satirlar)})
+
+
+@app.route('/api/satis_plani/eksik', methods=['GET'])
+def satis_plani_eksik():
+    """Ana Veri'de olmayan P kodları. Panel oturumu YA DA yerel ağ (masaüstündeki Ana
+    Veri'yi laptopta güncelleyen araç için) — yerel ağda müşteri adları verilmez."""
+    import satis_plani as SP
+    ku = panel_kullanici()
+    if ku and not (ku['admin'] or 'satis-plani' in ku['izinler']):
+        return jsonify({'hata': 'Bu sayfa için yetkiniz yok (satis-plani)'}), 403
+    if not ku and not _yerel_ag_istegi():
+        return jsonify({'hata': 'Oturum gerekli', 'giris_gerekli': True}), 401
+    conn = get_db()
+    yeni, _e, _g = _sp_gun_cekimi(conn, request.args.get('tarih'))
+    if not yeni:
+        return jsonify({'hata': 'Henüz satış planı çekimi yok'}), 404
+    sonuc = SP.eksik_kodlar(conn, yeni['id'])
+    if not ku:
+        for liste in (sonuc['eksik'], sonuc['islem_hali']):
+            for x in liste:
+                x.pop('musteriler', None)
+    sonuc['cekim'] = {k: yeni[k] for k in ('id', 'ts', 'tarih', 'satir', 'kod', 'depo')}
+    return jsonify(sonuc)
+
+
+@app.route('/api/satis_plani/eksik.xlsx', methods=['GET'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_eksik_excel():
+    import satis_plani as SP
+    import io as _io
+    conn = get_db()
+    yeni, _e, _g = _sp_gun_cekimi(conn, request.args.get('tarih'))
+    if not yeni:
+        return jsonify({'hata': 'Henüz satış planı çekimi yok'}), 404
+    eksik = SP.eksik_kodlar(conn, yeni['id'])['eksik']
+    tarih_tr = datetime.strptime(yeni['tarih'], '%Y-%m-%d').strftime('%d.%m.%Y')
+    return send_file(_io.BytesIO(SP.eksik_excel(eksik, tarih_tr)), as_attachment=True,
+                     download_name=f"AnaVeri_eksik_kodlar_{yeni['tarih']}.xlsx",
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/api/satis_plani/indir', methods=['GET'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_indir():
+    """?tarih=YYYY-MM-DD → o günün satış planı dosyası."""
+    import satis_plani as SP
+    tarih = (request.args.get('tarih') or '').strip()
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', tarih):
+        return jsonify({'hata': 'tarih YYYY-MM-DD olmalı'}), 400
+    conn = get_db()
+    SP.tablolari_kur(conn)
+    r = conn.execute("SELECT dosya FROM satis_plani_cekim WHERE tarih=? ORDER BY id DESC LIMIT 1", (tarih,)).fetchone()
+    yol = os.path.join(SP.KLASOR, os.path.basename(r[0]) if r and r[0] else f'Satis_Plani_{tarih}.xlsx')
+    if not os.path.exists(yol):
+        return jsonify({'hata': f'{tarih} için dosya yok'}), 404
+    return send_file(yol, as_attachment=True, download_name=os.path.basename(yol))
+
+
 @app.route('/api/kapasite/ozet', methods=['GET'])
 @panel_gerekli(izin='kapasite')
 def kapasite_ozet_api():
@@ -14159,6 +14285,25 @@ def metal_plan_oto_job():
     _kp_oto_job('metal')
 
 
+# ── SATIŞ PLANI ARŞİVİ (kullanıcı 2026-10-05) — ayrıntı: satis_plani.py ──────────
+# S650B9 yalnız biri 10-05-03-06'yı F6'layınca tazelenir; saat bilinmediği için gün
+# içinde 30 dk'da bir bakılır, içerik değişmediyse hiçbir şey yazılmaz (tek SELECT).
+SATIS_PLANI_SAAT = (6, 20)      # bu saatler arasında bakılır
+
+
+def satis_plani_job():
+    if not (SATIS_PLANI_SAAT[0] <= datetime.now().hour < SATIS_PLANI_SAAT[1]):
+        return
+    import satis_plani as SP
+    conn = db_connect()
+    try:
+        SP.cek(conn, kullanici='otomatik')
+    except Exception as e:
+        print(f'[SATIŞ PLANI] çekim başarısız: {e}')
+    finally:
+        conn.close()
+
+
 # ── ÖNE ÇIKANLAR: darboğaz parçalar + otomatik notlar (kullanıcı 2026-09-30) ──
 # "Hangi referansın kaç adet ürünü kilitlediğini görmek çok mantıklı; bu ürünün
 #  tedariğini tamamlayıp önemli bir şey yapılmış olur. Bu gibi önemli notları
@@ -18121,11 +18266,14 @@ if __name__ == '__main__':
                           # Amir onayı gecikmiş arıza bildirimleri
                           (5, ariza_hatirlatma_job, 'Arıza Hatırlatma'),
                           # Bakıma iletilmiş talebin durumu (v0.9.8 ucu)
-                          (5, ariza_durum_job, 'Arıza Bakım Durumu')]
+                          (5, ariza_durum_job, 'Arıza Bakım Durumu'),
+                          # Satış planı (S650B9) — değiştiyse günün kopyası
+                          (30, satis_plani_job, 'Satış Planı Arşivi')]
             # KURULUM PROFİLİ: kapalı modülün işi hiç kurulmaz (AS400'süz bir
             # kurulumda 16:45/17:10 koşuları ve açılış telafisi denemesin).
             _GOREV_MODUL = {oto_transfer_iptal_job: 'as400', oto_teyit_job: 'as400',
                             erken_teyit_job: 'as400', agent_nobet_job: 'as400',
+                            satis_plani_job: 'as400',
                             bakim_katalog_job: 'bakim', ariza_hatirlatma_job: 'bakim',
                             ariza_durum_job: 'bakim', kaynak_plan_oto_job: 'planlar',
                             montaj_plan_oto_job: 'planlar', metal_plan_oto_job: 'planlar'}
