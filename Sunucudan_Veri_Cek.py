@@ -52,7 +52,8 @@ VERI = os.path.join(KOK, 'data')
 DB = os.path.join(KOK, 'uretim.db')
 ISARET = os.path.join(VERI, 'GELISTIRME_KOPYASI.json')
 VARSAYILAN_SUNUCU = 'http://192.168.20.210:5000'
-EXCELLER = {'excel': 'uretim_verileri.xlsx', 'excel_tk1': 'Tk1 Veriler.xlsx'}
+EXCELLER = {'excel': 'uretim_verileri.xlsx', 'excel_tk1': 'Tk1 Veriler.xlsx',
+            'ana_veri': 'AnaVeri.xlsx'}
 KASA_SERVIS = 'cofle-forge-yedek'          # Windows Kimlik Kasası (keyring) servis adı
 ANAHTAR_BASLIGI = 'X-Yedek-Anahtari'
 

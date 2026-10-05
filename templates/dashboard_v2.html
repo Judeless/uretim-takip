@@ -1980,6 +1980,10 @@ window.__I18N_SOZLUK__ = {
   "Bölüm geneli (hat tanımı olmayan kayıtlar)": {"en": "Department default (records without a line)", "it": "Predefinito reparto (record senza linea)"},
   "🧾 Süre Şablonu": {"en": "🧾 Time template", "it": "🧾 Modello tempi"},
   "⬆️ Süreleri Yükle": {"en": "⬆️ Upload times", "it": "⬆️ Carica tempi"},
+  "⬇️ Ana Veri İndir": {"en": "⬇️ Download master data", "it": "⬇️ Scarica dati master"},
+  "⬆️ Ana Veri Yükle": {"en": "⬆️ Upload master data", "it": "⬆️ Carica dati master"},
+  "TK2 referanslarının tek listesini (AnaVeri.xlsx) en güncel süreleriyle indirir": {"en": "Downloads the single TK2 reference list (AnaVeri.xlsx) with the latest times", "it": "Scarica l'elenco unico dei riferimenti TK2 (AnaVeri.xlsx) con i tempi aggiornati"},
+  "Düzenlediğiniz AnaVeri.xlsx'i yükleyin — önce önizleme gösterilir, onaylayınca uygulanır": {"en": "Upload your edited AnaVeri.xlsx — a preview is shown first, applied after confirmation", "it": "Carica AnaVeri.xlsx modificato — prima viene mostrata un'anteprima, poi applicato dopo conferma"},
   "Bu bölüm + tesisin TÜM referanslarını (süresi boş olanlar dahil) doldurulacak şablon olarak indirir": {"en": "Downloads ALL references of this department + plant (including those without a time) as a template to fill in", "it": "Scarica TUTTI i riferimenti di questo reparto + stabilimento (anche senza tempo) come modello da compilare"},
   "Doldurduğunuz şablonu yükleyin — süreler koda göre eşleşip toplu güncellenir": {"en": "Upload the filled template — times are matched by code and updated in bulk", "it": "Carica il modello compilato — i tempi vengono abbinati per codice e aggiornati in blocco"},
   "Proje Yönetimi": {"en": "Project Management", "it": "Gestione progetti"},
@@ -3179,9 +3183,9 @@ window.__I18N_SOZLUK__ = {
     "en": "Adding...",
     "it": "Aggiunta in corso..."
   },
-  "Kişi aktif tesise eklenir. PIN boş bırakılırsa 0000 olur; kişi başka bölümde kayıtlıysa mevcut PIN'ini devralır. Excel listenin ana kaynağıdır — kalıcı olması için kişiyi Excel'e de yazın, buradan eklenen kayıt içe aktarımda silinmez.": {
-    "en": "The person is added to the active facility. If the PIN is left blank it becomes 0000; if the person already exists in another department the existing PIN is inherited. Excel remains the master list \u2014 add the person there too to make it permanent, a record added here is never removed by the import.",
-    "it": "La persona viene aggiunta allo stabilimento attivo. Se il PIN resta vuoto diventa 0000; se la persona esiste gi\u00e0 in un altro reparto eredita il PIN esistente. Excel resta l'elenco principale \u2014 inserire la persona anche l\u00ec per renderla permanente, un record aggiunto qui non viene mai rimosso dall'importazione."
+  "Kişi aktif tesise eklenir. PIN boş bırakılırsa 0000 olur; kişi başka bölümde kayıtlıysa mevcut PIN'ini devralır. TK2'de kişi Ana Veri Excel'inin operatör sayfasına da otomatik yazılır; TK1'de liste Tk1 Veriler.xlsx'ten gelir. Buradan eklenen kayıt içe aktarımda silinmez.": {
+    "en": "The person is added to the active facility. If the PIN is left blank it becomes 0000; if the person already exists in another department the existing PIN is inherited. In TK2 the person is also written to the operator sheet of the master data Excel automatically; in TK1 the list comes from Tk1 Veriler.xlsx. A record added here is never removed by the import.",
+    "it": "La persona viene aggiunta allo stabilimento attivo. Se il PIN resta vuoto diventa 0000; se la persona esiste già in un altro reparto eredita il PIN esistente. In TK2 la persona viene scritta automaticamente anche nel foglio operatori dell'Excel dei dati master; in TK1 l'elenco proviene da Tk1 Veriler.xlsx. Un record aggiunto qui non viene mai rimosso dall'importazione."
   },
   "Ad soyad en az 3 karakter olmalı": {
     "en": "Full name must be at least 3 characters",
@@ -6168,6 +6172,11 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-outline" id="ref-sure-sablon-btn" onclick="referansSureSablonu()" style="border-color:rgba(109,40,217,0.5);color:var(--primary)" title="Bu bölüm + tesisin TÜM referanslarını (süresi boş olanlar dahil) doldurulacak şablon olarak indirir">🧾 Süre Şablonu</button>
                         <input type="file" id="ref-sure-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="referansSureYukle(this)">
                         <button class="btn btn-outline" id="ref-sure-yukle-btn" onclick="document.getElementById('ref-sure-dosya').click()" style="border-color:rgba(16,185,129,0.5);color:var(--success)" title="Doldurduğunuz şablonu yükleyin — süreler koda göre eşleşip toplu güncellenir">⬆️ Süreleri Yükle</button>
+                        <!-- ANA VERİ (2026-10-05): TK2'nin altı bölümünün tek listesi (data/AnaVeri.xlsx).
+                             Yükleme önce önizleme döner; onaylanınca uygulanır. TK1'de gizli. -->
+                        <input type="file" id="ana-veri-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="anaVeriSec(this)">
+                        <button class="btn btn-outline" id="ana-veri-indir-btn" onclick="anaVeriIndir()" style="border-color:rgba(14,165,233,0.5);color:#0284C7" title="TK2 referanslarının tek listesini (AnaVeri.xlsx) en güncel süreleriyle indirir">⬇️ Ana Veri İndir</button>
+                        <button class="btn btn-outline" id="ana-veri-yukle-btn" onclick="document.getElementById('ana-veri-dosya').click()" style="border-color:rgba(14,165,233,0.5);color:#0284C7" title="Düzenlediğiniz AnaVeri.xlsx'i yükleyin — önce önizleme gösterilir, onaylayınca uygulanır">⬆️ Ana Veri Yükle</button>
                         <button class="btn btn-outline" id="ref-hat-sure-btn" onclick="hatSureAc()" style="border-color:rgba(245,158,11,0.5);color:var(--warn)" title="Hat / makine bazlı süre: referansın kendi süresi yoksa OEE bu süreyi kullanır (yeni ürünlerde süre tanımı gerekmez)">⏱ Hat Süreleri</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
@@ -6193,6 +6202,7 @@ window.__I18N_SOZLUK__ = {
                 </div>
 
                 <div id="ref-sure-sonuc" style="display:none;margin:0 0 14px;padding:12px 14px;border:1px solid var(--card-border);border-radius:12px;background:var(--card);font-size:.84rem"></div>
+                <div id="ana-veri-sonuc" style="display:none;margin:0 0 14px;padding:12px 14px;border:1px solid rgba(14,165,233,0.45);border-radius:12px;background:var(--card);font-size:.84rem"></div>
 
                 <!-- Süre Teyit Özeti (sadece kaynak için) -->
                 <div class="panel-card" id="teyit-ozet-banner" style="display:none;padding:14px 18px">
@@ -6694,7 +6704,7 @@ window.__I18N_SOZLUK__ = {
                     <!-- TEK SATIR: i18n motoru metin düğümünü trim edip sözlükte arar;
                          satır sonu ya da inline <code> anahtarı bozar. -->
                     <p style="padding:4px 20px 16px;margin:0;font-size:.75rem;color:var(--muted);line-height:1.55">
-                        Kişi aktif tesise eklenir. PIN boş bırakılırsa 0000 olur; kişi başka bölümde kayıtlıysa mevcut PIN'ini devralır. Excel listenin ana kaynağıdır — kalıcı olması için kişiyi Excel'e de yazın, buradan eklenen kayıt içe aktarımda silinmez.
+                        Kişi aktif tesise eklenir. PIN boş bırakılırsa 0000 olur; kişi başka bölümde kayıtlıysa mevcut PIN'ini devralır. TK2'de kişi Ana Veri Excel'inin operatör sayfasına da otomatik yazılır; TK1'de liste Tk1 Veriler.xlsx'ten gelir. Buradan eklenen kayıt içe aktarımda silinmez.
                     </p>
                 </div>
 
@@ -11147,6 +11157,12 @@ window.__I18N_SOZLUK__ = {
             // dosyada (Tk1 Veriler.xlsx) ve cycle/teyit tutmaz, TK2 Excel'ine yazılmaz.
             const gBtn = document.getElementById('ref-excel-guncelle-btn');
             if (gBtn) gBtn.style.display = (aktifLokasyon === 'TK1') ? 'none' : '';
+            // Ana Veri yalnız TK2'nin listesi
+            ['ana-veri-indir-btn', 'ana-veri-yukle-btn'].forEach(function (id) {
+                var b = document.getElementById(id);
+                if (b) b.style.display = (aktifLokasyon === 'TK1') ? 'none' : '';
+            });
+            if (aktifLokasyon === 'TK1') anaVeriVazgec();   // açık önizleme TK1'de kalmasın
         }
 
         // Aktif teyit filtresi (all / teyitsiz / suresiz / teyitli)
@@ -11807,6 +11823,169 @@ window.__I18N_SOZLUK__ = {
             el.style.display = '';
         }
 
+        // ── ANA VERİ (2026-10-05): TK2 referanslarının tek listesi ────────────
+        // İndir: sunucu önce veritabanındaki son süre/teyit/göz değerlerini dosyaya
+        // yazar, sonra dosya iner. Yükle: önce ÖNİZLEME (hiçbir şey değişmez) →
+        // "Uygula" ile aynı dosya onay=1 ile tekrar gönderilir.
+        var anaVeriDosya = null, anaVeriSonOnizleme = null;
+        async function anaVeriAktifMi() {
+            try {
+                var r = await panelFetch('/api/ana_veri/durum');
+                return r.ok ? !!(await r.json()).aktif : false;
+            } catch (e) { return false; }
+        }
+        async function anaVeriIndir() {
+            var btn = document.getElementById('ana-veri-indir-btn');
+            var eski = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Hazırlanıyor…'; }
+            try {
+                var r = await panelFetch('/api/ana_veri/indir');
+                if (!r.ok) {
+                    var h = ''; try { h = (await r.json()).hata || ''; } catch (e) {}
+                    toast(h || ('İndirilemedi (HTTP ' + r.status + ')'), 'err');
+                    return;
+                }
+                var blob = await r.blob();
+                var ad = 'AnaVeri.xlsx';
+                var cd = r.headers.get('Content-Disposition') || '';
+                var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+                if (m && m[1]) { try { ad = decodeURIComponent(m[1]); } catch (e) { ad = m[1]; } }
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url; a.download = ad; document.body.appendChild(a); a.click();
+                a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+                if (r.headers.get('X-Ana-Veri-Uyari')) toast('İndirildi — ama son panel değişiklikleri dosyaya yazılamadı', 'err');
+                else toast('📊 ' + ad + ' indirildi', 'ok');
+            } catch (e) {
+                toast('İndirilemedi: ' + e.message, 'err');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = eski; }
+            }
+        }
+        function anaVeriSec(inp) {
+            var f = inp && inp.files && inp.files[0];
+            inp.value = '';
+            if (!f) return;
+            anaVeriDosya = f;
+            anaVeriGonder(false);
+        }
+        async function anaVeriGonder(onay) {
+            if (!anaVeriDosya) return;
+            var btn = document.getElementById('ana-veri-yukle-btn');
+            var eski = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = onay ? '⏳ Uygulanıyor…' : '⏳ Kontrol ediliyor…'; }
+            try {
+                var fd = new FormData();
+                fd.append('dosya', anaVeriDosya);
+                if (onay) fd.append('onay', '1');
+                var r = await panelFetch('/api/ana_veri/yukle', { method: 'POST', body: fd });
+                var d = {};
+                try { d = await r.json(); } catch (e) {}
+                if (!r.ok || d.hata) { toast(d.hata || ('Yüklenemedi (HTTP ' + r.status + ')'), 'err'); return; }
+                anaVeriSonucGoster(d);
+                if (d.onizleme) {
+                    anaVeriSonOnizleme = d;
+                } else {
+                    anaVeriDosya = null; anaVeriSonOnizleme = null;
+                    toast('✅ Ana Veri uygulandı', 'ok');
+                    yukleReferanslar();
+                }
+            } catch (e) {
+                toast('Yüklenemedi: ' + e.message, 'err');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = eski; }
+            }
+        }
+        function anaVeriOnayla() {
+            var t = (anaVeriSonOnizleme && anaVeriSonOnizleme.toplam) || {};
+            if (t.silinen && !confirm(t.silinen + ' referans Forge\'dan SİLİNECEK (dosyada olmadıkları için). Uygulansın mı?')) return;
+            anaVeriGonder(true);
+        }
+        function anaVeriVazgec() {
+            anaVeriDosya = null; anaVeriSonOnizleme = null;
+            var el = document.getElementById('ana-veri-sonuc');
+            if (el) el.style.display = 'none';
+        }
+        var ANA_VERI_ALAN = { hedef_cycle_time_sn: 'çevrim', kaynak_suresi_sn: 'kaynak', soktak_suresi_sn: 'söktak',
+                              kalip_goz: 'göz', bukum_operasyon: 'büküm', aciklama: 'açıklama', referans_kodu: 'yazım' };
+        function anaVeriSonucGoster(d) {
+            var el = document.getElementById('ana-veri-sonuc');
+            if (!el) return;
+            var t = d.toplam || {};
+            var deger = function (v) { return (v === null || v === undefined || v === '') ? '—' : esc(String(v)); };
+            var h = '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline">' +
+                (d.onizleme ? '<b style="color:#0284C7">ÖNİZLEME — henüz hiçbir şey değişmedi</b>'
+                            : '<b style="color:var(--success)">UYGULANDI</b>') +
+                '<span style="color:var(--muted)">' + fmt(d.satir || 0) + ' satır okundu (' + esc(d.sayfa || '') + ')</span>' +
+                '<b style="color:var(--success)">' + fmt(t.eklenen || 0) + ' yeni</b>' +
+                '<b>' + fmt(t.degisen || 0) + ' değişen</b>' +
+                '<b style="color:var(--danger)">' + fmt(t.silinen || 0) + (d.onizleme ? ' silinecek' : ' silindi') + '</b>' +
+                '<button class="btn btn-ghost" style="margin-left:auto;padding:2px 10px" onclick="anaVeriVazgec()">✕</button></div>';
+            if ((d.uyarilar || []).length) {
+                h += '<div style="margin-top:8px;color:var(--danger);font-weight:700">⚠ ' + d.uyarilar.map(esc).join('<br>⚠ ') + '</div>';
+            }
+            h += '<table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:.8rem">' +
+                '<tr style="text-align:left;color:var(--muted)"><th>Bölüm</th><th>Dosyada</th><th>Forge\'da</th><th>Yeni</th><th>Değişen</th><th>' +
+                (d.onizleme ? 'Silinecek' : 'Silinen') + '</th></tr>';
+            (d.bolumler || []).forEach(function (b) {
+                h += '<tr style="border-top:1px solid var(--card-border)"><td>' + esc(b.ad) + '</td><td>' + fmt(b.dosyada) +
+                    '</td><td>' + fmt(b.mevcut) + '</td><td>' + fmt(b.eklenen) + '</td><td>' + fmt(b.degisen) +
+                    '</td><td style="' + (b.silinen ? 'color:var(--danger);font-weight:700' : '') + '">' + fmt(b.silinen) + '</td></tr>';
+            });
+            h += '</table>';
+            (d.bolumler || []).forEach(function (b) {
+                if (!(b.ornek_eklenen.length || b.ornek_degisen.length || b.ornek_silinen.length)) return;
+                h += '<details style="margin-top:6px"><summary style="cursor:pointer">' + esc(b.ad) + ' — örnekler</summary>' +
+                    '<div style="padding:6px 0 0 14px;line-height:1.6">';
+                var dahasi = function (gosterilen, toplam) { return toplam > gosterilen ? ' … (+' + fmt(toplam - gosterilen) + ')' : ''; };
+                if (b.ornek_silinen.length) h += '<div><b style="color:var(--danger)">Silinecek:</b> ' + b.ornek_silinen.map(esc).join(', ') + dahasi(b.ornek_silinen.length, b.silinen) + '</div>';
+                if (b.ornek_eklenen.length) h += '<div><b>Yeni:</b> ' + b.ornek_eklenen.map(esc).join(', ') + dahasi(b.ornek_eklenen.length, b.eklenen) + '</div>';
+                if (b.ornek_degisen.length) h += '<div><b>Değişen:</b> ' + b.ornek_degisen.map(function (x) {
+                    return esc(x.kod) + ' (' + Object.keys(x.alanlar).map(function (k) {
+                        return (ANA_VERI_ALAN[k] || k) + ' ' + deger(x.alanlar[k][0]) + ' → ' + deger(x.alanlar[k][1]);
+                    }).join(', ') + ')';
+                }).join(' · ') + dahasi(b.ornek_degisen.length, b.degisen) + '</div>';
+                h += '</div></details>';
+            });
+            // Referans dışı sayfalar: operatör / duruş / robot program / fikstür
+            var dl = [];
+            (d.operatorler || []).forEach(function (o) {
+                dl.push('<b>' + esc(o.ad) + ' operatörü +' + fmt(o.eklenen.length) + ':</b> ' + o.eklenen.map(esc).join(', '));
+            });
+            (d.durus || []).forEach(function (x) {
+                if (!(x.eklenen.length || x.cikan.length || x.tip_degisen.length)) return;
+                dl.push('<b>' + esc(x.sayfa) + ':</b> ' +
+                    (x.eklenen.length ? '+ ' + x.eklenen.map(esc).join(', ') + ' ' : '') +
+                    (x.cikan.length ? '<span style="color:var(--danger)">− ' + x.cikan.map(esc).join(', ') + '</span> ' : '') +
+                    (x.tip_degisen.length ? '(planlı/plansız değişen: ' + x.tip_degisen.map(esc).join(', ') + ')' : ''));
+            });
+            [['Robot program', d.robot], ['Fikstür raf', d.fikstur]].forEach(function (p) {
+                var x = p[1];
+                if (!x || !(x.eklenen || x.cikan)) return;
+                dl.push('<b>' + p[0] + ':</b> dosyada ' + fmt(x.dosyada) + ' satır · +' + fmt(x.eklenen) + ' / −' + fmt(x.cikan) +
+                    (x.ornek_cikan.length ? ' <span style="color:var(--muted)">(çıkan: ' + x.ornek_cikan.map(esc).join(', ') + (x.cikan > x.ornek_cikan.length ? ' …' : '') + ')</span>' : ''));
+            });
+            h += '<div style="margin-top:10px;line-height:1.7"><b>Operatör · duruş · robot program · fikstür:</b> ' +
+                (dl.length ? '<div style="padding-left:14px">' + dl.join('<br>') + '</div>' : '<span style="color:var(--muted)">değişiklik yok</span>') + '</div>';
+            if ((d.eksik_sayfa || []).length) h += '<div style="margin-top:6px;color:var(--muted)">Dosyada olmayan ' + fmt(d.eksik_sayfa.length) +
+                ' sayfa şu an kullanılan listeden alınıp dosyaya eklenecek: ' + d.eksik_sayfa.map(esc).join(', ') + '</div>';
+            if (d.bolumsuz_sayi) h += '<div style="margin-top:8px;color:var(--warn)"><b>' + fmt(d.bolumsuz_sayi) +
+                ' satırın bölümü boş ya da tanınmadı — aktarılmaz:</b> ' +
+                d.bolumsuz.map(function (x) { return 'satır ' + x.satir + ' ' + esc(x.kod); }).join(', ') + '</div>';
+            if (d.tekrar_sayi) h += '<div style="margin-top:6px;color:var(--warn)"><b>' + fmt(d.tekrar_sayi) +
+                ' satır aynı bölümde ikinci kez yazılmış — ilki alındı:</b> ' +
+                d.tekrar.map(function (x) { return 'satır ' + x.satir + ' ' + esc(x.kod); }).join(', ') + '</div>';
+            if (d.hatali_sayi) h += '<div style="margin-top:6px;color:var(--danger)"><b>' + fmt(d.hatali_sayi) +
+                ' satır hatalı — atlandı:</b> ' +
+                d.hatali.map(function (x) { return 'satır ' + x.satir + ' ' + esc(x.kod) + ': ' + esc(x.sebep); }).join(' · ') + '</div>';
+            if (d.tel_atlanan) h += '<div style="margin-top:6px;color:var(--muted)">' + fmt(d.tel_atlanan) + ' adet 93.* (TK1 tel) kodu TK2 listesine alınmadı.</div>';
+            if (d.onizleme) h += '<div style="margin-top:12px;display:flex;gap:8px">' +
+                '<button class="btn btn-primary" onclick="anaVeriOnayla()">✔ Uygula</button>' +
+                '<button class="btn btn-ghost" onclick="anaVeriVazgec()">Vazgeç</button></div>';
+            el.innerHTML = h;
+            el.style.display = '';
+        }
+
         // ── REFERANSLARI .XLSX OLARAK İNDİR (2026-08-04) ──────────────────────
         // Planlama bölümüyle paylaşmak için: aktif BÖLÜM + LOKASYONUN referansları
         // süreleriyle birlikte inen bağımsız bir dosyaya yazılır.
@@ -11848,7 +12027,9 @@ window.__I18N_SOZLUK__ = {
         async function referansExcelGuncelle() {
             const bilgi = (BOLUMLER[aktifBolum] || BOLUMLER.kaynak).ad;
             const sayfaAdi = BOLUM_EXCEL_SAYFA[aktifBolum] || 'Kaynak Referans';
-            if (!confirm(`${bilgi} bölümünün referanslarını data/uretim_verileri.xlsx → "${sayfaAdi}" sayfasına yazmak istiyor musunuz?`)) return;
+            const hedef = (await anaVeriAktifMi()) ? 'data/AnaVeri.xlsx → "Ana Veri"'
+                                                   : `data/uretim_verileri.xlsx → "${sayfaAdi}"`;
+            if (!confirm(`${bilgi} bölümünün referanslarını ${hedef} sayfasına yazmak istiyor musunuz?`)) return;
             toast('Excel güncelleniyor...', 'info');
             try {
                 const res = await fetch('/api/referanslar/export_excel', {
@@ -11886,7 +12067,11 @@ window.__I18N_SOZLUK__ = {
                 const sayfaAdi = (BOLUM_EXCEL_SAYFA[aktifBolum] || 'Kaynak Referans')
                                + ' / ' + (opSayfaEk[aktifBolum] || opSayfaEk.kaynak);
                 const bilgiTk2 = (BOLUMLER[aktifBolum] || BOLUMLER.kaynak).ad;
-                if (!confirm(`${bilgiTk2} bölümü için data/uretim_verileri.xlsx → "${sayfaAdi}" sayfalarından veriler aktarılacak.\n\nDevam edilsin mi?`)) return;
+                const anaAktif = await anaVeriAktifMi();
+                const metin = anaAktif
+                    ? `${bilgiTk2}: data/AnaVeri.xlsx → "Ana Veri" + "${opSayfaEk[aktifBolum] || opSayfaEk.kaynak}" sayfalarından aktarılacak.\n\nAna Veri'de olmayan referanslar bu bölümden silinir — önizlemeli yükleme için "Ana Veri Yükle"yi kullanın.\n\nDevam edilsin mi?`
+                    : `${bilgiTk2} bölümü için data/uretim_verileri.xlsx → "${sayfaAdi}" sayfalarından veriler aktarılacak.\n\nDevam edilsin mi?`;
+                if (!confirm(metin)) return;
             }
             const bilgi = (aktifLokasyon === 'TK1') ? 'TK1 (montaj + plastik)' : (BOLUMLER[aktifBolum] || BOLUMLER.kaynak).ad;
 

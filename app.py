@@ -1454,8 +1454,13 @@ def _bukum_excel_yaz(ref, adet):
     EN İYİ ÇABA: Excel biri tarafından açıksa PermissionError gelir, üretim kaydı
     bundan ETKİLENMEZ — hata yalnız loglanır (bkz. referans/sureler aynı kalıp)."""
     try:
-        from import_excel import EXCEL_YOL, BOLUM_SAYFA
+        from import_excel import EXCEL_YOL, BOLUM_SAYFA, ana_veri_aktif
         import openpyxl, os
+        if ana_veri_aktif():                 # tek liste: Ana Veri'nin 'Büküm op.' sütunu
+            s = export_referans_cycle_times(bolum='pres')
+            if not s.get('basarili'):
+                print(f"[bukum] Ana Veri sync hatasi ({ref}): {s.get('hata')}")
+            return
         if not os.path.exists(EXCEL_YOL):
             return
         wb = openpyxl.load_workbook(EXCEL_YOL)
@@ -2277,7 +2282,8 @@ def _yerel_ag_istegi():
         return False
 
 
-_YEDEK_DOSYALAR = {'excel': 'uretim_verileri.xlsx', 'excel_tk1': 'Tk1 Veriler.xlsx'}
+_YEDEK_DOSYALAR = {'excel': 'uretim_verileri.xlsx', 'excel_tk1': 'Tk1 Veriler.xlsx',
+                   'ana_veri': 'AnaVeri.xlsx'}
 
 
 # YEDEK ANAHTARI (kullanıcı 2026-09-30: "laptoptaki Excel'i kullanman gerektiğinde
@@ -4840,8 +4846,10 @@ def referans_ekle():
 
     # Excel auto-sync: SADECE TK2 (uretim_verileri.xlsx). TK1 referansları cycle time
     # kullanmaz ve ayrı Excel'dedir → TK1'de export atlanır (TK1 verisi TK2 dosyasına sızmaz).
+    # zorla_ekle: Ana Veri'de panelden bilerek açılan referans süresiz de olsa listeye girer
+    # (girmezse sonraki Ana Veri yüklemesi onu "listede yok" diye silerdi).
     try:
-        export_referans_cycle_times(bolum=bolum, lokasyon=lokasyon)
+        export_referans_cycle_times(bolum=bolum, lokasyon=lokasyon, zorla_ekle={ref})
     except Exception as e:
         print(f'[referans_ekle] Excel auto-sync hatası ({bolum}/{lokasyon}): {e}')
 
@@ -4954,8 +4962,18 @@ def referans_kod_degistir():
             return jsonify({'onizleme': True, 'eski': eski, 'yeni': yeni,
                             'toplam': sum(ozet.values()), 'ozet': ozet, 'ornekler': ornekler})
         conn.commit()
+        # Ana Veri'deki kod da aynı kuralla değişir (yoksa sonraki yüklemede eski kod geri
+        # gelir, yenisi "listede yok" diye silinirdi)
+        excel_uyari = None
+        try:
+            from import_excel import ana_veri_kod_degistir
+            excel_uyari = ana_veri_kod_degistir(lambda s: _guvenli_kod_replace(s, eski, yeni))
+        except Exception as e:
+            excel_uyari = str(e)
+        if excel_uyari:
+            print(f'[kod_degistir] Ana Veri sync hatası: {excel_uyari}')
         return jsonify({'basarili': True, 'eski': eski, 'yeni': yeni,
-                        'toplam': sum(ozet.values()), 'ozet': ozet})
+                        'toplam': sum(ozet.values()), 'ozet': ozet, 'excel_uyari': excel_uyari})
     except Exception as e:
         conn.rollback()
         msg = str(e)
@@ -5358,6 +5376,18 @@ def referans_sure_yukle():
                 (yeni['kalip_goz'], kod, lokasyon)).rowcount
         guncel += 1
     conn.commit()
+    # Ana Veri (tek liste) varsa yeni süreler oraya da yazılır — eski bölüm sayfalarına
+    # bu uç bilerek dokunmuyordu; Ana Veri'de ise liste ile veritabanı ayrışmamalı.
+    excel_uyari = None
+    if guncel and lokasyon == 'TK2':
+        try:
+            from import_excel import ana_veri_aktif
+            if ana_veri_aktif():
+                _s = export_referans_cycle_times(bolum=bolum, lokasyon=lokasyon)
+                if not _s.get('basarili'):
+                    excel_uyari = _s.get('hata')
+        except Exception as e:
+            excel_uyari = str(e)
     kalan = conn.execute("SELECT COUNT(*) FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
                          "AND COALESCE(lokasyon,'TK2')=? AND COALESCE(hedef_cycle_time_sn,0) <= 0",
                          (bolum, lokasyon)).fetchone()[0]
@@ -5372,7 +5402,7 @@ def referans_sure_yukle():
                     'bulunamayan': bulunamayan[:100], 'bulunamayan_sayi': len(bulunamayan),
                     'hatali': hatali[:100], 'hatali_sayi': len(hatali),
                     'suresiz_kalan': kalan, 'sayac_kayit': goz_kayit,
-                    'bolum': bolum, 'lokasyon': lokasyon})
+                    'bolum': bolum, 'lokasyon': lokasyon, 'excel_uyari': excel_uyari})
 
 
 def _kayit_ref_norm(s):
@@ -5613,6 +5643,130 @@ def referans_excel_export():
         return jsonify({'hata': str(e)}), 500
 
 
+# ── ANA VERİ: TK2 referanslarının tek listesi (kullanıcı 2026-10-05) ─────────
+# data/AnaVeri.xlsx sunucuda; panelden indirilip düzenlenip geri yüklenir (RDP ile
+# dosya taşımaya gerek kalmasın). Yükleme ÖNCE önizleme döner, onayla uygulanır.
+# Ayrıntı: import_excel.py 'ANA VERİ' bölümü.
+_ANA_VERI_SILME_UYARI_ORAN = 0.2      # bir bölümün %20'sinden fazlası silinecekse uyar
+
+
+@app.route('/api/ana_veri/durum', methods=['GET'])
+@panel_gerekli(izin='referanslar')
+def ana_veri_durum():
+    import import_excel as _ie
+    if not _ie.ana_veri_aktif():
+        return jsonify({'aktif': False})
+    st = os.stat(_ie.ANA_VERI_YOL)
+    return jsonify({'aktif': True, 'dosya': os.path.basename(_ie.ANA_VERI_YOL),
+                    'degisme': datetime.fromtimestamp(st.st_mtime).strftime('%d.%m.%Y %H:%M'),
+                    'boyut_kb': round(st.st_size / 1024)})
+
+
+@app.route('/api/ana_veri/indir', methods=['GET'])
+@panel_gerekli(izin='referanslar')
+def ana_veri_indir():
+    """Ana Veri'nin EN GÜNCEL hâli: önce veritabanındaki süre/teyit/göz değişiklikleri
+    dosyaya yazılır, sonra dosya iner."""
+    import import_excel as _ie
+    import io as _io
+    if not _ie.ana_veri_aktif():
+        return jsonify({'hata': 'Ana Veri henüz yüklenmedi — önce "Ana Veri Yükle" ile listeyi yükleyin'}), 404
+    uyari = ''
+    try:
+        s = export_referans_cycle_times()
+        if not s.get('basarili'):
+            uyari = s.get('hata') or ''
+    except Exception as e:
+        uyari = str(e)
+    if uyari:
+        print(f'[ana_veri/indir] dosya tazelenemedi, mevcut hâli iniyor: {uyari}')
+    with open(_ie.ANA_VERI_YOL, 'rb') as fh:
+        veri = fh.read()
+    resp = send_file(_io.BytesIO(veri), as_attachment=True,
+                     download_name='AnaVeri-' + datetime.now().strftime('%Y%m%d-%H%M') + '.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    if uyari:
+        resp.headers['X-Ana-Veri-Uyari'] = 'tazelenemedi'
+    return resp
+
+
+@app.route('/api/ana_veri/yukle', methods=['POST'])
+@panel_gerekli(izin='referanslar')
+def ana_veri_yukle():
+    """multipart 'dosya' (.xlsx). onay=1 YOKSA önizleme: veritabanında ne ekleneceği /
+    değişeceği / SİLİNECEĞİ hesaplanır, hiçbir şey kaydedilmez. onay=1 → dosya
+    data/AnaVeri.xlsx olur (öncekisi ana_veri_yedek/'e) ve altı TK2 bölümü uygulanır."""
+    import import_excel as _ie
+    f = request.files.get('dosya')
+    if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify({'hata': 'Yalnız .xlsx dosyası yükleyin'}), 400
+    ham = f.read()
+    if len(ham) > 30 * 1024 * 1024:
+        return jsonify({'hata': 'Dosya çok büyük (30 MB üstü)'}), 400
+    try:
+        hz = _ie.ana_veri_hazirla(ham)
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    except Exception as e:
+        return jsonify({'hata': f'Excel okunamadı: {e}'}), 400
+    satirlar, rapor = hz['satirlar'], hz['rapor']
+    if not any(satirlar.values()):
+        return jsonify({'hata': 'Dosyada bölümü tanınan satır yok — E sütununa Montaj / Kaynak / '
+                                'Metal Enjeksiyon / Lazer Kesim / Büküm / İşleme yazın'}), 400
+    onay = (request.form.get('onay') or request.args.get('onay') or '') == '1'
+    if onay and _gelistirme_kopyasi():
+        return jsonify({'hata': 'Bu bir geliştirme kopyası — Ana Veri yalnız canlı sunucuda yüklenir'}), 403
+    durus = _ie.ana_veri_durus_farki(hz['kume'], hz['mevcut'])   # uygulamadan ÖNCE (mevcut liste)
+    try:
+        sonuc = _ie.ana_veri_uygula(
+            satirlar, uygula=onay, kume=hz['kume'],
+            commit_oncesi=(lambda: _ie.ana_veri_dosya_kaydet(hz['kaydedilecek'])) if onay else None)
+    except PermissionError:
+        return jsonify({'hata': 'AnaVeri.xlsx sunucuda açık/kilitli — kaydedilemedi, hiçbir şey değişmedi'}), 409
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'hata': f'Uygulanamadı, hiçbir şey değişmedi: {e}'}), 500
+    detay = sonuc['bolumler']
+    bolumler, uyarilar = [], []
+    toplam = {'eklenen': 0, 'degisen': 0, 'silinen': 0}
+    for b, d in detay.items():
+        ad = _ie.ANA_VERI_ETIKET[b]
+        bolumler.append({'bolum': b, 'ad': ad, 'dosyada': d['dosyada'], 'mevcut': d['mevcut'],
+                         'eklenen': d['referanslar_eklenen'], 'degisen': d['referanslar_guncellenen'],
+                         'ayni': d['referanslar_ayni'], 'silinen': d['referanslar_silinen'],
+                         'ornek_eklenen': d['ornek_eklenen'], 'ornek_degisen': d['ornek_degisen'],
+                         'ornek_silinen': d['ornek_silinen'], 'uyari': d.get('uyari', '')})
+        toplam['eklenen'] += d['referanslar_eklenen']
+        toplam['degisen'] += d['referanslar_guncellenen']
+        toplam['silinen'] += d['referanslar_silinen']
+        if d.get('uyari'):
+            uyarilar.append(f'{ad}: {d["uyari"]}')
+        if d['mevcut'] and d['referanslar_silinen'] > d['mevcut'] * _ANA_VERI_SILME_UYARI_ORAN:
+            uyarilar.append(f'{ad}: mevcut {d["mevcut"]} referansın {d["referanslar_silinen"]} tanesi '
+                            f'SİLİNECEK — dosyanın eksik/eski olmadığından emin olun')
+    if onay:
+        try:
+            kim = g.panel_ku['kullanici_adi']
+        except Exception:
+            kim = '?'
+        print(f"[ANA VERİ] yüklendi: {kim} — +{toplam['eklenen']} "
+              f"~{toplam['degisen']} -{toplam['silinen']}")
+    for x in durus:
+        if x['cikan']:
+            uyarilar.append(f"{x['sayfa']}: {len(x['cikan'])} duruş sebebi listeden ÇIKACAK "
+                            f"({', '.join(x['cikan'][:5])}) — operatör ekranında görünmeyecek")
+    operatorler = [{'bolum': b, 'ad': _ie.ANA_VERI_ETIKET[b], 'eklenen': adlar}
+                   for b, adlar in sonuc['operatorler'].items() if adlar]
+    return jsonify({'basarili': True, 'onizleme': not onay, 'sayfa': rapor['sayfa'],
+                    'satir': rapor['satir'], 'bolumler': bolumler, 'toplam': toplam,
+                    'uyarilar': uyarilar, 'eksik_sayfa': hz['eksik'], 'durus': durus,
+                    'operatorler': operatorler, 'robot': sonuc['robot'], 'fikstur': sonuc['fikstur'],
+                    'bolumsuz': rapor['bolumsuz'][:60], 'bolumsuz_sayi': len(rapor['bolumsuz']),
+                    'tekrar': rapor['tekrar'][:40], 'tekrar_sayi': len(rapor['tekrar']),
+                    'hatali': rapor['hatali'][:40], 'hatali_sayi': len(rapor['hatali']),
+                    'tel_atlanan': rapor['tel_atlanan']})
+
+
 @app.route('/api/referanslar/<string:kod>', methods=['DELETE'])
 @panel_gerekli(izin='referanslar')
 def referans_sil(kod):
@@ -5639,7 +5793,17 @@ def referans_sil(kod):
         conn.close()
         return jsonify({'hata': str(e)}), 400
     conn.close()
-    return jsonify({'basarili': True}), 200
+    # Ana Veri (tek liste) varsa satır oradan da kalkar — yoksa sonraki yüklemede geri gelir
+    excel_uyari = None
+    if lokasyon == 'TK2':
+        try:
+            from import_excel import ana_veri_satir_sil
+            excel_uyari = ana_veri_satir_sil(kod, bolum or None)
+        except Exception as e:
+            excel_uyari = str(e)
+        if excel_uyari:
+            print(f'[referans_sil] Ana Veri sync hatası ({kod}): {excel_uyari}')
+    return jsonify({'basarili': True, 'excel_uyari': excel_uyari}), 200
 
 
 @app.route('/api/robotlar', methods=['GET'])
@@ -6012,8 +6176,8 @@ def operator_ekle():
 
     EXCEL'İ BOZMAZ: içe aktarma INSERT OR IGNORE ile çalışır ve hiçbir operatörü
     SİLMEZ — buradan eklenen kişi bir sonraki Excel aktarımında yerinde kalır.
-    Excel yine de listenin ana kaynağıdır; kalıcı olması için kişi oraya da
-    yazılmalıdır (yoksa Excel ile veritabanı zamanla ayrışır)."""
+    Ana Veri (TK2 tek Excel) varsa kişi '<Bölüm> Operator' sayfasına da yazılır —
+    liste ile veritabanı ayrışmaz (2026-10-05)."""
     data = request.get_json() or {}
     ad = ' '.join(str(data.get('ad') or '').split())
     if len(ad) < 3:
@@ -6071,9 +6235,18 @@ def operator_ekle():
                          f'montaj için import_excel.TK1_MONTAJ_OPERATORLERI güncellenmeli.')
         except Exception:
             pass
+    excel_uyari = None
+    if lokasyon == 'TK2':
+        try:
+            from import_excel import ana_veri_operator_ekle
+            excel_uyari = ana_veri_operator_ekle(ad, bolum)
+        except Exception as e:
+            excel_uyari = str(e)
+        if excel_uyari:
+            print(f'[operator_ekle] Ana Veri sync hatası ({ad}): {excel_uyari}')
     return jsonify({'basarili': True, 'id': cur.lastrowid, 'ad': ad,
                     'bolum': bolum, 'lokasyon': lokasyon, 'pin': pin,
-                    'uyari': uyari}), 201
+                    'uyari': uyari, 'excel_uyari': excel_uyari}), 201
 
 
 @app.route('/api/operator/oturum_ac', methods=['POST'])
@@ -7290,11 +7463,15 @@ def referans_sureler_guncelle():
     finally:
         conn.close()
 
-    # Excel'e yaz (Kaynak Referans sayfası — kolon B=kaynak, C=söktak)
+    # Excel'e yaz (Kaynak Referans sayfası — kolon B=kaynak, C=söktak; Ana Veri varsa H/G)
     try:
-        from import_excel import EXCEL_YOL, BOLUM_SAYFA
+        from import_excel import EXCEL_YOL, BOLUM_SAYFA, ana_veri_aktif
         import openpyxl, os
-        if os.path.exists(EXCEL_YOL):
+        if ana_veri_aktif():
+            s = export_referans_cycle_times(bolum='kaynak')
+            if not s.get('basarili'):
+                print(f"[referans/sureler] Ana Veri sync hatası: {s.get('hata')}")
+        elif os.path.exists(EXCEL_YOL):
             wb = openpyxl.load_workbook(EXCEL_YOL)
             sayfa_adi = BOLUM_SAYFA['kaynak']['ref']
             if sayfa_adi in wb.sheetnames:
@@ -8032,7 +8209,7 @@ def durus_sebepleri_api():
     uyari = ''
     try:
         import import_excel as _ie2
-        _yol2 = _ie2.TK1_EXCEL_YOL if (lokasyon or 'TK2').upper() == 'TK1' else _ie2.EXCEL_YOL
+        _yol2 = _ie2.TK1_EXCEL_YOL if (lokasyon or 'TK2').upper() == 'TK1' else _ie2.tk2_excel_yolu()
         _ytar = (_ie2.SON_OKUMA_YEDEKTEN or {}).get(_yol2)
         if _ytar:
             uyari = (f'ANA EXCEL BOZUK — liste {_ytar} tarihli son bilinen iyi '
@@ -8042,7 +8219,7 @@ def durus_sebepleri_api():
     if not sebepler:
         try:
             import import_excel as _ie
-            _yol = _ie.TK1_EXCEL_YOL if (lokasyon or 'TK2').upper() == 'TK1' else _ie.EXCEL_YOL
+            _yol = _ie.TK1_EXCEL_YOL if (lokasyon or 'TK2').upper() == 'TK1' else _ie.tk2_excel_yolu()
             if not os.path.exists(_yol):
                 uyari = f'Excel dosyası BULUNAMADI: {_yol}'
             else:

@@ -262,6 +262,26 @@ def _yedekten_oku(excel_yol):
 # Son okumanın yedekten mi geldiği — /api/durus_sebepleri uyarı metnine koyar.
 SON_OKUMA_YEDEKTEN = {}
 
+# OKUMA ÖNBELLEĞİ (2026-10-05): duruş listesi operatör ekranında HER istekte okunuyor;
+# Ana Veri tek dosyada ~3.400 referans satırı taşıdığı için her seferinde baştan açmak
+# pahalı. Dosya değişmediği sürece (mtime + boyut) aynı salt-okunur kitap kullanılır.
+_WB_ONBELLEK = {}
+
+
+def _wb_onbellekten(yol):
+    """data_only=True kitabı; dosya değişince yeniden okunur. Başarılı okuma yedeklenir."""
+    st = os.stat(yol)
+    anahtar = (st.st_mtime_ns, st.st_size)
+    kayit = _WB_ONBELLEK.get(yol)
+    if kayit and kayit[0] == anahtar:
+        return kayit[1]
+    with open(yol, 'rb') as fh:
+        veri = fh.read()
+    wb = openpyxl.load_workbook(io.BytesIO(veri), data_only=True)
+    _yedegi_tazele(yol, veri)
+    _WB_ONBELLEK[yol] = (anahtar, wb)
+    return wb
+
 
 def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
     """Bölüme (TK2) veya lokasyona (TK1) ait duruş sebeplerini Excel'den okur.
@@ -270,8 +290,8 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
     Döner: [{'sebep': str, 'tip': 'planli'|'plansiz'}, ...]
 
     TK1 → data/Tk1 Veriler.xlsx 'Duruş Listesi' (bolum'dan bağımsız, tek liste).
-    TK2 (default) → data/uretim_verileri.xlsx, bolum-spesifik sayfa.
-    Excel/sayfa yoksa boş liste.
+    TK2 (default) → data/AnaVeri.xlsx (varsa) ya da data/uretim_verileri.xlsx,
+    bolum-spesifik sayfa. Excel/sayfa yoksa boş liste.
     """
     if (lokasyon or 'TK2').upper() == 'TK1':
         excel_yol = TK1_EXCEL_YOL
@@ -279,10 +299,49 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
     else:
         if bolum not in BOLUM_DURUS_SAYFA:
             return []
-        excel_yol = EXCEL_YOL
+        excel_yol = tk2_excel_yolu()           # Ana Veri varsa o (tek dosya)
         sayfa_adi = BOLUM_DURUS_SAYFA[bolum]
+        if excel_yol != EXCEL_YOL and os.path.exists(EXCEL_YOL):
+            # Ana Veri'de bölümün sayfası yoksa (elle konmuş eksik dosya) önce eski
+            # dosyadaki AYNI sayfa, o da yoksa genel (montaj) liste — operatör ASLA
+            # boş listeyle ya da yanlış bölümün listesiyle kalmasın.
+            for yol, dus in ((excel_yol, False), (EXCEL_YOL, False), (excel_yol, True), (EXCEL_YOL, True)):
+                sonuc = _durus_oku(yol, sayfa_adi, bolum, lokasyon, montaj_dus=dus)
+                if sonuc is not None:
+                    return sonuc
+            return []
+    return _durus_oku(excel_yol, sayfa_adi, bolum, lokasyon) or []
+
+
+def _durus_sayfa_oku(ws):
+    """Duruş sayfası (No | Duruş Listesi | Planlı/Plansız) → [{'sebep', 'tip'}]."""
+    sonuc = []
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i == 0:
+            continue  # Başlık
+        if not row or len(row) < 2 or row[1] is None:
+            continue
+        sebep = str(row[1]).strip()
+        if not sebep:
+            continue
+        # Türkçe ı/i karakter farkı: 'Plansız' lower → 'plansız' (dotless ı),
+        # ama 'siz' substring'i (regular i) bulunmaz. Bu yüzden açık string match.
+        tip_raw = str((row[2] if len(row) > 2 else '') or '').strip().lower()
+        if 'plansız' in tip_raw or 'plansiz' in tip_raw:
+            tip = 'plansiz'
+        elif 'planlı' in tip_raw or 'planli' in tip_raw:
+            tip = 'planli'
+        else:
+            tip = 'plansiz'  # boş/bilinmeyen → güvenli yan: plansız
+        sonuc.append({'sebep': sebep, 'tip': tip})
+    return sonuc
+
+
+def _durus_oku(excel_yol, sayfa_adi, bolum, lokasyon, montaj_dus=True):
+    """Liste; dosya/sayfa YOKSA None (çağıran başka dosyaya düşebilsin).
+    montaj_dus: bölümün sayfası yoksa genel 'Montaj Duruş Listesi'ne düşülsün mü."""
     if not os.path.exists(excel_yol):
-        return []
+        return None
 
     try:
         # DOSYAYI BELLEGE OKU, openpyxl"e BytesIO ver (2026-08-18).
@@ -293,10 +352,7 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
         # "with" bitince kapanir; bozuk dosya bile kendini kilitlemez.
         SON_OKUMA_YEDEKTEN.pop(excel_yol, None)
         try:
-            with open(excel_yol, "rb") as _fh:
-                _veri = _fh.read()
-            wb = openpyxl.load_workbook(io.BytesIO(_veri), data_only=True)
-            _yedegi_tazele(excel_yol, _veri)
+            wb = _wb_onbellekten(excel_yol)
         except Exception as _ex:
             # ANA DOSYA AÇILAMADI → son bilinen iyi kopyayı dene. Operatörün
             # tam listeyi görmesi, 6 maddelik yedekle yanlış sebep kaydetmesinden
@@ -309,29 +365,12 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
         if sayfa_adi not in wb.sheetnames:
             # Bölümün kendi duruş sayfası yoksa genel listeye düş (yeni bölümler:
             # işleme/lazer/pres — Excel'e kendi sayfaları eklenince otomatik geçilir).
-            sayfa_adi = BOLUM_DURUS_SAYFA.get('montaj', '')
+            # TK1'in tek listesi var — montaj düşüşü yalnız TK2'de anlamlı.
+            sayfa_adi = (BOLUM_DURUS_SAYFA.get('montaj', '')
+                         if montaj_dus and (lokasyon or 'TK2').upper() != 'TK1' else '')
             if sayfa_adi not in wb.sheetnames:
-                return []
-        ws = wb[sayfa_adi]
-        sonuc = []
-        for i, row in enumerate(ws.iter_rows(values_only=True)):
-            if i == 0:
-                continue  # Başlık
-            if not row or row[1] is None:
-                continue
-            sebep = str(row[1]).strip()
-            if not sebep:
-                continue
-            # Türkçe ı/i karakter farkı: 'Plansız' lower → 'plansız' (dotless ı),
-            # ama 'siz' substring'i (regular i) bulunmaz. Bu yüzden açık string match.
-            tip_raw = str(row[2] or '').strip().lower()
-            if 'plansız' in tip_raw or 'plansiz' in tip_raw:
-                tip = 'plansiz'
-            elif 'planlı' in tip_raw or 'planli' in tip_raw:
-                tip = 'planli'
-            else:
-                tip = 'plansiz'  # boş/bilinmeyen → güvenli yan: plansız
-            sonuc.append({'sebep': sebep, 'tip': tip})
+                return None
+        sonuc = _durus_sayfa_oku(wb[sayfa_adi])
         # Bölüme özel ek sebepler — YALNIZ Excel'den gerçek bir liste okunduysa.
         # Boş listeye eklemek olmaz: '/api/durus_sebepleri' boş listeyi "Excel
         # okunamadı" tanısı için kullanıyor, tek maddelik liste o tanıyı susturur
@@ -342,6 +381,677 @@ def durus_sebepleri_yukle(bolum, lokasyon='TK2'):
     except Exception as e:
         print(f"[durus_sebepleri] Hata: {e}")
         return []
+
+
+# ── ANA VERİ (kullanıcı 2026-10-05) ────────────────────────────────────────
+# TK2 referanslarının TEK listesi: planlamanın Anaveri'si (PRIORIT. · A/P · TK ·
+# Makine) ile Forge'un süreleri aynı sayfada; bölüm E sütunundan okunur
+# (Montaj / Kaynak / Metal Enjeksiyon / Lazer Kesim / Büküm / İşleme).
+# data/AnaVeri.xlsx VARSA altı TK2 bölümünün referansları YALNIZ buradan okunur ve
+# buraya yazılır; uretim_verileri.xlsx'in '<Bölüm> Referans' sayfaları kullanılmaz
+# (operatör, duruş, robot program, fikstür sayfaları yine oradan okunur).
+# Dosya YOKSA eski davranış birebir sürer → kod, dosya sunucuya konmadan önce de
+# güvenle deploy edilir.
+#
+# Eski bölüm sayfalarından BİLİNÇLİ farklar:
+#   · BOŞ HÜCRE = DOKUNMA (eskiden 0 yazılırdı); süreyi silmek için 0 yazılır.
+#     Dosya artık panelden indirilip düzenlenip geri yükleniyor — boş kalmış bir
+#     hücre panelde girilmiş süreyi sessizce silmemeli.
+#   · Açıklama (K) her bölümde okunur/yazılır (eskiden yalnız pres).
+#   · Kalıp göz (metal) Excel'den de yönetilir; panelle aynı kural: değişince açık
+#     otomatik sayaç kayıtlarına da uygulanır.
+ANA_VERI_YOL = os.path.join(PROJECT_DIR, 'data', 'AnaVeri.xlsx')
+ANA_VERI_SAYFA = 'Ana Veri'
+ANA_VERI_YEDEK_KLASOR = os.path.join(PROJECT_DIR, 'data', 'ana_veri_yedek')
+ANA_VERI_ETIKET = {'montaj': 'Montaj', 'kaynak': 'Kaynak', 'metal': 'Metal Enjeksiyon',
+                   'lazer': 'Lazer Kesim', 'pres': 'Büküm', 'isleme': 'İşleme'}
+ANA_VERI_KALIP_GOZ_UST = 64          # app.KALIP_GOZ_UST ile aynı olmalı
+# Başlık → alan. Başlık küçük harfe (TR) indirilir; aday ile BAŞLAYAN ilk sütun alınır.
+_ANA_SUTUN = (
+    ('kod', ('cd art', 'referans kodu', 'kod')),
+    ('bolum', ('bölüm', 'bolum', 'hat')),
+    ('ap', ('a/p',)),
+    ('tk', ('tk-1/2', 'tk 1/2', 'tk')),
+    ('cevrim', ('çevrim', 'cevrim', 'cycle', 'söktak')),
+    ('kaynak', ('kaynak süre', 'kaynak sure')),
+    ('goz', ('kalıp göz', 'kalip goz')),
+    ('bukum', ('büküm', 'bukum')),
+    ('aciklama', ('açıklama', 'aciklama')),
+    ('teyit', ('süre teyit', 'sure teyit', 'teyit')),
+)
+_ANA_YENI_BASLIK = {'cevrim': 'Çevrim süresi / söktak (sn)', 'kaynak': 'Kaynak süresi (sn)',
+                    'goz': 'Kalıp göz', 'bukum': 'Büküm op.', 'aciklama': 'Açıklama',
+                    'teyit': 'Süre teyit'}
+
+
+def ana_veri_aktif():
+    return os.path.exists(ANA_VERI_YOL)
+
+
+def tk2_excel_yolu():
+    """TK2'nin TEK Excel'i: Ana Veri varsa o, yoksa eski uretim_verileri.xlsx.
+    Referanslar, operatörler, duruş listeleri, robot program ve fikstür buradan okunur
+    (Ana Veri'de olmayan sayfa eski dosyadan — bkz. _SayfaKumesi)."""
+    return ANA_VERI_YOL if ana_veri_aktif() else EXCEL_YOL
+
+
+def ana_veri_ek_sayfalar():
+    """Ana Veri'nin referans dışı sayfaları (eski uretim_verileri.xlsx'teki adlarıyla AYNI —
+    okuyan kod sayfayı adıyla bulur)."""
+    ad = [BOLUM_SAYFA[b]['op'] for b in BOLUM_SAYFA]
+    for s in BOLUM_DURUS_SAYFA.values():
+        if s not in ad:
+            ad.append(s)
+    return ad + [ROBOT_PROGRAM_SAYFA, FIKSTUR_RAF_SAYFA]
+
+
+class _SayfaKumesi:
+    """Birden çok kitaptan sayfa seçen salt-okunur görünüm: sayfa İLK hangi kitapta varsa
+    oradan gelir (Ana Veri önce, eski dosya sonra). openpyxl kitabı gibi kullanılır
+    (sheetnames + [ad])."""
+
+    def __init__(self, *kitaplar):
+        self._kitaplar = [k for k in kitaplar if k is not None]
+
+    @property
+    def sheetnames(self):
+        adlar = []
+        for k in self._kitaplar:
+            adlar.extend(s for s in k.sheetnames if s not in adlar)
+        return adlar
+
+    def __getitem__(self, ad):
+        for k in self._kitaplar:
+            if ad in k.sheetnames:
+                return k[ad]
+        raise KeyError(ad)
+
+
+def _tk2_okuma_kumesi():
+    """Ana Veri (varsa) + eski dosya (varsa) okuma görünümü; ikisi de yoksa None."""
+    kitaplar = []
+    if ana_veri_aktif():
+        kitaplar.append(openpyxl.load_workbook(ANA_VERI_YOL, data_only=True))
+    if os.path.exists(EXCEL_YOL):
+        kitaplar.append(openpyxl.load_workbook(EXCEL_YOL, data_only=True))
+    if not kitaplar:
+        return None
+    return _SayfaKumesi(*kitaplar) if len(kitaplar) > 1 else kitaplar[0]
+
+
+def _sayfa_kopyala(ws_kaynak, wb_hedef, ad):
+    """Değerler + birleştirilmiş hücreler + sütun genişlikleri (biçim değil)."""
+    ws = wb_hedef.create_sheet(ad)
+    for row in ws_kaynak.iter_rows(values_only=True):
+        ws.append(list(row))
+    for rng in getattr(ws_kaynak, 'merged_cells', None) and ws_kaynak.merged_cells.ranges or ():
+        ws.merge_cells(str(rng))
+    for harf, boyut in getattr(ws_kaynak, 'column_dimensions', {}).items():
+        if boyut.width:
+            ws.column_dimensions[harf].width = boyut.width
+    return ws
+
+
+def ana_veri_hazirla(ham):
+    """Yüklenen dosyayı hazırlar: referans satırları + rapor + ek sayfaların GEÇERLİ görünümü.
+    Dosyada OLMAYAN ek sayfa (operatör / duruş / robot / fikstür) şu an kullanılan
+    kaynaktan (mevcut Ana Veri, yoksa uretim_verileri.xlsx) KOPYALANIR — yalnız
+    referans sayfası yüklense bile hiçbir liste kaybolmaz. → dict"""
+    wb_yeni = openpyxl.load_workbook(io.BytesIO(ham), data_only=True)
+    satirlar, rapor = ana_veri_oku(wb_yeni)
+    mevcut = _tk2_okuma_kumesi()
+    eksik = [s for s in ana_veri_ek_sayfalar()
+             if s not in wb_yeni.sheetnames and mevcut is not None and s in mevcut.sheetnames]
+    kaydedilecek = ham
+    if eksik:
+        wb_yaz = openpyxl.load_workbook(io.BytesIO(ham))       # formüller korunsun
+        for s in eksik:
+            _sayfa_kopyala(mevcut[s], wb_yaz, s)
+        bio = io.BytesIO()
+        wb_yaz.save(bio)
+        kaydedilecek = bio.getvalue()
+    return {'satirlar': satirlar, 'rapor': rapor, 'eksik': eksik, 'kaydedilecek': kaydedilecek,
+            'kume': _SayfaKumesi(wb_yeni, mevcut), 'mevcut': mevcut}
+
+
+def ana_veri_durus_farki(kume, mevcut):
+    """Dosyadaki duruş sayfaları ↔ şu an kullanılan listeler (duruş listesi veritabanına
+    aktarılmaz, her istekte okunur — yüklenince HEMEN geçerli olur)."""
+    out = []
+    for sayfa in dict.fromkeys(BOLUM_DURUS_SAYFA.values()):
+        if sayfa not in kume.sheetnames:
+            continue
+        yeni = {x['sebep']: x['tip'] for x in _durus_sayfa_oku(kume[sayfa])}
+        eski = ({x['sebep']: x['tip'] for x in _durus_sayfa_oku(mevcut[sayfa])}
+                if mevcut is not None and sayfa in mevcut.sheetnames else {})
+        out.append({'sayfa': sayfa, 'dosyada': len(yeni), 'mevcut': len(eski),
+                    'eklenen': [s for s in yeni if s not in eski],
+                    'cikan': [s for s in eski if s not in yeni],
+                    'tip_degisen': [s for s in yeni if s in eski and yeni[s] != eski[s]]})
+    return out
+
+
+def _tr_kucuk(s):
+    return str(s or '').strip().replace('İ', 'i').replace('I', 'ı').lower()
+
+
+def _norm_kod(kod):
+    return str(kod or '').strip().upper().replace(' ', '')
+
+
+def ana_veri_bolum(deger):
+    """E sütunundaki metin → bölüm anahtarı (tanınmazsa None)."""
+    s = _tr_kucuk(deger)
+    if not s:
+        return None
+    if 'montaj' in s:
+        return 'montaj'
+    if 'kaynak' in s:
+        return 'kaynak'
+    if 'metal' in s:
+        return 'metal'
+    if 'lazer' in s:
+        return 'lazer'
+    if any(k in s for k in ('büküm', 'bukum', 'pres', 'abkant')):
+        return 'pres'
+    if 'işleme' in s or 'isleme' in s:
+        return 'isleme'
+    return None
+
+
+def _ana_sutunlar(baslik_satiri):
+    basliklar = [_tr_kucuk(x) for x in (baslik_satiri or ())]
+    kol = {}
+    for alan, adaylar in _ANA_SUTUN:
+        for i, h in enumerate(basliklar):
+            if h and i not in kol.values() and any(h.startswith(a) for a in adaylar):
+                kol[alan] = i
+                break
+    return kol
+
+
+def _ana_sayfa_bul(wb):
+    """('Ana Veri' sayfası ya da kod + bölüm başlığı olan ilk sayfa, sütun haritası)."""
+    adaylar = ([wb[ANA_VERI_SAYFA]] if ANA_VERI_SAYFA in wb.sheetnames else []) + list(wb.worksheets)
+    for ws in adaylar:
+        try:
+            ilk = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        except StopIteration:
+            continue
+        kol = _ana_sutunlar(ilk)
+        if 'kod' in kol and 'bolum' in kol:
+            return ws, kol
+    return None, {}
+
+
+def _ana_sayi(v):
+    """Hücre → float; boş = None (dokunma); sayı değilse ValueError."""
+    if isinstance(v, bool):
+        raise ValueError('sayı değil')
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip().replace(',', '.')
+    if s in ('', '-'):
+        return None
+    return float(s)
+
+
+def ana_veri_oku(wb):
+    """Ana Veri sayfasını okur → ({bolum: [satır]}, rapor). Satır alanı None = boş hücre.
+    rapor: sayfa, satir, bolumsuz[], tekrar[], hatali[], tel_atlanan."""
+    ws, kol = _ana_sayfa_bul(wb)
+    if ws is None:
+        raise ValueError("'Ana Veri' sayfası bulunamadı — 1. satırda en az 'CD ART.' (kod) ve "
+                         "'Bölüm' başlıklı sütun olmalı")
+    satirlar = {b: [] for b in ANA_VERI_ETIKET}
+    rapor = {'sayfa': ws.title, 'satir': 0, 'bolumsuz': [], 'tekrar': [], 'hatali': [], 'tel_atlanan': 0}
+    gorulen = set()
+
+    def al(row, alan):
+        i = kol.get(alan)
+        return row[i] if (i is not None and i < len(row)) else None
+
+    for no, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if not row:
+            continue
+        kod = str(al(row, 'kod') or '').strip()
+        if len(kod) < 2:
+            continue
+        rapor['satir'] += 1
+        b = ana_veri_bolum(al(row, 'bolum'))
+        if not b:
+            rapor['bolumsuz'].append({'satir': no, 'kod': kod, 'deger': str(al(row, 'bolum') or '')})
+            continue
+        if kod.startswith('93.'):            # TK1 tel kodu TK2 listesine girmez (bkz. _bolum_import)
+            rapor['tel_atlanan'] += 1
+            continue
+        anahtar = (_norm_kod(kod), b)
+        if anahtar in gorulen:
+            rapor['tekrar'].append({'satir': no, 'kod': kod, 'bolum': ANA_VERI_ETIKET[b]})
+            continue
+        try:
+            d = {'kod': kod, 'satir': no, 'cevrim': _ana_sayi(al(row, 'cevrim')),
+                 'kaynak': _ana_sayi(al(row, 'kaynak')), 'goz': _ana_sayi(al(row, 'goz')),
+                 'bukum': _ana_sayi(al(row, 'bukum'))}
+        except (TypeError, ValueError):
+            rapor['hatali'].append({'satir': no, 'kod': kod, 'sebep': 'süre / kalıp göz / büküm sayı değil'})
+            continue
+        if any((d[k] or 0) < 0 for k in ('cevrim', 'kaynak', 'goz', 'bukum')):
+            rapor['hatali'].append({'satir': no, 'kod': kod, 'sebep': 'negatif değer'})
+            continue
+        gorulen.add(anahtar)
+        ack = al(row, 'aciklama')
+        d['aciklama'] = (str(ack).strip() or None) if ack is not None else None
+        satirlar[b].append(d)
+    return satirlar, rapor
+
+
+def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12):
+    """Bir bölümün Ana Veri satırlarını referans_listesi'ne uygular (TK2) — commit ETMEZ.
+    Ayna senkronu: dosyada olmayan referans bu bölümden silinir (dosyada bölümün HİÇ
+    satırı yoksa silme yapılmaz). Döner: sayılar + örnekler (önizleme için)."""
+    son = {'referanslar_eklenen': 0, 'referanslar_guncellenen': 0, 'referanslar_ayni': 0,
+           'referanslar_silinen': 0, 'kalip_acik_kayit': 0, 'dosyada': len(satirlar),
+           'ornek_eklenen': [], 'ornek_degisen': [], 'ornek_silinen': []}
+    son['mevcut'] = conn.execute(
+        "SELECT COUNT(*) FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
+        "AND COALESCE(lokasyon,'TK2')='TK2'", (bolum,)).fetchone()[0]
+    excel_norm = set()
+    for s in satirlar:
+        kod = s['kod']
+        excel_norm.add(_norm_kod(kod))
+        m = conn.execute(
+            "SELECT id, referans_kodu, COALESCE(hedef_cycle_time_sn,0), COALESCE(kaynak_suresi_sn,0), "
+            "COALESCE(soktak_suresi_sn,0), COALESCE(aciklama,''), COALESCE(bukum_operasyon,1), "
+            "COALESCE(kalip_goz,1) FROM referans_listesi "
+            "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+            "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')='TK2' "
+            "ORDER BY (referans_kodu = ?) DESC, id LIMIT 1", (kod, bolum, kod)).fetchone()
+        yeni = {}
+        if bolum == 'kaynak':
+            # G = söktak, H = kaynak; çevrim = toplam. Biri boşsa mevcut değeri korunur.
+            if s['kaynak'] is not None or s['cevrim'] is not None:
+                ks = s['kaynak'] if s['kaynak'] is not None else (float(m[3]) if m else 0.0)
+                ss = s['cevrim'] if s['cevrim'] is not None else (float(m[4]) if m else 0.0)
+                yeni.update(kaynak_suresi_sn=ks, soktak_suresi_sn=ss, hedef_cycle_time_sn=round(ks + ss, 2))
+        elif s['cevrim'] is not None:
+            yeni['hedef_cycle_time_sn'] = s['cevrim']
+        if bolum == 'pres' and s['bukum'] is not None:
+            yeni['bukum_operasyon'] = max(1, min(99, int(s['bukum'])))
+        if bolum == 'metal' and s['goz'] is not None:
+            yeni['kalip_goz'] = max(1, min(ANA_VERI_KALIP_GOZ_UST, int(s['goz'])))
+        if s['aciklama'] is not None:
+            yeni['aciklama'] = s['aciklama']
+
+        if m:
+            eski = {'hedef_cycle_time_sn': m[2], 'kaynak_suresi_sn': m[3], 'soktak_suresi_sn': m[4],
+                    'aciklama': m[5], 'bukum_operasyon': m[6], 'kalip_goz': m[7]}
+            fark = {}
+            for k, v in yeni.items():
+                if k == 'aciklama':
+                    if (eski[k] or '') != v:
+                        fark[k] = v
+                elif abs(float(eski[k] or 0) - float(v)) > 0.001:
+                    fark[k] = v
+            if m[1] != kod:                  # yazım Excel'deki hâline çekilir (eski import gibi)
+                fark['referans_kodu'] = kod
+            if not fark:
+                son['referanslar_ayni'] += 1
+                continue
+            conn.execute(f"UPDATE referans_listesi SET {', '.join(k + '=?' for k in fark)} WHERE id=?",
+                         list(fark.values()) + [m[0]])
+            son['referanslar_guncellenen'] += 1
+            if len(son['ornek_degisen']) < ornek_n:
+                son['ornek_degisen'].append({'kod': kod, 'alanlar': {
+                    k: [m[1] if k == 'referans_kodu' else eski.get(k), v] for k, v in fark.items()}})
+        else:
+            conn.execute(
+                "INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, "
+                "soktak_suresi_sn, aciklama, bolum, lokasyon, bukum_operasyon, kalip_goz) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'TK2', ?, ?)",
+                (kod, yeni.get('hedef_cycle_time_sn', 0), yeni.get('kaynak_suresi_sn', 0),
+                 yeni.get('soktak_suresi_sn', 0), yeni.get('aciklama', ''), bolum,
+                 yeni.get('bukum_operasyon', 1), yeni.get('kalip_goz', 1)))
+            son['referanslar_eklenen'] += 1
+            if len(son['ornek_eklenen']) < ornek_n:
+                son['ornek_eklenen'].append(kod)
+            fark = yeni
+        ct = fark.get('hedef_cycle_time_sn')
+        if ct and ct > 0:                     # geçmiş üretim kayıtlarının cycle'ı (yalnız bu bölüm, TK2)
+            conn.execute(
+                "UPDATE uretim_kayitlari SET cycle_time_sn = ? "
+                "WHERE UPPER(REPLACE(referans_kodu, ' ', '')) = UPPER(REPLACE(?, ' ', '')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon, 'TK2') = 'TK2' "
+                "AND COALESCE(bolum, 'kaynak') = ?)", (ct, kod, bolum))
+        if 'kalip_goz' in fark:               # panelle aynı: açık otomatik sayaç kayıtları yeni göz çarpanıyla
+            son['kalip_acik_kayit'] += conn.execute(
+                "UPDATE uretim_kayitlari SET paket_adedi=? WHERE sayac_otomatik=1 "
+                "AND UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')='TK2' "
+                "AND COALESCE(bolum,'kaynak')='metal')", (fark['kalip_goz'], kod)).rowcount
+
+    if excel_norm:
+        for rid, rk in conn.execute(
+                "SELECT id, referans_kodu FROM referans_listesi "
+                "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')='TK2'", (bolum,)).fetchall():
+            n = _norm_kod(rk)
+            if n and n not in excel_norm:
+                conn.execute('DELETE FROM referans_listesi WHERE id = ?', (rid,))
+                son['referanslar_silinen'] += 1
+                if len(son['ornek_silinen']) < ornek_n:
+                    son['ornek_silinen'].append(rk)
+    else:
+        son['uyari'] = "dosyada bu bölümün satırı yok — bu bölümde silme yapılmadı"
+    print(f"  [ANA VERİ/{bolum}] {son['referanslar_eklenen']} eklendi, "
+          f"{son['referanslar_guncellenen']} güncellendi, {son['referanslar_silinen']} silindi")
+    return son
+
+
+def _liste_farki(conn, sql, yeni):
+    """DB kümesi ↔ dosya kümesi → (eklenecek, çıkacak) — sıralı listeler."""
+    eski = {tuple(r) for r in conn.execute(sql).fetchall()}
+    yeni = set(yeni)
+    return sorted(yeni - eski), sorted(eski - yeni)
+
+
+def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None):
+    """Altı bölümün referansları + (kume verilirse) operatörler, robot program, fikstür —
+    TEK işlemde. uygula=False → ÖNİZLEME (her şey geri alınır).
+    commit_oncesi: commit'ten hemen önce çağrılır (dosyayı yerine koymak için);
+    hata verirse veritabanı değişikliği geri alınır.
+    Döner: {'bolumler': {bolum: referans özeti}, 'operatorler': {bolum: [eklenen ad]},
+            'robot': {...}, 'fikstur': {...}}"""
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    try:
+        sonuc = {'bolumler': {b: _ana_veri_bolum_uygula(conn, b, satirlar.get(b, []))
+                              for b in ANA_VERI_ETIKET},
+                 'operatorler': {}, 'robot': None, 'fikstur': None}
+        if kume is not None:
+            for b in ANA_VERI_ETIKET:
+                ad = []
+                _operator_import(conn, kume, b, eklenenler=ad)
+                sonuc['operatorler'][b] = ad
+            # Robot program / fikstür: Excel master (sil + yaz) — ama YALNIZ fark varsa;
+            # aynıysa tablolara dokunulmaz (güncelleme tarihleri boşuna değişmesin).
+            if ROBOT_PROGRAM_SAYFA in kume.sheetnames:
+                k = _program_listesi_oku(kume[ROBOT_PROGRAM_SAYFA])
+                if k is not None:
+                    ek, cik = _liste_farki(conn, "SELECT robot_no, istasyon, referans_kodu FROM robot_programlari", k)
+                    sonuc['robot'] = {'dosyada': len(k), 'eklenen': len(ek), 'cikan': len(cik),
+                                      'ornek_eklenen': [' · '.join(map(str, x)) for x in ek[:10]],
+                                      'ornek_cikan': [' · '.join(map(str, x)) for x in cik[:10]]}
+                    if ek or cik:
+                        _program_listesi_import(conn, kume)
+            if FIKSTUR_RAF_SAYFA in kume.sheetnames:
+                k = _fikstur_raf_oku(kume[FIKSTUR_RAF_SAYFA])
+                if k is not None:
+                    ek, cik = _liste_farki(conn, "SELECT referans_kodu, raf_no FROM fikstur_raf", k)
+                    sonuc['fikstur'] = {'dosyada': len(k), 'eklenen': len(ek), 'cikan': len(cik),
+                                        'ornek_eklenen': [' · '.join(x) for x in ek[:10]],
+                                        'ornek_cikan': [' · '.join(x) for x in cik[:10]]}
+                    if ek or cik:
+                        _fikstur_raf_import(conn, kume)
+        if uygula:
+            if commit_oncesi:
+                commit_oncesi()
+            conn.commit()
+        else:
+            conn.rollback()
+        return sonuc
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def ana_veri_operator_ekle(ad, bolum):
+    """Panelden eklenen operatörü Ana Veri'nin '<Bölüm> Operator' sayfasına da yazar
+    (eskiden yalnız veritabanına giriyordu, Excel ile liste ayrışıyordu). → hata | None"""
+    if not ana_veri_aktif() or _ana_veri_yazma_engeli() or bolum not in BOLUM_SAYFA:
+        return None
+    try:
+        with open(ANA_VERI_YOL, 'rb') as fh:
+            wb = openpyxl.load_workbook(io.BytesIO(fh.read()))
+    except Exception as e:
+        return f'AnaVeri.xlsx açılamadı: {e}'
+    sayfa = BOLUM_SAYFA[bolum]['op']
+    if sayfa in wb.sheetnames:
+        ws = wb[sayfa]
+    else:
+        ws = wb.create_sheet(sayfa)
+        ws.append(['No', 'Operatör İsmi'])
+    son_no, hedef = 0, _ad_normal(ad)
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i == 0 or not row:
+            continue
+        if len(row) > 1 and row[1] is not None and _ad_normal(row[1]) == hedef:
+            return None                                   # zaten listede
+        try:
+            son_no = max(son_no, int(row[0]))
+        except (TypeError, ValueError):
+            pass
+    ws.append([son_no + 1, ad])
+    return _ana_veri_kaydet(wb)
+
+
+def ana_veri_dosya_kaydet(ham):
+    """Yüklenen dosyayı data/AnaVeri.xlsx yapar; öncekini ana_veri_yedek/'e alır (son 20)."""
+    from datetime import datetime as _dt
+    import shutil
+    os.makedirs(os.path.dirname(ANA_VERI_YOL), exist_ok=True)
+    if os.path.exists(ANA_VERI_YOL):
+        os.makedirs(ANA_VERI_YEDEK_KLASOR, exist_ok=True)
+        shutil.copy2(ANA_VERI_YOL, os.path.join(
+            ANA_VERI_YEDEK_KLASOR, 'AnaVeri-' + _dt.now().strftime('%Y%m%d-%H%M%S') + '.xlsx'))
+        eskiler = sorted(f for f in os.listdir(ANA_VERI_YEDEK_KLASOR) if f.startswith('AnaVeri-'))
+        for f in eskiler[:-20]:
+            try:
+                os.remove(os.path.join(ANA_VERI_YEDEK_KLASOR, f))
+            except OSError:
+                pass
+    gecici = ANA_VERI_YOL + '.yukleniyor'
+    with open(gecici, 'wb') as fh:
+        fh.write(ham)
+    os.replace(gecici, ANA_VERI_YOL)
+
+
+def _ana_veri_yazma_engeli():
+    """Ana Veri'ye yazılmaması gereken durum varsa sebebi (geliştirme kopyası / senkron kapalı)."""
+    if os.path.exists(os.path.join(PROJECT_DIR, 'data', 'GELISTIRME_KOPYASI.json')):
+        return 'geliştirme kopyası — Excel yalnız canlı sunucuda güncellenir'
+    try:
+        import kurulum as _kur
+        if not _kur.modul('excel_senkron'):
+            return 'Excel senkronu bu kurulumda kapalı'
+    except Exception:
+        pass
+    return ''
+
+
+def _ana_veri_yazmak_icin_ac():
+    """(wb, ws, kol) — formüller korunsun diye data_only=False; bellekten okunur (dosya kilitlenmez)."""
+    with open(ANA_VERI_YOL, 'rb') as fh:
+        wb = openpyxl.load_workbook(io.BytesIO(fh.read()))
+    ws, kol = _ana_sayfa_bul(wb)
+    if ws is None:
+        raise ValueError("AnaVeri.xlsx içinde 'Ana Veri' sayfası / başlıkları bulunamadı")
+    return wb, ws, kol
+
+
+def _ana_veri_kaydet(wb):
+    try:
+        wb.save(ANA_VERI_YOL)
+        return None
+    except PermissionError:
+        return 'AnaVeri.xlsx şu an açık — kapatıp tekrar deneyin.'
+
+
+def _sayi_hucre(v):
+    """Tam sayı → int; ondalık TAM HASSASİYETLE (yuvarlanırsa sonraki yüklemede
+    '439,0244 → 439,02' sahte değişiklik olarak görünür ve geçmiş cycle'lar oynar)."""
+    v = float(v or 0)
+    return int(v) if v == int(v) else v
+
+
+def _ana_veri_export(conn, bolum_listesi, zorla_ekle=None):
+    """DB → Ana Veri. Mevcut satırın süre/göz/büküm/açıklama/teyit hücreleri güncellenir;
+    DB'de olup listede olmayan referans SÜRESİ VARSA (ya da zorla_ekle'deyse) sona eklenir.
+    Süresi 0 olan referansın süre hücresine dokunulmaz (Excel'deki değer kalır)."""
+    bolum_listesi = [b for b in bolum_listesi if b in ANA_VERI_ETIKET]
+    zorla = {_norm_kod(k) for k in (zorla_ekle or ())}
+    try:
+        wb, ws, kol = _ana_veri_yazmak_icin_ac()
+    except Exception as e:
+        return {'basarili': False, 'hata': f'AnaVeri.xlsx açılamadı: {e}'}
+    son_kol = ws.max_column
+    for alan in ('cevrim', 'kaynak', 'goz', 'bukum', 'aciklama', 'teyit'):
+        if alan not in kol:                   # kullanıcı sütunu silmişse sona yeniden açılır
+            son_kol += 1
+            ws.cell(row=1, column=son_kol, value=_ANA_YENI_BASLIK[alan])
+            kol[alan] = son_kol - 1
+    harita = {}
+    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        kod = row[kol['kod']] if kol['kod'] < len(row) else None
+        b = ana_veri_bolum(row[kol['bolum']] if kol['bolum'] < len(row) else None)
+        if kod is None or not b:
+            continue
+        harita.setdefault((_norm_kod(kod), b), (i, str(kod).strip()))
+
+    def yaz(ri, alan, deger):
+        ws.cell(row=ri, column=kol[alan] + 1, value=deger)
+
+    toplam = 0
+    for b in bolum_listesi:
+        rows = conn.execute(
+            "SELECT referans_kodu, COALESCE(hedef_cycle_time_sn,0) ct, COALESCE(kaynak_suresi_sn,0) ks, "
+            "COALESCE(soktak_suresi_sn,0) ss, COALESCE(sure_teyit,0) teyit, COALESCE(aciklama,'') aciklama, "
+            "COALESCE(bukum_operasyon,1) bukum, COALESCE(kalip_goz,1) goz FROM referans_listesi "
+            "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')='TK2' ORDER BY referans_kodu",
+            (b,)).fetchall()
+        yazilan_norm = {}
+        for r in rows:
+            kod = (r['referans_kodu'] or '').strip()
+            norm = _norm_kod(kod)
+            if not norm:
+                continue
+            if (norm, b) in harita:
+                ri, sayfa_kod = harita[(norm, b)]
+                tam_es = (kod == sayfa_kod)
+            else:
+                if r['ct'] <= 0 and norm not in zorla:
+                    continue                   # süresiz otomatik kayıtlar listeye girmez (eski kural)
+                ri = ws.max_row + 1
+                yaz(ri, 'kod', kod)
+                yaz(ri, 'bolum', ANA_VERI_ETIKET[b])
+                if 'ap' in kol:
+                    yaz(ri, 'ap', 'P')
+                if 'tk' in kol:
+                    yaz(ri, 'tk', 'TK-2')
+                harita[(norm, b)] = (ri, kod)
+                tam_es = True
+            if yazilan_norm.get(norm) and not tam_es:
+                continue                       # yazım varyantı tam-eşin değerini ezmesin
+            if r['ct'] > 0:
+                if b == 'kaynak':
+                    yaz(ri, 'kaynak', _sayi_hucre(r['ks']))
+                    yaz(ri, 'cevrim', _sayi_hucre(r['ss']))
+                else:
+                    yaz(ri, 'cevrim', _sayi_hucre(r['ct']))
+            if b == 'kaynak':
+                yaz(ri, 'teyit', 'EVET' if r['teyit'] else None)
+            if b == 'metal':
+                yaz(ri, 'goz', int(r['goz'] or 1))
+            if b == 'pres':
+                yaz(ri, 'bukum', int(r['bukum'] or 1))
+            if (r['aciklama'] or '').strip():
+                yaz(ri, 'aciklama', r['aciklama'].strip())
+            yazilan_norm[norm] = True
+            toplam += 1
+    hata = _ana_veri_kaydet(wb)
+    if hata:
+        return {'basarili': False, 'hata': hata}
+    return {'basarili': True, 'yazilan': toplam, 'dosya': ANA_VERI_YOL}
+
+
+def ana_veri_satir_sil(kod, bolum=None):
+    """Panelden silinen referansın satırını Ana Veri'den de kaldırır (yoksa sonraki
+    yüklemede geri gelirdi). bolum=None → koddaki tüm satırlar. → hata metni | None"""
+    if not ana_veri_aktif() or _ana_veri_yazma_engeli():
+        return None
+    try:
+        wb, ws, kol = _ana_veri_yazmak_icin_ac()
+    except Exception as e:
+        return f'AnaVeri.xlsx açılamadı: {e}'
+    hedef = _norm_kod(kod)
+    silinecek = []
+    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        k = row[kol['kod']] if kol['kod'] < len(row) else None
+        if k is None or _norm_kod(k) != hedef:
+            continue
+        if bolum and ana_veri_bolum(row[kol['bolum']] if kol['bolum'] < len(row) else None) != bolum:
+            continue
+        silinecek.append(i)
+    if not silinecek:
+        return None
+    for i in reversed(silinecek):
+        ws.delete_rows(i)
+    return _ana_veri_kaydet(wb)
+
+
+def ana_veri_kod_degistir(degistir):
+    """Kod yeniden adlandırması (app._guvenli_kod_replace) Ana Veri'nin kod sütununa da
+    uygulanır; yoksa sonraki yüklemede eski kod geri gelir, yenisi silinirdi.
+    Yeni kod aynı bölümde zaten satır olarak varsa adı değişen satır kaldırılır
+    (veritabanındaki birleştirme kuralıyla aynı). → hata metni | None"""
+    if not ana_veri_aktif() or _ana_veri_yazma_engeli():
+        return None
+    try:
+        wb, ws, kol = _ana_veri_yazmak_icin_ac()
+    except Exception as e:
+        return f'AnaVeri.xlsx açılamadı: {e}'
+    mevcut, degisen = set(), []
+    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        k = row[kol['kod']] if kol['kod'] < len(row) else None
+        if k is None:
+            continue
+        b = ana_veri_bolum(row[kol['bolum']] if kol['bolum'] < len(row) else None)
+        yeni = degistir(str(k))
+        if yeni != str(k):
+            degisen.append((i, yeni, b))
+        else:
+            mevcut.add((_norm_kod(k), b))
+    sil = []
+    for i, yeni, b in degisen:
+        if (_norm_kod(yeni), b) in mevcut:
+            sil.append(i)
+        else:
+            ws.cell(row=i, column=kol['kod'] + 1, value=yeni)
+            mevcut.add((_norm_kod(yeni), b))
+    for i in reversed(sil):
+        ws.delete_rows(i)
+    # Robot Program / Fikstür sayfaları da: rename robot_programlari ve fikstur_raf
+    # tablolarını da değiştiriyor; sayfa eski kodda kalırsa sonraki yükleme geri alırdı
+    # (2026-10-05'te eski Excel'de tam bu olmuştu: 10.300.4199 ↔ DB'de 10.300.4199W).
+    ek = 0
+    for sayfa, ilk_satir, kolonlar in ((ROBOT_PROGRAM_SAYFA, 3, None), (FIKSTUR_RAF_SAYFA, 2, 3)):
+        if sayfa not in wb.sheetnames:
+            continue
+        s = wb[sayfa]
+        for row in s.iter_rows(min_row=ilk_satir):
+            for hucre in (row if kolonlar else row[:1]):
+                if kolonlar and (hucre.column - 1) % kolonlar:
+                    continue                   # fikstür: her 3 sütunun ilki kod
+                if isinstance(hucre.value, str):
+                    yeni = degistir(hucre.value)
+                    if yeni != hucre.value:
+                        hucre.value = yeni
+                        ek += 1
+    if not degisen and not ek:
+        return None
+    return _ana_veri_kaydet(wb)
 
 
 def _bolum_import(conn, wb, bolum):
@@ -515,11 +1225,31 @@ def _bolum_import(conn, wb, bolum):
     else:
         print("  UYARI: Excel'den hiçbir referans okunamadı, silme atlandı")
 
-    # ── Operatör sayfası ──
+    return {
+        'referanslar_eklenen': ref_sayisi,
+        'referanslar_guncellenen': ref_guncellenen,
+        'referanslar_silinen': ref_silinen,
+        'operatorler_eklenen': _operator_import(conn, wb, bolum)
+    }
+
+
+def _operator_import(conn, wb, bolum, eklenenler=None):
+    """'<Bölüm> Operator' sayfasındaki yeni kişileri ekler (kimseyi silmez) → eklenen sayısı.
+    wb: kitap ya da _SayfaKumesi (Ana Veri + eski dosya). eklenenler: liste verilirse
+    eklenen adlar oraya yazılır (Ana Veri önizlemesi için)."""
+    sayfalar = BOLUM_SAYFA[bolum]
+    c = conn.cursor()
     op_sayisi = 0
     if sayfalar['op'] in wb.sheetnames:
         op_sayfa = wb[sayfalar['op']]
         print(f"  [{bolum.upper()}] Operatör sayfası: '{op_sayfa.title}'")
+        # TÜRKÇE HARFE DUYARSIZ EŞLEŞME (2026-10-05): SQLite UPPER() 'i'yi 'I' yapar ama
+        # 'İ'ye dokunmaz → 'İbrahim Nak' ile 'İBRAHİM NAK' farklı sayılıp AYNI KİŞİ İKİ
+        # KEZ eklenmişti (sunucuda montajda iki kayıt). Panel ekleme (_ad_esitle) ile aynı kural.
+        tk2_kisiler = {}                       # _ad_normal(ad) → [(bolum, pin)]
+        for ad_db, bolum_db, pin_db in c.execute(
+                "SELECT ad, bolum, pin FROM operatorler WHERE COALESCE(lokasyon,'TK2')='TK2'").fetchall():
+            tk2_kisiler.setdefault(_ad_normal(ad_db), []).append((bolum_db, pin_db))
         for i, row in enumerate(op_sayfa.iter_rows(values_only=True)):
             if i == 0:
                 continue
@@ -534,29 +1264,18 @@ def _bolum_import(conn, wb, bolum):
                 # ÇOKLU BÖLÜM: aynı kişi birden fazla bölümde çalışabilir → bölüm başına
                 # satır (UNIQUE(ad, bolum, lokasyon)). Kişi başka bölümde zaten varsa
                 # yeni bölüm satırı ONUN PIN'iyle açılır (bir kişi = tek PIN).
-                mevcut_op = c.execute(
-                    "SELECT id FROM operatorler WHERE UPPER(ad) = UPPER(?) AND bolum = ? AND COALESCE(lokasyon,'TK2')='TK2'",
-                    (ad, bolum)
-                ).fetchone()
-                if not mevcut_op:
-                    ayni_isim = c.execute(
-                        "SELECT id, pin FROM operatorler WHERE UPPER(ad) = UPPER(?) AND COALESCE(lokasyon,'TK2')='TK2'",
-                        (ad,)
-                    ).fetchone()
-                    # conn row_factory'siz (tuple) — pin = index 1
-                    pin = (ayni_isim[1] or '0000') if ayni_isim else '0000'
+                kisi = tk2_kisiler.get(_ad_normal(ad), [])
+                if not any(b == bolum for b, _p in kisi):
+                    pin = (kisi[0][1] or '0000') if kisi else '0000'
                     c.execute("INSERT INTO operatorler (ad, bolum, pin, lokasyon) VALUES (?, ?, ?, 'TK2')", (ad, bolum, pin))
+                    tk2_kisiler.setdefault(_ad_normal(ad), []).append((bolum, pin))
                     op_sayisi += 1
+                    if eklenenler is not None:
+                        eklenenler.append(ad)
             except Exception as e:
                 print(f"  Operatör eklenemedi ({ad}): {e}")
         print(f"  Operatörler: {op_sayisi} eklendi")
-
-    return {
-        'referanslar_eklenen': ref_sayisi,
-        'referanslar_guncellenen': ref_guncellenen,
-        'referanslar_silinen': ref_silinen,
-        'operatorler_eklenen': op_sayisi
-    }
+    return op_sayisi
 
 
 def import_tk1(conn=None):
@@ -788,8 +1507,21 @@ def import_data(bolum=None):
     if bolum and bolum not in BOLUM_SAYFA:
         return {'basarili': False, 'hata': f"Geçersiz bölüm: {bolum}"}
 
-    if not os.path.exists(EXCEL_YOL):
+    if not os.path.exists(EXCEL_YOL) and not ana_veri_aktif():
         return {'basarili': False, 'hata': f'Excel dosyası bulunamadı: {EXCEL_YOL}'}
+
+    # ANA VERİ varsa referanslar VE operatörler oradan (operatör sayfası Ana Veri'de
+    # yoksa eski uretim_verileri.xlsx'ten — _SayfaKumesi)
+    ana_satirlar, ana_rapor, wb_ana = None, None, None
+    if ana_veri_aktif():
+        try:
+            with open(ANA_VERI_YOL, 'rb') as fh:
+                ham = fh.read()
+            wb_ana = openpyxl.load_workbook(io.BytesIO(ham), data_only=True)
+            ana_satirlar, ana_rapor = ana_veri_oku(wb_ana)
+            _yedegi_tazele(ANA_VERI_YOL, ham)
+        except Exception as e:
+            return {'basarili': False, 'hata': f'AnaVeri.xlsx okunamadı: {e}'}
 
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     c = conn.cursor()
@@ -810,7 +1542,9 @@ def import_data(bolum=None):
     except Exception:
         pass
 
-    wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
+    wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True) if os.path.exists(EXCEL_YOL) else None
+    if wb_ana is not None:
+        wb = _SayfaKumesi(wb_ana, wb)
 
     sonuclar = {}
     toplam = {'referanslar_eklenen': 0, 'referanslar_guncellenen': 0,
@@ -822,7 +1556,11 @@ def import_data(bolum=None):
         print(f"\n{'='*50}")
         print(f"  {b.upper()} import başlıyor...")
         print(f"{'='*50}")
-        sonuc = _bolum_import(conn, wb, b)
+        if ana_satirlar is not None:
+            sonuc = _ana_veri_bolum_uygula(conn, b, ana_satirlar.get(b, []))
+            sonuc['operatorler_eklenen'] = _operator_import(conn, wb, b)
+        else:
+            sonuc = _bolum_import(conn, wb, b)
         sonuclar[b] = sonuc
         for k in toplam:
             toplam[k] += sonuc.get(k, 0)
@@ -830,11 +1568,13 @@ def import_data(bolum=None):
     conn.commit()
     conn.close()
 
-    return {
-        'basarili': True,
-        **toplam,
-        'detay': sonuclar
-    }
+    sonuc = {'basarili': True, **toplam, 'detay': sonuclar}
+    if ana_rapor is not None:
+        from datetime import datetime as _dt
+        sonuc['kaynak_dosya'] = {'yol': ANA_VERI_YOL, 'degisme': _dt.fromtimestamp(
+            os.path.getmtime(ANA_VERI_YOL)).strftime('%d.%m.%Y %H:%M')}
+        sonuc['bolumsuz_satir'] = len(ana_rapor['bolumsuz'])
+    return sonuc
 
 
 def _program_listesi_import(conn, wb):
@@ -848,10 +1588,28 @@ def _program_listesi_import(conn, wb):
     if wb is None or ROBOT_PROGRAM_SAYFA not in wb.sheetnames:
         return {'eklenen': 0, 'silinen': 0, 'hata': 'sayfa yok'}
 
-    ws = wb[ROBOT_PROGRAM_SAYFA]
+    kayitlar = _program_listesi_oku(wb[ROBOT_PROGRAM_SAYFA])
+    if kayitlar is None:
+        return {'eklenen': 0, 'silinen': 0, 'hata': 'yetersiz satır'}
+
+    c = conn.cursor()
+    # Mevcut programları temizle (Excel master)
+    c.execute('DELETE FROM robot_programlari')
+    for robot_no, ist, ref in kayitlar:
+        c.execute(
+            'INSERT INTO robot_programlari (robot_no, istasyon, referans_kodu, guncelleyen) VALUES (?, ?, ?, ?)',
+            (robot_no, ist, ref, 'Excel İçe Aktar')
+        )
+    print(f"  Robot Program: {len(kayitlar)} satır eklendi")
+    return {'eklenen': len(kayitlar)}
+
+
+def _program_listesi_oku(ws):
+    """Robot Program Listesi matrisini düzleştirir → [(robot_no, istasyon, referans)]
+    (yetersiz satır → None). Veritabanına dokunmaz."""
     rows = list(ws.iter_rows(values_only=True))
     if len(rows) < 3:
-        return {'eklenen': 0, 'silinen': 0, 'hata': 'yetersiz satır'}
+        return None
 
     # Satır 0: robot adları (MERGED — birden çok kolonu kapsar)
     # Satır 1: istasyon. Kolon 0=referans, 1=raf
@@ -881,11 +1639,7 @@ def _program_listesi_import(conn, wb):
         if ist > 0:
             kolon_eslesme.append((j, robot_no, ist))
 
-    c = conn.cursor()
-    # Mevcut programları temizle (Excel master)
-    c.execute('DELETE FROM robot_programlari')
-
-    eklenen = 0
+    kayitlar = []
     for r in rows[2:]:
         if not r or r[0] is None: continue
         ref = str(r[0]).strip()
@@ -894,14 +1648,8 @@ def _program_listesi_import(conn, wb):
             if col_idx >= len(r): continue
             val = str(r[col_idx] or '').strip()
             if val and val != '':  # √ veya başka bir işaret varsa
-                c.execute(
-                    'INSERT INTO robot_programlari (robot_no, istasyon, referans_kodu, guncelleyen) VALUES (?, ?, ?, ?)',
-                    (robot_no, ist, ref, 'Excel İçe Aktar')
-                )
-                eklenen += 1
-
-    print(f"  Robot Program: {eklenen} satır eklendi")
-    return {'eklenen': eklenen}
+                kayitlar.append((robot_no, ist, ref))
+    return kayitlar
 
 
 def _fikstur_raf_import(conn, wb):
@@ -912,15 +1660,24 @@ def _fikstur_raf_import(conn, wb):
     if wb is None or FIKSTUR_RAF_SAYFA not in wb.sheetnames:
         return {'eklenen': 0, 'hata': 'sayfa yok'}
 
-    ws = wb[FIKSTUR_RAF_SAYFA]
-    rows = list(ws.iter_rows(values_only=True))
-    if len(rows) < 2:
+    kayitlar = _fikstur_raf_oku(wb[FIKSTUR_RAF_SAYFA])
+    if kayitlar is None:
         return {'eklenen': 0, 'hata': 'yetersiz satır'}
 
     c = conn.cursor()
     c.execute('DELETE FROM fikstur_raf')
+    for kod, raf in kayitlar:
+        c.execute('INSERT INTO fikstur_raf (referans_kodu, raf_no) VALUES (?, ?)', (kod, raf))
+    print(f"  Fikstür Raf: {len(kayitlar)} satır eklendi")
+    return {'eklenen': len(kayitlar)}
 
-    eklenen = 0
+
+def _fikstur_raf_oku(ws):
+    """Fikstür Raf Listesi → [(kod, raf_no)] (yetersiz satır → None). Veritabanına dokunmaz."""
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2:
+        return None
+    kayitlar = []
     # Her satırdaki tüm (kod, raf_no) çiftlerini topla
     for r in rows[1:]:  # Başlık satırını atla
         if not r: continue
@@ -930,26 +1687,20 @@ def _fikstur_raf_import(conn, wb):
             kod = str(r[i] or '').strip() if i < len(r) else ''
             raf = str(r[i+1] or '').strip() if i+1 < len(r) else ''
             if kod and raf:
-                c.execute(
-                    'INSERT INTO fikstur_raf (referans_kodu, raf_no) VALUES (?, ?)',
-                    (kod, raf)
-                )
-                eklenen += 1
+                kayitlar.append((kod, raf))
             i += 3  # Sonraki grup
-
-    print(f"  Fikstür Raf: {eklenen} satır eklendi")
-    return {'eklenen': eklenen}
+    return kayitlar
 
 
 def kaynak_ek_import():
     """Robot Program Listesi + Fikstür Raf sayfalarını içe alır — kaynak alanının ek
     sayfaları. Eski 'Toplu Veri Yönetimi' panelinden taşındı: dashboard'da kaynak bölümü
     için 'Excel'den Aktar' artık bunları da kapsar (tek buton, tek akış)."""
-    if not os.path.exists(EXCEL_YOL):
+    wb = _tk2_okuma_kumesi()
+    if wb is None:
         return {'program_eklenen': 0, 'fikstur_eklenen': 0}
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     try:
-        wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
         sonuc = {}
         try:
             p = _program_listesi_import(conn, wb)
@@ -977,16 +1728,16 @@ def import_tum(yedek_al=False):
        - Fikstür raf listesi
        - Duruş sebepleri (validasyon — read on-demand)
     """
-    if not os.path.exists(EXCEL_YOL):
+    if not os.path.exists(EXCEL_YOL) and not ana_veri_aktif():
         return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
 
     # Önce normal referans+operator (mevcut)
     sonuc = import_data()
 
-    # Sonra ek sayfalar
+    # Sonra ek sayfalar (Ana Veri varsa oradan, sayfa yoksa eski dosyadan)
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     try:
-        wb = openpyxl.load_workbook(EXCEL_YOL, data_only=True)
+        wb = _tk2_okuma_kumesi()
 
         # Robot Program
         try:
@@ -1018,9 +1769,11 @@ def import_tum(yedek_al=False):
     return sonuc
 
 
-def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
+def export_referans_cycle_times(bolum=None, lokasyon='TK2', zorla_ekle=None):
     """DB'deki cycle_time'ları Excel'in <Bolum> Referans sayfa(lar)ına yazar (SADECE TK2).
     Diğer veriler (operatör, duruş, program, fikstür) korunur.
+    data/AnaVeri.xlsx varsa oraya yazar (bkz. _ana_veri_export); zorla_ekle = süresi
+    olmasa da listeye eklenecek kodlar (panelden bilerek açılan referans).
 
     lokasyon='TK1' ise ATLA: TK1 referansları cycle time kullanmaz ve ayrı dosyadadır
     (data/Tk1 Veriler.xlsx, tek kolon) — TK1 verisi TK2 Excel'ine sızmamalı.
@@ -1041,6 +1794,13 @@ def export_referans_cycle_times(bolum=None, lokasyon='TK2'):
             return {'basarili': True, 'yazilan': 0, 'atlandi': 'Excel senkronu bu kurulumda kapalı'}
     except Exception:
         pass
+    if ana_veri_aktif():
+        conn = sqlite3.connect(DB_PATH, timeout=20.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            return _ana_veri_export(conn, [bolum] if bolum else list(ANA_VERI_ETIKET), zorla_ekle)
+        finally:
+            conn.close()
     if not os.path.exists(EXCEL_YOL):
         return {'basarili': False, 'hata': f'Excel bulunamadı: {EXCEL_YOL}'}
 
