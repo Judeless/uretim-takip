@@ -12067,7 +12067,7 @@ window.__I18N_SOZLUK__ = {
             var el = document.getElementById('sp-durum');
             try {
                 var r = await panelFetch('/api/satis_plani/durum');
-                var d = await r.json();
+                var d = await spJson(r);
                 if (!r.ok) { el.textContent = d.hata || ('HTTP ' + r.status); return; }
                 var s = d.son;
                 if (!s) {
@@ -12079,6 +12079,7 @@ window.__I18N_SOZLUK__ = {
                         (s.depo && s.depo.indexOf('01D') < 0 ? ' <span style="color:var(--danger)">⚠ bu çekim 01D ile yapılmamış olabilir</span>' : '') +
                         (bugun ? '' : '<div style="color:var(--warn);margin-top:4px">Bugün 10-05-03-06 henüz çalıştırılmamış (ya da sonuç dünkünden farksız) — son değişiklik ' + esc(spTarihTr(s.tarih)) + '.</div>');
                 }
+                el.innerHTML += '<div id="sp-deneme" style="margin-top:6px;font-size:.78rem">' + spDenemeMetni(d.deneme) + '</div>';
                 document.getElementById('sp-durum-bilgi').textContent = (d.gunler || []).length ? (d.gunler.length + ' gün arşivde') : '';
                 var sel = document.getElementById('sp-gun');
                 var onceki = sel.value;
@@ -12096,15 +12097,39 @@ window.__I18N_SOZLUK__ = {
                     : '<span style="color:var(--muted)">Arşiv boş.</span>';
             } catch (e) { el.textContent = 'Yüklenemedi: ' + e.message; }
         }
+        // JSON yerine HTML gelirse (vekil zaman aşımı / sunucu hatası) anlaşılır mesaj
+        async function spJson(r) {
+            try { return await r.json(); }
+            catch (e) { throw new Error('Sunucu HTTP ' + r.status + ' döndü (JSON değil — bağlantı zaman aşımı olabilir)'); }
+        }
+        function spDenemeMetni(dn) {
+            if (!dn || !dn.basladi) return '';
+            if (dn.calisiyor) return '⏳ AS400 okunuyor… (' + esc((dn.basladi || '').slice(11)) + ' başladı, ' + esc(dn.kim || '') + ')';
+            var bas = 'Son deneme ' + esc((dn.bitti || '').slice(11)) + ' · ' + esc(dn.kim || '') + (dn.sure_sn != null ? ' · ' + dn.sure_sn + ' sn' : '') + ' — ';
+            if (dn.hata) return '<span style="color:var(--danger)">' + bas + 'HATA: ' + esc(dn.hata) + '</span>';
+            var s = dn.sonuc || {};
+            return '<span style="color:var(--muted)">' + bas + (s.degisti ? 'yeni çekim kaydedildi (' + fmt(s.satir) + ' satır, ' + esc(s.kutuphane || '') + ')' : 'S650B9 değişmemiş, yeni kayıt yok') + '</span>';
+        }
         async function spCek() {
             var btn = document.getElementById('sp-cek-btn');
             var eski = btn.textContent;
             btn.disabled = true; btn.textContent = '⏳ AS400 okunuyor…';
             try {
                 var r = await panelFetch('/api/satis_plani/cek', { method: 'POST' });
-                var d = await r.json();
-                if (!r.ok) { toast(d.hata || ('HTTP ' + r.status), 'err'); return; }
-                toast(d.degisti ? ('✅ Yeni satış planı kaydedildi: ' + d.satir + ' satır, ' + d.kod + ' kod') : 'S650B9 son çekimle aynı — yeni bir şey yok', d.degisti ? 'ok' : 'info');
+                var d = await spJson(r);
+                if (!r.ok && r.status !== 202) { toast(d.hata || ('HTTP ' + r.status), 'err'); return; }
+                // Okuma arka planda — bitene kadar durumu sor (en çok ~4 dk)
+                var dn = d.deneme || {};
+                for (var i = 0; i < 100 && (dn.calisiyor || !dn.bitti); i++) {
+                    await new Promise(function (ok) { setTimeout(ok, 2500); });
+                    var rr = await panelFetch('/api/satis_plani/durum');
+                    dn = ((await spJson(rr)) || {}).deneme || {};
+                    var el = document.getElementById('sp-deneme');
+                    if (el) el.innerHTML = spDenemeMetni(dn);
+                }
+                if (dn.calisiyor) toast('AS400 okuması sürüyor — sonuç bu kartta görünecek', 'info');
+                else if (dn.hata) toast('AS400 okunamadı — ayrıntı "Son deneme" satırında', 'err');
+                else toast((dn.sonuc || {}).degisti ? ('✅ Yeni satış planı kaydedildi: ' + dn.sonuc.satir + ' satır, ' + dn.sonuc.kod + ' kod') : 'S650B9 son çekimle aynı — yeni bir şey yok', (dn.sonuc || {}).degisti ? 'ok' : 'info');
                 await spSekmeAcildi();
             } catch (e) { toast('Okunamadı: ' + e.message, 'err'); }
             finally { btn.disabled = false; btn.textContent = eski; }

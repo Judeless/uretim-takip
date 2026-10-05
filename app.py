@@ -7663,19 +7663,18 @@ def satis_plani_durum():
         g['dosya_var'] = bool(g['dosya']) and os.path.exists(os.path.join(SP.KLASOR, g['dosya']))
         g.pop('haftalar', None)
     return jsonify({'son': dict(son) if son else None, 'gunler': gunler,
-                    'bugun': datetime.now().strftime('%Y-%m-%d')})
+                    'bugun': datetime.now().strftime('%Y-%m-%d'), 'deneme': SP.deneme_durumu()})
 
 
 @app.route('/api/satis_plani/cek', methods=['POST'])
 @panel_gerekli(izin='satis-plani')
 def satis_plani_cek():
-    """Elle çekim: S650B9 değiştiyse saklar. AS400'e yalnız SELECT gider."""
+    """Elle çekim — ARKA PLANDA başlar, hemen döner (Cloudflare 100 sn sınırı: okuma
+    uzun sürerse vekil isteği kesip HTML hata sayfası dönüyordu). Panel sonucu
+    /durum'daki 'deneme' alanından izler. AS400'e yalnız SELECT gider."""
     import satis_plani as SP
-    try:
-        sonuc = SP.cek(get_db(), kullanici=g.panel_ku['kullanici_adi'])
-    except Exception as e:
-        return jsonify({'hata': f'AS400 okunamadı: {e}'}), 502
-    return jsonify(sonuc)
+    basladi = SP.cek_arka_planda(db_connect, g.panel_ku['kullanici_adi'])
+    return jsonify({'basladi': basladi, 'calisiyor': True, 'deneme': SP.deneme_durumu()}), 202
 
 
 @app.route('/api/satis_plani/fark', methods=['GET'])
@@ -14295,13 +14294,7 @@ def satis_plani_job():
     if not (SATIS_PLANI_SAAT[0] <= datetime.now().hour < SATIS_PLANI_SAAT[1]):
         return
     import satis_plani as SP
-    conn = db_connect()
-    try:
-        SP.cek(conn, kullanici='otomatik')
-    except Exception as e:
-        print(f'[SATIŞ PLANI] çekim başarısız: {e}')
-    finally:
-        conn.close()
+    SP.cek_kayitli(db_connect, kullanici='otomatik')      # sonuç/hata panelde 'Son deneme'
 
 
 # ── ÖNE ÇIKANLAR: darboğaz parçalar + otomatik notlar (kullanıcı 2026-09-30) ──

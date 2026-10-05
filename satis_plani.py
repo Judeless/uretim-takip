@@ -27,6 +27,7 @@ from datetime import datetime
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 KLASOR = os.path.join(PROJECT_DIR, 'data', 'satis_plani')
 KUTUPHANELER = ('QGPL', 'TKC0301F')
+SORGU_ZAMAN_ASIMI = 45          # sn — tek sorgu
 GUN_SAKLA = 400                 # veritabanında tutulan gün (dosyalar silinmez)
 YAKIN_HAFTA = 2                 # "yakın termin" = gecikmiş + ilk 2 hafta
 
@@ -98,28 +99,43 @@ def as400_oku(baglan=None):
         sys.path.insert(0, os.path.join(PROJECT_DIR, 'as400'))
         import as400_config as CFG
         baglan = CFG.baglan
-    cn = baglan(timeout=60)
+    cn = baglan(timeout=30)
     try:
+        # Sorgu zaman aşımı: F6 işi dosyayı tutuyorsa sonsuz beklemesin (pyodbc saniye)
+        try:
+            cn.timeout = SORGU_ZAMAN_ASIMI
+        except Exception:
+            pass
         cur = cn.cursor()
         veri, kutuphane, hatalar = None, None, []
         for lib in KUTUPHANELER:
-            try:
-                cur.execute(f"SELECT {', '.join(SUTUNLAR)} FROM {lib}.S650B9")
-                veri, kutuphane = cur.fetchall(), lib
+            # WITH UR: yazan işin satır kilidini bekleme (salt okuma). Sürüm bu eki
+            # tanımazsa (SQL0104) eksiz — planlamanın şablonundaki sorguyla aynı — denenir.
+            for ek in (' WITH UR', ''):
+                try:
+                    cur.execute(f"SELECT {', '.join(SUTUNLAR)} FROM {lib}.S650B9{ek}")
+                    veri, kutuphane = cur.fetchall(), lib
+                    break
+                except Exception as e:
+                    if ek and 'SQL0104' in str(e):
+                        continue
+                    hatalar.append(f'{lib}: {e}')
+                    break
+            if veri is not None:
                 break
-            except Exception as e:
-                hatalar.append(f'{lib}: {e}')
         if veri is None:
             raise RuntimeError('S650B9 okunamadı — ' + ' | '.join(h[:220] for h in hatalar))
         basliklar = []
         for lib in (kutuphane,) + tuple(k for k in KUTUPHANELER if k != kutuphane):
-            try:
-                cur.execute(f"SELECT * FROM {lib}.S650B9F2")
-                basliklar = _haftalar_baslik(cur.fetchone())
-                if basliklar:
+            for ek in (' WITH UR', ''):
+                try:
+                    cur.execute(f"SELECT * FROM {lib}.S650B9F2{ek}")
+                    basliklar = _haftalar_baslik(cur.fetchone())
                     break
-            except Exception:
-                continue
+                except Exception:
+                    continue
+            if basliklar:
+                break
     finally:
         try:
             cn.close()
@@ -235,6 +251,62 @@ def cek(conn, baglan=None, kullanici='otomatik', zorla=False):
     return {'degisti': True, 'cekim_id': cid, 'satir': len(satirlar), 'kod': kod, 'tarih': tarih,
             'ts': ts, 'dosya': os.path.basename(dosya), 'depo': depo, 'haftalar': basliklar,
             'kutuphane': kutuphane}
+
+
+# ── ARKA PLAN ÇEKİMİ + SON DENEME (2026-10-05) ───────────────────────────────
+# OLAY: panelde "Şimdi kontrol et" → "Unexpected token '<' … not valid JSON". İstek
+# Cloudflare üzerinden gidiyor; AS400 okuması 100 sn'yi aşınca vekil isteği kesip HTML
+# hata sayfası döndürüyor. Artık okuma ARKA PLANDA koşar, uç hemen döner, panel durumu
+# sorar. Son denemenin sonucu (hata metni dahil) panelde görünür — sunucu logu
+# açmadan teşhis için (otomatik 30 dk'lık denemeler de buraya yazar).
+import threading as _threading
+import time as _time
+_DENEME = {'calisiyor': False, 'basladi': None, 'bitti': None, 'kim': '', 'hata': '',
+           'sonuc': None, 'sure_sn': None}
+_DENEME_KILIT = _threading.Lock()
+
+
+def deneme_durumu():
+    return dict(_DENEME)
+
+
+def cek_kayitli(conn_ac, kullanici='otomatik', baglan=None):
+    """cek() + sonucu _DENEME'ye yaz. Aynı anda ikinci çekim başlamaz."""
+    if not _DENEME_KILIT.acquire(blocking=False):
+        return {'calisiyor': True}
+    t0 = _time.time()
+    _DENEME.update(calisiyor=True, basladi=datetime.now().strftime('%Y-%m-%d %H:%M:%S'), bitti=None,
+                   kim=kullanici, hata='', sonuc=None, sure_sn=None)
+    conn = None
+    try:
+        conn = conn_ac()
+        _DENEME['sonuc'] = cek(conn, baglan=baglan, kullanici=kullanici)
+    except Exception as e:
+        _DENEME['hata'] = f'{type(e).__name__}: {e}'[:2000]
+        print(f'[SATIŞ PLANI] çekim başarısız ({kullanici}): {e}')
+    finally:
+        try:
+            if conn is not None:
+                conn.close()
+        except Exception:
+            pass
+        _DENEME.update(calisiyor=False, bitti=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                       sure_sn=round(_time.time() - t0, 1))
+        _DENEME_KILIT.release()
+    return deneme_durumu()
+
+
+def cek_arka_planda(conn_ac, kullanici, baglan=None):
+    """Arka planda başlatır → True; zaten çalışıyorsa False."""
+    if _DENEME['calisiyor']:
+        return False
+    # İşaret thread başlamadan konur: panel hemen sorarsa ESKİ denemenin sonucunu
+    # yeni sonuç sanmasın
+    _DENEME.update(calisiyor=True, basladi=datetime.now().strftime('%Y-%m-%d %H:%M:%S'), bitti=None,
+                   kim=kullanici, hata='', sonuc=None, sure_sn=None)
+    _threading.Thread(target=cek_kayitli, args=(conn_ac, kullanici, baglan), daemon=True,
+                      name='satis-plani-cek').start()
+    return True
 
 
 # ── OKUMA ────────────────────────────────────────────────────────────────────
