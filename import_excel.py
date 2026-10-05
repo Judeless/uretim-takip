@@ -741,7 +741,8 @@ def ana_veri_oku(wb):
         raise ValueError("'Ana Veri' sayfası bulunamadı — 1. satırda en az 'CD ART.' (kod) ve "
                          "'Bölüm' başlıklı sütun olmalı")
     satirlar = {b: [] for b in ANA_VERI_ETIKET}
-    rapor = {'sayfa': ws.title, 'satir': 0, 'bolumsuz': [], 'tekrar': [], 'hatali': [], 'tel_atlanan': 0}
+    rapor = {'sayfa': ws.title, 'satir': 0, 'bolumsuz': [], 'tk2_disi': [], 'tekrar': [], 'hatali': [],
+             'tel_atlanan': 0}
     gorulen = set()
 
     def al(row, alan):
@@ -757,7 +758,13 @@ def ana_veri_oku(wb):
         rapor['satir'] += 1
         b = ana_veri_bolum(al(row, 'bolum'))
         if not b:
-            rapor['bolumsuz'].append({'satir': no, 'kod': kod, 'deger': str(al(row, 'bolum') or '')})
+            # TK-1/2 sütununa TK2 dışı bir yer yazılmışsa (TK1, Aspanda, DEPO…) kullanıcı
+            # satırı BİLEREK listede tutuyor (satış planında 'eksik kod' diye tekrar
+            # çıkmasın) — uyarı değil, bilgi (kullanıcı 2026-10-05).
+            tk = _tr_kucuk(al(row, 'tk')).replace(' ', '').replace('-', '')
+            hedef = 'tk2_disi' if tk and tk != 'tk2' else 'bolumsuz'
+            rapor[hedef].append({'satir': no, 'kod': kod, 'deger': str(al(row, 'bolum') or ''),
+                                 'tk': str(al(row, 'tk') or '')})
             continue
         if kod.startswith('93.'):            # TK1 tel kodu TK2 listesine girmez (bkz. _bolum_import)
             rapor['tel_atlanan'] += 1

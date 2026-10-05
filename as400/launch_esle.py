@@ -1214,6 +1214,29 @@ def _kategorize(tarih, satirlar, ara_oplar, tam, gev, kokm, hrk, haric_set=None,
             durum, ilgili = _zaten_teyitli(hareketler, tarih, r['adet'],
                                             gecmis_map.get(birlestirme_anahtari(r['referans'])))
             _teyit_isle(r, durum, ilgili, r['adet'])
+
+    # ── BİZİM BAŞARILI GÖNDERİMLERİMİZ GÜNÜ TAMAMEN KARŞILIYORSA → TEYİTLİ (2026-10-05) ──
+    # OLAY (kullanıcı ekranı): 10.300.0446.3W 60 üretim − 60 gönderilmiş, 94.LTK.615 108 − 108
+    # → "gönderilecek 0" ama satırlar "gönderilecek" kuyruğunda kalıyordu. Teyit artık
+    # BPRCF0I tablosu üzerinden gidiyor; ERP hareketi birebir eşleşmediğinde (_zaten_teyitli
+    # yalnız hareketlere bakar) satır teyitli sayılmıyordu. Oysa as400_teyit_log'daki 'ok'
+    # kaydı DOĞRULANMIŞ gönderimdir (BPROF0'da teyitli adet arttı). Gün üretiminin TAMAMI
+    # bizim başarılı gönderimlerimizle karşılanmışsa satır 'kesin' teyitlidir: kuyruğa
+    # girmez, oto koşu da dokunmaz. Kısmen gönderilmişse eski davranış (kalan önerilir).
+    for kat in ('ACIK', 'SUPHELI', 'OPR10', 'KAPALI', 'YOK'):
+        for r in sonuc[kat]:
+            try:
+                g, adet = float(r.get('gonderilmis_adet') or 0), float(r.get('adet') or 0)
+            except (TypeError, ValueError):
+                continue
+            if adet <= 0 or g < adet - 0.001 or r.get('zaten_teyitli') == 'kesin':
+                continue
+            if any(l.get('zaten_teyitli') == 'kesin' for l in (r.get('launchlar') or [])):
+                continue
+            r['zaten_teyitli'] = 'kesin'
+            r['teyit_kaynagi'] = 'forge_gonderimi'
+            r['zaten_hareket'] = [{'tarih': tarih, 'adet': round(g, 3), 'launch': '',
+                                   'kaynak': 'Forge gönderim kaydı'}]
     return sonuc
 
 

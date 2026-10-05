@@ -5792,6 +5792,7 @@ def ana_veri_yukle():
                     'uyarilar': uyarilar, 'eksik_sayfa': hz['eksik'], 'durus': durus, 'damga': hz['damga'],
                     'operatorler': operatorler, 'robot': sonuc['robot'], 'fikstur': sonuc['fikstur'],
                     'bolumsuz': rapor['bolumsuz'][:60], 'bolumsuz_sayi': len(rapor['bolumsuz']),
+                    'tk2_disi': rapor['tk2_disi'][:80], 'tk2_disi_sayi': len(rapor['tk2_disi']),
                     'tekrar': rapor['tekrar'][:40], 'tekrar_sayi': len(rapor['tekrar']),
                     'hatali': rapor['hatali'][:40], 'hatali_sayi': len(rapor['hatali']),
                     'tel_atlanan': rapor['tel_atlanan']})

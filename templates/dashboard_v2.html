@@ -12028,6 +12028,9 @@ window.__I18N_SOZLUK__ = {
                 (dl.length ? '<div style="padding-left:14px">' + dl.join('<br>') + '</div>' : '<span style="color:var(--muted)">değişiklik yok</span>') + '</div>';
             if ((d.eksik_sayfa || []).length) h += '<div style="margin-top:6px;color:var(--muted)">Dosyada olmayan ' + fmt(d.eksik_sayfa.length) +
                 ' sayfa şu an kullanılan listeden alınıp dosyaya eklenecek: ' + d.eksik_sayfa.map(esc).join(', ') + '</div>';
+            if (d.tk2_disi_sayi) h += '<div style="margin-top:8px;color:var(--muted)">' + fmt(d.tk2_disi_sayi) +
+                ' satır TK2 dışı olarak işaretli (TK1, Aspanda, depo…) — listede kalır, Forge\'a aktarılmaz: ' +
+                d.tk2_disi.map(function (x) { return esc(x.kod) + ' (' + esc(x.tk) + ')'; }).join(', ') + '</div>';
             if (d.bolumsuz_sayi) h += '<div style="margin-top:8px;color:var(--warn)"><b>' + fmt(d.bolumsuz_sayi) +
                 ' satırın bölümü boş ya da tanınmadı — aktarılmaz:</b> ' +
                 d.bolumsuz.map(function (x) { return 'satır ' + x.satir + ' ' + esc(x.kod); }).join(', ') + '</div>';
@@ -17814,7 +17817,11 @@ window.__I18N_SOZLUK__ = {
                 sTeyitli += '<div class="table-wrap" style="margin-top:8px"><table class="admin-table"><thead><tr>' +
                     '<th>Gün</th><th>Bölüm</th><th>Referans</th><th style="text-align:right">Üretilen</th><th>ERP teyit hareketi</th></tr></thead><tbody>';
                 teyitli.forEach(function (x) {
-                    var hrk = (x.l.zaten_hareket || []).map(function (h) { return h.tarih + ' → ' + fmt(h.adet) + ' adet (L' + h.launch + ')'; }).join('<br>');
+                    var hrk = (x.l.zaten_hareket || []).map(function (h) {
+                        // Forge'un kendi doğrulanmış gönderimi (ERP hareketi birebir eşleşmedi)
+                        if (h.kaynak) return fmt(h.adet) + ' adet · ' + esc(h.kaynak);
+                        return h.tarih + ' → ' + fmt(h.adet) + ' adet (L' + h.launch + ')';
+                    }).join('<br>');
                     sTeyitli += '<tr style="opacity:.85"><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum, x.r.tesis)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
