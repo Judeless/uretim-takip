@@ -11924,9 +11924,10 @@ window.__I18N_SOZLUK__ = {
                 '<button class="btn btn-ghost" style="margin-left:auto;padding:2px 10px" onclick="anaVeriVazgec()">✕</button></div>';
             var dg = d.damga || {};
             h += '<div style="margin-top:6px;font-size:.8rem;color:var(--muted)">' +
-                (dg.taban ? 'Dosya Forge\'dan ' + esc(dg.zaman) + ' tarihinde indirilmiş — yalnız sizin değiştirdiğiniz hücreler uygulanır; o zamandan beri panelde/sahada yapılan değişiklikler ve yeni açılan referanslar korunur.'
-                 : dg.var ? '⚠ Dosyanın indirilen hâli sunucuda bulunamadı (' + esc(dg.zaman) + ') — dosyadaki her değer uygulanır. Güvenli yükleme için önce "Ana Veri İndir" ile güncel hâli alın.'
-                 : 'Dosya Forge\'dan indirilmemiş — dosyadaki her değer uygulanır ve dosyada olmayan referans silinir. Güvenli yükleme için "Ana Veri İndir" ile alınan dosyayı düzenleyin.') + '</div>';
+                (dg.taban_kaynak === 'indirme' ? 'Dosya, Forge\'daki ' + esc(dg.zaman) + ' tarihli hâliyle karşılaştırıldı — yalnız o zamandan beri sizin değiştirdiğiniz hücreler uygulanır; panelde/sahada yapılan değişiklikler ve yeni açılan referanslar korunur.'
+                 : dg.taban_kaynak === 'son_yukleme' ? 'Dosya son yüklemenizle karşılaştırıldı — yalnız o yüklemeden beri sizin değiştirdiğiniz hücreler uygulanır; panelde/sahada yapılan değişiklikler ve yeni açılan referanslar korunur.'
+                 : dg.taban_kaynak === 'mevcut_dosya' ? 'Dosya sistemdeki güncel Ana Veri ile karşılaştırıldı — dosyada olmayan yeni referanslar korunur; farklı olan her hücre uygulanır.'
+                 : 'İlk yükleme — dosyadaki her değer uygulanır ve dosyada olmayan referans silinir.') + '</div>';
             if ((d.uyarilar || []).length) {
                 h += '<div style="margin-top:8px;color:var(--danger);font-weight:700">⚠ ' + d.uyarilar.map(esc).join('<br>⚠ ') + '</div>';
             }

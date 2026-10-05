@@ -421,6 +421,7 @@ _ANA_SUTUN = (
     ('not', ('not',)),
 )
 ANA_VERI_INDIRILEN_KLASOR = os.path.join(PROJECT_DIR, 'data', 'ana_veri_indirilen')
+ANA_VERI_SON_YUKLENEN = os.path.join(ANA_VERI_INDIRILEN_KLASOR, 'son_yuklenen.xlsx')
 ANA_VERI_DAMGA_ADI = 'forge_indirme'       # Excel özel belge özelliği (Dosya > Bilgi > Özellikler)
 _ANA_YENI_BASLIK = {'cevrim': 'Çevrim süresi / söktak (sn)', 'kaynak': 'Kaynak süresi (sn)',
                     'goz': 'Kalıp göz', 'bukum': 'Büküm op.', 'aciklama': 'Açıklama',
@@ -522,16 +523,39 @@ def ana_veri_damgali_indir():
     bio = io.BytesIO()
     wb.save(bio)
     veri = bio.getvalue()
+    _taban_yaz(damga, veri)
+    return veri, damga
+
+
+def _taban_yaz(damga, veri):
+    """Damganın tabanını yazar. Masaüstünde aylarca yaşayan dosyanın tabanı kaybolmasın:
+    1 yıldan eski ya da 300'ü aşan kopyalar silinir (son_yuklenen.xlsx hiç silinmez)."""
+    import time
     os.makedirs(ANA_VERI_INDIRILEN_KLASOR, exist_ok=True)
     with open(os.path.join(ANA_VERI_INDIRILEN_KLASOR, damga + '.xlsx'), 'wb') as fh:
         fh.write(veri)
-    eskiler = sorted(f for f in os.listdir(ANA_VERI_INDIRILEN_KLASOR) if f.startswith('AV-'))
-    for f in eskiler[:-40]:
+    kopyalar = sorted(f for f in os.listdir(ANA_VERI_INDIRILEN_KLASOR) if f.startswith('AV-'))
+    sinir = time.time() - 365 * 86400
+    for i, f in enumerate(kopyalar):
+        yol = os.path.join(ANA_VERI_INDIRILEN_KLASOR, f)
         try:
-            os.remove(os.path.join(ANA_VERI_INDIRILEN_KLASOR, f))
+            if i < len(kopyalar) - 300 or os.path.getmtime(yol) < sinir:
+                os.remove(yol)
         except OSError:
             pass
-    return veri, damga
+
+
+def ana_veri_taban_kaydet(damga, ham):
+    """Onaylanan yüklemeden sonra: yüklenen dosya hem 'son yüklenen' hem (damgalıysa) o
+    damganın yeni tabanı olur — aynı masaüstü dosyası tekrar yüklendiğinde önceki turda
+    uygulanmış hücreler yeniden 'kullanıcı değişikliği' sayılmaz."""
+    os.makedirs(ANA_VERI_INDIRILEN_KLASOR, exist_ok=True)
+    gecici = ANA_VERI_SON_YUKLENEN + '.tmp'
+    with open(gecici, 'wb') as fh:
+        fh.write(ham)
+    os.replace(gecici, ANA_VERI_SON_YUKLENEN)
+    if damga and all(ch.isalnum() or ch == '-' for ch in damga):
+        _taban_yaz(damga, ham)
 
 
 def _damga_oku(wb):
@@ -556,11 +580,40 @@ def _taban_oku(damga):
     """Damganın indirilen hâli → {(norm, bolum): satır} | None (saklanan kopya yoksa)."""
     if not damga or not all(ch.isalnum() or ch == '-' for ch in damga):
         return None
-    yol = os.path.join(ANA_VERI_INDIRILEN_KLASOR, damga + '.xlsx')
+    return _taban_dosyadan(os.path.join(ANA_VERI_INDIRILEN_KLASOR, damga + '.xlsx'))
+
+
+def _taban_dosyadan(yol):
     if not os.path.exists(yol):
         return None
-    satirlar, _r = ana_veri_oku(openpyxl.load_workbook(yol, data_only=True))
+    try:
+        satirlar, _r = ana_veri_oku(openpyxl.load_workbook(yol, data_only=True))
+    except Exception as e:
+        print(f'[ana_veri] taban okunamadı ({yol}): {e}')
+        return None
     return {(_norm_kod(s['kod']), b): s for b, liste in satirlar.items() for s in liste}
+
+
+def _taban_sec(damga):
+    """Karşılaştırma tabanı, en iyiden en zayıfa:
+      'indirme'      — dosyanın damgasının saklanan hâli (indirildiği / son yüklendiği an)
+      'son_yukleme'  — damgasız ya da tabanı kaybolmuş dosya: son onaylanan yükleme
+                       (masaüstündeki dosyayı düzenleyip yükleme düzeni — kullanıcı 2026-10-05)
+      'mevcut_dosya' — hiç kayıtlı yükleme yoksa sunucudaki güncel Ana Veri
+      None           — Ana Veri ilk kez yükleniyor: tam (iki yönlü) karşılaştırma
+    Hiçbiri tam karşılaştırmadan DAHA YIKICI değildir: taban yalnız 'dokunulmamış hücre'yi
+    uygulamamaya ve 'tabanda olmayan referansı' silmemeye yarar. → (taban, kaynak)"""
+    taban = _taban_oku(damga) if damga else None
+    if taban is not None:
+        return taban, 'indirme'
+    taban = _taban_dosyadan(ANA_VERI_SON_YUKLENEN)
+    if taban is not None:
+        return taban, 'son_yukleme'
+    if ana_veri_aktif():
+        taban = _taban_dosyadan(ANA_VERI_YOL)
+        if taban is not None:
+            return taban, 'mevcut_dosya'
+    return None, None
 
 
 def _ayni_deger(a, b):
@@ -577,7 +630,7 @@ def ana_veri_hazirla(ham):
     wb_yeni = openpyxl.load_workbook(io.BytesIO(ham), data_only=True)
     satirlar, rapor = ana_veri_oku(wb_yeni)
     damga = _damga_oku(wb_yeni)
-    taban = _taban_oku(damga) if damga else None
+    taban, taban_kaynak = _taban_sec(damga)
     mevcut = _tk2_okuma_kumesi()
     eksik = [s for s in ana_veri_ek_sayfalar()
              if s not in wb_yeni.sheetnames and mevcut is not None and s in mevcut.sheetnames]
@@ -591,8 +644,9 @@ def ana_veri_hazirla(ham):
         kaydedilecek = bio.getvalue()
     return {'satirlar': satirlar, 'rapor': rapor, 'eksik': eksik, 'kaydedilecek': kaydedilecek,
             'kume': _SayfaKumesi(wb_yeni, mevcut), 'mevcut': mevcut, 'taban': taban,
+            'damga_kodu': damga,
             'damga': {'var': bool(damga), 'zaman': _damga_zamani(damga) if damga else '',
-                      'taban': taban is not None}}
+                      'taban': taban is not None, 'taban_kaynak': taban_kaynak}}
 
 
 def ana_veri_durus_farki(kume, mevcut):

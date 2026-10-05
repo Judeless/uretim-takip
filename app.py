@@ -5733,6 +5733,12 @@ def ana_veri_yukle():
         traceback.print_exc()
         return jsonify({'hata': f'Uygulanamadı, hiçbir şey değişmedi: {e}'}), 500
     if onay:
+        # Bu yükleme bir sonrakinin TABANI olur (masaüstündeki dosyayı düzenleyip tekrar
+        # yükleme düzeni): yalnız bundan sonra değiştirilen hücreler uygulanacak.
+        try:
+            _ie.ana_veri_taban_kaydet(hz['damga_kodu'], ham)
+        except Exception as e:
+            print(f'[ana_veri/yukle] taban kaydedilemedi: {e}')
         # Kaydedilen dosyayı veritabanıyla eşitle: korunan (sonradan açılmış) referanslar
         # eklenir, dokunulmadığı için veritabanında kalan değerler (ör. mobilden değişen
         # büküm op.) dosyaya da yazılır — dosya ile veritabanı yükleme sonrası AYNI olur.
