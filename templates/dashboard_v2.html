@@ -11920,25 +11920,33 @@ window.__I18N_SOZLUK__ = {
                 '<b style="color:var(--success)">' + fmt(t.eklenen || 0) + ' yeni</b>' +
                 '<b>' + fmt(t.degisen || 0) + ' değişen</b>' +
                 '<b style="color:var(--danger)">' + fmt(t.silinen || 0) + (d.onizleme ? ' silinecek' : ' silindi') + '</b>' +
+                (t.korunan ? '<b style="color:#0284C7">' + fmt(t.korunan) + ' korunan</b>' : '') +
                 '<button class="btn btn-ghost" style="margin-left:auto;padding:2px 10px" onclick="anaVeriVazgec()">✕</button></div>';
+            var dg = d.damga || {};
+            h += '<div style="margin-top:6px;font-size:.8rem;color:var(--muted)">' +
+                (dg.taban ? 'Dosya Forge\'dan ' + esc(dg.zaman) + ' tarihinde indirilmiş — yalnız sizin değiştirdiğiniz hücreler uygulanır; o zamandan beri panelde/sahada yapılan değişiklikler ve yeni açılan referanslar korunur.'
+                 : dg.var ? '⚠ Dosyanın indirilen hâli sunucuda bulunamadı (' + esc(dg.zaman) + ') — dosyadaki her değer uygulanır. Güvenli yükleme için önce "Ana Veri İndir" ile güncel hâli alın.'
+                 : 'Dosya Forge\'dan indirilmemiş — dosyadaki her değer uygulanır ve dosyada olmayan referans silinir. Güvenli yükleme için "Ana Veri İndir" ile alınan dosyayı düzenleyin.') + '</div>';
             if ((d.uyarilar || []).length) {
                 h += '<div style="margin-top:8px;color:var(--danger);font-weight:700">⚠ ' + d.uyarilar.map(esc).join('<br>⚠ ') + '</div>';
             }
             h += '<table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:.8rem">' +
                 '<tr style="text-align:left;color:var(--muted)"><th>Bölüm</th><th>Dosyada</th><th>Forge\'da</th><th>Yeni</th><th>Değişen</th><th>' +
-                (d.onizleme ? 'Silinecek' : 'Silinen') + '</th></tr>';
+                (d.onizleme ? 'Silinecek' : 'Silinen') + '</th><th>Korunan</th></tr>';
             (d.bolumler || []).forEach(function (b) {
                 h += '<tr style="border-top:1px solid var(--card-border)"><td>' + esc(b.ad) + '</td><td>' + fmt(b.dosyada) +
                     '</td><td>' + fmt(b.mevcut) + '</td><td>' + fmt(b.eklenen) + '</td><td>' + fmt(b.degisen) +
-                    '</td><td style="' + (b.silinen ? 'color:var(--danger);font-weight:700' : '') + '">' + fmt(b.silinen) + '</td></tr>';
+                    '</td><td style="' + (b.silinen ? 'color:var(--danger);font-weight:700' : '') + '">' + fmt(b.silinen) +
+                    '</td><td style="' + (b.korunan ? 'color:#0284C7;font-weight:700' : '') + '">' + fmt(b.korunan || 0) + '</td></tr>';
             });
             h += '</table>';
             (d.bolumler || []).forEach(function (b) {
-                if (!(b.ornek_eklenen.length || b.ornek_degisen.length || b.ornek_silinen.length)) return;
+                if (!(b.ornek_eklenen.length || b.ornek_degisen.length || b.ornek_silinen.length || (b.ornek_korunan || []).length)) return;
                 h += '<details style="margin-top:6px"><summary style="cursor:pointer">' + esc(b.ad) + ' — örnekler</summary>' +
                     '<div style="padding:6px 0 0 14px;line-height:1.6">';
                 var dahasi = function (gosterilen, toplam) { return toplam > gosterilen ? ' … (+' + fmt(toplam - gosterilen) + ')' : ''; };
                 if (b.ornek_silinen.length) h += '<div><b style="color:var(--danger)">Silinecek:</b> ' + b.ornek_silinen.map(esc).join(', ') + dahasi(b.ornek_silinen.length, b.silinen) + '</div>';
+                if ((b.ornek_korunan || []).length) h += '<div><b style="color:#0284C7">Korunan</b> (dosya indirildikten sonra açılmış, silinmez): ' + b.ornek_korunan.map(esc).join(', ') + dahasi(b.ornek_korunan.length, b.korunan) + '</div>';
                 if (b.ornek_eklenen.length) h += '<div><b>Yeni:</b> ' + b.ornek_eklenen.map(esc).join(', ') + dahasi(b.ornek_eklenen.length, b.eklenen) + '</div>';
                 if (b.ornek_degisen.length) h += '<div><b>Değişen:</b> ' + b.ornek_degisen.map(function (x) {
                     return esc(x.kod) + ' (' + Object.keys(x.alanlar).map(function (k) {

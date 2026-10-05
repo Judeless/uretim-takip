@@ -418,7 +418,10 @@ _ANA_SUTUN = (
     ('bukum', ('büküm', 'bukum')),
     ('aciklama', ('açıklama', 'aciklama')),
     ('teyit', ('süre teyit', 'sure teyit', 'teyit')),
+    ('not', ('not',)),
 )
+ANA_VERI_INDIRILEN_KLASOR = os.path.join(PROJECT_DIR, 'data', 'ana_veri_indirilen')
+ANA_VERI_DAMGA_ADI = 'forge_indirme'       # Excel özel belge özelliği (Dosya > Bilgi > Özellikler)
 _ANA_YENI_BASLIK = {'cevrim': 'Çevrim süresi / söktak (sn)', 'kaynak': 'Kaynak süresi (sn)',
                     'goz': 'Kalıp göz', 'bukum': 'Büküm op.', 'aciklama': 'Açıklama',
                     'teyit': 'Süre teyit'}
@@ -492,6 +495,80 @@ def _sayfa_kopyala(ws_kaynak, wb_hedef, ad):
     return ws
 
 
+# ── İNDİRME DAMGASI / ÜÇ YÖNLÜ KARŞILAŞTIRMA (kullanıcı 2026-10-05) ───────────────
+# OLAY: sabah hazırlanan dosya öğleden sonra yüklenince önizleme, o arada operatörün
+# açtığı 2 kodu SİLMEK ve mobilden 1→2 yapılmış büküm op.'u GERİ ALMAK istedi.
+# Dosya-↔-veritabanı iki yönlü karşılaştırmada "kullanıcı mı değiştirdi, yoksa dosya
+# mı eski?" ayırt edilemez. Çözüm: 'Ana Veri İndir' dosyaya bir damga koyar ve İNDİRİLEN
+# HÂLİ sunucuda saklar. Yüklemede taban = o hâl:
+#   · hücre tabandakiyle AYNIYSA kullanıcı dokunmamıştır → veritabanı değeri korunur
+#   · tabanda olmayan referans (indirildikten SONRA açılmış) silinmez
+#   · tabanda olup veritabanından silinmiş referans (panelden silinmiş) geri eklenmez
+# Damgasız dosyada (elle hazırlanmış) eski iki yönlü karşılaştırma geçerlidir.
+
+
+def ana_veri_damgali_indir():
+    """İndirilecek hâl: özel belge özelliğine damga yazılır, aynı hâl sunucuda saklanır
+    (ana_veri_indirilen/, son 40). → (bytes, damga)"""
+    from datetime import datetime as _dt
+    from openpyxl.packaging.custom import StringProperty
+    import secrets
+    damga = 'AV-' + _dt.now().strftime('%Y%m%d-%H%M%S') + '-' + secrets.token_hex(3)
+    with open(ANA_VERI_YOL, 'rb') as fh:
+        wb = openpyxl.load_workbook(io.BytesIO(fh.read()))
+    if ANA_VERI_DAMGA_ADI in wb.custom_doc_props.names:
+        del wb.custom_doc_props[ANA_VERI_DAMGA_ADI]
+    wb.custom_doc_props.append(StringProperty(name=ANA_VERI_DAMGA_ADI, value=damga))
+    bio = io.BytesIO()
+    wb.save(bio)
+    veri = bio.getvalue()
+    os.makedirs(ANA_VERI_INDIRILEN_KLASOR, exist_ok=True)
+    with open(os.path.join(ANA_VERI_INDIRILEN_KLASOR, damga + '.xlsx'), 'wb') as fh:
+        fh.write(veri)
+    eskiler = sorted(f for f in os.listdir(ANA_VERI_INDIRILEN_KLASOR) if f.startswith('AV-'))
+    for f in eskiler[:-40]:
+        try:
+            os.remove(os.path.join(ANA_VERI_INDIRILEN_KLASOR, f))
+        except OSError:
+            pass
+    return veri, damga
+
+
+def _damga_oku(wb):
+    try:
+        if ANA_VERI_DAMGA_ADI in wb.custom_doc_props.names:
+            return str(wb.custom_doc_props[ANA_VERI_DAMGA_ADI].value or '').strip() or None
+    except Exception:
+        pass
+    return None
+
+
+def _damga_zamani(damga):
+    """'AV-20261005-103122-ab12cd' → '05.10.2026 10:31'"""
+    try:
+        from datetime import datetime as _dt
+        return _dt.strptime(damga[3:18], '%Y%m%d-%H%M%S').strftime('%d.%m.%Y %H:%M')
+    except Exception:
+        return ''
+
+
+def _taban_oku(damga):
+    """Damganın indirilen hâli → {(norm, bolum): satır} | None (saklanan kopya yoksa)."""
+    if not damga or not all(ch.isalnum() or ch == '-' for ch in damga):
+        return None
+    yol = os.path.join(ANA_VERI_INDIRILEN_KLASOR, damga + '.xlsx')
+    if not os.path.exists(yol):
+        return None
+    satirlar, _r = ana_veri_oku(openpyxl.load_workbook(yol, data_only=True))
+    return {(_norm_kod(s['kod']), b): s for b, liste in satirlar.items() for s in liste}
+
+
+def _ayni_deger(a, b):
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(float(a) - float(b)) < 0.001
+    return str(a).strip() == str(b).strip()
+
+
 def ana_veri_hazirla(ham):
     """Yüklenen dosyayı hazırlar: referans satırları + rapor + ek sayfaların GEÇERLİ görünümü.
     Dosyada OLMAYAN ek sayfa (operatör / duruş / robot / fikstür) şu an kullanılan
@@ -499,6 +576,8 @@ def ana_veri_hazirla(ham):
     referans sayfası yüklense bile hiçbir liste kaybolmaz. → dict"""
     wb_yeni = openpyxl.load_workbook(io.BytesIO(ham), data_only=True)
     satirlar, rapor = ana_veri_oku(wb_yeni)
+    damga = _damga_oku(wb_yeni)
+    taban = _taban_oku(damga) if damga else None
     mevcut = _tk2_okuma_kumesi()
     eksik = [s for s in ana_veri_ek_sayfalar()
              if s not in wb_yeni.sheetnames and mevcut is not None and s in mevcut.sheetnames]
@@ -511,7 +590,9 @@ def ana_veri_hazirla(ham):
         wb_yaz.save(bio)
         kaydedilecek = bio.getvalue()
     return {'satirlar': satirlar, 'rapor': rapor, 'eksik': eksik, 'kaydedilecek': kaydedilecek,
-            'kume': _SayfaKumesi(wb_yeni, mevcut), 'mevcut': mevcut}
+            'kume': _SayfaKumesi(wb_yeni, mevcut), 'mevcut': mevcut, 'taban': taban,
+            'damga': {'var': bool(damga), 'zaman': _damga_zamani(damga) if damga else '',
+                      'taban': taban is not None}}
 
 
 def ana_veri_durus_farki(kume, mevcut):
@@ -648,13 +729,17 @@ def ana_veri_oku(wb):
     return satirlar, rapor
 
 
-def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12):
+def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12, taban=None):
     """Bir bölümün Ana Veri satırlarını referans_listesi'ne uygular (TK2) — commit ETMEZ.
     Ayna senkronu: dosyada olmayan referans bu bölümden silinir (dosyada bölümün HİÇ
-    satırı yoksa silme yapılmaz). Döner: sayılar + örnekler (önizleme için)."""
+    satırı yoksa silme yapılmaz). taban (indirilen hâl, bkz. İNDİRME DAMGASI) verilirse
+    üç yönlü: yalnız kullanıcının değiştirdiği hücre uygulanır, indirildikten sonra
+    açılan referans silinmez, panelden silinmiş referans geri eklenmez.
+    Döner: sayılar + örnekler (önizleme için)."""
     son = {'referanslar_eklenen': 0, 'referanslar_guncellenen': 0, 'referanslar_ayni': 0,
-           'referanslar_silinen': 0, 'kalip_acik_kayit': 0, 'dosyada': len(satirlar),
-           'ornek_eklenen': [], 'ornek_degisen': [], 'ornek_silinen': []}
+           'referanslar_silinen': 0, 'referanslar_korunan': 0, 'referanslar_geri_eklenmeyen': 0,
+           'kalip_acik_kayit': 0, 'dosyada': len(satirlar),
+           'ornek_eklenen': [], 'ornek_degisen': [], 'ornek_silinen': [], 'ornek_korunan': []}
     son['mevcut'] = conn.execute(
         "SELECT COUNT(*) FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
         "AND COALESCE(lokasyon,'TK2')='TK2'", (bolum,)).fetchone()[0]
@@ -662,6 +747,13 @@ def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12):
     for s in satirlar:
         kod = s['kod']
         excel_norm.add(_norm_kod(kod))
+        t = taban.get((_norm_kod(kod), bolum)) if taban is not None else None
+        if t is not None:
+            # Tabandakiyle aynı hücre = kullanıcı dokunmamış → veritabanındaki değer kalsın
+            s = dict(s)
+            for alan in ('cevrim', 'kaynak', 'goz', 'bukum', 'aciklama'):
+                if s[alan] is not None and t.get(alan) is not None and _ayni_deger(s[alan], t[alan]):
+                    s[alan] = None
         m = conn.execute(
             "SELECT id, referans_kodu, COALESCE(hedef_cycle_time_sn,0), COALESCE(kaynak_suresi_sn,0), "
             "COALESCE(soktak_suresi_sn,0), COALESCE(aciklama,''), COALESCE(bukum_operasyon,1), "
@@ -706,6 +798,11 @@ def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12):
             if len(son['ornek_degisen']) < ornek_n:
                 son['ornek_degisen'].append({'kod': kod, 'alanlar': {
                     k: [m[1] if k == 'referans_kodu' else eski.get(k), v] for k, v in fark.items()}})
+        elif t is not None:
+            # İndirilen dosyada vardı ama veritabanında yok → o arada panelden silinmiş;
+            # kullanıcı satıra dokunmadıysa geri getirme.
+            son['referanslar_geri_eklenmeyen'] += 1
+            continue
         else:
             conn.execute(
                 "INSERT INTO referans_listesi (referans_kodu, hedef_cycle_time_sn, kaynak_suresi_sn, "
@@ -738,6 +835,13 @@ def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12):
                 "WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')='TK2'", (bolum,)).fetchall():
             n = _norm_kod(rk)
             if n and n not in excel_norm:
+                if taban is not None and (n, bolum) not in taban:
+                    # İndirildikten SONRA açılmış (operatör girişi / panel) — kullanıcı
+                    # bu satırı hiç görmedi, silmesi söz konusu değil.
+                    son['referanslar_korunan'] += 1
+                    if len(son['ornek_korunan']) < ornek_n:
+                        son['ornek_korunan'].append(rk)
+                    continue
                 conn.execute('DELETE FROM referans_listesi WHERE id = ?', (rid,))
                 son['referanslar_silinen'] += 1
                 if len(son['ornek_silinen']) < ornek_n:
@@ -756,7 +860,7 @@ def _liste_farki(conn, sql, yeni):
     return sorted(yeni - eski), sorted(eski - yeni)
 
 
-def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None):
+def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban=None):
     """Altı bölümün referansları + (kume verilirse) operatörler, robot program, fikstür —
     TEK işlemde. uygula=False → ÖNİZLEME (her şey geri alınır).
     commit_oncesi: commit'ten hemen önce çağrılır (dosyayı yerine koymak için);
@@ -765,7 +869,7 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None):
             'robot': {...}, 'fikstur': {...}}"""
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
     try:
-        sonuc = {'bolumler': {b: _ana_veri_bolum_uygula(conn, b, satirlar.get(b, []))
+        sonuc = {'bolumler': {b: _ana_veri_bolum_uygula(conn, b, satirlar.get(b, []), taban=taban)
                               for b in ANA_VERI_ETIKET},
                  'operatorler': {}, 'robot': None, 'fikstur': None}
         if kume is not None:
@@ -898,10 +1002,13 @@ def _sayi_hucre(v):
 
 def _ana_veri_export(conn, bolum_listesi, zorla_ekle=None):
     """DB → Ana Veri. Mevcut satırın süre/göz/büküm/açıklama/teyit hücreleri güncellenir;
-    DB'de olup listede olmayan referans SÜRESİ VARSA (ya da zorla_ekle'deyse) sona eklenir.
-    Süresi 0 olan referansın süre hücresine dokunulmaz (Excel'deki değer kalır)."""
+    DB'de olup listede olmayan HER referans sona eklenir — SÜRESİZ OLANLAR DA (kullanıcı
+    2026-10-05: liste veritabanının kendisi; operatörün üretim girişinde açtığı kod
+    listede görünmezse bir sonraki yükleme onu "listede yok" diye silerdi — oysa aranan
+    tam da bu tanımsız kodlar). Süresiz satır 'Not' sütununda işaretlenir.
+    Süresi 0 olan referansın süre hücresine dokunulmaz (Excel'deki değer kalır).
+    zorla_ekle: eski imza uyumu (artık herkes eklendiği için etkisiz)."""
     bolum_listesi = [b for b in bolum_listesi if b in ANA_VERI_ETIKET]
-    zorla = {_norm_kod(k) for k in (zorla_ekle or ())}
     try:
         wb, ws, kol = _ana_veri_yazmak_icin_ac()
     except Exception as e:
@@ -941,8 +1048,6 @@ def _ana_veri_export(conn, bolum_listesi, zorla_ekle=None):
                 ri, sayfa_kod = harita[(norm, b)]
                 tam_es = (kod == sayfa_kod)
             else:
-                if r['ct'] <= 0 and norm not in zorla:
-                    continue                   # süresiz otomatik kayıtlar listeye girmez (eski kural)
                 ri = ws.max_row + 1
                 yaz(ri, 'kod', kod)
                 yaz(ri, 'bolum', ANA_VERI_ETIKET[b])
@@ -950,6 +1055,8 @@ def _ana_veri_export(conn, bolum_listesi, zorla_ekle=None):
                     yaz(ri, 'ap', 'P')
                 if 'tk' in kol:
                     yaz(ri, 'tk', 'TK-2')
+                if 'not' in kol:
+                    yaz(ri, 'not', "Forge'da açıldı — süre bekliyor" if r['ct'] <= 0 else "Forge'da açıldı")
                 harita[(norm, b)] = (ri, kod)
                 tam_es = True
             if yazilan_norm.get(norm) and not tam_es:

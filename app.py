@@ -5680,8 +5680,14 @@ def ana_veri_indir():
         uyari = str(e)
     if uyari:
         print(f'[ana_veri/indir] dosya tazelenemedi, mevcut hâli iniyor: {uyari}')
-    with open(_ie.ANA_VERI_YOL, 'rb') as fh:
-        veri = fh.read()
+    # Damga + indirilen hâlin sunucu kopyası → yüklemede üç yönlü karşılaştırma
+    # (o arada panelden/operatörden gelen değişiklikler geri alınmaz)
+    try:
+        veri, _damga = _ie.ana_veri_damgali_indir()
+    except Exception as e:
+        print(f'[ana_veri/indir] damga yazılamadı, damgasız iniyor: {e}')
+        with open(_ie.ANA_VERI_YOL, 'rb') as fh:
+            veri = fh.read()
     resp = send_file(_io.BytesIO(veri), as_attachment=True,
                      download_name='AnaVeri-' + datetime.now().strftime('%Y%m%d-%H%M') + '.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -5719,23 +5725,37 @@ def ana_veri_yukle():
     durus = _ie.ana_veri_durus_farki(hz['kume'], hz['mevcut'])   # uygulamadan ÖNCE (mevcut liste)
     try:
         sonuc = _ie.ana_veri_uygula(
-            satirlar, uygula=onay, kume=hz['kume'],
+            satirlar, uygula=onay, kume=hz['kume'], taban=hz['taban'],
             commit_oncesi=(lambda: _ie.ana_veri_dosya_kaydet(hz['kaydedilecek'])) if onay else None)
     except PermissionError:
         return jsonify({'hata': 'AnaVeri.xlsx sunucuda açık/kilitli — kaydedilemedi, hiçbir şey değişmedi'}), 409
     except Exception as e:
         traceback.print_exc()
         return jsonify({'hata': f'Uygulanamadı, hiçbir şey değişmedi: {e}'}), 500
+    if onay:
+        # Kaydedilen dosyayı veritabanıyla eşitle: korunan (sonradan açılmış) referanslar
+        # eklenir, dokunulmadığı için veritabanında kalan değerler (ör. mobilden değişen
+        # büküm op.) dosyaya da yazılır — dosya ile veritabanı yükleme sonrası AYNI olur.
+        try:
+            _s = export_referans_cycle_times()
+            if not _s.get('basarili'):
+                print(f"[ana_veri/yukle] dosya veritabanıyla eşitlenemedi: {_s.get('hata')}")
+        except Exception as e:
+            print(f'[ana_veri/yukle] dosya veritabanıyla eşitlenemedi: {e}')
     detay = sonuc['bolumler']
     bolumler, uyarilar = [], []
-    toplam = {'eklenen': 0, 'degisen': 0, 'silinen': 0}
+    toplam = {'eklenen': 0, 'degisen': 0, 'silinen': 0, 'korunan': 0}
     for b, d in detay.items():
+        toplam['korunan'] += d['referanslar_korunan']
         ad = _ie.ANA_VERI_ETIKET[b]
         bolumler.append({'bolum': b, 'ad': ad, 'dosyada': d['dosyada'], 'mevcut': d['mevcut'],
                          'eklenen': d['referanslar_eklenen'], 'degisen': d['referanslar_guncellenen'],
                          'ayni': d['referanslar_ayni'], 'silinen': d['referanslar_silinen'],
+                         'korunan': d['referanslar_korunan'],
+                         'geri_eklenmeyen': d['referanslar_geri_eklenmeyen'],
                          'ornek_eklenen': d['ornek_eklenen'], 'ornek_degisen': d['ornek_degisen'],
-                         'ornek_silinen': d['ornek_silinen'], 'uyari': d.get('uyari', '')})
+                         'ornek_silinen': d['ornek_silinen'], 'ornek_korunan': d['ornek_korunan'],
+                         'uyari': d.get('uyari', '')})
         toplam['eklenen'] += d['referanslar_eklenen']
         toplam['degisen'] += d['referanslar_guncellenen']
         toplam['silinen'] += d['referanslar_silinen']
@@ -5759,7 +5779,7 @@ def ana_veri_yukle():
                    for b, adlar in sonuc['operatorler'].items() if adlar]
     return jsonify({'basarili': True, 'onizleme': not onay, 'sayfa': rapor['sayfa'],
                     'satir': rapor['satir'], 'bolumler': bolumler, 'toplam': toplam,
-                    'uyarilar': uyarilar, 'eksik_sayfa': hz['eksik'], 'durus': durus,
+                    'uyarilar': uyarilar, 'eksik_sayfa': hz['eksik'], 'durus': durus, 'damga': hz['damga'],
                     'operatorler': operatorler, 'robot': sonuc['robot'], 'fikstur': sonuc['fikstur'],
                     'bolumsuz': rapor['bolumsuz'][:60], 'bolumsuz_sayi': len(rapor['bolumsuz']),
                     'tekrar': rapor['tekrar'][:40], 'tekrar_sayi': len(rapor['tekrar']),
