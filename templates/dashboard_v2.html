@@ -12108,7 +12108,7 @@ window.__I18N_SOZLUK__ = {
             var bas = 'Son deneme ' + esc((dn.bitti || '').slice(11)) + ' · ' + esc(dn.kim || '') + (dn.sure_sn != null ? ' · ' + dn.sure_sn + ' sn' : '') + ' — ';
             if (dn.hata) return '<span style="color:var(--danger)">' + bas + 'HATA: ' + esc(dn.hata) + '</span>';
             var s = dn.sonuc || {};
-            var yer = esc(s.kutuphane || '') + (s.as400_degisim ? ' · AS400'de son değişim ' + esc(s.as400_degisim) : '') +
+            var yer = esc(s.kutuphane || '') + (s.as400_degisim ? " · AS400'de son değişim " + esc(s.as400_degisim) : '') +
                 ((s.kopyalar || []).length > 1 ? ' · kopyalar: ' + esc(s.kopyalar.join(', ')) : '');
             return '<span style="color:var(--muted)">' + bas + (s.degisti ? 'yeni çekim kaydedildi (' + fmt(s.satir) + ' satır · ' + yer + ')' : 'S650B9 değişmemiş, yeni kayıt yok (' + yer + ')') + '</span>';
         }
