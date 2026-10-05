@@ -92,8 +92,36 @@ def _hafta_sira(etiket):
         return 0
 
 
+def konum_bul(cur):
+    """S650B9 hangi kütüphane(ler)de? AS400 kataloğundan, EN YENİ VERİ ÖNCE.
+    OLAY (2026-10-05): dosya QGPL'de de TKC0301F'de de yoktu (SQL0204). Planlamanın Excel'i
+    tablo adını kütüphanesiz yazıyor; dosya F6'yı çalıştıranın kütüphane listesindeki bir
+    çalışma kütüphanesinde oluşuyor — kullanıcı başına ayrı kopya olabilir. Bu yüzden
+    sabit kütüphane yerine katalog: birden çok kopyadan son değişeni (en son F6) seçilir.
+    → [{'kutuphane', 'degisim', 'satir'}]"""
+    konumlar = {}
+    try:
+        cur.execute("SELECT TRIM(TABLE_SCHEMA) FROM QSYS2.SYSTABLES WHERE TABLE_NAME = 'S650B9'")
+        for r in cur.fetchall():
+            if r[0]:
+                konumlar[r[0]] = {'kutuphane': r[0], 'degisim': None, 'satir': None}
+    except Exception as e:
+        print(f'[SATIŞ PLANI] katalog (SYSTABLES) okunamadı: {e}')
+    try:
+        # Veri değişim zamanı (F6'nın dosyaya yazdığı an) — eski sürümlerde görünüm yoksa atlanır
+        cur.execute("SELECT TRIM(TABLE_SCHEMA), LAST_CHANGE_TIMESTAMP, NUMBER_ROWS "
+                    "FROM QSYS2.SYSPARTITIONSTAT WHERE TABLE_NAME = 'S650B9'")
+        for r in cur.fetchall():
+            k = konumlar.setdefault(r[0], {'kutuphane': r[0], 'degisim': None, 'satir': None})
+            k['degisim'] = r[1].strftime('%Y-%m-%d %H:%M:%S') if hasattr(r[1], 'strftime') else (str(r[1]) if r[1] else None)
+            k['satir'] = int(r[2]) if r[2] is not None else None
+    except Exception as e:
+        print(f'[SATIŞ PLANI] SYSPARTITIONSTAT okunamadı: {e}')
+    return sorted(konumlar.values(), key=lambda k: k['degisim'] or '', reverse=True)
+
+
 def as400_oku(baglan=None):
-    """S650B9 + S650B9F2 → (satırlar [dict], hafta etiketleri, kütüphane). Yalnız OKUR."""
+    """S650B9 + S650B9F2 → (satırlar [dict], hafta etiketleri, kütüphane, konumlar). Yalnız OKUR."""
     if baglan is None:
         import sys
         sys.path.insert(0, os.path.join(PROJECT_DIR, 'as400'))
@@ -107,8 +135,11 @@ def as400_oku(baglan=None):
         except Exception:
             pass
         cur = cn.cursor()
+        konumlar = konum_bul(cur)                       # katalogdan, en yeni önce
+        aday = [k['kutuphane'] for k in konumlar] + [k for k in KUTUPHANELER
+                                                      if k not in {x['kutuphane'] for x in konumlar}]
         veri, kutuphane, hatalar = None, None, []
-        for lib in KUTUPHANELER:
+        for lib in aday:
             # WITH UR: yazan işin satır kilidini bekleme (salt okuma). Sürüm bu eki
             # tanımazsa (SQL0104) eksiz — planlamanın şablonundaki sorguyla aynı — denenir.
             for ek in (' WITH UR', ''):
@@ -124,9 +155,11 @@ def as400_oku(baglan=None):
             if veri is not None:
                 break
         if veri is None:
-            raise RuntimeError('S650B9 okunamadı — ' + ' | '.join(h[:220] for h in hatalar))
+            neden = ('katalogda (QSYS2.SYSTABLES) S650B9 hiç görünmüyor — COFLEFORGE dosyanın '
+                     'kütüphanesini göremiyor ya da 10-05-03-06 henüz çalıştırılmamış. ' if not konumlar else '')
+            raise RuntimeError('S650B9 okunamadı — ' + neden + ' | '.join(h[:220] for h in hatalar))
         basliklar = []
-        for lib in (kutuphane,) + tuple(k for k in KUTUPHANELER if k != kutuphane):
+        for lib in [kutuphane] + [k for k in aday if k != kutuphane]:
             for ek in (' WITH UR', ''):
                 try:
                     cur.execute(f"SELECT * FROM {lib}.S650B9F2{ek}")
@@ -158,7 +191,7 @@ def as400_oku(baglan=None):
             'ham': [_kod_metin(x) if isinstance(x, float) and i in (1, 2) else
                     (x.strip() if isinstance(x, str) else x) for i, x in enumerate(r)],
         })
-    return satirlar, basliklar, kutuphane
+    return satirlar, basliklar, kutuphane, konumlar
 
 
 def _imza(satirlar, basliklar):
@@ -207,7 +240,10 @@ def cek(conn, baglan=None, kullanici='otomatik', zorla=False):
     """AS400'den oku; içerik son çekimden FARKLIYSA sakla + günün Excel'ini yaz.
     Döner: {'degisti', 'cekim_id', 'satir', 'kod', 'tarih', 'dosya', 'depo', 'haftalar', ...}"""
     tablolari_kur(conn)
-    satirlar, basliklar, kutuphane = as400_oku(baglan)
+    satirlar, basliklar, kutuphane, konumlar = as400_oku(baglan)
+    secilen = next((k for k in konumlar if k['kutuphane'] == kutuphane), {})
+    as400 = {'as400_degisim': secilen.get('degisim'),
+             'kopyalar': [f"{k['kutuphane']} ({k['degisim'] or '?'})" for k in konumlar]}
     imza = _imza(satirlar, basliklar)
     son = conn.execute("SELECT id, imza, ts, tarih FROM satis_plani_cekim ORDER BY id DESC LIMIT 1").fetchone()
     depolar = sorted({s['depo'] for s in satirlar if s['depo']})
@@ -215,7 +251,7 @@ def cek(conn, baglan=None, kullanici='otomatik', zorla=False):
     kod = len({s['article'].upper() for s in satirlar})
     if son and son[1] == imza and not zorla:
         return {'degisti': False, 'cekim_id': son[0], 'satir': len(satirlar), 'kod': kod,
-                'son_degisim': son[2], 'depo': depo, 'haftalar': basliklar, 'kutuphane': kutuphane}
+                'son_degisim': son[2], 'depo': depo, 'haftalar': basliklar, 'kutuphane': kutuphane, **as400}
     simdi = datetime.now()
     ts, tarih = simdi.strftime('%Y-%m-%d %H:%M:%S'), simdi.strftime('%Y-%m-%d')
     dosya = os.path.join(KLASOR, f'Satis_Plani_{tarih}.xlsx')
@@ -250,7 +286,7 @@ def cek(conn, baglan=None, kullanici='otomatik', zorla=False):
     print(f'[SATIŞ PLANI] yeni çekim #{cid}: {len(satirlar)} satır, {kod} kod, depo {depo or "?"} → {os.path.basename(dosya)}')
     return {'degisti': True, 'cekim_id': cid, 'satir': len(satirlar), 'kod': kod, 'tarih': tarih,
             'ts': ts, 'dosya': os.path.basename(dosya), 'depo': depo, 'haftalar': basliklar,
-            'kutuphane': kutuphane}
+            'kutuphane': kutuphane, **as400}
 
 
 # ── ARKA PLAN ÇEKİMİ + SON DENEME (2026-10-05) ───────────────────────────────
