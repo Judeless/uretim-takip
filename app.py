@@ -14623,6 +14623,10 @@ def kaynak_plan_bildirimler(plan):
         "ORDER BY kapanma_ts DESC, id DESC LIMIT 15").fetchall()]
     cfg = _oto_config().get(pf['config']) or {}
     _rd, _ad, _gd = _kp_depolar(pf)
+    # İş Yönetimi'ndeki karşılığı (kullanıcı 2026-10-06): satırda "📌 iş emrinde" görünsün
+    _ie = _kp_is_emirleri(conn, pf, [o['kaynak_kod'] for o in acik])
+    for o in acik:
+        o['is_emri'] = _ie.get(o['kaynak_kod'])
     return jsonify({'acik': acik, 'kapanan': kapanan,
                     'ayar': {'etkin': bool(cfg.get('etkin', True)),
                              'saatler': cfg.get('saatler') or [],
@@ -14649,6 +14653,84 @@ def kaynak_plan_bildirim_kapat(bid, plan):
     if not cur.rowcount:
         return jsonify({'hata': 'Bildirim bulunamadı ya da zaten kapalı'}), 404
     return jsonify({'ok': True})
+
+
+# ── EMİR AÇILACAK → İŞ YÖNETİMİ (kullanıcı 2026-10-06) ──
+# "Bu kısma, ilgili kodu direkt iş emri kısmına belirlenen adet ile launch alınacak
+#  olarak ataması için buton ekleyelim; adedi değiştirebilelim."
+# Aynı kod/bölüm/tesis İş Yönetimi'nde zaten varsa YENİ kayıt açılmaz: 'launch alınacak'
+# ise adedi güncellenir, launch alınmış/hazırsa reddedilir (çift iş emri olmasın).
+_RT_DURUM_AD = {'launch_alinacak': 'Launch Alınacak', 'launch_alindi': 'Launch Alındı',
+                'launch_hazir': 'Launch Hazır'}
+
+
+def _kp_tesis(pf):
+    return pf.get('lokasyon') or 'TK2'
+
+
+def _kp_is_emirleri(conn, pf, kodlar):
+    """{kod: {id, durum, durum_ad, hedef_adet}} — planın bölümü/tesisinde en yeni iş emri."""
+    kodlar = sorted({k for k in kodlar if k})
+    if not kodlar:
+        return {}
+    out = {}
+    for i in range(0, len(kodlar), 400):
+        grup = kodlar[i:i + 400]
+        for r in conn.execute(
+                "SELECT id, referans_kodu, durum, hedef_adet FROM referans_takip "
+                f"WHERE referans_kodu IN ({','.join('?' * len(grup))}) "
+                "AND COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? ORDER BY id",
+                grup + [pf['bolum'], _kp_tesis(pf)]):
+            out[r['referans_kodu']] = {'id': r['id'], 'durum': r['durum'],
+                                       'durum_ad': _RT_DURUM_AD.get(r['durum'], r['durum']),
+                                       'hedef_adet': r['hedef_adet']}
+    return out
+
+
+@app.route('/api/kaynak_plan/bildirim/<int:bid>/is_emri', methods=['POST'], defaults={'plan': 'kaynak'})
+@app.route('/api/montaj_plan/bildirim/<int:bid>/is_emri', methods=['POST'], defaults={'plan': 'montaj'})
+@app.route('/api/metal_plan/bildirim/<int:bid>/is_emri', methods=['POST'], defaults={'plan': 'metal'})
+@_kp_yetki
+def kaynak_plan_bildirim_is_emri(bid, plan):
+    """Bildirimdeki kodu İş Yönetimi'ne 'launch alınacak' olarak atar. Body {adet}.
+    İş emri açmak İş Yönetimi yetkisi ister (plan sayfası yetkisi yetmez)."""
+    pf = _kp_profil(plan)
+    ku = g.panel_ku
+    if not ku['admin'] and 'is-yonetimi' not in ku['izinler']:
+        return jsonify({'hata': 'İş emri eklemek için İş Yönetimi yetkisi gerekli'}), 403
+    try:
+        adet = int(round(float((request.get_json(silent=True) or {}).get('adet'))))
+    except (TypeError, ValueError):
+        adet = 0
+    if not (1 <= adet <= 10_000_000):
+        return jsonify({'hata': 'Geçerli bir adet girin'}), 400
+    conn = get_db()
+    b = conn.execute(f"SELECT kaynak_kod FROM {pf['bildirim']} WHERE id=?", (bid,)).fetchone()
+    if not b:
+        return jsonify({'hata': 'Bildirim bulunamadı'}), 404
+    kod, bolum, lok = b['kaynak_kod'], pf['bolum'], _kp_tesis(pf)
+    mevcut = _kp_is_emirleri(conn, pf, [kod]).get(kod)
+    if mevcut and mevcut['durum'] == 'launch_alinacak':
+        conn.execute("UPDATE referans_takip SET hedef_adet=?, guncelleme_tarihi=datetime('now','localtime') "
+                     "WHERE id=?", (adet, mevcut['id']))
+        conn.commit()
+        return jsonify({'ok': True, 'guncellendi': True, 'kod': kod, 'adet': adet,
+                        'onceki_adet': mevcut['hedef_adet']})
+    if mevcut:
+        return jsonify({'hata': f"{kod} İş Yönetimi'nde zaten '{mevcut['durum_ad']}' durumunda "
+                                f"({mevcut['hedef_adet']} adet) — oradan yönetin"}), 409
+    olusturan = ku.get('ad_soyad') or ku['kullanici_adi']
+    conn.execute(
+        "INSERT INTO referans_takip (referans_kodu, hedef_adet, aciklama, durum, olusturan, robot_no, "
+        "istasyon, bolum, oncelik, lokasyon) VALUES (?, ?, ?, 'launch_alinacak', ?, '', 0, ?, NULL, ?)",
+        (kod, adet, f"{pf['ad']} — emir açılacak", olusturan, bolum, lok))
+    conn.commit()
+    # Push: İş Yönetimi'nden elle eklemeyle aynı alıcılar (bölüm sorumluları, yalnız TK2)
+    alicilar = (BILDIRIM_ALICILARI.get(bolum) or []) if lok == 'TK2' else []
+    if alicilar:
+        _push_gonder_async(alicilar, f'🚀 Yeni Launch — {BOLUM_AD.get(bolum, bolum)}',
+                           f'{kod} · {adet} adet · Ekleyen: {olusturan} (plan)')
+    return jsonify({'ok': True, 'eklendi': True, 'kod': kod, 'adet': adet}), 201
 
 
 @app.route('/api/kaynak_plan/bildirim_ayar', methods=['POST'], defaults={'plan': 'kaynak'})

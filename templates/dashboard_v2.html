@@ -5281,6 +5281,9 @@ window.__I18N_SOZLUK__ = {
   "📣 Emir açılacak:": {"en": "📣 Order to open:", "it": "📣 Ordine da aprire:"},
   "📣 Emir açılacaklar:": {"en": "📣 Orders to open:", "it": "📣 Ordini da aprire:"},
   "✓ Emir açtım": {"en": "✓ Order opened", "it": "✓ Ordine aperto"},
+  "📌 İş emrine ekle": {"en": "📌 Add to work orders", "it": "📌 Aggiungi agli ordini"},
+  "📌 Adedi güncelle": {"en": "📌 Update quantity", "it": "📌 Aggiorna quantità"},
+  "İş emri": {"en": "Work order", "it": "Ordine di lavoro"},
   "⚙ Bildirim ayarı": {"en": "⚙ Notification settings", "it": "⚙ Impostazioni notifiche"},
   "▶ Şimdi çalıştır": {"en": "▶ Run now", "it": "▶ Esegui ora"},
   "📊 Excel": {"en": "📊 Excel", "it": "📊 Excel"},
@@ -15806,7 +15809,9 @@ window.__I18N_SOZLUK__ = {
                     h += '<div class="table-wrap" style="margin-top:10px;max-height:280px;overflow:auto"><table class="admin-table" style="margin:0"><thead><tr>' +
                         '<th>Kaynak Kodu</th><th style="text-align:right">Üretilebilir</th><th style="text-align:right">Artış</th>' +
                         '<th style="text-align:right">Emir açılacak</th><th style="text-align:right">Launch alınan</th>' +
-                        '<th>En Eski OPR</th><th>Oluştu</th><th>Duyuruldu</th><th></th></tr></thead><tbody>';
+                        '<th>En Eski OPR</th><th>Oluştu</th><th>Duyuruldu</th>' +
+                        '<th style="text-align:right" title="Kodu İş Yönetimi\'ne launch alınacak olarak, yazdığınız adetle ekler">İş emri</th>' +
+                        '<th></th></tr></thead><tbody>';
                     acik.forEach(function (o) {
                         h += '<tr><td style="font-weight:800">' + esc(o.kaynak_kod) + '</td>' +
                             '<td style="text-align:right">' + esc(String(o.onceki_uretilebilir)) + ' → <b>' + esc(String(o.uretilebilir)) + '</b></td>' +
@@ -15817,6 +15822,7 @@ window.__I18N_SOZLUK__ = {
                             '<td style="font-size:.76rem;color:var(--muted)">' + esc((o.guncelleme_ts || o.olusturma_ts || '').slice(5)) + '</td>' +
                             '<td style="font-size:.76rem;color:' + (o.bildirildi_ts ? 'var(--muted)' : 'var(--warn)') + '">' +
                                 (o.bildirildi_ts ? esc(o.bildirildi_ts.slice(5)) : 'bekliyor') + '</td>' +
+                            '<td style="text-align:right;white-space:nowrap">' + kpIsEmriHucre(o) + '</td>' +
                             '<td style="text-align:right"><button class="btn" style="padding:4px 10px;font-size:.76rem;white-space:nowrap" ' +
                                 'onclick="kpBildirimKapat(' + o.id + ')">✓ Emir açtım</button></td></tr>';
                     });
@@ -15864,6 +15870,40 @@ window.__I18N_SOZLUK__ = {
                 toast('Bildirim ayarı kaydedildi', 'ok');
                 kpBildirimYukle();
             }).catch(function (e) { toast('Kaydedilemedi: ' + e, 'err'); });
+        }
+        // ── EMİR AÇILACAK → İŞ YÖNETİMİ (kullanıcı 2026-10-06) ──
+        // Adet kutusu varsayılanı: açılacak emir adedi; kod zaten 'launch alınacak' iş
+        // emrindeyse oradaki adet (değiştirip güncellenir). Launch alınmış/hazırsa düğme yok.
+        function kpIsEmriHucre(o) {
+            var ie = o.is_emri;
+            var bekliyor = ie && ie.durum === 'launch_alinacak';
+            var rozet = ie ? '<div style="font-size:.7rem;font-weight:800;color:var(--primary);margin-bottom:3px" ' +
+                'title="İş Yönetimi\'nde kayıtlı">📌 ' + esc(ie.durum_ad || ie.durum) + ' · ' + fmt(ie.hedef_adet || 0) + ' adet</div>' : '';
+            if (ie && !bekliyor) return rozet;
+            var deger = bekliyor ? (ie.hedef_adet || 0) : Math.ceil(o.emir_gereken || 0);
+            return rozet +
+                '<input type="number" min="1" step="1" id="kp-ie-adet-' + o.id + '" value="' + deger + '" ' +
+                    'class="rt-row-input" style="width:78px;text-align:right" title="İş emrine yazılacak adet" ' +
+                    'onkeydown="if(event.key===\'Enter\')kpIsEmrineAta(' + o.id + ')"> ' +
+                '<button class="btn btn-primary" id="kp-ie-btn-' + o.id + '" style="padding:4px 10px;font-size:.76rem;white-space:nowrap" ' +
+                    'onclick="kpIsEmrineAta(' + o.id + ')">' + (bekliyor ? '📌 Adedi güncelle' : '📌 İş emrine ekle') + '</button>';
+        }
+        function kpIsEmrineAta(id) {
+            var inp = document.getElementById('kp-ie-adet-' + id);
+            var adet = Math.round(Number(inp && inp.value));
+            if (!(adet > 0)) { toast('Geçerli bir adet girin', 'err'); if (inp) inp.focus(); return; }
+            var btn = document.getElementById('kp-ie-btn-' + id);
+            if (btn) btn.disabled = true;
+            fetch(kpApi() + '/bildirim/' + id + '/is_emri', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adet: adet })
+            }).then(function (r) { return r.json(); }).then(function (d) {
+                if (btn) btn.disabled = false;
+                if (d.hata) { toast(d.hata, 'err'); return; }
+                toast(d.guncellendi
+                      ? d.kod + ' iş emri adedi güncellendi: ' + fmt(d.onceki_adet) + ' → ' + fmt(d.adet)
+                      : d.kod + ' İş Yönetimi\'ne eklendi — launch alınacak · ' + fmt(d.adet) + ' adet', 'ok');
+                kpBildirimYukle();
+            }).catch(function (e) { if (btn) btn.disabled = false; toast('Eklenemedi: ' + e, 'err'); });
         }
         function kpBildirimKapat(id) {
             fetch(kpApi() + '/bildirim/' + id + '/kapat', { method: 'POST' })
