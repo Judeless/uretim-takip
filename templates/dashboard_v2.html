@@ -7983,11 +7983,13 @@ window.__I18N_SOZLUK__ = {
                     <div style="padding:6px 20px 14px">
                         <div style="font-size:.8rem;color:var(--muted);line-height:1.6;margin-bottom:8px">
                             IT'nin programı 10 sn'de bir bu tablodaki boş satırları işler: <b>MGSTAT=1</b> hareket açıldı (numara yanda), <b>MGSTAT=2</b> hata (MGNOTE).
-                            <br>Geçiş (Stefano 2026-09-08: yalnız CFI): IT programı canlıya (COFLETK) alındı haberi gelince 🚀 ile aç — 17:10 koşusu ve panel CFI teyitlerini import ile yazar, <b>RPR ve COP robotta kalır</b>. Doğrulama açık: import işlese de hareket canlı BMMAF0'da görünmezse satır <b>hata</b> olarak kalır, hiçbir şey sessizce kaybolmaz.
+                            <br>CFI import ile yazılır (Stefano 2026-09-08). <b>COP (hurda)</b>: Simone 2026-10-07 — program artık COP'u da kabul ediyor. Önce aşağıdaki deneme formundan <b>causal COP</b> ile tek satır gönderip MGSTAT=1 ve hareket numarasını görün, sonra <b>♻ COP'u da import'a al</b>. Doğrulama açık: import işlese de hareket canlı BMMAF0'da görünmezse satır <b>hata</b> olarak kalır, hiçbir şey sessizce kaybolmaz.
                         </div>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
                             <button class="btn btn-primary" id="as4-imp-ac" style="display:none" onclick="as4ImportCanli(true)">🚀 CFI'yi import'a al (canlı)</button>
                             <button class="btn btn-ghost" id="as4-imp-kapat" style="display:none" onclick="as4ImportCanli(false)">↩ Robota dön (import kapat)</button>
+                            <button class="btn btn-primary" id="as4-imp-cop-ac" style="display:none" onclick="as4ImportCop(true)">♻ COP'u da import'a al</button>
+                            <button class="btn btn-ghost" id="as4-imp-cop-kapat" style="display:none" onclick="as4ImportCop(false)">↩ COP'u robota döndür</button>
                             <span id="as4-imp-not" style="font-size:.76rem;color:var(--muted)"></span>
                         </div>
                         <!-- LAUNCH TEYİDİ (rientro) — COFLEFORGE.BPRCF0I.
@@ -16818,10 +16820,15 @@ window.__I18N_SOZLUK__ = {
                       + (t.bekleme_sn || 60) + ' sn'
                     : 'İtalya programı 28.09.2026 10:00 (İtalya saati) canlıya aldı — o saatten sonra açın');
                 var bAc = document.getElementById('as4-imp-ac'), bKapat = document.getElementById('as4-imp-kapat'), bNot = document.getElementById('as4-imp-not');
+                var copImp = (j.causals || ['CFI']).indexOf('COP') >= 0;
                 if (bAc) bAc.style.display = (res.ok && !j.aktif) ? '' : 'none';
                 if (bKapat) bKapat.style.display = (res.ok && j.aktif) ? '' : 'none';
+                var cAc = document.getElementById('as4-imp-cop-ac'), cKapat = document.getElementById('as4-imp-cop-kapat');
+                if (cAc) cAc.style.display = (res.ok && j.aktif && !copImp) ? '' : 'none';
+                if (cKapat) cKapat.style.display = (res.ok && j.aktif && copImp) ? '' : 'none';
                 if (bNot) bNot.textContent = !res.ok ? '' : (j.aktif
-                    ? 'Doğrulama ' + (j.dogrulama_bmmaf0 ? 'AÇIK' : 'KAPALI') + ' · tarih ' + (j.tarih_gonder ? 'üretim günü' : 'bugün') + ' · RPR ve COP robotta'
+                    ? 'Doğrulama ' + (j.dogrulama_bmmaf0 ? 'AÇIK' : 'KAPALI') + ' · tarih ' + (j.tarih_gonder ? 'üretim günü' : 'bugün') +
+                      ' · RPR ' + (t.aktif ? 'tablodan (BPRCF0I)' : 'robotta') + ' · COP ' + (copImp ? 'import ile' : 'robotta')
                     : 'Açmadan önce IT "program COFLETK\'ye yazıyor" demiş olmalı; ilk gerçek satırı panelden tek tek gönderip sonucu izleyin.');
                 if (!res.ok) { toast(j.hata || 'Import durumu okunamadı', 'error'); return; }
                 if (!el) return;
@@ -16846,7 +16853,7 @@ window.__I18N_SOZLUK__ = {
         function as4ImportCanli(ac) {
             if (ac && _as4ImpSifreYok) { toast('Import kullanıcısının (COFLEFORGE) şifresi kasada yok — önce sunucuda kaydet_sifre.py COFLEFORGE', 'error'); return; }
             var metin = ac
-                ? 'CFI teyitleri IMPORT ile (COFLEFORGE.BMMAF0I) yazılacak; RPR ve COP ekran robotunda kalacak.\n\n' +
+                ? 'CFI teyitleri IMPORT ile (COFLEFORGE.BMMAF0I) yazılacak; COP ayrı düğmeyle alınır, o zamana kadar robotta kalır.\n\n' +
                   'ÖN ŞART: IT (Simone) programın canlı veritabanına (COFLETK) yazdığını bildirmiş olmalı. Program hâlâ TEST\'teyse (COFLETKPR) satırlar doğrulamada "hata" olarak kalır ve ERP\'ye stok girmez.\n\n' +
                   'Açtıktan sonra ilk gerçek satırı panelden tek tek gönderin ve "CFI-IMP · ok" sonucunu görün. Devam?'
                 : 'Import kapatılacak; CFI teyitleri yeniden ekran robotuyla yazılacak. Devam?';
@@ -16857,7 +16864,26 @@ window.__I18N_SOZLUK__ = {
               .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ')' } }; }); })
               .then(function (res) {
                 if (!res.ok) { toast(res.j.hata || 'Ayar yazılamadı', 'error'); return; }
-                toast(ac ? '🚀 CFI import\'a alındı — RPR/COP robotta' : '↩ Import kapatıldı — CFI robota döndü', 'success');
+                toast(ac ? '🚀 CFI import\'a alındı' : '↩ Import kapatıldı — CFI (ve COP) robota döndü', 'success');
+                as4ImportYukle(false, 0);
+              }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+        // COP'u (hurda) da import'a al / robota döndür (Simone 2026-10-07: "now bmmaf0i
+        // procedure can receive COP movements"). Import AÇIKKEN görünür; hurda listesi
+        // ve 17:10 koşusu bu anahtara göre import ya da robot kullanır.
+        function as4ImportCop(ac) {
+            var metin = ac
+                ? 'Hurda (COP) hareketleri de IMPORT ile (COFLEFORGE.BMMAF0I) yazılacak; 5250 ekran robotu COP için de devreden çıkacak.\n\n' +
+                  'ÖN ŞART: deneme formundan causal COP ile en az bir satır gönderilmiş ve MGSTAT=1 + hareket numarası alınmış olmalı (karşı depo boş gider).\n\n' +
+                  'Devam?'
+                : 'COP yeniden ekran robotuyla girilecek (CFI import\'ta kalır). Devam?';
+            if (!confirm(metin)) return;
+            panelFetch('/api/as400/oto_config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({ tur: 'cfi_import', cop: !!ac }) })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: false, j: { hata: 'Sunucu JSON döndürmedi (HTTP ' + r.status + ')' } }; }); })
+              .then(function (res) {
+                if (!res.ok) { toast(res.j.hata || 'Ayar yazılamadı', 'error'); return; }
+                toast(ac ? '♻ COP import\'a alındı — hurdalar BMMAF0I ile yazılacak' : '↩ COP robota döndü', 'success');
                 as4ImportYukle(false, 0);
               }).catch(function () { toast('Bağlantı hatası', 'error'); });
         }

@@ -15133,7 +15133,9 @@ _OTO_VARSAYILAN = {
     # etkilenir) — IT ile netleşene kadar kapalı, program bugünü alır.
     # causals: programın kabul ettiği causal'lar (Simone 2026-09-08: "for the
     # moment import program accepts just CFI"). Listede olmayan causal (COP)
-    # ekran robotuyla gitmeye devam eder; Stefano Cappello onaylayınca eklenir.
+    # ekran robotuyla gitmeye devam eder. Simone 2026-10-07: "now bmmaf0i procedure
+    # can receive COP movements" → panelden '♻ COP'u da import'a al' ile eklenir
+    # (varsayılan bilerek CFI: önce tek satır deneme, sonra anahtar).
     'cfi_import':     {'etkin': False, 'canli_onay': False, 'kutuphane': 'COFLEFORGE',
                        'tablo': 'BMMAF0I', 'bekleme_sn': 60, 'dogrulama_bmmaf0': False,
                        'tarih_gonder': False, 'causals': ['CFI'],
@@ -16135,6 +16137,10 @@ def as400_oto_config_degistir():
                   else ('canli_onay',)):
             if k in data:
                 cfg[tur][k] = bool(data.get(k))
+        # COP'u da import'a al / robota döndür (Simone 2026-10-07). Yalnız bu iki
+        # liste kabul edilir — causal adı panelden serbest yazılamaz.
+        if tur == 'cfi_import' and 'cop' in data:
+            cfg[tur]['causals'] = ['CFI', 'COP'] if data.get('cop') else ['CFI']
     try:
         _oto_config_yaz(cfg)
     except Exception as e:
