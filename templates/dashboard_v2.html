@@ -888,6 +888,48 @@
         .toast.err { background: var(--danger); color: #fff; border-color: transparent; }
 
         /* Genel amaçlı modal (gem) */
+        /* ── Haftalık önemli referanslar (TK2 montaj, 2026-10-08) ── */
+        .hp-alan { margin: 6px 20px 14px; padding: 12px 14px; border: 1px solid var(--card-border);
+                   border-radius: 12px; background: var(--surface-2); }
+        .hp-ust { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 6px; }
+        .hp-alt { font-size: .76rem; color: var(--muted); }
+        .hp-nav { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .hp-nav .btn { padding: 4px 10px; font-size: .78rem; }
+        .hp-cmt { font-size: .78rem; color: var(--muted); display: flex; gap: 4px; align-items: center; cursor: pointer; }
+        .hp-hafta-bas { font-size: .82rem; font-weight: 800; margin: 10px 0 6px; color: var(--text); }
+        .hp-izgara { display: grid; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+        .hp-gun { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 8px;
+                  min-width: 170px; display: flex; flex-direction: column; gap: 6px; }
+        .hp-gun.bugun { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
+        .hp-gun.gecmis .hp-gun-bas { color: var(--dim); }
+        .hp-gun-bas { display: flex; justify-content: space-between; font-size: .76rem; font-weight: 800;
+                      color: var(--muted); letter-spacing: .03em; }
+        .hp-kart { border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 8px;
+                   padding: 5px 24px 5px 7px; font-size: .78rem; line-height: 1.35; background: var(--cam);
+                   cursor: pointer; position: relative; word-break: break-word; }
+        .hp-kart:hover { border-color: var(--primary-line); }
+        .hp-kart.eksik { border-left-color: var(--warn); }
+        .hp-kart.tamam { opacity: .55; border-left-color: var(--success); }
+        .hp-kart.tamam .hp-kod { text-decoration: line-through; }
+        .hp-kod { font-weight: 800; }
+        .hp-tik { position: absolute; top: 3px; right: 3px; border: 1px solid var(--border); background: var(--card);
+                  color: var(--success); border-radius: 6px; font-size: .74rem; font-weight: 800; padding: 0 5px; cursor: pointer; }
+        .hp-eksik { color: var(--warn); font-weight: 700; }
+        .hp-bilgi { color: var(--muted); font-size: .72rem; }
+        .hp-ekle { display: flex; gap: 4px; margin-top: auto; }
+        .hp-ekle input, .hp-duzen input { min-width: 0; font-size: .76rem; padding: 3px 6px; border-radius: 6px;
+                  border: 1px solid var(--border-input); background: var(--bg); color: var(--text); }
+        .hp-ekle .hp-e-ref { flex: 1; }
+        .hp-ekle .hp-e-adet { width: 58px; }
+        .hp-ekle .btn { padding: 2px 9px; }
+        .hp-duzen { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--primary-line);
+                    border-radius: 8px; padding: 6px; background: var(--card); }
+        .hp-dbtn { display: flex; gap: 4px; flex-wrap: wrap; }
+        .hp-dbtn .btn { padding: 2px 8px; font-size: .74rem; }
+        .hp-devir { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .78rem; margin: 2px 0 6px; }
+        .hp-chip { border: 1px solid var(--warn); border-radius: 999px; padding: 2px 8px; background: var(--warn-soft); }
+        .hp-chip button { border: 0; background: none; color: var(--primary); cursor: pointer; font-size: .74rem; font-weight: 700; }
+
         /* ── Metal planı makine atama panosu (2026-10-01) ── */
         .mp-pano { position: fixed; inset: 0; z-index: 2500; background: var(--bg);
                    display: flex; flex-direction: column; padding: 14px 16px; gap: 8px; }
@@ -5258,6 +5300,14 @@ window.__I18N_SOZLUK__ = {
   "🚀 Launch alınmış:": {"en": "🚀 Launch taken:", "it": "🚀 Lancio emesso:"},
   "Montaj Planı": {"en": "Assembly Plan", "it": "Piano montaggio"},
   "Metal Planı": {"en": "Die Casting Plan", "it": "Piano pressofusione"},
+  "📅 Haftalık önemli referanslar": {"en": "📅 Key references of the week", "it": "📅 Codici importanti della settimana"},
+  "gün gün üretilecek mekanizmalar · eksik parça notu · bitince ✓": {"en": "mechanisms to build day by day · missing part note · ✓ when done", "it": "meccanismi da produrre giorno per giorno · nota pezzo mancante · ✓ a fine"},
+  "◀ Önceki": {"en": "◀ Previous", "it": "◀ Precedente"},
+  "Bu hafta": {"en": "This week", "it": "Questa settimana"},
+  "Sonraki ▶": {"en": "Next ▶", "it": "Successiva ▶"},
+  "Cumartesi": {"en": "Saturday", "it": "Sabato"},
+  "Pzt": {"en": "Mon", "it": "Lun"}, "Sal": {"en": "Tue", "it": "Mar"}, "Çar": {"en": "Wed", "it": "Mer"},
+  "Per": {"en": "Thu", "it": "Gio"}, "Cum": {"en": "Fri", "it": "Ven"}, "Cmt": {"en": "Sat", "it": "Sab"},
   "🖨 Plan Çıktısı": {"en": "🖨 Plan Printout", "it": "🖨 Stampa piano"},
   "🏭 Metal Enjeksiyon — Makine Ataması": {"en": "🏭 Die Casting — Machine Assignment", "it": "🏭 Pressofusione — Assegnazione macchine"},
   "✨ Geçmişe göre dağıt": {"en": "✨ Distribute by history", "it": "✨ Distribuisci per storico"},
@@ -6563,6 +6613,24 @@ window.__I18N_SOZLUK__ = {
                     <!-- Bölüm sekmeleri — İş Yönetimi içinde kaynak/montaj/metal arası geçiş
                          (sayfadan çıkmadan). Lokasyona göre doldurulur (TK1=yalnız montaj). -->
                     <div id="rt-bolum-tablari" class="rt-bolum-tablari"></div>
+                    <!-- HAFTALIK ÖNEMLİ REFERANSLAR (TK2 montaj, kullanıcı 2026-10-08): kağıtta
+                         tutulan haftalık pano — gün gün üretilecek mekanizma, eksik parça notu,
+                         bitince üstü çizili. Yalnız montaj sekmesi + TK2'de görünür. -->
+                    <div id="hp-alan" class="hp-alan" style="display:none">
+                        <div class="hp-ust">
+                            <b>📅 Haftalık önemli referanslar</b>
+                            <span class="hp-alt">gün gün üretilecek mekanizmalar · eksik parça notu · bitince ✓</span>
+                            <div class="hp-nav">
+                                <button class="btn btn-ghost" onclick="hpHafta(-1)">◀ Önceki</button>
+                                <button class="btn btn-ghost" onclick="hpHafta(0)">Bu hafta</button>
+                                <button class="btn btn-ghost" onclick="hpHafta(1)">Sonraki ▶</button>
+                                <label class="hp-cmt"><input type="checkbox" id="hp-cmt" onchange="hpCmtDegis(this.checked)"> <span>Cumartesi</span></label>
+                            </div>
+                        </div>
+                        <div id="hp-devreden"></div>
+                        <div id="hp-haftalar"></div>
+                        <datalist id="hp-ref-liste"></datalist>
+                    </div>
                     <!-- Ekleme Formu -->
                     <div class="rt-form">
                         <div>
@@ -12438,10 +12506,187 @@ window.__I18N_SOZLUK__ = {
             bolumDegistir(b);   // aktifBolum'u değiştirir + is-yonetimi sayfasındaysa paneli yeniler
         }
 
+        // ═══ HAFTALIK ÖNEMLİ REFERANSLAR (TK2 montaj, kullanıcı 2026-10-08) ═══
+        // "Eksik malzemesi gelecek ürünlerin gününe göre hangi gün üreteceğimizi gün gün
+        //  not alayım; yarın ne üretilmesi gerekli/önemli o referansı o güne atayabileyim;
+        //  eksiği gelecek parça için de mekanizma için not düşebileyim." Kağıttaki pano:
+        // iki hafta × iş günü sütunu; kart = kod · adet · ⏳ eksik parça · not; ✓ = üstü çizili.
+        var _hp = { bas: null, satirlar: [], devreden: [], bugun: '', duzen: null, refYuklendi: false };
+        var HP_GUN_AD = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+        var HP_KARAR = { 'TALIMAT VER': 'malzeme tam', 'KISMI': 'malzeme kısmi', 'MALZEME YOK': 'malzeme yok',
+                         'LAUNCH VAR': 'launch’ta', 'GEREK YOK': 'açık ihtiyaç yok', 'KONTROL DISI': 'kontrol dışı' };
+        function hpAcikMi() { return aktifBolum === 'montaj' && aktifLokasyon === 'TK2'; }
+        function hpTarih(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+        function hpGunEkle(s, n) { var x = hpTarih(s); x.setDate(x.getDate() + n); return isoTarih(x); }
+        function hpPazartesi(dt) { var x = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+                                   x.setDate(x.getDate() - (x.getDay() + 6) % 7); return isoTarih(x); }
+        function hpKisa(s) { var p = String(s).split('-'); return p[2] + '.' + p[1]; }
+        function hpHaftaNo(s) {     // ISO 8601 hafta numarası
+            var x = hpTarih(s); x.setDate(x.getDate() + 3 - (x.getDay() + 6) % 7);
+            var ilk = new Date(x.getFullYear(), 0, 4);
+            return 1 + Math.round(((x - ilk) / 86400000 - 3 + (ilk.getDay() + 6) % 7) / 7);
+        }
+        function hpCmt() { try { return localStorage.getItem('hp_cmt') === '1'; } catch (e) { return false; } }
+        function hpCmtDegis(v) { try { localStorage.setItem('hp_cmt', v ? '1' : '0'); } catch (e) {} hpCiz(); }
+        // Bir iş günü ileri/geri (pazar hep, cumartesi kapalıysa o da atlanır)
+        function hpIsGunu(s, yon) {
+            var t = s;
+            do { t = hpGunEkle(t, yon); } while ((hpTarih(t).getDay() === 0) || (!hpCmt() && hpTarih(t).getDay() === 6));
+            return t;
+        }
+        function hpHafta(yon) {
+            _hp.bas = yon === 0 ? hpPazartesi(new Date()) : hpGunEkle(_hp.bas || hpPazartesi(new Date()), 7 * yon);
+            _hp.duzen = null;
+            hpYukle();
+        }
+        function hpYukle() {
+            var alan = document.getElementById('hp-alan');
+            if (!alan) return Promise.resolve();
+            if (!hpAcikMi()) { alan.style.display = 'none'; return Promise.resolve(); }
+            alan.style.display = '';
+            if (!_hp.bas) _hp.bas = hpPazartesi(new Date());
+            var cb = document.getElementById('hp-cmt'); if (cb) cb.checked = hpCmt();
+            if (!_hp.refYuklendi) {       // kod önerileri: TK2 montaj referansları (bir kez)
+                _hp.refYuklendi = true;
+                fetch('/api/referanslar?bolum=montaj&lokasyon=TK2').then(function (r) { return r.json(); }).then(function (l) {
+                    var dl = document.getElementById('hp-ref-liste');
+                    if (dl && Array.isArray(l)) dl.innerHTML = l.map(function (x) { return '<option value="' + esc(x.referans_kodu) + '">'; }).join('');
+                }).catch(function () { _hp.refYuklendi = false; });
+            }
+            var kutu = document.getElementById('hp-haftalar');
+            return fetch('/api/haftalik_plan?bolum=montaj&lokasyon=TK2&gun=14&bas=' + _hp.bas)
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (res) {
+                    if (!res.ok) throw new Error(res.j.hata || 'HTTP hata');
+                    _hp.satirlar = res.j.satirlar || []; _hp.devreden = res.j.devreden || [];
+                    _hp.bugun = res.j.bugun || isoTarih(new Date()); _hp.bas = res.j.bas || _hp.bas;
+                    hpCiz();
+                }).catch(function (e) {
+                    if (kutu) kutu.innerHTML = yuklemeHataSatiri(1, e.message, 'hpYukle()').replace(/<\/?t[rd][^>]*>/g, '');
+                });
+        }
+        function hpCiz() {
+            var kutu = document.getElementById('hp-haftalar'); if (!kutu || !_hp.bas) return;
+            var gunSay = hpCmt() ? 6 : 5, gunler = {};
+            _hp.satirlar.forEach(function (s) { (gunler[s.tarih] = gunler[s.tarih] || []).push(s); });
+            var h = '';
+            for (var w = 0; w < 2; w++) {
+                var pzt = hpGunEkle(_hp.bas, 7 * w);
+                h += '<div class="hp-hafta-bas">' + hpHaftaNo(pzt) + '. hafta · ' + hpKisa(pzt) + ' – ' + hpKisa(hpGunEkle(pzt, gunSay - 1)) + '</div>' +
+                     '<div class="hp-izgara" style="grid-template-columns:repeat(' + gunSay + ',minmax(170px,1fr))">';
+                for (var i = 0; i < gunSay; i++) {
+                    var t = hpGunEkle(pzt, i), liste = gunler[t] || [];
+                    var biten = liste.filter(function (s) { return s.durum === 'tamam'; }).length;
+                    h += '<div class="hp-gun' + (t === _hp.bugun ? ' bugun' : (t < _hp.bugun ? ' gecmis' : '')) + '">' +
+                         '<div class="hp-gun-bas"><span><span>' + HP_GUN_AD[i] + '</span> ' + hpKisa(t) + '</span>' +
+                            '<span title="biten / toplam">' + (liste.length ? biten + '/' + liste.length : '') + '</span></div>' +
+                         liste.map(hpKartHtml).join('') +
+                         '<div class="hp-ekle">' +
+                            '<input class="hp-e-ref" id="hp-e-ref-' + t + '" list="hp-ref-liste" placeholder="kod" ' +
+                                'onkeydown="if(event.key===\'Enter\')hpEkle(\'' + t + '\')">' +
+                            '<input class="hp-e-adet" id="hp-e-adet-' + t + '" type="number" min="0" placeholder="adet" ' +
+                                'onkeydown="if(event.key===\'Enter\')hpEkle(\'' + t + '\')">' +
+                            '<button class="btn btn-ghost" title="Bu güne ekle" onclick="hpEkle(\'' + t + '\')">＋</button></div>' +
+                         '</div>';
+                }
+                h += '</div>';
+            }
+            kutu.innerHTML = h;
+            var dv = document.getElementById('hp-devreden');
+            if (dv) dv.innerHTML = _hp.devreden.length
+                ? '<div class="hp-devir"><b>⏮ Önceki günlerden kalan (' + _hp.devreden.length + '):</b>' +
+                  _hp.devreden.map(function (s) {
+                      return '<span class="hp-chip">' + esc(s.referans_kodu) + (s.adet != null ? ' · ' + fmt(s.adet) : '') +
+                          ' · ' + hpKisa(s.tarih) + (s.eksik_parca ? ' · ⏳ ' + esc(s.eksik_parca) : '') +
+                          ' <button onclick="hpTasi(' + s.id + ',_hp.bugun)" title="Bugünün sütununa taşı">bugüne al</button>' +
+                          '<button onclick="hpTamam(' + s.id + ')" title="Üretildi — kapat">✓</button></span>';
+                  }).join('') + '</div>'
+                : '';
+            if (_hp.duzen) { var el = document.getElementById('hp-d-ref'); if (el) el.focus(); }
+        }
+        function hpKartHtml(s) {
+            if (_hp.duzen === s.id) return hpDuzenHtml(s);
+            var p = s.plan, tamam = s.durum === 'tamam';
+            var pm = p ? (HP_KARAR[p.karar] || p.karar || '') +
+                         (p.kisitlayan && (p.karar === 'MALZEME YOK' || p.karar === 'KISMI') ? ' · kısıtlayan ' + p.kisitlayan : '') : '';
+            return '<div class="hp-kart' + (tamam ? ' tamam' : (s.eksik_parca ? ' eksik' : '')) + '" onclick="hpDuzenAc(' + s.id + ')" title="Düzenlemek için tıklayın">' +
+                '<button class="hp-tik" onclick="event.stopPropagation();hpTamam(' + s.id + ')" title="' +
+                    (tamam ? 'Geri al' : 'Üretildi — üstünü çiz') + '">' + (tamam ? '↺' : '✓') + '</button>' +
+                '<div><span class="hp-kod">' + esc(s.referans_kodu) + '</span>' +
+                    (s.adet != null ? ' · <b>' + fmt(s.adet) + '</b> ad' : '') + '</div>' +
+                (s.eksik_parca ? '<div class="hp-eksik" title="Gelmesi beklenen parça">⏳ ' + esc(s.eksik_parca) + '</div>' : '') +
+                (s.notu ? '<div>' + esc(s.notu) + '</div>' : '') +
+                (s.uretilen > 0 ? '<div class="hp-bilgi" style="color:var(--success)" title="O gün üretim kayıtlarına girilen">üretilen ' + fmt(s.uretilen) + '</div>' : '') +
+                (pm ? '<div class="hp-bilgi" title="Montaj planı (AS400) — son ölçüm">' + esc(pm) + '</div>' : '') +
+                (s.tanimli === false ? '<div class="hp-bilgi" style="color:var(--warn)">referans listesinde yok</div>' : '') +
+                '</div>';
+        }
+        function hpDuzenHtml(s) {
+            return '<div class="hp-duzen">' +
+                '<input id="hp-d-ref" list="hp-ref-liste" value="' + esc(s.referans_kodu) + '" placeholder="referans" onkeydown="if(event.key===\'Enter\')hpKaydet(' + s.id + ')">' +
+                '<input id="hp-d-adet" type="number" min="0" value="' + (s.adet == null ? '' : s.adet) + '" placeholder="adet">' +
+                '<input id="hp-d-eksik" value="' + esc(s.eksik_parca || '') + '" placeholder="eksik / gelecek parça (ör. 30.846367A)">' +
+                '<input id="hp-d-not" value="' + esc(s.notu || '') + '" placeholder="not">' +
+                '<input id="hp-d-tarih" type="date" value="' + esc(s.tarih) + '" title="Üretim günü">' +
+                '<div class="hp-dbtn">' +
+                    '<button class="btn btn-primary" onclick="hpKaydet(' + s.id + ')">Kaydet</button>' +
+                    '<button class="btn btn-ghost" title="Bir iş günü önceye" onclick="hpTasi(' + s.id + ',hpIsGunu(\'' + s.tarih + '\',-1))">◀</button>' +
+                    '<button class="btn btn-ghost" title="Bir iş günü sonraya" onclick="hpTasi(' + s.id + ',hpIsGunu(\'' + s.tarih + '\',1))">▶</button>' +
+                    '<button class="btn btn-ghost" onclick="hpDuzenKapat()">Vazgeç</button>' +
+                    '<button class="btn btn-ghost" style="color:var(--danger)" onclick="hpSil(' + s.id + ')">Sil</button>' +
+                '</div></div>';
+        }
+        function hpBul(id) {
+            return _hp.satirlar.concat(_hp.devreden).filter(function (s) { return s.id === id; })[0];
+        }
+        function hpIstek(yol, yontem, govde) {
+            return fetch(yol, { method: yontem, headers: { 'Content-Type': 'application/json' },
+                                body: govde ? JSON.stringify(govde) : undefined })
+                .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.hata || ('HTTP ' + r.status)); return j; }); });
+        }
+        function hpEkle(t) {
+            var r = document.getElementById('hp-e-ref-' + t), a = document.getElementById('hp-e-adet-' + t);
+            var kod = ((r && r.value) || '').trim();
+            if (!kod) { if (r) r.focus(); return; }
+            hpIstek('/api/haftalik_plan', 'POST', { tarih: t, referans_kodu: kod, adet: a ? a.value : '',
+                                                    bolum: 'montaj', lokasyon: 'TK2' })
+                .then(function () { return hpYukle(); })
+                .then(function () { var y = document.getElementById('hp-e-ref-' + t); if (y) y.focus(); })
+                .catch(function (e) { toast(e.message, 'err'); });
+        }
+        function hpDuzenAc(id) { _hp.duzen = id; hpCiz(); }
+        function hpDuzenKapat() { _hp.duzen = null; hpCiz(); }
+        function hpKaydet(id) {
+            var g = function (k) { var e = document.getElementById(k); return e ? e.value : ''; };
+            hpIstek('/api/haftalik_plan/' + id, 'PATCH', { referans_kodu: g('hp-d-ref'), adet: g('hp-d-adet'),
+                     eksik_parca: g('hp-d-eksik'), notu: g('hp-d-not'), tarih: g('hp-d-tarih') })
+                .then(function () { _hp.duzen = null; return hpYukle(); })
+                .catch(function (e) { toast(e.message, 'err'); });
+        }
+        function hpTasi(id, t) {
+            hpIstek('/api/haftalik_plan/' + id, 'PATCH', { tarih: t })
+                .then(function () { _hp.duzen = null; return hpYukle(); })
+                .catch(function (e) { toast(e.message, 'err'); });
+        }
+        function hpTamam(id) {
+            var s = hpBul(id); if (!s) return;
+            hpIstek('/api/haftalik_plan/' + id, 'PATCH', { durum: s.durum === 'tamam' ? 'bekliyor' : 'tamam' })
+                .then(function () { return hpYukle(); })
+                .catch(function (e) { toast(e.message, 'err'); });
+        }
+        function hpSil(id) {
+            var s = hpBul(id);
+            if (!confirm((s ? s.referans_kodu + ' ' : '') + 'panodan silinsin mi?')) return;
+            hpIstek('/api/haftalik_plan/' + id, 'DELETE')
+                .then(function () { _hp.duzen = null; return hpYukle(); })
+                .catch(function (e) { toast(e.message, 'err'); });
+        }
+
         // Sıra numarası: bölüm hızlı değiştirilince eski yanıt yenisinin üstüne yazmasın
         var _rtIstekNo = 0;
         async function yukleRefTakipPanel() {
             const istek = ++_rtIstekNo;
+            try { hpYukle(); } catch (e) { console.error(e); }      // haftalık pano (montaj/TK2)
             const tb0 = document.getElementById('ref-takip-tbody');
             if (tb0 && !tb0.querySelector('tr')) tb0.innerHTML = '<tr><td colspan="9"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
             try {

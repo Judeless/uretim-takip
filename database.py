@@ -1563,6 +1563,30 @@ def init_db(_ikinci_tur=False):
     except Exception as e:
         print(f'[db] ix_ref_norm olusturulamadi: {e}')
 
+    # HAFTALIK ÖNEMLİ REFERANSLAR (kullanıcı 2026-10-08, TK2 montaj): "eksik malzemesi
+    # gelecek ürünlerin gününe göre hangi gün üreteceğimizi gün gün not alayım; eksiği
+    # gelecek parça için de mekanizma için not düşebileyim" — kağıtta tutulan haftalık
+    # pano. tarih = planlanan üretim günü; durum bekliyor | tamam (kağıtta üstü çizili).
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS haftalik_plan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tarih TEXT NOT NULL,
+            referans_kodu TEXT NOT NULL,
+            adet INTEGER,
+            eksik_parca TEXT DEFAULT '',
+            notu TEXT DEFAULT '',
+            durum TEXT NOT NULL DEFAULT 'bekliyor',
+            sira INTEGER DEFAULT 0,
+            bolum TEXT NOT NULL DEFAULT 'montaj',
+            lokasyon TEXT NOT NULL DEFAULT 'TK2',
+            olusturan TEXT DEFAULT '',
+            guncelleyen TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS ix_haftalik_plan ON haftalik_plan(bolum, lokasyon, tarih)')
+
     # DURUŞ SEBEBİ — PANELDEN (kullanıcı 2026-09-16): "robot kaynak için ekstra bir
     # duruş tanımlamak istiyorum, her seferinde Excel'e yazıp oradan güncellemek zor
     # oluyor." Sebepler Excel sayfalarından okunuyordu (Duruş Listesi); buraya eklenen

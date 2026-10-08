@@ -9916,6 +9916,181 @@ def referans_takip_ekle():
         print(f"HATA (referans_takip_ekle): {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
+# ── HAFTALIK ÖNEMLİ REFERANSLAR (TK2 montaj, kullanıcı 2026-10-08) ──────────
+# İş Yönetimi'nde gün gün pano: hangi mekanizma hangi gün üretilecek, eksiği gelecek
+# parça notu, bitince üstü çizili (durum 'tamam'). Kart, o gün GERÇEKTEN üretilen
+# adedi (üretim kayıtları) ve montaj planındaki malzeme durumunu da gösterir.
+_HP_TARIH = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
+def _hp_norm(k):
+    return re.sub(r'\s', '', str(k or '')).upper()
+
+
+def _hp_kullanici():
+    ku = getattr(g, 'panel_ku', None) or {}
+    return ku.get('ad_soyad') or ku.get('kullanici_adi') or ''
+
+
+def _hp_alanlar(data, kismi):
+    """İstek gövdesinden doğrulanmış alanlar. kismi=True → yalnız gelenler."""
+    out = {}
+    if 'tarih' in data or not kismi:
+        t = str(data.get('tarih') or '').strip()
+        if not _HP_TARIH.match(t):
+            raise ValueError('Geçerli bir gün seçin')
+        out['tarih'] = t
+    if 'referans_kodu' in data or not kismi:
+        r = str(data.get('referans_kodu') or '').strip()
+        if not r or len(r) > 60:
+            raise ValueError('Referans kodu gerekli')
+        out['referans_kodu'] = r
+    if 'adet' in data:
+        v = data.get('adet')
+        if v in (None, ''):
+            out['adet'] = None
+        else:
+            try:
+                v = int(round(float(v)))
+            except (TypeError, ValueError):
+                raise ValueError('Adet sayı olmalı')
+            if not (0 <= v <= 1_000_000):
+                raise ValueError('Adet geçersiz')
+            out['adet'] = v
+    for alan, uz in (('eksik_parca', 200), ('notu', 500)):
+        if alan in data:
+            out[alan] = str(data.get(alan) or '').strip()[:uz]
+    if 'durum' in data:
+        dv = str(data.get('durum') or '')
+        if dv not in ('bekliyor', 'tamam'):
+            raise ValueError('Geçersiz durum')
+        out['durum'] = dv
+    return out
+
+
+@app.route('/api/haftalik_plan', methods=['GET'])
+@panel_gerekli(izin='is-yonetimi')
+def haftalik_plan_liste():
+    """?bas=YYYY-MM-DD (pazartesi; yoksa bu hafta) &gun=14 &bolum=montaj &lokasyon=TK2
+    → {bas, bit, bugun, satirlar, devreden}. devreden = bas'tan önceki 28 günde
+    bitmemiş kalanlar (kağıtta bir sonraki haftaya yeniden yazılanlar)."""
+    bolum = (request.args.get('bolum') or 'montaj').strip()
+    lok = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
+    bugun = date.today()
+    try:
+        bas = date.fromisoformat(request.args.get('bas') or '')
+    except ValueError:
+        bas = bugun - timedelta(days=bugun.weekday())
+    try:
+        gun = max(7, min(28, int(request.args.get('gun') or 14)))
+    except ValueError:
+        gun = 14
+    bit = bas + timedelta(days=gun - 1)
+    conn = get_db()
+    satirlar = [dict(r) for r in conn.execute(
+        "SELECT * FROM haftalik_plan WHERE bolum=? AND lokasyon=? AND tarih BETWEEN ? AND ? "
+        "ORDER BY tarih, sira, id", (bolum, lok, bas.isoformat(), bit.isoformat()))]
+    devreden = [dict(r) for r in conn.execute(
+        "SELECT * FROM haftalik_plan WHERE bolum=? AND lokasyon=? AND durum='bekliyor' "
+        "AND tarih < ? AND tarih >= ? ORDER BY tarih, sira, id",
+        (bolum, lok, bas.isoformat(), (bas - timedelta(days=28)).isoformat()))]
+    hepsi = satirlar + devreden
+    if hepsi:
+        # O gün GERÇEKTEN üretilen (kod normalize: operatörün boşluklu/küçük yazımı)
+        en_eski = min(s['tarih'] for s in hepsi)
+        uretim = {}
+        for r in conn.execute(
+                "SELECT v.tarih t, u.referans_kodu k, SUM(COALESCE(u.ok_adet,0)) n "
+                "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id=u.vardiya_id "
+                "WHERE v.tarih BETWEEN ? AND ? AND COALESCE(v.bolum,'kaynak')=? "
+                "AND COALESCE(v.lokasyon,'TK2')=? GROUP BY v.tarih, u.referans_kodu",
+                (en_eski, bit.isoformat(), bolum, lok)):
+            anahtar = (r['t'], _hp_norm(r['k']))
+            uretim[anahtar] = uretim.get(anahtar, 0) + (r['n'] or 0)
+        kodlar = {_hp_norm(s['referans_kodu']) for s in hepsi}
+        plan = {}
+        if bolum == 'montaj' and lok == 'TK2':
+            try:
+                for r in conn.execute("SELECT kaynak_kod, karar, uretilebilir, emir_gereken, kisitlayan "
+                                      "FROM montaj_plan WHERE aktif=1"):
+                    if _hp_norm(r['kaynak_kod']) in kodlar:
+                        plan[_hp_norm(r['kaynak_kod'])] = dict(r)
+            except Exception:
+                pass                       # plan tablosu yoksa (markalı kurulum) bilgi yok
+        tanimli = {_hp_norm(r['referans_kodu']) for r in conn.execute(
+            "SELECT referans_kodu FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
+            "AND COALESCE(lokasyon,'TK2')=?", (bolum, lok))}
+        for s in hepsi:
+            n = _hp_norm(s['referans_kodu'])
+            s['uretilen'] = uretim.get((s['tarih'], n), 0)
+            s['plan'] = plan.get(n)
+            s['tanimli'] = n in tanimli
+    return jsonify({'bas': bas.isoformat(), 'bit': bit.isoformat(), 'bugun': bugun.isoformat(),
+                    'satirlar': satirlar, 'devreden': devreden})
+
+
+@app.route('/api/haftalik_plan', methods=['POST'])
+@panel_gerekli(izin='is-yonetimi')
+def haftalik_plan_ekle():
+    data = request.get_json(silent=True) or {}
+    try:
+        f = _hp_alanlar(data, kismi=False)
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    bolum = (data.get('bolum') or 'montaj').strip()
+    if bolum not in GECERLI_BOLUMLER:
+        return jsonify({'hata': 'Geçersiz bölüm'}), 400
+    lok = (data.get('lokasyon') or 'TK2').strip() or 'TK2'
+    conn = get_db()
+    sira = conn.execute("SELECT COALESCE(MAX(sira),0)+1 FROM haftalik_plan WHERE bolum=? AND lokasyon=? "
+                        "AND tarih=?", (bolum, lok, f['tarih'])).fetchone()[0]
+    cur = conn.execute(
+        "INSERT INTO haftalik_plan (tarih, referans_kodu, adet, eksik_parca, notu, sira, bolum, lokasyon, "
+        "olusturan, guncelleyen) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (f['tarih'], f['referans_kodu'], f.get('adet'), f.get('eksik_parca', ''), f.get('notu', ''),
+         sira, bolum, lok, _hp_kullanici(), _hp_kullanici()))
+    conn.commit()
+    return jsonify({'ok': True, 'id': cur.lastrowid}), 201
+
+
+@app.route('/api/haftalik_plan/<int:hid>', methods=['PATCH'])
+@panel_gerekli(izin='is-yonetimi')
+def haftalik_plan_guncelle(hid):
+    data = request.get_json(silent=True) or {}
+    try:
+        f = _hp_alanlar(data, kismi=True)
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    conn = get_db()
+    mevcut = conn.execute("SELECT * FROM haftalik_plan WHERE id=?", (hid,)).fetchone()
+    if not mevcut:
+        return jsonify({'hata': 'Kayıt bulunamadı'}), 404
+    if 'tarih' in f and f['tarih'] != mevcut['tarih']:
+        # Başka güne taşınan kart o günün SONUNA eklenir
+        f['sira'] = conn.execute("SELECT COALESCE(MAX(sira),0)+1 FROM haftalik_plan WHERE bolum=? "
+                                 "AND lokasyon=? AND tarih=?",
+                                 (mevcut['bolum'], mevcut['lokasyon'], f['tarih'])).fetchone()[0]
+    if not f:
+        return jsonify({'ok': True, 'degisen': 0})
+    f['guncelleyen'] = _hp_kullanici()
+    kolonlar = ', '.join(f'{k}=?' for k in f)
+    conn.execute(f"UPDATE haftalik_plan SET {kolonlar}, updated_at=datetime('now','localtime') WHERE id=?",
+                 list(f.values()) + [hid])
+    conn.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/haftalik_plan/<int:hid>', methods=['DELETE'])
+@panel_gerekli(izin='is-yonetimi')
+def haftalik_plan_sil(hid):
+    conn = get_db()
+    n = conn.execute("DELETE FROM haftalik_plan WHERE id=?", (hid,)).rowcount
+    conn.commit()
+    if not n:
+        return jsonify({'hata': 'Kayıt bulunamadı'}), 404
+    return jsonify({'ok': True})
+
+
 @app.route('/api/referans_takip/<int:id>', methods=['PATCH'])
 @panel_gerekli(izin='is-yonetimi')
 def referans_takip_guncelle(id):
