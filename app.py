@@ -9920,6 +9920,7 @@ def referans_takip_ekle():
 # İş Yönetimi'nde gün gün pano: hangi mekanizma hangi gün üretilecek, eksiği gelecek
 # parça notu, bitince üstü çizili (durum 'tamam'). Kart, o gün GERÇEKTEN üretilen
 # adedi (üretim kayıtları) ve montaj planındaki malzeme durumunu da gösterir.
+# tarih='' = henüz güne atanmamış (panelde yan bölmede bekler, güne sürüklenir).
 _HP_TARIH = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
@@ -9937,9 +9938,9 @@ def _hp_alanlar(data, kismi):
     out = {}
     if 'tarih' in data or not kismi:
         t = str(data.get('tarih') or '').strip()
-        if not _HP_TARIH.match(t):
+        if t and not _HP_TARIH.match(t):
             raise ValueError('Geçerli bir gün seçin')
-        out['tarih'] = t
+        out['tarih'] = t                   # '' = atanmamış
     if 'referans_kodu' in data or not kismi:
         r = str(data.get('referans_kodu') or '').strip()
         if not r or len(r) > 60:
@@ -9972,8 +9973,9 @@ def _hp_alanlar(data, kismi):
 @panel_gerekli(izin='is-yonetimi')
 def haftalik_plan_liste():
     """?bas=YYYY-MM-DD (pazartesi; yoksa bu hafta) &gun=14 &bolum=montaj &lokasyon=TK2
-    → {bas, bit, bugun, satirlar, devreden}. devreden = bas'tan önceki 28 günde
-    bitmemiş kalanlar (kağıtta bir sonraki haftaya yeniden yazılanlar)."""
+    → {bas, bit, bugun, satirlar, devreden, havuz}. devreden = bas'tan önceki 28 günde
+    bitmemiş kalanlar (kağıtta bir sonraki haftaya yeniden yazılanlar); havuz = güne
+    henüz atanmamışlar (tarih='')."""
     bolum = (request.args.get('bolum') or 'montaj').strip()
     lok = (request.args.get('lokasyon') or 'TK2').strip() or 'TK2'
     bugun = date.today()
@@ -9994,20 +9996,38 @@ def haftalik_plan_liste():
         "SELECT * FROM haftalik_plan WHERE bolum=? AND lokasyon=? AND durum='bekliyor' "
         "AND tarih < ? AND tarih >= ? ORDER BY tarih, sira, id",
         (bolum, lok, bas.isoformat(), (bas - timedelta(days=28)).isoformat()))]
-    hepsi = satirlar + devreden
+    havuz = [dict(r) for r in conn.execute(
+        "SELECT * FROM haftalik_plan WHERE bolum=? AND lokasyon=? AND tarih='' ORDER BY sira, id",
+        (bolum, lok))]
+    hepsi = satirlar + devreden + havuz
     if hepsi:
         # O gün GERÇEKTEN üretilen (kod normalize: operatörün boşluklu/küçük yazımı)
-        en_eski = min(s['tarih'] for s in hepsi)
+        tarihli = [s['tarih'] for s in hepsi if s['tarih']]
         uretim = {}
-        for r in conn.execute(
-                "SELECT v.tarih t, u.referans_kodu k, SUM(COALESCE(u.ok_adet,0)) n "
-                "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id=u.vardiya_id "
-                "WHERE v.tarih BETWEEN ? AND ? AND COALESCE(v.bolum,'kaynak')=? "
-                "AND COALESCE(v.lokasyon,'TK2')=? GROUP BY v.tarih, u.referans_kodu",
-                (en_eski, bit.isoformat(), bolum, lok)):
-            anahtar = (r['t'], _hp_norm(r['k']))
-            uretim[anahtar] = uretim.get(anahtar, 0) + (r['n'] or 0)
-        kodlar = {_hp_norm(s['referans_kodu']) for s in hepsi}
+        if tarihli:
+            for r in conn.execute(
+                    "SELECT v.tarih t, u.referans_kodu k, SUM(COALESCE(u.ok_adet,0)) n "
+                    "FROM uretim_kayitlari u JOIN vardiyalar v ON v.id=u.vardiya_id "
+                    "WHERE v.tarih BETWEEN ? AND ? AND COALESCE(v.bolum,'kaynak')=? "
+                    "AND COALESCE(v.lokasyon,'TK2')=? GROUP BY v.tarih, u.referans_kodu",
+                    (min(tarihli), bit.isoformat(), bolum, lok)):
+                anahtar = (r['t'], _hp_norm(r['k']))
+                uretim[anahtar] = uretim.get(anahtar, 0) + (r['n'] or 0)
+        tanimli = {}
+        for r in conn.execute("SELECT referans_kodu FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
+                              "AND COALESCE(lokasyon,'TK2')=?", (bolum, lok)):
+            tanimli.setdefault(_hp_norm(r['referans_kodu']), str(r['referans_kodu']).strip())
+        # Kağıttaki gibi KISA yazılan kod (LTK.685 → 94.LTK.685): listede '.'+kod ile
+        # biten TEK referans varsa ona çözülür (üretilen + plan onun üstünden okunur).
+        cozum = {}
+        for n in {_hp_norm(s['referans_kodu']) for s in hepsi}:
+            if n in tanimli:
+                cozum[n] = n
+            elif n:
+                aday = [k for k in tanimli if k.endswith('.' + n)]
+                if len(aday) == 1:
+                    cozum[n] = aday[0]
+        kodlar = set(cozum.values()) | {_hp_norm(s['referans_kodu']) for s in hepsi}
         plan = {}
         if bolum == 'montaj' and lok == 'TK2':
             try:
@@ -10017,16 +10037,15 @@ def haftalik_plan_liste():
                         plan[_hp_norm(r['kaynak_kod'])] = dict(r)
             except Exception:
                 pass                       # plan tablosu yoksa (markalı kurulum) bilgi yok
-        tanimli = {_hp_norm(r['referans_kodu']) for r in conn.execute(
-            "SELECT referans_kodu FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
-            "AND COALESCE(lokasyon,'TK2')=?", (bolum, lok))}
         for s in hepsi:
             n = _hp_norm(s['referans_kodu'])
-            s['uretilen'] = uretim.get((s['tarih'], n), 0)
-            s['plan'] = plan.get(n)
-            s['tanimli'] = n in tanimli
+            c = cozum.get(n, n)
+            s['uretilen'] = uretim.get((s['tarih'], c), 0) if s['tarih'] else 0
+            s['plan'] = plan.get(c)
+            s['tanimli'] = n in cozum
+            s['cozulen'] = tanimli[c] if (n in cozum and c != n) else ''
     return jsonify({'bas': bas.isoformat(), 'bit': bit.isoformat(), 'bugun': bugun.isoformat(),
-                    'satirlar': satirlar, 'devreden': devreden})
+                    'satirlar': satirlar, 'devreden': devreden, 'havuz': havuz})
 
 
 @app.route('/api/haftalik_plan', methods=['POST'])
@@ -10061,21 +10080,36 @@ def haftalik_plan_guncelle(hid):
         f = _hp_alanlar(data, kismi=True)
     except ValueError as e:
         return jsonify({'hata': str(e)}), 400
+    # sira_idler: sürükle-bırakta hedef günün (ya da atanmamışların) YENİ sırası
+    sira_idler = data.get('sira_idler')
+    if sira_idler is not None:
+        try:
+            if not isinstance(sira_idler, list) or len(sira_idler) > 300:
+                raise ValueError
+            sira_idler = [int(x) for x in sira_idler]
+        except (ValueError, TypeError):
+            return jsonify({'hata': 'Geçersiz sıra'}), 400
     conn = get_db()
     mevcut = conn.execute("SELECT * FROM haftalik_plan WHERE id=?", (hid,)).fetchone()
     if not mevcut:
         return jsonify({'hata': 'Kayıt bulunamadı'}), 404
     if 'tarih' in f and f['tarih'] != mevcut['tarih']:
-        # Başka güne taşınan kart o günün SONUNA eklenir
+        # Başka güne taşınan kart o günün SONUNA eklenir (sira_idler gelirse o geçerli)
         f['sira'] = conn.execute("SELECT COALESCE(MAX(sira),0)+1 FROM haftalik_plan WHERE bolum=? "
                                  "AND lokasyon=? AND tarih=?",
                                  (mevcut['bolum'], mevcut['lokasyon'], f['tarih'])).fetchone()[0]
-    if not f:
+    if not f and not sira_idler:
         return jsonify({'ok': True, 'degisen': 0})
-    f['guncelleyen'] = _hp_kullanici()
-    kolonlar = ', '.join(f'{k}=?' for k in f)
-    conn.execute(f"UPDATE haftalik_plan SET {kolonlar}, updated_at=datetime('now','localtime') WHERE id=?",
-                 list(f.values()) + [hid])
+    if f:
+        f['guncelleyen'] = _hp_kullanici()
+        kolonlar = ', '.join(f'{k}=?' for k in f)
+        conn.execute(f"UPDATE haftalik_plan SET {kolonlar}, updated_at=datetime('now','localtime') WHERE id=?",
+                     list(f.values()) + [hid])
+    if sira_idler:
+        hedef = f.get('tarih', mevcut['tarih'])
+        for i, x in enumerate(sira_idler, 1):     # yalnız aynı bölüm/tesis/gündekiler
+            conn.execute("UPDATE haftalik_plan SET sira=? WHERE id=? AND bolum=? AND lokasyon=? AND tarih=?",
+                         (i, x, mevcut['bolum'], mevcut['lokasyon'], hedef))
     conn.commit()
     return jsonify({'ok': True})
 
