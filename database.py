@@ -914,6 +914,17 @@ def init_db(_ikinci_tur=False):
                 'INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira, lokasyon) VALUES (?, ?, ?, ?, ?)',
                 (hat, 'montaj', 1, i, 'TK1')
             )
+        # TK1 ANDONU MASA BAZLI (2026-10-08): montaj masaları + tel Son Montaj masaları.
+        # Eski hat satırları (Pull …) geçmiş vardiyalar için kalır; sıraları masaların
+        # ARKASINA alınır (sira < 10 koşulu → bir kez çalışır).
+        for i, hat in enumerate(['MONTAJ - 1', 'MONTAJ - 2', 'MONTAJ - 3']):
+            c.execute('INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira, lokasyon) '
+                      'VALUES (?, ?, 1, ?, ?)', (hat, 'montaj', i, 'TK1'))
+        for i, hat in enumerate(['Son Montaj 4', 'Son Montaj 5']):
+            c.execute('INSERT OR IGNORE INTO andon_robot_ayarlari (robot_no, bolum, goster, sira, lokasyon) '
+                      'VALUES (?, ?, 1, ?, ?)', (hat, 'tel', i, 'TK1'))
+        c.execute("UPDATE andon_robot_ayarlari SET sira = sira + 10 WHERE COALESCE(lokasyon,'TK2')='TK1' "
+                  "AND bolum='montaj' AND robot_no IN ('Pull','Push-Pull','Iveco','LF-LFP') AND sira < 10")
     else:
         # Markalı kurulum: andon kartları profildeki makinelerden (bölüm sırasıyla)
         for _b, _liste in ((_kur.yukle().get('makineler') or {}).items()):

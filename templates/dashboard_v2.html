@@ -382,6 +382,7 @@
 
         /* Andon linkleri — bölüm rengiyle nokta */
         .andon-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin: 0 7px 0 6px; }
+        .nav-item.andon-baska-tesis { display: none !important; }
 
         .sidebar-footer { margin-top: auto; padding: 16px 22px 0; border-top: 1px solid var(--border); }
         .sidebar-footer a {
@@ -2515,6 +2516,18 @@ window.__I18N_SOZLUK__ = {
   "Robot Kaynak Andon": {
     "en": "Robot Welding Andon",
     "it": "Andon Saldatura robotizzata"
+  },
+  "Montaj + Son Montaj": {
+    "en": "Assembly + Final Assembly",
+    "it": "Assemblaggio + Assemblaggio finale"
+  },
+  "🧵 Son Montaj": {
+    "en": "🧵 Final Assembly",
+    "it": "🧵 Assemblaggio finale"
+  },
+  "Seçili bölümün andon ekranında hangi cihazların görüneceğini ve sırasını ayarlayın. Kaydet bastığında bu tesisin tüm bölümlerinin ayarları birden saklanır.": {
+    "en": "Set which devices appear on the selected department's Andon screen and their order. When you press Save, the settings of all departments of this plant are stored at once.",
+    "it": "Imposta quali dispositivi compaiono sullo schermo Andon del reparto selezionato e il loro ordine. Premendo Salva, le impostazioni di tutti i reparti di questo stabilimento vengono salvate insieme."
   },
   "Montaj Andon": {
     "en": "Assembly Andon",
@@ -5734,21 +5747,23 @@ window.__I18N_SOZLUK__ = {
                      'Cihaz & Sinyal' altındaydı, ekranlar ise ayrı gruptaydı. -->
                 <a class="nav-item" data-sayfa="andon-ayarlari" onclick="sayfaAc('andon-ayarlari')">
                     <span class="nav-icon">⚙️</span> Andon Ayarları</a>
+                <!-- TESİSE GÖRE (kullanıcı 2026-10-08): üst bardaki TK1/TK2 seçimine göre YALNIZ
+                     o fabrikanın andon ekranları görünür (data-andon-lok, lokasyonGorunum). -->
                 {% if bolum_var('kaynak') %}
-                <a class="nav-item" href="/andon" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Robot Kaynak andon (yeni sekme)">
-                    <span class="andon-dot" style="background:var(--b-kaynak)"></span> Kaynak <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                <a class="nav-item" href="/andon" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" data-andon-lok="TK2" title="Robot Kaynak andon (yeni sekme)">
+                    <span class="andon-dot" style="background:var(--b-kaynak)"></span> Robot Kaynak <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
                 {% endif %}
                 {% if bolum_var('montaj') %}
-                <a class="nav-item" href="/andon_montaj" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Montaj andon (yeni sekme)">
+                <a class="nav-item" href="/andon_montaj" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" data-andon-lok="TK2" title="Montaj andon (yeni sekme)">
                     <span class="andon-dot" style="background:var(--b-montaj)"></span> Montaj <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
                 {% endif %}
                 {% if bolum_var('metal') %}
-                <a class="nav-item" href="/andon_metal" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="Metal Enjeksiyon andon (yeni sekme)">
-                    <span class="andon-dot" style="background:var(--b-metal)"></span> Metal <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                <a class="nav-item" href="/andon_metal" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" data-andon-lok="TK2" title="Metal Enjeksiyon andon (yeni sekme)">
+                    <span class="andon-dot" style="background:var(--b-metal)"></span> Metal Enjeksiyon <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
                 {% endif %}
                 {% if modul('tk1') %}
-                <a class="nav-item" href="/andon_tk1" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" title="TK1 montaj andon (yeni sekme)">
-                    <span class="andon-dot" style="background:var(--b-montaj);opacity:.6"></span> TK1 <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
+                <a class="nav-item" href="/andon_tk1" target="_blank" rel="noopener" data-ext-izin="andon-ayarlari" data-andon-lok="TK1" title="TK1 montaj + son montaj andon (yeni sekme)">
+                    <span class="andon-dot" style="background:var(--b-montaj)"></span> Montaj + Son Montaj <span style="margin-left:auto;color:var(--dim);font-size:.75rem">↗</span></a>
                 {% endif %}
                 </div>
             </div>
@@ -6970,28 +6985,14 @@ window.__I18N_SOZLUK__ = {
                 <div class="panel-card">
                     <div class="panel-header" style="flex-wrap:wrap;gap:10px">
                         <h3>🤖 Robot / Hat / Makine Görünürlük Ayarları</h3>
-                        <div id="andon-bolum-tabs" style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:10px;border:1px solid var(--border)">
-                            <button type="button" data-bolum="kaynak" onclick="andonBolumDegistir('kaynak')"
-                                class="andon-bolum-tab active"
-                                style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);background:var(--grad-violet);color:#fff">
-                                🔧 Kaynak
-                            </button>
-                            <button type="button" data-bolum="montaj" onclick="andonBolumDegistir('montaj')"
-                                class="andon-bolum-tab"
-                                style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);background:transparent;color:var(--text)">
-                                🔩 Montaj
-                            </button>
-                            <button type="button" data-bolum="metal" onclick="andonBolumDegistir('metal')"
-                                class="andon-bolum-tab"
-                                style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);background:transparent;color:var(--text)">
-                                🏭 Metal
-                            </button>
-                        </div>
+                        <!-- Sekmeler TESİSE GÖRE yeniden çizilir (andonSekmeleriCiz): TK2 kaynak/montaj/
+                             metal, TK1 montaj + son montaj (tel bölümünün Son Montaj masaları). -->
+                        <div id="andon-bolum-tabs" style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:10px;border:1px solid var(--border)"></div>
                     </div>
                     <div style="padding:16px 20px">
                         <p style="font-size:.78rem;color:var(--muted);margin-bottom:16px">
                             Seçili bölümün andon ekranında hangi cihazların görüneceğini ve sırasını ayarlayın.
-                            Kaydet bastığında 3 bölümün de ayarları birden saklanır.
+                            Kaydet bastığında bu tesisin tüm bölümlerinin ayarları birden saklanır.
                         </p>
                         <div id="andon-robot-liste" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
                     </div>
@@ -9665,6 +9666,10 @@ window.__I18N_SOZLUK__ = {
             // beri iki bölümlü: montaj + plastik)
             document.getElementById('bolum-sec').style.display = (lokBolumleri().length > 1) ? '' : 'none';
             bolumSecGuncelle();   // üst bardaki seçici de lokasyona uymalı
+            // Andon menüsü: yalnız seçili fabrikanın ekranları (kullanıcı 2026-10-08)
+            document.querySelectorAll('.nav-item[data-andon-lok]').forEach(function (a) {
+                a.classList.toggle('andon-baska-tesis', a.getAttribute('data-andon-lok') !== aktifLokasyon);
+            });
         }
 
         function bolumDegistir(yeni) {
@@ -13469,7 +13474,27 @@ window.__I18N_SOZLUK__ = {
             'andon-dw-fs':     '0.78'
         };
 
+        // Andon ayar sekmeleri tesise göre (2026-10-08): TK1 ekranı montaj masaları +
+        // tel bölümünün Son Montaj masalarını birlikte gösterir → TK1'de bu iki sekme.
+        function andonSekmeleri() {
+            return aktifLokasyon === 'TK1'
+                ? [['montaj', '🔩 Montaj'], ['tel', '🧵 Son Montaj']]
+                : [['kaynak', '🔧 Kaynak'], ['montaj', '🔩 Montaj'], ['metal', '🏭 Metal']];
+        }
+        function andonSekmeleriCiz() {
+            var host = document.getElementById('andon-bolum-tabs'); if (!host) return;
+            var sek = andonSekmeleri();
+            if (!sek.some(function (s) { return s[0] === andonAktifBolum; })) andonAktifBolum = sek[0][0];
+            host.innerHTML = sek.map(function (s) {
+                return '<button type="button" data-bolum="' + s[0] + '" onclick="andonBolumDegistir(\'' + s[0] + '\')"' +
+                    ' class="andon-bolum-tab" style="padding:6px 14px;border:0;border-radius:7px;font-size:.78rem;font-weight:700;' +
+                    'cursor:pointer;font-family:var(--font-main);background:transparent;color:var(--text)">' + s[1] + '</button>';
+            }).join('');
+            andonBolumDegistir(andonAktifBolum);
+        }
+
         async function yukleAndonRobotlari() {
+            andonSekmeleriCiz();
             try {
                 const [robotRes, ayarRes] = await Promise.all([
                     fetch('/api/andon_robot_ayarlari'),   // bolum filtresi yoksa hepsi gelir
@@ -13585,10 +13610,11 @@ window.__I18N_SOZLUK__ = {
                     'andon_font_size': document.getElementById('andon-ref-fs').value // Geriye dönük uyumluluk
                 };
 
-                // 3 bolumun TUM cihazlarini tek flat array olarak gonder
+                // Tesisin TUM bölümlerinin cihazlarini tek flat array olarak gonder
                 // Backend her satira bolum bilgisini WHERE clause'da kullanir
+                // (lokasyon: fetch sarmalayıcısı ?lokasyon= ekler → TK1/TK2 ayrı güncellenir)
                 const tumCihazlar = [];
-                ['kaynak','montaj','metal'].forEach(b => {
+                andonSekmeleri().map(s => s[0]).forEach(b => {
                     (andonRobotVerisi[b] || []).forEach((r, i) => {
                         tumCihazlar.push({
                             robot_no: r.robot_no,

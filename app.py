@@ -3030,20 +3030,32 @@ def andon_tv_sayfasi():
     """
     HEDEFLER = {'kaynak': '/andon', 'montaj': '/andon_montaj',
                 'metal': '/andon_metal', 'tk1': '/andon_tk1'}
+    # Tarayıcı sekmesinin adı ekranı söylesin — eskiden hepsi 'Andon TV' idi
+    BASLIKLAR = {'kaynak': 'Robot Kaynak', 'montaj': 'Montaj',
+                 'metal': 'Metal Enjeksiyon', 'tk1': ANDON_TK1_AD}
     bolum = (request.args.get('bolum') or 'kaynak').strip().lower()
-    return render_template('andon_tv.html',
-                           hedef=HEDEFLER.get(bolum, HEDEFLER['kaynak']))
+    if bolum not in HEDEFLER:
+        bolum = 'kaynak'
+    return render_template('andon_tv.html', hedef=HEDEFLER[bolum], baslik=BASLIKLAR[bolum])
+
+
+# TK1 andonunun adı — panel menüsü, sekme başlığı ve TV kabuğu aynı adı kullanır
+ANDON_TK1_AD = 'TK1 Montaj + Son Montaj'
 
 
 @app.route('/andon_tk1')
 def andon_tk1_sayfasi():
-    """TK1 (yan tesis) Andon ekranı — montaj mantığı, lokasyon=TK1 (v5 tasarım)."""
+    """TK1 Andon ekranı — MONTAJ masaları + tel SON MONTAJ masaları (kullanıcı 2026-10-08:
+    "TK1 son montaj ve montaj bölümlerini içeren bir andon ekranı"). TK1'de masa/makine
+    vardiyada değil ÜRETİM KAYDINDA seçildiği için kartlar MASA bazlıdır (ekran='tk1',
+    bkz. _andon_tk1_kartlar). Adres değişmedi: TV'ler /andon_tv?bolum=tk1 ile açık kalır."""
     return render_template('andon_v5.html',
                            bolum='montaj',
                            lokasyon='TK1',
-                           bolum_ad='TK1 Montaj',
+                           ekran='tk1',
+                           bolum_ad=ANDON_TK1_AD,
                            bolum_ikon='🏢',
-                           panel_baslik='TK1 Hat Durum Paneli')
+                           panel_baslik='TK1 Masa Durum Paneli')
 
 
 @app.route('/andon_montaj_legacy')
@@ -10220,19 +10232,106 @@ def referans_takip_sil(id):
 # Bellekte tutulan kayan duyuru mesajı
 _andon_mesaj = {'metin': '', 'yazar': ''}
 
+# ── TK1 BİRLEŞİK ANDON (kullanıcı 2026-10-08) ─────────────────────────────
+# Montaj masaları (MONTAJ - 1..3) + tel Son Montaj masaları (Son Montaj 4/5) tek
+# ekranda. TK1'de vardiyanın hattı SABİT ('TK1 Montaj' / 'Tel Üretimi'), masa her
+# üretim kaydında istasyon numarasıyla seçilir → andon kartı vardiya değil MASA.
+def _andon_tk1_masa(v_bolum, istasyon):
+    """Üretim kaydının istasyon no'su → masa/makine adı ('' = çözülemedi)."""
+    try:
+        i = int(istasyon or 0)
+    except (TypeError, ValueError):
+        return ''
+    liste = TK1_MONTAJ_HATLARI if v_bolum == 'montaj' else TEL_HATLARI
+    return liste[i - 1] if 1 <= i <= len(liste) else ''
+
+
+def _andon_tk1_suz(vardiyalar, uretim_rows):
+    """Tel vardiyalarından YALNIZ Son Montaj kayıtları kalır (kapama/kesim bu
+    ekranın işi değil); Son Montaj kaydı olmayan tel vardiyası ekrana girmez."""
+    satirlar = {}
+    for u in uretim_rows:
+        satirlar.setdefault(u['vardiya_id'], []).append(u)
+    v_out, u_out = [], []
+    for v in vardiyalar:
+        rows = satirlar.get(v['id'], [])
+        if v['bolum'] == 'tel':
+            if v['robot_no'] == TEL_SABIT_HAT:
+                rows = [u for u in rows
+                        if tel_hat_adimi(_andon_tk1_masa('tel', u['istasyon'])) == 'Son Montaj']
+            elif tel_hat_adimi(v['robot_no']) != 'Son Montaj':   # eski: hat vardiyada
+                rows = []
+            if not rows:
+                continue
+        v_out.append(v)
+        u_out.extend(rows)
+    return v_out, u_out
+
+
+def _andon_tk1_kartlar(vardiyalar, uretim_rows, vardiya_durus_map):
+    """Açık vardiyalar → MASA kartları. Vardiyanın her masası ayrı kart; operatör
+    başka masaya geçmişse, işi bitmiş eski masa kartı gösterilmez (operatör orada
+    değil). Duruşlar vardiyaya ait → operatörün ŞU AN çalıştığı masanın kartında."""
+    kartlar = []
+    for v in vardiyalar:
+        if v['durum'] == 'kapali':
+            continue
+        rows = sorted((u for u in uretim_rows if u['vardiya_id'] == v['id']), key=lambda u: u['id'])
+        sabit = v['robot_no'] in (TK1_MONTAJ_SABIT_HAT, TEL_SABIT_HAT)
+        gruplar = {}
+        for u in rows:
+            masa = (_andon_tk1_masa(v['bolum'], u['istasyon']) if sabit else '') or v['robot_no']
+            gruplar.setdefault(masa, []).append(u)
+        acik = [u for u in rows if not u['tamamlandi']]
+        son = (acik or rows)[-1] if rows else None
+        aktif_masa = ((_andon_tk1_masa(v['bolum'], son['istasyon']) if sabit else '') or v['robot_no']) \
+            if son else v['robot_no']
+        if not gruplar:                    # vardiya açık, henüz kayıt yok: operatör görünsün
+            gruplar[v['robot_no']] = []
+        durus = vardiya_durus_map.get(v['id'], {'toplam_durus_dk': 0, 'durus_adet': 0, 'detay': []})
+        for masa, us in gruplar.items():
+            if masa != aktif_masa and us and all(u['tamamlandi'] for u in us):
+                continue
+            bu = masa == aktif_masa
+            kartlar.append({
+                'vardiya_id': v['id'], 'robot_no': masa, 'bolum': v['bolum'],
+                'sayac_cihaz': HAT_SAYAC_CIHAZI.get(masa, masa),
+                'operator': v['operator_adi'], 'vardiya': v['vardiya_turu'],
+                'baslangic': v['baslangic_saati'], 'bitis': v['bitis_saati'],
+                'istasyon_1': [], 'istasyon_2': [], 'atamalar': [],
+                'diger': [{'ref': u['referans_kodu'], 'launch': u['launch_adet'] or 0,
+                           'tamamlandi': 1 if u['tamamlandi'] else 0, 'teyit': 0, 'suresiz': 0,
+                           'ct': u['cycle_time_sn'] or 0, 'ok': u['ok_adet'] or 0,
+                           'test_cihaz': 1 if ('test_cihaz_id' in u.keys() and u['test_cihaz_id']) else 0}
+                          for u in us],
+                'durus_dk': durus['toplam_durus_dk'] if bu else 0,
+                'durus_adet': durus['durus_adet'] if bu else 0,
+                'durus_detay': durus['detay'] if bu else [],
+                'robotla_calisiyor': 0, 'pair_cycle': None,
+            })
+    return kartlar
+
+
 @app.route('/api/andon', methods=['GET'])
 def andon_veri():
-    """Andon TV için bugünün tüm üretim verilerini tek sorguda döndürür. ?bolum= ile filtrelenebilir."""
+    """Andon TV için bugünün tüm üretim verilerini tek sorguda döndürür. ?bolum= ile filtrelenebilir.
+    ?ekran=tk1 → TK1 birleşik ekranı (montaj + tel Son Montaj, masa kartları)."""
     bugun = date.today().isoformat()
     bolum = request.args.get('bolum', '')
     lokasyon = request.args.get('lokasyon', '')
+    tk1_ekran = (request.args.get('ekran') or '') == 'tk1'
+    if tk1_ekran:
+        # Aşağısı montaj mantığıyla akar (atama yok, iş emirleri TK1 montaj)
+        bolum, lokasyon = 'montaj', 'TK1'
     conn = get_db()
     c = conn.cursor()
 
     # Bölüm + lokasyon filtresi
     bolum_sart = ''
     bolum_params = [bugun]
-    if bolum:
+    if tk1_ekran:
+        bolum_sart += " AND v.bolum IN ('montaj','tel')"
+    elif bolum:
         bolum_sart += ' AND v.bolum = ?'
         bolum_params.append(bolum)
     if lokasyon:
@@ -10254,7 +10353,11 @@ def andon_veri():
     # Andon 30sn'de bir çağrılır: canlı makine adetleri üretim/performans hesabına
     # da anlık yansır (eskiden yalnız operatör mobili açıkken tazeleniyordu →
     # pilot rozeti canlı ama adet/performans bayat görünüyordu).
-    _acik_auto_vardiyalari_senkronla(conn, bolum=bolum or None, lokasyon=lokasyon or None)
+    if tk1_ekran:
+        for _b in ('montaj', 'tel'):
+            _acik_auto_vardiyalari_senkronla(conn, bolum=_b, lokasyon='TK1')
+    else:
+        _acik_auto_vardiyalari_senkronla(conn, bolum=bolum or None, lokasyon=lokasyon or None)
 
     # Vardiya id'leri
     vardiya_ids = [v['id'] for v in vardiyalar]
@@ -10268,6 +10371,11 @@ def andon_veri():
         SELECT u.* FROM uretim_kayitlari u
         WHERE u.vardiya_id IN {vardiya_ids_placeholder}
     ''').fetchall()
+    if tk1_ekran:
+        # Toplamlar/duruşlar da yalnız bu ekrandaki masalardan hesaplansın
+        vardiyalar, uretim_rows = _andon_tk1_suz(vardiyalar, uretim_rows)
+        vardiya_ids = [v['id'] for v in vardiyalar]
+        vardiya_ids_placeholder = ('(' + ','.join(str(v) for v in vardiya_ids) + ')') if vardiya_ids else '(-1)'
 
     # Bugünkü duruşlar
     durus_rows = c.execute(f'''
@@ -10428,6 +10536,8 @@ def andon_veri():
                 elif ist == 2: item['istasyon_2'].append(row)
                 else:          item['diger'].append(row)
         aktif_vardiyalar.append(item)
+    if tk1_ekran:
+        aktif_vardiyalar = _andon_tk1_kartlar(vardiyalar, uretim_rows, vardiya_durus_map)
 
     # Referans durumu (teyit / süresiz) — andonda işaretlemek için
     # Tek SQL ile tüm bölüm için map oluştur, sonra her satıra ekle
