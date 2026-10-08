@@ -18177,7 +18177,8 @@ window.__I18N_SOZLUK__ = {
             if (s.bayrak === 'COP') {
                 url = '/api/as400/cop_gonder';
                 govde = { zorla: true, satirlar: [{ referans: s.referans, article: s.article,
-                          adet: s.adet, uretim_tarihi: s.uretim_tarihi }] };
+                          adet: s.adet, uretim_tarihi: s.uretim_tarihi,
+                          tesis: s.tesis || '', bolum: s.bolum || '' }] };
             } else if (s.no) {
                 url = '/api/as400/teyit_gonder';
                 govde = { zorla: true, satirlar: [{ yil: s.yil, no: s.no, article: s.article,
@@ -18491,7 +18492,10 @@ window.__I18N_SOZLUK__ = {
                 if (adet <= 0) return;
                 var art = ((document.getElementById('as4-cop-art-' + i) || {}).value || c.article || '').trim();
                 if (!art) return;
-                copSec.push({ uretim_tarihi: c.tarih, referans: c.referans, article: art, adet: adet });
+                // tesis/bölüm ŞART (2026-10-08): TK1 plastik hurdası ürünün kendi deposundan
+                // düşülür; sunucu depoyu bu ikisiyle çözer (CFI ile aynı kural).
+                copSec.push({ uretim_tarihi: c.tarih, referans: c.referans, article: art, adet: adet,
+                              tesis: c.tesis || '', bolum: c.bolum || '' });
             });
             if (!copSec.length) {
                 // SESSİZ TUZAK (2026-07-31): bugüne ait satırlar varsayılan olarak

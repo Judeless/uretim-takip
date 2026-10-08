@@ -12874,7 +12874,8 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         except (TypeError, ValueError):
             adet = 0
         kayit = {'referans': referans, 'article': article, 'adet': adet,
-                 'uretim_tarihi': u_tarih, 'bayrak': 'COP'}
+                 'uretim_tarihi': u_tarih, 'bayrak': 'COP',
+                 'tesis': str(s.get('tesis') or ''), 'bolum': str(s.get('bolum') or '')}
         if not (article and 0 < adet <= 99999 and u_tarih):
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Geçersiz satır parametresi'})
             continue
@@ -12936,22 +12937,35 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         if gecersiz:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': gecersiz})
             continue
+        # HURDA DEPOSU (kullanıcı 2026-10-08: "TK1 plastik hurdası ürünün kendi deposundan
+        # düşülsün"). CFI'nın depo kuralı (_cfi_depo_kodlari) aynen: TK1 plastikte referans
+        # kartındaki Warehouse cd, başka her yerde 01D. Karşı depo COP'ta HEP BOŞ
+        # (kullanıcı 2026-07-23). Depo tanımsızsa hurda GÖNDERİLMEZ — 'zorla' da atlamaz.
+        # Eskiden COP her yerde 01D'ye gidiyordu: 2026-08-25'ten beri TK1 plastik
+        # hurdaları (CFI'ı 01/02'ye giden ürünler) 01D stoğundan düşülmüştü.
+        _wh, _cp_yok, _depo_hata = _cfi_depo_kodlari(conn, referans, s.get('tesis'), s.get('bolum'))
+        if _depo_hata:
+            sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': 'Hurda: ' + _depo_hata})
+            continue
+        _depo_notu = '' if _wh == CFI_VARSAYILAN_DEPO[0] else f' · depo {_wh}'
         _imp = (_oto_config().get('cfi_import') or {})
         if _imp.get('etkin') and not _imp.get('canli_onay'):
             print('[CFI-IMPORT] etkin ama canli_onay yok — IT programı test veritabanında; robot yolu kullanılıyor')
         if _imp.get('etkin') and _imp.get('canli_onay') and 'COP' in (_imp.get('causals') or ['CFI']):
-            # COP: karşı depo BOŞ (kullanıcı 2026-07-23), depo TK2 varsayılanı
-            sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'COP', CFI_VARSAYILAN_DEPO[0], '',
+            sonuc, mesaj, _r = _cfi_import_gonder(article, adet, 'COP', _wh, '',
                                                   u_tarih, referans, _imp, zorla)
+            mesaj += _depo_notu
             conn.execute(
                 "INSERT INTO as400_teyit_log (uretim_tarihi, yil, launch_no, referans, article, adet, bayrak, sonuc, mesaj, olusturan) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (u_tarih, 'CO', article, referans, article, adet, 'COP-IMP', sonuc, mesaj, kullanici))
             conn.commit()
-            _import_log_yaz(conn, 'COP', article, referans, adet, CFI_VARSAYILAN_DEPO[0], '', u_tarih, sonuc, mesaj, _r, kullanici)
+            _import_log_yaz(conn, 'COP', article, referans, adet, _wh, '', u_tarih, sonuc, mesaj, _r, kullanici)
             sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
             continue
-        cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', [article, adet, 'COP'], 120)
+        # Robot: depo yalnız varsayılandan farklıysa verilir (TK2 çağrısı eskisiyle aynı kalsın)
+        _robot_arg = [article, adet, 'COP'] + ([f'WH={_wh}'] if _wh != CFI_VARSAYILAN_DEPO[0] else [])
+        cikti, robot_hata = _as400_robot_calistir('cfi_gir.js', _robot_arg, 120)
         if robot_hata:
             sonuclar.append({**kayit, 'sonuc': 'hata', 'mesaj': robot_hata})
             continue
@@ -12963,7 +12977,7 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
         dogrulandi = robot_ok and (dogru is not False)
         sonuc = 'ok' if dogrulandi else 'hata'
         if dogrulandi:
-            mesaj = f'♻ Hurda COP girildi: {article} → {adet} adet'
+            mesaj = f'♻ Hurda COP girildi: {article} → {adet} adet{_depo_notu}'
         elif robot_ok:
             mesaj = f'Robot OK ama bugünkü COP hareketlerinde {adet} bulunamadı — elle kontrol edin'
         else:
@@ -15672,8 +15686,10 @@ def _oto_kuyruk_olustur(conn, tarihler):
                 art = ((ls[0] or {}).get('article') or r['referans']) if ls else r['referans']
                 if f'{t}|{art}' in cop_verildi:
                     continue
+                # TESİS DE ŞART (2026-10-08): hurda deposu (tesis, bölüm) ile çözülür
                 copQ.append({'referans': r['referans'], 'article': art, 'adet': h,
-                             'uretim_tarihi': t, 'bolum': r.get('bolum', '')})
+                             'uretim_tarihi': t, 'bolum': r.get('bolum', ''),
+                             'tesis': r.get('tesis', '')})
     return launchQ, cfiQ, copQ, sabah
 
 
