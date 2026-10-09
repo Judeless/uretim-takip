@@ -7752,6 +7752,95 @@ def satis_plani_eksik_excel():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+@app.route('/api/satis_plani/yukle', methods=['POST'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_yukle():
+    """Kullanıcının kendi çektiği 'satış planı.xls' (şablonun Finale sayfası) ya da .xlsx'i
+    o günün çekimi olarak saklar. form: dosya, tarih (YYYY-AA-GG)."""
+    import satis_plani as SP
+    import tempfile
+    f = request.files.get('dosya')
+    tarih = (request.form.get('tarih') or '').strip()
+    if not f or not f.filename:
+        return jsonify({'hata': 'Dosya seçilmedi'}), 400
+    uzanti = os.path.splitext(f.filename)[1].lower()
+    if uzanti not in ('.xls', '.xlsx', '.xlsm'):
+        return jsonify({'hata': 'Satış planı .xls ya da .xlsx olmalı'}), 400
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', tarih):
+        return jsonify({'hata': 'Tarih YYYY-AA-GG olmalı'}), 400
+    fd, gecici = tempfile.mkstemp(suffix=uzanti)
+    os.close(fd)
+    try:
+        f.save(gecici)
+        sonuc = SP.yukle(get_db(), gecici, tarih, g.panel_ku['kullanici_adi'])
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    finally:
+        try:
+            os.remove(gecici)
+        except OSError:
+            pass
+    return jsonify(sonuc), 201
+
+
+def _sp_urun_fark_params():
+    import satis_plani as SP
+    ids = []
+    for k in ('yeni', 'eski', 'ucuncu'):
+        v = request.args.get(k)
+        if v and v.isdigit():
+            ids.append(int(v))
+    if len(ids) < 2 or len(set(ids)) != len(ids):
+        raise ValueError('İki farklı çekim seçin (yeni, eski)')
+    try:
+        n = int(request.args.get('n') or 3)
+    except ValueError:
+        n = 3
+    kapsam = request.args.get('kapsam') or 'oto'
+    if kapsam not in ('oto', 'TK1', 'TK2', 'hepsi', 'ortak'):
+        kapsam = 'oto'
+    return SP.urun_farki(get_db(), ids, n, kapsam, request.args.get('p', '1') != '0',
+                         (request.args.get('ara') or '')[:40])
+
+
+@app.route('/api/satis_plani/urun_fark', methods=['GET'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_urun_fark():
+    """Planlamanın 'Sipariş farkları' mantığı: ?yeni=&eski=(&ucuncu=)&n=3&kapsam=oto&p=1&ara="""
+    try:
+        sonuc = _sp_urun_fark_params()
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    sonuc['toplam_satir'] = len(sonuc['satirlar'])
+    sonuc['satirlar'] = sonuc['satirlar'][:1500]
+    return jsonify(sonuc)
+
+
+@app.route('/api/satis_plani/urun_fark.xlsx', methods=['GET'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_urun_fark_excel():
+    import satis_plani as SP
+    import io as _io
+    try:
+        sonuc = _sp_urun_fark_params()
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    gun = lambda c: datetime.strptime(c['tarih'], '%Y-%m-%d').strftime('%d.%m')   # noqa: E731
+    ad = 'Siparis_farklari_' + '-'.join(gun(c) for c in sonuc['cekimler']) + '.xlsx'
+    return send_file(_io.BytesIO(SP.urun_farki_excel(sonuc)), as_attachment=True, download_name=ad,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/api/satis_plani/cekim/<int:cid>', methods=['DELETE'])
+@panel_gerekli(izin='satis-plani')
+def satis_plani_cekim_sil(cid):
+    """Yanlış yüklenen çekimi siler (o günün arşiv Excel'i diskte kalır)."""
+    import satis_plani as SP
+    if not SP.cekim_sil(get_db(), cid):
+        return jsonify({'hata': 'Çekim bulunamadı'}), 404
+    return jsonify({'ok': True})
+
+
 @app.route('/api/satis_plani/indir', methods=['GET'])
 @panel_gerekli(izin='satis-plani')
 def satis_plani_indir():
@@ -7981,13 +8070,35 @@ def _tp_suzgec_adi(f):
             '__yok__': 'tedarikçisi belirsiz', '__uyari__': 'kontrol uyarısı olanlar'}.get(f, f or '')
 
 
-@app.route('/api/tel_plani/anaveri', methods=['POST'])
-@panel_gerekli(izin='tel-plani')
-def tel_plani_anaveri_yukle():
-    """Planlamanın PLAN 26xxxx.xlsb (ya da .xlsx) dosyası — 'Anaveri' sayfasının 93.* satırları
-    tedarikçi bilgisi olur (TK-1/2 · Hat · Makine · Kapasite). Tablo tamamen yenilenir."""
-    import tel_plani as TP
+# ── ORTAK ANAVERİ (planlamanın PLAN 26xxxx.xlsb → Anaveri) — tel planı + satış planı ──
+def _anaveri_yetkisiz():
+    """Anaveri'yi tel planı ya da satış planı izni olan yükleyebilir."""
+    ku = g.panel_ku
+    if ku.get('admin') or set(ku.get('izinler') or []) & {'tel-plani', 'satis-plani'}:
+        return None
+    return jsonify({'hata': 'Bu işlem için Tel Planı ya da Satış Planı izni gerekli'}), 403
+
+
+@app.route('/api/anaveri/durum', methods=['GET'])
+@panel_gerekli()
+def anaveri_durum():
+    import anaveri as AV
+    yok = _anaveri_yetkisiz()
+    if yok:
+        return yok
+    return jsonify({'anaveri': AV.durumu(get_db())})
+
+
+@app.route('/api/anaveri/yukle', methods=['POST'])
+@panel_gerekli()
+def anaveri_yukle():
+    """Planlamanın PLAN 26xxxx.xlsb (ya da .xlsx) dosyası — 'Anaveri' sayfasının TÜM satırları
+    (TK-1/2 · Hat · Makine · Kapasite). Tablo tamamen yenilenir."""
+    import anaveri as AV
     import tempfile
+    yok = _anaveri_yetkisiz()
+    if yok:
+        return yok
     f = request.files.get('dosya')
     if not f or not f.filename:
         return jsonify({'hata': 'Dosya seçilmedi'}), 400
@@ -7996,12 +8107,12 @@ def tel_plani_anaveri_yukle():
         return jsonify({'hata': 'PLAN dosyası .xlsb ya da .xlsx olmalı'}), 400
     fd, gecici = tempfile.mkstemp(suffix=uzanti)
     os.close(fd)
+    conn = get_db()
     try:
         f.save(gecici)
-        satirlar = TP.anaveri_dosyadan(gecici)
-        conn = get_db()
-        TP.tablolari_kur(conn)
-        n = TP.anaveri_yaz(conn, satirlar, f.filename, g.panel_ku['kullanici_adi'])
+        satirlar = AV.dosyadan(gecici)
+        AV.tablolari_kur(conn)
+        n = AV.yaz(conn, satirlar, f.filename, g.panel_ku['kullanici_adi'])
     except ImportError:
         return jsonify({'hata': "Sunucuda pyxlsb kurulu değil — dosyayı Excel'de .xlsx olarak kaydedip yükleyin"}), 400
     except ValueError as e:
@@ -8011,25 +8122,30 @@ def tel_plani_anaveri_yukle():
             os.remove(gecici)
         except OSError:
             pass
-    return jsonify({'ok': True, 'satir': n, 'anaveri': TP.anaveri_durumu(conn)})
+    return jsonify({'ok': True, 'satir': n, 'anaveri': AV.durumu(conn)})
 
 
-@app.route('/api/tel_plani/anaveri_klasor', methods=['POST'])
-@panel_gerekli(izin='tel-plani')
-def tel_plani_anaveri_klasor():
-    """Planlamanın klasöründeki EN YENİ 'PLAN *.xlsb'yi okur (sunucuda Q: erişilebiliyorsa).
-    Klasör: oto_config.tel_plani.plan_klasoru (yoksa Q:\\UretimPlanlama\\EMRE\\Yeni klasör\\Plan)."""
-    import tel_plani as TP
-    klasor = ((_oto_config().get('tel_plani') or {}).get('plan_klasoru') or TP.VARSAYILAN_PLAN_KLASORU)
+@app.route('/api/anaveri/klasor', methods=['POST'])
+@panel_gerekli()
+def anaveri_klasor():
+    """Planlamanın klasöründeki EN YENİ 'PLAN *.xlsb' (sunucuda Q: erişilebiliyorsa).
+    Klasör: oto_config.anaveri.plan_klasoru (yoksa planlamanın Plan klasörü)."""
+    import anaveri as AV
+    yok = _anaveri_yetkisiz()
+    if yok:
+        return yok
+    cfg = _oto_config()
+    klasor = ((cfg.get('anaveri') or {}).get('plan_klasoru') or (cfg.get('tel_plani') or {}).get('plan_klasoru')
+              or AV.VARSAYILAN_PLAN_KLASORU)
     try:
-        yol = TP.en_yeni_plan(klasor)
-        satirlar = TP.anaveri_dosyadan(yol)
+        yol = AV.en_yeni_plan(klasor)
+        satirlar = AV.dosyadan(yol)
     except (OSError, ValueError, ImportError) as e:
         return jsonify({'hata': f'{e}'}), 400
     conn = get_db()
-    TP.tablolari_kur(conn)
-    n = TP.anaveri_yaz(conn, satirlar, yol, g.panel_ku['kullanici_adi'])
-    return jsonify({'ok': True, 'satir': n, 'dosya': os.path.basename(yol), 'anaveri': TP.anaveri_durumu(conn)})
+    AV.tablolari_kur(conn)
+    n = AV.yaz(conn, satirlar, yol, g.panel_ku['kullanici_adi'])
+    return jsonify({'ok': True, 'satir': n, 'dosya': os.path.basename(yol), 'anaveri': AV.durumu(conn)})
 
 
 @app.route('/api/tel_plani/talep/<int:tid>', methods=['DELETE'])
@@ -14913,7 +15029,7 @@ def tel_plani_oto_job():
 
 
 # ── SATIŞ PLANI ARŞİVİ (kullanıcı 2026-10-05) — ayrıntı: satis_plani.py ──────────
-# S650B9 yalnız biri 10-05-03-06'yı F6'layınca tazelenir; saat bilinmediği için gün
+# XWPVF0 yalnız biri 10-05-03-06'yı F6'layınca tazelenir; saat bilinmediği için gün
 # içinde 30 dk'da bir bakılır, içerik değişmediyse hiçbir şey yazılmaz (tek SELECT).
 SATIS_PLANI_SAAT = (6, 20)      # bu saatler arasında bakılır
 
