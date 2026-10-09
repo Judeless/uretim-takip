@@ -68,10 +68,29 @@ ANAVERI_BOLUM = {
     ('TK-1', 'PP'): ('TK1', 'tel'), ('TK-1', 'KESIM'): ('TK1', 'tel'), ('TK-1', 'KESİM'): ('TK1', 'tel'),
     ('TK-1', 'LF'): ('TK1', 'montaj'), ('TK-1', 'JOYSTICK'): ('TK1', 'montaj'), ('TK-1', 'IVECO'): ('TK1', 'montaj'),
     ('TK-1', 'PLASTIK ENJEKSIYON'): ('TK1', 'plastik'), ('TK-1', 'PLASTIK ENJEKSİYON'): ('TK1', 'plastik'),
+    # Tabo hortumları (92.*) Forge'da TK1 Montaj
+    ('TABO', 'B. HOSE'): ('TK1', 'montaj'),
 }
+# FASON / TEDARİKÇİ (kullanıcı 2026-10-09: "Pull telleri şu anda fasonda üretiliyor"): Anaveri'de
+# Pandora / Pull tellerinin RPR-CFI'ı tedarikçinin işidir — TK1 Tel'e sayılsaydı teorik süresi TK1
+# çalışanlarının saatine bölünür, performansı şişirirdi. Ayrı satır, performansa girmez.
+FASON = 'fason'
+
+
+def _fason_mi(a, kesin=True):
+    """kesin=True: Pandora / Pull (Forge tanımını da ezer). False: Anaveri 'Fason' (yalnız
+    Forge'da tanım yoksa — Forge'da tanımlıysa içeride üretiyoruz demektir)."""
+    if not a:
+        return False
+    tk, hat = (a.get('tk') or '').upper(), (a.get('hat') or '').upper()
+    if kesin:
+        return tk == 'PANDORA' or hat == 'PULL'
+    return tk == 'FASON' or hat == 'FASON'
 BOLUM_AD = {'kaynak': 'Kaynak', 'montaj': 'Montaj', 'metal': 'Metal Enjeksiyon', 'lazer': 'Lazer Kesim',
-            'pres': 'Pres / Abkant', 'isleme': 'İşleme', 'plastik': 'Plastik Enjeksiyon', 'tel': 'Tel Üretimi'}
-BOLUM_SIRA = {'TK2': ('kaynak', 'lazer', 'pres', 'metal', 'isleme', 'montaj'), 'TK1': ('montaj', 'tel', 'plastik')}
+            'pres': 'Pres / Abkant', 'isleme': 'İşleme', 'plastik': 'Plastik Enjeksiyon', 'tel': 'Tel Üretimi',
+            'fason': 'Fason (tedarikçi)'}
+BOLUM_SIRA = {'TK2': ('kaynak', 'lazer', 'pres', 'metal', 'isleme', 'montaj', 'fason'),
+              'TK1': ('montaj', 'tel', 'plastik', 'fason')}
 AY_AD = ('', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim',
          'Kasım', 'Aralık')
 _GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,40}$')
@@ -318,6 +337,12 @@ def en_yeni_kapasite(klasor=VARSAYILAN_KAPASITE_KLASORU):
     return max(ad, key=os.path.getmtime)
 
 
+def calisma_aylari(conn):
+    tablolari_kur(conn)
+    return [{'yil': r[0], 'ay': r[1], 'dosya': r[2]} for r in conn.execute(
+        "SELECT yil, ay, MAX(dosya) FROM aylik_calisma GROUP BY yil, ay ORDER BY yil DESC, ay DESC")]
+
+
 def calisma_haritasi(conn, yil, ay):
     """{(tesis, bölüm): {'nos','mesai','kisi'}} + atanmamış (üretim dışı) satırlar."""
     tablolari_kur(conn)
@@ -409,9 +434,14 @@ def rapor(conn, yil, ay):
         if n.startswith(HAMMADDE_ONEK):
             hammadde.append(satir)
             continue
-        # Bölüm: Forge (bu tesiste) → Anaveri → tanımsız
+        # Bölüm: Pull/Pandora fason → Forge (bu tesiste) → kapasite Database → Anaveri → tanımsız
         hedef, kaynak = {}, ''
-        if tesis:
+        a_kod = ana.get(n) or (ana.get(n[:-1]) if n.endswith('W') else None)
+        if _fason_mi(a_kod, True):
+            tesis = tesis or 'TK1'
+            satir['tesis'] = tesis
+            hedef, kaynak = {FASON: 0.0}, 'anaveri'
+        if tesis and not hedef:
             tam, kok = forge[tesis]
             t_h, k_h = tam.get(n), kok.get(_kok(d['kod'])) or {}
             # Tel: ERP kodu köktür, Forge'da adım ekli satırlar (KESIM, KAPAMA…) — süre kökte
@@ -425,8 +455,10 @@ def rapor(conn, yil, ay):
                 tesis = tesis or m[0]
                 satir['tesis'] = tesis
                 hedef, kaynak = {m[1]: 0.0}, 'kapasite Excel'
+        if not hedef and tesis and _fason_mi(a_kod, False):
+            hedef, kaynak = {FASON: 0.0}, 'anaveri'
         if not hedef:
-            a = ana.get(n) or (ana.get(n[:-1]) if n.endswith('W') else None)
+            a = a_kod
             m = ANAVERI_BOLUM.get(((a or {}).get('tk', '').upper(), (a or {}).get('hat', '').upper())) if a else None
             if m and (not tesis or m[0] == tesis):
                 tesis = tesis or m[0]
@@ -438,6 +470,8 @@ def rapor(conn, yil, ay):
             tanimsiz.append(satir)
             continue
         t = tesis_top.setdefault(tesis, {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0})
+        if FASON in hedef:          # tedarikçinin işi tesis üretimine sayılmaz
+            t = {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0}
         t['adet'] += adet
         t['kod'] += 1
         t['rpr'] += d['RPR']
@@ -447,6 +481,8 @@ def rapor(conn, yil, ay):
             ks = (kdb.get(n) or {}).get('saatlik')
             if b in SURE_EXCEL_DISI and forge_sn > 0:
                 k, ks = None, None
+            if b == FASON:
+                k, ks, forge_sn = None, None, 0.0
             if k:
                 sn, sk = k, 'kapasite Excel'
             elif ks:
@@ -484,9 +520,11 @@ def rapor(conn, yil, ay):
             nos, mesai = c.get('nos', 0.0), c.get('mesai', 0.0)
             top = nos + mesai
             teorik = bl['teorik_sn'] / 3600
-            ozet.append({'tesis': tesis, 'bolum': b, 'ad': bl['ad'], 'adet': round(bl['adet'], 2), 'kod': bl['kod'],
-                         'rpr': round(bl['rpr'], 2), 'cfi': round(bl['cfi'], 2), 'teorik_saat': round(teorik, 1),
-                         'sure_kapsami': round(bl['sureli_adet'] / bl['adet'], 3) if bl['adet'] else None,
+            fsn = b == FASON
+            ozet.append({'fason': fsn, 'tesis': tesis, 'bolum': b, 'ad': bl['ad'], 'adet': round(bl['adet'], 2), 'kod': bl['kod'],
+                         'rpr': round(bl['rpr'], 2), 'cfi': round(bl['cfi'], 2),
+                         'teorik_saat': None if fsn else round(teorik, 1),
+                         'sure_kapsami': round(bl['sureli_adet'] / bl['adet'], 3) if bl['adet'] and not fsn else None,
                          'nos': round(nos, 1), 'mesai': round(mesai, 1), 'calisma': round(top, 1),
                          'kisi': c.get('kisi', 0), 'calisma_excel': c.get('excel', []),
                          'performans': round(teorik / top, 3) if top else None,
@@ -543,6 +581,8 @@ def excel(r):
             continue
         ilk = ws.max_row + 1
         for o in satirlar:
+            if o.get('fason'):
+                continue            # fason satırı tesis toplamının altında ayrı yazılır
             ws.append([tesis, o['ad'], o['adet'], o['kod'], o['rpr'], o['cfi'], o['teorik_saat'], o['sure_kapsami'],
                        o['nos'] or None, o['mesai'] or None, o['calisma'] or None, o['kisi'] or None,
                        o['performans'], HEDEF_PERFORMANS if o['calisma'] else None, o['performans_nos']])
@@ -556,6 +596,10 @@ def excel(r):
         for i in range(1, len(bas) + 1):
             c = ws.cell(row=ws.max_row, column=i)
             c.font, c.fill = Font(bold=True), acik
+        for o in [x for x in satirlar if x.get('fason')]:
+            ws.append([tesis, o['ad'], o['adet'], o['kod'], o['rpr'], o['cfi'], None, None, None, None, None, None,
+                       None, None, 'tedarikçinin işi — tesis toplamına ve performansa girmez'])
+            ws.cell(row=ws.max_row, column=2).font = Font(italic=True, color='666666')
         for rr in range(ilk, ws.max_row + 1):
             for i in range(1, len(bas) + 1):
                 ws.cell(row=rr, column=i).border = kenar
@@ -580,6 +624,8 @@ def excel(r):
         f"• Tanımsız (Forge'da ve Anaveri'de bölümü olmayan) kodlar: {len(r['tanimsiz'])} kod, {r['tanimsiz_adet']:,.0f} adet — "
         "'Tanımsız kodlar' sayfası; özete girmez.",
         f"• Hammadde (20.* / 21.*, metre-kg): {len(r['hammadde'])} kod — adet toplamına girmez.",
+        "• Fason (tedarikçi): Anaveri'de Pandora / Pull telleri (Pull şu an fasonda üretiliyor) ve 'Fason' işaretli kodlar "
+        "(Forge'da tanımı yoksa) — tesis toplamına ve performansa girmez.",
     ]
     if r.get('calisma_bilgi'):
         notlar.append(f"• Çalışma saati kaynağı: {r['calisma_bilgi']['dosya']} ({r['calisma_bilgi']['guncellendi']}).")
@@ -597,8 +643,9 @@ def excel(r):
             continue
         ad = f"{o['tesis']} {o['ad']}"[:31].replace('/', '-')
         w = wb.create_sheet(ad)
-        w.append([f"{o['tesis']} {o['ad']} — {r['ay_ad']} · {o['kod']} kod · {o['adet']:,.0f} adet · "
-                  f"teorik {o['teorik_saat']:,.1f} saat"])
+        w.append([f"{o['tesis']} {o['ad']} — {r['ay_ad']} · {o['kod']} kod · {o['adet']:,.0f} adet · " +
+                  ('tedarikçinin işi — tesis toplamına ve performansa girmez' if o.get('fason')
+                   else f"teorik {o['teorik_saat']:,.1f} saat")])
         w['A1'].font = Font(bold=True, size=12)
         b2 = ['Kod', 'Açıklama', 'RPR', 'CFI', 'Toplam adet', 'Birim süre (sn)', 'Süre kaynağı', 'Teorik süre (saat)',
               'Sınıflama', 'Depo', 'Not']

@@ -8184,7 +8184,8 @@ def aylik_uretim_rapor():
     conn = get_db()
     yil, ay = _au_ay(request.args)
     r = AU.rapor(conn, yil, ay)
-    cevap = {'yil': yil, 'ay': ay, 'aylar': AU.cekilen_aylar(conn), 'deneme': AU.deneme_durumu(),
+    cevap = {'yil': yil, 'ay': ay, 'aylar': AU.cekilen_aylar(conn), 'calisma_aylari': AU.calisma_aylari(conn),
+             'deneme': AU.deneme_durumu(),
              'gelistirme_kopyasi': bool(_gelistirme_kopyasi()), 'rapor': r}
     if r:
         for o in r['ozet']:                       # panel kırılımı: bölüm başına ilk 300 kod
@@ -8218,13 +8219,20 @@ def aylik_uretim_hazirla():
     return jsonify({'basladi': basladi, 'yil': yil, 'ay': ay, 'deneme': AU.deneme_durumu()}), 202
 
 
-def _au_kapasite_isle(conn, yol, ad, yil):
-    """Kapasite Excel'i → 'Çalışma Saati' (dosyanın ayı, seçilen yıl) + 'Database' (süre/hat)."""
+def _au_kapasite_isle(conn, yol, ad, yil, secili_ay=None, zorla=False):
+    """Kapasite Excel'i → 'Çalışma Saati' + 'Database' (süre/hat). Dosyanın ayı seçili aydan
+    farklıysa YAZILMAZ, 409 ile sorulur; kullanıcı onaylarsa (zorla) seçili aya yazılır.
+    Olay (2026-10-09): sunucuya eski kopya (Ağustos saatleri) verildi, Eylül raporu boş kaldı."""
     import aylik_uretim as AU
     ay, saatler = AU.calisma_oku(yol)
-    AU.calisma_yaz(conn, yil, ay, saatler, ad, g.panel_ku['kullanici_adi'])
+    if secili_ay and ay != secili_ay and not zorla:
+        return {'soru': True, 'dosya_ay': ay, 'secili_ay': secili_ay, 'yil': yil,
+                'dosya': os.path.basename(ad)}, 409
+    hedef_ay = secili_ay if (secili_ay and zorla) else ay
+    AU.calisma_yaz(conn, yil, hedef_ay, saatler, ad, g.panel_ku['kullanici_adi'])
     db = AU.database_yaz(conn, AU.database_oku(yol), ad)
-    return {'ok': True, 'yil': yil, 'ay': ay, 'bolum': len(saatler), 'database': db, 'dosya': os.path.basename(ad)}
+    return {'ok': True, 'yil': yil, 'ay': hedef_ay, 'dosya_ay': ay, 'bolum': len(saatler), 'database': db,
+            'dosya': os.path.basename(ad)}, 200
 
 
 @app.route('/api/aylik_uretim/calisma', methods=['POST'])
@@ -8239,12 +8247,13 @@ def aylik_uretim_calisma():
     uzanti = os.path.splitext(f.filename)[1].lower()
     if uzanti not in ('.xlsx', '.xlsm'):
         return jsonify({'hata': 'Kapasite Excel\'i .xlsx olmalı'}), 400
-    yil, _ay = _au_ay(request.form)
+    yil, ay = _au_ay(request.form)
     fd, gecici = tempfile.mkstemp(suffix=uzanti)
     os.close(fd)
     try:
         f.save(gecici)
-        return jsonify(_au_kapasite_isle(get_db(), gecici, f.filename, yil))
+        sonuc, kod = _au_kapasite_isle(get_db(), gecici, f.filename, yil, ay, request.form.get('zorla') == '1')
+        return jsonify(sonuc), kod
     except ValueError as e:
         return jsonify({'hata': str(e)}), 400
     finally:
@@ -8260,11 +8269,13 @@ def aylik_uretim_calisma_klasor():
     """Sunucu planlama klasörüne erişebiliyorsa en yeni kapasite Excel'ini okur
     (oto_config.aylik_uretim.kapasite_klasoru; yoksa Q:\\UretimPlanlama\\Aylık Kapasite Sunum)."""
     import aylik_uretim as AU
-    yil, _ay = _au_ay(request.get_json(silent=True) or {})
+    data = request.get_json(silent=True) or {}
+    yil, ay = _au_ay(data)
     klasor = (_oto_config().get('aylik_uretim') or {}).get('kapasite_klasoru') or AU.VARSAYILAN_KAPASITE_KLASORU
     try:
         yol = AU.en_yeni_kapasite(klasor)
-        return jsonify(_au_kapasite_isle(get_db(), yol, yol, yil))
+        sonuc, kod = _au_kapasite_isle(get_db(), yol, yol, yil, ay, bool(data.get('zorla')))
+        return jsonify(sonuc), kod
     except (OSError, ValueError) as e:
         return jsonify({'hata': str(e)}), 400
 
