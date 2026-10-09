@@ -240,6 +240,8 @@ PANEL_SAYFALAR = [
     # 2026-10-05: satış planı arşivi (AS400 10-05-03-06 / S650B9) — günlük kopya,
     # dünle karşılaştırma, Ana Veri'de olmayan kodlar. Yeni → yönetici tek tek verir.
     'satis-plani',
+    # 2026-10-09: TK2 mekanizma telleri planı (fasondan tel talebi). Yeni → yönetici tek tek verir.
+    'tel-plani',
     # 2026-09-15 PROJE TAKİP: 'proje-takip' = sayfayı görür + KENDİNE atanan işin
     # üretim terminini/durumunu girer; 'proje-yonetim' = proje açar, parça/iş ekler,
     # kişi atar, talep termini girer (sayfa değil yetki; sayfayı da açar).
@@ -252,7 +254,7 @@ PANEL_SAYFALAR = [
 _SAYFA_MODUL = {
     'as400-teyit': 'as400', 'kaynak-plan': 'planlar', 'montaj-plan': 'planlar',
     'metal-plan': 'planlar', 'kapasite': 'kapasite', 'ariza-onay': 'bakim',
-    'satis-plani': 'as400',
+    'satis-plani': 'as400', 'tel-plani': 'planlar',
     'proje-takip': 'proje', 'proje-yonetim': 'proje', 'saha-cihazlari': 'sayac',
     'sinyal-analizi': 'sayac', 'andon-ayarlari': 'andon', 'is-yonetimi': 'is_yonetimi',
 }
@@ -2227,6 +2229,7 @@ def istemci_hata_listesi():
 _MODUL_YOLLARI = (
     ('/api/as400/', 'as400'), ('/api/kaynak_eoq', 'as400'), ('/kaynak_eoq', 'as400'),
     ('/api/kaynak_plan', 'planlar'), ('/api/montaj_plan', 'planlar'), ('/api/metal_plan', 'planlar'),
+    ('/api/tel_plani', 'planlar'),
     ('/api/kapasite', 'kapasite'), ('/api/proje', 'proje'),
     ('/api/bakim', 'bakim'), ('/api/ariza', 'bakim'),
     ('/tk1', 'tk1'), ('/andon_tk1', 'tk1'),
@@ -7764,6 +7767,216 @@ def satis_plani_indir():
     if not os.path.exists(yol):
         return jsonify({'hata': f'{tarih} için dosya yok'}), 404
     return send_file(yol, as_attachment=True, download_name=os.path.basename(yol))
+
+# ══ TEL PLANI — TK2 MEKANİZMA TELLERİ (kullanıcı 2026-10-09) ═════════════════
+# "TK2'de mekanizmalarda kullandığımız teller için bir plan hazırlayıp fasondan
+#  sorumlu kişiden talep edeceğim … 2 haftalık, 4 haftalık." Ayrıntı: tel_plani.py
+def _tp_mekanizmalar(conn):
+    """Montaj planıyla AYNI küme: Forge'da bölüm=montaj, TK2; 93.* teller hariç."""
+    pf = KP_PROFILLER['montaj']
+    haric = tuple(pf.get('haric_onek') or ())
+    rows = conn.execute("SELECT referans_kodu FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
+                        "AND COALESCE(lokasyon,'TK2')=? AND COALESCE(referans_kodu,'')<>''",
+                        (pf['bolum'], pf['lokasyon'])).fetchall()
+    return sorted({r[0].strip() for r in rows if r[0].strip() and not r[0].strip().startswith(haric)})
+
+
+def _tp_tazele_args(kullanici):
+    """tel_plani.tazele argümanları — tel stoğunda montaj planının SAYILAN depoları ve
+    eksi kuralı kullanılır (panelde montaj planı depoları değişirse bu da değişir)."""
+    import tel_plani as TP  # noqa: F401
+    pf = KP_PROFILLER['montaj']
+    _ref, alt, _gos = _kp_depolar(pf)
+    kp = _kp_modul()
+    return (db_connect, kullanici, _tp_mekanizmalar, kp.erp_baglan, kp, alt, _kp_eksi_depolar(pf))
+
+
+def _tp_parametreler(kaynak):
+    try:
+        ufuk = int(kaynak.get('ufuk') or 4)
+    except (TypeError, ValueError):
+        ufuk = 4
+    launch = str(kaynak.get('launch', '1')).lower() not in ('0', 'false', 'hayir', '')
+    hepsi = str(kaynak.get('hepsi', '0')).lower() in ('1', 'true', 'evet')
+    return {'ufuk': 2 if ufuk <= 2 else 4, 'launch_dahil': launch, 'hepsi': hepsi,
+            'fasoncu': str(kaynak.get('fasoncu') or '').strip()[:60],
+            'ara': str(kaynak.get('ara') or '').strip()[:60]}
+
+
+def _tp_gorunum(conn, prm):
+    import tel_plani as TP
+    veri = TP.son_olcum(conn)
+    if not veri:
+        return None, None
+    return veri, TP.gorunum(veri, TP.fason_haritasi(conn), ufuk=prm['ufuk'], launch_dahil=prm['launch_dahil'],
+                            fasoncu=prm['fasoncu'], ara=prm['ara'], hepsi=prm['hepsi'],
+                            talepler=TP.son_talepler(conn))
+
+
+def _tp_olcum_ozeti(veri):
+    oz = {k: veri.get(k) for k in ('ts', 'bugun', 'mekanizma_sayisi', 'emirli_mekanizma',
+                                   'telli_mekanizma', 'sayilan_depolar', '_kullanici', '_sure_sn')}
+    oz['tel_sayisi'] = len(veri.get('teller') or {})
+    return oz
+
+
+@app.route('/api/tel_plani', methods=['GET'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_liste():
+    """?ufuk=2|4 &launch=1 &fasoncu= &ara= &hepsi=0 — son ölçümden görünüm (AS400'e gitmez)."""
+    import tel_plani as TP
+    conn = get_db()
+    prm = _tp_parametreler(request.args)
+    veri, gor = _tp_gorunum(conn, prm)
+    harita = TP.fason_haritasi(conn)
+    fasoncular = list(TP.FASONCULAR) + sorted({h['fasoncu'] for h in harita.values() if h['fasoncu']}
+                                              - set(TP.FASONCULAR))
+    cevap = {'olcum': _tp_olcum_ozeti(veri) if veri else None, 'deneme': TP.deneme_durumu(),
+             'fasoncular': fasoncular, 'gelistirme_kopyasi': bool(_gelistirme_kopyasi())}
+    if gor:
+        cevap.update(gor)
+    return jsonify(cevap)
+
+
+@app.route('/api/tel_plani/durum', methods=['GET'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_durum():
+    import tel_plani as TP
+    conn = get_db()
+    TP.tablolari_kur(conn)
+    r = conn.execute("SELECT ts FROM tel_plani_olcum ORDER BY id DESC LIMIT 1").fetchone()
+    return jsonify({'deneme': TP.deneme_durumu(), 'son_olcum': r[0] if r else None})
+
+
+@app.route('/api/tel_plani/tazele', methods=['POST'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_tazele():
+    """AS400'den yeniden ölçer — ARKA PLANDA (Cloudflare 100 sn sınırı); panel /durum'u sorar.
+    AS400'e yalnız SELECT gider."""
+    import tel_plani as TP
+    if _gelistirme_kopyasi():
+        return jsonify({'hata': "Geliştirme kopyasında AS400'den tazelenmez — sunucudaki panelden yapın.",
+                        'gelistirme_kopyasi': True}), 403
+    basladi = TP.tazele_arka_planda(*_tp_tazele_args(g.panel_ku['kullanici_adi']))
+    return jsonify({'basladi': basladi, 'deneme': TP.deneme_durumu()}), 202
+
+
+@app.route('/api/tel_plani/fason', methods=['POST'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_fason():
+    """{kod, fasoncu} — telin fasoncusu (boş = seçimi kaldır, Excel'deki adaylar kalır)."""
+    import tel_plani as TP
+    data = request.get_json(silent=True) or {}
+    kod = re.sub(r'\s+', ' ', str(data.get('kod') or '')).strip().upper()
+    fas = str(data.get('fasoncu') or '').strip()[:40]
+    if not kod.startswith(TP.TEL_ONEK) or len(kod) > 40:
+        return jsonify({'hata': 'Geçersiz tel kodu'}), 400
+    conn = get_db()
+    TP.tablolari_kur(conn)
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+    conn.execute("INSERT INTO tel_fason (kod, fasoncu, adaylar, kaynak, guncelleyen, guncellendi) "
+                 "VALUES (?,?,'','elle',?,?) ON CONFLICT(kod) DO UPDATE SET fasoncu=excluded.fasoncu, "
+                 "kaynak='elle', guncelleyen=excluded.guncelleyen, guncellendi=excluded.guncellendi",
+                 (kod, fas, g.panel_ku['kullanici_adi'], simdi))
+    conn.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/tel_plani/excel', methods=['GET'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_excel():
+    """Ekrandaki görünüm (talep KAYDEDİLMEZ)."""
+    import tel_plani as TP
+    import io as _io
+    conn = get_db()
+    prm = _tp_parametreler(request.args)
+    veri, gor = _tp_gorunum(conn, prm)
+    if not gor:
+        return jsonify({'hata': 'Henüz ölçüm yok'}), 404
+    baslik = f"TK2 mekanizma telleri — {prm['ufuk']} haftalık plan" + (f" · {prm['fasoncu']}" if prm['fasoncu'] else '')
+    alt = f"Ölçüm {veri['ts']} · stok depoları {', '.join(veri.get('sayilan_depolar') or [])}"
+    return send_file(_io.BytesIO(TP.excel(gor['satirlar'], gor['haftalar'], baslik, alt)), as_attachment=True,
+                     download_name=f"Tel_Plani_{prm['ufuk']}hf_{datetime.now():%Y-%m-%d}.xlsx",
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/api/tel_plani/talep', methods=['POST'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_talep_olustur():
+    """Ekrandaki süzgeçle TALEBİ OLAN teller kaydedilir (kim, ne zaman, hangi fasoncuya,
+    kaç adet) → id; panel ardından Excel'ini indirir. Kayıt, tablodaki 'son talep'
+    sütununu besler — aynı teli iki kez istemeyi önlemek için."""
+    import tel_plani as TP
+    data = request.get_json(silent=True) or {}
+    prm = _tp_parametreler(data)
+    prm['hepsi'] = False
+    conn = get_db()
+    veri, gor = _tp_gorunum(conn, prm)
+    if not gor:
+        return jsonify({'hata': 'Henüz ölçüm yok'}), 404
+    satir = [dict({k: s[k] for k in ('kod', 'aciklama', 'fasoncu', 'adaylar', 'talep_toplam',
+                                     'ihtiyac_toplam', 'stok', 'yolda', 'depolar')},
+                  talep=s['talep_toplam'], haftalik=s['talep'],
+                  ustler=[u for u in s['ustler'] if u['ihtiyac']])
+             for s in gor['satirlar'] if s['talep_toplam'] > 0]
+    if not satir:
+        return jsonify({'hata': 'Bu süzgeçte talep edilecek tel yok'}), 400
+    cur = conn.execute(
+        "INSERT INTO tel_plani_talep (ts, kullanici, fasoncu, ufuk, launch_dahil, olcum_ts, notu, kod_sayisi, "
+        "toplam, haftalar, satir) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (datetime.now().strftime('%Y-%m-%d %H:%M'), g.panel_ku['kullanici_adi'], prm['fasoncu'], prm['ufuk'],
+         1 if prm['launch_dahil'] else 0, veri['ts'], str(data.get('notu') or '').strip()[:300], len(satir),
+         round(sum(s['talep'] for s in satir), 2), json.dumps(gor['haftalar'], ensure_ascii=False),
+         json.dumps(satir, ensure_ascii=False)))
+    conn.commit()
+    return jsonify({'ok': True, 'id': cur.lastrowid, 'kod_sayisi': len(satir),
+                    'toplam': round(sum(s['talep'] for s in satir), 2)}), 201
+
+
+@app.route('/api/tel_plani/talepler', methods=['GET'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_talepler():
+    import tel_plani as TP
+    conn = get_db()
+    TP.tablolari_kur(conn)
+    return jsonify([dict(zip(('id', 'ts', 'kullanici', 'fasoncu', 'ufuk', 'kod_sayisi', 'toplam', 'notu', 'olcum_ts'), r))
+                    for r in conn.execute("SELECT id, ts, kullanici, fasoncu, ufuk, kod_sayisi, toplam, notu, olcum_ts "
+                                          "FROM tel_plani_talep ORDER BY id DESC LIMIT 100")])
+
+
+@app.route('/api/tel_plani/talep/<int:tid>.xlsx', methods=['GET'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_talep_excel(tid):
+    import tel_plani as TP
+    import io as _io
+    conn = get_db()
+    TP.tablolari_kur(conn)
+    r = conn.execute("SELECT ts, fasoncu, ufuk, olcum_ts, notu, haftalar, satir, kullanici FROM tel_plani_talep "
+                     "WHERE id=?", (tid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Talep bulunamadı'}), 404
+    satir = json.loads(r[6] or '[]')
+    for s in satir:                                 # excel() 'talep' sözlüğü bekler
+        s['talep'], s['talep_toplam'] = s.get('haftalik') or {}, s.get('talep_toplam') or s.get('talep') or 0
+    baslik = f"Tel talebi — {r[1] or 'tüm fasoncular'} · {r[2]} haftalık"
+    alt = f"Talep {r[0]} ({r[7]}) · ölçüm {r[3]}" + (f" · Not: {r[4]}" if r[4] else '')
+    gun = (r[0] or '')[:10]
+    return send_file(_io.BytesIO(TP.excel(satir, json.loads(r[5] or '[]'), baslik, alt)), as_attachment=True,
+                     download_name=f"Tel_Talebi_{(r[1] or 'tum').replace(' ', '_')}_{gun}_{tid}.xlsx",
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/api/tel_plani/talep/<int:tid>', methods=['DELETE'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_talep_sil(tid):
+    import tel_plani as TP
+    conn = get_db()
+    TP.tablolari_kur(conn)
+    n = conn.execute("DELETE FROM tel_plani_talep WHERE id=?", (tid,)).rowcount
+    conn.commit()
+    if not n:
+        return jsonify({'hata': 'Talep bulunamadı'}), 404
+    return jsonify({'ok': True})
 
 
 @app.route('/api/kapasite/ozet', methods=['GET'])
@@ -14618,6 +14831,21 @@ def metal_plan_oto_job():
     _kp_oto_job('metal')
 
 
+def tel_plani_oto_job():
+    """07:15 ve 13:15 — TK2 mekanizma telleri planı (metal turundan 5 dk sonra).
+    Saatler oto_config.tel_plani.saatler (restart ister); etkin=false kapatır."""
+    import tel_plani as TP
+    cfg = _oto_config().get('tel_plani') or {}
+    if not cfg.get('etkin', True):
+        print('[TEL-PLANI] otomatik yenileme kapalı (oto_config) — atlandı')
+        return
+    try:
+        s = TP.tazele(*_tp_tazele_args('otomatik'))
+        print(f"[TEL-PLANI] oto yenileme: {s['tel']} tel · {s['emirli']} emirli mekanizma")
+    except Exception as e:
+        print(f'[TEL-PLANI] oto yenileme HATASI: {e}')
+
+
 # ── SATIŞ PLANI ARŞİVİ (kullanıcı 2026-10-05) — ayrıntı: satis_plani.py ──────────
 # S650B9 yalnız biri 10-05-03-06'yı F6'layınca tazelenir; saat bilinmediği için gün
 # içinde 30 dk'da bir bakılır, içerik değişmediyse hiçbir şey yazılmaz (tek SELECT).
@@ -18673,6 +18901,12 @@ if __name__ == '__main__':
                     _ek.append((_kh, _km, metal_plan_oto_job, f'Metal Planı Yenile ({_ks})'))
                 except (TypeError, ValueError):
                     print(f'[SCHED] metal_plan saati okunamadı: {_ks!r}')
+            for _ks in ((_ocfg.get('tel_plani') or {}).get('saatler') or ['07:15', '13:15']):
+                try:
+                    _kh, _km = (int(x) for x in str(_ks).split(':'))
+                    _ek.append((_kh, _km, tel_plani_oto_job, f'Tel Planı Yenile ({_ks})'))
+                except (TypeError, ValueError):
+                    print(f'[SCHED] tel_plani saati okunamadı: {_ks!r}')
             # AGENT NÖBETİ: agent/gözcü düşerse mail (bkz. agent_nobet_job).
             try:
                 _nbd = max(1, int((_ocfg.get('agent_nobeti') or {}).get('kontrol_dk') or 10))
@@ -18693,7 +18927,8 @@ if __name__ == '__main__':
                             satis_plani_job: 'as400',
                             bakim_katalog_job: 'bakim', ariza_hatirlatma_job: 'bakim',
                             ariza_durum_job: 'bakim', kaynak_plan_oto_job: 'planlar',
-                            montaj_plan_oto_job: 'planlar', metal_plan_oto_job: 'planlar'}
+                            montaj_plan_oto_job: 'planlar', metal_plan_oto_job: 'planlar',
+                            tel_plani_oto_job: 'planlar'}
             _ek = [j for j in _ek if KUR.modul(_GOREV_MODUL.get(j[2], ''))]
             _periyodik = [j for j in _periyodik if KUR.modul(_GOREV_MODUL.get(j[1], ''))]
             start_scheduler(ek_gorevler=_ek, periyodik_gorevler=_periyodik)
