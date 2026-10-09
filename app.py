@@ -242,6 +242,8 @@ PANEL_SAYFALAR = [
     'satis-plani',
     # 2026-10-09: TK2 mekanizma telleri planı (fasondan tel talebi). Yeni → yönetici tek tek verir.
     'tel-plani',
+    # 2026-10-09: aylık üretim raporu (ERP RPR+CFI, Forge bölümleri, performans). Yeni → yönetici tek tek verir.
+    'aylik-uretim',
     # 2026-09-15 PROJE TAKİP: 'proje-takip' = sayfayı görür + KENDİNE atanan işin
     # üretim terminini/durumunu girer; 'proje-yonetim' = proje açar, parça/iş ekler,
     # kişi atar, talep termini girer (sayfa değil yetki; sayfayı da açar).
@@ -254,7 +256,7 @@ PANEL_SAYFALAR = [
 _SAYFA_MODUL = {
     'as400-teyit': 'as400', 'kaynak-plan': 'planlar', 'montaj-plan': 'planlar',
     'metal-plan': 'planlar', 'kapasite': 'kapasite', 'ariza-onay': 'bakim',
-    'satis-plani': 'as400', 'tel-plani': 'planlar',
+    'satis-plani': 'as400', 'tel-plani': 'planlar', 'aylik-uretim': 'as400',
     'proje-takip': 'proje', 'proje-yonetim': 'proje', 'saha-cihazlari': 'sayac',
     'sinyal-analizi': 'sayac', 'andon-ayarlari': 'andon', 'is-yonetimi': 'is_yonetimi',
 }
@@ -2229,7 +2231,7 @@ def istemci_hata_listesi():
 _MODUL_YOLLARI = (
     ('/api/as400/', 'as400'), ('/api/kaynak_eoq', 'as400'), ('/kaynak_eoq', 'as400'),
     ('/api/kaynak_plan', 'planlar'), ('/api/montaj_plan', 'planlar'), ('/api/metal_plan', 'planlar'),
-    ('/api/tel_plani', 'planlar'),
+    ('/api/tel_plani', 'planlar'), ('/api/aylik_uretim', 'as400'),
     ('/api/kapasite', 'kapasite'), ('/api/proje', 'proje'),
     ('/api/bakim', 'bakim'), ('/api/ariza', 'bakim'),
     ('/tk1', 'tk1'), ('/andon_tk1', 'tk1'),
@@ -8159,6 +8161,126 @@ def tel_plani_talep_sil(tid):
     if not n:
         return jsonify({'hata': 'Talep bulunamadı'}), 404
     return jsonify({'ok': True})
+
+# ══ AYLIK ÜRETİM RAPORU (kullanıcı 2026-10-09) — ayrıntı: aylik_uretim.py ═════════
+# "Aylık üretilen, üretim teyidi verilen referansları bölümlere göre ayırıp Excel hâlinde
+#  raporlayacağız; Forge bölümleri olsun, performans da eklensin, çalışma saatini görelim."
+def _au_ay(kaynak):
+    """?yil=&ay= — yoksa SON TAMAMLANAN ay (raporun olağan konusu)."""
+    try:
+        yil, ay = int(kaynak.get('yil') or 0), int(kaynak.get('ay') or 0)
+    except (TypeError, ValueError):
+        yil, ay = 0, 0
+    if not (2020 <= yil <= 2100 and 1 <= ay <= 12):
+        b = date.today().replace(day=1) - timedelta(days=1)
+        yil, ay = b.year, b.month
+    return yil, ay
+
+
+@app.route('/api/aylik_uretim', methods=['GET'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_rapor():
+    import aylik_uretim as AU
+    conn = get_db()
+    yil, ay = _au_ay(request.args)
+    r = AU.rapor(conn, yil, ay)
+    cevap = {'yil': yil, 'ay': ay, 'aylar': AU.cekilen_aylar(conn), 'deneme': AU.deneme_durumu(),
+             'gelistirme_kopyasi': bool(_gelistirme_kopyasi()), 'rapor': r}
+    if r:
+        for o in r['ozet']:                       # panel kırılımı: bölüm başına ilk 300 kod
+            o['satir_sayisi'] = len(o['satirlar'])
+            o['satirlar'] = o['satirlar'][:300]
+        r['tanimsiz_sayi'] = len(r['tanimsiz'])
+        r['tanimsiz'] = r['tanimsiz'][:300]
+        r['hammadde'] = r['hammadde'][:100]
+    return jsonify(cevap)
+
+
+@app.route('/api/aylik_uretim/durum', methods=['GET'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_durum():
+    import aylik_uretim as AU
+    return jsonify({'deneme': AU.deneme_durumu()})
+
+
+@app.route('/api/aylik_uretim/hazirla', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_hazirla():
+    """Ayın RPR + CFI hareketlerini AS400'den okur — ARKA PLANDA (Cloudflare 100 sn); panel
+    /durum'u sorar. AS400'e yalnız SELECT gider."""
+    import aylik_uretim as AU
+    if _gelistirme_kopyasi():
+        return jsonify({'hata': "Geliştirme kopyasında AS400 okunmaz — sunucudaki panelden hazırlayın.",
+                        'gelistirme_kopyasi': True}), 403
+    yil, ay = _au_ay(request.get_json(silent=True) or {})
+    kp = _kp_modul()
+    basladi = AU.hazirla_arka_planda(db_connect, kp.erp_baglan, yil, ay, g.panel_ku['kullanici_adi'])
+    return jsonify({'basladi': basladi, 'yil': yil, 'ay': ay, 'deneme': AU.deneme_durumu()}), 202
+
+
+def _au_kapasite_isle(conn, yol, ad, yil):
+    """Kapasite Excel'i → 'Çalışma Saati' (dosyanın ayı, seçilen yıl) + 'Database' (süre/hat)."""
+    import aylik_uretim as AU
+    ay, saatler = AU.calisma_oku(yol)
+    AU.calisma_yaz(conn, yil, ay, saatler, ad, g.panel_ku['kullanici_adi'])
+    db = AU.database_yaz(conn, AU.database_oku(yol), ad)
+    return {'ok': True, 'yil': yil, 'ay': ay, 'bolum': len(saatler), 'database': db, 'dosya': os.path.basename(ad)}
+
+
+@app.route('/api/aylik_uretim/calisma', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_calisma():
+    """Üretim müdürünün 'Kapasite Kullanım Oranı' Excel'i: çalışma saatleri (dosyadaki ay) +
+    Database (kod → saatlik adet). form: dosya, yil."""
+    import tempfile
+    f = request.files.get('dosya')
+    if not f or not f.filename:
+        return jsonify({'hata': 'Dosya seçilmedi'}), 400
+    uzanti = os.path.splitext(f.filename)[1].lower()
+    if uzanti not in ('.xlsx', '.xlsm'):
+        return jsonify({'hata': 'Kapasite Excel\'i .xlsx olmalı'}), 400
+    yil, _ay = _au_ay(request.form)
+    fd, gecici = tempfile.mkstemp(suffix=uzanti)
+    os.close(fd)
+    try:
+        f.save(gecici)
+        return jsonify(_au_kapasite_isle(get_db(), gecici, f.filename, yil))
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    finally:
+        try:
+            os.remove(gecici)
+        except OSError:
+            pass
+
+
+@app.route('/api/aylik_uretim/calisma_klasor', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_calisma_klasor():
+    """Sunucu planlama klasörüne erişebiliyorsa en yeni kapasite Excel'ini okur
+    (oto_config.aylik_uretim.kapasite_klasoru; yoksa Q:\\UretimPlanlama\\Aylık Kapasite Sunum)."""
+    import aylik_uretim as AU
+    yil, _ay = _au_ay(request.get_json(silent=True) or {})
+    klasor = (_oto_config().get('aylik_uretim') or {}).get('kapasite_klasoru') or AU.VARSAYILAN_KAPASITE_KLASORU
+    try:
+        yol = AU.en_yeni_kapasite(klasor)
+        return jsonify(_au_kapasite_isle(get_db(), yol, yol, yil))
+    except (OSError, ValueError) as e:
+        return jsonify({'hata': str(e)}), 400
+
+
+@app.route('/api/aylik_uretim.xlsx', methods=['GET'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_excel():
+    import aylik_uretim as AU
+    import io as _io
+    yil, ay = _au_ay(request.args)
+    r = AU.rapor(get_db(), yil, ay)
+    if not r:
+        return jsonify({'hata': f'{ay:02d}/{yil} için AS400 okuması yok — önce "AS400\'den hazırla"'}), 404
+    return send_file(_io.BytesIO(AU.excel(r)), as_attachment=True,
+                     download_name=f"Aylik_Uretim_Raporu_{yil}-{ay:02d}.xlsx",
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 @app.route('/api/kapasite/ozet', methods=['GET'])
