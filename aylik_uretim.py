@@ -111,6 +111,16 @@ def tablolari_kur(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS aylik_kapasite_db (
         kod TEXT PRIMARY KEY, saatlik REAL, hat TEXT DEFAULT '', makine TEXT DEFAULT '',
         dosya TEXT DEFAULT '', guncellendi TEXT DEFAULT '')""")
+    # Rapordan hariç tutma kuralları (kullanıcı 2026-10-09: "92'li kodları dahil etmeyelim … kaldırabileyim").
+    # Tüm aylara uygulanır; panelden eklenir / kaldırılır.
+    yeni = not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='aylik_uretim_haric'").fetchone()
+    conn.execute("""CREATE TABLE IF NOT EXISTS aylik_uretim_haric (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, desen TEXT NOT NULL UNIQUE, tur TEXT NOT NULL DEFAULT 'kod',
+        aciklama TEXT DEFAULT '', kullanici TEXT DEFAULT '', olusturma TEXT DEFAULT '')""")
+    if yeni:        # tohum YALNIZ ilk kurulumda — kullanıcı kaldırırsa geri gelmez
+        conn.execute("INSERT OR IGNORE INTO aylik_uretim_haric (desen, tur, aciklama, kullanici, olusturma) "
+                     "VALUES ('92.', 'onek', ?, 'sistem', ?)",
+                     ("92'li kodlar (Tabo el fren telleri)", datetime.now().strftime('%Y-%m-%d %H:%M')))
     conn.commit()
 
 
@@ -120,6 +130,50 @@ def _norm(k):
 
 def _kok(k):
     return _norm(str(k or '').strip().split(' ')[0])
+
+
+# ── RAPORDAN HARİÇ TUTMA ─────────────────────────────────────────────────────
+HARIC_TURLER = ('onek', 'kod')
+_HARIC_DESEN = re.compile(r'^[A-Z0-9./\-]{2,40}$')
+
+
+def haric_kurallari(conn):
+    """Önce tek kod kuralları (daha özel), sonra önekler."""
+    tablolari_kur(conn)
+    return [{'id': r[0], 'desen': r[1], 'tur': r[2], 'aciklama': r[3] or '', 'kullanici': r[4] or '',
+             'olusturma': r[5] or ''} for r in conn.execute(
+        "SELECT id, desen, tur, aciklama, kullanici, olusturma FROM aylik_uretim_haric ORDER BY tur, desen")]
+
+
+def haric_ekle(conn, desen, tur, aciklama, kullanici):
+    """desen: önek ('92.') ya da tam kod — raporla aynı normalize edilir (boşluksuz, büyük harf)."""
+    n = _norm(desen)
+    if tur not in HARIC_TURLER:
+        raise ValueError("Tür 'onek' ya da 'kod' olmalı")
+    if not _HARIC_DESEN.match(n):
+        raise ValueError('Geçersiz kod / önek (2-40 karakter: harf, rakam, nokta, / ve -)')
+    tablolari_kur(conn)
+    if conn.execute("SELECT 1 FROM aylik_uretim_haric WHERE desen=?", (n,)).fetchone():
+        raise ValueError(f'{n} zaten hariç tutuluyor')
+    cur = conn.execute("INSERT INTO aylik_uretim_haric (desen, tur, aciklama, kullanici, olusturma) VALUES (?,?,?,?,?)",
+                       (n, tur, str(aciklama or '').strip()[:200], kullanici or '',
+                        datetime.now().strftime('%Y-%m-%d %H:%M')))
+    conn.commit()
+    return cur.lastrowid
+
+
+def haric_sil(conn, kid):
+    tablolari_kur(conn)
+    n = conn.execute("DELETE FROM aylik_uretim_haric WHERE id=?", (kid,)).rowcount
+    conn.commit()
+    return n
+
+
+def _haric_bul(n, kurallar):
+    for k in kurallar:
+        if (k['tur'] == 'kod' and n == k['desen']) or (k['tur'] == 'onek' and n.startswith(k['desen'])):
+            return k
+    return None
 
 
 # ── AS400 ────────────────────────────────────────────────────────────────────
@@ -407,6 +461,7 @@ def rapor(conn, yil, ay):
     forge = _forge(conn)
     kap, rota, kdb = _sure_kaynaklari(conn)
     ana = AV.haritasi(conn)
+    kurallar = haric_kurallari(conn)
     acik = veri.get('aciklama') or {}
     # Kod × tesis birleştir (causal ayrı tutulur)
     kodlar = {}
@@ -425,12 +480,16 @@ def rapor(conn, yil, ay):
                                                     'RPR': 0.0, 'CFI': 0.0, 'kod': set()})
         o[h['causal']] = o.get(h['causal'], 0.0) + h['adet']
         o['kod'].add(n)
-    bolumler, tanimsiz, hammadde, tesis_top = {}, [], [], {}
+    bolumler, tanimsiz, hammadde, haric, tesis_top = {}, [], [], [], {}
     for (n, tesis), d in kodlar.items():
         adet = d['RPR'] + d['CFI']
         satir = {'kod': d['kod'], 'aciklama': acik.get(d['kod'], ''), 'tesis': tesis, 'rpr': round(d['RPR'], 2),
                  'cfi': round(d['CFI'], 2), 'adet': round(adet, 2),
                  'depolar': ' '.join(f'{k or "?"}:{v:g}' for k, v in d['depolar'].items())}
+        hk = _haric_bul(n, kurallar)
+        if hk:                      # kullanıcının hariç tuttuğu kod: hiçbir toplama / performansa girmez
+            haric.append(dict(satir, kural=hk['desen'] + ('…' if hk['tur'] == 'onek' else ''), kural_id=hk['id']))
+            continue
         if n.startswith(HAMMADDE_ONEK):
             hammadde.append(satir)
             continue
@@ -535,6 +594,14 @@ def rapor(conn, yil, ay):
             t[k] = round(t[k], 2)
     tanimsiz.sort(key=lambda s: -s['adet'])
     hammadde.sort(key=lambda s: -s['adet'])
+    haric.sort(key=lambda s: -s['adet'])
+    hsay = {}
+    for x in haric:
+        v = hsay.setdefault(x['kural_id'], [0, 0.0])
+        v[0] += 1
+        v[1] += x['adet']
+    haric_kurallar = [dict(k, kod=hsay.get(k['id'], [0, 0.0])[0], adet=round(hsay.get(k['id'], [0, 0.0])[1], 2))
+                      for k in kurallar]
     return {'yil': yil, 'ay': ay, 'ay_ad': f'{AY_AD[ay]} {yil}', 'olcum': veri['ts'], 'olcan': veri.get('_kullanici', ''),
             'devam_eden': (yil, ay) == (date.today().year, date.today().month),
             'ozet': ozet, 'tesis': tesis_top, 'tanimsiz': tanimsiz, 'hammadde': hammadde,
@@ -542,7 +609,8 @@ def rapor(conn, yil, ay):
                                for o in depo_ozet.values()), key=lambda o: -(o['RPR'] + o['CFI'])),
             'calisma_disarida': disarida, 'calisma_bilgi': calisma_bilgi,
             'tanimsiz_adet': round(sum(s['adet'] for s in tanimsiz), 2),
-            'hammadde_adet': round(sum(s['adet'] for s in hammadde), 2)}
+            'hammadde_adet': round(sum(s['adet'] for s in hammadde), 2),
+            'haric': haric, 'haric_adet': round(sum(s['adet'] for s in haric), 2), 'haric_kurallar': haric_kurallar}
 
 
 # ── EXCEL (yöneticiyle paylaşılacak) ─────────────────────────────────────────
@@ -626,6 +694,8 @@ def excel(r):
         f"• Hammadde (20.* / 21.*, metre-kg): {len(r['hammadde'])} kod — adet toplamına girmez.",
         "• Fason (tedarikçi): Anaveri'de Pandora / Pull telleri (Pull şu an fasonda üretiliyor) ve 'Fason' işaretli kodlar "
         "(Forge'da tanımı yoksa) — tesis toplamına ve performansa girmez.",
+        f"• Rapordan hariç tutulan ({', '.join(k['desen'] + ('…' if k['tur'] == 'onek' else '') for k in r.get('haric_kurallar') or []) or 'kural yok'}): "
+        f"{len(r.get('haric') or [])} kod, {r.get('haric_adet') or 0:,.0f} adet — 'Hariç tutulan' sayfası; hiçbir toplama ve performansa girmez.",
     ]
     if r.get('calisma_bilgi'):
         notlar.append(f"• Çalışma saati kaynağı: {r['calisma_bilgi']['dosya']} ({r['calisma_bilgi']['guncellendi']}).")
@@ -662,14 +732,16 @@ def excel(r):
         w.freeze_panes = 'B3'
         w.auto_filter.ref = f'A2:K{w.max_row}'
     # Tanımsız + hammadde + depo + çalışma saati
-    for baslik, liste, kol in (('Tanımsız kodlar', r['tanimsiz'], 'anaveri'), ('Hammadde (adet dışı)', r['hammadde'], None)):
+    for baslik, liste, kol, kol_bas in (('Tanımsız kodlar', r['tanimsiz'], 'anaveri', 'Anaveri (TK-1/2 / Hat)'),
+                                        ('Hariç tutulan', r.get('haric') or [], 'kural', 'Kural'),
+                                        ('Hammadde (adet dışı)', r['hammadde'], None, None)):
         w = wb.create_sheet(baslik)
-        w.append(['Kod', 'Açıklama', 'Tesis (depo)', 'RPR', 'CFI', 'Toplam', 'Depo'] + (['Anaveri (TK-1/2 / Hat)'] if kol else []))
+        w.append(['Kod', 'Açıklama', 'Tesis (depo)', 'RPR', 'CFI', 'Toplam', 'Depo'] + ([kol_bas] if kol else []))
         for c in w[1]:
             c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
         for s in liste:
             w.append([s['kod'], s['aciklama'], s['tesis'], s['rpr'] or None, s['cfi'] or None, s['adet'], s['depolar']]
-                     + ([s.get('anaveri', '')] if kol else []))
+                     + ([s.get(kol, '')] if kol else []))
         for i, wd in enumerate([18, 34, 10, 10, 10, 12, 18, 24], start=1):
             w.column_dimensions[get_column_letter(i)].width = wd
     w = wb.create_sheet('Depo ve çalışma saati')

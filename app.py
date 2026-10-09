@@ -8185,7 +8185,7 @@ def aylik_uretim_rapor():
     yil, ay = _au_ay(request.args)
     r = AU.rapor(conn, yil, ay)
     cevap = {'yil': yil, 'ay': ay, 'aylar': AU.cekilen_aylar(conn), 'calisma_aylari': AU.calisma_aylari(conn),
-             'deneme': AU.deneme_durumu(),
+             'haric_kurallari': AU.haric_kurallari(conn), 'deneme': AU.deneme_durumu(),
              'gelistirme_kopyasi': bool(_gelistirme_kopyasi()), 'rapor': r}
     if r:
         for o in r['ozet']:                       # panel kırılımı: bölüm başına ilk 300 kod
@@ -8193,6 +8193,8 @@ def aylik_uretim_rapor():
             o['satirlar'] = o['satirlar'][:300]
         r['tanimsiz_sayi'] = len(r['tanimsiz'])
         r['tanimsiz'] = r['tanimsiz'][:300]
+        r['haric_sayi'] = len(r['haric'])
+        r['haric'] = r['haric'][:300]
         r['hammadde'] = r['hammadde'][:100]
     return jsonify(cevap)
 
@@ -8202,6 +8204,29 @@ def aylik_uretim_rapor():
 def aylik_uretim_durum():
     import aylik_uretim as AU
     return jsonify({'deneme': AU.deneme_durumu()})
+
+
+@app.route('/api/aylik_uretim/haric', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_haric_ekle():
+    """Rapordan hariç tutma kuralı {desen, tur: 'onek' | 'kod', aciklama} — tüm aylara uygulanır."""
+    import aylik_uretim as AU
+    data = request.get_json(silent=True) or {}
+    try:
+        kid = AU.haric_ekle(get_db(), data.get('desen'), data.get('tur') or 'kod', data.get('aciklama'),
+                            g.panel_ku['kullanici_adi'])
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    return jsonify({'ok': True, 'id': kid})
+
+
+@app.route('/api/aylik_uretim/haric/<int:kid>', methods=['DELETE'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_haric_sil(kid):
+    import aylik_uretim as AU
+    if not AU.haric_sil(get_db(), kid):
+        return jsonify({'hata': 'Kural bulunamadı'}), 404
+    return jsonify({'ok': True})
 
 
 @app.route('/api/aylik_uretim/hazirla', methods=['POST'])

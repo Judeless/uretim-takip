@@ -964,6 +964,8 @@
         .au-tablo tr.au-satir { cursor: pointer; }
         .au-tablo tr.au-satir:hover td { background: var(--surface-2); }
         .au-tablo tr.au-toplam td { font-weight: 800; background: var(--surface-2); }
+        .au-tablo .au-cikar { border: 0; background: none; color: var(--dim); cursor: pointer; font-size: .8rem; padding: 0 4px; }
+        .au-tablo .au-cikar:hover { color: var(--danger); }
         .au-perf { display: inline-block; min-width: 54px; padding: 2px 8px; border-radius: 999px; font-weight: 800; }
         .au-perf.iyi { background: var(--success-soft, #DCFCE7); color: var(--success); }
         .au-perf.dusuk { background: var(--danger-soft, #FEE2E2); color: var(--danger); }
@@ -7596,6 +7598,20 @@ window.__I18N_SOZLUK__ = {
                     <div style="padding:10px 20px 16px;overflow-x:auto" id="au-tablo">—</div>
                 </div>
                 <div class="panel-card">
+                    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
+                        <h3>🚫 Rapordan hariç tutulanlar</h3><span class="adet-info" id="au-haric-bilgi"></span>
+                        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                            <input id="au-haric-desen" placeholder="Kod ya da önek (ör. 92.)" onkeydown="if (event.key === 'Enter') auHaricEkleForm()" style="font-size:.84rem;padding:5px 8px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text);width:190px">
+                            <select id="au-haric-tur" style="font-size:.84rem;padding:5px 8px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)">
+                                <option value="onek">ile başlayan tüm kodlar</option>
+                                <option value="kod">yalnız bu kod</option>
+                            </select>
+                            <button class="btn btn-ghost" onclick="auHaricEkleForm()">➕ Hariç tut</button>
+                        </div>
+                    </div>
+                    <div style="padding:10px 20px 16px;overflow-x:auto" id="au-haric">—</div>
+                </div>
+                <div class="panel-card">
                     <div class="panel-header"><h3>🧾 Bölümü belirsiz kodlar</h3><span class="adet-info" id="au-tanimsiz-bilgi"></span></div>
                     <div style="padding:10px 20px 16px;overflow-x:auto;max-height:50vh" id="au-tanimsiz">—</div>
                 </div>
@@ -12572,6 +12588,7 @@ window.__I18N_SOZLUK__ = {
         }
         function auCiz() {
             var d = _au.veri; if (!d) return;
+            auHaricCiz(d);
             var r = d.rapor, el = document.getElementById('au-tablo');
             var btn = document.getElementById('au-hazirla-btn');
             if (btn) btn.title = d.gelistirme_kopyasi ? 'Geliştirme kopyası: AS400 okuması yalnız sunucudaki panelde' : 'Ayın RPR + CFI hareketlerini AS400\'den oku';
@@ -12591,7 +12608,8 @@ window.__I18N_SOZLUK__ = {
                       (dis ? ' · bölüme atanmamış ' + fmt(Math.round(dis)) + ' saat (' + (r.calisma_disarida || []).map(function (x) { return esc(x.excel_bolum); }).join(', ') + ') — performansa girmez' : '')
                     : '<span style="color:var(--warn)">⏱ Bu ay için çalışma saati yüklenmedi — performans hesaplanmadı. Kapasite Excel\'ini yükleyin.' +
                       (yuklu ? ' (Saat yüklü aylar: ' + esc(yuklu) + ')' : '') + '</span>') +
-                '<br>🧾 Bölümü belirsiz: ' + fmt(r.tanimsiz_sayi || 0) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet (özete girmez) · hammadde (20.* / 21.*): ' + fmt(r.hammadde_adet) + ' — adet toplamına girmez</div>';
+                '<br>🧾 Bölümü belirsiz: ' + fmt(r.tanimsiz_sayi || 0) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet (özete girmez) · hammadde (20.* / 21.*): ' + fmt(r.hammadde_adet) + ' — adet toplamına girmez' +
+                (r.haric_sayi ? '<br>🚫 Rapordan hariç tutulan: ' + fmt(r.haric_sayi) + ' kod · ' + fmt(r.haric_adet) + ' adet — hiçbir toplama ve performansa girmez' : '') + '</div>';
             var bas = '<tr><th class="sol">Tesis</th><th class="sol">Bölüm</th><th>Adet</th><th>Kod</th><th>RPR</th><th>CFI</th>' +
                 '<th title="Adet × birim süre">Teorik saat</th><th title="Birim süresi bilinen adetin payı">Süre kapsamı</th>' +
                 '<th>NçS</th><th>Mesai</th><th>Çalışma</th><th>Kişi</th><th title="Teorik ÷ çalışma (NçS + mesai), hedef %90">Performans</th></tr>';
@@ -12612,10 +12630,11 @@ window.__I18N_SOZLUK__ = {
                         '<td>' + auSayi(o.teorik_saat, 10) + '</td><td>' + auYuzde(o.sure_kapsami) + '</td>' +
                         '<td>' + bos(o.nos) + '</td><td>' + bos(o.mesai) + '</td><td>' + bos(o.calisma) + '</td><td>' + (o.kisi || '') + '</td><td>' + perf + '</td></tr>';
                     if (_au.acik[i]) {
-                        govde += '<tr class="au-acik"><td colspan="13"><table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th>RPR</th><th>CFI</th><th>Adet</th><th>Birim sn</th><th class="sol">Süre kaynağı</th><th>Teorik saat</th></tr>' +
+                        govde += '<tr class="au-acik"><td colspan="13"><table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th>RPR</th><th>CFI</th><th>Adet</th><th>Birim sn</th><th class="sol">Süre kaynağı</th><th>Teorik saat</th><th></th></tr>' +
                             (o.satirlar || []).map(function (s) {
                                 return '<tr><td class="sol"><b>' + esc(s.kod) + '</b>' + (s.cok_bolum ? ' <span title="Birden çok bölümde tanımlı" style="color:var(--dim)">⇄</span>' : '') + '</td><td class="sol">' + esc(s.aciklama || '') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) +
-                                    '</td><td>' + auSayi(s.sure_sn, 10) + '</td><td class="sol">' + esc(s.sure_kaynak || '—') + '</td><td>' + auSayi(s.teorik_saat, 10) + '</td></tr>';
+                                    '</td><td>' + auSayi(s.sure_sn, 10) + '</td><td class="sol">' + esc(s.sure_kaynak || '—') + '</td><td>' + auSayi(s.teorik_saat, 10) + '</td>' +
+                                    '<td>' + auCikarBtn(s) + '</td></tr>';
                             }).join('') + '</table>' + (o.satir_sayisi > (o.satirlar || []).length ? '<div style="color:var(--muted)">İlk ' + o.satirlar.length + ' kod — tamamı Excel\'de.</div>' : '') + '</td></tr>';
                     }
                 });
@@ -12630,11 +12649,64 @@ window.__I18N_SOZLUK__ = {
             var tn = r.tanimsiz || [];
             document.getElementById('au-tanimsiz-bilgi').textContent = fmt(r.tanimsiz_sayi || tn.length) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet — Forge\'da ve Anaveri\'de bölümü yok';
             document.getElementById('au-tanimsiz').innerHTML = tn.length
-                ? '<table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th class="sol">Tesis</th><th>RPR</th><th>CFI</th><th>Adet</th><th class="sol">Anaveri</th></tr>' +
-                  tn.map(function (s) { return '<tr><td class="sol"><b>' + esc(s.kod) + '</b></td><td class="sol">' + esc(s.aciklama || '') + '</td><td class="sol">' + esc(s.tesis || '?') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) + '</td><td class="sol">' + esc(s.anaveri || '') + '</td></tr>'; }).join('') + '</table>'
+                ? '<table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th class="sol">Tesis</th><th>RPR</th><th>CFI</th><th>Adet</th><th class="sol">Anaveri</th><th></th></tr>' +
+                  tn.map(function (s) { return '<tr><td class="sol"><b>' + esc(s.kod) + '</b></td><td class="sol">' + esc(s.aciklama || '') + '</td><td class="sol">' + esc(s.tesis || '?') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) + '</td><td class="sol">' + esc(s.anaveri || '') + '</td><td>' + auCikarBtn(s) + '</td></tr>'; }).join('') + '</table>'
                 : '<span style="color:var(--success)">Tüm kodların bölümü belli.</span>';
         }
         function auAcKapat(i) { _au.acik[i] = !_au.acik[i]; auCiz(); }
+        // Rapordan hariç tutma: kural (önek / tek kod) tüm aylara uygulanır, kaldırınca kodlar geri girer
+        function auCikarBtn(s) {
+            return '<button class="au-cikar" data-kod="' + esc(s.kod) + '" data-ack="' + esc(s.aciklama || '') + '" onclick="auHaricKod(event, this)" title="Bu kodu rapordan çıkar">✕</button>';
+        }
+        function auHaricCiz(d) {
+            var el = document.getElementById('au-haric'); if (!el) return;
+            var r = d.rapor, kur = r ? (r.haric_kurallar || []) : (d.haric_kurallari || []), hl = r ? (r.haric || []) : [];
+            document.getElementById('au-haric-bilgi').textContent = r ? fmt(r.haric_sayi || 0) + ' kod · ' + fmt(r.haric_adet || 0) + ' adet — hiçbir toplama ve performansa girmez' : '';
+            var h = kur.length
+                ? '<table class="au-tablo"><tr><th class="sol">Kural</th><th class="sol">Açıklama</th><th>Bu ay kod</th><th>Bu ay adet</th><th class="sol">Ekleyen</th><th></th></tr>' +
+                  kur.map(function (k) {
+                      return '<tr><td class="sol"><b>' + esc(k.desen) + (k.tur === 'onek' ? '…' : '') + '</b> <span style="color:var(--muted);font-size:.72rem">' + (k.tur === 'onek' ? 'ile başlayan' : 'tek kod') + '</span></td>' +
+                          '<td class="sol">' + esc(k.aciklama || '') + '</td><td>' + (r ? fmt(k.kod || 0) : '') + '</td><td>' + (r ? auSayi(k.adet || 0) : '') + '</td>' +
+                          '<td class="sol" style="color:var(--muted)">' + esc((k.kullanici || '') + ' ' + (k.olusturma || '')) + '</td>' +
+                          '<td><button class="btn btn-ghost" style="padding:2px 8px;font-size:.74rem" onclick="auHaricSil(' + k.id + ')" title="Kuralı kaldır — kodlar rapora geri girer">↩️ Rapora geri al</button></td></tr>';
+                  }).join('') + '</table>'
+                : '<span style="color:var(--muted)">Hariç tutulan kod yok — tüm teyitli üretim rapora giriyor.</span>';
+            if (hl.length) {
+                h += '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.78rem;color:var(--muted)">Bu ay hariç tutulan kodlar (' + fmt(r.haric_sayi || hl.length) + ')</summary>' +
+                    '<table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th class="sol">Tesis</th><th>RPR</th><th>CFI</th><th>Adet</th><th class="sol">Kural</th></tr>' +
+                    hl.map(function (s) { return '<tr><td class="sol"><b>' + esc(s.kod) + '</b></td><td class="sol">' + esc(s.aciklama || '') + '</td><td class="sol">' + esc(s.tesis || '?') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) + '</td><td class="sol">' + esc(s.kural || '') + '</td></tr>'; }).join('') +
+                    '</table></details>';
+            }
+            el.innerHTML = h;
+        }
+        async function auHaricGonder(desen, tur, aciklama) {
+            try {
+                var r = await panelFetch('/api/aylik_uretim/haric', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                     body: JSON.stringify({ desen: desen, tur: tur, aciklama: aciklama || '' }) });
+                var d = await spJson(r);
+                if (!r.ok) { toast(d.hata || ('HTTP ' + r.status), 'err'); return false; }
+                toast(desen + ' rapordan çıkarıldı', 'ok'); auYukle(); return true;
+            } catch (e) { toast(e.message, 'err'); return false; }
+        }
+        function auHaricKod(ev, b) {
+            ev.stopPropagation();
+            var kod = b.getAttribute('data-kod');
+            if (!confirm(kod + ' rapordan çıkarılsın mı?\n\nBölüm ve tesis toplamına, performansa girmez; tüm aylara uygulanır. "Rapordan hariç tutulanlar" bölümünden geri alabilirsiniz.')) return;
+            auHaricGonder(kod, 'kod', b.getAttribute('data-ack') || '');
+        }
+        function auHaricEkleForm() {
+            var i = document.getElementById('au-haric-desen'), v = (i.value || '').trim();
+            if (!v) { toast('Kod ya da önek yazın', 'err'); return; }
+            auHaricGonder(v, document.getElementById('au-haric-tur').value, '').then(function (ok) { if (ok) i.value = ''; });
+        }
+        async function auHaricSil(id) {
+            try {
+                var r = await panelFetch('/api/aylik_uretim/haric/' + id, { method: 'DELETE' });
+                var d = await spJson(r);
+                if (!r.ok) { toast(d.hata || ('HTTP ' + r.status), 'err'); return; }
+                toast('Kural kaldırıldı — kodlar rapora geri girdi', 'ok'); auYukle();
+            } catch (e) { toast(e.message, 'err'); }
+        }
         function auExcel() {
             var s = auSecili();
             spDosyaIndir('/api/aylik_uretim.xlsx?yil=' + s.yil + '&ay=' + s.ay, 'Aylik_Uretim_Raporu.xlsx');
