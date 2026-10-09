@@ -985,6 +985,12 @@
         .tp-aday { display: block; font-size: .68rem; color: var(--muted); }
         .tp-acik td { background: var(--surface-2); font-size: .76rem; text-align: left; }
         .tp-ust { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 14px; }
+        .tp-uyari { color: var(--warn); cursor: help; }
+        .tp-not { font-size: .74rem; color: var(--muted); }
+        .tp-anaveri { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .76rem;
+                      color: var(--muted); padding: 8px 20px 0; }
+        .tp-anaveri .btn { padding: 3px 10px; font-size: .74rem; }
+        .tp-kutu.ted { min-width: 190px; }
 
         /* ── Metal planı makine atama panosu (2026-10-01) ── */
         .mp-pano { position: fixed; inset: 0; z-index: 2500; background: var(--bg);
@@ -5378,7 +5384,9 @@ window.__I18N_SOZLUK__ = {
   "4 hafta": {"en": "4 weeks", "it": "4 settimane"},
   "Launch'lı mekanizmalar dahil": {"en": "Include launched mechanisms", "it": "Includi meccanismi lanciati"},
   "İhtiyacı olmayan telleri de göster": {"en": "Also show cables without demand", "it": "Mostra anche cavi senza fabbisogno"},
-  "TK2 montaj mekanizmalarının açık emirleri × ürün ağacındaki tel adedi = tel ihtiyacı (emrin bitiş haftasına göre). Tel stoğu ve yoldaki tel launch'ları tarih sırasıyla düşülür; kalan, o haftanın fasondan talebidir. AS400'den her gün 07:15 ve 13:15'te kendiliğinden tazelenir.": {"en": "Open orders of TK2 assembly mechanisms × cable quantity in the bill of materials = cable demand (by the order's end week). Cable stock and cable launches in progress are deducted in date order; the rest is that week's request to the subcontractor. Refreshed automatically from AS400 every day at 07:15 and 13:15.", "it": "Ordini aperti dei meccanismi di montaggio TK2 × quantità di cavo in distinta = fabbisogno cavi (per settimana di fine ordine). Giacenza cavi e lanci in corso vengono scalati in ordine di data; il resto è la richiesta della settimana al terzista. Aggiornato automaticamente da AS400 ogni giorno alle 07:15 e 13:15."},
+  "TK2 montaj mekanizmalarının açık emirleri × ürün ağacındaki tel adedi = tel ihtiyacı (emrin bitiş haftasına göre). Tel stoğu ve yoldaki tel launch'ları tarih sırasıyla düşülür; kalan, o haftanın tedarikçiden talebidir. Telin kimden geldiği planlamanın Anaveri sayfasından (TK-1/2 · Hat) okunur; Pull telleri fasonda üretildiği için tedarikçi sayılır. AS400'den her gün 07:15 ve 13:15'te kendiliğinden tazelenir.": {"en": "Open orders of TK2 assembly mechanisms × cable quantity in the bill of materials = cable demand (by the order's end week). Cable stock and cable launches in progress are deducted in date order; the rest is that week's request to the supplier. Who supplies each cable is read from planning's Anaveri sheet (TK-1/2 · Line); Pull cables count as supplier cables because they are made by a subcontractor. Refreshed automatically from AS400 every day at 07:15 and 13:15.", "it": "Ordini aperti dei meccanismi di montaggio TK2 × quantità di cavo in distinta = fabbisogno cavi (per settimana di fine ordine). Giacenza cavi e lanci in corso vengono scalati in ordine di data; il resto è la richiesta della settimana al fornitore. Il fornitore di ogni cavo viene letto dal foglio Anaveri della pianificazione (TK-1/2 · Linea); i cavi Pull contano come cavi di fornitore perché prodotti da un terzista. Aggiornato automaticamente da AS400 ogni giorno alle 07:15 e 13:15."},
+  "📥 Anaveri yükle": {"en": "📥 Upload Anaveri", "it": "📥 Carica Anaveri"},
+  "📂 Plan klasöründen oku": {"en": "📂 Read from plan folder", "it": "📂 Leggi dalla cartella piani"},
   "📅 Haftalık önemli referanslar": {"en": "📅 Key references of the week", "it": "📅 Codici importanti della settimana"},
   "gün gün üretilecek mekanizmalar · eksik parça notu · bitince ✓": {"en": "mechanisms to build day by day · missing part note · ✓ when done", "it": "meccanismi da produrre giorno per giorno · nota pezzo mancante · ✓ a fine"},
   "◀ Önceki": {"en": "◀ Previous", "it": "◀ Precedente"},
@@ -7450,7 +7458,7 @@ window.__I18N_SOZLUK__ = {
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">🧵 Tel Planı — TK2 mekanizma telleri</h2>
                     <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
-                        TK2 montaj mekanizmalarının açık emirleri × ürün ağacındaki tel adedi = tel ihtiyacı (emrin bitiş haftasına göre). Tel stoğu ve yoldaki tel launch'ları tarih sırasıyla düşülür; kalan, o haftanın fasondan talebidir. AS400'den her gün 07:15 ve 13:15'te kendiliğinden tazelenir.
+                        TK2 montaj mekanizmalarının açık emirleri × ürün ağacındaki tel adedi = tel ihtiyacı (emrin bitiş haftasına göre). Tel stoğu ve yoldaki tel launch'ları tarih sırasıyla düşülür; kalan, o haftanın tedarikçiden talebidir. Telin kimden geldiği planlamanın Anaveri sayfasından (TK-1/2 · Hat) okunur; Pull telleri fasonda üretildiği için tedarikçi sayılır. AS400'den her gün 07:15 ve 13:15'te kendiliğinden tazelenir.
                     </p>
                 </div>
                 <div class="panel-card">
@@ -7468,10 +7476,16 @@ window.__I18N_SOZLUK__ = {
                             <button type="button" data-u="2" onclick="tpUfuk(2)">2 hafta</button>
                             <button type="button" data-u="4" onclick="tpUfuk(4)">4 hafta</button>
                         </div>
-                        <select id="tp-fasoncu" onchange="_tp.fasoncu=this.value;tpYukle()" title="Fasoncu"></select>
+                        <select id="tp-fasoncu" onchange="_tp.fasoncu=this.value;tpYukle()" title="Tedarikçi"></select>
                         <input type="search" id="tp-ara" placeholder="tel ya da mekanizma kodu" oninput="tpAraGecikmeli()">
                         <label title="Launch'ı açık (40/45/50) mekanizma emirlerinin kalanı da ihtiyaca girsin"><input type="checkbox" id="tp-launch" checked onchange="_tp.launch=this.checked;tpYukle()"> <span>Launch'lı mekanizmalar dahil</span></label>
                         <label><input type="checkbox" id="tp-hepsi" onchange="_tp.hepsi=this.checked;tpYukle()"> <span>İhtiyacı olmayan telleri de göster</span></label>
+                    </div>
+                    <div class="tp-anaveri">
+                        <span id="tp-anaveri-bilgi">Anaveri: —</span>
+                        <button class="btn btn-ghost" onclick="document.getElementById('tp-anaveri-dosya').click()" title="Planlamanın PLAN 26xxxx.xlsb dosyası — Anaveri sayfasının tel satırları okunur">📥 Anaveri yükle</button>
+                        <button class="btn btn-ghost" onclick="tpAnaveriKlasor()" title="Sunucu planlama klasörüne erişebiliyorsa en yeni PLAN dosyasını okur">📂 Plan klasöründen oku</button>
+                        <input type="file" id="tp-anaveri-dosya" accept=".xlsb,.xlsx,.xlsm" style="display:none" onchange="tpAnaveriYukle(this)">
                     </div>
                     <div class="tp-ozet" id="tp-ozet"></div>
                     <div style="padding:10px 20px 16px;overflow-x:auto;max-height:70vh;overflow-y:auto" id="tp-tablo">—</div>
@@ -12283,10 +12297,15 @@ window.__I18N_SOZLUK__ = {
         // Görünüm (2/4 hafta, süzgeçler) sunucuda son ölçümden hesaplanır; AS400'e
         // yalnız 'tazele' gider. Haftalık hücre = o haftanın TALEBİ (stok ve yoldaki
         // tel launch'ı tarih sırasıyla düşülmüş), üzerine gelince brüt ihtiyaç.
-        var _tp = { ufuk: 4, launch: true, hepsi: false, fasoncu: '', ara: '', veri: null, acik: {},
+        // Tedarikçi Anaveri'den (TK-1/2 · Hat); varsayılan süzgeç 'tedarikçiden gelenler'
+        // — modül tedarikçilerle ilgilenen arkadaşa ihtiyacı göndermek için.
+        var _tp = { ufuk: 4, launch: true, hepsi: false, fasoncu: '__tedarikci__', ara: '', veri: null, acik: {},
                     istekNo: 0, izleme: null, araZaman: null };
+        var TP_SUZGEC = { '__tedarikci__': 'Tedarikçiden gelenler', '': 'Tüm teller', '__tk1__': 'TK1 (içeride)',
+                          '__yok__': 'Tedarikçisi belirsiz', '__uyari__': '⚠ Kontrol uyarısı olanlar' };
         function tpSayi(v) { return (v === null || v === undefined || v === '') ? '' : fmt(Math.round(Number(v) * 100) / 100); }
         function tpGunAy(t) { return t ? t.slice(8, 10) + '.' + t.slice(5, 7) : ''; }
+        function tpSuzgecAdi(f) { return TP_SUZGEC.hasOwnProperty(f) ? TP_SUZGEC[f] : f; }
         function tpSekmeAcildi() {
             try { var u = localStorage.getItem('tp_ufuk'); if (u === '2' || u === '4') _tp.ufuk = +u; } catch (e) {}
             tpYukle();
@@ -12326,39 +12345,55 @@ window.__I18N_SOZLUK__ = {
             document.querySelectorAll('#tp-ufuk button').forEach(function (b) { b.classList.toggle('aktif', +b.getAttribute('data-u') === _tp.ufuk); });
             var sel = document.getElementById('tp-fasoncu');
             if (sel) {
-                sel.innerHTML = '<option value="">Tüm fasoncular</option>' +
-                    (j.fasoncular || []).map(function (f) { return '<option value="' + esc(f) + '"' + (f === _tp.fasoncu ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('') +
-                    '<option value="__yok__"' + (_tp.fasoncu === '__yok__' ? ' selected' : '') + '>Fasoncusu belirsiz</option>';
+                var sec = function (v, ad) { return '<option value="' + esc(v) + '"' + (v === _tp.fasoncu ? ' selected' : '') + '>' + esc(ad) + '</option>'; };
+                sel.innerHTML = sec('__tedarikci__', TP_SUZGEC.__tedarikci__) + sec('', TP_SUZGEC['']) +
+                    (j.fasoncular || []).filter(function (f) { return f !== 'TK1'; }).map(function (f) { return sec(f, f); }).join('') +
+                    sec('__tk1__', TP_SUZGEC.__tk1__) + sec('__yok__', TP_SUZGEC.__yok__) + sec('__uyari__', TP_SUZGEC.__uyari__);
             }
+            var an = j.anaveri, anb = document.getElementById('tp-anaveri-bilgi');
+            if (anb) anb.innerHTML = an ? ('Anaveri: <b>' + esc(an.dosya) + '</b> · ' + fmt(an.satir) + ' tel · ' + esc(an.ts) +
+                (an.kullanici && an.kullanici !== 'tohum' ? ' (' + esc(an.kullanici) + ')' : '')) : 'Anaveri yüklenmedi — tedarikçi bilgisi yok';
             var bilgi = document.getElementById('tp-bilgi'), o = j.olcum;
             var btn = document.getElementById('tp-tazele-btn');
-            if (btn) btn.title = j.gelistirme_kopyasi ? "Geliştirme kopyası: AS400'den tazeleme yalnız sunucudaki panelde" : "AS400'den yeniden oku (yaklaşık 1 dakika)";
+            if (btn) btn.title = j.gelistirme_kopyasi ? "Geliştirme kopyası: AS400'den tazeleme yalnız sunucudaki panelde" : "AS400'den yeniden oku";
             if (bilgi) bilgi.innerHTML = o ? ('Ölçüm ' + esc(o.ts) + ' · ' + fmt(o.mekanizma_sayisi) + ' mekanizma, ' +
                 fmt(o.emirli_mekanizma) + ' açık emirli · ' + fmt(o.tel_sayisi) + ' tel · stok depoları ' + esc((o.sayilan_depolar || []).join(', '))) : '';
             var kutu = document.getElementById('tp-tablo'), oz = document.getElementById('tp-ozet');
             if (!o) {
                 if (oz) oz.innerHTML = '';
-                if (kutu) kutu.innerHTML = '<div style="padding:14px 0;color:var(--muted)">Henüz ölçüm yok. Sunucudaki panelde <b>🔄 AS400\'den tazele</b>\'ye basın (yaklaşık 1 dakika) ya da 07:15 / 13:15 turunu bekleyin.</div>';
+                if (kutu) kutu.innerHTML = '<div style="padding:14px 0;color:var(--muted)">Henüz ölçüm yok. Sunucudaki panelde <b>🔄 AS400\'den tazele</b>\'ye basın ya da 07:15 / 13:15 turunu bekleyin.</div>';
                 return;
             }
             var z = j.ozet || {};
+            var tedKutu = (j.tedarikciler || []).filter(function (t) { return t.talep > 0; }).map(function (t) {
+                return '<div class="tp-kutu ted"><b>' + fmt(t.talep) + '</b><span>' + esc(t.ad) + ' · ' + t.talepli + ' tel' +
+                    (t.vardiya ? ' · ≈ ' + tpSayi(t.vardiya) + ' vardiya' : '') +
+                    (t.kapasitesiz ? ' (' + t.kapasitesiz + ' telin kapasitesi yok)' : '') + '</span></div>';
+            }).join('');
             if (oz) oz.innerHTML =
                 '<div class="tp-kutu"><b style="color:var(--primary)">' + fmt(z.talep || 0) + '</b><span>talep edilecek adet · ' + fmt(z.talepli || 0) + ' tel</span></div>' +
                 '<div class="tp-kutu"><b style="color:var(--danger)">' + fmt(z.gecikmis_talep || 0) + '</b><span>gecikmiş emirler için talep</span></div>' +
-                '<div class="tp-kutu"><b>' + fmt(z.ihtiyac || 0) + '</b><span>toplam ihtiyaç (' + j.ufuk + ' hafta) · ' + fmt(z.tel || 0) + ' tel</span></div>';
+                tedKutu +
+                (z.uyari ? '<div class="tp-kutu" style="cursor:pointer" onclick="_tp.fasoncu=\'__uyari__\';tpYukle()" title="Yalnız uyarılı telleri göster"><b style="color:var(--warn)">⚠ ' + z.uyari + '</b><span>telde kontrol uyarısı</span></div>' : '');
             var hf = j.haftalar || [];
-            var bas = '<tr><th class="sol">Tel kodu</th><th class="sol">Fasoncu</th><th>Mek.</th>' +
+            var bas = '<tr><th class="sol">Tel kodu</th><th class="sol">Tedarikçi</th><th>Mek.</th>' +
                 hf.map(function (x) {
                     return '<th title="' + esc(x.bas ? tpGunAy(x.bas) + '–' + tpGunAy(x.bit) : 'Bitiş tarihi geçmiş emirler') + '">' + esc(x.etiket) + '</th>';
                 }).join('') + '<th title="Brüt ihtiyaç (ufuk boyunca)">İhtiyaç</th><th title="Sayılan depolardaki stok">Stok</th>' +
-                '<th title="Açık tel launch\'ı (ERP 40/45/50)">Yolda</th><th>Talep</th><th class="sol">Son talep</th></tr>';
-            var sutun = 8 + hf.length;
+                '<th title="Açık tel launch\'ı (ERP 40/45/50)">Yolda</th><th>Talep</th>' +
+                '<th title="Talep ÷ Anaveri kapasitesi (1 vardiya)">Vardiya</th><th class="sol">Son talep</th></tr>';
+            var sutun = 9 + hf.length;
             var govde = (j.satirlar || []).map(function (s) {
-                var fasSec = '<select onclick="event.stopPropagation()" onchange="tpFasonDegis(\'' + esc(s.kod) + '\', this)">' +
-                    '<option value="">—</option>' +
-                    (j.fasoncular || []).map(function (f) { return '<option' + (f === s.fasoncu ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('') +
+                var anaIp = s.anaveri_tk ? ('Anaveri: ' + s.anaveri_tk + (s.hat ? ' · ' + s.hat : '') + (s.makine ? ' · ' + s.makine : '') +
+                    (s.kapasite ? ' · ' + tpSayi(s.kapasite) + '/vardiya' : '') + (s.zorluk ? ' · ' + s.zorluk : '')) : "Anaveri'de yok";
+                var secenek = (j.fasoncular || []).slice();
+                if (s.tedarikci && secenek.indexOf(s.tedarikci) === -1) secenek.push(s.tedarikci);
+                var tedSec = '<select onclick="event.stopPropagation()" onchange="tpFasonDegis(\'' + esc(s.kod) + '\', this)" title="' +
+                        esc(s.elle ? 'Elle seçildi — boş bırakırsanız Anaveri\'ye döner' : 'Anaveri\'den') + '">' +
+                    '<option value="">' + (s.elle ? '↺ Anaveri\'ye dön' : '—') + '</option>' +
+                    secenek.map(function (f) { return '<option' + (f === s.tedarikci ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('') +
                     '<option value="__diger__">Diğer…</option></select>' +
-                    (!s.fasoncu && s.adaylar && s.adaylar.length ? '<span class="tp-aday" title="Planlamanın fason listesi">liste: ' + esc(s.adaylar.join(' / ')) + '</span>' : '');
+                    '<span class="tp-aday">' + (s.elle ? '✎ elle · ' : '') + esc(anaIp) + '</span>';
                 var hucreler = hf.map(function (x) {
                     var t = s.talep[x.anahtar] || 0, iht = s.ihtiyac[x.anahtar] || 0;
                     var cls = t > 0 ? ('talep' + (x.anahtar === 'GEC' ? ' gec' : '')) : 'bos';
@@ -12368,18 +12403,23 @@ window.__I18N_SOZLUK__ = {
                 var dp = Object.keys(s.depolar || {}).map(function (k) { return k + ': ' + tpSayi(s.depolar[k]); }).join(' · ');
                 var acik = !!_tp.acik[s.kod];
                 var st = s.son_talep;
+                var uyari = (s.uyarilar || []).length ? ' <span class="tp-uyari" title="' + esc(s.uyarilar.join('\n')) + '">⚠</span>' : '';
                 var satir = '<tr class="tp-satir" onclick="tpAcKapat(\'' + esc(s.kod) + '\')">' +
-                    '<td class="sol"><b>' + esc(s.kod) + '</b><span class="tp-aday">' + esc(s.aciklama || '') + '</span></td>' +
-                    '<td class="sol">' + fasSec + '</td>' +
+                    '<td class="sol"><b>' + esc(s.kod) + '</b>' + uyari + '<span class="tp-aday">' + esc(s.aciklama || '') + '</span></td>' +
+                    '<td class="sol">' + tedSec + '</td>' +
                     '<td title="Bu teli kullanan mekanizma sayısı — satıra tıklayın">' + s.ust_sayisi + (acik ? ' ▴' : ' ▾') + '</td>' +
                     hucreler +
                     '<td>' + tpSayi(s.ihtiyac_toplam) + '</td>' +
                     '<td title="' + esc(dp || 'stok yok') + '">' + tpSayi(s.stok) + (s.eksi ? ' <span title="Sayılan depolarda eksi bakiye var" style="color:var(--warn)">⚠</span>' : '') + '</td>' +
                     '<td title="ERP\'de açık tel launch\'ı · ERP tel OPR\'si ' + tpSayi(s.tel_opr) + '">' + tpSayi(s.yolda) + '</td>' +
                     '<td class="' + (s.talep_toplam > 0 ? 'talep' : 'bos') + '">' + (s.talep_toplam > 0 ? tpSayi(s.talep_toplam) : '—') + '</td>' +
+                    '<td title="' + esc(s.kapasite ? 'Kapasite ' + tpSayi(s.kapasite) + ' adet / vardiya' : 'Anaveri\'de kapasite yok') + '">' + (s.vardiya !== null && s.vardiya !== undefined ? tpSayi(s.vardiya) : '') + '</td>' +
                     '<td class="sol" title="' + (st ? 'Talep #' + st.id : '') + '">' + (st ? esc(tpGunAy(st.ts)) + ' · ' + tpSayi(st.adet) : '') + '</td></tr>';
                 if (acik) {
-                    satir += '<tr class="tp-acik"><td colspan="' + sutun + '"><div class="tp-ust">' +
+                    var kontrol = (s.uyarilar || []).map(function (u) { return '<div class="tp-uyari">⚠ ' + esc(u) + '</div>'; }).join('') +
+                        (s.notlar || []).map(function (u) { return '<div class="tp-not">ℹ ' + esc(u) + '</div>'; }).join('');
+                    satir += '<tr class="tp-acik"><td colspan="' + sutun + '">' + (kontrol ? '<div style="margin-bottom:6px">' + kontrol + '</div>' : '') +
+                        '<div class="tp-ust">' +
                         (s.ustler || []).map(function (u) {
                             return '<div><b>' + esc(u.kod) + '</b> · ' + tpSayi(u.birim) + ' ad/mek. → ' +
                                 (u.ihtiyac ? '<b>' + tpSayi(u.ihtiyac) + '</b> tel' : '<span style="color:var(--dim)">ufukta emir yok</span>') +
@@ -12397,21 +12437,36 @@ window.__I18N_SOZLUK__ = {
         function tpFasonDegis(kod, sel) {
             var v = sel.value;
             if (v === '__diger__') {
-                v = (prompt(kod + ' için fasoncu adı:') || '').trim();
+                v = (prompt(kod + ' için tedarikçi adı:') || '').trim();
                 if (!v) { tpCiz(); return; }
             }
             fetch('/api/tel_plani/fason', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ kod: kod, fasoncu: v }) })
                 .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.hata || 'HTTP ' + r.status); }); })
-                .then(function () { toast(kod + ' → ' + (v || 'fasoncu kaldırıldı'), 'ok'); tpYukle(); })
+                .then(function () { toast(kod + ' → ' + (v || "Anaveri'deki bilgi"), 'ok'); tpYukle(); })
                 .catch(function (e) { toast(e.message, 'err'); tpYukle(); });
+        }
+        function tpAnaveriYukle(inp) {
+            var f = inp.files && inp.files[0]; if (!f) return;
+            var fd = new FormData(); fd.append('dosya', f);
+            toast('Anaveri okunuyor…', '');
+            fetch('/api/tel_plani/anaveri', { method: 'POST', body: fd })
+                .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.hata || 'HTTP ' + r.status); return j; }); })
+                .then(function (j) { toast('Anaveri yüklendi: ' + fmt(j.satir) + ' tel', 'ok'); tpYukle(); })
+                .catch(function (e) { toast(e.message, 'err'); })
+                .then(function () { inp.value = ''; });
+        }
+        function tpAnaveriKlasor() {
+            fetch('/api/tel_plani/anaveri_klasor', { method: 'POST' })
+                .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.hata || 'HTTP ' + r.status); return j; }); })
+                .then(function (j) { toast(j.dosya + ' okundu: ' + fmt(j.satir) + ' tel', 'ok'); tpYukle(); })
+                .catch(function (e) { toast('Klasörden okunamadı: ' + e.message + ' — dosyayı "Anaveri yükle" ile verin', 'err'); });
         }
         function tpExcel() { window.location.href = '/api/tel_plani/excel?' + tpParam(); }
         function tpTalepOlustur() {
             var z = (_tp.veri && _tp.veri.ozet) || {};
             if (!z.talepli) { toast('Bu süzgeçte talep edilecek tel yok', 'err'); return; }
-            var fas = _tp.fasoncu === '__yok__' ? 'fasoncusu belirsiz teller' : (_tp.fasoncu || 'tüm fasoncular');
-            var notu = prompt(z.talepli + ' tel, toplam ' + fmt(z.talep) + ' adet (' + fas + ', ' + _tp.ufuk + ' hafta) talep olarak kaydedilip Excel indirilecek.\n\nNot (isteğe bağlı):', '');
+            var notu = prompt(z.talepli + ' tel, toplam ' + fmt(z.talep) + ' adet (' + tpSuzgecAdi(_tp.fasoncu) + ', ' + _tp.ufuk + ' hafta) talep olarak kaydedilip Excel indirilecek.\n\nNot (isteğe bağlı):', '');
             if (notu === null) return;
             fetch('/api/tel_plani/talep', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ufuk: _tp.ufuk, launch: _tp.launch ? 1 : 0, fasoncu: _tp.fasoncu, ara: _tp.ara, notu: notu }) })
@@ -12426,10 +12481,10 @@ window.__I18N_SOZLUK__ = {
             var kutu = document.getElementById('tp-talepler'); if (!kutu) return;
             fetch('/api/tel_plani/talepler').then(function (r) { return r.json(); }).then(function (l) {
                 kutu.innerHTML = (Array.isArray(l) && l.length)
-                    ? '<table class="tp-tablo"><thead><tr><th class="sol">Tarih</th><th class="sol">Oluşturan</th><th class="sol">Fasoncu</th><th>Ufuk</th><th>Tel</th><th>Toplam</th><th class="sol">Not</th><th></th></tr></thead><tbody>' +
+                    ? '<table class="tp-tablo"><thead><tr><th class="sol">Tarih</th><th class="sol">Oluşturan</th><th class="sol">Süzgeç</th><th>Ufuk</th><th>Tel</th><th>Toplam</th><th class="sol">Not</th><th></th></tr></thead><tbody>' +
                       l.map(function (t) {
                           return '<tr><td class="sol">' + esc(t.ts) + '</td><td class="sol">' + esc(t.kullanici || '') + '</td>' +
-                              '<td class="sol">' + esc(t.fasoncu === '__yok__' ? 'fasoncusu belirsiz' : (t.fasoncu || 'tümü')) + '</td><td>' + t.ufuk + ' hf</td>' +
+                              '<td class="sol">' + esc(tpSuzgecAdi(t.fasoncu || '')) + '</td><td>' + t.ufuk + ' hf</td>' +
                               '<td>' + t.kod_sayisi + '</td><td>' + fmt(t.toplam) + '</td><td class="sol">' + esc(t.notu || '') + '</td>' +
                               '<td><a class="btn btn-ghost" href="/api/tel_plani/talep/' + t.id + '.xlsx">⬇️ Excel</a> ' +
                               '<button class="btn btn-ghost" style="color:var(--danger)" onclick="tpTalepSil(' + t.id + ')">Sil</button></td></tr>';
@@ -12449,7 +12504,7 @@ window.__I18N_SOZLUK__ = {
                 .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
                 .then(function (res) {
                     if (!res.ok) throw new Error(res.j.hata || 'HTTP hata');
-                    if (!res.j.basladi) toast('Tazeleme zaten sürüyor', 'info');
+                    if (!res.j.basladi) toast('Tazeleme zaten sürüyor', '');
                     tpDenemeIzle(res.j.deneme || { calisiyor: true });
                 }).catch(function (e) { toast(e.message, 'err'); });
         }

@@ -3,10 +3,8 @@
 tel_plani.py — TK2 MEKANİZMA TELLERİ PLANI (kullanıcı 2026-10-09).
 
 İSTEK: "TK2'de mekanizmalarda kullandığımız teller için bir plan hazırlayıp fasondan
-sorumlu kişiden talep edeceğim … 2 haftalık, 4 haftalık olacak şekilde. Planlama
-departmanı bu işi 'mekanizma telleri' diye bir kısımda takip ediyordu."
-Planlamanın dosyası: PLAN 2609xx.xlsb → 'Mek.-Tel' (mekanizma → tel), 'MONTAJ TEL'
-(ürün → W'li tel) ve 'Fason' (Zümel / Kuzey / Erkunt-Başak listeleri) sayfaları.
+sorumlu kişiden talep edeceğim … 2 haftalık, 4 haftalık." Modül, TEDARİKÇİLERLE
+ilgilenen arkadaşa tel ihtiyacını göndermek için: kim üretiyor, hangi hafta kaç adet.
 
 HESAP — TK2 MEKANİZMA İHTİYACINDAN TÜRETİLİR
 --------------------------------------------
@@ -18,7 +16,7 @@ HESAP — TK2 MEKANİZMA İHTİYACINDAN TÜRETİLİR
   3. Ürün ağacı (BSPEF2); HAYALİ ara düğümler 3 seviyeye kadar açılır, 93.* kod
      hayali olsa da açılmaz (tel kendisi teslim edilen kalemdir). Ağaçta ilk
      karşılaşılan 93.* kod mekanizmanın TELİDİR — W'li 'montajsız tel grubu' da
-     olabilir (MONTAJ TEL sayfasındaki 93.TK.030W gibi).
+     olabilir (planlamanın MONTAJ TEL sayfasındaki 93.TK.030W gibi).
   4. Tel ihtiyacı = Σ mekanizma emri kalanı × ağaçtaki birim miktar, emrin
      bitiş (Q0FPD) haftasına göre: Gecikmiş · bu hafta · +1 · +2 · +3.
   5. Arz = tel stoğu (montaj planının sayılan depoları, aynı netleşme kuralı)
@@ -30,8 +28,26 @@ sonucu — tel stoğunu düşüyor ve TK1 ürünlerinin ihtiyacını da içeriyo
 2026-10-09, laptop kopyası: 93.01.1307/20 TK2 ihtiyacı 100, ERP tel emri 873).
 Panelde bilgi olarak gösterilir.
 
+KİM ÜRETİYOR — ANAVERİ (kullanıcı 2026-10-09: "evet Anaveri'den alalım, Pandora
+bir tedarikçi")
+--------------------------------------------------------------------------------
+Planlamanın PLAN 26xxxx.xlsb → 'Anaveri' sayfası: CD ART. · A/P · TK-1/2 · Hat ·
+Makine · Kapasite 1V/Adet · zor/kolay. 93.* satırlarında TK-1/2 = Pandora (tedarikçi)
+· TK-1 (içeride, ağırlıkla PP hattı) · Satınalma. İlk sürümdeki 'Fason' sayfası
+(Zümel / Kuzey / Erkunt-Başak) ESKİMİŞTİ: Zümel listesindeki 387 kodun 281'i
+Anaveri'de Pandora. Anaveri tablosu tohumdan kurulur, panelden yeniden yüklenir.
+
+KONTROL — "Pull telleri şu anda fasonda üretiliyor" (kullanıcı 2026-10-09):
+  · Hat = Pull → TEDARİKÇİ teli sayılır (Anaveri TK-1 dese de; o zaman uyarı).
+  · TK-1/2 = TK-1 ama Hat = Pandora (80 satır, ör. 93.TK.1186) → çelişki uyarısı.
+  · Anaveri'de yok → uyarı (W'li kod W'siz kodun satırını alır).
+  · Tedarikçi teli son 30 günde TK1'de (tel/montaj) KAPAMA ya da SON MONTAJ
+    görmüşse → uyarı ("içeride mi üretiliyor?"). Yalnız kesim/soyma ön işlemse
+    bilgi notu (laptop verisi, Eylül: Pull teli sayılan 156 kodun TK1'de kaydı var,
+    çoğu kesim/soyma; 93.00.1377 gibi bazılarında kapama da var).
+
 AS400'e YALNIZ SELECT gider. Ölçüm JSON olarak saklanır; görünüm (2/4 hafta,
-fasoncu süzgeci) her istekte bu JSON'dan hesaplanır — AS400'e tekrar gidilmez.
+tedarikçi süzgeci) her istekte bu JSON'dan hesaplanır — AS400'e tekrar gidilmez.
 """
 import json
 import os
@@ -41,13 +57,16 @@ import time
 from datetime import date, datetime, timedelta
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-TOHUM_FASON = os.path.join(PROJECT_DIR, 'tohum', 'tel_fason.json')
+TOHUM_ANAVERI = os.path.join(PROJECT_DIR, 'tohum', 'tel_anaveri.json')
+VARSAYILAN_PLAN_KLASORU = r'Q:\UretimPlanlama\EMRE\Yeni klasör\Plan'
 TEL_ONEK = ('93.',)
 ACIK_DURUMLAR = ('10', '40', '45', '50')
 SAKLANAN_OLCUM = 30
-# Panelde seçilebilen fasoncular (serbest metin de girilebilir). 'TK1' = içeride
-# (TK1 tel bölümü) üretilen teller.
-FASONCULAR = ('Zümel', 'Erkunt-Başak', 'Kuzey', 'TK1')
+ICERIDE = ('TK-1', 'TK-2', 'TK1', 'TK2')
+# Panelde elle seçilebilen değerler (serbest metin de girilebilir). 'TK1' = içeride.
+SECENEKLER = ('Pandora', 'Satınalma', 'TK1')
+# TK1'de bu adımlar görülmüşse tel İÇERİDE üretilmiş demektir (kesim/soyma ön işlem)
+TAM_URETIM_ADIMLARI = ('KAPAMA', 'SON MONTAJ')
 _GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,40}$')
 
 
@@ -57,32 +76,205 @@ def tablolari_kur(conn):
         id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, kullanici TEXT DEFAULT '',
         mekanizma INTEGER DEFAULT 0, emirli INTEGER DEFAULT 0, tel INTEGER DEFAULT 0,
         sure_sn REAL, veri TEXT NOT NULL)""")
+    # Elle seçim (Anaveri'yi ezer). Eski sürümün 'Fason' sayfası tohumu (kaynak='excel')
+    # ESKİMİŞ bilgi — silinir; elle girilenler kalır.
     conn.execute("""CREATE TABLE IF NOT EXISTS tel_fason (
         kod TEXT PRIMARY KEY, fasoncu TEXT DEFAULT '', adaylar TEXT DEFAULT '',
         kaynak TEXT DEFAULT '', guncelleyen TEXT DEFAULT '', guncellendi TEXT DEFAULT '')""")
+    conn.execute("DELETE FROM tel_fason WHERE kaynak <> 'elle' OR COALESCE(fasoncu,'') = ''")
+    conn.execute("""CREATE TABLE IF NOT EXISTS tel_anaveri (
+        kod TEXT PRIMARY KEY, ap TEXT DEFAULT '', tk TEXT DEFAULT '', hat TEXT DEFAULT '',
+        makine TEXT DEFAULT '', kapasite REAL, zorluk TEXT DEFAULT '')""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS tel_anaveri_yukleme (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, dosya TEXT DEFAULT '',
+        satir INTEGER DEFAULT 0, kullanici TEXT DEFAULT '')""")
     conn.execute("""CREATE TABLE IF NOT EXISTS tel_plani_talep (
         id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, kullanici TEXT DEFAULT '',
         fasoncu TEXT DEFAULT '', ufuk INTEGER DEFAULT 4, launch_dahil INTEGER DEFAULT 1,
         olcum_ts TEXT DEFAULT '', notu TEXT DEFAULT '', kod_sayisi INTEGER DEFAULT 0,
         toplam REAL DEFAULT 0, haftalar TEXT DEFAULT '[]', satir TEXT NOT NULL)""")
-    # Fasoncu eşlemesi BOŞSA planlamanın listesiyle tohumlanır (yalnız ilk kurulumda)
-    if conn.execute("SELECT COUNT(*) FROM tel_fason").fetchone()[0] == 0 and os.path.exists(TOHUM_FASON):
+    if conn.execute("SELECT COUNT(*) FROM tel_anaveri").fetchone()[0] == 0 and os.path.exists(TOHUM_ANAVERI):
         try:
-            with open(TOHUM_FASON, encoding='utf-8') as f:
+            with open(TOHUM_ANAVERI, encoding='utf-8') as f:
                 tohum = json.load(f)
-            adaylar = {}
-            for ad, kodlar in (tohum.get('fasoncular') or {}).items():
-                for k in kodlar:
-                    adaylar.setdefault(str(k).strip().upper(), []).append(ad)
-            simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
-            conn.executemany(
-                "INSERT OR IGNORE INTO tel_fason (kod, fasoncu, adaylar, kaynak, guncelleyen, guncellendi) "
-                "VALUES (?,?,?,?,?,?)",
-                [(k, a[0] if len(a) == 1 else '', ', '.join(a), 'excel', 'tohum', simdi)
-                 for k, a in adaylar.items()])
+            anaveri_yaz(conn, tohum.get('satirlar') or [], tohum.get('dosya') or 'tohum', 'tohum', commit=False)
         except Exception as e:                    # tohum okunamazsa plan yine çalışır
-            print(f'[TEL-PLANI] fason tohumu okunamadı: {e}')
+            print(f'[TEL-PLANI] Anaveri tohumu okunamadı: {e}')
     conn.commit()
+
+
+# ── ANAVERİ ──────────────────────────────────────────────────────────────────
+_BASLIK = {'kod': ('CD ART.', 'CD ART'), 'ap': ('A/P',), 'tk': ('TK-1/2', 'TK 1/2'), 'hat': ('HAT',),
+           'makine': ('MAKINE', 'MAKİNE'), 'kapasite': ('KAPASITE 1V/ADET', 'KAPASİTE 1V/ADET', 'KAPASITE'),
+           'zorluk': ('ZOR/KOLAY', 'ZORLUK')}
+
+
+def _metin(v):
+    if v is None:
+        return ''
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    s = str(v).strip()
+    return '' if s in ('0x2a', '#N/A', '#YOK') else s
+
+
+def anaveri_satirlari(satirlar):
+    """Ham sayfa satırları → 93.* tel satırları [{kod, ap, tk, hat, makine, kapasite, zorluk}].
+    Başlık satırı ilk 10 satırda 'CD ART' ile aranır; sütunlar ADLA bulunur."""
+    satirlar = list(satirlar)
+    bas_i, ix = None, {}
+    for i, r in enumerate(satirlar[:10]):
+        adlar = [_metin(v).upper() for v in r]
+        if any(a.startswith('CD ART') for a in adlar):
+            bas_i = i
+            for alan, adaylar in _BASLIK.items():
+                for j, a in enumerate(adlar):
+                    if alan not in ix and a in adaylar:
+                        ix[alan] = j
+            break
+    if bas_i is None or 'kod' not in ix or 'tk' not in ix:
+        raise ValueError("Anaveri sayfasında 'CD ART.' ve 'TK-1/2' başlıkları bulunamadı")
+    out, gorulen = [], set()
+    for r in satirlar[bas_i + 1:]:
+        al = lambda a: _metin(r[ix[a]]) if a in ix and ix[a] < len(r) else ''   # noqa: E731
+        kod = re.sub(r'\s+', '', al('kod')).upper()
+        if not kod.startswith(TEL_ONEK) or kod in gorulen:
+            continue
+        gorulen.add(kod)
+        try:
+            kap = float(al('kapasite')) if al('kapasite') else None
+        except ValueError:
+            kap = None
+        out.append({'kod': kod, 'ap': al('ap'), 'tk': al('tk'), 'hat': al('hat'), 'makine': al('makine'),
+                    'kapasite': kap if kap and kap > 0 else None, 'zorluk': al('zorluk')})
+    return out
+
+
+def anaveri_dosyadan(yol):
+    """PLAN 26xxxx.xlsb / .xlsx → tel satırları. Sayfa 'Anaveri' (ya da 'Ana Veri')."""
+    if yol.lower().endswith('.xlsb'):
+        from pyxlsb import open_workbook
+        with open_workbook(yol) as wb:
+            ad = next((s for s in wb.sheets if s.replace(' ', '').lower() == 'anaveri'), None)
+            if not ad:
+                raise ValueError(f"Dosyada 'Anaveri' sayfası yok (sayfalar: {', '.join(wb.sheets)})")
+            with wb.get_sheet(ad) as ws:
+                return anaveri_satirlari([c.v for c in r] for r in ws.rows())
+    from openpyxl import load_workbook
+    wb = load_workbook(yol, read_only=True, data_only=True)
+    try:
+        ws = next((w for w in wb.worksheets if w.title.replace(' ', '').lower() == 'anaveri'), None)
+        if ws is None:
+            raise ValueError(f"Dosyada 'Anaveri' sayfası yok (sayfalar: {', '.join(wb.sheetnames)})")
+        return anaveri_satirlari(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
+
+
+def en_yeni_plan(klasor=VARSAYILAN_PLAN_KLASORU):
+    """Klasördeki en yeni 'PLAN *.xlsb' (Excel'in kilit/geçici dosyaları hariç)."""
+    if not os.path.isdir(klasor):
+        raise FileNotFoundError(f'Klasöre erişilemiyor: {klasor}')
+    adaylar = [os.path.join(klasor, f) for f in os.listdir(klasor)
+               if f.upper().startswith('PLAN ') and f.lower().endswith(('.xlsb', '.xlsx')) and not f.startswith('~$')]
+    if not adaylar:
+        raise FileNotFoundError(f"'{klasor}' içinde PLAN dosyası yok")
+    return max(adaylar, key=os.path.getmtime)
+
+
+def anaveri_yaz(conn, satirlar, dosya, kullanici, commit=True):
+    if not satirlar:
+        raise ValueError('Anaveri\'de 93.* tel satırı bulunamadı')
+    conn.execute("DELETE FROM tel_anaveri")
+    conn.executemany("INSERT OR REPLACE INTO tel_anaveri (kod, ap, tk, hat, makine, kapasite, zorluk) "
+                     "VALUES (?,?,?,?,?,?,?)",
+                     [(s['kod'], s.get('ap', ''), s.get('tk', ''), s.get('hat', ''), s.get('makine', ''),
+                       s.get('kapasite'), s.get('zorluk', '')) for s in satirlar])
+    conn.execute("INSERT INTO tel_anaveri_yukleme (ts, dosya, satir, kullanici) VALUES (?,?,?,?)",
+                 (datetime.now().strftime('%Y-%m-%d %H:%M'), os.path.basename(str(dosya)), len(satirlar), kullanici))
+    if commit:
+        conn.commit()
+    return len(satirlar)
+
+
+def anaveri_haritasi(conn):
+    tablolari_kur(conn)
+    return {r[0]: {'ap': r[1] or '', 'tk': r[2] or '', 'hat': r[3] or '', 'makine': r[4] or '',
+                   'kapasite': r[5], 'zorluk': r[6] or ''}
+            for r in conn.execute("SELECT kod, ap, tk, hat, makine, kapasite, zorluk FROM tel_anaveri")}
+
+
+def anaveri_durumu(conn):
+    tablolari_kur(conn)
+    r = conn.execute("SELECT ts, dosya, satir, kullanici FROM tel_anaveri_yukleme ORDER BY id DESC LIMIT 1").fetchone()
+    return dict(zip(('ts', 'dosya', 'satir', 'kullanici'), r)) if r else None
+
+
+def elle_haritasi(conn):
+    tablolari_kur(conn)
+    return {r[0]: r[1] for r in conn.execute("SELECT kod, fasoncu FROM tel_fason WHERE kaynak='elle' "
+                                             "AND COALESCE(fasoncu,'') <> ''")}
+
+
+def tk1_tel_uretimi(conn, gun=30):
+    """Son N günde TK1'de (tel + montaj) kaydedilen 93.* üretim: {kök kod: {adım: adet}}.
+    Tel kayıtları adım ekiyle durur ('93.TK.464 KAPAMA') — kök ilk sözcüktür."""
+    sinir = (date.today() - timedelta(days=gun)).isoformat()
+    out = {}
+    for ref, n in conn.execute(
+            "SELECT u.referans_kodu, SUM(COALESCE(u.ok_adet,0)) FROM uretim_kayitlari u "
+            "JOIN vardiyalar v ON v.id=u.vardiya_id WHERE COALESCE(v.lokasyon,'TK2')='TK1' "
+            "AND v.bolum IN ('tel','montaj') AND v.tarih >= ? AND u.referans_kodu LIKE '93.%' "
+            "GROUP BY u.referans_kodu", (sinir,)):
+        p = str(ref or '').strip().split(None, 1)
+        if not p or not n:
+            continue
+        adim = (p[1] if len(p) > 1 else 'ADIMSIZ').upper()
+        d = out.setdefault(p[0].upper(), {})
+        d[adim] = d.get(adim, 0) + n
+    return out
+
+
+def kaynak_bul(kod, anaveri, elle, tk1_uretim):
+    """Tel kimden gelir? → {'tedarikci', 'sinif' (tedarikci|tk1|belirsiz), 'ana', 'uyarilar', 'notlar', 'elle'}"""
+    uyar, notlar = [], []
+    a, kok = anaveri.get(kod), kod
+    if not a and kod.endswith('W') and anaveri.get(kod[:-1]):
+        a, kok = anaveri.get(kod[:-1]), kod[:-1]
+        notlar.append(f"Anaveri satırı W'siz koddan ({kod[:-1]})")
+    tk, hat = (a or {}).get('tk', ''), (a or {}).get('hat', '')
+    pull = hat.upper() == 'PULL'
+    if not a:
+        sinif, ted = 'belirsiz', ''
+        uyar.append("Anaveri'de yok — kimin ürettiği bilinmiyor")
+    elif pull:
+        sinif = 'tedarikci'
+        ted = '' if tk.upper() in ICERIDE or not tk else tk
+        if tk.upper() in ICERIDE:
+            uyar.append(f"Pull teli (şu an fasonda üretiliyor) ama Anaveri TK-1/2 '{tk}' diyor — tedarikçi seçin")
+    elif tk.upper() in ICERIDE:
+        sinif, ted = 'tk1', 'TK1'
+        if hat.upper() == 'PANDORA':
+            uyar.append(f"Anaveri çelişkili: TK-1/2 '{tk}' ama Hat 'Pandora' — içeride mi, Pandora'da mı?")
+    elif tk:
+        sinif, ted = 'tedarikci', tk
+    else:
+        sinif, ted = 'belirsiz', ''
+        uyar.append("Anaveri'de TK-1/2 boş")
+    e = elle.get(kod)
+    if e:
+        ted = e
+        sinif = 'tk1' if e.upper() in ICERIDE else 'tedarikci'
+    # TK1'de üretim izi: tedarikçiden gelmesi beklenen tel içeride yapılıyor mu?
+    iz = tk1_uretim.get(kod) or (tk1_uretim.get(kok) if kok != kod else None) or {}
+    if iz and sinif == 'tedarikci':
+        tam = {k: v for k, v in iz.items() if any(x in k for x in TAM_URETIM_ADIMLARI)}
+        ozet = ', '.join(f'{k.title()} {v:g}' for k, v in sorted(iz.items(), key=lambda kv: -kv[1])[:4])
+        if tam:
+            uyar.append(f"Son 30 günde TK1'de üretilmiş ({ozet}) — tedarikçiden mi, içeriden mi?")
+        else:
+            notlar.append(f"TK1'de ön işlem yapılıyor ({ozet})")
+    return {'tedarikci': ted, 'sinif': sinif, 'ana': a, 'uyarilar': uyar, 'notlar': notlar, 'elle': bool(e)}
 
 
 # ── AS400 ────────────────────────────────────────────────────────────────────
@@ -143,7 +335,7 @@ def olc(cn, kp, mekanizmalar, sayilan, eksi_dusulen):
                             for x in (o.get('satirlar') or [])][:30],
             'ustler': sorted(teller[k], key=lambda x: x['kod']),
         }
-    emirli = {mk for lst in teller.values() for u in lst for mk in [u['kod']] if mk in m_opr}
+    emirli = {u['kod'] for lst in teller.values() for u in lst if u['kod'] in m_opr}
     return {
         'ts': datetime.now().strftime('%Y-%m-%d %H:%M'),
         'bugun': date.today().isoformat(),
@@ -231,7 +423,7 @@ def tazele(conn_ac, kullanici, mekanizma_oku, erp_ac, kp, sayilan, eksi_dusulen)
 
 def tazele_arka_planda(*args):
     """Arka planda başlatır → True; zaten çalışıyorsa False (panel /durum'u sorar)."""
-    if _DENEME['calisiyor']:
+    if _DENEME['calisiyor'] or _KILIT.locked():
         return False
     _DENEME.update(calisiyor=True, basladi=datetime.now().strftime('%Y-%m-%d %H:%M:%S'), bitti=None,
                    hata='', sonuc=None)
@@ -273,29 +465,20 @@ def _kova(t, bugun, pzt, ufuk):
     return f'H{i}' if 0 <= i < ufuk else None
 
 
-def fason_haritasi(conn):
-    tablolari_kur(conn)
-    return {r[0]: {'fasoncu': r[1] or '', 'adaylar': [a.strip() for a in (r[2] or '').split(',') if a.strip()],
-                   'kaynak': r[3] or ''}
-            for r in conn.execute("SELECT kod, fasoncu, adaylar, kaynak FROM tel_fason")}
-
-
-def fason_bul(kod, harita):
-    """W'li 'montajsız tel grubu' listede yoksa W'siz kodun fasoncusu kullanılır."""
-    h = harita.get(kod)
-    if not h and kod.endswith('W'):
-        h = harita.get(kod[:-1])
-        if h:
-            return dict(h, kaynak='w-siz kod')
-    return h or {'fasoncu': '', 'adaylar': [], 'kaynak': ''}
-
-
-def _fason_uyar(f, filtre):
+def _suzgec_uyar(k, filtre):
+    """'' tümü · '__tedarikci__' tedarikçiden gelenler · '__tk1__' içeride · '__yok__'
+    tedarikçisi belirsiz · '__uyari__' kontrol uyarısı olanlar · aksi hâlde tedarikçi adı."""
     if not filtre:
         return True
+    if filtre == '__tedarikci__':
+        return k['sinif'] == 'tedarikci'
+    if filtre == '__tk1__':
+        return k['sinif'] == 'tk1'
     if filtre == '__yok__':
-        return not f['fasoncu'] and not f['adaylar']
-    return f['fasoncu'] == filtre or (not f['fasoncu'] and filtre in f['adaylar'])
+        return k['sinif'] != 'tk1' and not k['tedarikci']
+    if filtre == '__uyari__':
+        return bool(k['uyarilar'])
+    return k['tedarikci'] == filtre
 
 
 def son_talepler(conn, limit=200):
@@ -308,10 +491,11 @@ def son_talepler(conn, limit=200):
     return out
 
 
-def gorunum(veri, harita, ufuk=4, launch_dahil=True, fasoncu='', ara='', hepsi=False,
+def gorunum(veri, anaveri, elle, tk1_uretim, ufuk=4, launch_dahil=True, fasoncu='', ara='', hepsi=False,
             talepler=None, bugun=None):
     """Ölçümden tablo satırları. ufuk: 2 ya da 4 hafta (bu hafta dahil).
-    launch_dahil: launch'ı açık mekanizma emirleri de ihtiyaca girsin mi."""
+    launch_dahil: launch'ı açık mekanizma emirleri de ihtiyaca girsin mi.
+    fasoncu: tedarikçi süzgeci (bkz. _suzgec_uyar)."""
     bugun = bugun or date.today()
     pzt = _pazartesi(bugun)
     ufuk = 2 if int(ufuk or 4) <= 2 else 4
@@ -323,8 +507,8 @@ def gorunum(veri, harita, ufuk=4, launch_dahil=True, fasoncu='', ara='', hepsi=F
     mek = veri.get('mekanizmalar') or {}
     satirlar = []
     for kod, t in (veri.get('teller') or {}).items():
-        f = fason_bul(kod, harita)
-        if not _fason_uyar(f, fasoncu):
+        k = kaynak_bul(kod, anaveri, elle, tk1_uretim)
+        if not _suzgec_uyar(k, fasoncu):
             continue
         if ara and ara not in kod.replace(' ', '').upper() and not any(
                 ara in u['kod'].replace(' ', '').upper() for u in t['ustler']):
@@ -357,9 +541,15 @@ def gorunum(veri, harita, ufuk=4, launch_dahil=True, fasoncu='', ara='', hepsi=F
         if not hepsi and toplam <= 0:
             continue
         ustler.sort(key=lambda x: (-x['ihtiyac'], x['kod']))
+        ana = k['ana'] or {}
+        kap = ana.get('kapasite')
         satirlar.append({
             'kod': kod, 'aciklama': t.get('aciklama', ''), 'prov': t.get('prov', ''),
-            'fasoncu': f['fasoncu'], 'adaylar': f['adaylar'], 'fason_kaynak': f['kaynak'],
+            'tedarikci': k['tedarikci'], 'sinif': k['sinif'], 'elle': k['elle'],
+            'uyarilar': k['uyarilar'], 'notlar': k['notlar'],
+            'hat': ana.get('hat', ''), 'makine': ana.get('makine', ''), 'zorluk': ana.get('zorluk', ''),
+            'anaveri_tk': ana.get('tk', ''), 'kapasite': kap,
+            'vardiya': round(talep_top / kap, 1) if kap and talep_top > 0 else None,
             'ihtiyac': {a: round(v, 2) for a, v in ihtiyac.items()}, 'ihtiyac_toplam': round(toplam, 2),
             'talep': talep, 'talep_toplam': talep_top,
             'stok': t['stok'], 'yolda': t['yolda'], 'tel_opr': t.get('tel_opr', 0),
@@ -371,19 +561,36 @@ def gorunum(veri, harita, ufuk=4, launch_dahil=True, fasoncu='', ara='', hepsi=F
     def ilk_talep(s):
         return next((i for i, a in enumerate(anahtarlar) if s['talep'][a] > 0), 99)
     satirlar.sort(key=lambda s: (0 if s['talep_toplam'] > 0 else 1, ilk_talep(s), -s['talep_toplam'], s['kod']))
+    # Tedarikçi bazında toplam — tedarikçiyle ilgilenen arkadaşın ilk bakacağı yer
+    ted = {}
+    for s in satirlar:
+        ad = s['tedarikci'] or ('TK1' if s['sinif'] == 'tk1' else '— belirsiz')
+        d = ted.setdefault(ad, {'ad': ad, 'sinif': s['sinif'], 'tel': 0, 'talepli': 0, 'talep': 0.0,
+                                'vardiya': 0.0, 'kapasitesiz': 0})
+        d['tel'] += 1
+        if s['talep_toplam'] > 0:
+            d['talepli'] += 1
+            d['talep'] += s['talep_toplam']
+            if s['vardiya'] is None:
+                d['kapasitesiz'] += 1
+            else:
+                d['vardiya'] += s['vardiya']
     return {
         'haftalar': hf, 'ufuk': ufuk, 'launch_dahil': bool(launch_dahil), 'satirlar': satirlar,
+        'tedarikciler': sorted(({**d, 'talep': round(d['talep'], 2), 'vardiya': round(d['vardiya'], 1)}
+                                for d in ted.values()), key=lambda d: -d['talep']),
         'ozet': {'tel': len(satirlar),
                  'talepli': sum(1 for s in satirlar if s['talep_toplam'] > 0),
                  'talep': round(sum(s['talep_toplam'] for s in satirlar), 2),
                  'gecikmis_talep': round(sum(s['talep']['GEC'] for s in satirlar), 2),
-                 'ihtiyac': round(sum(s['ihtiyac_toplam'] for s in satirlar), 2)},
+                 'ihtiyac': round(sum(s['ihtiyac_toplam'] for s in satirlar), 2),
+                 'uyari': sum(1 for s in satirlar if s['uyarilar'])},
     }
 
 
 # ── EXCEL ────────────────────────────────────────────────────────────────────
 def excel(satirlar, hf, baslik, alt_baslik=''):
-    """Talep listesi — fasondan sorumlu kişiye gönderilecek biçim. bytes döner."""
+    """Talep listesi — tedarikçilerle ilgilenen arkadaşa gönderilecek biçim. bytes döner."""
     import io
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -397,7 +604,8 @@ def excel(satirlar, hf, baslik, alt_baslik=''):
         ws.append([alt_baslik])
     ws.append([])
     hf_etiket = [h['etiket'] + (f" ({_tr(h['bas'])}–{_tr(h['bit'])})" if h['bas'] else '') for h in hf]
-    bas = ['Tel kodu', 'Açıklama', 'Fasoncu'] + hf_etiket + ['Toplam talep', 'Kullanıldığı mekanizmalar']
+    bas = (['Tel kodu', 'Açıklama', 'Tedarikçi', 'Hat'] + hf_etiket
+           + ['Toplam talep', 'Kapasite (1 vardiya)', 'Gerekli vardiya', 'Kullanıldığı mekanizmalar', 'Kontrol'])
     ws.append(bas)
     bas_satir = ws.max_row
     dolgu = PatternFill('solid', fgColor='E9E4F7')
@@ -406,15 +614,16 @@ def excel(satirlar, hf, baslik, alt_baslik=''):
         c.font, c.fill = Font(bold=True), dolgu
         c.alignment = Alignment(wrap_text=True, vertical='center')
     for s in satirlar:
-        fas = s.get('fasoncu') or ' / '.join(s.get('adaylar') or [])
-        ws.append([s['kod'], s.get('aciklama', ''), fas]
+        ws.append([s['kod'], s.get('aciklama', ''), s.get('tedarikci') or '', s.get('hat', '')]
                   + [(s['talep'].get(h['anahtar']) or None) for h in hf]
-                  + [s['talep_toplam'], ', '.join(u['kod'] for u in s.get('ustler') or [] if u.get('ihtiyac'))])
+                  + [s['talep_toplam'], s.get('kapasite'), s.get('vardiya'),
+                     ', '.join(u['kod'] for u in s.get('ustler') or [] if u.get('ihtiyac')),
+                     ' · '.join(s.get('uyarilar') or [])])
     ws.append([])
-    ws.append(['TOPLAM', '', ''] + [sum(s['talep'].get(h['anahtar'], 0) for s in satirlar) or None for h in hf]
+    ws.append(['TOPLAM', '', '', ''] + [sum(s['talep'].get(h['anahtar'], 0) for s in satirlar) or None for h in hf]
               + [sum(s['talep_toplam'] for s in satirlar)])
     ws.cell(row=ws.max_row, column=1).font = Font(bold=True)
-    for i, gen in enumerate([16, 30, 16] + [13] * len(hf) + [13, 40], start=1):
+    for i, gen in enumerate([16, 30, 13, 8] + [13] * len(hf) + [13, 12, 11, 40, 50], start=1):
         ws.column_dimensions[get_column_letter(i)].width = gen
     ws.freeze_panes = ws.cell(row=bas_satir + 1, column=2)
     # 2. sayfa: hesabın dökümü — talep neden bu kadar

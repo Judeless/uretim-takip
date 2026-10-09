@@ -7804,13 +7804,15 @@ def _tp_parametreler(kaynak):
 
 
 def _tp_gorunum(conn, prm):
+    """Tedarikçi = Anaveri (TK-1/2 · Hat) → elle seçim ezer; Pull teli tedarikçidir;
+    son 30 günün TK1 üretim kayıtları 'içeride mi yapılıyor' kontrolüne girer."""
     import tel_plani as TP
     veri = TP.son_olcum(conn)
     if not veri:
         return None, None
-    return veri, TP.gorunum(veri, TP.fason_haritasi(conn), ufuk=prm['ufuk'], launch_dahil=prm['launch_dahil'],
-                            fasoncu=prm['fasoncu'], ara=prm['ara'], hepsi=prm['hepsi'],
-                            talepler=TP.son_talepler(conn))
+    return veri, TP.gorunum(veri, TP.anaveri_haritasi(conn), TP.elle_haritasi(conn), TP.tk1_tel_uretimi(conn),
+                            ufuk=prm['ufuk'], launch_dahil=prm['launch_dahil'], fasoncu=prm['fasoncu'],
+                            ara=prm['ara'], hepsi=prm['hepsi'], talepler=TP.son_talepler(conn))
 
 
 def _tp_olcum_ozeti(veri):
@@ -7828,11 +7830,13 @@ def tel_plani_liste():
     conn = get_db()
     prm = _tp_parametreler(request.args)
     veri, gor = _tp_gorunum(conn, prm)
-    harita = TP.fason_haritasi(conn)
-    fasoncular = list(TP.FASONCULAR) + sorted({h['fasoncu'] for h in harita.values() if h['fasoncu']}
-                                              - set(TP.FASONCULAR))
+    # Seçilebilir tedarikçiler: sabitler + Anaveri'deki TK-1/2 değerleri + elle girilenler
+    adlar = {h['tk'] for h in TP.anaveri_haritasi(conn).values()
+             if h['tk'] and h['tk'].upper() not in TP.ICERIDE} | set(TP.elle_haritasi(conn).values())
+    tedarikciler = list(TP.SECENEKLER) + sorted(adlar - set(TP.SECENEKLER))
     cevap = {'olcum': _tp_olcum_ozeti(veri) if veri else None, 'deneme': TP.deneme_durumu(),
-             'fasoncular': fasoncular, 'gelistirme_kopyasi': bool(_gelistirme_kopyasi())}
+             'fasoncular': tedarikciler, 'anaveri': TP.anaveri_durumu(conn),
+             'gelistirme_kopyasi': bool(_gelistirme_kopyasi())}
     if gor:
         cevap.update(gor)
     return jsonify(cevap)
@@ -7864,7 +7868,8 @@ def tel_plani_tazele():
 @app.route('/api/tel_plani/fason', methods=['POST'])
 @panel_gerekli(izin='tel-plani')
 def tel_plani_fason():
-    """{kod, fasoncu} — telin fasoncusu (boş = seçimi kaldır, Excel'deki adaylar kalır)."""
+    """{kod, fasoncu} — telin tedarikçisini ELLE belirler (Anaveri'yi ezer). Boş = elle
+    seçimi kaldır, Anaveri'deki bilgiye dön."""
     import tel_plani as TP
     data = request.get_json(silent=True) or {}
     kod = re.sub(r'\s+', ' ', str(data.get('kod') or '')).strip().upper()
@@ -7873,6 +7878,10 @@ def tel_plani_fason():
         return jsonify({'hata': 'Geçersiz tel kodu'}), 400
     conn = get_db()
     TP.tablolari_kur(conn)
+    if not fas:
+        conn.execute("DELETE FROM tel_fason WHERE kod=?", (kod,))
+        conn.commit()
+        return jsonify({'ok': True, 'anaveri': True})
     simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
     conn.execute("INSERT INTO tel_fason (kod, fasoncu, adaylar, kaynak, guncelleyen, guncellendi) "
                  "VALUES (?,?,'','elle',?,?) ON CONFLICT(kod) DO UPDATE SET fasoncu=excluded.fasoncu, "
@@ -7893,7 +7902,8 @@ def tel_plani_excel():
     veri, gor = _tp_gorunum(conn, prm)
     if not gor:
         return jsonify({'hata': 'Henüz ölçüm yok'}), 404
-    baslik = f"TK2 mekanizma telleri — {prm['ufuk']} haftalık plan" + (f" · {prm['fasoncu']}" if prm['fasoncu'] else '')
+    baslik = f"TK2 mekanizma telleri — {prm['ufuk']} haftalık plan" + (
+        f" · {_tp_suzgec_adi(prm['fasoncu'])}" if prm['fasoncu'] else '')
     alt = f"Ölçüm {veri['ts']} · stok depoları {', '.join(veri.get('sayilan_depolar') or [])}"
     return send_file(_io.BytesIO(TP.excel(gor['satirlar'], gor['haftalar'], baslik, alt)), as_attachment=True,
                      download_name=f"Tel_Plani_{prm['ufuk']}hf_{datetime.now():%Y-%m-%d}.xlsx",
@@ -7914,8 +7924,8 @@ def tel_plani_talep_olustur():
     veri, gor = _tp_gorunum(conn, prm)
     if not gor:
         return jsonify({'hata': 'Henüz ölçüm yok'}), 404
-    satir = [dict({k: s[k] for k in ('kod', 'aciklama', 'fasoncu', 'adaylar', 'talep_toplam',
-                                     'ihtiyac_toplam', 'stok', 'yolda', 'depolar')},
+    satir = [dict({k: s[k] for k in ('kod', 'aciklama', 'tedarikci', 'sinif', 'hat', 'kapasite', 'vardiya',
+                                     'uyarilar', 'talep_toplam', 'ihtiyac_toplam', 'stok', 'yolda', 'depolar')},
                   talep=s['talep_toplam'], haftalik=s['talep'],
                   ustler=[u for u in s['ustler'] if u['ihtiyac']])
              for s in gor['satirlar'] if s['talep_toplam'] > 0]
@@ -7958,12 +7968,68 @@ def tel_plani_talep_excel(tid):
     satir = json.loads(r[6] or '[]')
     for s in satir:                                 # excel() 'talep' sözlüğü bekler
         s['talep'], s['talep_toplam'] = s.get('haftalik') or {}, s.get('talep_toplam') or s.get('talep') or 0
-    baslik = f"Tel talebi — {r[1] or 'tüm fasoncular'} · {r[2]} haftalık"
+    baslik = f"Tel talebi — {_tp_suzgec_adi(r[1]) if r[1] else 'tüm teller'} · {r[2]} haftalık"
     alt = f"Talep {r[0]} ({r[7]}) · ölçüm {r[3]}" + (f" · Not: {r[4]}" if r[4] else '')
     gun = (r[0] or '')[:10]
     return send_file(_io.BytesIO(TP.excel(satir, json.loads(r[5] or '[]'), baslik, alt)), as_attachment=True,
-                     download_name=f"Tel_Talebi_{(r[1] or 'tum').replace(' ', '_')}_{gun}_{tid}.xlsx",
+                     download_name=f"Tel_Talebi_{re.sub(r'[^A-Za-z0-9ÇĞİÖŞÜçğıöşü]+', '_', _tp_suzgec_adi(r[1]) if r[1] else 'tum').strip('_')}_{gun}_{tid}.xlsx",
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def _tp_suzgec_adi(f):
+    return {'__tedarikci__': 'tedarikçiden gelenler', '__tk1__': 'TK1 (içeride)',
+            '__yok__': 'tedarikçisi belirsiz', '__uyari__': 'kontrol uyarısı olanlar'}.get(f, f or '')
+
+
+@app.route('/api/tel_plani/anaveri', methods=['POST'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_anaveri_yukle():
+    """Planlamanın PLAN 26xxxx.xlsb (ya da .xlsx) dosyası — 'Anaveri' sayfasının 93.* satırları
+    tedarikçi bilgisi olur (TK-1/2 · Hat · Makine · Kapasite). Tablo tamamen yenilenir."""
+    import tel_plani as TP
+    import tempfile
+    f = request.files.get('dosya')
+    if not f or not f.filename:
+        return jsonify({'hata': 'Dosya seçilmedi'}), 400
+    uzanti = os.path.splitext(f.filename)[1].lower()
+    if uzanti not in ('.xlsb', '.xlsx', '.xlsm'):
+        return jsonify({'hata': 'PLAN dosyası .xlsb ya da .xlsx olmalı'}), 400
+    fd, gecici = tempfile.mkstemp(suffix=uzanti)
+    os.close(fd)
+    try:
+        f.save(gecici)
+        satirlar = TP.anaveri_dosyadan(gecici)
+        conn = get_db()
+        TP.tablolari_kur(conn)
+        n = TP.anaveri_yaz(conn, satirlar, f.filename, g.panel_ku['kullanici_adi'])
+    except ImportError:
+        return jsonify({'hata': "Sunucuda pyxlsb kurulu değil — dosyayı Excel'de .xlsx olarak kaydedip yükleyin"}), 400
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    finally:
+        try:
+            os.remove(gecici)
+        except OSError:
+            pass
+    return jsonify({'ok': True, 'satir': n, 'anaveri': TP.anaveri_durumu(conn)})
+
+
+@app.route('/api/tel_plani/anaveri_klasor', methods=['POST'])
+@panel_gerekli(izin='tel-plani')
+def tel_plani_anaveri_klasor():
+    """Planlamanın klasöründeki EN YENİ 'PLAN *.xlsb'yi okur (sunucuda Q: erişilebiliyorsa).
+    Klasör: oto_config.tel_plani.plan_klasoru (yoksa Q:\\UretimPlanlama\\EMRE\\Yeni klasör\\Plan)."""
+    import tel_plani as TP
+    klasor = ((_oto_config().get('tel_plani') or {}).get('plan_klasoru') or TP.VARSAYILAN_PLAN_KLASORU)
+    try:
+        yol = TP.en_yeni_plan(klasor)
+        satirlar = TP.anaveri_dosyadan(yol)
+    except (OSError, ValueError, ImportError) as e:
+        return jsonify({'hata': f'{e}'}), 400
+    conn = get_db()
+    TP.tablolari_kur(conn)
+    n = TP.anaveri_yaz(conn, satirlar, yol, g.panel_ku['kullanici_adi'])
+    return jsonify({'ok': True, 'satir': n, 'dosya': os.path.basename(yol), 'anaveri': TP.anaveri_durumu(conn)})
 
 
 @app.route('/api/tel_plani/talep/<int:tid>', methods=['DELETE'])
