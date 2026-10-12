@@ -2599,6 +2599,8 @@ window.__I18N_SOZLUK__ = {
     "en": "Robot Welding Andon",
     "it": "Andon Saldatura robotizzata"
   },
+  "Fire": {"en": "Scrap", "it": "Scarto"},
+  "♻ Fire (COP ÷ üretilen):": {"en": "♻ Scrap rate (COP ÷ produced):", "it": "♻ Tasso di scarto (COP ÷ prodotto):"},
   "● teyit import tablolarından — PCOMM gerekmiyor": {
     "en": "● confirmations via import tables — PCOMM not needed",
     "it": "● conferme tramite tabelle di import — PCOMM non necessario"
@@ -7582,7 +7584,7 @@ window.__I18N_SOZLUK__ = {
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">📅 Aylık Üretim Raporu</h2>
                     <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
-                        Ayın teyidi verilmiş üretimi (AS400 RPR + CFI hareketleri) Forge bölümlerine göre. Teorik süre = adet × birim süre; çalışma saati ve kişi sayısı üretim müdürünün kapasite Excel'inden; performans = teorik süre ÷ çalışma saati (hedef %90).
+                        Ayın teyidi verilmiş üretimi (AS400 RPR + CFI hareketleri) Forge bölümlerine göre; COP = hurda (üretime girmez), fire = COP ÷ üretilen. Teorik süre = adet × birim süre; çalışma saati ve kişi sayısı üretim müdürünün kapasite Excel'inden; performans = teorik süre ÷ çalışma saati (hedef %90).
                     </p>
                 </div>
                 <div class="panel-card">
@@ -9825,7 +9827,7 @@ window.__I18N_SOZLUK__ = {
             } else if (aktifSayfa === 'satis-plani') {
                 bc.innerHTML = 'AS400 ▸ <b>Satış Planı</b> <span style="color:var(--dim)">· 10-05-03-06</span>';
             } else if (aktifSayfa === 'aylik-uretim') {
-                bc.innerHTML = 'Raporlar ▸ <b>Aylık Üretim Raporu</b> <span style="color:var(--dim)">· AS400 RPR + CFI</span>';
+                bc.innerHTML = 'Raporlar ▸ <b>Aylık Üretim Raporu</b> <span style="color:var(--dim)">· AS400 RPR + CFI + COP</span>';
             } else if (aktifSayfa === 'tel-plani') {
                 bc.innerHTML = 'AS400 ▸ <b>Tel Planı</b> <span style="color:var(--dim)">· TK2 mekanizma telleri</span>';
             } else if (aktifSayfa === 'durus-sebepleri') {
@@ -12566,6 +12568,8 @@ window.__I18N_SOZLUK__ = {
         var AU_AY = ['', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
         function auSayi(v, k) { return (v === null || v === undefined || v === '') ? '' : fmt(Math.round(v * (k || 1)) / (k || 1)); }
         function auYuzde(v) { return (v === null || v === undefined) ? '' : Math.round(v * 100) + '%'; }
+        // Fire oranı: bir ondalık (çoğu bölümde %1'in altında kalır)
+        function auFire(v) { return (v === null || v === undefined) ? '' : (Math.round(v * 1000) / 10).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }
         function auSecili() { var v = (document.getElementById('au-ay') || {}).value || ''; var p = v.split('-'); return { yil: +p[0], ay: +p[1] }; }
         function auAylariDoldur() {
             var sel = document.getElementById('au-ay'); if (!sel || sel.options.length) return;
@@ -12595,7 +12599,7 @@ window.__I18N_SOZLUK__ = {
             auHaricCiz(d);
             var r = d.rapor, el = document.getElementById('au-tablo');
             var btn = document.getElementById('au-hazirla-btn');
-            if (btn) btn.title = d.gelistirme_kopyasi ? 'Geliştirme kopyası: AS400 okuması yalnız sunucudaki panelde' : 'Ayın RPR + CFI hareketlerini AS400\'den oku';
+            if (btn) btn.title = d.gelistirme_kopyasi ? 'Geliştirme kopyası: AS400 okuması yalnız sunucudaki panelde' : 'Ayın RPR + CFI + COP hareketlerini AS400\'den oku';
             if (!r) {
                 document.getElementById('au-bilgi').textContent = '';
                 document.getElementById('au-not').innerHTML = '';
@@ -12613,8 +12617,15 @@ window.__I18N_SOZLUK__ = {
                     : '<span style="color:var(--warn)">⏱ Bu ay için çalışma saati yüklenmedi — performans hesaplanmadı. Kapasite Excel\'ini yükleyin.' +
                       (yuklu ? ' (Saat yüklü aylar: ' + esc(yuklu) + ')' : '') + '</span>') +
                 '<br>🧾 Bölümü belirsiz: ' + fmt(r.tanimsiz_sayi || 0) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet (özete girmez) · hammadde (20.* / 21.*): ' + fmt(r.hammadde_adet) + ' — adet toplamına girmez' +
-                (r.haric_sayi ? '<br>🚫 Rapordan hariç tutulan: ' + fmt(r.haric_sayi) + ' kod · ' + fmt(r.haric_adet) + ' adet — hiçbir toplama ve performansa girmez' : '') + '</div>';
+                (r.haric_sayi ? '<br>🚫 Rapordan hariç tutulan: ' + fmt(r.haric_sayi) + ' kod · ' + fmt(r.haric_adet) + ' adet — hiçbir toplama ve performansa girmez' : '') +
+                // FİRE (kullanıcı 2026-10-12): COP ÷ üretilen, tesis bazında
+                (r.cop_okundu
+                    ? '<br>♻ Fire (COP ÷ üretilen): ' + ['TK2', 'TK1'].filter(function (t) { return (r.tesis || {})[t]; }).map(function (t) {
+                          var x = r.tesis[t]; return '<b>' + t + ' ' + auFire(x.fire) + '</b> (' + fmt(Math.round(x.cop || 0)) + ' hurda / ' + fmt(Math.round(x.adet || 0)) + ' üretim)';
+                      }).join(' · ')
+                    : '<br><span style="color:var(--warn)">♻ Bu okuma COP (hurda) içermiyor — fire için 🔄 AS400\'den hazırla ile yeniden okuyun.</span>') + '</div>';
             var bas = '<tr><th class="sol">Tesis</th><th class="sol">Bölüm</th><th>Adet</th><th>Kod</th><th>RPR</th><th>CFI</th>' +
+                '<th title="Hurda hareketi (AS400 COP) — üretilen adede girmez">COP</th><th title="COP ÷ üretilen adet">Fire</th>' +
                 '<th title="Adet × birim süre">Teorik saat</th><th title="Birim süresi bilinen adetin payı">Süre kapsamı</th>' +
                 '<th>NçS</th><th>Mesai</th><th>Çalışma</th><th>Kişi</th><th title="Teorik ÷ çalışma (NçS + mesai), hedef %90">Performans</th></tr>';
             var govde = '';
@@ -12631,13 +12642,14 @@ window.__I18N_SOZLUK__ = {
                         '<span class="au-perf ' + (o.performans >= 0.9 ? 'iyi' : 'dusuk') + '">' + auYuzde(o.performans) + '</span>';
                     govde += '<tr class="au-satir" onclick="auAcKapat(\'' + i + '\')"' + (o.fason ? ' style="color:var(--muted)"' : '') + '><td class="sol">' + t + '</td><td class="sol"><b>' + esc(o.ad) + '</b> ' + (_au.acik[i] ? '▴' : '▾') + '</td>' +
                         '<td><b>' + auSayi(o.adet) + '</b></td><td>' + o.kod + '</td><td>' + auSayi(o.rpr) + '</td><td>' + auSayi(o.cfi) + '</td>' +
+                        '<td>' + auSayi(o.cop) + '</td><td>' + auFire(o.fire) + '</td>' +
                         '<td>' + auSayi(o.teorik_saat, 10) + '</td><td>' + auYuzde(o.sure_kapsami) + '</td>' +
                         '<td>' + bos(o.nos) + '</td><td>' + bos(o.mesai) + '</td><td>' + bos(o.calisma) + '</td><td>' + (o.kisi || '') + '</td><td>' + perf + '</td></tr>';
                     if (_au.acik[i]) {
-                        govde += '<tr class="au-acik"><td colspan="13"><table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th>RPR</th><th>CFI</th><th>Adet</th><th>Birim sn</th><th class="sol">Süre kaynağı</th><th>Teorik saat</th><th></th></tr>' +
+                        govde += '<tr class="au-acik"><td colspan="15"><table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th>RPR</th><th>CFI</th><th>Adet</th><th>COP</th><th>Birim sn</th><th class="sol">Süre kaynağı</th><th>Teorik saat</th><th></th></tr>' +
                             (o.satirlar || []).map(function (s) {
                                 return '<tr><td class="sol"><b>' + esc(s.kod) + '</b>' + (s.cok_bolum ? ' <span title="Birden çok bölümde tanımlı" style="color:var(--dim)">⇄</span>' : '') + '</td><td class="sol">' + esc(s.aciklama || '') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) +
-                                    '</td><td>' + auSayi(s.sure_sn, 10) + '</td><td class="sol">' + esc(s.sure_kaynak || '—') + '</td><td>' + auSayi(s.teorik_saat, 10) + '</td>' +
+                                    '</td><td>' + (s.cop ? auSayi(s.cop) : '') + '</td><td>' + auSayi(s.sure_sn, 10) + '</td><td class="sol">' + esc(s.sure_kaynak || '—') + '</td><td>' + auSayi(s.teorik_saat, 10) + '</td>' +
                                     '<td>' + auCikarBtn(s) + '</td></tr>';
                             }).join('') + '</table>' + (o.satir_sayisi > (o.satirlar || []).length ? '<div style="color:var(--muted)">İlk ' + o.satirlar.length + ' kod — tamamı Excel\'de.</div>' : '') + '</td></tr>';
                     }
@@ -12646,15 +12658,15 @@ window.__I18N_SOZLUK__ = {
                 var tp = top.cal ? top.teorik / top.cal : null;
                 var bs = function (v) { return v ? auSayi(v, 10) : ''; };
                 govde += '<tr class="au-toplam"><td class="sol">' + t + '</td><td class="sol">TOPLAM <span style="font-weight:400;color:var(--muted)">(kod tekil, fason hariç)</span></td><td>' + auSayi(tt.adet) + '</td><td>' + (tt.kod || '') +
-                    '</td><td>' + auSayi(tt.rpr) + '</td><td>' + auSayi(tt.cfi) + '</td><td>' + auSayi(top.teorik, 10) + '</td><td></td><td>' + bs(top.nos) + '</td><td>' + bs(top.mesai) + '</td><td>' + bs(top.cal) +
+                    '</td><td>' + auSayi(tt.rpr) + '</td><td>' + auSayi(tt.cfi) + '</td><td>' + auSayi(tt.cop) + '</td><td>' + auFire(tt.fire) + '</td><td>' + auSayi(top.teorik, 10) + '</td><td></td><td>' + bs(top.nos) + '</td><td>' + bs(top.mesai) + '</td><td>' + bs(top.cal) +
                     '</td><td>' + (top.kisi || '') + '</td><td>' + (tp === null ? '' : '<span class="au-perf ' + (tp >= 0.9 ? 'iyi' : 'dusuk') + '">' + auYuzde(tp) + '</span>') + '</td></tr>';
             });
             el.innerHTML = govde ? '<table class="au-tablo"><thead>' + bas + '</thead><tbody>' + govde + '</tbody></table>' : '<span style="color:var(--muted)">Bu ay teyitli üretim yok.</span>';
             var tn = r.tanimsiz || [];
             document.getElementById('au-tanimsiz-bilgi').textContent = fmt(r.tanimsiz_sayi || tn.length) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet — Forge\'da ve Anaveri\'de bölümü yok';
             document.getElementById('au-tanimsiz').innerHTML = tn.length
-                ? '<table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th class="sol">Tesis</th><th>RPR</th><th>CFI</th><th>Adet</th><th class="sol">Anaveri</th><th></th></tr>' +
-                  tn.map(function (s) { return '<tr><td class="sol"><b>' + esc(s.kod) + '</b></td><td class="sol">' + esc(s.aciklama || '') + '</td><td class="sol">' + esc(s.tesis || '?') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) + '</td><td class="sol">' + esc(s.anaveri || '') + '</td><td>' + auCikarBtn(s) + '</td></tr>'; }).join('') + '</table>'
+                ? '<table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th class="sol">Tesis</th><th>RPR</th><th>CFI</th><th>Adet</th><th>COP</th><th class="sol">Anaveri</th><th></th></tr>' +
+                  tn.map(function (s) { return '<tr><td class="sol"><b>' + esc(s.kod) + '</b></td><td class="sol">' + esc(s.aciklama || '') + '</td><td class="sol">' + esc(s.tesis || '?') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) + '</td><td>' + (s.cop ? auSayi(s.cop) : '') + '</td><td class="sol">' + esc(s.anaveri || '') + '</td><td>' + auCikarBtn(s) + '</td></tr>'; }).join('') + '</table>'
                 : '<span style="color:var(--success)">Tüm kodların bölümü belli.</span>';
         }
         function auAcKapat(i) { _au.acik[i] = !_au.acik[i]; auCiz(); }

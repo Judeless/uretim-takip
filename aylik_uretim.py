@@ -29,6 +29,10 @@ FORGE
   · Performans = teorik süre ÷ toplam çalışma saati (NçS + mesai). Planlamanın eski
     tablosu yalnız NçS'ye bölüyordu — o değer de ayrı sütunda.
   · 20.* / 21.* hammadde (metre, kg) adet toplamına girmez — ayrı listede.
+  · COP (hurda, kullanıcı 2026-10-12: "bölümlere göre cop adetlerini de getirelim … aylık
+    üretime göre fire oranını da görelim"): ayın COP hareketleri kodun ÜRETİMİYLE aynı
+    bölüme yazılır; adet (üretim) toplamına GİRMEZ. Fire % = COP ÷ üretilen adet (RPR+CFI).
+    Ay boyunca hiç üretimi olmayan kodun COP'u yine bölümüne yazılır, kod sayısını artırmaz.
 
 AS400'e YALNIZ SELECT gider. Ayın okuması saklanır (aylik_uretim_cekim); sınıflama ve
 süreler rapor anında güncel tanımlarla uygulanır.
@@ -42,7 +46,7 @@ from datetime import date, datetime
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 HAREKET_TABLO = 'tkc0301F.BMMAF0'
-CAUSALLAR = ('RPR', 'CFI')
+CAUSALLAR = ('RPR', 'CFI', 'COP')   # COP = hurda; üretim adedine girmez
 DEPO_TESIS = {'01D': 'TK2', '01': 'TK1', '02': 'TK1'}
 HAMMADDE_ONEK = ('20.', '21.')
 HEDEF_PERFORMANS = 0.90
@@ -94,6 +98,13 @@ BOLUM_SIRA = {'TK2': ('kaynak', 'lazer', 'pres', 'metal', 'isleme', 'montaj', 'f
 AY_AD = ('', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim',
          'Kasım', 'Aralık')
 _GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,40}$')
+# AS400 açıklamalarında kontrol karakteri olabiliyor ('VW EL FREN TEL' + görünmez bayt): openpyxl
+# bunları reddediyor ve TÜM Excel çıktısı düşüyordu (IllegalCharacterError). Küme openpyxl'inkiyle aynı.
+_YASAK_KARAKTER = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
+
+
+def _temiz(v):
+    return _YASAK_KARAKTER.sub('', str(v or '')).strip()
 
 
 def tablolari_kur(conn):
@@ -178,10 +189,10 @@ def _haric_bul(n, kurallar):
 
 # ── AS400 ────────────────────────────────────────────────────────────────────
 def as400_oku(cn, yil, ay):
-    """Ayın RPR + CFI hareketleri, kod × depo × causal toplamı + ürün açıklaması."""
+    """Ayın RPR + CFI (+ COP hurda) hareketleri, kod × depo × causal toplamı + ürün açıklaması."""
     cu = cn.cursor()
     cu.execute(f"SELECT TRIM(MGARCD), TRIM(MGMGCD), TRIM(MGCACD), SUM(MGQTA), COUNT(*) FROM {HAREKET_TABLO} "
-               f"WHERE MGCACD IN ('RPR','CFI') AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? "
+               f"WHERE MGCACD IN ({','.join(repr(c) for c in CAUSALLAR)}) AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? "
                f"GROUP BY TRIM(MGARCD), TRIM(MGMGCD), TRIM(MGCACD)", (yil // 100, yil % 100, ay))
     hareket = [{'kod': r[0], 'depo': r[1] or '', 'causal': r[2], 'adet': float(r[3] or 0), 'satir': int(r[4] or 0)}
                for r in cu.fetchall() if r[0]]
@@ -193,7 +204,8 @@ def as400_oku(cn, yil, ay):
                    f"WHERE A0ARTI IN ({','.join('?' * len(grup))})", grup)
         aciklama.update({r[0]: r[1] or '' for r in cu.fetchall()})
     return {'yil': yil, 'ay': ay, 'ts': datetime.now().strftime('%Y-%m-%d %H:%M'),
-            'hareket': hareket, 'aciklama': aciklama}
+            'hareket': hareket, 'aciklama': aciklama,
+            'causallar': list(CAUSALLAR)}      # eski okumalarda yok → COP okunmamış demektir
 
 
 def kaydet(conn, veri, kullanici, sure_sn=None):
@@ -463,6 +475,7 @@ def rapor(conn, yil, ay):
     ana = AV.haritasi(conn)
     kurallar = haric_kurallari(conn)
     acik = veri.get('aciklama') or {}
+    cop_okundu = 'COP' in (veri.get('causallar') or [])
     # Kod × tesis birleştir (causal ayrı tutulur)
     kodlar = {}
     depo_ozet = {}
@@ -473,18 +486,31 @@ def rapor(conn, yil, ay):
         if not tesis:
             iki = [lok for lok in ('TK2', 'TK1') if forge[lok][0].get(n) or forge[lok][1].get(_kok(kod))]
             tesis = iki[0] if len(iki) == 1 else ''
-        d = kodlar.setdefault((n, tesis), {'kod': kod, 'tesis': tesis, 'RPR': 0.0, 'CFI': 0.0, 'depolar': {}})
+        d = kodlar.setdefault((n, tesis), {'kod': kod, 'tesis': tesis, 'RPR': 0.0, 'CFI': 0.0, 'COP': 0.0,
+                                           'depolar': {}})
         d[h['causal']] = d.get(h['causal'], 0.0) + h['adet']
-        d['depolar'][h['depo']] = d['depolar'].get(h['depo'], 0.0) + h['adet']
+        if h['causal'] != 'COP':        # depo sütunu üretimin deposunu gösterir
+            d['depolar'][h['depo']] = d['depolar'].get(h['depo'], 0.0) + h['adet']
         o = depo_ozet.setdefault(h['depo'] or '?', {'depo': h['depo'] or '?', 'tesis': DEPO_TESIS.get(h['depo'].upper(), ''),
-                                                    'RPR': 0.0, 'CFI': 0.0, 'kod': set()})
+                                                    'RPR': 0.0, 'CFI': 0.0, 'COP': 0.0, 'kod': set()})
         o[h['causal']] = o.get(h['causal'], 0.0) + h['adet']
         o['kod'].add(n)
+    # COP ÜRETİMİN YANINA: hurda depodan düşülür ve TK1 plastik hurdası 08.10.2026'ya kadar 01D'den
+    # (TK2) düşülüyordu. Üretimi YALNIZ bir başka tesiste olan kodun yalnız-COP kaydı oraya eklenir.
+    for (n, tesis), d in list(kodlar.items()):
+        if d['RPR'] + d['CFI'] > 0 or d['COP'] <= 0:
+            continue
+        uretim = [k for k, x in kodlar.items() if k[0] == n and k[1] != tesis and x['RPR'] + x['CFI'] > 0]
+        if len(uretim) == 1:
+            kodlar[uretim[0]]['COP'] += d['COP']
+            del kodlar[(n, tesis)]
     bolumler, tanimsiz, hammadde, haric, tesis_top = {}, [], [], [], {}
     for (n, tesis), d in kodlar.items():
         adet = d['RPR'] + d['CFI']
-        satir = {'kod': d['kod'], 'aciklama': acik.get(d['kod'], ''), 'tesis': tesis, 'rpr': round(d['RPR'], 2),
-                 'cfi': round(d['CFI'], 2), 'adet': round(adet, 2),
+        cop = d['COP']
+        sayilir = 1 if adet > 0 else 0      # ay içinde üretimi olmayan (yalnız COP) kod sayılmaz
+        satir = {'kod': d['kod'], 'aciklama': _temiz(acik.get(d['kod'], '')), 'tesis': tesis, 'rpr': round(d['RPR'], 2),
+                 'cfi': round(d['CFI'], 2), 'adet': round(adet, 2), 'cop': round(cop, 2),
                  'depolar': ' '.join(f'{k or "?"}:{v:g}' for k, v in d['depolar'].items())}
         hk = _haric_bul(n, kurallar)
         if hk:                      # kullanıcının hariç tuttuğu kod: hiçbir toplama / performansa girmez
@@ -528,13 +554,14 @@ def rapor(conn, yil, ay):
             satir['anaveri'] = f"{a['tk']} / {a['hat']}" if a else ''
             tanimsiz.append(satir)
             continue
-        t = tesis_top.setdefault(tesis, {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0})
+        t = tesis_top.setdefault(tesis, {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'cop': 0.0})
         if FASON in hedef:          # tedarikçinin işi tesis üretimine sayılmaz
-            t = {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0}
+            t = {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'cop': 0.0}
         t['adet'] += adet
-        t['kod'] += 1
+        t['kod'] += sayilir
         t['rpr'] += d['RPR']
         t['cfi'] += d['CFI']
+        t['cop'] += cop
         for b, forge_sn in hedef.items():
             k = kap.get((n, tesis, b)) or kap.get((_kok(d['kod']), tesis, b))
             ks = (kdb.get(n) or {}).get('saatlik')
@@ -553,12 +580,13 @@ def rapor(conn, yil, ay):
             else:
                 sn, sk = 0.0, ''
             bl = bolumler.setdefault((tesis, b), {'tesis': tesis, 'bolum': b, 'ad': BOLUM_AD.get(b, b), 'adet': 0.0,
-                                                  'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'teorik_sn': 0.0,
+                                                  'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'cop': 0.0, 'teorik_sn': 0.0,
                                                   'sureli_adet': 0.0, 'satirlar': []})
             bl['adet'] += adet
-            bl['kod'] += 1
+            bl['kod'] += sayilir
             bl['rpr'] += d['RPR']
             bl['cfi'] += d['CFI']
+            bl['cop'] += cop
             if sn > 0 and adet > 0:
                 bl['teorik_sn'] += adet * sn
                 bl['sureli_adet'] += adet
@@ -573,7 +601,7 @@ def rapor(conn, yil, ay):
                             key=lambda b: (sira.index(b) if b in sira else 99, b))
         for b in anahtarlar:
             bl = bolumler.get((tesis, b)) or {'tesis': tesis, 'bolum': b, 'ad': BOLUM_AD.get(b, b), 'adet': 0.0,
-                                              'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'teorik_sn': 0.0,
+                                              'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'cop': 0.0, 'teorik_sn': 0.0,
                                               'sureli_adet': 0.0, 'satirlar': []}
             c = calisma.get((tesis, b)) or {}
             nos, mesai = c.get('nos', 0.0), c.get('mesai', 0.0)
@@ -582,6 +610,8 @@ def rapor(conn, yil, ay):
             fsn = b == FASON
             ozet.append({'fason': fsn, 'tesis': tesis, 'bolum': b, 'ad': bl['ad'], 'adet': round(bl['adet'], 2), 'kod': bl['kod'],
                          'rpr': round(bl['rpr'], 2), 'cfi': round(bl['cfi'], 2),
+                         'cop': round(bl['cop'], 2) if cop_okundu else None,
+                         'fire': round(bl['cop'] / bl['adet'], 4) if cop_okundu and bl['adet'] else None,
                          'teorik_saat': None if fsn else round(teorik, 1),
                          'sure_kapsami': round(bl['sureli_adet'] / bl['adet'], 3) if bl['adet'] and not fsn else None,
                          'nos': round(nos, 1), 'mesai': round(mesai, 1), 'calisma': round(top, 1),
@@ -590,8 +620,11 @@ def rapor(conn, yil, ay):
                          'performans_nos': round(teorik / nos, 3) if nos else None,
                          'satirlar': sorted(bl['satirlar'], key=lambda s: -s['adet'])})
     for t in tesis_top.values():
-        for k in ('adet', 'rpr', 'cfi'):
+        t['fire'] = round(t['cop'] / t['adet'], 4) if cop_okundu and t['adet'] else None
+        for k in ('adet', 'rpr', 'cfi', 'cop'):
             t[k] = round(t[k], 2)
+        if not cop_okundu:
+            t['cop'] = None
     tanimsiz.sort(key=lambda s: -s['adet'])
     hammadde.sort(key=lambda s: -s['adet'])
     haric.sort(key=lambda s: -s['adet'])
@@ -604,8 +637,9 @@ def rapor(conn, yil, ay):
                       for k in kurallar]
     return {'yil': yil, 'ay': ay, 'ay_ad': f'{AY_AD[ay]} {yil}', 'olcum': veri['ts'], 'olcan': veri.get('_kullanici', ''),
             'devam_eden': (yil, ay) == (date.today().year, date.today().month),
-            'ozet': ozet, 'tesis': tesis_top, 'tanimsiz': tanimsiz, 'hammadde': hammadde,
-            'depolar': sorted(({**o, 'kod': len(o['kod']), 'RPR': round(o['RPR'], 2), 'CFI': round(o['CFI'], 2)}
+            'ozet': ozet, 'tesis': tesis_top, 'tanimsiz': tanimsiz, 'hammadde': hammadde, 'cop_okundu': cop_okundu,
+            'depolar': sorted(({**o, 'kod': len(o['kod']), 'RPR': round(o['RPR'], 2), 'CFI': round(o['CFI'], 2),
+                                'COP': round(o['COP'], 2)}
                                for o in depo_ozet.values()), key=lambda o: -(o['RPR'] + o['CFI'])),
             'calisma_disarida': disarida, 'calisma_bilgi': calisma_bilgi,
             'tanimsiz_adet': round(sum(s['adet'] for s in tanimsiz), 2),
@@ -630,12 +664,13 @@ def excel(r):
     ws.append([f"AYLIK ÜRETİM RAPORU — {r['ay_ad']}" + (' (ay devam ediyor)' if r['devam_eden'] else '')])
     ws['A1'].font = Font(bold=True, size=14, color='1F3864')
     ws.append([f"Teyidi verilmiş üretim: AS400 RPR (launch teyidi) + CFI (launch'sız üretim girişi), hareket tarihine "
-               f"göre · okuma {r['olcum']} · bölümler Forge tanımlarına göre"])
+               f"göre · COP = hurda (üretime girmez), fire % = COP ÷ üretilen · okuma {r['olcum']} · bölümler Forge "
+               f"tanımlarına göre"])
     ws['A2'].font = Font(italic=True, color='666666')
     ws.append([])
-    bas = ['Tesis', 'Bölüm', 'Üretilen adet', 'Kod sayısı', 'RPR adet', 'CFI adet', 'Teorik süre (saat)',
-           'Süre kapsamı', 'Çalışma saati (NçS)', 'Mesai (saat)', 'Toplam çalışma (saat)', 'Kişi',
-           'Performans', 'Hedef', 'Performans (yalnız NçS)']
+    bas = ['Tesis', 'Bölüm', 'Üretilen adet', 'Kod sayısı', 'RPR adet', 'CFI adet', 'COP (hurda) adet', 'Fire %',
+           'Teorik süre (saat)', 'Süre kapsamı', 'Çalışma saati (NçS)', 'Mesai (saat)', 'Toplam çalışma (saat)',
+           'Kişi', 'Performans', 'Hedef', 'Performans (yalnız NçS)']
     ws.append(bas)
     hb = ws.max_row
     for i in range(1, len(bas) + 1):
@@ -651,34 +686,39 @@ def excel(r):
         for o in satirlar:
             if o.get('fason'):
                 continue            # fason satırı tesis toplamının altında ayrı yazılır
-            ws.append([tesis, o['ad'], o['adet'], o['kod'], o['rpr'], o['cfi'], o['teorik_saat'], o['sure_kapsami'],
+            ws.append([tesis, o['ad'], o['adet'], o['kod'], o['rpr'], o['cfi'], o.get('cop'), o.get('fire'),
+                       o['teorik_saat'], o['sure_kapsami'],
                        o['nos'] or None, o['mesai'] or None, o['calisma'] or None, o['kisi'] or None,
                        o['performans'], HEDEF_PERFORMANS if o['calisma'] else None, o['performans_nos']])
         son = ws.max_row
         t = r['tesis'].get(tesis, {})
         L = get_column_letter
+        tr_ = son + 1
         ws.append([f'{tesis} TOPLAM', '(kod tekil)', t.get('adet'), t.get('kod'), t.get('rpr'), t.get('cfi'),
-                   f'=SUM(G{ilk}:G{son})', None, f'=SUM(I{ilk}:I{son})', f'=SUM(J{ilk}:J{son})',
-                   f'=SUM(K{ilk}:K{son})', f'=SUM(L{ilk}:L{son})', f'=IF(K{son + 1}>0,G{son + 1}/K{son + 1},"")',
-                   HEDEF_PERFORMANS, f'=IF(I{son + 1}>0,G{son + 1}/I{son + 1},"")'])
+                   t.get('cop'), (f'=IF(C{tr_}>0,G{tr_}/C{tr_},"")' if r.get('cop_okundu') else None),
+                   f'=SUM(I{ilk}:I{son})', None, f'=SUM(K{ilk}:K{son})', f'=SUM(L{ilk}:L{son})',
+                   f'=SUM(M{ilk}:M{son})', f'=SUM(N{ilk}:N{son})', f'=IF(M{tr_}>0,I{tr_}/M{tr_},"")',
+                   HEDEF_PERFORMANS, f'=IF(K{tr_}>0,I{tr_}/K{tr_},"")'])
         for i in range(1, len(bas) + 1):
             c = ws.cell(row=ws.max_row, column=i)
             c.font, c.fill = Font(bold=True), acik
         for o in [x for x in satirlar if x.get('fason')]:
-            ws.append([tesis, o['ad'], o['adet'], o['kod'], o['rpr'], o['cfi'], None, None, None, None, None, None,
+            ws.append([tesis, o['ad'], o['adet'], o['kod'], o['rpr'], o['cfi'], o.get('cop'), o.get('fire'),
+                       None, None, None, None, None, None,
                        None, None, 'tedarikçinin işi — tesis toplamına ve performansa girmez'])
             ws.cell(row=ws.max_row, column=2).font = Font(italic=True, color='666666')
         for rr in range(ilk, ws.max_row + 1):
             for i in range(1, len(bas) + 1):
                 ws.cell(row=rr, column=i).border = kenar
-            for col in ('C', 'D', 'E', 'F'):
+            for col in ('C', 'D', 'E', 'F', 'G'):
                 ws[f'{col}{rr}'].number_format = '#,##0'
-            for col in ('G', 'I', 'J', 'K'):
+            ws[f'H{rr}'].number_format = '0.0%'
+            for col in ('I', 'K', 'L', 'M'):
                 ws[f'{col}{rr}'].number_format = '#,##0.0'
-            for col in ('H', 'M', 'N', 'O'):
+            for col in ('J', 'O', 'P', 'Q'):
                 ws[f'{col}{rr}'].number_format = '0%'
         ws.append([])
-    alan = f'M5:M{ws.max_row}'
+    alan = f'O5:O{ws.max_row}'
     ws.conditional_formatting.add(alan, CellIsRule(operator='lessThan', formula=[str(HEDEF_PERFORMANS)],
                                                    fill=PatternFill('solid', fgColor='F8CBAD')))
     ws.conditional_formatting.add(alan, CellIsRule(operator='greaterThanOrEqual', formula=[str(HEDEF_PERFORMANS)],
@@ -692,6 +732,9 @@ def excel(r):
         f"• Tanımsız (Forge'da ve Anaveri'de bölümü olmayan) kodlar: {len(r['tanimsiz'])} kod, {r['tanimsiz_adet']:,.0f} adet — "
         "'Tanımsız kodlar' sayfası; özete girmez.",
         f"• Hammadde (20.* / 21.*, metre-kg): {len(r['hammadde'])} kod — adet toplamına girmez.",
+        ("• COP (hurda): ayın COP hareketleri, kodun üretimiyle aynı bölüme yazılır; üretilen adede girmez. "
+         "Fire % = COP ÷ üretilen adet (RPR + CFI)." if r.get('cop_okundu') else
+         "• COP (hurda): bu okuma COP hareketlerini içermiyor — panelden 'AS400'den hazırla' ile yeniden okuyun."),
         "• Fason (tedarikçi): Anaveri'de Pandora / Pull telleri (Pull şu an fasonda üretiliyor) ve 'Fason' işaretli kodlar "
         "(Forge'da tanımı yoksa) — tesis toplamına ve performansa girmez.",
         f"• Rapordan hariç tutulan ({', '.join(k['desen'] + ('…' if k['tur'] == 'onek' else '') for k in r.get('haric_kurallar') or []) or 'kural yok'}): "
@@ -704,7 +747,7 @@ def excel(r):
     for n in notlar:
         ws.append([n])
         ws.cell(row=ws.max_row, column=1).font = Font(bold=(n == 'NOTLAR'), color='444444')
-    for i, w in enumerate([12, 22, 14, 10, 12, 12, 14, 11, 14, 12, 14, 7, 12, 8, 14], start=1):
+    for i, w in enumerate([12, 22, 14, 10, 12, 12, 12, 9, 14, 11, 14, 12, 14, 7, 12, 8, 14], start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = 'C5'
     # Bölüm sayfaları
@@ -717,39 +760,40 @@ def excel(r):
                   ('tedarikçinin işi — tesis toplamına ve performansa girmez' if o.get('fason')
                    else f"teorik {o['teorik_saat']:,.1f} saat")])
         w['A1'].font = Font(bold=True, size=12)
-        b2 = ['Kod', 'Açıklama', 'RPR', 'CFI', 'Toplam adet', 'Birim süre (sn)', 'Süre kaynağı', 'Teorik süre (saat)',
-              'Sınıflama', 'Depo', 'Not']
+        b2 = ['Kod', 'Açıklama', 'RPR', 'CFI', 'Toplam adet', 'COP (hurda)', 'Birim süre (sn)', 'Süre kaynağı',
+              'Teorik süre (saat)', 'Sınıflama', 'Depo', 'Not']
         w.append(b2)
         for i in range(1, len(b2) + 1):
             c = w.cell(row=2, column=i)
             c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
         for s in o['satirlar']:
-            w.append([s['kod'], s['aciklama'], s['rpr'] or None, s['cfi'] or None, s['adet'], s['sure_sn'],
-                      s['sure_kaynak'], s['teorik_saat'], {'forge': 'Forge', 'anaveri': 'Anaveri'}.get(s['sinif'], s['sinif']),
+            w.append([s['kod'], s['aciklama'], s['rpr'] or None, s['cfi'] or None, s['adet'], s.get('cop') or None,
+                      s['sure_sn'], s['sure_kaynak'], s['teorik_saat'], {'forge': 'Forge', 'anaveri': 'Anaveri'}.get(s['sinif'], s['sinif']),
                       s['depolar'], 'birden çok bölümde tanımlı' if s['cok_bolum'] else ''])
-        for i, wd in enumerate([18, 34, 10, 10, 12, 12, 14, 13, 10, 18, 22], start=1):
+        for i, wd in enumerate([18, 34, 10, 10, 12, 11, 12, 14, 13, 10, 18, 22], start=1):
             w.column_dimensions[get_column_letter(i)].width = wd
         w.freeze_panes = 'B3'
-        w.auto_filter.ref = f'A2:K{w.max_row}'
+        w.auto_filter.ref = f'A2:L{w.max_row}'
     # Tanımsız + hammadde + depo + çalışma saati
     for baslik, liste, kol, kol_bas in (('Tanımsız kodlar', r['tanimsiz'], 'anaveri', 'Anaveri (TK-1/2 / Hat)'),
                                         ('Hariç tutulan', r.get('haric') or [], 'kural', 'Kural'),
                                         ('Hammadde (adet dışı)', r['hammadde'], None, None)):
         w = wb.create_sheet(baslik)
-        w.append(['Kod', 'Açıklama', 'Tesis (depo)', 'RPR', 'CFI', 'Toplam', 'Depo'] + ([kol_bas] if kol else []))
+        w.append(['Kod', 'Açıklama', 'Tesis (depo)', 'RPR', 'CFI', 'Toplam', 'COP (hurda)', 'Depo']
+                 + ([kol_bas] if kol else []))
         for c in w[1]:
             c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
         for s in liste:
-            w.append([s['kod'], s['aciklama'], s['tesis'], s['rpr'] or None, s['cfi'] or None, s['adet'], s['depolar']]
-                     + ([s.get(kol, '')] if kol else []))
-        for i, wd in enumerate([18, 34, 10, 10, 10, 12, 18, 24], start=1):
+            w.append([s['kod'], s['aciklama'], s['tesis'], s['rpr'] or None, s['cfi'] or None, s['adet'],
+                      s.get('cop') or None, s['depolar']] + ([s.get(kol, '')] if kol else []))
+        for i, wd in enumerate([18, 34, 10, 10, 10, 12, 11, 18, 24], start=1):
             w.column_dimensions[get_column_letter(i)].width = wd
     w = wb.create_sheet('Depo ve çalışma saati')
-    w.append(['Depo', 'Tesis', 'RPR', 'CFI', 'Kod sayısı'])
+    w.append(['Depo', 'Tesis', 'RPR', 'CFI', 'COP (hurda)', 'Kod sayısı'])
     for c in w[1]:
         c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
     for d in r['depolar']:
-        w.append([d['depo'], d['tesis'], d['RPR'], d['CFI'], d['kod']])
+        w.append([d['depo'], d['tesis'], d['RPR'], d['CFI'], d.get('COP'), d['kod']])
     w.append([])
     w.append(['Çalışma saati (kapasite Excel\'i)', 'Forge bölümü', 'NçS', 'Mesai', 'Kişi'])
     for c in w[w.max_row]:
