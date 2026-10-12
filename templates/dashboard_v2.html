@@ -2599,6 +2599,10 @@ window.__I18N_SOZLUK__ = {
     "en": "Robot Welding Andon",
     "it": "Andon Saldatura robotizzata"
   },
+  "● teyit import tablolarından — PCOMM gerekmiyor": {
+    "en": "● confirmations via import tables — PCOMM not needed",
+    "it": "● conferme tramite tabelle di import — PCOMM non necessario"
+  },
   "Montaj + Son Montaj": {
     "en": "Assembly + Final Assembly",
     "it": "Assemblaggio + Assemblaggio finale"
@@ -17991,7 +17995,10 @@ window.__I18N_SOZLUK__ = {
                 // ve kimse bağlanamaz. Rozet ikisini AYIRT ETTİRİR.
                 var gz = d.gozcu || {};
                 var gzMetin = '', gzRenk = 'var(--muted)', gzBaslik = '';
-                if (d.agent) {
+                // RPR/CFI/COP import tablolarından gidiyorsa (2026-10-12) PCOMM/agent/gözcü
+                // teyit için GEREKMEZ — rozet onları arıza gibi göstermesin.
+                var robotsuz = (d.ekran_robotu === false);
+                if (d.agent && !robotsuz) {
                     gzBaslik = 'Son kontrol: ' + (gz.son_zaman || '—') +
                                ' · nabız: ' + (gz.dongu_zaman || '—') +
                                (gz.son_detay ? '\n' + gz.son_detay : '');
@@ -18009,7 +18016,9 @@ window.__I18N_SOZLUK__ = {
                         gzRenk = 'var(--success)';
                     }
                 }
-                var ajanRozet = (d.agent
+                var ajanRozet = (robotsuz
+                    ? '<span style="color:var(--success);font-weight:700;font-size:.74rem" title="Launch teyidi (RPR), CFI ve COP IT\'nin import tablolarından gider; ekran robotu, PCOMM oturumu ve oturum gözcüsü teyit için kullanılmaz.">● teyit import tablolarından — PCOMM gerekmiyor</span>'
+                    : d.agent
                     ? '<span style="color:var(--success);font-weight:700;font-size:.74rem">● teyit-agent bağlı</span>'
                     : '<span style="color:var(--danger);font-weight:700;font-size:.74rem" title="Agent promanage RDP oturumunda çalışır. Sunucu yeniden başladıysa ya da oturum kapandıysa PCOMM + agent ölür; kimse otomatik geri getiremez (sign-on insan işi).">● teyit-agent YOK — oto koşular bu makinede çalışmaz</span>')
                     + (gzMetin ? '<span style="color:' + gzRenk + ';font-weight:700;font-size:.74rem" title="' +

@@ -12047,6 +12047,31 @@ def _teyit_agent_durum():
     return {'agent': False, 'gozcu': {}}
 
 
+def _import_canli(ad, causal=None):
+    """oto_config'teki import yolu (cfi_import / teyit_import) CANLI mı? etkin +
+    canli_onay ikisi birden; causal verilirse o causal'ı da kabul etmeli."""
+    c = _oto_config().get(ad) or {}
+    if not (c.get('etkin') and c.get('canli_onay')):
+        return False
+    return causal is None or causal in (c.get('causals') or ['CFI'])
+
+
+def _ekran_robotu_gerekli():
+    """Teyit akışları (RPR launch teyidi + CFI + COP) hâlâ 5250 EKRAN ROBOTUNA mı muhtaç?
+
+    Kullanıcı 2026-10-12: RPR/CFI/COP artık IT'nin import tablolarından gidiyor
+    (BPRCF0I + BMMAF0I) — "uzak erişim bilgisayarındaki AS400'ün açık olması
+    kontrolüne ve giriş denemesine gerek yok; bağlantı kurulamadı mailleri de
+    gelmesin." Üçü de import ile CANLIYSA teyit için PCOMM/teyit-agent gerekmez:
+    oto koşular agent'ı BEKLEMEZ (eskiden agent yoksa sessizce atlıyordu), oturum
+    ön kontrolü (sign-on) yapılmaz, nöbet maili atılmaz. Biri robota dönerse (import
+    kapatılırsa) eski davranış kendiliğinden geri gelir.
+    Transfer iptali (16:45) HÂLÂ ekran robotudur — bu karara dahil değil."""
+    return not (_import_canli('teyit_import')
+                and _import_canli('cfi_import', 'CFI')
+                and _import_canli('cfi_import', 'COP'))
+
+
 def _oturum_0_mi():
     """App bir Windows SERVİSİ olarak mı koşuyor (Session 0)? Sunucuda cofle-app
     NSSM servisi Session 0'dadır; PCOMM pencereleri promanage'ın RDP oturumunda.
@@ -12405,12 +12430,14 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
     append noktalarına hiç dokunmadan canlı ilerleme."""
     sonuclar = sonuc_kanal if sonuc_kanal is not None else []
     # Session B ön kontrolü (bkz. _as400_oturum_hazirla) — ölü oturumda
-    # launch teyitleri de satır satır hata veriyordu.
-    _od, _om = _as400_oturum_hazirla()
-    if _od == 'OK':
-        print(f'[TEYIT] {_om}')
-    elif _od is None:
-        print(f'[TEYIT] oturum ön kontrolü: {_om}')
+    # launch teyitleri de satır satır hata veriyordu. Teyit IMPORT tablosundan
+    # gidiyorsa ekran oturumu kullanılmaz → sign-on denemesi YAPILMAZ (2026-10-12).
+    if not _import_canli('teyit_import'):
+        _od, _om = _as400_oturum_hazirla()
+        if _od == 'OK':
+            print(f'[TEYIT] {_om}')
+        elif _od is None:
+            print(f'[TEYIT] oturum ön kontrolü: {_om}')
 
     for idx, s in enumerate(satirlar):
         # NAZIK DURDURMA: kullanıcı "Durdur"a bastıysa kalan satırlara GEÇME (çalışan
@@ -13456,12 +13483,14 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
     if _d not in _sys.path:
         _sys.path.insert(0, _d)
     import launch_esle as _le
-    # Session B ön kontrolü — ölü oturumda her satır tek tek hata verirdi
-    _od, _om = _as400_oturum_hazirla()
-    if _od == 'OK':
-        print(f'[CFI] {_om}')
-    elif _od is None:
-        print(f'[CFI] oturum ön kontrolü: {_om}')
+    # Session B ön kontrolü — ölü oturumda her satır tek tek hata verirdi.
+    # CFI import tablosundan gidiyorsa ekran kullanılmaz → sign-on YOK (2026-10-12).
+    if not _import_canli('cfi_import', 'CFI'):
+        _od, _om = _as400_oturum_hazirla()
+        if _od == 'OK':
+            print(f'[CFI] {_om}')
+        elif _od is None:
+            print(f'[CFI] oturum ön kontrolü: {_om}')
     for idx, s in enumerate(satirlar):
         if _AS400_DURDUR.is_set():
             for kalan in satirlar[idx:]:
@@ -15870,6 +15899,7 @@ def _transfer_iptal_calistir(conn, satirlar, kullanici, dryrun=False):
     Doğrulama: robot SONUC=OK dese bile BMMAF0'da kayıt aranır — silinmişse 'ok'.
     Her sonuç as400_transfer_log'a yazılır. Döner: sonuclar."""
     sonuclar = []
+    ust_uste_robot_hata = 0
     for idx, s in enumerate(satirlar):
         if _AS400_DURDUR.is_set():
             for kalan in satirlar[idx:]:
@@ -15906,7 +15936,21 @@ def _transfer_iptal_calistir(conn, satirlar, kullanici, dryrun=False):
         if robot_hata:
             sonuclar.append({**kaydet, 'sonuc': 'hata', 'mesaj': robot_hata})
             _transfer_logla(conn, kaydet, 'hata', robot_hata, kullanici)
+            ust_uste_robot_hata += 1
+            # ROBOT YANIT VERMİYOR (2026-10-12): ekran oturumu ölüyken her satır 90 sn
+            # zaman aşımı bekliyordu — 87 transfer AS400 kilidini ~2 saat tuttu ve
+            # 17:10 teyit koşusu 'kilit alınamadı' ile düştü (09–11.10). İki ARDIŞIK
+            # robot hatasında kalanlar denenmez, kilit teyit koşusuna bırakılır.
+            if ust_uste_robot_hata >= 2 and idx + 1 < len(satirlar):
+                for kalan in satirlar[idx + 1:]:
+                    sonuclar.append({'kayit': str(kalan.get('kayit') or ''), 'satir': kalan.get('satir'),
+                                     'article': str(kalan.get('article') or ''), 'adet': kalan.get('adet'),
+                                     'tarih': str(kalan.get('tarih') or ''), 'sonuc': 'hata',
+                                     'mesaj': 'Denenmedi — ekran robotu art arda yanıt vermedi '
+                                              '(PCOMM/Session B kapalı olabilir)'})
+                break
             continue
+        ust_uste_robot_hata = 0
         robot_ok = ('SONUC=OK' in cikti) or (dryrun and 'SONUC=DRYRUN-OK' in cikti)
         son_satirlar = ' | '.join(l for l in cikti.splitlines() if l.strip())[-400:]
         if dryrun:
@@ -16141,6 +16185,12 @@ def agent_nobet_job():
     hatirlatma_saat'te bir tekrarlanır, düzelince 'geri geldi' maili atılır."""
     cfg = (_oto_config().get('agent_nobeti') or {})
     if not cfg.get('etkin'):
+        return
+    if not _ekran_robotu_gerekli():
+        # Teyit import tablolarından gidiyor (2026-10-12) → PCOMM/agent izlenmez,
+        # "AS400 otomasyonu DURDU" maili atılmaz. Hafıza sıfırlanır: robota dönülürse
+        # ilk arıza yeniden duyurulsun.
+        _AGENT_NOBET.update({'sorun': None, 'basladi': None, 'son_uyari': None})
         return
     try:
         sorun, aciklama = _agent_sorunu()
@@ -16719,6 +16769,11 @@ def _mutabakat_uygula(conn, tarih, kullanici='oto-mutabakat'):
     for kat, satirlar in gun.items():
         for r in satirlar:
             harita.setdefault(_le.kanonik(r.get('referans') or ''), (kat, r))
+    # O günün kullanıcı işaretleri (kuyrukla aynı kaynak) — kalıcı 'gerek_yok'
+    # zaten HARIC kategorisi olarak geliyor.
+    gun_isaret = {_le.kanonik(r['referans'] or ''): r['durum'] for r in conn.execute(
+        "SELECT referans, durum FROM as400_teyit_isaret WHERE kapsam='gun' AND uretim_tarihi=?",
+        (tarih,)).fetchall()}
 
     launchQ, cfiQ, rapor = [], [], []
     for f in farklar:
@@ -16726,11 +16781,29 @@ def _mutabakat_uygula(conn, tarih, kullanici='oto-mutabakat'):
             rapor.append({**f, 'karar': "FAZLA TEYİT — ERP'de fazla stok var, "
                                         "geri alma NEGATİF hareket gerektirir, elle düzeltin"})
             continue
+        # MUTABAKAT YALNIZ TAMAMLAR (2026-10-12, 94.PBL.57-20 olayı): kod 03.09'dan
+        # beri kalıcı 'teyit gerekmez' işaretliydi; kuyruk ona dokunmuyordu ama
+        # mutabakat "üretim 24 / teyit 0 → fark 24" deyip 01.10'da CFI gönderdi.
+        # Mutabakatın işi gün içinde KISMİ teyit almış kodun artan adedini
+        # göndermek. O gün hiç teyit almamış kodda karar normal kuyruğundur —
+        # göndermediyse bir sebebi var (işaret, ara op, sabah kontrol, kapasite …).
+        if f['teyit'] <= 0:
+            continue
         kat_satir = harita.get(f['kanonik'])
         if not kat_satir:
             rapor.append({**f, 'karar': 'Eksik teyit ama AS400 eşlemesi bulunamadı — elle bakın'})
             continue
         kat, r = kat_satir
+        im = gun_isaret.get(f['kanonik'], '')
+        if kat == 'HARIC':
+            rapor.append({**f, 'karar': 'Teyit gerekmez işaretli / teyit dışı — fark GÖNDERİLMEDİ'})
+            continue
+        if kat in ('ARAOP', 'KAPALI') and im != 'teyit_ver':
+            rapor.append({**f, 'karar': f'{kat} kovasında (➕ teyit ver işareti yok) — fark GÖNDERİLMEDİ'})
+            continue
+        if im == 'kontrol':
+            rapor.append({**f, 'karar': "O gün '✓ kontrol edildi' işaretli — fark GÖNDERİLMEDİ"})
+            continue
         launchlar = [l for l in (r.get('launchlar') or []) if l.get('durum') == 40]
         if launchlar:
             l = launchlar[0]
@@ -16764,8 +16837,8 @@ def erken_teyit_job():
     cfg = _oto_config().get('erken_teyit') or {}
     if not cfg.get('etkin'):
         return
-    if not _teyit_agent_var():
-        return          # bu makine robot koşusu için yapılandırılmamış — sessiz geç
+    if _ekran_robotu_gerekli() and not _teyit_agent_var():
+        return          # robot yolu gerekli ama agent yok — sessiz geç (import canlıysa agent aranmaz)
     bugun = date.today().isoformat()
     conn = db_connect()
     try:
@@ -16828,7 +16901,7 @@ def oto_teyit_job():
         _oto_atlandi_kaydet('teyit', 'ATLANDI: oto teyit KAPALI (oto_config)',
                             'Ayar kapalı — Sabah Kontrol panelinden aç.')
         return
-    if not _teyit_agent_var():
+    if _ekran_robotu_gerekli() and not _teyit_agent_var():
         print('[OTO-TEYIT] teyit-agent yok — bu makine robot koşusu için yapılandırılmamış, atlandı')
         _oto_atlandi_kaydet('teyit', 'ATLANDI: teyit-agent kapalı (PCOMM/Session B yok)',
                             'teyit-agent 127.0.0.1:5010 yanıt vermedi — RDP oturumunda PCOMM+agent açık olmalı.')
@@ -17012,7 +17085,8 @@ def as400_oto_kosu():
     _ajan = _teyit_agent_durum()
     return jsonify({'kosular': kosular, 'config': _oto_config(),
                     'config_hata': dict(_OTO_CONFIG_HATA),
-                    'agent': _ajan['agent'], 'gozcu': _ajan['gozcu']})
+                    'agent': _ajan['agent'], 'gozcu': _ajan['gozcu'],
+                    'ekran_robotu': _ekran_robotu_gerekli()})
 
 
 @app.route('/api/as400/oto_config', methods=['POST'])
