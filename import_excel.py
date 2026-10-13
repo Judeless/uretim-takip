@@ -785,6 +785,15 @@ def ana_veri_bolum(deger):
     return None
 
 
+def ana_veri_tk2_disi(deger):
+    """TK-1/2 (D) hücresi DOLU ve TK2 DEĞİLSE (TK-1, Pandora, Satınalma, Aspanda, DEPO…) True:
+    satır TK2 referansı değildir — Bölüm (E) ne yazarsa yazsın (kullanıcı 2026-10-13: planlamanın
+    Anaveri'sinden TK1 kodları eklendi; E'ye TK1 hattı yazılıyor, 'Montaj' gibi bir hat TK2
+    montajına girmesin). Yükleme, Forge → Excel yazımı ve satır silme bu satırlara dokunmaz."""
+    s = _tr_kucuk(deger).replace(' ', '').replace('-', '')
+    return bool(s) and s != 'tk2'
+
+
 def _ana_sutunlar(baslik_satiri):
     basliklar = [_tr_kucuk(x) for x in (baslik_satiri or ())]
     kol = {}
@@ -895,13 +904,13 @@ def ana_veri_oku(wb):
                                         # T 'TK2 mekanizma teli': boş = tel planında gösterilmez
                                         'mekanizma': _isaret(al(row, 'mekanizma')) if 'mekanizma' in kol else None})
             continue
-        b = ana_veri_bolum(al(row, 'bolum'))
+        tk2_disi = ana_veri_tk2_disi(al(row, 'tk'))
+        b = None if tk2_disi else ana_veri_bolum(al(row, 'bolum'))
         if not b:
             # TK-1/2 sütununa TK2 dışı bir yer yazılmışsa (TK1, Aspanda, DEPO…) kullanıcı
             # satırı BİLEREK listede tutuyor (satış planında 'eksik kod' diye tekrar
-            # çıkmasın) — uyarı değil, bilgi (kullanıcı 2026-10-05).
-            tk = _tr_kucuk(al(row, 'tk')).replace(' ', '').replace('-', '')
-            hedef = 'tk2_disi' if tk and tk != 'tk2' else 'bolumsuz'
+            # çıkmasın) — uyarı değil, bilgi (kullanıcı 2026-10-05). E'de bölüm yazsa da.
+            hedef = 'tk2_disi' if tk2_disi else 'bolumsuz'
             rapor[hedef].append({'satir': no, 'kod': kod, 'deger': str(al(row, 'bolum') or ''),
                                  'tk': str(al(row, 'tk') or '')})
             continue
@@ -1284,6 +1293,8 @@ def _ana_veri_export(conn, bolum_listesi, zorla_ekle=None):
         b = ana_veri_bolum(row[kol['bolum']] if kol['bolum'] < len(row) else None)
         if kod is None or not b:
             continue
+        if 'tk' in kol and ana_veri_tk2_disi(row[kol['tk']] if kol['tk'] < len(row) else None):
+            continue                         # TK1 / tel / Aspanda satırına TK2 süresi yazılmaz
         harita.setdefault((_norm_kod(kod), b), (i, str(kod).strip()))
 
     def yaz(ri, alan, deger):
@@ -1357,6 +1368,8 @@ def ana_veri_satir_sil(kod, bolum=None):
         k = row[kol['kod']] if kol['kod'] < len(row) else None
         if k is None or _norm_kod(k) != hedef:
             continue
+        if 'tk' in kol and ana_veri_tk2_disi(row[kol['tk']] if kol['tk'] < len(row) else None):
+            continue                         # TK2 referansı silindi — TK1 / tel satırı kalır
         if bolum and ana_veri_bolum(row[kol['bolum']] if kol['bolum'] < len(row) else None) != bolum:
             continue
         silinecek.append(i)
