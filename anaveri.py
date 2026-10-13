@@ -41,6 +41,10 @@ def tablolari_kur(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS ana_veri_tel (
         kod TEXT PRIMARY KEY, ap TEXT DEFAULT '', tk TEXT DEFAULT '', hat TEXT DEFAULT '',
         makine TEXT DEFAULT '', kapasite REAL, zorluk TEXT DEFAULT '')""")
+    # 'TK2 mekanizma teli' sütunu (2026-10-13): 1 = işaretli, 0 = boş → tel planında
+    # gösterilmez; NULL = dosyada sütun yok (süzme yapılmaz)
+    if 'mekanizma' not in {r[1] for r in conn.execute("PRAGMA table_info(ana_veri_tel)")}:
+        conn.execute("ALTER TABLE ana_veri_tel ADD COLUMN mekanizma INTEGER")
     conn.execute("""CREATE TABLE IF NOT EXISTS ana_veri_tel_yukleme (
         id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, satir INTEGER DEFAULT 0,
         kullanici TEXT DEFAULT '')""")
@@ -176,10 +180,10 @@ def tel_yaz(conn, satirlar, kullanici, commit=True):
     if commit:
         tablolari_kur(conn)
     conn.execute("DELETE FROM ana_veri_tel")
-    conn.executemany("INSERT OR REPLACE INTO ana_veri_tel (kod, ap, tk, hat, makine, kapasite, zorluk) "
-                     "VALUES (?,?,?,?,?,?,?)",
+    conn.executemany("INSERT OR REPLACE INTO ana_veri_tel (kod, ap, tk, hat, makine, kapasite, zorluk, mekanizma) "
+                     "VALUES (?,?,?,?,?,?,?,?)",
                      [(s['kod'], s.get('ap', ''), s.get('tk', ''), s.get('hat', ''), s.get('makine', ''),
-                       s.get('kapasite'), s.get('zorluk', '')) for s in satirlar])
+                       s.get('kapasite'), s.get('zorluk', ''), s.get('mekanizma')) for s in satirlar])
     conn.execute("INSERT INTO ana_veri_tel_yukleme (ts, satir, kullanici) VALUES (?,?,?)",
                  (datetime.now().strftime('%Y-%m-%d %H:%M'), len(satirlar), kullanici or ''))
     if commit:
@@ -191,8 +195,8 @@ def tel_farki(conn, satirlar, ornek_n=10):
     """Sayfa ↔ ana_veri_tel: {dosyada, eklenen, degisen, cikan, ilk, uretici_bos, ornek_*}.
     ilk=True → tablo boş (ilk yükleme; tel planı bundan sonra Ana Veri'den okur)."""
     alanlar = ('tk', 'hat', 'makine', 'kapasite', 'zorluk')
-    mevcut = {r[0]: dict(zip(alanlar, r[1:])) for r in conn.execute(
-        "SELECT kod, tk, hat, makine, kapasite, zorluk FROM ana_veri_tel")}
+    mevcut = {r[0]: dict(zip(alanlar + ('mekanizma',), r[1:])) for r in conn.execute(
+        "SELECT kod, tk, hat, makine, kapasite, zorluk, mekanizma FROM ana_veri_tel")}
     yeni = {s['kod']: s for s in satirlar}
     eklenen = [k for k in yeni if k not in mevcut]
     cikan = [k for k in mevcut if k not in yeni]
@@ -211,8 +215,13 @@ def tel_farki(conn, satirlar, ornek_n=10):
                 degisen.append(k)
                 break
     bos = sorted(k for k, s in yeni.items() if not str(s.get('tk') or '').strip())
+    # 'TK2 mekanizma teli' işareti ayrı sayılır (yalnız tel planının süzgeci)
+    mek_degisen = sorted(k for k, s in yeni.items() if k in mevcut and s.get('mekanizma') != mevcut[k]['mekanizma'])
     return {'dosyada': len(yeni), 'mevcut': len(mevcut), 'eklenen': len(eklenen), 'degisen': len(degisen),
             'cikan': len(cikan), 'ilk': not mevcut, 'uretici_bos': len(bos),
+            'mekanizma_degisen': len(mek_degisen), 'ornek_mekanizma_degisen': mek_degisen[:ornek_n],
+            'mekanizma_isaretli': (sum(1 for s in yeni.values() if s.get('mekanizma') == 1)
+                                   if any(s.get('mekanizma') is not None for s in yeni.values()) else None),
             'ornek_eklenen': sorted(eklenen)[:ornek_n], 'ornek_degisen': sorted(degisen)[:ornek_n],
             'ornek_cikan': sorted(cikan)[:ornek_n], 'ornek_uretici_bos': bos[:ornek_n]}
 
@@ -228,8 +237,8 @@ def tel_haritasi(conn):
     if not tel_kaynagi_ana_veri(conn):
         return haritasi(conn, '93.')
     return {r[0]: {'ap': r[1] or '', 'tk': r[2] or '', 'hat': r[3] or '', 'makine': r[4] or '',
-                   'kapasite': r[5], 'zorluk': r[6] or ''}
-            for r in conn.execute("SELECT kod, ap, tk, hat, makine, kapasite, zorluk FROM ana_veri_tel")}
+                   'kapasite': r[5], 'zorluk': r[6] or '', 'mekanizma': r[7]}
+            for r in conn.execute("SELECT kod, ap, tk, hat, makine, kapasite, zorluk, mekanizma FROM ana_veri_tel")}
 
 
 def tel_durumu(conn):

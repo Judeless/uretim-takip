@@ -489,6 +489,7 @@ _ANA_SUTUN = (
     ('bolum', ('bölüm', 'bolum', 'hat')),
     ('ap', ('a/p',)),
     ('tk', ('tk-1/2', 'tk 1/2', 'tk')),
+    ('mekanizma', ('tk2 mekanizma', 'mekanizma')),     # T — tel planı süzgeci (93.*)
     # Tel satırları (93.*) için — planlamanın Anaveri sütunları (2026-10-13)
     ('hat', ('hat',)),
     ('makine', ('makine',)),
@@ -823,6 +824,11 @@ def _ana_sayi(v):
     return float(s)
 
 
+def _isaret(v):
+    """İşaret hücresi → 1 / 0 (boş, 0, -, hayır, yok → 0; ✓, x, evet, 1 … → 1)."""
+    return 0 if _tr_kucuk(v) in ('', '0', '-', 'hayır', 'hayir', 'h', 'yok', 'no', 'false', 'yanlış') else 1
+
+
 def ana_veri_oku(wb):
     """Ana Veri sayfasını okur → ({bolum: [satır]}, rapor). Satır alanı None = boş hücre.
     rapor: sayfa, satir, bolumsuz[], tekrar[], hatali[], teller[] (93.* satırları)."""
@@ -869,7 +875,9 @@ def ana_veri_oku(wb):
                 rapor['teller'].append({'kod': tk_, 'ap': _AV._metin(al(row, 'ap')), 'tk': _AV._metin(al(row, 'tk')),
                                         'hat': _AV._metin(al(row, 'hat')), 'makine': _AV._metin(al(row, 'makine')),
                                         'kapasite': kap if kap and kap > 0 else None,
-                                        'zorluk': _AV._metin(al(row, 'zorluk'))})
+                                        'zorluk': _AV._metin(al(row, 'zorluk')),
+                                        # T 'TK2 mekanizma teli': boş = tel planında gösterilmez
+                                        'mekanizma': _isaret(al(row, 'mekanizma')) if 'mekanizma' in kol else None})
             continue
         b = ana_veri_bolum(al(row, 'bolum'))
         if not b:
@@ -1093,7 +1101,7 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban
         if teller:
             fark = _AV.tel_farki(conn, teller)
             sonuc['tel'] = fark
-            if fark['ilk'] or fark['eklenen'] or fark['degisen'] or fark['cikan']:
+            if fark['ilk'] or fark['eklenen'] or fark['degisen'] or fark['cikan'] or fark['mekanizma_degisen']:
                 _AV.tel_yaz(conn, teller, kullanici, commit=False)
         if uygula:
             if commit_oncesi:

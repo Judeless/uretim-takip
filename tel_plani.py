@@ -396,10 +396,14 @@ def son_talepler(conn, limit=200):
 
 
 def gorunum(veri, anaveri, elle, tk1_uretim, ufuk=4, launch_dahil=True, fasoncu='', ara='', hepsi=False,
-            talepler=None, bugun=None):
+            talepler=None, bugun=None, isaretsiz=False):
     """Ölçümden tablo satırları. ufuk: 2 ya da 4 hafta (bu hafta dahil).
     launch_dahil: launch'ı açık mekanizma emirleri de ihtiyaca girsin mi.
-    fasoncu: tedarikçi süzgeci (bkz. _suzgec_uyar)."""
+    fasoncu: tedarikçi süzgeci (bkz. _suzgec_uyar).
+    MEKANİZMA TELİ İŞARETİ (kullanıcı 2026-10-13): Ana Veri'de 'TK2 mekanizma teli' (T)
+    BOŞ olan tel ağaçta görünse de plana girmez → 'disarida' listesi (isaretsiz=True ise
+    tabloda, işaretli olarak). Ana Veri'de HİÇ satırı olmayan tel gösterilir — yeni tel
+    sessizce kaybolmasın ('Ana Veri'de yok' uyarısıyla)."""
     bugun = bugun or date.today()
     pzt = _pazartesi(bugun)
     ufuk = 2 if int(ufuk or 4) <= 2 else 4
@@ -409,7 +413,7 @@ def gorunum(veri, anaveri, elle, tk1_uretim, ufuk=4, launch_dahil=True, fasoncu=
     ara = re.sub(r'\s', '', str(ara or '')).upper()
     talepler = talepler or {}
     mek = veri.get('mekanizmalar') or {}
-    satirlar = []
+    satirlar, disarida = [], []
     for kod, t in (veri.get('teller') or {}).items():
         k = kaynak_bul(kod, anaveri, elle, tk1_uretim)
         if not _suzgec_uyar(k, fasoncu):
@@ -442,10 +446,18 @@ def gorunum(veri, anaveri, elle, tk1_uretim, ufuk=4, launch_dahil=True, fasoncu=
             kalan = max(0.0, kalan - ihtiyac[a])
             talep[a] = round(n, 2)
         talep_top = round(sum(talep.values()), 2)
+        ana = k['ana'] or {}
+        mek_disi = ana.get('mekanizma') == 0
+        if mek_disi and not isaretsiz:
+            disarida.append({'kod': kod, 'aciklama': t.get('aciklama', ''), 'tedarikci': k['tedarikci'],
+                             'ihtiyac_toplam': round(toplam, 2), 'talep_toplam': talep_top,
+                             'ustler': sorted(u['kod'] for u in t['ustler'])})
+            continue
         if not hepsi and toplam <= 0:
             continue
         ustler.sort(key=lambda x: (-x['ihtiyac'], x['kod']))
-        ana = k['ana'] or {}
+        if mek_disi:
+            k['notlar'].append("Ana Veri'de 'TK2 mekanizma teli' işaretsiz — normalde planda gösterilmez")
         kap = ana.get('kapasite')
         satirlar.append({
             'kod': kod, 'aciklama': t.get('aciklama', ''), 'prov': t.get('prov', ''),
@@ -459,7 +471,7 @@ def gorunum(veri, anaveri, elle, tk1_uretim, ufuk=4, launch_dahil=True, fasoncu=
             'stok': t['stok'], 'yolda': t['yolda'], 'tel_opr': t.get('tel_opr', 0),
             'depolar': t.get('depolar') or {}, 'eksi': t.get('eksi', False),
             'ustler': ustler, 'ust_sayisi': len(ustler),
-            'son_talep': talepler.get(kod),
+            'son_talep': talepler.get(kod), 'mekanizma_disi': mek_disi,
         })
 
     def ilk_talep(s):
@@ -481,6 +493,7 @@ def gorunum(veri, anaveri, elle, tk1_uretim, ufuk=4, launch_dahil=True, fasoncu=
                 d['vardiya'] += s['vardiya']
     return {
         'haftalar': hf, 'ufuk': ufuk, 'launch_dahil': bool(launch_dahil), 'satirlar': satirlar,
+        'disarida': sorted(disarida, key=lambda x: (-x['talep_toplam'], -x['ihtiyac_toplam'], x['kod'])),
         'tedarikciler': sorted(({**d, 'talep': round(d['talep'], 2), 'vardiya': round(d['vardiya'], 1)}
                                 for d in ted.values()), key=lambda d: -d['talep']),
         'ozet': {'tel': len(satirlar),
@@ -488,7 +501,8 @@ def gorunum(veri, anaveri, elle, tk1_uretim, ufuk=4, launch_dahil=True, fasoncu=
                  'talep': round(sum(s['talep_toplam'] for s in satirlar), 2),
                  'gecikmis_talep': round(sum(s['talep']['GEC'] for s in satirlar), 2),
                  'ihtiyac': round(sum(s['ihtiyac_toplam'] for s in satirlar), 2),
-                 'uyari': sum(1 for s in satirlar if s['uyarilar'])},
+                 'uyari': sum(1 for s in satirlar if s['uyarilar']),
+                 'mekanizma_disi': len(disarida)},
     }
 
 

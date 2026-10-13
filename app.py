@@ -7900,7 +7900,8 @@ def _tp_parametreler(kaynak):
         ufuk = 4
     launch = str(kaynak.get('launch', '1')).lower() not in ('0', 'false', 'hayir', '')
     hepsi = str(kaynak.get('hepsi', '0')).lower() in ('1', 'true', 'evet')
-    return {'ufuk': 2 if ufuk <= 2 else 4, 'launch_dahil': launch, 'hepsi': hepsi,
+    isaretsiz = str(kaynak.get('isaretsiz', '0')).lower() in ('1', 'true', 'evet')
+    return {'ufuk': 2 if ufuk <= 2 else 4, 'launch_dahil': launch, 'hepsi': hepsi, 'isaretsiz': isaretsiz,
             'fasoncu': str(kaynak.get('fasoncu') or '').strip()[:60],
             'ara': str(kaynak.get('ara') or '').strip()[:60]}
 
@@ -7914,7 +7915,8 @@ def _tp_gorunum(conn, prm):
         return None, None
     return veri, TP.gorunum(veri, TP.anaveri_haritasi(conn), TP.elle_haritasi(conn), TP.tk1_tel_uretimi(conn),
                             ufuk=prm['ufuk'], launch_dahil=prm['launch_dahil'], fasoncu=prm['fasoncu'],
-                            ara=prm['ara'], hepsi=prm['hepsi'], talepler=TP.son_talepler(conn))
+                            ara=prm['ara'], hepsi=prm['hepsi'], talepler=TP.son_talepler(conn),
+                            isaretsiz=prm['isaretsiz'])
 
 
 def _tp_olcum_ozeti(veri):
@@ -7927,7 +7929,8 @@ def _tp_olcum_ozeti(veri):
 @app.route('/api/tel_plani', methods=['GET'])
 @panel_gerekli(izin='tel-plani')
 def tel_plani_liste():
-    """?ufuk=2|4 &launch=1 &fasoncu= &ara= &hepsi=0 — son ölçümden görünüm (AS400'e gitmez)."""
+    """?ufuk=2|4 &launch=1 &fasoncu= &ara= &hepsi=0 &isaretsiz=0 — son ölçümden görünüm (AS400'e
+    gitmez). isaretsiz=1: Ana Veri'de 'TK2 mekanizma teli' boş olan teller de tabloda."""
     import tel_plani as TP
     conn = get_db()
     prm = _tp_parametreler(request.args)
