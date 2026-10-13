@@ -7805,13 +7805,17 @@ def _sp_urun_fark_params():
             ids.append(int(v))
     if len(ids) < 2 or len(set(ids)) != len(ids):
         raise ValueError('İki farklı çekim seçin (yeni, eski)')
+    araya = (request.args.get('gorunum') or 'araya') == 'araya'
     try:
-        n = int(request.args.get('n') or 3)
+        n = int(request.args.get('n') or (4 if araya else 3))
     except ValueError:
-        n = 3
+        n = 4 if araya else 3
     kapsam = request.args.get('kapsam') or 'oto'
     if kapsam not in ('oto', 'TK1', 'TK2', 'hepsi', 'ortak'):
         kapsam = 'oto'
+    if araya:                  # varsayılan (kullanıcı 2026-10-13): termin içine araya giren siparişler
+        return SP.araya_giren(get_db(), ids, n, kapsam, request.args.get('p', '1') != '0',
+                              (request.args.get('ara') or '')[:40])
     return SP.urun_farki(get_db(), ids, n, kapsam, request.args.get('p', '1') != '0',
                          (request.args.get('ara') or '')[:40])
 
@@ -7819,7 +7823,8 @@ def _sp_urun_fark_params():
 @app.route('/api/satis_plani/urun_fark', methods=['GET'])
 @panel_gerekli(izin='satis-plani')
 def satis_plani_urun_fark():
-    """Planlamanın 'Sipariş farkları' mantığı: ?yeni=&eski=(&ucuncu=)&n=3&kapsam=oto&p=1&ara="""
+    """?yeni=&eski=(&ucuncu=)&n=4&kapsam=oto&p=1&ara=&gorunum=araya|hepsi — 'araya' (varsayılan):
+    termin penceresine araya giren siparişler; 'hepsi': planlamanın 'Sipariş farkları' mantığı."""
     try:
         sonuc = _sp_urun_fark_params()
     except ValueError as e:
@@ -7839,8 +7844,10 @@ def satis_plani_urun_fark_excel():
     except ValueError as e:
         return jsonify({'hata': str(e)}), 400
     gun = lambda c: datetime.strptime(c['tarih'], '%Y-%m-%d').strftime('%d.%m')   # noqa: E731
-    ad = 'Siparis_farklari_' + '-'.join(gun(c) for c in sonuc['cekimler']) + '.xlsx'
-    return send_file(_io.BytesIO(SP.urun_farki_excel(sonuc)), as_attachment=True, download_name=ad,
+    araya = sonuc.get('gorunum') == 'araya'
+    ad = ('Araya_giren_siparisler_' if araya else 'Siparis_farklari_') + '-'.join(gun(c) for c in sonuc['cekimler']) + '.xlsx'
+    veri = SP.araya_giren_excel(sonuc) if araya else SP.urun_farki_excel(sonuc)
+    return send_file(_io.BytesIO(veri), as_attachment=True, download_name=ad,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 

@@ -591,15 +591,21 @@ def _hizala(d, ilk, son, ufuk):
     return bak, yak, top
 
 
-def urun_farki(conn, cekim_idler, ilk_n=3, kapsam_secimi='oto', yalniz_p=True, ara=''):
-    """cekim_idler: [yeni, eski] ya da [yeni, orta, eski] (planlamanın üçlü dosyası).
-    kapsam_secimi: 'oto' (kapsamlar farklıysa yalnız ortak tesis) · 'TK2' · 'TK1' · 'hepsi'
-    · 'ortak' (iki çekimde de olan kodlar). → {'cekimler', 'haftalar', 'satirlar', 'ozet', 'notlar'}"""
+# 92.* (hortum) kodları sipariş farklarında KONTROL EDİLMEZ (kullanıcı 2026-10-13: "92'li kodları bu
+# kapsama dahil etmeyelim"). Bosch'un hortum siparişleri (PRIORIT 8 dahil) çekimden çekime toplu
+# girip çıkıyor; mekanizma termin kontrolünü boğuyordu (12.10 ↔ 09.10: 160 'yeni kod'un 113'ü).
+HARIC_ONEK = ('92.',)
+HARIC_NOT = '92.* (hortum) kodları bu karşılaştırmaya alınmaz.'
+
+
+def _kiyas_hazirla(conn, cekim_idler, ilk_n, kapsam_secimi):
+    """urun_farki / araya_giren ortak hazırlığı → (ck, ilk_n, notlar, tesis, harita, toplam, ilk, ufuk, son).
+    toplam: çekim başına _urun_topla (HARIC_ONEK kodları çıkarılmış)."""
     ck = [_cekim_bilgi(conn, c) for c in cekim_idler]
     if any(c is None for c in ck) or len(ck) < 2:
         raise ValueError('Karşılaştırılacak çekim bulunamadı')
     ilk_n = max(1, min(12, int(ilk_n or 3)))
-    notlar = []
+    notlar = [HARIC_NOT]
     etiketler = [c['kapsam'].get('etiket', '?') for c in ck]
     tesis = None
     if kapsam_secimi in ('TK1', 'TK2'):
@@ -611,11 +617,20 @@ def urun_farki(conn, cekim_idler, ilk_n=3, kapsam_secimi='oto', yalniz_p=True, a
                       ')' + (f' — yalnız {tesis} kodları karşılaştırıldı.' if tesis else
                              ' — ortak tesis bulunamadı, tümü karşılaştırıldı; farkların bir kısmı kapsamdan.'))
     harita = tesis_haritasi(conn) if tesis else {}
-    toplam = [_urun_topla(_satirlar(conn, c['id'])) for c in ck]
+    toplam = [{k: v for k, v in _urun_topla(_satirlar(conn, c['id'])).items() if not k.startswith(HARIC_ONEK)}
+              for c in ck]
     yeni_hb = ck[0]['haftalar'] or []
     ilk = _hafta_sira(yeni_hb[0]) if yeni_hb else 0
     ufuk = yeni_hb[:ilk_n]
     son = min(_hafta_sira(c['haftalar'][-1]) for c in ck if c['haftalar']) if all(c['haftalar'] for c in ck) else 0
+    return ck, ilk_n, notlar, tesis, harita, toplam, ilk, ufuk, son
+
+
+def urun_farki(conn, cekim_idler, ilk_n=3, kapsam_secimi='oto', yalniz_p=True, ara=''):
+    """cekim_idler: [yeni, eski] ya da [yeni, orta, eski] (planlamanın üçlü dosyası).
+    kapsam_secimi: 'oto' (kapsamlar farklıysa yalnız ortak tesis) · 'TK2' · 'TK1' · 'hepsi'
+    · 'ortak' (iki çekimde de olan kodlar). → {'cekimler', 'haftalar', 'satirlar', 'ozet', 'notlar'}"""
+    ck, ilk_n, notlar, tesis, harita, toplam, ilk, ufuk, son = _kiyas_hazirla(conn, cekim_idler, ilk_n, kapsam_secimi)
     kodlar = set().union(*[set(t) for t in toplam])
     if kapsam_secimi == 'ortak':
         kodlar = set.intersection(*[set(t) for t in toplam])
@@ -677,6 +692,171 @@ def urun_farki(conn, cekim_idler, ilk_n=3, kapsam_secimi='oto', yalniz_p=True, a
     return {'cekimler': ck, 'haftalar': ufuk, 'ilk_n': ilk_n, 'tesis': tesis or '', 'satirlar': satirlar,
             'ozet': ozet, 'notlar': notlar,
             'son_hafta': next((h for c in ck for h in c['haftalar'] if _hafta_sira(h) == son), '')}
+
+
+# ── ARAYA GİREN SİPARİŞ (kullanıcı 2026-10-13) ──────────────────────────────
+# "Bu sayfada görmek istediğim: satış ya da müşteri araya sipariş girmiş mi? Bir mekanizmanın
+# üretim termini en az 4 hafta; 4 haftadan kısa süreye sipariş girilmiş mi, bunu yakalamak."
+# XWPVF0'da sipariş giriş tarihi YOK (müşteri × ürün × hafta toplamı) — iki çekim kıyaslanır:
+# yeni çekimde TERMİN PENCERESİNE (gecikmiş + ilk N hafta) eski çekime göre EKLENEN talep.
+# Ürün bazında net fark bunu gizler (bir müşterinin sevkiyatı diğerinin araya girdiği siparişi
+# götürür) → MÜŞTERİ × HAFTA bazında bakılır:
+#   · gecikmiş (bakiye) artışı = geçmiş tarihli girilmiş sipariş — en acili
+#   · pencere haftası artışı = araya giren; aynı müşterinin pencerede DAHA ÖNCEKİ bir haftasından
+#     (bu hafta hariç) düşen miktar 'erteleme' sayılıp mahsup edilir
+#   · bakiye / bu haftadaki düşüş = sevk sayılır, araya gireni GİZLEMEZ
+#   · pencere dışındaki (sonraki) haftalardan düşüş = 'öne çekildi' (o da araya girmedir)
+def _bakiye(x, ilk):
+    if not x:
+        return 0.0
+    return x['gec'] + sum(a for h, a in x['h'].items() if _hafta_sira(h) and _hafta_sira(h) < ilk)
+
+
+def _musteri_araya(my, me, ilk, ufuk, son):
+    """Bir müşterinin (yeni my, eski me) termin penceresine eklenen talebi →
+    (ekle {'Bakiye'|hafta: adet}, araya, one, dusen) — dusen: bakiye + bu haftadan düşen (sevk?)."""
+    hy, he = (my or {}).get('h', {}), (me or {}).get('h', {})
+    ekle = {}
+    db = _bakiye(my, ilk) - _bakiye(me, ilk)
+    dusen = max(0.0, -db)
+    if db > 0.001:
+        ekle['Bakiye'] = db
+    havuz = 0.0
+    for i, w in enumerate(ufuk):
+        dd = hy.get(w, 0) - he.get(w, 0)
+        if dd < -0.001:
+            if i == 0:
+                dusen += -dd
+            else:
+                havuz += -dd
+        elif dd > 0.001:
+            mahsup = min(havuz, dd)
+            havuz -= mahsup
+            if dd - mahsup > 0.001:
+                ekle[w] = dd - mahsup
+    araya = sum(ekle.values())
+    son_ufuk = _hafta_sira(ufuk[-1]) if ufuk else ilk
+    disari = -sum(min(0.0, hy.get(w, 0) - he.get(w, 0)) for w in set(hy) | set(he)
+                  if _hafta_sira(w) and son_ufuk < _hafta_sira(w) <= son)
+    return ekle, araya, min(araya, disari), dusen
+
+
+def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True, ara=''):
+    """Yeni çekimde termin penceresine (gecikmiş + ilk `termin` hafta) eski çekime göre eklenen
+    talep, ürün × müşteri. cekim_idler: [yeni, eski] (üçüncüsü yok sayılır).
+    → {'cekimler', 'haftalar', 'termin', 'satirlar', 'ozet', 'notlar', 'tesis', 'termin_disi'}"""
+    ck, termin, notlar, tesis, harita, toplam, ilk, ufuk, son = _kiyas_hazirla(
+        conn, list(cekim_idler)[:2], termin, kapsam_secimi)
+    t_y, t_e = toplam[0], toplam[1]
+    ara = re.sub(r'\s', '', ara or '').upper()
+    mus_y = {m: v['musteri'] for d in t_y.values() for m, v in d['musteri'].items()}
+    mus_e = {m for d in t_e.values() for m in d['musteri']}
+    yok = sorted({mus_y[m] for m in mus_y if m not in mus_e})
+    if yok:
+        notlar.append(f"Eski çekimde HİÇ satırı olmayan müşteri: {', '.join(yok)} — bütün talebi 'araya giren' "
+                      f"görünür; eski çekim eksik olabilir, AS400'de sipariş giriş tarihine bakın.")
+    satirlar, termin_disi = [], {'urun': 0, 'adet': 0.0}
+    son_ufuk = _hafta_sira(ufuk[-1]) if ufuk else ilk
+    for k in set(t_y) | set(t_e):
+        dy, de = t_y.get(k), t_e.get(k)
+        d0 = dy or de
+        if yalniz_p and (d0['prov'] or '').upper() != 'P':
+            continue
+        if tesis and tesis_bul(k, harita) != tesis:
+            continue
+        if ara and ara not in k:
+            continue
+        musteriler, haftalik = [], {}
+        top_ar = top_one = 0.0
+        for m in set((dy or {}).get('musteri', {})) | set((de or {}).get('musteri', {})):
+            my, me = (dy or {}).get('musteri', {}).get(m), (de or {}).get('musteri', {}).get(m)
+            ekle, ar, one, dusen = _musteri_araya(my, me, ilk, ufuk, son)
+            if ar <= 0.001:
+                continue
+            top_ar += ar
+            top_one += one
+            for h, a in ekle.items():
+                haftalik[h] = haftalik.get(h, 0) + a
+            musteriler.append({'musteri': (my or me)['musteri'], 'musteri_kodu': m[0], 'dest': m[1],
+                               'araya': round(ar, 2), 'one': round(one, 2), 'dusen': round(dusen, 2),
+                               'yeni_satir': me is None, 'yeni_musteri': m not in mus_e,
+                               'haftalar': {h: round(a, 2) for h, a in ekle.items()}})
+        if top_ar <= 0.001:
+            # termine uygun (pencereden sonraki haftalara) eklenen yeni talep — bilgi
+            ileri = sum(max(0.0, (dy or {}).get('h', {}).get(w, 0) - (de or {}).get('h', {}).get(w, 0))
+                        for w in set((dy or {}).get('h', {})) if _hafta_sira(w) and son_ufuk < _hafta_sira(w) <= son)
+            if ileri > 0.001:
+                termin_disi['urun'] += 1
+                termin_disi['adet'] += ileri
+            continue
+        yakin = (_bakiye(dy, ilk) + sum(dy['h'].get(w, 0) for w in ufuk)) if dy else 0.0
+        stok = dy['stok'] if dy else 0.0
+        eksik = max(0.0, yakin - max(0.0, stok))
+        tur = 'yeni_kod' if not de else ('one_cekildi' if top_one >= top_ar - 0.001 else 'eklendi')
+        musteriler.sort(key=lambda x: -x['araya'])
+        satirlar.append({
+            'kod': d0['kod'], 'prov': d0['prov'], 'tur': tur, 'tesis': tesis_bul(k, harita) if tesis else '',
+            'stok': round(stok, 2), 'stok_eski': round(de['stok'], 2) if de else None,
+            'yakin': round(yakin, 2), 'yakin_eski': round((_bakiye(de, ilk) + sum(de['h'].get(w, 0) for w in ufuk)) if de else 0.0, 2),
+            'eksik': round(eksik, 2), 'araya': round(top_ar, 2), 'one': round(top_one, 2),
+            'haftalar': {h: round(a, 2) for h, a in haftalik.items()},
+            'musteriler': musteriler[:25], 'musteri_sayisi': len(musteriler),
+        })
+    satirlar.sort(key=lambda s: (0 if s['eksik'] > 0 else 1, -s['araya'], s['kod']))
+    ozet = {'hepsi': {'urun': len(satirlar), 'adet': round(sum(s['araya'] for s in satirlar), 2)}}
+    for anahtar, kosul in (('stok_yetmiyor', lambda s: s['eksik'] > 0), ('yeni_kod', lambda s: s['tur'] == 'yeni_kod'),
+                           ('eklendi', lambda s: s['tur'] == 'eklendi'), ('one_cekildi', lambda s: s['one'] > 0)):
+        l = [s for s in satirlar if kosul(s)]
+        if l:
+            ozet[anahtar] = {'urun': len(l), 'adet': round(sum(s['one'] if anahtar == 'one_cekildi' else s['araya'] for s in l), 2)}
+    return {'gorunum': 'araya', 'cekimler': ck, 'haftalar': ufuk, 'termin': termin, 'ilk_n': termin,
+            'tesis': tesis or '', 'satirlar': satirlar, 'ozet': ozet, 'notlar': notlar,
+            'termin_disi': {'urun': termin_disi['urun'], 'adet': round(termin_disi['adet'], 2)}}
+
+
+def araya_giren_excel(sonuc):
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    ck, ufuk = sonuc['cekimler'], sonuc['haftalar']
+    g = lambda c: datetime.strptime(c['tarih'], '%Y-%m-%d').strftime('%d.%m')   # noqa: E731
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'araya giren siparişler'
+    ws.append([f"Araya giren siparişler — {g(ck[0])} çekimi, {g(ck[1])} çekimine göre termin penceresine "
+               f"(gecikmiş + ilk {sonuc['termin']} hafta) eklenen talep"])
+    tur_ad = {'yeni_kod': 'yeni kod', 'eklendi': 'ek sipariş', 'one_cekildi': 'öne çekildi'}
+    ws.append(['Ürün kodu', 'Tür', 'Stok', f"Termin içi talep ({g(ck[0])})", 'Stokla karşılanamayan',
+               'Araya giren', 'öne çekilen', 'Gecikmiş (+)'] + [f'{w} (+)' for w in ufuk] + ['Müşteriler'])
+    kirmizi = PatternFill('solid', fgColor='F8CBAD')
+    for s in sonuc['satirlar']:
+        ws.append([s['kod'], tur_ad.get(s['tur'], s['tur']), s['stok'], s['yakin'], s['eksik'] or None, s['araya'],
+                   s['one'] or None, s['haftalar'].get('Bakiye')] + [s['haftalar'].get(w) for w in ufuk] +
+                  ['; '.join(f"{m['musteri']} +{m['araya']:g}" + (' (yeni)' if m['yeni_satir'] else '')
+                             for m in s['musteriler'])])
+        if s['eksik'] > 0:
+            ws.cell(row=ws.max_row, column=5).fill = kirmizi
+    ws['A1'].font = Font(bold=True, size=12)
+    koyu = PatternFill('solid', fgColor='1F3864')
+    for c in ws[2]:
+        c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
+        c.alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+    for i, gen in enumerate([18, 12, 9, 12, 12, 11, 10, 11] + [9] * len(ufuk) + [70], start=1):
+        ws.column_dimensions[ws.cell(row=2, column=i).column_letter].width = gen
+    ws.row_dimensions[2].height = 32
+    ws.freeze_panes = 'B3'
+    ws.auto_filter.ref = f'A2:{ws.cell(row=2, column=ws.max_column).column_letter}{max(2, ws.max_row)}'
+    w2 = wb.create_sheet('Not')
+    for x in sonuc['notlar'] + [
+            'Araya giren = yeni çekimde gecikmiş + ilk N haftaya eski çekime göre EKLENEN talep, müşteri × hafta bazında.',
+            'Sevk (gecikmiş / bu haftadan düşen) araya gireni gizlemez; pencere içinde ileri kaydırma (erteleme) sayılmaz.',
+            "Öne çekilen = aynı müşterinin pencereden sonraki haftalarından düşüp pencereye gelen talep.",
+            f"Termine uygun (pencereden sonraya) eklenen talep: {sonuc['termin_disi']['urun']} ürün, "
+            f"{sonuc['termin_disi']['adet']:g} adet — listede yok."]:
+        w2.append([x])
+    b = io.BytesIO()
+    wb.save(b)
+    return b.getvalue()
 
 
 def urun_farki_excel(sonuc):

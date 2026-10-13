@@ -5441,6 +5441,10 @@ window.__I18N_SOZLUK__ = {
   "📊 Sipariş farkları — ürün bazında": {"en": "📊 Order differences — by product", "it": "📊 Differenze ordini — per prodotto"},
   "📤 Dosyadan yükle": {"en": "📤 Upload from file", "it": "📤 Carica da file"},
   "Yalnız P (üretim)": {"en": "Only P (production)", "it": "Solo P (produzione)"},
+  "Görünüm": {"en": "View", "it": "Vista"},
+  "Araya giren siparişler (termin içi)": {"en": "Orders inserted inside lead time", "it": "Ordini inseriti entro il lead time"},
+  "Tüm farklar (planlama dosyası)": {"en": "All differences (planning file)", "it": "Tutte le differenze (file pianificazione)"},
+  "📊 Sipariş farkları — araya giren siparişler": {"en": "📊 Order differences — inserted orders", "it": "📊 Differenze ordini — ordini inseriti"},
   "📅 Haftalık önemli referanslar": {"en": "📅 Key references of the week", "it": "📅 Codici importanti della settimana"},
   "gün gün üretilecek mekanizmalar · eksik parça notu · bitince ✓": {"en": "mechanisms to build day by day · missing part note · ✓ when done", "it": "meccanismi da produrre giorno per giorno · nota pezzo mancante · ✓ a fine"},
   "◀ Önceki": {"en": "◀ Previous", "it": "◀ Precedente"},
@@ -7493,18 +7497,23 @@ window.__I18N_SOZLUK__ = {
                     <div style="padding:12px 20px;font-size:.84rem;line-height:1.7" id="sp-durum">—</div>
                 </div>
                 <!-- SİPARİŞ FARKLARI — ÜRÜN BAZINDA (2026-10-09): planlamanın Q:\...\Bakiye-Sipariş farkı
-                     dosyasının mantığı — ilk N hafta içine eklenen miktar + toplam fark. -->
+                     dosyasının mantığı — ilk N hafta içine eklenen miktar + toplam fark.
+                     2026-10-13: varsayılan görünüm ARAYA GİREN SİPARİŞLER (termin penceresine eklenen talep,
+                     müşteri × hafta) — satis_plani.araya_giren; 92.* kodlar hariç. -->
                 <div class="panel-card">
                     <div class="panel-header" style="flex-wrap:wrap;gap:8px">
-                        <h3>📊 Sipariş farkları — ürün bazında</h3>
+                        <h3>📊 Sipariş farkları — araya giren siparişler</h3>
                         <span class="adet-info" id="sf-bilgi"></span>
                         <button class="btn btn-outline" onclick="sfExcel()" style="margin-left:auto" title="Planlamanın 'Sipariş farkları' düzeninde">⬇️ Excel</button>
                     </div>
                     <div class="sf-arac">
                         <label>Yeni <select id="sf-yeni" onchange="sfYukle()"></select></label>
                         <label>Eski <select id="sf-eski" onchange="sfYukle()"></select></label>
-                        <label title="İsteğe bağlı — planlamanın üçlü karşılaştırması">Daha eski <select id="sf-ucuncu" onchange="sfYukle()"></select></label>
-                        <label>İlk <select id="sf-n" onchange="sfYukle()"><option>2</option><option selected>3</option><option>4</option></select> hafta</label>
+                        <label>Görünüm <select id="sf-gorunum" onchange="sfYukle()">
+                            <option value="araya">Araya giren siparişler (termin içi)</option>
+                            <option value="hepsi">Tüm farklar (planlama dosyası)</option></select></label>
+                        <label title="İsteğe bağlı — planlamanın üçlü karşılaştırması (yalnız 'Tüm farklar' görünümünde)">Daha eski <select id="sf-ucuncu" onchange="sfYukle()"></select></label>
+                        <label title="Termin penceresi: mekanizma üretim termini en az 4 hafta — gecikmiş + ilk N hafta">İlk <select id="sf-n" onchange="sfYukle()"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select> hafta</label>
                         <label>Kapsam <select id="sf-kapsam" onchange="sfYukle()">
                             <option value="oto">Otomatik</option><option value="TK2">Yalnız TK2</option><option value="TK1">Yalnız TK1</option>
                             <option value="hepsi">Tümü</option><option value="ortak">İki çekimde de olan kodlar</option></select></label>
@@ -12479,7 +12488,8 @@ window.__I18N_SOZLUK__ = {
             var v = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
             return 'yeni=' + encodeURIComponent(v('sf-yeni')) + '&eski=' + encodeURIComponent(v('sf-eski')) +
                 (v('sf-ucuncu') ? '&ucuncu=' + encodeURIComponent(v('sf-ucuncu')) : '') +
-                '&n=' + encodeURIComponent(v('sf-n') || 3) + '&kapsam=' + encodeURIComponent(v('sf-kapsam') || 'oto') +
+                '&n=' + encodeURIComponent(v('sf-n') || 4) + '&kapsam=' + encodeURIComponent(v('sf-kapsam') || 'oto') +
+                '&gorunum=' + encodeURIComponent(v('sf-gorunum') || 'araya') +
                 '&p=' + ((document.getElementById('sf-p') || {}).checked ? 1 : 0) + '&ara=' + encodeURIComponent(v('sf-ara'));
         }
         function sfAraGecikmeli() { clearTimeout(_sf.araZaman); _sf.araZaman = setTimeout(sfYukle, 350); }
@@ -12488,6 +12498,8 @@ window.__I18N_SOZLUK__ = {
             var y = (document.getElementById('sf-yeni') || {}).value, e = (document.getElementById('sf-eski') || {}).value;
             if (!y || !e) { el.innerHTML = '<span style="color:var(--muted)">Karşılaştırmak için en az iki çekim gerekli — dosyadan yükleyin ya da AS400\'den çekin.</span>'; return; }
             if (y === e) { el.innerHTML = '<span style="color:var(--muted)">Yeni ve eski çekim farklı olmalı.</span>'; return; }
+            var u3 = document.getElementById('sf-ucuncu');
+            if (u3) u3.disabled = ((document.getElementById('sf-gorunum') || {}).value || 'araya') === 'araya';
             var no = ++_sf.istekNo;
             el.innerHTML = '<div class="yukleniyor">Hesaplanıyor…</div>';
             try {
@@ -12495,6 +12507,7 @@ window.__I18N_SOZLUK__ = {
                 var d = await spJson(r);
                 if (no !== _sf.istekNo) return;
                 if (!r.ok) { el.textContent = d.hata || ('HTTP ' + r.status); _sf.veri = null; return; }
+                if ((_sf.veri || {}).gorunum !== d.gorunum) _sf.tur = 'hepsi';
                 _sf.veri = d; _sf.acik = {};
                 sfCiz();
             } catch (err) { el.textContent = 'Yüklenemedi: ' + err.message; }
@@ -12511,12 +12524,77 @@ window.__I18N_SOZLUK__ = {
             if (v === null || v === undefined) return '<td></td>';
             return '<td class="' + (v > 0 ? 'sf-arti' : (v < 0 ? 'sf-eksi' : '')) + '">' + (v > 0 ? '+' : '') + sfSayi(v) + '</td>';
         }
+        // ARAYA GİREN SİPARİŞLER (kullanıcı 2026-10-13): termin penceresine (gecikmiş + ilk N hafta)
+        // eski çekime göre EKLENEN talep — müşteri × hafta; sevk araya gireni gizlemez.
+        var SF_ARAYA = { stok_yetmiyor: ['Stokla karşılanamayan', 'var(--danger)'], yeni_kod: ['Yeni kod', 'var(--warn)'],
+                         eklendi: ['Ek sipariş', 'var(--danger)'], one_cekildi: ['Öne çekilen', '#0284C7'] };
+        function sfArayaUyar(s) {
+            return _sf.tur === 'hepsi' || (_sf.tur === 'stok_yetmiyor' ? s.eksik > 0 : (_sf.tur === 'one_cekildi' ? s.one > 0 : s.tur === _sf.tur));
+        }
+        function sfCizAraya(d) {
+            var oz = d.ozet || {}, hf = d.haftalar || [], ck = d.cekimler || [];
+            var gun = function (c) { return spTarihTr(c.tarih).slice(0, 5); };
+            var td = d.termin_disi || {};
+            document.getElementById('sf-not').innerHTML =
+                '<div style="margin:8px 20px 0;font-size:.76rem;color:var(--muted);line-height:1.6">Mekanizma üretim termini en az 4 hafta. Liste: ' +
+                esc(gun(ck[0] || {})) + ' çekiminde, ' + esc(gun(ck[1] || {})) + ' çekimine göre <b>gecikmiş + ilk ' + d.termin + ' hafta</b> içine EKLENEN talep — müşteri ve hafta bazında ' +
+                '(bir müşterinin sevkiyatı başka siparişi gizlemez; pencere içinde ileri kaydırma sayılmaz; sonraki haftalardan pencereye çekilen talep "öne çekilen").' +
+                (td.urun ? ' Termine uygun (' + d.termin + ' haftadan sonraya) eklenen talep: ' + fmt(td.urun) + ' ürün · ' + fmt(td.adet) + ' ad — listede yok.' : '') + '</div>' +
+                ((d.notlar || []).length ? '<div class="sf-not">ℹ ' + d.notlar.map(esc).join('<br>') + '</div>' : '');
+            var chip = function (k, ad, o) {
+                return '<button class="btn ' + (_sf.tur === k ? 'btn-primary' : 'btn-outline') + '" style="padding:3px 10px;font-size:.76rem" onclick="sfFiltre(\'' + k + '\')">' +
+                    esc(ad) + ' · ' + fmt(o.urun) + ' ürün · +' + fmt(o.adet) + ' ad</button>';
+            };
+            document.getElementById('sf-filtre').innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+                chip('hepsi', 'Araya giren', oz.hepsi || { urun: 0, adet: 0 }) +
+                Object.keys(SF_ARAYA).filter(function (k) { return oz[k]; }).map(function (k) { return chip(k, SF_ARAYA[k][0], oz[k]); }).join('') + '</div>';
+            var bas = '<tr><th class="sol">Kod</th><th class="sol">Tür</th><th title="Stok (GIACENZA) — küçük rakam eski çekim">Stok</th>' +
+                '<th title="Yeni çekimde gecikmiş + ilk ' + d.termin + ' hafta talebi — küçük rakam eski çekim">Termin içi talep</th>' +
+                '<th title="Termin içi talep − stok (eksi stok sıfır sayılır)">Stokla karşılanamayan</th>' +
+                '<th title="Gecikmiş (geçmiş tarihli) olarak eklenen">Gecikmiş +</th>' +
+                hf.map(function (w) { return '<th title="Bu haftaya eklenen">' + esc(w) + ' +</th>'; }).join('') +
+                '<th title="Termin penceresine eklenen toplam">Araya giren</th><th>Müşteri</th></tr>';
+            var sutun = 7 + hf.length;
+            var hucre = function (v) { return '<td' + (v ? ' class="sf-arti"' : '') + '>' + (v ? '+' + sfSayi(v) : '') + '</td>'; };
+            var liste = (d.satirlar || []).filter(sfArayaUyar);
+            var govde = liste.slice(0, 600).map(function (s, i) {
+                var t = s.tur === 'yeni_kod' ? SF_ARAYA.yeni_kod : (s.tur === 'one_cekildi' ? SF_ARAYA.one_cekildi : SF_ARAYA.eklendi);
+                var satir = '<tr class="sf-satir" onclick="sfAcKapat(' + i + ')"><td class="sol"><b>' + esc(s.kod) + '</b></td>' +
+                    '<td class="sol" style="color:' + t[1] + ';font-weight:700">' + esc(t[0]) + (s.tur !== 'one_cekildi' && s.one > 0 ? ' <span style="color:#0284C7;font-weight:400">(öne ' + sfSayi(s.one) + ')</span>' : '') + '</td>' +
+                    sfHucre(s.stok, s.stok_eski) + sfHucre(s.yakin, s.tur === 'yeni_kod' ? null : s.yakin_eski) +
+                    '<td' + (s.eksik > 0 ? ' class="sf-arti"' : '') + '>' + (s.eksik > 0 ? sfSayi(s.eksik) : '✓') + '</td>' +
+                    hucre(s.haftalar.Bakiye) + hf.map(function (w) { return hucre(s.haftalar[w]); }).join('') +
+                    '<td class="sf-arti">+' + sfSayi(s.araya) + '</td>' +
+                    '<td>' + s.musteri_sayisi + (_sf.acik[i] ? ' ▴' : ' ▾') + '</td></tr>';
+                if (_sf.acik[i]) {
+                    satir += '<tr class="sf-acik"><td colspan="' + sutun + '">' + s.musteriler.map(function (m) {
+                        var hs = Object.keys(m.haftalar).map(function (h) { return (h === 'Bakiye' ? 'gecikmiş' : h) + ' +' + sfSayi(m.haftalar[h]); }).join(' · ');
+                        return '<div><b>' + esc(m.musteri) + '</b> <span style="color:var(--dim)">(' + esc(m.musteri_kodu) + (m.dest ? '/' + esc(m.dest) : '') + ')</span> · <b>+' + sfSayi(m.araya) + '</b>: ' + esc(hs) +
+                            (m.yeni_satir ? ' · <span style="color:var(--warn)">eski çekimde bu müşteri × ürün yoktu</span>' : '') +
+                            (m.one > 0 ? ' · <span style="color:#0284C7">' + sfSayi(m.one) + ' sonraki haftalardan öne çekildi</span>' : '') +
+                            (m.dusen > 0 ? ' · <span style="color:var(--muted)">aynı müşterinin gecikmiş/bu hafta talebi −' + sfSayi(m.dusen) + ' (sevk ya da erteleme olabilir)</span>' : '') + '</div>';
+                    }).join('') + '</td></tr>';
+                }
+                return satir;
+            }).join('');
+            document.getElementById('sf-tablo').innerHTML = liste.length
+                ? '<table class="sf-tablo"><thead>' + bas + '</thead><tbody>' + govde + '</tbody></table>' +
+                  (liste.length > 600 ? '<div style="color:var(--muted);margin-top:6px">İlk 600 ürün gösteriliyor — tamamı Excel\'de.</div>' : '')
+                : '<span style="color:var(--muted)">Termin penceresine araya giren sipariş yok.</span>';
+        }
         function sfCiz() {
             var d = _sf.veri; if (!d) return;
+            if (d.gorunum === 'araya') {
+                var ck0 = d.cekimler || [];
+                document.getElementById('sf-bilgi').textContent = ck0.map(function (c) { return spTarihTr(c.tarih).slice(0, 5) + ' (' + ((c.kapsam || {}).etiket || '?') + ')'; }).join(' ↔ ') +
+                    ' · ' + fmt(d.toplam_satir || 0) + ' ürüne araya sipariş girdi' + (d.tesis ? ' · yalnız ' + d.tesis : '');
+                sfCizAraya(d);
+                return;
+            }
             var ck = d.cekimler || [], uc = ck.length > 2;
             var gun = function (c) { return spTarihTr(c.tarih).slice(0, 5); };
             document.getElementById('sf-bilgi').textContent = ck.map(function (c) { return gun(c) + ' (' + ((c.kapsam || {}).etiket || '?') + ')'; }).join(' ↔ ') +
-                ' · ' + fmt(d.toplam_satir || 0) + ' ürün değişti' + (d.tesis ? ' · yalnız ' + d.tesis : '');
+                ' · ' + fmt(d.toplam_satir || 0) + (d.gorunum === 'araya' ? ' ürüne araya sipariş girdi' : ' ürün değişti') + (d.tesis ? ' · yalnız ' + d.tesis : '');
             document.getElementById('sf-not').innerHTML = (d.notlar || []).length
                 ? '<div class="sf-not">⚠ ' + d.notlar.map(esc).join('<br>') + '</div>' : '';
             var oz = d.ozet || {};
