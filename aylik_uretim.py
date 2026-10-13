@@ -81,6 +81,12 @@ ANAVERI_BOLUM = {
 FASON = 'fason'
 
 
+def _w_teli(kod):
+    """Kodu W ile biten tel (93.*) fason telidir (kullanıcı 2026-10-13) — Forge tanımını da ezer."""
+    k = str(kod or '').strip().upper()
+    return k.startswith('93.') and k.endswith('W')
+
+
 def _fason_mi(a, kesin=True):
     """kesin=True: Pandora / Pull (Forge tanımını da ezer). False: Anaveri 'Fason' (yalnız
     Forge'da tanım yoksa — Forge'da tanımlıysa içeride üretiyoruz demektir)."""
@@ -704,7 +710,7 @@ def rapor(conn, yil, ay):
         hedef, kaynak = {}, ''
         a_kod = ((tel.get(n) or (tel.get(n[:-1]) if n.endswith('W') else None)) if n.startswith('93.') else None) \
             or ana.get(n) or (ana.get(n[:-1]) if n.endswith('W') else None)
-        if _fason_mi(a_kod, True):
+        if _fason_mi(a_kod, True) or _w_teli(n):
             tesis = tesis or 'TK1'
             satir['tesis'] = tesis
             hedef, kaynak = {FASON: 0.0}, 'anaveri'
@@ -921,7 +927,7 @@ def excel(r):
         ("• COP (hurda): ayın COP hareketleri, kodun üretimiyle aynı bölüme yazılır; üretilen adede girmez. "
          "Fire % = COP ÷ üretilen adet (RPR + CFI)." if r.get('cop_okundu') else
          "• COP (hurda): bu okuma COP hareketlerini içermiyor — panelden 'AS400'den hazırla' ile yeniden okuyun."),
-        "• Fason (tedarikçi): Anaveri'de Pandora / Pull telleri (Pull şu an fasonda üretiliyor) ve 'Fason' işaretli kodlar "
+        "• Fason (tedarikçi): Pandora / Pull telleri (Makine 'Pandora'), kodu W ile biten teller ve Anaveri'de 'Fason' işaretli kodlar "
         "(Forge'da tanımı yoksa) — tesis toplamına ve performansa girmez.",
         f"• Rapordan hariç tutulan ({', '.join(k['desen'] + ('…' if k['tur'] == 'onek' else '') for k in r.get('haric_kurallar') or []) or 'kural yok'}): "
         f"{len(r.get('haric') or [])} kod, {r.get('haric_adet') or 0:,.0f} adet — 'Hariç tutulan' sayfası; hiçbir toplama ve performansa girmez.",

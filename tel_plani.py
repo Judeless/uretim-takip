@@ -37,6 +37,10 @@ Makine · Kapasite 1V/Adet · zor/kolay. 93.* satırlarında TK-1/2 = Pandora (t
 (Zümel / Kuzey / Erkunt-Başak) ESKİMİŞTİ: Zümel listesindeki 387 kodun 281'i
 Anaveri'de Pandora. Anaveri ortak tablodur (anaveri.py — satış planı da kullanır).
 
+W'Lİ TEL = FASON (kullanıcı 2026-10-13: "bir telin sonunda W varsa o tel fason telidir"):
+  kodu W ile biten tel her zaman TEDARİKÇİ telidir; tedarikçi Ana Veri'nin TK-1/2'sinden
+  (W'li satır yoksa W'siz kodunki), orada TK-1 / boş yazıyorsa seçilmesi istenir.
+
 KONTROL — "Pull telleri şu anda fasonda üretiliyor" (kullanıcı 2026-10-09):
   · Hat = Pull → TEDARİKÇİ teli sayılır (Anaveri TK-1 dese de; o zaman uyarı).
   · TK-1/2 = TK-1 ama Hat = Pandora (80 satır, ör. 93.TK.1186) → çelişki uyarısı.
@@ -139,6 +143,12 @@ def tk1_tel_uretimi(conn, gun=30):
     return out
 
 
+def w_teli(kod):
+    """Kodu W ile biten tel (93.*) FASON telidir (kullanıcı 2026-10-13)."""
+    k = str(kod or '').strip().upper()
+    return k.startswith(TEL_ONEK) and k.endswith('W')
+
+
 def kaynak_bul(kod, anaveri, elle, tk1_uretim):
     """Tel kimden gelir? → {'tedarikci', 'sinif' (tedarikci|tk1|belirsiz), 'ana', 'uyarilar', 'notlar', 'elle'}"""
     uyar, notlar = [], []
@@ -165,6 +175,12 @@ def kaynak_bul(kod, anaveri, elle, tk1_uretim):
     else:
         sinif, ted = 'belirsiz', ''
         uyar.append("Ana Veri'de TK-1/2 (üretici) boş")
+    if w_teli(kod) and sinif != 'tedarikci':
+        sinif = 'tedarikci'
+        ted = tk if tk and tk.upper() not in ICERIDE else ''
+        if not ted:
+            uyar.append("W'li tel fason telidir ama tedarikçisi bilinmiyor" +
+                        (f" (Ana Veri TK-1/2 '{tk}')" if tk else '') + ' — tedarikçi seçin')
     e = elle.get(kod)
     if e:
         ted = e
