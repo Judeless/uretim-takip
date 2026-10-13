@@ -167,7 +167,7 @@ def durumu(conn):
 # "Tel planı modülü için kullandığımız referansları da kendi Ana Veri Excel'imize
 # ekleyelim; tek Excel'den devam edelim" → "tel referanslarını da Ana Veri sayfasına
 # taşıyalım". Planlamanın Anaveri'sinin 93.* satırları bizim 'Ana Veri' sayfasında:
-# TK-1/2 (üretici) · Hat · Makine · Kapasite 1V/Adet · Zor/Kolay (bkz.
+# TK-1/2 (üretici) · Makine (Pandora = Pull teli → hat) · Kapasite 1V/Adet · Zor/Kolay (bkz.
 # import_excel.ana_veri_oku). 'Ana Veri Yükle' ile ana_veri_tel tablosuna gelir.
 # Tablo DOLUYSA tel planı ve aylık raporun tel sınıflaması YALNIZ buradan okur;
 # boşsa (ilk yüklemeye kadar) planlamanın Anaveri'si (plan_anaveri) kullanılır.

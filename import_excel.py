@@ -490,8 +490,8 @@ _ANA_SUTUN = (
     ('ap', ('a/p',)),
     ('tk', ('tk-1/2', 'tk 1/2', 'tk')),
     ('mekanizma', ('tk2 mekanizma', 'mekanizma')),     # T — tel planı süzgeci (93.*)
-    # Tel satırları (93.*) için — planlamanın Anaveri sütunları (2026-10-13)
-    ('hat', ('hat',)),
+    # Tel satırları (93.*) için — planlamanın Anaveri sütunları (2026-10-13). 'Hat' sütunu YOK:
+    # Pull teli Makine'den anlaşılır (bkz. _tel_hat)
     ('makine', ('makine',)),
     ('kapasite', ('kapasite',)),
     ('zorluk', ('zor/kolay', 'zorluk')),
@@ -824,6 +824,22 @@ def _ana_sayi(v):
     return float(s)
 
 
+def _tel_hat(makine):
+    """Tel satırının hattı Makine'den (kullanıcı 2026-10-13: "Makine'de Pandora yazıyorsa o
+    tel Pull telidir — Pull telleri Pandora'da üretiliyor; ayrı Hat sütununa gerek yok").
+    'Pandora' / 'Pandora-2m' / 'Pull' → 'Pull' (fason) · 'PP' / 'PP-OB' → 'PP' · diğeri aynen.
+    Planlamanın Anaveri'sindeki Hat sütunuyla 1.853 telde aynı sonucu verir; fark yalnız
+    Hat 'Pandora' + TK-1/2 'TK-1' + Makine 'PP' olan 81 satırda (artık TK1 PP teli)."""
+    import anaveri as _AV
+    m = _AV._metin(makine)
+    u = m.upper()
+    if u.startswith('PANDORA') or u == 'PULL':
+        return 'Pull'
+    if u.startswith('PP'):
+        return 'PP'
+    return m
+
+
 def _isaret(v):
     """İşaret hücresi → 1 / 0 (boş, 0, -, hayır, yok → 0; ✓, x, evet, 1 … → 1)."""
     return 0 if _tr_kucuk(v) in ('', '0', '-', 'hayır', 'hayir', 'h', 'yok', 'no', 'false', 'yanlış') else 1
@@ -840,10 +856,10 @@ def ana_veri_oku(wb):
     rapor = {'sayfa': ws.title, 'satir': 0, 'bolumsuz': [], 'tk2_disi': [], 'tekrar': [], 'hatali': [],
              'teller': [], 'tel_eski_duzen': 0}
     tel_gorulen = set()
-    # Tel satırları YALNIZ 'Hat' sütunu olan (yeni düzen) dosyadan okunur: eski düzendeki bir
-    # dosyada tek tük 93.* satırı (ör. 93.00.2046-C) vardı — onları tel listesi sanmak,
-    # yüklemede 1850 teli 'dosyada yok' diye silerdi (test 2026-10-13).
-    tel_duzeni = 'hat' in kol
+    # Tel satırları YALNIZ yeni düzendeki dosyadan ('TK2 mekanizma teli' ya da 'Zor/Kolay'
+    # sütunu olan) okunur: eski düzendeki bir dosyada tek tük 93.* satırı (ör. 93.00.2046-C)
+    # vardı — onları tel listesi sanmak, yüklemede 1850 teli 'dosyada yok' diye silerdi.
+    tel_duzeni = 'mekanizma' in kol or 'zorluk' in kol
     gorulen = set()
 
     def al(row, alan):
@@ -860,7 +876,7 @@ def ana_veri_oku(wb):
         if kod.startswith('93.'):
             # TEL SATIRI (kullanıcı 2026-10-13: "tel referanslarını da Ana Veri sayfasına
             # taşıyalım"). TK2 referans listesine girmez; TK-1/2 = üretici (Pandora / TK-1 /
-            # Satınalma), Hat (Pull = fason) · Makine · Kapasite 1V/Adet · Zor/Kolay →
+            # Satınalma) · Makine (Pandora = Pull teli) · Kapasite 1V/Adet · Zor/Kolay →
             # ana_veri_tel (tel planı + aylık raporun fason ayrımı). Bölüm hücresi önemsiz.
             import anaveri as _AV
             tk_ = _norm_kod(kod)
@@ -873,7 +889,7 @@ def ana_veri_oku(wb):
                 except ValueError:
                     kap = None
                 rapor['teller'].append({'kod': tk_, 'ap': _AV._metin(al(row, 'ap')), 'tk': _AV._metin(al(row, 'tk')),
-                                        'hat': _AV._metin(al(row, 'hat')), 'makine': _AV._metin(al(row, 'makine')),
+                                        'hat': _tel_hat(al(row, 'makine')), 'makine': _AV._metin(al(row, 'makine')),
                                         'kapasite': kap if kap and kap > 0 else None,
                                         'zorluk': _AV._metin(al(row, 'zorluk')),
                                         # T 'TK2 mekanizma teli': boş = tel planında gösterilmez

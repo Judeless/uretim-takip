@@ -155,7 +155,7 @@ def kaynak_bul(kod, anaveri, elle, tk1_uretim):
         sinif = 'tedarikci'
         ted = '' if tk.upper() in ICERIDE or not tk else tk
         if tk.upper() in ICERIDE:
-            uyar.append(f"Pull teli (şu an fasonda üretiliyor) ama Anaveri TK-1/2 '{tk}' diyor — tedarikçi seçin")
+            uyar.append(f"Pull teli (Pandora'da / fasonda üretiliyor) ama TK-1/2 '{tk}' diyor — tedarikçi seçin")
     elif tk.upper() in ICERIDE:
         sinif, ted = 'tk1', 'TK1'
         if hat.upper() == 'PANDORA':

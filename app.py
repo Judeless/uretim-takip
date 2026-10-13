@@ -5814,8 +5814,8 @@ def ana_veri_yukle():
         uyarilar.append(f"Teller: mevcut {_tel['mevcut']} telin {_tel['cikan']} tanesi SİLİNECEK — "
                         f"dosyanın 93.* satırlarının eksik/eski olmadığından emin olun")
     if rapor.get('tel_eski_duzen'):
-        uyarilar.append(f"Teller: dosyada {rapor['tel_eski_duzen']} adet 93.* satırı var ama 'Hat' sütunu yok "
-                        f"(eski düzen) — tel listesine dokunulmadı")
+        uyarilar.append(f"Teller: dosyada {rapor['tel_eski_duzen']} adet 93.* satırı var ama 'TK2 mekanizma teli' / "
+                        f"'Zor/Kolay' sütunu yok (eski düzen) — tel listesine dokunulmadı")
     return jsonify({'basarili': True, 'onizleme': not onay, 'sayfa': rapor['sayfa'],
                     'satir': rapor['satir'], 'bolumler': bolumler, 'toplam': toplam,
                     'uyarilar': uyarilar, 'eksik_sayfa': hz['eksik'], 'durus': durus, 'damga': hz['damga'],
