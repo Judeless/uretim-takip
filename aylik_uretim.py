@@ -652,7 +652,7 @@ def rapor(conn, yil, ay):
     forge = _forge(conn)
     kap, rota, kdb = _sure_kaynaklari(conn)
     ana = AV.haritasi(conn)
-    # Teller (93.*): önce Ana Veri 'Tel Referansları' (yüklendiyse), yoksa planlamanın Anaveri'si
+    # Teller (93.*): önce Ana Veri'nin tel satırları (yüklendiyse), yoksa planlamanın Anaveri'si
     tel = AV.tel_haritasi(conn) if AV.tel_kaynagi_ana_veri(conn) else {}
     kurallar = haric_kurallari(conn)
     acik = veri.get('aciklama') or {}

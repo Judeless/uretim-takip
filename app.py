@@ -5750,7 +5750,7 @@ def ana_veri_yukle():
         _kim = ''
     try:
         sonuc = _ie.ana_veri_uygula(
-            satirlar, uygula=onay, kume=hz['kume'], taban=hz['taban'], kullanici=_kim,
+            satirlar, uygula=onay, kume=hz['kume'], taban=hz['taban'], kullanici=_kim, teller=rapor.get('teller'),
             commit_oncesi=(lambda: _ie.ana_veri_dosya_kaydet(hz['kaydedilecek'])) if onay else None)
     except PermissionError:
         return jsonify({'hata': 'AnaVeri.xlsx sunucuda açık/kilitli — kaydedilemedi, hiçbir şey değişmedi'}), 409
@@ -5806,8 +5806,16 @@ def ana_veri_yukle():
         if x['cikan']:
             uyarilar.append(f"{x['sayfa']}: {len(x['cikan'])} duruş sebebi listeden ÇIKACAK "
                             f"({', '.join(x['cikan'][:5])}) — operatör ekranında görünmeyecek")
-    operatorler = [{'bolum': b, 'ad': _ie.ANA_VERI_ETIKET[b], 'eklenen': adlar}
+    operatorler = [{'bolum': b, 'ad': _ie.operator_anahtar_etiketi(b), 'eklenen': adlar}
                    for b, adlar in sonuc['operatorler'].items() if adlar]
+    uyarilar.extend('Operatörler › ' + u for u in (sonuc.get('operator_uyari') or []))
+    _tel = sonuc.get('tel') or {}
+    if _tel.get('mevcut') and _tel.get('cikan', 0) > _tel['mevcut'] * _ANA_VERI_SILME_UYARI_ORAN:
+        uyarilar.append(f"Teller: mevcut {_tel['mevcut']} telin {_tel['cikan']} tanesi SİLİNECEK — "
+                        f"dosyanın 93.* satırlarının eksik/eski olmadığından emin olun")
+    if rapor.get('tel_eski_duzen'):
+        uyarilar.append(f"Teller: dosyada {rapor['tel_eski_duzen']} adet 93.* satırı var ama 'Hat' sütunu yok "
+                        f"(eski düzen) — tel listesine dokunulmadı")
     return jsonify({'basarili': True, 'onizleme': not onay, 'sayfa': rapor['sayfa'],
                     'satir': rapor['satir'], 'bolumler': bolumler, 'toplam': toplam,
                     'uyarilar': uyarilar, 'eksik_sayfa': hz['eksik'], 'durus': durus, 'damga': hz['damga'],
@@ -5816,8 +5824,7 @@ def ana_veri_yukle():
                     'bolumsuz': rapor['bolumsuz'][:60], 'bolumsuz_sayi': len(rapor['bolumsuz']),
                     'tk2_disi': rapor['tk2_disi'][:80], 'tk2_disi_sayi': len(rapor['tk2_disi']),
                     'tekrar': rapor['tekrar'][:40], 'tekrar_sayi': len(rapor['tekrar']),
-                    'hatali': rapor['hatali'][:40], 'hatali_sayi': len(rapor['hatali']),
-                    'tel_atlanan': rapor['tel_atlanan']})
+                    'hatali': rapor['hatali'][:40], 'hatali_sayi': len(rapor['hatali'])})
 
 
 @app.route('/api/referanslar/<string:kod>', methods=['DELETE'])
@@ -6289,14 +6296,13 @@ def operator_ekle():
         except Exception:
             pass
     excel_uyari = None
-    if lokasyon == 'TK2':
-        try:
-            from import_excel import ana_veri_operator_ekle
-            excel_uyari = ana_veri_operator_ekle(ad, bolum)
-        except Exception as e:
-            excel_uyari = str(e)
-        if excel_uyari:
-            print(f'[operator_ekle] Ana Veri sync hatası ({ad}): {excel_uyari}')
+    try:                                   # Ana Veri › Operatörler (TK1 dahil; eski düzende yalnız TK2)
+        from import_excel import ana_veri_operator_ekle
+        excel_uyari = ana_veri_operator_ekle(ad, bolum, lokasyon)
+    except Exception as e:
+        excel_uyari = str(e)
+    if excel_uyari:
+        print(f'[operator_ekle] Ana Veri sync hatası ({ad}): {excel_uyari}')
     return jsonify({'basarili': True, 'id': cur.lastrowid, 'ad': ad,
                     'bolum': bolum, 'lokasyon': lokasyon, 'pin': pin,
                     'uyari': uyari, 'excel_uyari': excel_uyari}), 201

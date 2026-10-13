@@ -37,7 +37,7 @@ def tablolari_kur(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS plan_anaveri_yukleme (
         id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, dosya TEXT DEFAULT '',
         satir INTEGER DEFAULT 0, kullanici TEXT DEFAULT '')""")
-    # Bizim Ana Veri'mizin 'Tel Referansları' sayfası (bkz. TEL_SAYFA) — plan_anaveri ile aynı şekil
+    # Bizim Ana Veri'mizin 93.* satırları (bkz. TEL_KAYNAK) — plan_anaveri ile aynı şekil
     conn.execute("""CREATE TABLE IF NOT EXISTS ana_veri_tel (
         kod TEXT PRIMARY KEY, ap TEXT DEFAULT '', tk TEXT DEFAULT '', hat TEXT DEFAULT '',
         makine TEXT DEFAULT '', kapasite REAL, zorluk TEXT DEFAULT '')""")
@@ -159,19 +159,19 @@ def durumu(conn):
     return dict(zip(('ts', 'dosya', 'satir', 'kullanici'), r)) if r else None
 
 
-# ── ANA VERİ › 'Tel Referansları' (kullanıcı 2026-10-13) ────────────────────────
+# ── ANA VERİ › teller (kullanıcı 2026-10-13) ───────────────────────────────────
 # "Tel planı modülü için kullandığımız referansları da kendi Ana Veri Excel'imize
-# ekleyelim; tek Excel'den devam ediyor olalım." Planlamanın PLAN dosyasındaki
-# Anaveri'nin 93.* satırları bizim Ana Veri'mize ayrı sayfa olarak taşındı; sütunlar
-# aynı (CD ART. · TK-1/2 · Hat · Makine · Kapasite 1V/Adet · Zor/Kolay), ek sütunlar
-# (Açıklama, TK2 mekanizma, Not) okunmaz. Sayfa 'Ana Veri Yükle' ile gelir.
+# ekleyelim; tek Excel'den devam edelim" → "tel referanslarını da Ana Veri sayfasına
+# taşıyalım". Planlamanın Anaveri'sinin 93.* satırları bizim 'Ana Veri' sayfasında:
+# TK-1/2 (üretici) · Hat · Makine · Kapasite 1V/Adet · Zor/Kolay (bkz.
+# import_excel.ana_veri_oku). 'Ana Veri Yükle' ile ana_veri_tel tablosuna gelir.
 # Tablo DOLUYSA tel planı ve aylık raporun tel sınıflaması YALNIZ buradan okur;
 # boşsa (ilk yüklemeye kadar) planlamanın Anaveri'si (plan_anaveri) kullanılır.
-TEL_SAYFA = 'Tel Referansları'
+TEL_KAYNAK = "Ana Veri › 93.* tel satırları"
 
 
 def tel_yaz(conn, satirlar, kullanici, commit=True):
-    """Tel Referansları sayfası → ana_veri_tel (ayna: sayfada olmayan satır silinir).
+    """Ana Veri'nin 93.* satırları → ana_veri_tel (ayna: dosyada olmayan satır silinir).
     commit=False: çağıranın işlemi içinde (tablolar önceden kurulmuş olmalı — kurulum commit eder)."""
     if commit:
         tablolari_kur(conn)
@@ -223,7 +223,7 @@ def tel_kaynagi_ana_veri(conn):
 
 
 def tel_haritasi(conn):
-    """Tel bilgisi (93.*): Ana Veri 'Tel Referansları' yüklendiyse YALNIZ o; değilse
+    """Tel bilgisi (93.*): Ana Veri'nin tel satırları yüklendiyse YALNIZ onlar; değilse
     planlamanın Anaveri'si. Biçim haritasi() ile aynı."""
     if not tel_kaynagi_ana_veri(conn):
         return haritasi(conn, '93.')
@@ -237,7 +237,7 @@ def tel_durumu(conn):
     if tel_kaynagi_ana_veri(conn):
         r = conn.execute("SELECT ts, satir, kullanici FROM ana_veri_tel_yukleme ORDER BY id DESC LIMIT 1").fetchone()
         n = conn.execute("SELECT COUNT(*) FROM ana_veri_tel").fetchone()[0]
-        return {'kaynak': 'ana_veri', 'dosya': 'Ana Veri › ' + TEL_SAYFA, 'satir': n,
+        return {'kaynak': 'ana_veri', 'dosya': TEL_KAYNAK, 'satir': n,
                 'ts': r[0] if r else '', 'kullanici': r[2] if r else ''}
     d = durumu(conn)
     return dict(d, kaynak='plan') if d else None

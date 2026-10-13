@@ -406,12 +406,94 @@ ANA_VERI_YEDEK_KLASOR = os.path.join(PROJECT_DIR, 'data', 'ana_veri_yedek')
 ANA_VERI_ETIKET = {'montaj': 'Montaj', 'kaynak': 'Kaynak', 'metal': 'Metal Enjeksiyon',
                    'lazer': 'Lazer Kesim', 'pres': 'Büküm', 'isleme': 'İşleme'}
 ANA_VERI_KALIP_GOZ_UST = 64          # app.KALIP_GOZ_UST ile aynı olmalı
+
+# ── TEK 'Operatörler' SAYFASI (kullanıcı 2026-10-13) ───────────────────────────
+# "Operatör isimlerinin bu listede olması gerekiyor mu? TK1 personeli yok. Gerekiyorsa
+# tek bir sayfa yap, bölümlere göre ayır." Forge'un ÇALIŞMASI için gerekmez (operatör +
+# PIN veritabanında); sayfa iki fabrikanın listesinin Excel'deki aynası ve toplu ekleme
+# yolu. Sütunlar: Tesis · Bölüm · Operatör İsmi. Yüklemede yalnız YENİ kişi eklenir
+# (kimse silinmez, PIN Excel'e yazılmaz); panelden eklenen kişi kendi bölüm bloğuna
+# yazılır. Dosyada bu sayfa varsa eski '<Bölüm> Operator' sayfaları OKUNMAZ.
+OPERATORLER_SAYFA = 'Operatörler'
+TK1_OPERATOR_ETIKET = {'montaj': 'Montaj', 'tel': 'Tel Üretimi', 'plastik': 'Plastik Enjeksiyon'}
+OPERATOR_SIRA = ([('TK1', b) for b in ('montaj', 'tel', 'plastik')] +
+                 [('TK2', b) for b in ('kaynak', 'montaj', 'metal', 'lazer', 'pres', 'isleme')])
+
+
+def operator_bolum_etiketi(tesis, bolum):
+    """('TK1','tel') → 'Tel Üretimi'; ('TK2','pres') → 'Büküm'."""
+    return (TK1_OPERATOR_ETIKET if tesis == 'TK1' else ANA_VERI_ETIKET).get(bolum, bolum)
+
+
+def operator_anahtar_etiketi(anahtar):
+    """Önizleme anahtarı ('kaynak' = TK2, 'TK1/tel') → panelde görünen ad."""
+    if '/' in anahtar:
+        t, b = anahtar.split('/', 1)
+        return f'{t} {operator_bolum_etiketi(t, b)}'
+    return ANA_VERI_ETIKET.get(anahtar, anahtar)
+
+
+def _operator_tesis(v):
+    s = str(v or '').strip().upper().replace('-', '').replace(' ', '')
+    return s if s in ('TK1', 'TK2') else None
+
+
+def _operator_bolum(tesis, v):
+    if tesis == 'TK1':
+        s = _tr_kucuk(v)
+        if 'plastik' in s:
+            return 'plastik'
+        if 'tel' in s:
+            return 'tel'
+        if 'montaj' in s:
+            return 'montaj'
+        return None
+    return ana_veri_bolum(v)
+
+
+def operatorler_sayfa_oku(ws):
+    """'Operatörler' sayfası → ([(tesis, bolum, ad, satır_no)], [hata metni]).
+    Başlık satırı adla bulunur (Tesis · Bölüm · Operatör/İsim); 'Admin' atlanır."""
+    kol, bas = {}, None
+    for ri, row in enumerate(ws.iter_rows(min_row=1, max_row=5, values_only=True), start=1):
+        h = [_tr_kucuk(x) for x in (row or ())]
+        for i, x in enumerate(h):
+            if x.startswith(('tesis', 'fabrika', 'lokasyon')):
+                kol.setdefault('tesis', i)
+            elif x.startswith(('bölüm', 'bolum')):
+                kol.setdefault('bolum', i)
+            elif x.startswith(('operatör', 'operator', 'isim', 'ad soyad', 'ad')):
+                kol.setdefault('ad', i)
+        if len(kol) == 3:
+            bas = ri
+            break
+        kol = {}
+    if bas is None:
+        return [], [f"'{ws.title}' sayfasında Tesis / Bölüm / Operatör İsmi başlıkları bulunamadı"]
+    satirlar, hatali = [], []
+    for ri, row in enumerate(ws.iter_rows(min_row=bas + 1, values_only=True), start=bas + 1):
+        al = lambda k: row[kol[k]] if row and kol[k] < len(row) else None
+        ad = ' '.join(str(al('ad') or '').split())
+        if not ad or ad.lower() == 'admin':
+            continue
+        tesis = _operator_tesis(al('tesis'))
+        bolum = _operator_bolum(tesis, al('bolum')) if tesis else None
+        if not tesis or not bolum:
+            hatali.append(f"{ri}. satır {ad}: tesis/bölüm tanınmadı ('{al('tesis') or ''}' / '{al('bolum') or ''}')")
+            continue
+        satirlar.append((tesis, bolum, ad, ri))
+    return satirlar, hatali
 # Başlık → alan. Başlık küçük harfe (TR) indirilir; aday ile BAŞLAYAN ilk sütun alınır.
 _ANA_SUTUN = (
     ('kod', ('cd art', 'referans kodu', 'kod')),
     ('bolum', ('bölüm', 'bolum', 'hat')),
     ('ap', ('a/p',)),
     ('tk', ('tk-1/2', 'tk 1/2', 'tk')),
+    # Tel satırları (93.*) için — planlamanın Anaveri sütunları (2026-10-13)
+    ('hat', ('hat',)),
+    ('makine', ('makine',)),
+    ('kapasite', ('kapasite',)),
+    ('zorluk', ('zor/kolay', 'zorluk')),
     ('cevrim', ('çevrim', 'cevrim', 'cycle', 'söktak')),
     ('kaynak', ('kaynak süre', 'kaynak sure')),
     ('goz', ('kalıp göz', 'kalip goz')),
@@ -442,15 +524,14 @@ def tk2_excel_yolu():
 def ana_veri_ek_sayfalar():
     """Ana Veri'nin referans dışı sayfaları (eski uretim_verileri.xlsx'teki adlarıyla AYNI —
     okuyan kod sayfayı adıyla bulur)."""
-    ad = [BOLUM_SAYFA[b]['op'] for b in BOLUM_SAYFA]
+    ad = [OPERATORLER_SAYFA] + [BOLUM_SAYFA[b]['op'] for b in BOLUM_SAYFA]
     for s in BOLUM_DURUS_SAYFA.values():
         if s not in ad:
             ad.append(s)
-    # 2026-10-13: tel planının teller listesi + aylık raporun NçS'leri de Ana Veri'de
-    # (dosyada yoksa mevcut sürümden kopyalanır — kaybolmasınlar)
-    import anaveri as _AV
+    # 2026-10-13: aylık raporun NçS'leri de Ana Veri'de (dosyada yoksa mevcut sürümden
+    # kopyalanır — kaybolmasın). Teller ayrı sayfa değil, 'Ana Veri' sayfasının 93.* satırları.
     import aylik_uretim as _AU
-    return ad + [ROBOT_PROGRAM_SAYFA, FIKSTUR_RAF_SAYFA, _AV.TEL_SAYFA, _AU.NCS_SAYFA]
+    return ad + [ROBOT_PROGRAM_SAYFA, FIKSTUR_RAF_SAYFA, _AU.NCS_SAYFA]
 
 
 class _SayfaKumesi:
@@ -636,7 +717,12 @@ def ana_veri_hazirla(ham):
     damga = _damga_oku(wb_yeni)
     taban, taban_kaynak = _taban_sec(damga)
     mevcut = _tk2_okuma_kumesi()
-    eksik = [s for s in ana_veri_ek_sayfalar()
+    ek = ana_veri_ek_sayfalar()
+    if OPERATORLER_SAYFA in wb_yeni.sheetnames or (mevcut is not None and OPERATORLER_SAYFA in mevcut.sheetnames):
+        # tek 'Operatörler' sayfası varken eski '<Bölüm> Operator' sayfaları geri getirilmez
+        eski_op = {v['op'] for v in BOLUM_SAYFA.values()}
+        ek = [x for x in ek if x not in eski_op]
+    eksik = [s for s in ek
              if s not in wb_yeni.sheetnames and mevcut is not None and s in mevcut.sheetnames]
     kaydedilecek = ham
     if eksik:
@@ -739,14 +825,19 @@ def _ana_sayi(v):
 
 def ana_veri_oku(wb):
     """Ana Veri sayfasını okur → ({bolum: [satır]}, rapor). Satır alanı None = boş hücre.
-    rapor: sayfa, satir, bolumsuz[], tekrar[], hatali[], tel_atlanan."""
+    rapor: sayfa, satir, bolumsuz[], tekrar[], hatali[], teller[] (93.* satırları)."""
     ws, kol = _ana_sayfa_bul(wb)
     if ws is None:
         raise ValueError("'Ana Veri' sayfası bulunamadı — 1. satırda en az 'CD ART.' (kod) ve "
                          "'Bölüm' başlıklı sütun olmalı")
     satirlar = {b: [] for b in ANA_VERI_ETIKET}
     rapor = {'sayfa': ws.title, 'satir': 0, 'bolumsuz': [], 'tk2_disi': [], 'tekrar': [], 'hatali': [],
-             'tel_atlanan': 0}
+             'teller': [], 'tel_eski_duzen': 0}
+    tel_gorulen = set()
+    # Tel satırları YALNIZ 'Hat' sütunu olan (yeni düzen) dosyadan okunur: eski düzendeki bir
+    # dosyada tek tük 93.* satırı (ör. 93.00.2046-C) vardı — onları tel listesi sanmak,
+    # yüklemede 1850 teli 'dosyada yok' diye silerdi (test 2026-10-13).
+    tel_duzeni = 'hat' in kol
     gorulen = set()
 
     def al(row, alan):
@@ -760,6 +851,26 @@ def ana_veri_oku(wb):
         if len(kod) < 2:
             continue
         rapor['satir'] += 1
+        if kod.startswith('93.'):
+            # TEL SATIRI (kullanıcı 2026-10-13: "tel referanslarını da Ana Veri sayfasına
+            # taşıyalım"). TK2 referans listesine girmez; TK-1/2 = üretici (Pandora / TK-1 /
+            # Satınalma), Hat (Pull = fason) · Makine · Kapasite 1V/Adet · Zor/Kolay →
+            # ana_veri_tel (tel planı + aylık raporun fason ayrımı). Bölüm hücresi önemsiz.
+            import anaveri as _AV
+            tk_ = _norm_kod(kod)
+            if not tel_duzeni:
+                rapor['tel_eski_duzen'] += 1
+            elif tk_ not in tel_gorulen:
+                tel_gorulen.add(tk_)
+                try:
+                    kap = float(str(al(row, 'kapasite')).replace(',', '.')) if al(row, 'kapasite') not in (None, '') else None
+                except ValueError:
+                    kap = None
+                rapor['teller'].append({'kod': tk_, 'ap': _AV._metin(al(row, 'ap')), 'tk': _AV._metin(al(row, 'tk')),
+                                        'hat': _AV._metin(al(row, 'hat')), 'makine': _AV._metin(al(row, 'makine')),
+                                        'kapasite': kap if kap and kap > 0 else None,
+                                        'zorluk': _AV._metin(al(row, 'zorluk'))})
+            continue
         b = ana_veri_bolum(al(row, 'bolum'))
         if not b:
             # TK-1/2 sütununa TK2 dışı bir yer yazılmışsa (TK1, Aspanda, DEPO…) kullanıcı
@@ -769,9 +880,6 @@ def ana_veri_oku(wb):
             hedef = 'tk2_disi' if tk and tk != 'tk2' else 'bolumsuz'
             rapor[hedef].append({'satir': no, 'kod': kod, 'deger': str(al(row, 'bolum') or ''),
                                  'tk': str(al(row, 'tk') or '')})
-            continue
-        if kod.startswith('93.'):            # TK1 tel kodu TK2 listesine girmez (bkz. _bolum_import)
-            rapor['tel_atlanan'] += 1
             continue
         anahtar = (_norm_kod(kod), b)
         if anahtar in gorulen:
@@ -925,7 +1033,8 @@ def _liste_farki(conn, sql, yeni):
     return sorted(yeni - eski), sorted(eski - yeni)
 
 
-def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban=None, kullanici=''):
+def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban=None, kullanici='',
+                    teller=None):
     """Altı bölümün referansları + (kume verilirse) operatörler, robot program, fikstür —
     TEK işlemde. uygula=False → ÖNİZLEME (her şey geri alınır).
     commit_oncesi: commit'ten hemen önce çağrılır (dosyayı yerine koymak için);
@@ -941,12 +1050,16 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban
     try:
         sonuc = {'bolumler': {b: _ana_veri_bolum_uygula(conn, b, satirlar.get(b, []), taban=taban)
                               for b in ANA_VERI_ETIKET},
-                 'operatorler': {}, 'robot': None, 'fikstur': None, 'tel': None, 'ncs': None}
+                 'operatorler': {}, 'operator_uyari': [], 'robot': None, 'fikstur': None,
+                 'tel': None, 'ncs': None}
         if kume is not None:
-            for b in ANA_VERI_ETIKET:
-                ad = []
-                _operator_import(conn, kume, b, eklenenler=ad)
-                sonuc['operatorler'][b] = ad
+            if OPERATORLER_SAYFA in kume.sheetnames:
+                sonuc['operator_uyari'] = _operatorler_import(conn, kume[OPERATORLER_SAYFA], sonuc['operatorler'])
+            else:                              # eski düzen: '<Bölüm> Operator' sayfaları (yalnız TK2)
+                for b in ANA_VERI_ETIKET:
+                    ad = []
+                    _operator_import(conn, kume, b, eklenenler=ad)
+                    sonuc['operatorler'][b] = ad
             # Robot program / fikstür: Excel master (sil + yaz) — ama YALNIZ fark varsa;
             # aynıysa tablolara dokunulmaz (güncelleme tarihleri boşuna değişmesin).
             if ROBOT_PROGRAM_SAYFA in kume.sheetnames:
@@ -967,17 +1080,6 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban
                                         'ornek_cikan': [' · '.join(x) for x in cik[:10]]}
                     if ek or cik:
                         _fikstur_raf_import(conn, kume)
-            # TEL REFERANSLARI (tel planı + aylık raporun tel sınıflaması) — ayna, yalnız fark varsa
-            if _AV.TEL_SAYFA in kume.sheetnames:
-                try:
-                    tel = _AV.satirlari(kume[_AV.TEL_SAYFA].iter_rows(values_only=True))
-                except ValueError as e:
-                    sonuc['tel'] = {'hata': str(e)}
-                else:
-                    fark = _AV.tel_farki(conn, tel)
-                    sonuc['tel'] = fark
-                    if fark['ilk'] or fark['eklenen'] or fark['degisen'] or fark['cikan']:
-                        _AV.tel_yaz(conn, tel, kullanici, commit=False)
             # AYLIK NçS (aylık üretim raporunun çalışma saati) — sayfadaki AYIN satırları
             if _AU.NCS_SAYFA in kume.sheetnames:
                 n = _AU.ncs_sayfadan(kume[_AU.NCS_SAYFA])
@@ -985,6 +1087,14 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban
                 sonuc['ncs'] = fark
                 if n['yil'] and n['saatler'] and fark['degisen']:
                     _AU.ncs_yaz(conn, n['yil'], n['ay'], n['saatler'], kullanici, commit=False)
+        # TELLER — 'Ana Veri' sayfasının 93.* satırları (tel planı + aylık raporun fason ayrımı).
+        # Ayna, yalnız fark varsa. Dosyada HİÇ tel satırı yoksa tabloya dokunulmaz (eski
+        # bir dosya yüklenince tel bilgisi silinmesin).
+        if teller:
+            fark = _AV.tel_farki(conn, teller)
+            sonuc['tel'] = fark
+            if fark['ilk'] or fark['eklenen'] or fark['degisen'] or fark['cikan']:
+                _AV.tel_yaz(conn, teller, kullanici, commit=False)
         if uygula:
             if commit_oncesi:
                 commit_oncesi()
@@ -999,16 +1109,22 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban
         conn.close()
 
 
-def ana_veri_operator_ekle(ad, bolum):
-    """Panelden eklenen operatörü Ana Veri'nin '<Bölüm> Operator' sayfasına da yazar
-    (eskiden yalnız veritabanına giriyordu, Excel ile liste ayrışıyordu). → hata | None"""
-    if not ana_veri_aktif() or _ana_veri_yazma_engeli() or bolum not in BOLUM_SAYFA:
+def ana_veri_operator_ekle(ad, bolum, lokasyon='TK2'):
+    """Panelden eklenen operatörü Ana Veri'ye de yazar (eskiden yalnız veritabanına
+    giriyordu, Excel ile liste ayrışıyordu): tek 'Operatörler' sayfası varsa oraya (TK1
+    dahil, kendi tesis/bölüm bloğunun sonuna), yoksa '<Bölüm> Operator' sayfasına
+    (yalnız TK2). → hata | None"""
+    if not ana_veri_aktif() or _ana_veri_yazma_engeli():
         return None
     try:
         with open(ANA_VERI_YOL, 'rb') as fh:
             wb = openpyxl.load_workbook(io.BytesIO(fh.read()))
     except Exception as e:
         return f'AnaVeri.xlsx açılamadı: {e}'
+    if OPERATORLER_SAYFA in wb.sheetnames:
+        return _operatorler_sayfaya_ekle(wb, wb[OPERATORLER_SAYFA], ad, bolum, lokasyon)
+    if lokasyon != 'TK2' or bolum not in BOLUM_SAYFA:
+        return None
     sayfa = BOLUM_SAYFA[bolum]['op']
     if sayfa in wb.sheetnames:
         ws = wb[sayfa]
@@ -1026,6 +1142,37 @@ def ana_veri_operator_ekle(ad, bolum):
         except (TypeError, ValueError):
             pass
     ws.append([son_no + 1, ad])
+    return _ana_veri_kaydet(wb)
+
+
+def _operatorler_sayfaya_ekle(wb, ws, ad, bolum, lokasyon):
+    """Kişiyi 'Operatörler' sayfasında kendi (tesis, bölüm) bloğunun sonuna ekler."""
+    from copy import copy
+    satirlar, _h = operatorler_sayfa_oku(ws)
+    hedef = _ad_normal(ad)
+    if any(t == lokasyon and b == bolum and _ad_normal(a) == hedef for t, b, a, _r in satirlar):
+        return None                                       # zaten listede
+    blok = [r for t, b, _a, r in satirlar if (t, b) == (lokasyon, bolum)]
+    if blok:
+        ri = max(blok) + 1
+        ws.insert_rows(ri)
+        orn = ri - 1
+    else:
+        sira = OPERATOR_SIRA.index((lokasyon, bolum)) if (lokasyon, bolum) in OPERATOR_SIRA else len(OPERATOR_SIRA)
+        sonra = [r for t, b, _a, r in satirlar
+                 if (OPERATOR_SIRA.index((t, b)) if (t, b) in OPERATOR_SIRA else len(OPERATOR_SIRA)) > sira]
+        if sonra:
+            ri = min(sonra)
+            ws.insert_rows(ri)
+        else:
+            ri = ws.max_row + 1
+        orn = None
+    for ci, v in enumerate((lokasyon, operator_bolum_etiketi(lokasyon, bolum), ad), start=1):
+        h = ws.cell(row=ri, column=ci, value=v)
+        if orn:
+            h._style = copy(ws.cell(row=orn, column=ci)._style)
+    if ws.auto_filter.ref:
+        ws.auto_filter.ref = f'A1:{ws.auto_filter.ref.split(":")[-1].rstrip("0123456789")}{ws.max_row}'
     return _ana_veri_kaydet(wb)
 
 
@@ -1426,6 +1573,37 @@ def _bolum_import(conn, wb, bolum):
         'referanslar_silinen': ref_silinen,
         'operatorler_eklenen': _operator_import(conn, wb, bolum)
     }
+
+
+def _operatorler_import(conn, ws, eklenenler):
+    """Tek 'Operatörler' sayfasındaki YENİ kişileri ekler (kimseyi silmez, PIN'e dokunmaz).
+    eklenenler: {anahtar: [ad]} — TK2 için bölüm ('kaynak'), TK1 için 'TK1/tel'.
+    Aynı kişi aynı tesiste başka bölümde varsa yeni satır ONUN PIN'iyle açılır (kişi = tek
+    PIN); eşleşme Türkçe harfe duyarsız (_ad_normal). → uyarı metinleri"""
+    satirlar, uyari = operatorler_sayfa_oku(ws)
+    c = conn.cursor()
+    kisiler = {}                                  # (tesis, _ad_normal) → [(bolum, pin)]
+    for ad_db, b_db, pin_db, lok in c.execute(
+            "SELECT ad, bolum, pin, COALESCE(lokasyon,'TK2') FROM operatorler").fetchall():
+        kisiler.setdefault((lok, _ad_normal(ad_db)), []).append((b_db, pin_db))
+    for tesis, bolum, ad, _ri in satirlar:
+        k = kisiler.setdefault((tesis, _ad_normal(ad)), [])
+        if any(b == bolum for b, _p in k):
+            continue
+        pin = (k[0][1] or '0000') if k else '0000'
+        try:
+            c.execute("INSERT INTO operatorler (ad, bolum, pin, lokasyon) VALUES (?, ?, ?, ?)",
+                      (ad, bolum, pin, tesis))
+        except sqlite3.IntegrityError as e:
+            uyari.append(f'{ad} ({tesis} {operator_bolum_etiketi(tesis, bolum)}) eklenemedi: {e}')
+            continue
+        k.append((bolum, pin))
+        eklenenler.setdefault(bolum if tesis == 'TK2' else f'{tesis}/{bolum}', []).append(ad)
+        if tesis == 'TK1' and bolum == 'montaj' and tk1_operator_bolumu(ad) != 'montaj':
+            # bkz. app.operator_ekle'deki TK1 TUZAĞI — TK1 Excel aktarımı bu kişiyi tele taşır
+            uyari.append(f'{ad}: TK1 montaj listesinde (TK1_MONTAJ_OPERATORLERI) yok — '
+                         f'TK1 Excel aktarımı bu kişiyi Tel bölümüne taşır')
+    return uyari
 
 
 def _operator_import(conn, wb, bolum, eklenenler=None):

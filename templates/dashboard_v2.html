@@ -2601,7 +2601,7 @@ window.__I18N_SOZLUK__ = {
   },
   "Fire": {"en": "Scrap", "it": "Scarto"},
   "♻ Fire (COP ÷ üretilen):": {"en": "♻ Scrap rate (COP ÷ produced):", "it": "♻ Tasso di scarto (COP ÷ prodotto):"},
-  "🧵 Tel Referansları": {"en": "🧵 Wire references", "it": "🧵 Riferimenti cavi"},
+  "🧵 Teller (93.* satırları)": {"en": "🧵 Wires (93.* rows)", "it": "🧵 Cavi (righe 93.*)"},
   "⏱ Aylık NçS": {"en": "⏱ Monthly net working hours", "it": "⏱ Ore nette mensili"},
   "● teyit import tablolarından — PCOMM gerekmiyor": {
     "en": "● confirmations via import tables — PCOMM not needed",
@@ -12414,10 +12414,9 @@ window.__I18N_SOZLUK__ = {
             if (d.hatali_sayi) h += '<div style="margin-top:6px;color:var(--danger)"><b>' + fmt(d.hatali_sayi) +
                 ' satır hatalı — atlandı:</b> ' +
                 d.hatali.map(function (x) { return 'satır ' + x.satir + ' ' + esc(x.kod) + ': ' + esc(x.sebep); }).join(' · ') + '</div>';
-            if (d.tel_atlanan) h += '<div style="margin-top:6px;color:var(--muted)">' + fmt(d.tel_atlanan) + ' adet 93.* (TK1 tel) kodu TK2 listesine alınmadı.</div>';
             // TEL REFERANSLARI + AYLIK NçS (2026-10-13): tel planı ve aylık rapor da Ana Veri'den
             var tl = d.tel;
-            if (tl) h += '<div style="margin-top:10px;line-height:1.7"><b>🧵 Tel Referansları</b> (tel planı · aylık rapor fason ayrımı): ' +
+            if (tl) h += '<div style="margin-top:10px;line-height:1.7"><b>🧵 Teller (93.* satırları)</b> (tel planı · aylık rapor fason ayrımı): ' +
                 (tl.hata ? '<span style="color:var(--danger)">' + esc(tl.hata) + '</span>' :
                  fmt(tl.dosyada) + ' tel · ' + (tl.ilk ? '<b>ilk yükleme</b> — tel planı bundan sonra Ana Veri\'den okur' :
                     ('+' + fmt(tl.eklenen) + ' / ~' + fmt(tl.degisen) + ' / −' + fmt(tl.cikan) +
@@ -12873,7 +12872,7 @@ window.__I18N_SOZLUK__ = {
             if (anb) anb.innerHTML = an ? ((avKaynak ? 'Tel bilgisi: <b>' : 'Tel bilgisi (planlama Anaveri\'si): <b>') + esc(an.dosya) + '</b> · ' +
                 fmt(an.satir) + (avKaynak ? ' tel' : ' kod') + (an.ts ? ' · ' + esc(an.ts) : '') +
                 (an.kullanici && an.kullanici !== 'tohum' ? ' (' + esc(an.kullanici) + ')' : '') +
-                (avKaynak ? ' — güncellemek için Ana Veri\'nin \'Tel Referansları\' sayfasını düzenleyip Referanslar › Ana Veri Yükle' : ''))
+                (avKaynak ? ' — güncellemek için Ana Veri\'deki 93.* satırlarını (TK-1/2 = üretici, Hat) düzenleyip Referanslar › Ana Veri Yükle' : ''))
                 : 'Anaveri yüklenmedi — tedarikçi bilgisi yok';
             document.querySelectorAll('.tp-anaveri .btn, #tp-anaveri-dosya').forEach(function (b) { b.style.display = avKaynak ? 'none' : ''; });
             var bilgi = document.getElementById('tp-bilgi'), o = j.olcum;
