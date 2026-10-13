@@ -7948,7 +7948,7 @@ def _tp_gorunum(conn, prm):
 
 def _tp_olcum_ozeti(veri):
     oz = {k: veri.get(k) for k in ('ts', 'bugun', 'mekanizma_sayisi', 'emirli_mekanizma',
-                                   'telli_mekanizma', 'sayilan_depolar', '_kullanici', '_sure_sn')}
+                                   'telli_mekanizma', 'sayilan_depolar', '_kullanici', '_sure_sn', 'mrp')}
     oz['tel_sayisi'] = len(veri.get('teller') or {})
     return oz
 
@@ -14255,6 +14255,9 @@ KP_PROFILLER = {
         # SINIR: MRP koşusundan SONRA gelen stok emre yansımaz (2609W: 01D 460
         # duruyor, emir 1.017) — panel stok sütununu yine gösterir.
         'opr_net': True,
+        # MRP SONRASI CFI (kullanıcı 2026-10-13): OPR'ler salı akşamı MRP'siyle yenilenir;
+        # sonrasında CFI ile girilen üretim durum-10 OPR'den düşülür (kp.opr_cfi_dus).
+        'mrp_cfi': True,
         # 10.130.3778'in altındaki 10.130.3778W HAYALİ — alüminyum onun altında;
         # açılmazsa en büyük ihtiyaçlı ürün (8.470 adet) hammaddesiz görünür.
         'hayali_seviye': 3, 'excel_yukleme': False,
@@ -14514,7 +14517,8 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
         ref_stok = kp.stoklar(cn, [s['kaynak_kod'] for s in satirlar])
         # İhtiyaç da ERP'den tazelenir (OPR'ler gün içinde değişir)
         _ufuk = _kp_ufuk(ufuk, pf)
-        opr = kp.opr_ihtiyaclari(cn, [s['kaynak_kod'] for s in satirlar], _ufuk)
+        opr = kp.opr_ihtiyaclari(cn, [s['kaynak_kod'] for s in satirlar], _ufuk,
+                                 mrp_cfi=bool(pf.get('mrp_cfi')))
     finally:
         try:
             cn.close()
@@ -14524,6 +14528,7 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
         d = opr.get(s['kaynak_kod'])
         if d is not None:
             s['iht_6h'] = d['ihtiyac']
+            s['mrp_cfi'] = d.get('cfi_dusulen') or 0
             s['en_eski_opr'] = d['en_eski'] or ''
             s['opr_sayisi'] = d['opr_sayisi']
             s['gecikmis'] = d['gecikmis']
@@ -14595,7 +14600,7 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
             "durum=?, karar=?, eksi_var=?, olculdu=?, onceki_uretilebilir=?, onceki_olculdu=?, "
             "toplam_stok=?, gereken=?, ref_depolar=?, iht_6h=?, en_eski_opr=?, "
             "opr_sayisi=?, gecikmis=?, stok_ggi=?, oncelik_puan=?, gecikme_gun=?, "
-            "launch_adet=?, launch_sayisi=?, launch_ozet=?, emir_gereken=? "
+            "launch_adet=?, launch_sayisi=?, launch_ozet=?, emir_gereken=?, mrp_cfi=? "
             "WHERE kaynak_kod=?",
             (s.get('uretilebilir'), s.get('kisitlayan', ''),
              next((p['stok_sayilan'] for p in s.get('parcalar', [])
@@ -14608,7 +14613,7 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
              s.get('gecikmis') or 0, s.get('stok_ggi') or 0,
              s.get('oncelik_puan') or 0, s.get('gecikme_gun'),
              s.get('launch_adet') or 0, s.get('launch_sayisi') or 0,
-             s.get('launch_ozet') or '', s.get('emir_gereken') or 0,
+             s.get('launch_ozet') or '', s.get('emir_gereken') or 0, s.get('mrp_cfi') or 0,
              s['kaynak_kod']))
         # parça kırılımı: önceki stoğu koru, satırları tazele
         onceki_stoklar = {r['alt_kod']: r['stok_sayilan'] for r in conn.execute(
@@ -14806,7 +14811,7 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
                     for x in dk:
                         ust_izi.setdefault(x, []).append(k)
             kodlar = sorted(_kume)
-        opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk)
+        opr = kp.opr_ihtiyaclari(cn, kodlar, ufuk, mrp_cfi=bool(pf.get('mrp_cfi')))
         # Stok burada da okunur: öncelik puanı "stokla kapanmayan adet" üzerinden
         # hesaplanıyor, stoksuz puanla kurulan sıra ilk yenilemeye kadar yanlış olurdu.
         ref_stok = kp.stoklar(cn, sorted(opr)) if opr else {}
@@ -14836,8 +14841,8 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
             f"INSERT INTO {pf['tablo']} (kaynak_kod, sira, urun, iht_6h, acik_launch, gereken, "
             "en_eski_opr, opr_sayisi, gecikmis, plan_dosya, plan_yuklendi, agac_farki, aktif, "
             "stok_ggi, oncelik_puan, gecikme_gun, launch_adet, launch_sayisi, launch_ozet, "
-            "emir_gereken, ust_kod) "
-            "VALUES (?,?,'',?,0,?,?,?,?,'AS400 (OPR)',?,'',1,?,?,?,?,?,?,?,?) "
+            "emir_gereken, ust_kod, mrp_cfi) "
+            "VALUES (?,?,'',?,0,?,?,?,?,'AS400 (OPR)',?,'',1,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(kaynak_kod) DO UPDATE SET sira=excluded.sira, "
             "iht_6h=excluded.iht_6h, gereken=excluded.gereken, "
             "en_eski_opr=excluded.en_eski_opr, opr_sayisi=excluded.opr_sayisi, "
@@ -14846,11 +14851,12 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
             "oncelik_puan=excluded.oncelik_puan, gecikme_gun=excluded.gecikme_gun, "
             "launch_adet=excluded.launch_adet, launch_sayisi=excluded.launch_sayisi, "
             "launch_ozet=excluded.launch_ozet, emir_gereken=excluded.emir_gereken, "
-            "ust_kod=excluded.ust_kod",
+            "ust_kod=excluded.ust_kod, mrp_cfi=excluded.mrp_cfi",
             (kod, i, d['ihtiyac'], d['_gereken'], d['en_eski'] or '',
              d['opr_sayisi'], d['gecikmis'], simdi,
              d['_ggi'], d['_puan'], d['_gun'], d['launch_adet'], d['launch_sayisi'],
-             d['launch_ozet'], d['_emir'], ', '.join(sorted(set(ust_izi.get(kod, []))))))
+             d['launch_ozet'], d['_emir'], ', '.join(sorted(set(ust_izi.get(kod, [])))),
+             d.get('cfi_dusulen') or 0))
     if pf.get('makineler'):
         conn.execute("DELETE FROM kp_kod_kumesi WHERE plan=?", (pf['anahtar'],))
         conn.executemany(
@@ -14914,7 +14920,7 @@ def kaynak_plan_oprler(plan):
     except Exception as e:
         return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 424
     try:
-        d = kp.opr_ihtiyaclari(cn, [kod]).get(kod) or {'satirlar': [], 'ihtiyac': 0}
+        d = kp.opr_ihtiyaclari(cn, [kod], mrp_cfi=bool(pf.get('mrp_cfi'))).get(kod) or {'satirlar': [], 'ihtiyac': 0}
     finally:
         try:
             cn.close()

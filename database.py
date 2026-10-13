@@ -1921,6 +1921,12 @@ def init_db(_ikinci_tur=False):
             c.execute(f"ALTER TABLE {_tablo} ADD COLUMN ust_kod TEXT DEFAULT ''")
         except Exception:
             pass                              # zaten var
+        # MRP SONRASI CFI (kullanici 2026-10-13): son sali MRP'sinden sonra CFI ile girilen
+        # uretim — durum-10 OPR'den dusulen adet (panelde ihtiyac hucresinde gorunur)
+        try:
+            c.execute(f"ALTER TABLE {_tablo} ADD COLUMN mrp_cfi REAL DEFAULT 0")
+        except Exception:
+            pass
     # METAL PLANI MAKINE ATAMASI (kullanici 2026-10-01): panodaki surukle-birak
     # atamasi plan satirinda durur — liste AS400'den yeniden kurulsa da kaybolmaz.
     # plan_adet NULL = gereken kadar.

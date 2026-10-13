@@ -225,7 +225,9 @@ def olc(cn, kp, mekanizmalar, sayilan, eksi_dusulen):
     kp: kaynak_plan_kontrol modülü (ağaç / stok / emir sorguları orada)."""
     mekanizmalar = sorted({str(k).strip().upper() for k in mekanizmalar
                            if k and not str(k).strip().upper().startswith(TEL_ONEK)})
-    m_opr = kp.opr_ihtiyaclari(cn, mekanizmalar, 35)
+    # MRP SONRASI CFI (2026-10-13): mekanizmanın son salı MRP'sinden sonra CFI ile girilen
+    # üretimi OPR'den düşülür — üretilmiş mekanizmanın teli hâlâ ihtiyaç görünmesin
+    m_opr = kp.opr_ihtiyaclari(cn, mekanizmalar, 35, mrp_cfi=True)
     agac, iz = kp.urun_agaci_hayali(cn, mekanizmalar, azami_seviye=3, acilmayan_onekler=TEL_ONEK)
     teller = {}
     for mk, lst in agac.items():
@@ -237,7 +239,7 @@ def olc(cn, kp, mekanizmalar, sayilan, eksi_dusulen):
                                                'seviye': z.get('seviye', 1), 'yol': z.get('yol', '')})
     kodlar = sorted(teller)
     stok = kp.stoklar(cn, kodlar) if kodlar else {}
-    t_opr = kp.opr_ihtiyaclari(cn, kodlar, 35) if kodlar else {}
+    t_opr = kp.opr_ihtiyaclari(cn, kodlar, 35, mrp_cfi=True) if kodlar else {}
     bilgi = urun_bilgisi(cn, kodlar) if kodlar else {}
     tel_veri = {}
     for k in kodlar:
@@ -261,6 +263,9 @@ def olc(cn, kp, mekanizmalar, sayilan, eksi_dusulen):
         'bugun': date.today().isoformat(),
         'sayilan_depolar': list(sayilan), 'eksi_dusulen': list(eksi_dusulen),
         'mekanizma_sayisi': len(mekanizmalar), 'emirli_mekanizma': len(m_opr),
+        'mrp': {'gun': kp.son_mrp().isoformat(),
+                'mekanizma_cfi': round(sum(d.get('cfi_dusulen') or 0 for d in m_opr.values()), 2),
+                'mekanizma_cfi_kod': sum(1 for d in m_opr.values() if (d.get('cfi_dusulen') or 0) > 0)},
         'telli_mekanizma': len({u['kod'] for lst in teller.values() for u in lst}),
         'teller': tel_veri,
         # Yalnız teli olan mekanizmaların emirleri saklanır

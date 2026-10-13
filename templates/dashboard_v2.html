@@ -12967,7 +12967,9 @@ window.__I18N_SOZLUK__ = {
             var btn = document.getElementById('tp-tazele-btn');
             if (btn) btn.title = j.gelistirme_kopyasi ? "Geliştirme kopyası: AS400'den tazeleme yalnız sunucudaki panelde" : "AS400'den yeniden oku";
             if (bilgi) bilgi.innerHTML = o ? ('Ölçüm ' + esc(o.ts) + ' · ' + fmt(o.mekanizma_sayisi) + ' mekanizma, ' +
-                fmt(o.emirli_mekanizma) + ' açık emirli · ' + fmt(o.tel_sayisi) + ' tel · stok depoları ' + esc((o.sayilan_depolar || []).join(', '))) : '';
+                fmt(o.emirli_mekanizma) + ' açık emirli · ' + fmt(o.tel_sayisi) + ' tel · stok depoları ' + esc((o.sayilan_depolar || []).join(', ')) +
+                (o.mrp ? ' · son MRP ' + esc(o.mrp.gun.slice(8, 10) + '.' + o.mrp.gun.slice(5, 7)) + ' (salı)' +
+                    (o.mrp.mekanizma_cfi ? ' — sonrasında CFI ile üretilen ' + fmt(o.mrp.mekanizma_cfi) + ' mekanizma (' + fmt(o.mrp.mekanizma_cfi_kod) + ' kod) OPR\'den düşüldü' : '') : '')) : '';
             var kutu = document.getElementById('tp-tablo'), oz = document.getElementById('tp-ozet');
             if (!o) {
                 if (oz) oz.innerHTML = '';
@@ -17569,7 +17571,10 @@ window.__I18N_SOZLUK__ = {
                             esc(s.agac_farki.join(', ')) + '" style="color:var(--warn)">≠</span>' : '') + '</td>' +
                     '<td style="text-align:right"><a href="#" onclick="kpOprAc(&quot;' + esc(s.kaynak_kod) + '&quot;);return false"' +
                         ' title="açık üretim emirlerini göster">' + fmt(s.iht_6h || 0) + '</a>' +
-                        (s.opr_sayisi ? ' <span style="color:var(--dim);font-size:.72rem">(' + s.opr_sayisi + ')</span>' : '') + '</td>' +
+                        (s.opr_sayisi ? ' <span style="color:var(--dim);font-size:.72rem">(' + s.opr_sayisi + ')</span>' : '') +
+                        // MRP SONRASI CFI (2026-10-13): salı MRP'sinden sonra CFI ile girilen üretim OPR'den düşüldü
+                        ((s.mrp_cfi || 0) > 0 ? '<div style="font-size:.7rem;color:var(--success);font-weight:700" title="Son salı MRP\'sinden sonra CFI ile girilen üretim — OPR bir sonraki MRP\'ye kadar güncellenmediği için ihtiyaçtan düşüldü">−' +
+                            fmt(s.mrp_cfi) + ' CFI</div>' : '') + '</td>' +
                     '<td style="text-align:right;color:' + ((s.stok_ggi || 0) < 0 ? 'var(--danger)' : 'var(--muted)') +
                         '" title="' + esc('stok = ' + kpDepoMetni('ref_depolar') +
                             (s.ref_depolar ? ' | tüm depolar: ' + s.ref_depolar : '') +
@@ -17642,12 +17647,15 @@ window.__I18N_SOZLUK__ = {
                         '<td style="font-size:.76rem">' + (x.durum === '10' ? 'OPR (launch yok)' : 'launch açık') + '</td>' +
                         '<td style="text-align:right">' + fmt(x.adet) + '</td>' +
                         '<td style="text-align:right;color:var(--muted)">' + fmt(x.teyit) + '</td>' +
-                        '<td style="text-align:right;font-weight:800">' + fmt(x.kalan) + '</td>' +
+                        '<td style="text-align:right;font-weight:800">' + fmt(x.kalan) +
+                            (x.cfi_dusulen ? ' <span style="font-size:.7rem;font-weight:600;color:var(--success)" title="son MRP\'den sonra CFI ile girilen üretim düşüldü">(−' + fmt(x.cfi_dusulen) + ' CFI)</span>' : '') + '</td>' +
                         '<td style="font-size:.76rem;color:' + (x.ufukta ? 'var(--success)' : 'var(--dim)') + '">' +
                             (x.ufukta ? 'sayıldı' : 'ufuk dışı') + '</td></tr>';
                 });
                 h += '</tbody></table><div style="padding:8px 14px;font-size:.78rem;color:var(--muted)">' +
-                    'İhtiyaç = ufuk içindeki KALAN toplamı = <b>' + fmt(d.ihtiyac || 0) + '</b></div>';
+                    'İhtiyaç = ufuk içindeki KALAN toplamı = <b>' + fmt(d.ihtiyac || 0) + '</b>' +
+                    (d.mrp_gunu ? ' · son MRP ' + esc(d.mrp_gunu.slice(8, 10) + '.' + d.mrp_gunu.slice(5, 7)) + ' (salı) — sonrasında CFI ' +
+                        fmt(d.mrp_cfi || 0) + (d.cfi_dusulen ? ', <b>' + fmt(d.cfi_dusulen) + '</b> adedi OPR\'den düşüldü' : '') : '') + '</div>';
                 td.innerHTML = h;
             });
         }

@@ -32,7 +32,7 @@ import math
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
@@ -47,6 +47,16 @@ GOSTERILEN_DEPOLAR = ('01D', 'CF2', '01W', 'REP', '02', 'MDT', 'MK2', 'MT2')
 GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,21}$')
 # Acik uretim emirleri gorunumu (as400_config.KAYNAK_TABLO ile ayni kaynak)
 OPR_TABLO = 'tkc0301F.XPRO90'
+HAREKET_TABLO = 'tkc0301F.BMMAF0'
+# ── MRP SONRASI CFI (kullanıcı 2026-10-13) ───────────────────────────────────
+# "OPR'ler haftada 1 kere yenilenir, SALI AKŞAMI MRP çalışır. 2124W'de cuma ve dün üretim
+# yapıp CFI ile teyit vermişiz ama OPR hâlâ göründüğü için ihtiyaç çıkıyor." Launch'sız
+# üretim girişi (CFI) stoğa girer ama durum-10 OPR bir sonraki MRP'ye kadar aynen kalır
+# (2124W: 08–09.10 CFI 680, OPR 320 duruyordu). Son MRP'nin ERTESİ GÜNÜNDEN bugüne kadarki
+# CFI, durum-10 OPR satırlarından EN ESKİDEN başlayarak düşülür (MRP stoğu en yakın
+# ihtiyaca ayırır). RPR (launch teyidi) düşülmez: launch'ın kalanı XPRO90'da anında azalır.
+MRP_GUNU = 1          # datetime.weekday(): 0 pazartesi, 1 salı
+MRP_SAATI = 20        # salı bu saatten sonra yeni OPR'ler hazır sayılır
 IHTIYAC_UFUK_GUN = 42          # 6 hafta — kullanicinin 1845W ornegiyle uyumlu
 
 
@@ -309,7 +319,68 @@ def stoklar(cn, kodlar):
     return st
 
 
-def opr_ihtiyaclari(cn, kodlar, ufuk_gun=42):
+def son_mrp(simdi=None):
+    """Son MRP koşusunun GÜNÜ (salı). Salı MRP_SAATI'nden önce → geçen salı."""
+    simdi = simdi or datetime.now()
+    geri = (simdi.weekday() - MRP_GUNU) % 7
+    gun = (simdi - timedelta(days=geri)).date()
+    if geri == 0 and simdi.hour < MRP_SAATI:
+        gun -= timedelta(days=7)
+    return gun
+
+
+def cfi_mrp_sonrasi(cn, kodlar, mrp_gunu, bugun=None):
+    """Son MRP'nin ertesi gününden bugüne CFI (launch'sız üretim girişi) → {kod: adet}.
+    Gün gün sorulur (as400_import'un CFI kontrolüyle aynı eşitlik sorgusu — tarih aralığı
+    ifadesi BMMAF0'da tam tarama yapardı)."""
+    from datetime import date
+    bugun = bugun or date.today()
+    istenen = {str(k).strip().upper() for k in kodlar}
+    out = {}
+    cu = cn.cursor()
+    g = mrp_gunu + timedelta(days=1)
+    while g <= bugun:
+        cu.execute(f"SELECT TRIM(MGARCD), SUM(MGQTA) FROM {HAREKET_TABLO} WHERE MGCACD='CFI' "
+                   f"AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? AND MGDGGO=? GROUP BY TRIM(MGARCD)",
+                   (g.year // 100, g.year % 100, g.month, g.day))
+        for kod, adet in cu.fetchall():
+            k = str(kod or '').strip().upper()
+            if k in istenen:
+                out[k] = out.get(k, 0.0) + float(adet or 0)
+        g += timedelta(days=1)
+    return out
+
+
+def opr_cfi_dus(sonuc, cfi, mrp_gunu, bugun=None):
+    """opr_ihtiyaclari sonucundan MRP sonrası CFI'ı düşer (yerinde); toplamlar yeniden.
+    Her koda: mrp_gunu, mrp_cfi (son MRP'den beri CFI), cfi_dusulen (OPR'den düşülen)."""
+    from datetime import date
+    bugun = (bugun or date.today()).isoformat()
+    for kod, d in sonuc.items():
+        kalan_cfi = max(0.0, float(cfi.get(kod) or 0))
+        d['mrp_gunu'] = mrp_gunu.isoformat()
+        d['mrp_cfi'] = round(kalan_cfi, 3)
+        d['cfi_dusulen'] = 0.0
+        if kalan_cfi <= 0:
+            continue
+        for x in sorted(d['satirlar'], key=lambda r: (r.get('tarih') or '9999')):
+            if x['durum'] != '10' or kalan_cfi <= 0 or x['kalan'] <= 0:
+                continue
+            dus = min(kalan_cfi, x['kalan'])
+            x['cfi_dusulen'] = round(dus, 3)
+            x['kalan'] = round(x['kalan'] - dus, 3)
+            kalan_cfi -= dus
+            d['cfi_dusulen'] += dus
+        d['cfi_dusulen'] = round(d['cfi_dusulen'], 3)
+        ufukta = [x for x in d['satirlar'] if x.get('ufukta') and x['kalan'] > 0]
+        d['ihtiyac'] = round(sum(x['kalan'] for x in ufukta), 3)
+        d['opr_sayisi'] = len(ufukta)
+        d['gecikmis'] = round(sum(x['kalan'] for x in ufukta if x.get('tarih') and x['tarih'] < bugun), 3)
+        d['en_eski'] = min((x['tarih'] for x in ufukta if x.get('tarih')), default=None)
+    return sonuc
+
+
+def opr_ihtiyaclari(cn, kodlar, ufuk_gun=42, mrp_cfi=False):
     """AÇIK ÜRETİM EMİRLERİNDEN (OPR) ihtiyaç — plan dosyasına gerek yok.
 
     Kullanıcı 2026-07-31: "referansın ihtiyaç adedi, 10 07 01 ekranında kodun
@@ -323,6 +394,7 @@ def opr_ihtiyaclari(cn, kodlar, ufuk_gun=42):
       Q0FPD* = üretim bitiş (teslim) tarihi → aciliyet sırası ve ufuk filtresi
 
     ufuk_gun: bugünden itibaren kaç gün ilerisi sayılsın (varsayılan 42 = 6 hafta).
+    mrp_cfi: son MRP'den sonraki CFI durum-10 OPR'den düşülsün (bkz. opr_cfi_dus).
     Kullanıcının 10.300.1845W örneği bununla birebir tutuyor: 29/06'dan kalan 86
     + 27/07 tarihli 270 + 31/08 tarihli 732 = 1088; 19/10 tarihli 4. emir ufkun
     dışında kaldığı için sayılmıyor.
@@ -382,6 +454,12 @@ def opr_ihtiyaclari(cn, kodlar, ufuk_gun=42):
         d['satirlar'].sort(key=lambda x: (x['tarih'] or '9999'))
         # '40×2 · 45×1' — panelde kodun yanındaki rozet
         d['launch_ozet'] = ' · '.join(f'{k}×{v}' for k, v in sorted(d['launch_durum'].items()))
+    if mrp_cfi and sonuc:
+        mrp = son_mrp()
+        try:
+            opr_cfi_dus(sonuc, cfi_mrp_sonrasi(cn, list(sonuc), mrp), mrp)
+        except Exception as e:           # okunamazsa OPR olduğu gibi kalır (eski davranış)
+            print(f'[PLAN] MRP sonrası CFI okunamadı: {e}')
     return sonuc
 
 
