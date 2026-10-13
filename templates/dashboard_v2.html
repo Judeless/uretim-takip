@@ -12287,7 +12287,7 @@ window.__I18N_SOZLUK__ = {
                 var blob = await r.blob();
                 var ad = 'AnaVeri.xlsx';
                 var cd = r.headers.get('Content-Disposition') || '';
-                var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+                var m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);   // önce UTF-8 ad (Türkçe harfler)
                 if (m && m[1]) { try { ad = decodeURIComponent(m[1]); } catch (e) { ad = m[1]; } }
                 var url = URL.createObjectURL(blob);
                 var a = document.createElement('a');
@@ -13268,7 +13268,8 @@ window.__I18N_SOZLUK__ = {
                 if (!r.ok) { var h = ''; try { h = (await r.json()).hata || ''; } catch (e) {} toast(h || ('İndirilemedi (HTTP ' + r.status + ')'), 'err'); return; }
                 var blob = await r.blob();
                 var ad = varsayilanAd;
-                var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(r.headers.get('Content-Disposition') || '');
+                var cd = r.headers.get('Content-Disposition') || '';
+                var m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);   // önce UTF-8 ad (Türkçe harfler)
                 if (m && m[1]) { try { ad = decodeURIComponent(m[1]); } catch (e) { ad = m[1]; } }
                 var u = URL.createObjectURL(blob);
                 var a = document.createElement('a');
@@ -13341,7 +13342,7 @@ window.__I18N_SOZLUK__ = {
                 // Dosya adı sunucudan gelir (Content-Disposition); okunamazsa kendimiz üretiriz.
                 var ad = 'referanslar_' + aktifBolum + '_' + aktifLokasyon + '.xlsx';
                 var cd = r.headers.get('Content-Disposition') || '';
-                var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+                var m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);   // önce UTF-8 ad (Türkçe harfler)
                 if (m && m[1]) { try { ad = decodeURIComponent(m[1]); } catch (e) { ad = m[1]; } }
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

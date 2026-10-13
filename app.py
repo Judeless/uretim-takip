@@ -7883,7 +7883,15 @@ def satis_plani_indir():
         return jsonify({'hata': 'tarih YYYY-MM-DD olmalı'}), 400
     conn = get_db()
     SP.tablolari_kur(conn)
-    r = conn.execute("SELECT dosya FROM satis_plani_cekim WHERE tarih=? ORDER BY id DESC LIMIT 1", (tarih,)).fetchone()
+    r = conn.execute("SELECT dosya, id FROM satis_plani_cekim WHERE tarih=? ORDER BY id DESC LIMIT 1", (tarih,)).fetchone()
+    # Saklanan satırlardan güncel düzende (planlamanın 'satış planı GG.AA.xls' düzeni) üret;
+    # satırı silinmiş eski gün için diskteki dosyaya düş
+    veri = SP.cekim_excel(conn, r[1]) if r else None
+    if veri:
+        import io as _io
+        gun = datetime.strptime(tarih, '%Y-%m-%d').strftime('%d.%m')
+        return send_file(_io.BytesIO(veri), as_attachment=True, download_name=f'satış planı {gun}.xlsx',
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     yol = os.path.join(SP.KLASOR, os.path.basename(r[0]) if r and r[0] else f'Satis_Plani_{tarih}.xlsx')
     if not os.path.exists(yol):
         return jsonify({'hata': f'{tarih} için dosya yok'}), 404

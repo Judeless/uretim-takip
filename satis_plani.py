@@ -341,39 +341,156 @@ def _imza(satirlar, basliklar):
     return hashlib.sha256(ozet.encode('utf-8')).hexdigest()
 
 
-def excel_yaz(satirlar, basliklar, ts, depo, yol, kaynak_metni='AS400 10-05-03-06 (XWPVF0)'):
-    """Günün dosyası: şablonun 'Finale' düzeni (C … TOTALE, TIPO ART, MAG., UBIC1, UBIC2)."""
+# ── GÜNÜN EXCEL'İ — planlamanın 'satış planı GG.AA.xls' düzeni (kullanıcı 2026-10-13) ──
+# "Günlük olarak satış planını çekip kaydedelim, ekteki Excel formatında." Şablon
+# (Masaüstü\Plan\satış planı 09.10.xls): 'Finale' sayfası — 1. satır SALES PLAN COFLETK + tarih,
+# 3-5. satır AS400 talimatı, 8. satır TOTAL (ARRETR. + 12 hafta), 10. satır stock/DELAY/P0..P11,
+# 11. satır başlık (sarı), 12. satırdan müşteri satırları; 'Sayfa1' — kod bazında özet
+# (kod · a-p · stock · DELAY · P0..P11). Yazı tipi Arial, 1-11. satırlar dondurulmuş.
+# Şablonun 'Import' sayfası (XWQUAL='P' satırları) Forge'da yok — yalnız 'C' satırları çekilir.
+# xlwt (xls) kurulu değil → aynı düzende .xlsx.
+_SAYI_FMT = '_-* #,##0_-;\\-* #,##0_-;_-* "-"_-;_-@_-'
+_TOPLAM_FMT = '_-* #,##0_-;\\-* #,##0_-;_-* "-"??_-;_-@_-'
+# Şablonun sütun genişlikleri (xls birimi / 256 ≈ karakter)
+_GENISLIK = [597, 2218, 1905, 7509, 3072, 4892, 1820, 682, 2929, 2730, 3498, 3470, 2048, 2389, 2389,
+             2389, 2389, 2702, 2588, 2218, 2218, 2218, 2218, 2218, 2218, 2218, 3043, 2787, 1536, 1536,
+             1507, 2332, 2332]
+
+
+def _musteri_no(v):
+    v = _t(v)
+    return int(v) if v.isdigit() else v
+
+
+def excel_bayt(satirlar, basliklar, ts, depo='', kaynak_metni='AS400 10-05-03-06 (XWPVF0)'):
+    """Satırlar (ham dahil) → şablon düzeninde .xlsx baytları."""
+    import io
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.utils import get_column_letter
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter as H
+    hb = list(basliklar)[:12] + [''] * max(0, 12 - len(basliklar))
     wb = Workbook()
     ws = wb.active
-    ws.title = 'Satış Planı'
-    ws.append([f'SATIŞ PLANI — {kaynak_metni} · çekim {ts} · depo {depo or "?"} · {len(satirlar)} satır'])
-    ws['A1'].font = Font(bold=True, size=12)
-    ws.append([])
-    ws.append(BASLIK + basliklar + ['TOTALE', 'TIPO ART', 'MAG.', 'UBIC1', 'UBIC2'])
-    for c in ws[3]:
-        c.font = Font(bold=True, color='FFFFFF')
-        c.fill = PatternFill('solid', fgColor='1F3864')
-        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    for s in satirlar:
-        h = list(s['ham']) + [None] * max(0, 32 - len(s['ham']))
-        ws.append([h[0], h[1], h[2], s['musteri'], h[4], s['article'], h[6], s['prov'], h[8], h[9],
-                   h[10], h[11], h[12], s['stok'], s['gecikmis']] + [s['haftalar'].get(b, 0) for b in basliklar]
-                  + [s['toplam'], s['tipo'], s['depo'], h[30], h[31]])
-    for i, w in enumerate([4, 9, 8, 34, 8, 18, 7, 7, 7, 7, 8, 8, 5, 9, 9] + [8] * len(basliklar) + [9, 6, 6, 7, 7], 1):
-        ws.column_dimensions[get_column_letter(i)].width = w
-    ws.freeze_panes = 'G4'
-    ws.auto_filter.ref = f'A3:{get_column_letter(ws.max_column)}{ws.max_row}'
+    ws.title = 'Finale'
+    sari = PatternFill('solid', fgColor='FFFF00')
+    k9, k9b = Font(name='Arial', size=9), Font(name='Arial', size=9, bold=True)
+    k10 = Font(name='Arial', size=10)
+    ws['B1'] = 'SALES PLAN  COFLETK'
+    ws['B1'].font = Font(name='Arial', size=11, bold=True)
+    try:
+        ws['F1'] = datetime.strptime(ts[:10], '%Y-%m-%d')
+        ws['F1'].number_format = 'mm-dd-yy'          # Excel'in kısa tarih biçimi (yerel ayara göre)
+    except (TypeError, ValueError):
+        ws['F1'] = ts
+    ws['F1'].font = Font(name='Arial', size=12, bold=True)
+    ws['H1'] = f'Forge · {kaynak_metni} · çekim {ts} · {len(satirlar)} satır' + (f' · depo {depo}' if depo else '')
+    ws['H1'].font = Font(name='Arial', size=8, italic=True, color='808080')
+    ws['A3'], ws['B3'] = '1)', 'LAUNCH IN AS400 THE CALCULATION : '
+    ws['C4'] = ('10 , 05 , 03 , 06 ( M=month , S= week , G = Day .     S = with detail about the customers  , '
+                'blank = without detail  , F6')
+    ws['A5'], ws['B5'] = '2)', 'UPDATE THE EXCEL FILE '
+    for h in ('A3', 'A5', 'C4'):
+        ws[h].font = k9
+    for h in ('B3', 'B5'):
+        ws[h].font, ws[h].fill = k9b, sari
+    n = len(satirlar)
+    ilk, son = 12, 11 + max(n, 1)
+    ws['I8'] = 'TOTAL'
+    ws['I8'].font = k9
+    for c in range(15, 28):                               # O (ARRETR.) … AA (12. hafta)
+        h = ws.cell(row=8, column=c, value=f'=SUBTOTAL(9,{H(c)}{ilk}:{H(c)}{son})')
+        h.font, h.number_format = k9, _TOPLAM_FMT
+    for c, v in zip(range(14, 28), ['stock', 'DELAY'] + [f'P{i}' for i in range(12)]):
+        ws.cell(row=10, column=c, value=v).font = k9b
+    baslik = (['C', 'CLIENTE', 'DEST.', 'RAG.SOC.', 'AM/OEM C', 'CD ART.', 'PRIORIT.', '', 'CLASSE', 'MARCA',
+               'PUSHPULL', 'AM/OEM A', 'U.M.', 'GIACENZA', 'ARRETR.'] + [('   ' + w) if w else '' for w in hb] +
+              ['TOTALE', 'TIPO ART', '', 'UBIC1', '', 'UBIC2'])
+    for c, v in enumerate(baslik, start=1):
+        h = ws.cell(row=11, column=c, value=v)
+        h.font, h.fill = k9b, sari
+    for i, sa in enumerate(satirlar):
+        hm = list(sa.get('ham') or []) + [None] * max(0, 32 - len(sa.get('ham') or []))
+        sat = ([_t(hm[0]) or 'C', _musteri_no(sa.get('musteri_kodu') or hm[1]), _t(sa.get('dest') or hm[2]) or None,
+                sa.get('musteri') or _t(hm[3]), _t(hm[4]), sa['article'], _t(sa.get('priorit') or hm[6]),
+                sa.get('prov') or _t(hm[7]), _t(hm[8]), _t(hm[9]) or None, _t(hm[10]) or None, _t(hm[11]),
+                _t(hm[12]), sa.get('stok') or 0, sa.get('gecikmis') or 0] +
+               [(sa.get('haftalar') or {}).get(w, 0) if w else None for w in hb] +
+               [sa.get('toplam') or 0, sa.get('tipo') or _t(hm[28]), sa.get('depo') or _t(hm[29]) or None,
+                _t(hm[30]) or None, None, _t(hm[31]) or None])
+        r = ilk + i
+        for c, v in enumerate(sat, start=1):
+            if v in (None, ''):
+                continue
+            h = ws.cell(row=r, column=c, value=v)
+            h.font = k10
+            if 14 <= c <= 27:
+                h.number_format = _SAYI_FMT
+    for i, g in enumerate(_GENISLIK, start=1):
+        ws.column_dimensions[H(i)].width = round(g / 256, 1)
+    ws.freeze_panes = 'A12'
+    ws.auto_filter.ref = f'A11:{H(len(baslik))}{son}'
+    # Sayfa1 — kod bazında özet (stok her müşteri satırında aynı → toplanmaz)
+    w1 = wb.create_sheet('Sayfa1')
+    w1.append(['kod', 'a-p', 'stock', 'DELAY'] + [f'P{i}' for i in range(12)])
+    w1.append([23, None, 23, 23] + [23] * 12)              # şablondaki yardımcı satır (sütun no)
+    for c in w1[1]:
+        c.font = Font(name='Arial', size=10, bold=True)
+    kodlar = {}
+    for sa in satirlar:
+        k = sa['article']
+        d = kodlar.setdefault(k, {'ap': sa.get('prov') or '', 'stok': sa.get('stok') or 0, 'gec': 0.0,
+                                  'h': [0.0] * 12})
+        d['gec'] += sa.get('gecikmis') or 0
+        for j, w in enumerate(hb):
+            if w:
+                d['h'][j] += (sa.get('haftalar') or {}).get(w, 0) or 0
+    for k in sorted(kodlar):
+        d = kodlar[k]
+        w1.append([k, d['ap'], d['stok'], d['gec']] + d['h'])
+    w1.column_dimensions['A'].width = 18
+    w1.freeze_panes = 'B3'
+    b = io.BytesIO()
+    wb.save(b)
+    return b.getvalue()
+
+
+def excel_yaz(satirlar, basliklar, ts, depo, yol, kaynak_metni='AS400 10-05-03-06 (XWPVF0)'):
+    """Günün dosyası — şablon düzeninde (bkz. excel_bayt)."""
+    veri = excel_bayt(satirlar, basliklar, ts, depo, kaynak_metni)
     os.makedirs(os.path.dirname(yol), exist_ok=True)
     gecici = yol + '.tmp'
-    wb.save(gecici)
+    with open(gecici, 'wb') as f:
+        f.write(veri)
     try:
         os.replace(gecici, yol)
     except PermissionError:
         os.remove(gecici)
         raise
+
+
+def cekim_excel(conn, cekim_id):
+    """Saklanan çekimden (satırlar + ham) şablon düzeninde Excel baytları; satır yoksa None.
+    Arşivden indirilen eski günler de güncel düzende gelir."""
+    tablolari_kur(conn)
+    c = conn.execute("SELECT ts, haftalar, depo, kaynak FROM satis_plani_cekim WHERE id=?", (cekim_id,)).fetchone()
+    if not c:
+        return None
+    satirlar = []
+    for r in conn.execute("SELECT musteri_kodu, dest, musteri, article, prov, priorit, stok, gecikmis, haftalar, "
+                          "toplam, tipo, depo, ham FROM satis_plani_satir WHERE cekim_id=? ORDER BY rowid",
+                          (cekim_id,)).fetchall():
+        try:
+            ham = json.loads(r[12] or '[]')
+        except ValueError:
+            ham = []
+        satirlar.append({'musteri_kodu': r[0], 'dest': r[1], 'musteri': r[2], 'article': r[3], 'prov': r[4],
+                         'priorit': r[5], 'stok': r[6] or 0, 'gecikmis': r[7] or 0,
+                         'haftalar': json.loads(r[8] or '{}'), 'toplam': r[9] or 0, 'tipo': r[10], 'depo': r[11],
+                         'ham': ham})
+    if not satirlar:
+        return None
+    metin = 'kullanıcının yüklediği dosya' if c[3] == 'dosya' else 'AS400 10-05-03-06 (XWPVF0)'
+    return excel_bayt(satirlar, json.loads(c[1] or '[]'), c[0], c[2] or '', metin)
 
 
 def kaydet(conn, satirlar, basliklar, kullanici, kaynak='as400', tarih=None, kutuphane='', zorla=False):
