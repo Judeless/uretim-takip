@@ -14182,6 +14182,8 @@ KP_PROFILLER = {
         # GEREKEN = emir − stok idi; stok iki kez düşülüyor, ürün 'gerek yok'
         # görünüyordu. Ayrıntı: metal profilindeki not.
         'opr_net': True,
+        # MRP SONRASI CFI (kullanıcı 2026-10-13: "kaynak ve montaj planlarında da aç")
+        'mrp_cfi': True,
     },
     'montaj': {
         'anahtar': 'montaj', 'ad': 'Montaj planı (TK2)', 'kod_baslik': 'Montaj kodu',
@@ -14222,6 +14224,7 @@ KP_PROFILLER = {
         'kisit_disi_parcalar': ('50.010.700',),
         # OPR NET (kullanıcı 2026-10-01 onayı) — bkz. kaynak / metal profili.
         'opr_net': True,
+        'mrp_cfi': True,          # MRP sonrası CFI düşülür (2026-10-13, bkz. metal profili)
     },
     # METAL ENJEKSİYON — TK2 (kullanıcı 2026-10-01: "metal enjeksiyon referansları
     # için de bir plan modülü oluşturalım, referansları bizim Forge'dan alalım").
@@ -15050,7 +15053,7 @@ def _kp_olcum_taze(onceki_ts, simdi_ts):
 def _kp_bildirim_guncelle(conn, satirlar, simdi, pf=None):
     """Ölçüm sonrası olayları açar/günceller/kapatır. {'acilan','guncellenen','kapanan'}."""
     pf = pf or KP_PROFILLER['kaynak']
-    sayac = {'acilan': 0, 'guncellenen': 0, 'kapanan': 0}
+    sayac = {'acilan': 0, 'guncellenen': 0, 'kapanan': 0, 'tazelenen': 0}
     for s in satirlar:
         kod = s['kaynak_kod']
         u, onc = s.get('uretilebilir'), s.get('_onceki_u')
@@ -15074,6 +15077,18 @@ def _kp_bildirim_guncelle(conn, satirlar, simdi, pf=None):
                 acik = None
         taze = _kp_olcum_taze(s.get('_onceki_t'), simdi)
         artis = (u - onc) if (taze and u is not None and onc is not None) else 0
+        if acik and not (emir > 0 and (u or 0) > 0 and artis > 0):
+            # AÇIK KAYIT TAZELENİR (kullanıcı 2026-10-13, 94.LTK.50: kart 10.08'deki '0 → 63'ü
+            # gösteriyordu; malzeme 7'ye düşmüş, launch bitmiş, en eski OPR değişmişti). Kayıt
+            # yalnız emir/launch açılınca ya da malzeme SIFIRA inince kapanıyor — arada her
+            # ölçümün güncel değeri yazılır. Yeniden DUYURULMAZ (bildirildi_ts'e dokunulmaz);
+            # 'onceki_uretilebilir' malzeme gelmeden önceki değer olarak kalır.
+            conn.execute(
+                f"UPDATE {pf['bildirim']} SET guncelleme_ts=?, uretilebilir=?, artis=?, gereken=?, "
+                "emir_gereken=?, launch_adet=?, oncelik_puan=?, en_eski_opr=? WHERE id=?",
+                (simdi, u, (u or 0) - (acik['onceki_uretilebilir'] or 0), s.get('gereken') or 0, emir,
+                 launch, s.get('oncelik_puan') or 0, s.get('en_eski_opr') or '', acik['id']))
+            sayac['tazelenen'] += 1
         if emir > 0 and (u or 0) > 0 and artis > 0:
             if acik:
                 # Aynı referans yeniden arttı: satırı tazele ve YENİDEN duyur.

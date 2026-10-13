@@ -17331,12 +17331,13 @@ window.__I18N_SOZLUK__ = {
                         '<th></th></tr></thead><tbody>';
                     acik.forEach(function (o) {
                         h += '<tr><td style="font-weight:800">' + esc(o.kaynak_kod) + '</td>' +
-                            '<td style="text-align:right">' + esc(String(o.onceki_uretilebilir)) + ' → <b>' + esc(String(o.uretilebilir)) + '</b></td>' +
+                            '<td style="text-align:right">' + esc(String(o.onceki_uretilebilir)) + ' → <b>' + esc(String(o.uretilebilir)) + '</b>' +
+                                ((o.uretilebilir || 0) < (o.emir_gereken || 0) ? '<div style="font-size:.68rem;color:var(--warn);font-weight:700" title="malzeme emrin tamamına yetmiyor">kısmi</div>' : '') + '</td>' +
                             '<td style="text-align:right;color:var(--success);font-weight:800">▲ +' + fmt(o.artis || 0) + '</td>' +
                             '<td style="text-align:right;font-weight:800">' + fmt(o.emir_gereken || 0) + '</td>' +
                             '<td style="text-align:right;color:var(--muted)">' + fmt(o.launch_adet || 0) + '</td>' +
                             '<td style="font-size:.78rem">' + esc(o.en_eski_opr || '—') + '</td>' +
-                            '<td style="font-size:.76rem;color:var(--muted)">' + esc((o.guncelleme_ts || o.olusturma_ts || '').slice(5)) + '</td>' +
+                            '<td style="font-size:.76rem;color:var(--muted)" title="' + esc(o.guncelleme_ts ? 'son ölçüm ' + o.guncelleme_ts : '') + '">' + esc((o.olusturma_ts || '').slice(5)) + '</td>' +
                             '<td style="font-size:.76rem;color:' + (o.bildirildi_ts ? 'var(--muted)' : 'var(--warn)') + '">' +
                                 (o.bildirildi_ts ? esc(o.bildirildi_ts.slice(5)) : 'bekliyor') + '</td>' +
                             '<td style="text-align:right;white-space:nowrap">' + kpIsEmriHucre(o) + '</td>' +
@@ -17397,7 +17398,9 @@ window.__I18N_SOZLUK__ = {
             var rozet = ie ? '<div style="font-size:.7rem;font-weight:800;color:var(--primary);margin-bottom:3px" ' +
                 'title="İş Yönetimi\'nde kayıtlı">📌 ' + esc(ie.durum_ad || ie.durum) + ' · ' + fmt(ie.hedef_adet || 0) + ' adet</div>' : '';
             if (ie && !bekliyor) return rozet;
-            var deger = bekliyor ? (ie.hedef_adet || 0) : Math.ceil(o.emir_gereken || 0);
+            // Öneri: malzemenin yettiği kadar (2026-10-13 — 94.LTK.50: emir 150, malzeme 7)
+            var deger = bekliyor ? (ie.hedef_adet || 0)
+                : Math.max(1, Math.min(Math.ceil(o.emir_gereken || 0), Math.floor(o.uretilebilir || o.emir_gereken || 0)));
             return rozet +
                 '<input type="number" min="1" step="1" id="kp-ie-adet-' + o.id + '" value="' + deger + '" ' +
                     'class="rt-row-input" style="width:78px;text-align:right" title="İş emrine yazılacak adet" ' +
