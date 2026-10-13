@@ -71,7 +71,56 @@ def tablolari_kur(conn):
         prov TEXT, priorit TEXT, stok REAL, gecikmis REAL, haftalar TEXT, toplam REAL,
         tipo TEXT, depo TEXT, ham TEXT)""")
     conn.execute("CREATE INDEX IF NOT EXISTS ix_sps_cekim ON satis_plani_satir(cekim_id)")
+    acilim_tablo_kur(conn)
     conn.commit()
+
+
+# ── FICTITIOUS (HAYALİ) KODLAR (kullanıcı 2026-10-13) ────────────────────────
+# "Fictitious tanımlanan referanslar listeye gelmemeli." AS400 malzeme kartında
+# Product.Explos. = 2 'fictit. assembly' (BARTF0.A0PROD='2') olan kod üretilmez, stokta
+# tutulmaz — ürün ağacında gruplama düğümüdür (ör. 10.DTC.1641). 'Ana Veri'de olmayan
+# kodlar' listesine girmez; Ana Veri yüklemesi dosyadakileri uyarır. Bilgi urun_acilim
+# tablosunda: satış planı çekimi kendi kodlarını GÜNDE BİR sorar (yeni kod hemen),
+# kapasite senkronu bütün BARTF0'ı yazar.
+HAYALI_ACILIM = '2'
+
+
+def _nk(kod):
+    return re.sub(r'\s', '', kod or '').upper()
+
+
+def acilim_tablo_kur(conn):
+    conn.execute("CREATE TABLE IF NOT EXISTS urun_acilim (kod TEXT PRIMARY KEY, acilim TEXT DEFAULT '', ts TEXT)")
+
+
+def acilim_yaz(conn, harita, commit=True):
+    """{kod: A0PROD} → urun_acilim (kod boşluksuz büyük harf)."""
+    acilim_tablo_kur(conn)
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn.executemany("INSERT INTO urun_acilim (kod, acilim, ts) VALUES (?,?,?) ON CONFLICT(kod) DO UPDATE SET "
+                     "acilim=excluded.acilim, ts=excluded.ts",
+                     [(_nk(k), (v or '').strip(), ts) for k, v in harita.items() if _nk(k)])
+    if commit:
+        conn.commit()
+
+
+def hayali_kumesi(conn):
+    acilim_tablo_kur(conn)
+    return {r[0] for r in conn.execute("SELECT kod FROM urun_acilim WHERE acilim=?", (HAYALI_ACILIM,))}
+
+
+def _acilim_oku(cur, kodlar):
+    """BARTF0.A0PROD → {kod: acilim}. BARTF0'da olmayan kod '' yazılır (o gün tekrar sorulmaz)."""
+    out = {}
+    for i in range(0, len(kodlar), 50):
+        grup = kodlar[i:i + 50]
+        cur.execute(f"SELECT TRIM(A0ARTI), TRIM(A0PROD) FROM TKC0301F.BARTF0 "
+                    f"WHERE A0ARTI IN ({','.join('?' * len(grup))})", grup)
+        for k, p in cur.fetchall():
+            out[_nk(_t(k))] = _t(p)
+    for k in kodlar:
+        out.setdefault(_nk(k), '')
+    return out
 
 
 def _t(v):
@@ -149,8 +198,10 @@ def degisim_zamani(cur):
     return {'degisim': None, 'satir': None}
 
 
-def as400_oku(baglan=None):
-    """XWPVF0 + XWPVF1 → (satırlar, hafta etiketleri, kaynak, [konum]). Yalnız OKUR."""
+def as400_oku(baglan=None, acilim_bilinen=None):
+    """XWPVF0 + XWPVF1 → (satırlar, hafta etiketleri, kaynak, [konum]). Yalnız OKUR.
+    acilim_bilinen verilirse (bugün sorulmuş kodlar) kalan kodların A0PROD'u da okunur →
+    konum['acilim'] (fictitious kontrolü; hata çekimi DURDURMAZ)."""
     if baglan is None:
         import sys
         sys.path.insert(0, os.path.join(PROJECT_DIR, 'as400'))
@@ -187,13 +238,21 @@ def as400_oku(baglan=None):
                 break
             except Exception:
                 continue
+        acilim = None
+        if acilim_bilinen is not None:
+            try:
+                kodlar = sorted({_t(r[5]) for r in veri if r and len(r) > 5 and _t(r[0]).upper() == QUAL
+                                 and _t(r[5]) and not haric_mi(_t(r[5])) and _nk(_t(r[5])) not in acilim_bilinen})
+                acilim = _acilim_oku(cur, kodlar) if kodlar else {}
+            except Exception as e:
+                print(f'[SATIŞ PLANI] fictitious (A0PROD) okunamadı: {e}')
     finally:
         try:
             cn.close()
         except Exception:
             pass
     satirlar, basliklar = _satirlara(veri, basliklar)
-    return satirlar, basliklar, KAYNAK_TABLO, [dict(konum, kutuphane=KAYNAK_TABLO)]
+    return satirlar, basliklar, KAYNAK_TABLO, [dict(konum, kutuphane=KAYNAK_TABLO, acilim=acilim)]
 
 
 # ── DOSYADAN (kullanıcının kendi çektiği satış planı.xls / .xlsx) ───────────
@@ -377,7 +436,12 @@ def kaydet(conn, satirlar, basliklar, kullanici, kaynak='as400', tarih=None, kut
 def cek(conn, baglan=None, kullanici='otomatik', zorla=False):
     """AS400'den oku; içerik son çekimden FARKLIYSA sakla + günün Excel'ini yaz."""
     tablolari_kur(conn)
-    satirlar, basliklar, kutuphane, konumlar = as400_oku(baglan)
+    bugun = datetime.now().strftime('%Y-%m-%d')
+    bilinen = {r[0] for r in conn.execute("SELECT kod FROM urun_acilim WHERE substr(ts,1,10)=?", (bugun,))}
+    satirlar, basliklar, kutuphane, konumlar = as400_oku(baglan, acilim_bilinen=bilinen)
+    ac = (konumlar[0] if konumlar else {}).pop('acilim', None)
+    if ac:
+        acilim_yaz(conn, ac)
     as400 = {'as400_degisim': (konumlar[0] if konumlar else {}).get('degisim'), 'kopyalar': []}
     return {**kaydet(conn, satirlar, basliklar, kullanici, 'as400', None, kutuphane, zorla), **as400}
 
@@ -964,6 +1028,8 @@ def eksik_kodlar(conn, cekim_id, yalniz_p=True):
     kayitli = ana_veri_kodlari()
     for r in conn.execute("SELECT referans_kodu FROM referans_listesi WHERE COALESCE(lokasyon,'TK2')='TK2'"):
         kayitli.add(IE._norm_kod(r[0]))
+    hayali = hayali_kumesi(conn)                   # fictitious kodlar listeye gelmez
+    hayali_gizlenen = set()
     kok_idx = {}
     for k in kayitli:
         kok_idx.setdefault(_kok(k), set()).add(k)
@@ -974,6 +1040,9 @@ def eksik_kodlar(conn, cekim_id, yalniz_p=True):
         if haric_mi(s['article']):                 # 92.* bizde üretilmiyor (bkz. HARIC_ONEK)
             continue
         n = IE._norm_kod(s['article'])
+        if n in hayali:
+            hayali_gizlenen.add(n)
+            continue
         t = toplam.setdefault(n, {'kod': s['article'], 'prov': s['prov'], 'priorit': s['priorit'],
                                   'toplam': 0.0, 'gecikmis': 0.0, 'musteri': set(), 'ilk_hafta': ''})
         t['toplam'] += s['toplam']
@@ -998,7 +1067,9 @@ def eksik_kodlar(conn, cekim_id, yalniz_p=True):
             eksik.append(kayit)
     eksik.sort(key=lambda x: -x['toplam'])
     islem_hali.sort(key=lambda x: -x['toplam'])
-    return {'eksik': eksik, 'islem_hali': islem_hali, 'kontrol_edilen': len(toplam)}
+    return {'eksik': eksik, 'islem_hali': islem_hali, 'kontrol_edilen': len(toplam),
+            'hayali_gizlenen': len(hayali_gizlenen), 'hayali_bilgi': bool(conn.execute(
+                "SELECT 1 FROM urun_acilim LIMIT 1").fetchone())}
 
 
 def eksik_excel(eksik, tarih):

@@ -13249,7 +13249,8 @@ window.__I18N_SOZLUK__ = {
                 var r = await panelFetch('/api/satis_plani/eksik' + (tarih ? '?tarih=' + encodeURIComponent(tarih) : ''));
                 var d = await r.json();
                 if (!r.ok) { el.textContent = d.hata || ('HTTP ' + r.status); return; }
-                document.getElementById('sp-eksik-bilgi').textContent = fmt(d.eksik.length) + ' eksik · ' + fmt(d.kontrol_edilen) + ' P kodu kontrol edildi (92.* hariç)';
+                document.getElementById('sp-eksik-bilgi').textContent = fmt(d.eksik.length) + ' eksik · ' + fmt(d.kontrol_edilen) + ' P kodu kontrol edildi (92.* ve fictitious hariç' +
+                    (d.hayali_gizlenen ? ' — ' + fmt(d.hayali_gizlenen) + ' fictitious kod gizlendi' : '') + (d.hayali_bilgi ? '' : ' — fictitious bilgisi henüz AS400\'den okunmadı') + ')';
                 var tablo = function (liste, notBaslik) {
                     return '<table style="width:100%;border-collapse:collapse;font-size:.8rem"><tr style="text-align:left;color:var(--muted)"><th>Kod</th><th>Açık sipariş</th><th>Gecikmiş</th><th>İlk hafta</th><th>Müşteri</th><th>' + notBaslik + '</th></tr>' +
                         liste.map(function (x) {

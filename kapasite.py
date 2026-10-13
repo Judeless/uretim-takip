@@ -404,7 +404,7 @@ def excel_calisma_uygula(conn, veri, kullanici=''):
 AS400_SEMA = 'TKC0301F' 
 
 SQL_URUN = f"""
-    SELECT A0ARTI, A0ARDS, A0PROV, A0ARAN, A0TART, A0LNPR
+    SELECT A0ARTI, A0ARDS, A0PROV, A0ARAN, A0TART, A0LNPR, A0PROD
     FROM {AS400_SEMA}.BARTF0
 """
 SQL_ROTA = f"""
@@ -460,8 +460,11 @@ def senkron(conn, kullanici='', baglan=None):
         cur = cn.cursor()
         # 1) Ürünler — A ve P birlikte alınır: "bu kod fason mu" sorusu da cevaplansın
         cur.execute(SQL_URUN)
+        ham_urun = [r for r in cur.fetchall() if _t(r[0])]
         urunler = [(_t(r[0]), _t(r[1]), _t(r[2]).upper(), 1 if _t(r[3]).upper() == 'A' else 0,
-                    _t(r[4]), _t(r[5]), simdi) for r in cur.fetchall() if _t(r[0])]
+                    _t(r[4]), _t(r[5]), simdi) for r in ham_urun]
+        # A0PROD (Product.Explos.; '2' = fictitious) → satis_plani.urun_acilim (2026-10-13)
+        acilim = {_t(r[0]): _t(r[6]) for r in ham_urun}
         # 2) Rotalar (yalnız aktif P kodlar)
         cur.execute(SQL_ROTA)
         rotalar = []
@@ -524,6 +527,8 @@ def senkron(conn, kullanici='', baglan=None):
                 vars_yeni = VARSAYILAN_KAYNAK_BOLUM.get(kod.upper(), var['bolum'] or '')
                 if vars_yeni != (var['bolum'] or ''):
                     c.execute("UPDATE kapasite_kaynak SET bolum=? WHERE kaynak_kod=?", (vars_yeni, kod))
+    import satis_plani as _SP
+    _SP.acilim_yaz(conn, acilim, commit=False)
     uretim = sum(1 for u in urunler if u[2] == 'P' and not u[3])
     fason = sum(1 for u in urunler if u[2] == 'A' and not u[3])
     c.execute("INSERT INTO kapasite_senk (tarih, kullanici, urun, uretim, fason, rota, kaynak) "

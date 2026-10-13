@@ -5813,6 +5813,18 @@ def ana_veri_yukle():
     if _tel.get('mevcut') and _tel.get('cikan', 0) > _tel['mevcut'] * _ANA_VERI_SILME_UYARI_ORAN:
         uyarilar.append(f"Teller: mevcut {_tel['mevcut']} telin {_tel['cikan']} tanesi SİLİNECEK — "
                         f"dosyanın 93.* satırlarının eksik/eski olmadığından emin olun")
+    try:                                   # fictitious (A0PROD=2) kodlar listede olmamalı (2026-10-13)
+        import satis_plani as _SP
+        _hay = _SP.hayali_kumesi(get_db())
+        if _hay:
+            _dosya = ({_ie._norm_kod(x['kod']) for l in satirlar.values() for x in l} |
+                      {_ie._norm_kod(x['kod']) for x in rapor['tk2_disi'] + rapor['bolumsuz']})
+            _fic = sorted(_dosya & _hay)
+            if _fic:
+                uyarilar.append(f"AS400'de fictitious (Product.Explos. 2) {len(_fic)} kod Ana Veri'de — listeden "
+                                f"çıkarın: {', '.join(_fic[:25])}{' …' if len(_fic) > 25 else ''}")
+    except Exception as e:
+        print(f'[ana_veri/yukle] fictitious kontrolü yapılamadı: {e}')
     if rapor.get('tel_eski_duzen'):
         uyarilar.append(f"Teller: dosyada {rapor['tel_eski_duzen']} adet 93.* satırı var ama 'TK2 mekanizma teli' / "
                         f"'Zor/Kolay' sütunu yok (eski düzen) — tel listesine dokunulmadı")
