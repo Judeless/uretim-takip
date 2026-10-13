@@ -37,6 +37,13 @@ def tablolari_kur(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS plan_anaveri_yukleme (
         id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, dosya TEXT DEFAULT '',
         satir INTEGER DEFAULT 0, kullanici TEXT DEFAULT '')""")
+    # Bizim Ana Veri'mizin 'Tel Referansları' sayfası (bkz. TEL_SAYFA) — plan_anaveri ile aynı şekil
+    conn.execute("""CREATE TABLE IF NOT EXISTS ana_veri_tel (
+        kod TEXT PRIMARY KEY, ap TEXT DEFAULT '', tk TEXT DEFAULT '', hat TEXT DEFAULT '',
+        makine TEXT DEFAULT '', kapasite REAL, zorluk TEXT DEFAULT '')""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS ana_veri_tel_yukleme (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, satir INTEGER DEFAULT 0,
+        kullanici TEXT DEFAULT '')""")
     if conn.execute("SELECT COUNT(*) FROM plan_anaveri").fetchone()[0] == 0 and os.path.exists(TOHUM):
         try:
             with open(TOHUM, encoding='utf-8') as f:
@@ -150,3 +157,87 @@ def durumu(conn):
     tablolari_kur(conn)
     r = conn.execute("SELECT ts, dosya, satir, kullanici FROM plan_anaveri_yukleme ORDER BY id DESC LIMIT 1").fetchone()
     return dict(zip(('ts', 'dosya', 'satir', 'kullanici'), r)) if r else None
+
+
+# ── ANA VERİ › 'Tel Referansları' (kullanıcı 2026-10-13) ────────────────────────
+# "Tel planı modülü için kullandığımız referansları da kendi Ana Veri Excel'imize
+# ekleyelim; tek Excel'den devam ediyor olalım." Planlamanın PLAN dosyasındaki
+# Anaveri'nin 93.* satırları bizim Ana Veri'mize ayrı sayfa olarak taşındı; sütunlar
+# aynı (CD ART. · TK-1/2 · Hat · Makine · Kapasite 1V/Adet · Zor/Kolay), ek sütunlar
+# (Açıklama, TK2 mekanizma, Not) okunmaz. Sayfa 'Ana Veri Yükle' ile gelir.
+# Tablo DOLUYSA tel planı ve aylık raporun tel sınıflaması YALNIZ buradan okur;
+# boşsa (ilk yüklemeye kadar) planlamanın Anaveri'si (plan_anaveri) kullanılır.
+TEL_SAYFA = 'Tel Referansları'
+
+
+def tel_yaz(conn, satirlar, kullanici, commit=True):
+    """Tel Referansları sayfası → ana_veri_tel (ayna: sayfada olmayan satır silinir).
+    commit=False: çağıranın işlemi içinde (tablolar önceden kurulmuş olmalı — kurulum commit eder)."""
+    if commit:
+        tablolari_kur(conn)
+    conn.execute("DELETE FROM ana_veri_tel")
+    conn.executemany("INSERT OR REPLACE INTO ana_veri_tel (kod, ap, tk, hat, makine, kapasite, zorluk) "
+                     "VALUES (?,?,?,?,?,?,?)",
+                     [(s['kod'], s.get('ap', ''), s.get('tk', ''), s.get('hat', ''), s.get('makine', ''),
+                       s.get('kapasite'), s.get('zorluk', '')) for s in satirlar])
+    conn.execute("INSERT INTO ana_veri_tel_yukleme (ts, satir, kullanici) VALUES (?,?,?)",
+                 (datetime.now().strftime('%Y-%m-%d %H:%M'), len(satirlar), kullanici or ''))
+    if commit:
+        conn.commit()
+    return len(satirlar)
+
+
+def tel_farki(conn, satirlar, ornek_n=10):
+    """Sayfa ↔ ana_veri_tel: {dosyada, eklenen, degisen, cikan, ilk, uretici_bos, ornek_*}.
+    ilk=True → tablo boş (ilk yükleme; tel planı bundan sonra Ana Veri'den okur)."""
+    alanlar = ('tk', 'hat', 'makine', 'kapasite', 'zorluk')
+    mevcut = {r[0]: dict(zip(alanlar, r[1:])) for r in conn.execute(
+        "SELECT kod, tk, hat, makine, kapasite, zorluk FROM ana_veri_tel")}
+    yeni = {s['kod']: s for s in satirlar}
+    eklenen = [k for k in yeni if k not in mevcut]
+    cikan = [k for k in mevcut if k not in yeni]
+    degisen = []
+    for k, s in yeni.items():
+        m = mevcut.get(k)
+        if m is None:
+            continue
+        for a in alanlar:
+            x, y = s.get(a), m.get(a)
+            if a == 'kapasite':
+                if (x or None) != (y or None) and not (x and y and abs(float(x) - float(y)) < 0.001):
+                    degisen.append(k)
+                    break
+            elif str(x or '').strip() != str(y or '').strip():
+                degisen.append(k)
+                break
+    bos = sorted(k for k, s in yeni.items() if not str(s.get('tk') or '').strip())
+    return {'dosyada': len(yeni), 'mevcut': len(mevcut), 'eklenen': len(eklenen), 'degisen': len(degisen),
+            'cikan': len(cikan), 'ilk': not mevcut, 'uretici_bos': len(bos),
+            'ornek_eklenen': sorted(eklenen)[:ornek_n], 'ornek_degisen': sorted(degisen)[:ornek_n],
+            'ornek_cikan': sorted(cikan)[:ornek_n], 'ornek_uretici_bos': bos[:ornek_n]}
+
+
+def tel_kaynagi_ana_veri(conn):
+    tablolari_kur(conn)
+    return conn.execute("SELECT 1 FROM ana_veri_tel LIMIT 1").fetchone() is not None
+
+
+def tel_haritasi(conn):
+    """Tel bilgisi (93.*): Ana Veri 'Tel Referansları' yüklendiyse YALNIZ o; değilse
+    planlamanın Anaveri'si. Biçim haritasi() ile aynı."""
+    if not tel_kaynagi_ana_veri(conn):
+        return haritasi(conn, '93.')
+    return {r[0]: {'ap': r[1] or '', 'tk': r[2] or '', 'hat': r[3] or '', 'makine': r[4] or '',
+                   'kapasite': r[5], 'zorluk': r[6] or ''}
+            for r in conn.execute("SELECT kod, ap, tk, hat, makine, kapasite, zorluk FROM ana_veri_tel")}
+
+
+def tel_durumu(conn):
+    """Tel bilgisinin kaynağı + son yükleme → {kaynak: 'ana_veri'|'plan', ts, dosya, satir, kullanici}."""
+    if tel_kaynagi_ana_veri(conn):
+        r = conn.execute("SELECT ts, satir, kullanici FROM ana_veri_tel_yukleme ORDER BY id DESC LIMIT 1").fetchone()
+        n = conn.execute("SELECT COUNT(*) FROM ana_veri_tel").fetchone()[0]
+        return {'kaynak': 'ana_veri', 'dosya': 'Ana Veri › ' + TEL_SAYFA, 'satir': n,
+                'ts': r[0] if r else '', 'kullanici': r[2] if r else ''}
+    d = durumu(conn)
+    return dict(d, kaynak='plan') if d else None

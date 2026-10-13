@@ -5745,8 +5745,12 @@ def ana_veri_yukle():
         return jsonify({'hata': 'Bu bir geliştirme kopyası — Ana Veri yalnız canlı sunucuda yüklenir'}), 403
     durus = _ie.ana_veri_durus_farki(hz['kume'], hz['mevcut'])   # uygulamadan ÖNCE (mevcut liste)
     try:
+        _kim = (getattr(g, 'panel_ku', None) or {}).get('kullanici_adi', '')
+    except Exception:
+        _kim = ''
+    try:
         sonuc = _ie.ana_veri_uygula(
-            satirlar, uygula=onay, kume=hz['kume'], taban=hz['taban'],
+            satirlar, uygula=onay, kume=hz['kume'], taban=hz['taban'], kullanici=_kim,
             commit_oncesi=(lambda: _ie.ana_veri_dosya_kaydet(hz['kaydedilecek'])) if onay else None)
     except PermissionError:
         return jsonify({'hata': 'AnaVeri.xlsx sunucuda açık/kilitli — kaydedilemedi, hiçbir şey değişmedi'}), 409
@@ -5808,6 +5812,7 @@ def ana_veri_yukle():
                     'satir': rapor['satir'], 'bolumler': bolumler, 'toplam': toplam,
                     'uyarilar': uyarilar, 'eksik_sayfa': hz['eksik'], 'durus': durus, 'damga': hz['damga'],
                     'operatorler': operatorler, 'robot': sonuc['robot'], 'fikstur': sonuc['fikstur'],
+                    'tel': sonuc.get('tel'), 'ncs': sonuc.get('ncs'),
                     'bolumsuz': rapor['bolumsuz'][:60], 'bolumsuz_sayi': len(rapor['bolumsuz']),
                     'tk2_disi': rapor['tk2_disi'][:80], 'tk2_disi_sayi': len(rapor['tk2_disi']),
                     'tekrar': rapor['tekrar'][:40], 'tekrar_sayi': len(rapor['tekrar']),

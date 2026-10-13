@@ -446,7 +446,11 @@ def ana_veri_ek_sayfalar():
     for s in BOLUM_DURUS_SAYFA.values():
         if s not in ad:
             ad.append(s)
-    return ad + [ROBOT_PROGRAM_SAYFA, FIKSTUR_RAF_SAYFA]
+    # 2026-10-13: tel planının teller listesi + aylık raporun NçS'leri de Ana Veri'de
+    # (dosyada yoksa mevcut sürümden kopyalanır — kaybolmasınlar)
+    import anaveri as _AV
+    import aylik_uretim as _AU
+    return ad + [ROBOT_PROGRAM_SAYFA, FIKSTUR_RAF_SAYFA, _AV.TEL_SAYFA, _AU.NCS_SAYFA]
 
 
 class _SayfaKumesi:
@@ -921,18 +925,23 @@ def _liste_farki(conn, sql, yeni):
     return sorted(yeni - eski), sorted(eski - yeni)
 
 
-def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban=None):
+def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban=None, kullanici=''):
     """Altı bölümün referansları + (kume verilirse) operatörler, robot program, fikstür —
     TEK işlemde. uygula=False → ÖNİZLEME (her şey geri alınır).
     commit_oncesi: commit'ten hemen önce çağrılır (dosyayı yerine koymak için);
     hata verirse veritabanı değişikliği geri alınır.
     Döner: {'bolumler': {bolum: referans özeti}, 'operatorler': {bolum: [eklenen ad]},
-            'robot': {...}, 'fikstur': {...}}"""
+            'robot': {...}, 'fikstur': {...}, 'tel': {...}, 'ncs': {...}}"""
+    import anaveri as _AV
+    import aylik_uretim as _AU
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    # Tablo kurulumu commit EDER — önizleme işlemi başlamadan ÖNCE yapılmalı
+    _AV.tablolari_kur(conn)
+    _AU.tablolari_kur(conn)
     try:
         sonuc = {'bolumler': {b: _ana_veri_bolum_uygula(conn, b, satirlar.get(b, []), taban=taban)
                               for b in ANA_VERI_ETIKET},
-                 'operatorler': {}, 'robot': None, 'fikstur': None}
+                 'operatorler': {}, 'robot': None, 'fikstur': None, 'tel': None, 'ncs': None}
         if kume is not None:
             for b in ANA_VERI_ETIKET:
                 ad = []
@@ -958,6 +967,24 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban
                                         'ornek_cikan': [' · '.join(x) for x in cik[:10]]}
                     if ek or cik:
                         _fikstur_raf_import(conn, kume)
+            # TEL REFERANSLARI (tel planı + aylık raporun tel sınıflaması) — ayna, yalnız fark varsa
+            if _AV.TEL_SAYFA in kume.sheetnames:
+                try:
+                    tel = _AV.satirlari(kume[_AV.TEL_SAYFA].iter_rows(values_only=True))
+                except ValueError as e:
+                    sonuc['tel'] = {'hata': str(e)}
+                else:
+                    fark = _AV.tel_farki(conn, tel)
+                    sonuc['tel'] = fark
+                    if fark['ilk'] or fark['eklenen'] or fark['degisen'] or fark['cikan']:
+                        _AV.tel_yaz(conn, tel, kullanici, commit=False)
+            # AYLIK NçS (aylık üretim raporunun çalışma saati) — sayfadaki AYIN satırları
+            if _AU.NCS_SAYFA in kume.sheetnames:
+                n = _AU.ncs_sayfadan(kume[_AU.NCS_SAYFA])
+                fark = _AU.ncs_farki(conn, n)
+                sonuc['ncs'] = fark
+                if n['yil'] and n['saatler'] and fark['degisen']:
+                    _AU.ncs_yaz(conn, n['yil'], n['ay'], n['saatler'], kullanici, commit=False)
         if uygula:
             if commit_oncesi:
                 commit_oncesi()

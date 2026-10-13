@@ -409,6 +409,184 @@ def calisma_aylari(conn):
         "SELECT yil, ay, MAX(dosya) FROM aylik_calisma GROUP BY yil, ay ORDER BY yil DESC, ay DESC")]
 
 
+# ── ANA VERİ › 'Aylık NçS' (kullanıcı 2026-10-13) ──────────────────────────────
+# "Aylık üretim raporu için de bizim Ana Veri Excel'imizden devam edelim; ek bir sayfaya
+# aylık gerekli olan NçS'leri gireceğim, yeni ayda o kısmı değiştiririm." Kapasite
+# Excel'inin kişi bazlı 'Çalışma Saati' yerine bölüm bazlı tablo: Ay hücresi + Tesis ·
+# Bölüm · NçS · Mesai · Kişi. 'Ana Veri Yükle' onaylanınca o AYIN saatleri aylik_calisma'ya
+# yazılır (ayın eski satırlarının — kapasite Excel'inden gelmiş olsalar da — yerine geçer);
+# dosyada ay değişince önceki ayların saatleri veritabanında kalır.
+NCS_SAYFA = 'Aylık NçS'
+NCS_KAYNAK = 'Ana Veri › Aylık NçS'
+NCS_BOLUM_AD = {('TK2', 'kaynak'): 'Kaynak', ('TK2', 'lazer'): 'Lazer Kesim',
+                ('TK2', 'pres'): 'Büküm (Pres / Abkant)', ('TK2', 'metal'): 'Metal Enjeksiyon',
+                ('TK2', 'isleme'): 'İşleme', ('TK2', 'montaj'): 'Montaj',
+                ('TK1', 'montaj'): 'Montaj', ('TK1', 'tel'): 'Tel Üretimi', ('TK1', 'plastik'): 'Plastik Enjeksiyon'}
+_AY_ADLARI = {'ocak': 1, 'şubat': 2, 'subat': 2, 'mart': 3, 'nisan': 4, 'mayıs': 5, 'mayis': 5, 'haziran': 6,
+              'temmuz': 7, 'ağustos': 8, 'agustos': 8, 'eylül': 9, 'eylul': 9, 'ekim': 10, 'kasım': 11,
+              'kasim': 11, 'aralık': 12, 'aralik': 12}
+
+
+def _kucuk(v):
+    return str(v if v is not None else '').replace('I', 'ı').replace('İ', 'i').lower().strip()
+
+
+def _ncs_bolum(tesis, ad):
+    """('TK2', 'Büküm (Pres / Abkant)') → ('TK2', 'pres') | None"""
+    t = {'TK1': 'TK1', 'TK2': 'TK2'}.get(re.sub(r'[\s-]', '', str(tesis or '')).upper())
+    a = _kucuk(ad)
+    if not t or not a:
+        return None
+    for anahtar, b in (('plastik', 'plastik'), ('metal', 'metal'), ('lazer', 'lazer'), ('kaynak', 'kaynak'),
+                       ('büküm', 'pres'), ('bukum', 'pres'), ('pres', 'pres'), ('abkant', 'pres'),
+                       ('işleme', 'isleme'), ('isleme', 'isleme'), ('tel', 'tel'), ('montaj', 'montaj')):
+        if anahtar in a:
+            return (t, b) if (t, b) in NCS_BOLUM_AD else None
+    return None
+
+
+def _ncs_ay(v):
+    """Ay hücresi → (yıl, ay) | None. Tarih · '2026-10' · '10.2026' · 'Ekim 2026'."""
+    if isinstance(v, (datetime, date)):
+        return v.year, v.month
+    s_ = _kucuk(v)
+    m = re.match(r'^(\d{4})\D+(\d{1,2})', s_)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    m = re.match(r'^(\d{1,2})\D+(\d{4})', s_)
+    if m:
+        return int(m.group(2)), int(m.group(1))
+    m = re.match(r'^([a-zçğıöşü]+)\D*(\d{4})', s_)
+    if m and m.group(1) in _AY_ADLARI:
+        return int(m.group(2)), _AY_ADLARI[m.group(1)]
+    return None
+
+
+def ncs_sayfadan(ws):
+    """Aylık NçS sayfası → {'yil', 'ay', 'saatler': {(tesis, bölüm): {nos, mesai, kisi}}, 'hatalar': [...]}.
+    NçS'si boş satır 'girilmedi' sayılır (o bölüm yazılmaz)."""
+    rows = [list(r) for r in ws.iter_rows(values_only=True)]
+    out = {'yil': None, 'ay': None, 'saatler': {}, 'hatalar': []}
+    for r in rows[:15]:
+        for i, v in enumerate(r[:-1]):
+            if _kucuk(v).rstrip(':') == 'ay':
+                ya = _ncs_ay(r[i + 1])
+                if ya and 1 <= ya[1] <= 12:
+                    out['yil'], out['ay'] = ya
+                else:
+                    out['hatalar'].append(f"Ay hücresi okunamadı: {r[i + 1]!r} (ör. 2026-10)")
+                break
+        if out['yil'] or out['hatalar']:
+            break
+    if not out['yil'] and not out['hatalar']:
+        out['hatalar'].append("'Ay' hücresi bulunamadı — A sütununa 'Ay', yanına 2026-10 yazın")
+    bas, kol = None, {}
+    for i, r in enumerate(rows[:30]):
+        adlar = [_kucuk(v) for v in r]
+        if 'tesis' in adlar and any(a.startswith(('bölüm', 'bolum')) for a in adlar):
+            bas = i
+            for j, a in enumerate(adlar):
+                if a == 'tesis':
+                    kol['tesis'] = j
+                elif a.startswith(('bölüm', 'bolum')):
+                    kol.setdefault('bolum', j)
+                elif a.startswith(('nçs', 'ncs')):
+                    kol.setdefault('nos', j)
+                elif a.startswith('mesai'):
+                    kol.setdefault('mesai', j)
+                elif a.startswith(('kişi', 'kisi')):
+                    kol.setdefault('kisi', j)
+            break
+    if bas is None or 'nos' not in kol:
+        out['hatalar'].append("Tablo başlığı bulunamadı — 'Tesis', 'Bölüm', 'NçS' sütunları olmalı")
+        return out
+
+    def sayi(r, a):
+        j = kol.get(a)
+        v = r[j] if j is not None and j < len(r) else None
+        if v in (None, ''):
+            return None
+        try:
+            return float(str(v).replace(',', '.'))
+        except ValueError:
+            raise ValueError(f'{a} sayı değil: {v!r}')
+    for no, r in enumerate(rows[bas + 1:], start=bas + 2):
+        t = r[kol['tesis']] if kol['tesis'] < len(r) else None
+        b = r[kol['bolum']] if kol['bolum'] < len(r) else None
+        if not t and not b:
+            continue
+        hedef = _ncs_bolum(t, b)
+        if not hedef:
+            out['hatalar'].append(f'satır {no}: bölüm tanınmadı ({t} / {b})')
+            continue
+        try:
+            nos, mesai, kisi = sayi(r, 'nos'), sayi(r, 'mesai'), sayi(r, 'kisi')
+        except ValueError as e:
+            out['hatalar'].append(f'satır {no}: {e}')
+            continue
+        if nos is None:
+            continue
+        if nos < 0 or (mesai or 0) < 0:
+            out['hatalar'].append(f'satır {no}: negatif saat')
+            continue
+        dd = out['saatler'].setdefault(hedef, {'nos': 0.0, 'mesai': 0.0, 'kisi': 0})
+        dd['nos'] += nos
+        dd['mesai'] += mesai or 0.0
+        dd['kisi'] += int(kisi or 0)
+    return out
+
+
+def _ncs_anahtar(excel_bolum):
+    """aylik_calisma.excel_bolum → (tesis, bölüm) YALNIZ Ana Veri NçS anahtarıysa ('TK2/kaynak');
+    kapasite Excel'inin '#N/A' gibi adları None döner."""
+    p = str(excel_bolum or '').split('/', 1)
+    return tuple(p) if len(p) == 2 and tuple(p) in NCS_BOLUM_AD else None
+
+
+def ncs_farki(conn, n):
+    """Sayfadaki ay ↔ veritabanındaki o ayın saatleri (önizleme için)."""
+    if not n.get('yil'):
+        return {'yil': None, 'ay': None, 'satir': 0, 'satirlar': [], 'degisen': 0, 'hatalar': n.get('hatalar') or []}
+    eski, kaynak = {}, set()
+    for r in conn.execute("SELECT excel_bolum, nos, mesai, dosya FROM aylik_calisma WHERE yil=? AND ay=?",
+                          (n['yil'], n['ay'])):
+        kaynak.add(r[3] or '')
+        h = CALISMA_BOLUM.get(r[0]) or _ncs_anahtar(r[0])
+        if h:
+            e = eski.setdefault(h, [0.0, 0.0])
+            e[0] += r[1] or 0
+            e[1] += r[2] or 0
+    sira = list(NCS_BOLUM_AD)
+    satirlar, degisen = [], 0
+    for h, v in sorted(n['saatler'].items(), key=lambda x: sira.index(x[0])):
+        e = eski.get(h)
+        fark = e is None or abs(e[0] - v['nos']) > 0.05 or abs(e[1] - v['mesai']) > 0.05
+        degisen += 1 if fark else 0
+        satirlar.append({'tesis': h[0], 'bolum': NCS_BOLUM_AD[h], 'nos': round(v['nos'], 1),
+                         'mesai': round(v['mesai'], 1), 'kisi': v['kisi'],
+                         'eski_nos': round(e[0], 1) if e else None, 'degisti': fark})
+    return {'yil': n['yil'], 'ay': n['ay'], 'ay_ad': f"{AY_AD[n['ay']]} {n['yil']}", 'satir': len(satirlar),
+            'toplam_nos': round(sum(v['nos'] for v in n['saatler'].values()), 1), 'satirlar': satirlar,
+            'degisen': degisen + (1 if len(eski) != len(n['saatler']) else 0),
+            'mevcut_kaynak': sorted(k for k in kaynak if k), 'hatalar': n.get('hatalar') or []}
+
+
+def ncs_yaz(conn, yil, ay, saatler, kullanici, commit=True):
+    """O ayın aylik_calisma satırlarını sayfadakilerle DEĞİŞTİRİR (anahtar 'TK2/kaynak').
+    commit=False: çağıranın işlemi içinde (tablolar önceden kurulmuş olmalı)."""
+    if commit:
+        tablolari_kur(conn)
+    conn.execute("DELETE FROM aylik_calisma WHERE yil=? AND ay=?", (yil, ay))
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+    conn.executemany("INSERT INTO aylik_calisma (yil, ay, excel_bolum, nos, mesai, kisi, isimsiz, dosya, kullanici, "
+                     "guncellendi) VALUES (?,?,?,?,?,?,0,?,?,?)",
+                     [(yil, ay, f'{t}/{b}', round(v['nos'], 1), round(v['mesai'], 1), int(v['kisi'] or 0),
+                       NCS_KAYNAK, kullanici or '', simdi) for (t, b), v in saatler.items()])
+    if commit:
+        conn.commit()
+    return len(saatler)
+
+
 def calisma_haritasi(conn, yil, ay):
     """{(tesis, bölüm): {'nos','mesai','kisi'}} + atanmamış (üretim dışı) satırlar."""
     tablolari_kur(conn)
@@ -416,13 +594,14 @@ def calisma_haritasi(conn, yil, ay):
     for r in conn.execute("SELECT excel_bolum, nos, mesai, kisi, dosya, guncellendi FROM aylik_calisma "
                           "WHERE yil=? AND ay=? ORDER BY excel_bolum", (yil, ay)):
         bilgi = {'dosya': r[4], 'guncellendi': r[5]}
-        hedef = CALISMA_BOLUM.get(r[0])
+        nk = _ncs_anahtar(r[0])                      # Ana Veri › Aylık NçS satırı (bkz. ncs_yaz)
+        hedef = CALISMA_BOLUM.get(r[0]) or nk
         if hedef:
             d = atanan.setdefault(hedef, {'nos': 0.0, 'mesai': 0.0, 'kisi': 0, 'excel': []})
             d['nos'] += r[1] or 0
             d['mesai'] += r[2] or 0
             d['kisi'] += r[3] or 0
-            d['excel'].append(r[0])
+            d['excel'].append(NCS_BOLUM_AD[nk] if nk else r[0])
         else:
             disarida.append({'excel_bolum': r[0], 'nos': r[1] or 0, 'mesai': r[2] or 0, 'kisi': r[3] or 0})
     return atanan, disarida, bilgi
@@ -473,6 +652,8 @@ def rapor(conn, yil, ay):
     forge = _forge(conn)
     kap, rota, kdb = _sure_kaynaklari(conn)
     ana = AV.haritasi(conn)
+    # Teller (93.*): önce Ana Veri 'Tel Referansları' (yüklendiyse), yoksa planlamanın Anaveri'si
+    tel = AV.tel_haritasi(conn) if AV.tel_kaynagi_ana_veri(conn) else {}
     kurallar = haric_kurallari(conn)
     acik = veri.get('aciklama') or {}
     cop_okundu = 'COP' in (veri.get('causallar') or [])
@@ -521,7 +702,8 @@ def rapor(conn, yil, ay):
             continue
         # Bölüm: Pull/Pandora fason → Forge (bu tesiste) → kapasite Database → Anaveri → tanımsız
         hedef, kaynak = {}, ''
-        a_kod = ana.get(n) or (ana.get(n[:-1]) if n.endswith('W') else None)
+        a_kod = ((tel.get(n) or (tel.get(n[:-1]) if n.endswith('W') else None)) if n.startswith('93.') else None) \
+            or ana.get(n) or (ana.get(n[:-1]) if n.endswith('W') else None)
         if _fason_mi(a_kod, True):
             tesis = tesis or 'TK1'
             satir['tesis'] = tesis
@@ -565,7 +747,11 @@ def rapor(conn, yil, ay):
         for b, forge_sn in hedef.items():
             k = kap.get((n, tesis, b)) or kap.get((_kok(d['kod']), tesis, b))
             ks = (kdb.get(n) or {}).get('saatlik')
-            if b in SURE_EXCEL_DISI and forge_sn > 0:
+            # ÖNCE ANA VERİ (kullanıcı 2026-10-13: "önce Ana Veri, yoksa planlama süresi"):
+            # TK2'de Forge süresi = Ana Veri'nin çevrim/kaynak süresi → varsa o; yoksa planlamanın
+            # kapasite süresi, o da yoksa ERP rotası. TK1 Ana Veri'de DEĞİL: orada planlama
+            # süresi önce kalır (tel süreleri Forge'da adım bazlı, kök toplamı eksik olur).
+            if (tesis == 'TK2' or b in SURE_EXCEL_DISI) and forge_sn > 0:
                 k, ks = None, None
             if b == FASON:
                 k, ks, forge_sn = None, None, 0.0
@@ -574,7 +760,7 @@ def rapor(conn, yil, ay):
             elif ks:
                 sn, sk = 3600.0 / ks, 'kapasite Excel'
             elif forge_sn > 0:
-                sn, sk = forge_sn, 'Forge'
+                sn, sk = forge_sn, 'Ana Veri' if tesis == 'TK2' else 'Forge'
             elif rota.get((n, b)):
                 sn, sk = rota[(n, b)], 'ERP rota'
             else:

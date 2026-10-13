@@ -105,12 +105,13 @@ def anaveri_yaz(conn, satirlar, dosya, kullanici, commit=True):
 
 
 def anaveri_haritasi(conn):
-    """Yalnız teller (93.*) — tedarikçi / Pull kontrolü için."""
-    return AV.haritasi(conn, '93.')
+    """Yalnız teller (93.*) — tedarikçi / Pull kontrolü için. Kaynak (2026-10-13): bizim
+    Ana Veri'mizin 'Tel Referansları' sayfası; yüklenmediyse planlamanın Anaveri'si."""
+    return AV.tel_haritasi(conn)
 
 
 def anaveri_durumu(conn):
-    return AV.durumu(conn)
+    return AV.tel_durumu(conn)
 
 
 def elle_haritasi(conn):
@@ -149,7 +150,7 @@ def kaynak_bul(kod, anaveri, elle, tk1_uretim):
     pull = hat.upper() == 'PULL'
     if not a:
         sinif, ted = 'belirsiz', ''
-        uyar.append("Anaveri'de yok — kimin ürettiği bilinmiyor")
+        uyar.append("Ana Veri'de (Tel Referansları) yok — kimin ürettiği bilinmiyor")
     elif pull:
         sinif = 'tedarikci'
         ted = '' if tk.upper() in ICERIDE or not tk else tk
@@ -163,7 +164,7 @@ def kaynak_bul(kod, anaveri, elle, tk1_uretim):
         sinif, ted = 'tedarikci', tk
     else:
         sinif, ted = 'belirsiz', ''
-        uyar.append("Anaveri'de TK-1/2 boş")
+        uyar.append("Ana Veri'de (Tel Referansları) TK-1/2 boş")
     e = elle.get(kod)
     if e:
         ted = e
