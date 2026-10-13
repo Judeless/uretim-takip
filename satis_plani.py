@@ -509,8 +509,8 @@ def fark(conn, yeni_id, eski_id):
     ilk = _hafta_sira(hb[0]) if hb else 0
     yakin = ['GEC'] + hb[:YAKIN_HAFTA]
     anahtar = lambda s: (s['musteri_kodu'], s['dest'], s['article'].upper())    # noqa: E731
-    y = {anahtar(s): s for s in yeni}
-    e = {anahtar(s): s for s in eski}
+    y = {anahtar(s): s for s in yeni if not haric_mi(s['article'])}
+    e = {anahtar(s): s for s in eski if not haric_mi(s['article'])}
     out = []
     for k in set(y) | set(e):
         sy, se = y.get(k), e.get(k)
@@ -591,11 +591,16 @@ def _hizala(d, ilk, son, ufuk):
     return bak, yak, top
 
 
-# 92.* (hortum) kodları sipariş farklarında KONTROL EDİLMEZ (kullanıcı 2026-10-13: "92'li kodları bu
-# kapsama dahil etmeyelim"). Bosch'un hortum siparişleri (PRIORIT 8 dahil) çekimden çekime toplu
-# girip çıkıyor; mekanizma termin kontrolünü boğuyordu (12.10 ↔ 09.10: 160 'yeni kod'un 113'ü).
+# 92.* (hortum) kodları satış planı sayfasında HİÇBİR YERDE KONTROL EDİLMEZ (kullanıcı 2026-10-13:
+# "92'li referanslar TK1'de ya da TK2'de bizim tarafımızdan üretilmiyor"). Bosch'un hortum
+# siparişleri (PRIORIT 8 dahil) çekimden çekime toplu girip çıkıyor; mekanizma termin kontrolünü
+# boğuyordu (12.10 ↔ 09.10: 160 'yeni kod'un 113'ü). Sipariş farkları, günlük fark, Ana Veri eksikleri.
 HARIC_ONEK = ('92.',)
-HARIC_NOT = '92.* (hortum) kodları bu karşılaştırmaya alınmaz.'
+HARIC_NOT = '92.* (hortum) kodları bizde üretilmediği için kontrol edilmez.'
+
+
+def haric_mi(kod):
+    return re.sub(r'\s', '', kod or '').upper().startswith(HARIC_ONEK)
 
 
 def _kiyas_hazirla(conn, cekim_idler, ilk_n, kapsam_secimi):
@@ -617,7 +622,7 @@ def _kiyas_hazirla(conn, cekim_idler, ilk_n, kapsam_secimi):
                       ')' + (f' — yalnız {tesis} kodları karşılaştırıldı.' if tesis else
                              ' — ortak tesis bulunamadı, tümü karşılaştırıldı; farkların bir kısmı kapsamdan.'))
     harita = tesis_haritasi(conn) if tesis else {}
-    toplam = [{k: v for k, v in _urun_topla(_satirlar(conn, c['id'])).items() if not k.startswith(HARIC_ONEK)}
+    toplam = [{k: v for k, v in _urun_topla(_satirlar(conn, c['id'])).items() if not haric_mi(k)}
               for c in ck]
     yeni_hb = ck[0]['haftalar'] or []
     ilk = _hafta_sira(yeni_hb[0]) if yeni_hb else 0
@@ -965,6 +970,8 @@ def eksik_kodlar(conn, cekim_id, yalniz_p=True):
     toplam = {}
     for s in _satirlar(conn, cekim_id):
         if yalniz_p and s['prov'] != 'P':
+            continue
+        if haric_mi(s['article']):                 # 92.* bizde üretilmiyor (bkz. HARIC_ONEK)
             continue
         n = IE._norm_kod(s['article'])
         t = toplam.setdefault(n, {'kod': s['article'], 'prov': s['prov'], 'priorit': s['priorit'],

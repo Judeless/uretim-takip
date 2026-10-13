@@ -974,6 +974,8 @@
                   border: 1px solid var(--card-border); line-height: 1.6; }
 
         /* ── Satış planı: ürün bazında sipariş farkları (2026-10-09) ── */
+        .sp-diger > summary { cursor: pointer; color: var(--muted); font-size: .82rem; font-weight: 700; padding: 6px 4px 12px; }
+        .sp-diger[open] > summary { color: var(--text); }
         .sf-arac { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 20px 0; font-size: .78rem; }
         .sf-arac select, .sf-arac input[type=search], .sf-arac input[type=date] { font-size: .8rem; padding: 5px 8px;
                   border-radius: 8px; border: 1px solid var(--border-input); background: var(--bg); color: var(--text); }
@@ -5441,9 +5443,8 @@ window.__I18N_SOZLUK__ = {
   "📊 Sipariş farkları — ürün bazında": {"en": "📊 Order differences — by product", "it": "📊 Differenze ordini — per prodotto"},
   "📤 Dosyadan yükle": {"en": "📤 Upload from file", "it": "📤 Carica da file"},
   "Yalnız P (üretim)": {"en": "Only P (production)", "it": "Solo P (produzione)"},
-  "Görünüm": {"en": "View", "it": "Vista"},
-  "Araya giren siparişler (termin içi)": {"en": "Orders inserted inside lead time", "it": "Ordini inseriti entro il lead time"},
-  "Tüm farklar (planlama dosyası)": {"en": "All differences (planning file)", "it": "Tutte le differenze (file pianificazione)"},
+  "📈 Satış Planı — araya giren siparişler": {"en": "📈 Sales Plan — inserted orders", "it": "📈 Piano vendite — ordini inseriti"},
+  "Diğer — Ana Veri'de olmayan kodlar · önceki günle fark (müşteri bazında tüm değişiklikler) · arşiv": {"en": "Other — codes missing in Master Data · difference vs previous day (all changes by customer) · archive", "it": "Altro — codici assenti nei Dati anagrafici · differenza col giorno precedente (tutte le variazioni per cliente) · archivio"},
   "📊 Sipariş farkları — araya giren siparişler": {"en": "📊 Order differences — inserted orders", "it": "📊 Differenze ordini — ordini inseriti"},
   "📅 Haftalık önemli referanslar": {"en": "📅 Key references of the week", "it": "📅 Codici importanti della settimana"},
   "gün gün üretilecek mekanizmalar · eksik parça notu · bitince ✓": {"en": "mechanisms to build day by day · missing part note · ✓ when done", "it": "meccanismi da produrre giorno per giorno · nota pezzo mancante · ✓ a fine"},
@@ -7478,9 +7479,9 @@ window.__I18N_SOZLUK__ = {
                  günün kopyasını saklar. Metinler TEK SATIR (i18n motoru metin düğümü bazlı). -->
             <section class="page" id="page-satis-plani">
                 <div style="margin-bottom:18px">
-                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">📈 Satış Planı — günlük arşiv</h2>
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">📈 Satış Planı — araya giren siparişler</h2>
                     <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
-                        AS400'de 10-05-03-06 ekranı F6 ile çalıştırıldığında sonuç (TKC0301F.XWPVF0) buraya kendiliğinden gelir; Forge 30 dakikada bir bakar. Kendi çektiğin satış planı dosyasını da tarihiyle yükleyebilirsin. Her çekimin kapsamı (yalnız TK2 / TK1+TK2) işaretlenir; kapsamı farklı iki çekim karşılaştırılırken yalnız ortak tesis kıyaslanır.
+                        Mekanizma üretim termini en az 4 hafta: iki satış planı çekimi karşılaştırılıp termin içine (gecikmiş + ilk 4 hafta) sonradan girilen siparişler bulunur. AS400'de 10-05-03-06 ekranı F6 ile çalıştırıldığında sonuç (TKC0301F.XWPVF0) buraya kendiliğinden gelir; Forge 30 dakikada bir bakar — her gün çalıştırılırsa ardışık iki gün kıyaslanır. Kendi çektiğin satış planı dosyasını da tarihiyle yükleyebilirsin. 92.* (hortum) kodları bizde üretilmediği için hiçbir yerde kontrol edilmez.
                     </p>
                 </div>
                 <div class="panel-card">
@@ -7504,15 +7505,13 @@ window.__I18N_SOZLUK__ = {
                     <div class="panel-header" style="flex-wrap:wrap;gap:8px">
                         <h3>📊 Sipariş farkları — araya giren siparişler</h3>
                         <span class="adet-info" id="sf-bilgi"></span>
-                        <button class="btn btn-outline" onclick="sfExcel()" style="margin-left:auto" title="Planlamanın 'Sipariş farkları' düzeninde">⬇️ Excel</button>
+                        <button class="btn btn-outline" onclick="sfExcel()" style="margin-left:auto" title="Araya giren siparişler — müşteri ve hafta kırılımıyla">⬇️ Excel</button>
                     </div>
                     <div class="sf-arac">
                         <label>Yeni <select id="sf-yeni" onchange="sfYukle()"></select></label>
                         <label>Eski <select id="sf-eski" onchange="sfYukle()"></select></label>
-                        <label>Görünüm <select id="sf-gorunum" onchange="sfYukle()">
-                            <option value="araya">Araya giren siparişler (termin içi)</option>
-                            <option value="hepsi">Tüm farklar (planlama dosyası)</option></select></label>
-                        <label title="İsteğe bağlı — planlamanın üçlü karşılaştırması (yalnız 'Tüm farklar' görünümünde)">Daha eski <select id="sf-ucuncu" onchange="sfYukle()"></select></label>
+<!-- 2026-10-13: 'Tüm farklar (planlama dosyası)' görünümü ve 'Daha eski' (üçlü kıyas) panelden kaldırıldı —
+                             sayfa yalnız araya giren siparişler için; API'de ?gorunum=hepsi&ucuncu= hâlâ çalışır. -->
                         <label title="Termin penceresi: mekanizma üretim termini en az 4 hafta — gecikmiş + ilk N hafta">İlk <select id="sf-n" onchange="sfYukle()"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select> hafta</label>
                         <label>Kapsam <select id="sf-kapsam" onchange="sfYukle()">
                             <option value="oto">Otomatik</option><option value="TK2">Yalnız TK2</option><option value="TK1">Yalnız TK1</option>
@@ -7524,6 +7523,8 @@ window.__I18N_SOZLUK__ = {
                     <div style="padding:10px 20px 0" id="sf-filtre"></div>
                     <div style="padding:8px 20px 16px;overflow:auto;max-height:70vh" id="sf-tablo">—</div>
                 </div>
+                <details class="sp-diger">
+                <summary>Diğer — Ana Veri'de olmayan kodlar · önceki günle fark (müşteri bazında tüm değişiklikler) · arşiv</summary>
                 <div class="panel-card">
                     <div class="panel-header">
                         <h3>🧾 Ana Veri'de olmayan kodlar</h3>
@@ -7545,6 +7546,7 @@ window.__I18N_SOZLUK__ = {
                     <div class="panel-header"><h3>🗂 Arşiv</h3></div>
                     <div style="padding:12px 20px" id="sp-arsiv">—</div>
                 </div>
+                </details>
             </section>
 
             <!-- TEL PLANI — TK2 MEKANİZMA TELLERİ (kullanıcı 2026-10-09): "TK2'de mekanizmalarda
@@ -13247,7 +13249,7 @@ window.__I18N_SOZLUK__ = {
                 var r = await panelFetch('/api/satis_plani/eksik' + (tarih ? '?tarih=' + encodeURIComponent(tarih) : ''));
                 var d = await r.json();
                 if (!r.ok) { el.textContent = d.hata || ('HTTP ' + r.status); return; }
-                document.getElementById('sp-eksik-bilgi').textContent = fmt(d.eksik.length) + ' eksik · ' + fmt(d.kontrol_edilen) + ' P kodu kontrol edildi';
+                document.getElementById('sp-eksik-bilgi').textContent = fmt(d.eksik.length) + ' eksik · ' + fmt(d.kontrol_edilen) + ' P kodu kontrol edildi (92.* hariç)';
                 var tablo = function (liste, notBaslik) {
                     return '<table style="width:100%;border-collapse:collapse;font-size:.8rem"><tr style="text-align:left;color:var(--muted)"><th>Kod</th><th>Açık sipariş</th><th>Gecikmiş</th><th>İlk hafta</th><th>Müşteri</th><th>' + notBaslik + '</th></tr>' +
                         liste.map(function (x) {
