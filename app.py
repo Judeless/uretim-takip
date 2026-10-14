@@ -13472,7 +13472,8 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
         return 'ok', mesaj, r
     d = r.get('durum')
     if d == 'reddedildi':
-        return 'hata', f'Import reddedildi (MGSTAT=2): {r.get("not") or "?"} — satır RRN {r.get("rrn")}', r
+        return 'hata', (f'Import reddedildi (MGSTAT=2): {r.get("not") or "?"} — satır RRN {r.get("rrn")}'
+                        + (' · aynı satır bugün zaten reddedilmişti, YENİDEN YAZILMADI' if r.get('tekrar_yazilmadi') else '')), r
     if d == 'mevcut':
         return 'hata', f'Aynı satır kuyrukta bekliyor (RRN {r.get("rrn")}) — program işlemedi, tekrar yazılmadı', r
     if d == 'zaman_asimi':
@@ -13541,7 +13542,9 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
                                  'mesaj': 'Kullanıcı durdurdu'})
             break
         referans = str(s.get('referans') or '').strip()
-        article = (str(s.get('article') or '').strip() or referans)
+        # ERP kodu BÜYÜK HARF (2026-10-14): Forge referansı '10.300.6680b' gibi küçük harfle
+        # açılmış olabilir — AS400 programı '01-Item code error' ile reddediyordu
+        article = (str(s.get('article') or '').strip() or referans).upper()
         u_tarih = str(s.get('uretim_tarihi') or '').strip()
         try:
             adet = int(s.get('adet') or 0)
@@ -16692,6 +16695,9 @@ def _oto_kuyruk_olustur(conn, tarihler):
     return launchQ, cfiQ, copQ, sabah
 
 
+ERKEN_TEKRAR_DK = 60      # erken turda hata alan referans en erken bu kadar dk sonra yeniden denenir
+
+
 def _erken_teyit_adaylari(conn, tarih, gecikme_dk):
     """ERKEN TEYİT adayı referanslar (2026-08-18).
 
@@ -16748,11 +16754,41 @@ def _erken_teyit_adaylari(conn, tarih, gecikme_dk):
             teyitli.add(_le.kanonik(r['referans']))
     except Exception:
         pass
+    # HATA ALANLAR SAATTE BİR (2026-10-14): gönderim hata alınca (AS400 reddi, 'ERP'de böyle bir
+    # article YOK', zaman aşımı…) aynı referans değişmeden HER TURDA (~2 dk) yeniden deneniyordu:
+    # 13.10'da 10.300.6680b 12:56–23:58 arası 275 kez (IT tablosunda her seferinde yeni hatalı
+    # satır), 14.10'da 150-S235NUMUNE. Son 'tamamlandı'dan SONRA hata alan referans, son hatadan
+    # ERKEN_TEKRAR_DK geçmeden denenmez; operatör kaydı yeniden tamamlarsa hemen aday olur.
+    # Gün sonu 17:10 koşusu ve elle gönderim etkilenmez.
+    hatali = {}
+    try:
+        for r in conn.execute(
+                "SELECT referans, MAX(created_at) ts FROM as400_import_log "
+                "WHERE uretim_tarihi=? AND sonuc='hata' GROUP BY referans", (tarih,)).fetchall():
+            kn = _le.kanonik(r['referans'])
+            hatali[kn] = max(hatali.get(kn, ''), r['ts'] or '')
+        for r in conn.execute(
+                "SELECT detay, created_at FROM as400_oto_kosu WHERE tur='erken' AND created_at >= ? "
+                "AND COALESCE(hata,0) > 0", (tarih,)).fetchall():
+            try:
+                _det = json.loads(r['detay'] or '{}')
+            except ValueError:
+                continue
+            for x in _det.get('sonuclar') or []:
+                if x.get('sonuc') == 'hata' and (x.get('uretim_tarihi') or tarih) == tarih:
+                    kn = _le.kanonik(x.get('referans') or '')
+                    hatali[kn] = max(hatali.get(kn, ''), r['created_at'] or '')
+    except Exception as e:
+        print(f'[ERKEN] hata geçmişi okunamadı: {e}')
+    _sinir = (datetime.now() - timedelta(minutes=ERKEN_TEKRAR_DK)).strftime('%Y-%m-%d %H:%M:%S')
     adaylar = {}
     for r in rows:
         kn = _le.kanonik(r['ref'])
         if kn in teyitli:
             continue
+        _h = hatali.get(kn)
+        if _h and _h >= (r['son_ts'] or '') and _h > _sinir:
+            continue                     # son tamamlamadan sonra hata aldı, saatlik bekleme dolmadı
         adaylar[kn] = {'referans': r['ref'], 'toplam': r['toplam'], 'son_ts': r['son_ts']}
     return adaylar
 

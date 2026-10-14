@@ -161,7 +161,9 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
                       (zorla=False) — tekrar YAZILMADI
     sadece_yaz=True → bekleme yok (rrn döner)."""
     k, t = _ad(kutuphane, 'kütüphane'), _ad(tablo, 'tablo')
-    article = str(article or '').strip()
+    # ERP kodları BÜYÜK HARF (2026-10-14, Simone: '10.300.6680b' → MGSTAT 2 '01-Item code error';
+    # Forge'da referans küçük 'b' ile açılmıştı)
+    article = str(article or '').strip().upper()
     causal = str(causal or 'CFI').strip().upper()
     wh = str(wh or '').strip().upper()
     cp = str(cp or '').strip().upper()
@@ -230,6 +232,22 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
                 # aynı olduğu sürece bu aynı gönderimdir ve yeniden YAZILMAZ.
                 var = cur.execute(f"SELECT RRN(x), MGSTAT FROM {k}.{t} x WHERE {kosul} "
                                   f"ORDER BY RRN(x) DESC FETCH FIRST 1 ROW ONLY", par).fetchone()
+                # REDDEDİLEN SATIR AYNI GÜN TEKRAR YAZILMAZ (2026-10-14): program aynı satırı
+                # reddettiyse (MGSTAT 2) değişmeden yeniden yazmak yine reddedilir — 13.10'da
+                # 10.300.6680b için erken tur 12:56–23:58 arası 275 hatalı satır bıraktı.
+                # Yalnız BİZİM bugün yazdığımız (MGSTE2 'F'+yymmdd…) aynı kod/causal/adet satırı
+                # engeller; sebep giderildiyse 'zorla' ile ya da ertesi gün yeniden yazılır.
+                if not var and REFERANS_KOLONU in mevcut_kolonlar:
+                    red = cur.execute(
+                        f"SELECT RRN(x) FROM {k}.{t} x WHERE MGARCD=? AND MGCACD=? AND MGQTA=? AND MGSTAT='2' "
+                        f"AND {REFERANS_KOLONU} LIKE 'F%' AND {REFERANS_KOLONU} >= ? "
+                        f"ORDER BY RRN(x) DESC FETCH FIRST 1 ROW ONLY",
+                        [article, causal, adet_f, 'F' + datetime.now().strftime('%y%m%d') + '000000']).fetchone()
+                    if red:
+                        d = _satir_oku(cn, k, t, int(red[0])) or {}
+                        return {'ok': False, 'durum': 'reddedildi', 'rrn': int(red[0]), 'not': d.get('not', ''),
+                                'mgtime': d.get('mgtime', ''), 'alanlar': alanlar, 'tekrar_yazilmadi': True,
+                                'mesaj': 'aynı satır bugün REDDEDİLDİ — tekrar yazılmadı'}
                 if var:
                     d = _satir_oku(cn, k, t, int(var[0])) or {}
                     return {'ok': (d.get('mgstat') == '1'), 'durum': 'mevcut', 'rrn': int(var[0]),
