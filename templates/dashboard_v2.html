@@ -18938,9 +18938,16 @@ window.__I18N_SOZLUK__ = {
                 // kuyruğa (launch/CFI/COP) girmeden Dikkat'e ayrılır; kategori
                 // döngülerinden ÖNCE eleniyor ki hiçbir yolda sızmasın.
                 // '➕ teyit ver' işareti kullanıcının "adet doğru" onayıdır → geçer.
-                ['ACIK', 'SUPHELI', 'OPR10', 'YOK', 'KAPALI'].forEach(function (kat) {
+                ['ACIK', 'SUPHELI', 'OPR10', 'YOK', 'KAPALI', 'ARAOP'].forEach(function (kat) {
                     if (!L[kat] || !L[kat].length) return;
                     L[kat] = L[kat].filter(function (r) {
+                        // GÖNDERİM HATASI (2026-10-14): hata alan satır otomatik tekrar
+                        // denenmez — Dikkat'e ayrılır; '↻ tekrar dene' ya da '➕ teyit ver'
+                        if (r.isaret && r.isaret.durum === 'hata') {
+                            dikkat.push({ tip: 'hata', tarih: g.tarih, r: r, l: (r.launchlar || [])[0] || {} });
+                            return false;
+                        }
+                        if (kat === 'ARAOP') return true;
                         if (r.kapasite_asim && !(r.isaret && r.isaret.durum === 'teyit_ver')) {
                             dikkat.push({ tip: 'kapasite', tarih: g.tarih, r: r,
                                           l: (r.launchlar || [])[0] || {} });
@@ -19359,7 +19366,8 @@ window.__I18N_SOZLUK__ = {
                     // Adet sütununda kalan gösterilir — gün toplamı gönderilirse
                     // teyitli kısım İKİNCİ KEZ gider ve ERP'ye fazla stok girer.
                     kismi:   ['var(--danger)', 'KISMİ TEYİTLİ — yalnız KALAN adet girilmeli, gün toplamı DEĞİL'],
-                    kapasite:['var(--danger)', 'ADET ŞÜPHELİ — vardiya süresinde bu kadar üretilemez']
+                    kapasite:['var(--danger)', 'ADET ŞÜPHELİ — vardiya süresinde bu kadar üretilemez'],
+                    hata:    ['var(--danger)', 'GÖNDERİM HATASI — otomatik tekrar denenmez']
                 };
                 // Kapasite aşımının gerekçesi satır bazlı (adet/cycle/saat) — sabit
                 // metin yerine hesabı göster ki kullanıcı 410 mu 4410 mü olduğunu görsün.
@@ -19385,13 +19393,18 @@ window.__I18N_SOZLUK__ = {
                     sDikkat += '<tr><td style="font-size:.78rem;white-space:nowrap">' + esc(as4GunEtiket(x.tarih)) + '</td>' +
                         '<td>' + esc(bolumAdi(x.r.bolum, x.r.tesis)) + '</td>' +
                         '<td style="font-weight:700">' + esc(x.r.referans) +
-                            (isrD.durum === 'kontrol' ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
+                            (isrD.durum === 'hata' ? ' <span style="color:var(--danger);font-size:.7rem;font-weight:800">⛔ gönderim hatası</span>'
+                             : isrD.durum === 'kontrol' ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">✓ kontrol edildi</span>'
                              : isrD.durum === 'teyit_ver' ? ' <span style="color:var(--lg-green);font-size:.7rem;font-weight:800">➕ teyit verilecek</span>' : '') +
                             '<div style="margin-top:3px">' +
                             '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem" onclick="refRenameAc(this.dataset.kod)" data-kod="' + esc(x.r.orijinal_referans || x.r.referans) + '" title="Referans kodunu AS400 koduna göre düzelt (tüm sayfalarda)">🔁 düzelt</button>' +
                             as4GerekYokBtn(x.r, x.tarih, false) +
                             as4IsaretBtn(x.r, x.tarih, 'kontrol') +
                             as4IsaretBtn(x.r, x.tarih, 'teyit_ver') +
+                            (x.tip === 'hata' ? '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
+                                'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'hata\',this.dataset.tar,true)" ' +
+                                'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" data-tar="' + esc(x.tarih || '') + '" ' +
+                                'title="Sebebi giderdim — satır kuyruğa döner, bir sonraki turda (ya da elle) yeniden gönderilir">↻ tekrar dene</button>' : '') +
                             '</div></td>' +
                         '<td style="text-align:right">' + fmt(x.r.adet) +
                             (x.tip === 'kismi' && x.r.kalan_adet != null
@@ -19401,7 +19414,10 @@ window.__I18N_SOZLUK__ = {
                         '<td style="font-size:.8rem">' + (l.article ? esc(l.article) + ' → ' + esc(l.launch || '') : '—') +
                         (hrk ? '<div style="font-size:.7rem;color:var(--dim)">' + esc(hrk) + '</div>' : '') + '</td>' +
                         '<td style="font-size:.76rem;color:' + t[0] + ';font-weight:700">' +
-                            esc(x.tip === 'kapasite' ? kapasiteMetni(x.r) : t[1]) + '</td></tr>';
+                            esc(x.tip === 'kapasite' ? kapasiteMetni(x.r)
+                                : x.tip === 'hata' ? t[1] + ': ' + ((x.r.isaret || {}).aciklama || '?') +
+                                    ' — sebebi giderip "↻ tekrar dene", kod doğruysa "➕ teyit ver", gerekmiyorsa işaretleyin'
+                                : t[1]) + '</td></tr>';
                 });
                 sDikkat += '</tbody></table></div>';
             }

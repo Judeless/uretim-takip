@@ -12024,11 +12024,22 @@ def as400_teyit_isaret():
     conn = get_db()
     kullanici = g.panel_ku['kullanici_adi']
     try:
-        if kaldir:
+        if kaldir and kapsam == 'gun':
+            # Günlük işaret kuyrukta/listede yalnız (gün, kanonik referans) ile okunur → silerken de
+            # bölüme bakılmaz (sistemin koyduğu 'hata' işaretinde bölüm boş olabilir, 2026-10-14)
+            conn.execute(
+                "DELETE FROM as400_teyit_isaret WHERE kapsam='gun' AND uretim_tarihi=? AND referans=?",
+                (u_tarih, ref_norm))
+        elif kaldir:
             conn.execute(
                 "DELETE FROM as400_teyit_isaret WHERE kapsam=? AND uretim_tarihi=? AND bolum=? AND referans=?",
                 (kapsam, u_tarih, bolum, ref_norm))
         else:
+            if kapsam == 'gun':
+                # (gün, referans) başına TEK günlük işaret: okuma bölüme bakmıyor; sistemin bölümsüz
+                # 'hata' işaretinin yanına ikinci satır açılırsa hangisinin okunacağı belirsizdi
+                conn.execute("DELETE FROM as400_teyit_isaret WHERE kapsam='gun' AND uretim_tarihi=? "
+                             "AND referans=? AND bolum<>?", (u_tarih, ref_norm, bolum))
             conn.execute(
                 "INSERT INTO as400_teyit_isaret (kapsam, uretim_tarihi, bolum, referans, durum, aciklama, olusturan) "
                 "VALUES (?,?,?,?,?,?,?) "
@@ -12458,6 +12469,47 @@ def _operator_eki_engeli(referans, article=''):
             "'" f'ye teyit edilmez (kullanıcı kuralı 2026-08-27)')
 
 
+def _hata_kontrole_ayir(conn, satirlar, sonuclar, bas, kullanici):
+    """GÖNDERİMDE HATA ALAN SATIR TEKRAR DENENMEZ (kullanıcı 2026-10-14: "erken turda ya da
+    sonrasında hata alan bir referansı tekrar deneme. Kontrol kısmına ayır").
+
+    10.300.6680b'de (küçük harf) AS400 reddi her erken turda yeniden gönderildi (13.10: 275
+    kez, IT tablosunda her seferinde hatalı satır); 'ERP'de article YOK' kodları da aynı.
+    sonuclar[bas:] içinde sonuc='hata' olan her satır o üretim günü + referans için 'hata'
+    işareti alır (as400_teyit_isaret, kapsam='gun'). Kuyruklar (erken / 17:10 / mutabakat)
+    bunu 'kontrol' gibi ATLAR; panel Dikkat bölümünde mesajıyla gösterir. Kullanıcı
+    '↻ tekrar dene' (işareti kaldırır) ya da '➕ teyit ver' der. Kullanıcının koyduğu
+    'kontrol' / 'gerek_yok' işaretinin üstüne yazılmaz. 'atlandi' hata sayılmaz."""
+    try:
+        import launch_esle as _le
+        bolum = {}
+        for s in satirlar or []:
+            bolum.setdefault(_le.kanonik(s.get('referans') or ''), s.get('bolum') or '')
+        for x in (sonuclar or [])[bas:]:
+            if x.get('sonuc') != 'hata':
+                continue
+            ref, t = (x.get('referans') or '').strip(), (x.get('uretim_tarihi') or '').strip()
+            if not ref or not t:
+                continue
+            kn = _le.kanonik(ref)
+            var = conn.execute("SELECT bolum, durum FROM as400_teyit_isaret WHERE kapsam='gun' "
+                               "AND uretim_tarihi=? AND referans=?", (t, kn)).fetchall()
+            if any(r['durum'] in ('kontrol', 'gerek_yok') for r in var):
+                continue
+            aciklama = (f"{x.get('faz') or ''} {x.get('mesaj') or ''}").strip()[:400]
+            if var:
+                conn.execute("UPDATE as400_teyit_isaret SET durum='hata', aciklama=?, olusturan=? "
+                             "WHERE kapsam='gun' AND uretim_tarihi=? AND referans=?",
+                             (aciklama, f'sistem ({kullanici})', t, kn))
+            else:
+                conn.execute("INSERT INTO as400_teyit_isaret (kapsam, uretim_tarihi, bolum, referans, durum, "
+                             "aciklama, olusturan) VALUES ('gun',?,?,?,'hata',?,?)",
+                             (t, bolum.get(kn, ''), kn, aciklama, f'sistem ({kullanici})'))
+        conn.commit()
+    except Exception as e:
+        print(f'[AS400] hata işareti yazılamadı: {e}')
+
+
 def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla=False,
                            sonuc_kanal=None):
     """Launch teyit satırlarını robotla işler — endpoint VE 17:10 oto koşusu ortak
@@ -12470,6 +12522,7 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
     _as400_is_calistir) aynı listeyi paylaşır ve satır satır ilerlemeyi okur —
     append noktalarına hiç dokunmadan canlı ilerleme."""
     sonuclar = sonuc_kanal if sonuc_kanal is not None else []
+    _bas = len(sonuclar)
     # Session B ön kontrolü (bkz. _as400_oturum_hazirla) — ölü oturumda
     # launch teyitleri de satır satır hata veriyordu. Teyit IMPORT tablosundan
     # gidiyorsa ekran oturumu kullanılmaz → sign-on denemesi YAPILMAZ (2026-10-12).
@@ -12740,6 +12793,7 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
                          'teyitli_once': once, 'teyitli_sonra': sonra})
         # Hata olsa bile SONRAKİ satıra devam (durdurma YOK).
 
+    _hata_kontrole_ayir(conn, satirlar, sonuclar, _bas, kullanici)
     return sonuclar
 
 
@@ -13520,6 +13574,7 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
     hareketlerinde adet birebir aranır.
     sonuc_kanal: bkz. _teyit_gonder_calistir (canlı ilerleme kanalı)."""
     sonuclar = sonuc_kanal if sonuc_kanal is not None else []
+    _bas = len(sonuclar)
     import sys as _sys
     _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
     if _d not in _sys.path:
@@ -13705,6 +13760,7 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
             (u_tarih, 'CF', article, referans, article, adet, 'CFI', sonuc, mesaj, kullanici))
         conn.commit()
         sonuclar.append({**kayit, 'sonuc': sonuc, 'mesaj': mesaj})
+    _hata_kontrole_ayir(conn, satirlar, sonuclar, _bas, kullanici)
     return sonuclar
 
 
@@ -16539,7 +16595,8 @@ def _oto_kuyruk_olustur(conn, tarihler):
     launchQ, cfiQ, copQ, sabah = [], [], [], []
 
     def isr(t, r):
-        return gun_isaret.get(t, {}).get(_le.kanonik(r.get('referans', '')), '')
+        d = gun_isaret.get(t, {}).get(_le.kanonik(r.get('referans', '')), '')
+        return 'kontrol' if d == 'hata' else d       # gönderim hatası → otomatik tekrar YOK
 
     def sabaha(tip, t, r, neden, launch=''):
         sabah.append({'tip': tip, 'tarih': t, 'bolum': r.get('bolum', ''),
@@ -16695,9 +16752,6 @@ def _oto_kuyruk_olustur(conn, tarihler):
     return launchQ, cfiQ, copQ, sabah
 
 
-ERKEN_TEKRAR_DK = 60      # erken turda hata alan referans en erken bu kadar dk sonra yeniden denenir
-
-
 def _erken_teyit_adaylari(conn, tarih, gecikme_dk):
     """ERKEN TEYİT adayı referanslar (2026-08-18).
 
@@ -16754,41 +16808,11 @@ def _erken_teyit_adaylari(conn, tarih, gecikme_dk):
             teyitli.add(_le.kanonik(r['referans']))
     except Exception:
         pass
-    # HATA ALANLAR SAATTE BİR (2026-10-14): gönderim hata alınca (AS400 reddi, 'ERP'de böyle bir
-    # article YOK', zaman aşımı…) aynı referans değişmeden HER TURDA (~2 dk) yeniden deneniyordu:
-    # 13.10'da 10.300.6680b 12:56–23:58 arası 275 kez (IT tablosunda her seferinde yeni hatalı
-    # satır), 14.10'da 150-S235NUMUNE. Son 'tamamlandı'dan SONRA hata alan referans, son hatadan
-    # ERKEN_TEKRAR_DK geçmeden denenmez; operatör kaydı yeniden tamamlarsa hemen aday olur.
-    # Gün sonu 17:10 koşusu ve elle gönderim etkilenmez.
-    hatali = {}
-    try:
-        for r in conn.execute(
-                "SELECT referans, MAX(created_at) ts FROM as400_import_log "
-                "WHERE uretim_tarihi=? AND sonuc='hata' GROUP BY referans", (tarih,)).fetchall():
-            kn = _le.kanonik(r['referans'])
-            hatali[kn] = max(hatali.get(kn, ''), r['ts'] or '')
-        for r in conn.execute(
-                "SELECT detay, created_at FROM as400_oto_kosu WHERE tur='erken' AND created_at >= ? "
-                "AND COALESCE(hata,0) > 0", (tarih,)).fetchall():
-            try:
-                _det = json.loads(r['detay'] or '{}')
-            except ValueError:
-                continue
-            for x in _det.get('sonuclar') or []:
-                if x.get('sonuc') == 'hata' and (x.get('uretim_tarihi') or tarih) == tarih:
-                    kn = _le.kanonik(x.get('referans') or '')
-                    hatali[kn] = max(hatali.get(kn, ''), r['created_at'] or '')
-    except Exception as e:
-        print(f'[ERKEN] hata geçmişi okunamadı: {e}')
-    _sinir = (datetime.now() - timedelta(minutes=ERKEN_TEKRAR_DK)).strftime('%Y-%m-%d %H:%M:%S')
     adaylar = {}
     for r in rows:
         kn = _le.kanonik(r['ref'])
         if kn in teyitli:
             continue
-        _h = hatali.get(kn)
-        if _h and _h >= (r['son_ts'] or '') and _h > _sinir:
-            continue                     # son tamamlamadan sonra hata aldı, saatlik bekleme dolmadı
         adaylar[kn] = {'referans': r['ref'], 'toplam': r['toplam'], 'son_ts': r['son_ts']}
     return adaylar
 
@@ -16869,7 +16893,8 @@ def _mutabakat_uygula(conn, tarih, kullanici='oto-mutabakat'):
             harita.setdefault(_le.kanonik(r.get('referans') or ''), (kat, r))
     # O günün kullanıcı işaretleri (kuyrukla aynı kaynak) — kalıcı 'gerek_yok'
     # zaten HARIC kategorisi olarak geliyor.
-    gun_isaret = {_le.kanonik(r['referans'] or ''): r['durum'] for r in conn.execute(
+    gun_isaret = {_le.kanonik(r['referans'] or ''): ('kontrol' if r['durum'] == 'hata' else r['durum'])
+                  for r in conn.execute(
         "SELECT referans, durum FROM as400_teyit_isaret WHERE kapsam='gun' AND uretim_tarihi=?",
         (tarih,)).fetchall()}
 
@@ -17119,7 +17144,8 @@ def as400_oto_kosu():
         kalici = _le.kalici_haric_set()
         gunluk = set()
         for r in conn.execute(
-                "SELECT uretim_tarihi, referans FROM as400_teyit_isaret WHERE kapsam='gun'").fetchall():
+                "SELECT uretim_tarihi, referans FROM as400_teyit_isaret WHERE kapsam='gun' "
+                "AND durum <> 'hata'").fetchall():
             gunluk.add((r['uretim_tarihi'] or '', _le.kanonik(r['referans'] or '')))
 
         # ERP KANALI (2026-07-30, 94.ltk.704 olayı): robot hareketi ERP'ye YAZDIĞI
