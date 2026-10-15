@@ -257,7 +257,16 @@ def as400_oku(baglan=None, acilim_bilinen=None):
 
 # ── DOSYADAN (kullanıcının kendi çektiği satış planı.xls / .xlsx) ───────────
 def _sayfalar(yol):
-    """{sayfa adı: satır listesi} — .xlsx/.xlsm openpyxl, .xls xlrd (sunucuda kurulu olmalı)."""
+    """{sayfa adı: satır listesi} — .xlsx/.xlsm openpyxl, .xls xlrd, .xlsb pyxlsb (sunucuda kurulu olmalı).
+    .xlsb (2026-10-15): planlamanın arşivi (Q: UretimPlanlama / Satış Planı / yyyy / aa / 'Satış planı yymmdd.xlsb')."""
+    if yol.lower().endswith('.xlsb'):
+        from pyxlsb import open_workbook
+        with open_workbook(yol) as kitap:
+            out = {}
+            for ad in kitap.sheets:
+                with kitap.get_sheet(ad) as ws:
+                    out[ad] = [[c.v for c in r] for r in ws.rows()]
+            return out
     if yol.lower().endswith('.xls'):
         try:
             import xlrd

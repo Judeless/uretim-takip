@@ -7789,8 +7789,8 @@ def satis_plani_yukle():
     if not f or not f.filename:
         return jsonify({'hata': 'Dosya seçilmedi'}), 400
     uzanti = os.path.splitext(f.filename)[1].lower()
-    if uzanti not in ('.xls', '.xlsx', '.xlsm'):
-        return jsonify({'hata': 'Satış planı .xls ya da .xlsx olmalı'}), 400
+    if uzanti not in ('.xls', '.xlsx', '.xlsm', '.xlsb'):
+        return jsonify({'hata': 'Satış planı .xls, .xlsx ya da .xlsb olmalı'}), 400
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', tarih):
         return jsonify({'hata': 'Tarih YYYY-AA-GG olmalı'}), 400
     fd, gecici = tempfile.mkstemp(suffix=uzanti)
