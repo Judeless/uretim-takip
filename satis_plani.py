@@ -933,6 +933,26 @@ def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True,
     → {'cekimler', 'haftalar', 'termin', 'satirlar', 'ozet', 'notlar', 'tesis', 'termin_disi'}"""
     ck, termin, notlar, tesis, harita, toplam, ilk, ufuk, son = _kiyas_hazirla(
         conn, list(cekim_idler)[:2], termin, kapsam_secimi)
+    # TERMİN PENCERESİ TARİHLE (kullanıcı 2026-10-15, 94.PBL.47): pencere 'çekimin ilk N
+    # haftası'ydı. Perşembe (15.10) çekiminde Yarış'ın 46. haftasına (09.11) giren 50 adet
+    # dışarıda kalıyordu — oysa teslime 25 gün var, 4 haftadan kısa. Artık başlangıcı
+    # (pazartesi) çekim tarihi + N hafta'dan ÖNCE olan her hafta pencerededir: pazartesi
+    # çekiminde N hafta, hafta ortası çekimde N+1 hafta (son hafta kısmen termin içinde).
+    sinir_gun = None
+    try:
+        from datetime import date, timedelta
+        cekim_gun = datetime.strptime(ck[0]['tarih'], '%Y-%m-%d').date()
+        sinir_gun = cekim_gun + timedelta(days=7 * termin)
+
+        def _pzt(w):
+            h, y_ = w.split('/')
+            return date.fromisocalendar(int(y_), int(h), 1)
+        ufuk = [w for w in (ck[0]['haftalar'] or []) if _hafta_sira(w) and _pzt(w) < sinir_gun]
+    except (ValueError, TypeError, KeyError):
+        pass                              # tarih/hafta okunamazsa ilk N hafta (eski davranış)
+    if sinir_gun:
+        notlar.append(f"Termin sınırı: {sinir_gun.strftime('%d.%m.%Y')} (çekim {ck[0]['tarih'][8:10]}."
+                      f"{ck[0]['tarih'][5:7]} + {termin} hafta) — {ufuk[0]} … {ufuk[-1]} haftaları pencerede.")
     t_y, t_e = toplam[0], toplam[1]
     ara = re.sub(r'\s', '', ara or '').upper()
     mus_y = {m: v['musteri'] for d in t_y.values() for m, v in d['musteri'].items()}
