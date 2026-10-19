@@ -2399,6 +2399,7 @@ window.__I18N_SOZLUK__ = {
   "🔧 Arıza Bildir": {"en": "🔧 Report Fault", "it": "🔧 Segnala guasto"},
   "Otonom Bakım": {"en": "Autonomous Maintenance", "it": "Manutenzione autonoma"},
   "Formu Aç": {"en": "Open Form", "it": "Apri modulo"},
+  "Başka makine seç": {"en": "Choose another machine", "it": "Scegli un'altra macchina"},
   "🛠️ Vardiya sonu otonom bakım": {"en": "🛠️ End-of-shift autonomous maintenance", "it": "🛠️ Manutenzione autonoma di fine turno"},
   "Vazgeç": {"en": "Cancel", "it": "Annulla"},
   "Bugün üretim yapılan makinede vardiya sonu otonom bakım formu doldurulmadan vardiya tamamlanmış sayılmaz.": {"en": "On a machine that produced today, the shift is not complete until the end-of-shift autonomous maintenance form is filled in.", "it": "Su una macchina che ha prodotto oggi, il turno non è completo finché non si compila il modulo di manutenzione autonoma di fine turno."},
@@ -2831,6 +2832,24 @@ window.__I18N_SOZLUK__ = {
           </div>
           <select id="c-otonom-sec" onchange="otonomMakineSec(this.value)" style="display:none;max-width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:10px;background:var(--card);color:var(--text);font-size:.85rem"></select>
           <button id="c-otonom-btn" onclick="otonomDugme()" style="background:var(--primary);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">Formu Aç</button>
+        </div>
+        <!-- Arıza formundaki gibi: varsayılan vardiyanın eşli makinesi, operatör isterse bakım listesinden seçer -->
+        <button type="button" onclick="otonomKatalogAc()" style="margin-top:8px;background:transparent;border:0;padding:0;color:var(--primary);font-weight:700;font-size:.78rem;cursor:pointer">Başka makine seç</button>
+        <div id="c-otonom-kat" style="display:none;margin-top:8px;border:1px solid var(--line-strong);border-radius:12px;padding:10px">
+          <div style="display:flex;gap:6px">
+            <input id="c-otonom-kat-q" type="search" oninput="otonomKatalogAra()" placeholder="Ara: robot, TKRK03, kaynak alanı…" style="flex:1;min-width:0;padding:10px;border:1px solid var(--line-strong);border-radius:10px;font-size:.9rem;font-family:inherit;background:var(--card);color:var(--text)">
+            <button type="button" onclick="otonomQrAc()" style="background:var(--primary-soft);color:var(--text);border:1px solid var(--primary-line);border-radius:10px;padding:0 14px;font-weight:800;font-size:.82rem;cursor:pointer;white-space:nowrap">QR Okut</button>
+          </div>
+          <div id="c-otonom-qr-alan" style="display:none;margin-top:8px">
+            <video id="c-otonom-qr-video" playsinline muted style="width:100%;max-height:220px;border-radius:12px;background:#000;object-fit:cover"></video>
+            <div id="c-otonom-qr-not" style="font-size:.74rem;color:var(--muted);margin-top:6px">Makinenin üzerindeki QR etiketini kameraya gösterin.</div>
+            <button type="button" onclick="otonomQrKapat()" style="margin-top:6px;background:var(--card);color:var(--text);border:1px solid var(--line-strong);border-radius:10px;padding:8px 14px;font-size:.8rem;cursor:pointer">Kamerayı kapat</button>
+          </div>
+          <div id="c-otonom-kat-liste" style="max-height:220px;overflow-y:auto;margin-top:8px"></div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.78rem;color:var(--muted)">
+            <input type="checkbox" id="c-otonom-kat-hepsi" onchange="otonomKatalogAra()" style="width:16px;height:16px">
+            <span>Diğer tesisi de listele</span>
+          </label>
         </div>
       </div>
 
@@ -5554,12 +5573,123 @@ window.__I18N_SOZLUK__ = {
       else if (d.calismadi) metin = 'Makine bugün "çalışmadı" işaretli';
       else if (d.form_acik === false) metin = 'Bu hatta otonom bakım formu bakımda henüz açılmadı';
       else metin = _otonomParca('Vardiya başı', d.baslangic) + ' · ' + _otonomParca('Vardiya sonu', d.son);
-      dz.textContent = metin;
+      // Formun hangi bakım makinesine ait olduğu her zaman görünsün (listeden başka makine seçilebiliyor)
+      dz.textContent = (d.bakim_kodu ? d.bakim_kodu + ' — ' : '') + metin;
       var pasif = (d.form_acik === false);
       btn.disabled = pasif; btn.style.opacity = pasif ? '.5' : '1';
     }
     function otonomDugme() {
       if (_otonomSecili) otonomFormAc(_otonomSecili.kod, _otonomSecili.makine);
+    }
+    // BAKIM LİSTESİNDEN SEÇİM (kullanıcı 2026-10-19): "arıza talebinde üretimdeki makine
+    // bakımdakiyle eşleşiyor ama operatör isterse bakım listesini görüp seçebiliyor,
+    // bunda da benzeri olsun." Arıza formunun kataloğu (/api/ariza/katalog: arama + QR)
+    // kullanılır; yalnız MAKİNE seçilir (otonom formu makine başınadır). Seçim kalıcı
+    // değildir — ekrana yeniden girildiğinde vardiyanın eşli makinesine döner.
+    var _otonomKatZaman = null, _otonomQrAkim = null;
+    function otonomKatalogAc() {
+      var w = document.getElementById('c-otonom-kat');
+      if (w.style.display !== 'none') { otonomQrKapat(); w.style.display = 'none'; return; }
+      w.style.display = '';
+      otonomKatalogYukle();
+    }
+    function otonomKatalogAra() {
+      clearTimeout(_otonomKatZaman);
+      _otonomKatZaman = setTimeout(otonomKatalogYukle, 250);
+    }
+    function otonomKatalogYukle() {
+      var q = (document.getElementById('c-otonom-kat-q').value || '').trim();
+      var hepsi = document.getElementById('c-otonom-kat-hepsi').checked ? '&hepsi=1' : '';
+      var kutu = document.getElementById('c-otonom-kat-liste');
+      kutu.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:.8rem">Yükleniyor…</div>';
+      fetch('/api/ariza/katalog?q=' + encodeURIComponent(q) + hepsi)
+        .then(function (r) { return (r.status === 401 || r.status === 403) ? 'yetki' : (r.ok ? r.json() : null); })
+        .then(function (d) {
+          if (d === 'yetki') { kutu.innerHTML = '<div style="padding:8px;color:var(--danger);font-size:.8rem">Önce PIN ile giriş yapın</div>'; return; }
+          if (!d) { kutu.innerHTML = '<div style="padding:8px;color:var(--danger);font-size:.8rem">Liste alınamadı</div>'; return; }
+          var sat = 'width:100%;text-align:left;background:var(--card);border:1px solid var(--line);' +
+                    'border-radius:10px;padding:9px 12px;margin-bottom:6px;cursor:pointer;font-family:inherit;color:var(--text)';
+          var h = '';
+          (d.makineler || []).forEach(function (m) {
+            h += '<button type="button" style="' + sat + '" onclick="otonomKatalogSec(this.dataset.kod, this.dataset.ad, this.dataset.yer)"' +
+                 ' data-kod="' + arizaKac(m.kod) + '" data-ad="' + arizaKac(m.ad) + '" data-yer="' + arizaKac(m.yer || '') + '">' +
+                 '<div style="font-weight:800;font-size:.84rem">' + arizaKac(m.ad) + '</div>' +
+                 '<div style="font-size:.74rem;color:var(--muted)">' + arizaKac(m.kod) + (m.yer ? ' · ' + arizaKac(m.yer) : '') + '</div></button>';
+          });
+          if (!h) h = '<div style="padding:8px;color:var(--muted);font-size:.8rem">Makine bulunamadı</div>';
+          else if (d.kesildi) h += '<div style="padding:6px 10px;color:var(--muted);font-size:.74rem">' + d.toplam +
+                 ' kayıttan ilk ' + (d.makineler || []).length + ' tanesi — aramayı daraltın</div>';
+          kutu.innerHTML = h;
+        }).catch(function () { kutu.innerHTML = '<div style="padding:8px;color:var(--danger);font-size:.8rem">Liste alınamadı</div>'; });
+    }
+    function otonomKatalogSec(kod, ad, yer) {
+      otonomQrKapat();
+      document.getElementById('c-otonom-kat').style.display = 'none';
+      var etiket = ad + (yer ? ' · ' + yer : '');
+      var sec = document.getElementById('c-otonom-sec');
+      if (sec) sec.value = '';
+      fetch('/api/otonom/durum?bakim_kodu=' + encodeURIComponent(kod) + '&makine=' + encodeURIComponent(etiket))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d || !d.etkin) return;
+          if (d.otonom === false) { otonomSatirCiz(null, kod + ' — ' + etiket + ' otonom bakım listesinde değil'); return; }
+          otonomSatirCiz(d);
+          toast(kod + ' seçildi', 'success');
+        }).catch(function () { toast('Bağlantı hatası', 'error'); });
+    }
+    // QR: arıza formundakiyle aynı yöntem (tarayıcının BarcodeDetector'ı; kamera yalnız https'te)
+    function otonomQrAc() {
+      var alan = document.getElementById('c-otonom-qr-alan');
+      var not = document.getElementById('c-otonom-qr-not');
+      if (!window.isSecureContext || !navigator.mediaDevices) {
+        toast('QR için https adresinden girin ({{ marka.alan_adi|replace('https://', '') }})', 'error'); return;
+      }
+      if (!('BarcodeDetector' in window)) {
+        toast('Bu tarayıcı QR okuyamıyor — kodu arama kutusuna yazın', 'error'); return;
+      }
+      alan.style.display = '';
+      not.textContent = 'Makinenin üzerindeki QR etiketini kameraya gösterin.';
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+        .then(function (akim) {
+          _otonomQrAkim = akim;
+          var v = document.getElementById('c-otonom-qr-video');
+          v.srcObject = akim; v.play();
+          var dedektor = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'data_matrix'] });
+          var tara = function () {
+            if (!_otonomQrAkim) return;
+            dedektor.detect(v).then(function (kodlar) {
+              if (kodlar && kodlar.length) { otonomQrBulundu(kodlar[0].rawValue || ''); return; }
+              setTimeout(tara, 350);
+            }).catch(function () { setTimeout(tara, 600); });
+          };
+          setTimeout(tara, 400);
+        }).catch(function () {
+          alan.style.display = 'none';
+          toast('Kamera açılamadı — izin verilmemiş olabilir', 'error');
+        });
+    }
+    function otonomQrKapat() {
+      if (_otonomQrAkim) {
+        try { _otonomQrAkim.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+        _otonomQrAkim = null;
+      }
+      var alan = document.getElementById('c-otonom-qr-alan');
+      if (alan) alan.style.display = 'none';
+    }
+    function otonomQrBulundu(metin) {
+      if (!metin) return;
+      fetch('/api/ariza/katalog?q=' + encodeURIComponent(metin))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && d.qr_kod && (d.makineler || []).length) {
+            var m = d.makineler[0];
+            otonomKatalogSec(m.kod, m.ad, m.yer);
+            return;
+          }
+          document.getElementById('c-otonom-qr-not').textContent = 'Bu QR bakım listesinde bulunamadı: ' + metin.slice(0, 40);
+          document.getElementById('c-otonom-kat-q').value = metin.slice(0, 40);
+          otonomKatalogYukle();
+        }).catch(function () {});
     }
     function otonomFormAc(kod, makine) {
       var dil = 'tr';
