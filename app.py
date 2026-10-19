@@ -2233,7 +2233,12 @@ _MODUL_YOLLARI = (
     ('/api/kaynak_plan', 'planlar'), ('/api/montaj_plan', 'planlar'), ('/api/metal_plan', 'planlar'),
     ('/api/tel_plani', 'planlar'), ('/api/aylik_uretim', 'as400'),
     ('/api/kapasite', 'kapasite'), ('/api/proje', 'proje'),
-    ('/api/bakim', 'bakim'), ('/api/ariza', 'bakim'),
+    ('/api/bakim', 'bakim'), ('/api/ariza', 'bakim'), ('/api/otonom', 'bakim'),
+    # 2026-10-19: profil altyapısından (713d2d3) sonra eklenen Cofle'ye özgü uçlar
+    ('/api/satis_plani', 'as400'),
+    ('/api/ana_veri', 'excel_senkron'), ('/api/anaveri', 'excel_senkron'),
+    ('/api/analiz', 'analiz'),
+    ('/api/pilot', 'sayac'), ('/api/saha_cihazlari', 'sayac'),
     ('/tk1', 'tk1'), ('/andon_tk1', 'tk1'),
     ('/api/test_cihazlari', 'test_cihaz'),
     ('/api/import_excel', 'excel_senkron'), ('/api/veri/', 'excel_senkron'),
@@ -6390,6 +6395,61 @@ def operator_pin_guncelle(oid):
     conn.commit()
     conn.close()
     return jsonify({'basarili': True, 'operator_adi': row['ad']}), 200
+
+
+@app.route('/api/operator/<int:oid>/ad', methods=['PATCH'])
+@panel_gerekli(izin='operatorler')
+def operator_ad_guncelle(oid):
+    """Operatörün adını düzeltir (yazım hatası vb.). Body: {ad}
+
+    Kişinin aynı tesisteki TÜM bölüm satırları ve o tesisteki vardiyaları yeni ada
+    geçer: vardiya sahipliği ad üzerinden kontrol edildiği için yalnız operatör
+    satırını değiştirmek kişiyi kendi açık vardiyasından kilitlerdi."""
+    # Eklemeyle aynı yazım (operator_ekle de büyük harfe çevirir — 'Ali Yılmaz' → 'ALİ YILMAZ')
+    yeni = _ad_buyut(' '.join(str((request.get_json() or {}).get('ad') or '').split()))
+    if len(yeni) < 2 or len(yeni) > 60:
+        return jsonify({'hata': 'Ad 2–60 karakter olmalı'}), 400
+    conn = get_db()
+    row = conn.execute("SELECT ad, COALESCE(lokasyon,'TK2') lokasyon FROM operatorler WHERE id=?", (oid,)).fetchone()
+    if not row:
+        return jsonify({'hata': 'Operatör bulunamadı'}), 404
+    eski, lok = row['ad'], row['lokasyon']
+    if eski == ADMIN_ADI:
+        return jsonify({'hata': f"'{ADMIN_ADI}' sistem hesabıdır, adı değiştirilemez"}), 400
+    if yeni == eski:
+        return jsonify({'basarili': True, 'degisti': False})
+    if _ad_esitle(yeni) == _ad_esitle(ADMIN_ADI) or any(
+            _ad_esitle(r['ad']) == _ad_esitle(yeni) and r['ad'] != eski
+            for r in conn.execute("SELECT DISTINCT ad FROM operatorler WHERE COALESCE(lokasyon,'TK2')=?", (lok,))):
+        return jsonify({'hata': f'"{yeni}" adında bir operatör zaten var'}), 409
+    conn.execute("UPDATE operatorler SET ad=? WHERE ad=? AND COALESCE(lokasyon,'TK2')=?", (yeni, eski, lok))
+    n_vardiya = conn.execute("UPDATE vardiyalar SET operator_adi=? WHERE operator_adi=? AND COALESCE(lokasyon,'TK2')=?",
+                             (yeni, eski, lok)).rowcount
+    conn.commit()
+    print(f'[OPERATOR] ad düzeltildi: {eski} → {yeni} ({lok}, {n_vardiya} vardiya)')
+    return jsonify({'basarili': True, 'degisti': True, 'eski': eski, 'yeni': yeni, 'vardiya': n_vardiya})
+
+
+@app.route('/api/operator/<int:oid>', methods=['DELETE'])
+@panel_gerekli(izin='operatorler')
+def operator_sil(oid):
+    """Operatörü listeden kaldırır (aynı tesisteki tüm bölüm satırları). Geçmiş
+    vardiya ve üretim kayıtları adıyla kalır, raporlar bozulmaz. Açık vardiyası
+    olan kişi silinmez — önce vardiyası kapatılmalı."""
+    conn = get_db()
+    row = conn.execute("SELECT ad, COALESCE(lokasyon,'TK2') lokasyon FROM operatorler WHERE id=?", (oid,)).fetchone()
+    if not row:
+        return jsonify({'hata': 'Operatör bulunamadı'}), 404
+    ad, lok = row['ad'], row['lokasyon']
+    if ad == ADMIN_ADI:
+        return jsonify({'hata': f"'{ADMIN_ADI}' sistem hesabıdır, silinemez"}), 400
+    if conn.execute("SELECT 1 FROM vardiyalar WHERE operator_adi=? AND COALESCE(lokasyon,'TK2')=? "
+                    "AND COALESCE(durum,'aktif') != 'kapali' LIMIT 1", (ad, lok)).fetchone():
+        return jsonify({'hata': f'{ad} kişisinin açık vardiyası var — önce vardiya kapatılmalı'}), 409
+    n = conn.execute("DELETE FROM operatorler WHERE ad=? AND COALESCE(lokasyon,'TK2')=?", (ad, lok)).rowcount
+    conn.commit()
+    print(f'[OPERATOR] silindi: {ad} ({lok}, {n} bölüm satırı)')
+    return jsonify({'basarili': True, 'ad': ad, 'satir': n})
 
 
 @app.route('/api/import_excel', methods=['POST'])

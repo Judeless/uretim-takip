@@ -47,6 +47,7 @@ DURUS_BOLUM = {
     'metal': [('Kalıp Değişimi', 'planli'), ('Kalıp Arızası', 'plansiz'), ('Kalıp Isıtma', 'planli')],
     'isleme': [('Takım Değişimi', 'planli'), ('Program / Ayar', 'planli'), ('Takım Kırılması', 'plansiz')],
     'montaj': [('Model Değişimi', 'planli'), ('Eksik Parça', 'plansiz')],
+    'plastik': [('Kalıp Değişimi', 'planli'), ('Kalıp Arızası', 'plansiz'), ('Malzeme Kurutma', 'planli')],
 }
 
 
@@ -76,16 +77,24 @@ def cofle_verisi_var_mi():
 
 
 # ── Excel okuma ───────────────────────────────────────────────────────────
-def excel_satirlari(yol):
-    """İlk sayfanın satırları (liste listesi). .xlsb → pyxlsb, .xlsx → openpyxl."""
+def excel_sayfalari(yol):
+    """{sayfa adı: satırlar} — sayfa sırası korunur. .xlsb → pyxlsb, .xlsx → openpyxl."""
     if yol.lower().endswith('.xlsb'):
         from pyxlsb import open_workbook
+        out = {}
         with open_workbook(yol) as wb:
-            with wb.get_sheet(wb.sheets[0]) as s:
-                return [[c.v for c in r] for r in s.rows()]
+            for ad in wb.sheets:
+                with wb.get_sheet(ad) as s:
+                    out[ad] = [[c.v for c in r] for r in s.rows()]
+        return out
     import openpyxl
     wb = openpyxl.load_workbook(yol, data_only=True, read_only=True)
-    return [list(r) for r in wb.worksheets[0].iter_rows(values_only=True)]
+    return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+
+
+def excel_satirlari(yol):
+    """İlk sayfanın satırları (liste listesi)."""
+    return next(iter(excel_sayfalari(yol).values()))
 
 
 def _sayi(v):
@@ -160,6 +169,37 @@ def referanslari_cikar(satirlar):
     return metal, isleme, montaj
 
 
+def tonaj_sayfasi_refleri(ad, satirlar):
+    """'200T' gibi tek makinelik maliyet sayfası (Aspanda Excel'i, 2026-10-19): başlık
+    satırında 'Enjeksiyon Prosesi' (kod) · 'Göz Adedi' · 'Çevrim Süresi' (baskı süresi).
+    Makine sayfa adından gelir: '200T' → '200 Ton'. Biçim uymuyorsa boş liste."""
+    m = re.match(r'^\s*(\d+)\s*T(?:on)?\s*$', str(ad), re.I)
+    if not m:
+        return []
+    mk = f'{int(m.group(1))} Ton'
+    bas = next((i for i, r in enumerate(satirlar[:15])
+                if any(str(x or '').strip().lower() == 'enjeksiyon prosesi' for x in r)), None)
+    if bas is None:
+        return []
+    h = [str(x or '').strip().lower() for x in satirlar[bas]]
+    k_kod = h.index('enjeksiyon prosesi')
+    k_goz = h.index('göz adedi') if 'göz adedi' in h else None
+    k_ct = h.index('çevrim süresi') if 'çevrim süresi' in h else None
+    out, gorulen = [], set()
+    for r in satirlar[bas + 1:]:
+        if not r or k_kod >= len(r):
+            continue
+        kod = _kod(r[k_kod])
+        if not kod or kod in gorulen or len(kod) > 40:
+            continue
+        gorulen.add(kod)
+        goz = max(1, int(_sayi(r[k_goz]) or 1)) if k_goz is not None and k_goz < len(r) else 1
+        baski = _sayi(r[k_ct]) if k_ct is not None and k_ct < len(r) else 0
+        out.append({'kod': kod, 'goz': goz, 'ct': round(baski / goz, 2) if baski else 0,
+                    'aciklama': f'{mk} · {goz} göz · {baski:g} sn/baskı'.strip(' ·')})
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description='Markalı kurulumu sıfırdan hazırlar.')
     ap.add_argument('--profil', help='kurulum profili (ör. ornek_kurulum/tedarikci.json)')
@@ -217,7 +257,11 @@ def main():
 
         sayac = {'metal': 0, 'isleme': 0, 'montaj': 0}
         if a.excel:
-            metal, isleme, montaj = referanslari_cikar(excel_satirlari(a.excel))
+            sayfalar = excel_sayfalari(a.excel)
+            metal, isleme, montaj = referanslari_cikar(next(iter(sayfalar.values())))
+            # Tonaj sayfaları ('200T'): o makinede basılan ürünler metal referansı olur
+            for _ad, _sat in sayfalar.items():
+                metal += tonaj_sayfasi_refleri(_ad, _sat)
             for bolum, liste in (('metal', metal), ('isleme', isleme), ('montaj', montaj)):
                 if bolum not in bolumler:
                     continue

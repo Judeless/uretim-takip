@@ -3470,6 +3470,12 @@ window.__I18N_SOZLUK__ = {
       var l = (KURULUM.makineler || {})[bolum];
       return (l && l.length) ? l : varsayilan;
     }
+    // Plastik makinesi nerede seçilir? Cofle (TK1): ÜRETİM KAYDINDA (istasyon 1..4).
+    // Markalı kurulumda profil plastik makinelerini veriyorsa (Aspanda: 107 / 350 Ton)
+    // metal gibi VARDİYADA seçilir — kayıtta ikinci kez sorulmaz (2026-10-19).
+    function plastikKayittaMakine() {
+      return secilenBolum === 'plastik' && !kurulumMakineleri('plastik', null);
+    }
 
     (function () {
       var origFetch = window.fetch.bind(window);
@@ -3947,6 +3953,16 @@ window.__I18N_SOZLUK__ = {
         robotWrap.style.display = 'none';
         rsel.innerHTML = '<option value="Tel Üretimi" selected>Tel Üretimi</option>';
         rsel.onchange = null;
+      } else if (bolum === 'plastik' && kurulumMakineleri('plastik', null)) {
+        // Markalı kurulum: makine profilden, vardiyada seçilir (metal gibi)
+        robotWrap.style.display = 'block';
+        if (robotLabel) robotLabel.textContent = 'Makine';
+        rsel.innerHTML = '<option value="">Seçin...</option>' +
+                         kurulumMakineleri('plastik', []).map(function (mk) {
+                           return '<option value="' + esc(mk) + '">' + esc(mk) + '</option>';
+                         }).join('');
+        rsel.onchange = null;
+        sonHatUygula(bolum);
       } else if (bolum === 'plastik') {
         // PLASTİK ENJEKSİYON (kullanıcı 2026-08-18): pres/abkant modeline geçti —
         // operatör makineyi REFERANSI SEÇTİKTEN SONRA, her ÜRETİM KAYDINDA işaretler.
@@ -3988,6 +4004,18 @@ window.__I18N_SOZLUK__ = {
           var _kmh = kurulumMakineleri('montaj', null);
           if (_kmh) {
             _kmh.forEach(function (mk) { montajHatlari += '<option value="' + esc(mk) + '">' + esc(mk) + '</option>'; });
+            // Operatörün sonradan açtığı hatlar (Montaj 7 …) profilde yok: sunucu listesi
+            // profil + geçmiş vardiyaların hatlarını birlikte döner.
+            fetch('/api/robotlar?bolum=montaj').then(function (r) { return r.json(); }).then(function (list) {
+              var yeniOpt = Array.from(rsel.options).find(function (o) { return o.value === '__yeni__'; });
+              (list || []).forEach(function (ad) {
+                if (Array.from(rsel.options).some(function (o) { return o.value === ad; })) return;
+                var opt = document.createElement('option');
+                opt.value = ad; opt.textContent = ad;
+                if (yeniOpt) rsel.insertBefore(opt, yeniOpt); else rsel.appendChild(opt);
+              });
+              sonHatUygula(bolum);
+            }).catch(function () { });
           } else {
             for (var i = 1; i <= 12; i++) {
               montajHatlari += '<option value="M' + i + '">M' + i + ' Hattı</option>';
@@ -4015,7 +4043,22 @@ window.__I18N_SOZLUK__ = {
         // plastik BURADA DEĞİL (2026-08-18): makineleri sabit liste, üretim kaydında seçilir.
       };
       var _p = _promptlar[secilenBolum] || ['Yeni hat adı / numarası (ör: HAT 5):', 'HAT '];
-      var girilen = prompt(_p[0], _p[1]);
+      var girilen;
+      var _profilMontaj = (secilenBolum === 'montaj') ? kurulumMakineleri('montaj', null) : null;
+      if (_profilMontaj) {
+        // Markalı kurulum (Aspanda, 2026-10-19): "operatör hat oluştur deyince Montaj 7
+        // oluşsun" — ad sorulmaz, listedeki en büyük numaranın bir fazlası verilir.
+        var _on = (_profilMontaj[0] || 'Montaj 1').replace(/\s*\d+\s*$/, '') || 'Montaj';
+        var _enb = 0;
+        Array.from(rsel.options).forEach(function (o) {
+          var mm = String(o.value).match(/(\d+)\s*$/);
+          if (mm && String(o.value).indexOf(_on) === 0) _enb = Math.max(_enb, parseInt(mm[1], 10));
+        });
+        girilen = _on + ' ' + (_enb + 1);
+        if (!confirm('Yeni hat oluşturulsun mu: ' + girilen + '?')) { rsel.value = ''; return; }
+      } else {
+        girilen = prompt(_p[0], _p[1]);
+      }
       if (!girilen || !girilen.trim()) { rsel.value = ''; return; }
       var ad = girilen.trim();
       var mevcut = Array.from(rsel.options).find(function (o) { return o.value === ad; });
@@ -4125,7 +4168,7 @@ window.__I18N_SOZLUK__ = {
       }
       // Plastik enjeksiyon: aynı kalıp (makine üretim kaydında, son seçim hatırlanır).
       var plWrap = document.getElementById('d-plastik-makine-wrap');
-      if (plWrap) plWrap.style.display = (secilenBolum === 'plastik') ? 'block' : 'none';
+      if (plWrap) plWrap.style.display = plastikKayittaMakine() ? 'block' : 'none';
       var plSel = document.getElementById('d-plastik-makine');
       if (plSel) {
         var _sonPl = '0';
@@ -4143,7 +4186,7 @@ window.__I18N_SOZLUK__ = {
       istasyonSec(0);
       // pres/plastik: istasyonSec(0) hidden alanı sıfırladı — hatırlanan makineyi geri yaz
       if (secilenBolum === 'pres' && prSel) document.getElementById('d-istasyon').value = prSel.value;
-      if (secilenBolum === 'plastik' && plSel) document.getElementById('d-istasyon').value = plSel.value;
+      if (plastikKayittaMakine() && plSel) document.getElementById('d-istasyon').value = plSel.value;
       // TK1 kayıt hattı (tel proses adımı / TK1 montaj hattı) — aynı kalıp.
       // SIRA ÖNEMLİ (2026-08-19 saha hatası): bu blok istasyonSec(0)'dan SONRA olmalı.
       // Önceden önce geliyordu ve liste ÖNBELLEKTEYSE geri çağrı SENKRON koşuyordu →
@@ -4303,7 +4346,7 @@ window.__I18N_SOZLUK__ = {
     // eski "listeyi makineye göre süz" koruması işlemiyor; yerine UYARI koydu:
     // engellemez (istisna işler bloklanmasın), yalnız yanlış makineyi görünür yapar.
     function plastikKodMakineUyari() {
-      if (secilenBolum !== 'plastik') return;
+      if (!plastikKayittaMakine()) return;
       var kod = ((document.getElementById('d-ref') || {}).value || '').trim();
       var no  = parseInt((document.getElementById('d-plastik-makine') || {}).value || 0) || 0;
       if (!kod || !no) return;
@@ -4336,7 +4379,7 @@ window.__I18N_SOZLUK__ = {
     // plastik: makine VARDİYADA değil ÜRETİM KAYDINDA seçilir → bağlam KAYDIN makinesi
     // (operatör makineyi değiştirince plastikMakineSec yeniden yükletir).
     function testBaglamHat() {
-      if (secilenBolum === 'plastik') {
+      if (plastikKayittaMakine()) {
         var no = parseInt((document.getElementById('d-plastik-makine') || {}).value || 0) || 0;
         return PLASTIK_MAKINE_ADI[no] || '';
       }
@@ -5961,7 +6004,7 @@ window.__I18N_SOZLUK__ = {
       if (prSel) prSel.value = String(parseInt(istasyon || 0) || 0);
       // Plastik: makine seçici görünür, kayıttaki makine (istasyon 1..4) seçili gelir
       var plWrap = document.getElementById('d-plastik-makine-wrap');
-      if (plWrap) plWrap.style.display = (secilenBolum === 'plastik') ? 'block' : 'none';
+      if (plWrap) plWrap.style.display = plastikKayittaMakine() ? 'block' : 'none';
       var plSel = document.getElementById('d-plastik-makine');
       if (plSel) plSel.value = String(parseInt(istasyon || 0) || 0);
       // TK1 kayıt hattı: kaydın istasyonu seçili gelir (liste asenkron dolar)
@@ -5995,7 +6038,7 @@ window.__I18N_SOZLUK__ = {
       var istEl = document.getElementById('d-istasyon');
       // Lazer/Pres/Plastik: makine seçimi ZORUNLU (vardiyada makine yok — rapor kırılımı
       // ve sensör sayacı bu alandan gelir; makinesiz kayıtta otomatik sayaç çalışmaz)
-      if ((secilenBolum === 'lazer' || secilenBolum === 'pres' || secilenBolum === 'plastik')
+      if ((secilenBolum === 'lazer' || secilenBolum === 'pres' || plastikKayittaMakine())
           && !(istEl && parseInt(istEl.value || 0) > 0)) {
         toast('Makine seçiniz', 'error'); return;
       }

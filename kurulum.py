@@ -32,6 +32,7 @@ MODULLER = {
     'andon':        'Andon ekranları',
     'is_yonetimi':  'İş yönetimi (iş emri / öncelik takibi)',
     'mail':         'Günlük üretim raporu maili',
+    'analiz':       'Analiz sayfası: otomatik bulgular, yönetici özeti, AI yorumu',
     'excel_senkron': 'Referans/duruş listesinin data/uretim_verileri.xlsx ile senkronu',
     'eski_sayfalar': 'Eski panel/andon/operatör sayfaları (legacy, önizleme)',
 }

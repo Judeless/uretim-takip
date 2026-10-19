@@ -1,0 +1,36 @@
+{
+  "_aciklama": "Aspanda kurulumu (2026-10-19). Kurulumda kurulum_hazirla.py --profil ornek_kurulum/aspanda.json ile data/kurulum.json olur; sonradan değişiklik uygulamanın yeniden başlatılmasını ister. Program adı ve alan adı kesinleşince 'marka' güncellenir.",
+  "kimlik": "aspanda",
+  "marka": {
+    "ad": "Aspanda Flow",
+    "kisa": "Aspanda",
+    "alt_baslik": "Üretim Takip Sistemi",
+    "alan_adi": "https://aspandaflow.com.tr",
+    "logo": "",
+    "logo_koyu": "",
+    "ikon": "",
+    "renk": "#1F2A44"
+  },
+  "lokasyonlar": [{"kod": "TK2", "ad": "Merkez"}],
+  "bolumler": ["metal", "plastik", "isleme", "montaj"],
+  "bolum_adlari": {
+    "metal": "Metal Enjeksiyon",
+    "plastik": "Plastik Enjeksiyon",
+    "isleme": "CNC İşleme",
+    "montaj": "Montaj"
+  },
+  "_makine_notu": "Metal: Excel'in tonaj sınıfları (general table 50/100 Ton, '200T' sayfası 200 Ton) — operatör vardiyada tonajlı makineyi seçer. Montaj: operatör '+ Yeni hat ekle' deyince sıradaki numara (Montaj 7) kendiliğinden açılır.",
+  "makineler": {
+    "metal": ["50 Ton", "100 Ton", "200 Ton"],
+    "plastik": ["107 Ton", "350 Ton"],
+    "isleme": ["CNC 1", "CNC 2", "CNC 3", "CNC 4"],
+    "montaj": ["Montaj 1", "Montaj 2", "Montaj 3", "Montaj 4", "Montaj 5", "Montaj 6"]
+  },
+  "moduller": {
+    "as400": false, "planlar": false, "kapasite": false, "bakim": false, "proje": false,
+    "tk1": false, "sayac": false, "test_cihaz": false, "excel_senkron": false,
+    "eski_sayfalar": false, "analiz": false,
+    "andon": true, "is_yonetimi": true, "mail": true
+  },
+  "varsayilan_yonetici": false
+}

@@ -5821,8 +5821,10 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">📈</span> Raporlar</a>
                 <a class="nav-item" data-sayfa="operator-performans" onclick="sayfaAc('operator-performans')">
                     <span class="nav-icon">👷</span> Operatör Performansı</a>
+                {% if modul('analiz') %}
                 <a class="nav-item" data-sayfa="analiz" onclick="sayfaAc('analiz')">
                     <span class="nav-icon">🧠</span> Analiz</a>
+                {% endif %}
                 {% if modul('as400') %}
                 <!-- AYLIK ÜRETİM RAPORU (2026-10-09): ERP RPR + CFI, Forge bölümleri, performans -->
                 <a class="nav-item" data-sayfa="aylik-uretim" onclick="sayfaAc('aylik-uretim')">
@@ -6400,9 +6402,11 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-outline" id="ref-sure-yukle-btn" onclick="document.getElementById('ref-sure-dosya').click()" style="border-color:rgba(16,185,129,0.5);color:var(--success)" title="Doldurduğunuz şablonu yükleyin — süreler koda göre eşleşip toplu güncellenir">⬆️ Süreleri Yükle</button>
                         <!-- ANA VERİ (2026-10-05): TK2'nin altı bölümünün tek listesi (data/AnaVeri.xlsx).
                              Yükleme önce önizleme döner; onaylanınca uygulanır. TK1'de gizli. -->
+                        {% if modul('excel_senkron') %}
                         <input type="file" id="ana-veri-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="anaVeriSec(this)">
                         <button class="btn btn-outline" id="ana-veri-indir-btn" onclick="anaVeriIndir()" style="border-color:rgba(14,165,233,0.5);color:#0284C7" title="TK2 referanslarının tek listesini (AnaVeri.xlsx) en güncel süreleriyle indirir">⬇️ Ana Veri İndir</button>
                         <button class="btn btn-outline" id="ana-veri-yukle-btn" onclick="document.getElementById('ana-veri-dosya').click()" style="border-color:rgba(14,165,233,0.5);color:#0284C7" title="Düzenlediğiniz AnaVeri.xlsx'i yükleyin — önce önizleme gösterilir, onaylayınca uygulanır">⬆️ Ana Veri Yükle</button>
+                        {% endif %}
                         <button class="btn btn-outline" id="ref-hat-sure-btn" onclick="hatSureAc()" style="border-color:rgba(245,158,11,0.5);color:var(--warn)" title="Hat / makine bazlı süre: referansın kendi süresi yoksa OEE bu süreyi kullanır (yeni ürünlerde süre tanımı gerekmez)">⏱ Hat Süreleri</button>
                         <button class="btn btn-primary" onclick="refModalAc()">+ Yeni Referans</button>
                     </div>
@@ -14470,11 +14474,20 @@ window.__I18N_SOZLUK__ = {
                                        id="op-pin-input-${g.id}"
                                        style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.95rem;text-align:center;background:var(--bg);color:var(--text);color-scheme:dark">
                             </td>
-                            <td>
+                            <td style="white-space:nowrap">
                                 <button onclick="opPinDegistir(${g.id},'${g.ad.replace(/'/g,"\\'")}')"
                                     style="background:var(--grad-violet);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
                                     Güncelle
                                 </button>
+                                ${g.ad === 'Admin' ? '' : `
+                                <button onclick="opAdDuzelt(${g.id})" id="op-ad-btn-${g.id}" data-ad="${g.ad.replace(/"/g, '&quot;')}" title="Adı düzelt"
+                                    style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);margin-left:4px">
+                                    Adı düzelt
+                                </button>
+                                <button onclick="opSil(${g.id})" title="Operatörü listeden kaldır"
+                                    style="background:transparent;color:var(--danger);border:1px solid var(--danger);border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main);margin-left:4px">
+                                    Sil
+                                </button>`}
                             </td>
                         </tr>
                     `;
@@ -14489,6 +14502,40 @@ window.__I18N_SOZLUK__ = {
                 statusEl.textContent = 'Bağlantı hatası';
                 console.error('operatorler/yonetim fetch:', e);
             }
+        }
+
+        // AD DÜZELTME / SİLME (2026-10-19): "operatör isimleri ve şifreleri dashboard'dan
+        // yapılabilsin." Ad düzeltme kişinin o tesisteki vardiyalarını da yeni ada taşır;
+        // silme geçmiş kayıtlara dokunmaz, açık vardiyası olanı sunucu reddeder.
+        async function opAdDuzelt(id) {
+            const btn = document.getElementById('op-ad-btn-' + id);
+            const eski = btn ? btn.dataset.ad : '';
+            const yeni = (prompt('Operatörün doğru adı:', eski) || '').trim();
+            if (!yeni || yeni === eski) return;
+            try {
+                const res = await fetch('/api/operator/' + id + '/ad', {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ad: yeni })
+                });
+                const d = await res.json();
+                if (!res.ok) { toast(d.hata || 'Ad güncellenemedi', 'error'); return; }
+                toast(`${eski} → ${yeni} (${d.vardiya || 0} vardiya güncellendi)`, 'success');
+                yukleOperatorlerYonetim();
+            } catch (e) { toast('Bağlantı hatası', 'error'); }
+        }
+        async function opSil(id) {
+            const btn = document.getElementById('op-ad-btn-' + id);
+            const ad = btn ? btn.dataset.ad : '';
+            if (!confirm(`${ad} operatör listesinden kaldırılsın mı?
+
+Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
+            try {
+                const res = await fetch('/api/operator/' + id, { method: 'DELETE' });
+                const d = await res.json();
+                if (!res.ok) { toast(d.hata || 'Silinemedi', 'error'); return; }
+                toast(`${ad} listeden kaldırıldı`, 'success');
+                yukleOperatorlerYonetim();
+            } catch (e) { toast('Bağlantı hatası', 'error'); }
         }
 
         async function opPinDegistir(id, ad) {
