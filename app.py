@@ -3460,6 +3460,8 @@ def vardiya_oto_kapat_job():
                 kapanan += 1
                 print(f"[OTO-KAPAT] {v['operator_adi']} / {v['robot_no']} "
                       f"({v['baslangic_saati']}→{saat}, {sure} dk)")
+                # Otonom bakım: kesin özet + form boşsa push (kapalıysa hemen döner)
+                _otonom_kapanis_sonrasi(v['id'])
         if kapanan or atlanan:
             print(f'[OTO-KAPAT] {kapanan} vardiya kapatıldı'
                   + (f' | atlanan: {"; ".join(atlanan)}' if atlanan else ''))
@@ -3489,11 +3491,19 @@ def vardiya_kapat(vid):
     if not vardiya:
         conn.close()
         return jsonify({'hata': 'Vardiya bulunamadi'}), 404
+    # OTONOM BAKIM (2026-10-19, Halil Bilgin v1.9.4 §5): o gün üretim yapılan
+    # makinede vardiya sonu formu zorunlu. Kapalıysa/ulaşılamazsa engel yok.
+    if (vardiya['durum'] or '') != 'kapali':
+        engel = _otonom_kapanis_engeli(conn, vardiya, data, g.operator_adi or '')
+        if engel:
+            conn.close()
+            return jsonify(engel), 409
     # Gövde ORTAK yardımcıda (16:30 otomatik kapatma işi de aynı yoldan geçer).
     fark_dk, hata = _vardiya_kapat_uygula(conn, vardiya, bitis)
     conn.close()
     if hata:
         return jsonify({'hata': hata}), 400
+    _otonom_kapanis_tetikle(vid)
     return jsonify({'basarili': True, 'sure_dk': fark_dk})
 
 
@@ -18529,7 +18539,10 @@ def bakim_ping():
 @operator_required
 def bakim_handoff():
     """Bakım sistemine geçiş bileti alır. Body: {makine, durus_id?, durus_sebebi?,
-    baslangic_ts?, donus_url?, dil?}. Döner: {url} → istemci oraya yönlenir.
+    baslangic_ts?, donus_url?, dil?, hedef?}. Döner: {url} → istemci oraya yönlenir.
+
+    hedef='otonom' (v1.9.3, 2026-10-19): aynı uç makinenin otonom bakım formunu
+    (vardiya başı / vardiya sonu) açar; title/external_id/started_at gönderilmez.
 
     PIN ŞART (operator_required): bilet almak bakım tarafında hesap açtırabilen
     bir işlem — kimliksiz istek kabul edilmez (uç nokta internete açık)."""
@@ -18539,6 +18552,9 @@ def bakim_handoff():
     if not _bakim_hazir(cfg):
         return jsonify({'hata': 'Bakım entegrasyonu bu sunucuda yapılandırılmamış'}), 503
     data = request.get_json(silent=True) or {}
+    otonom = str(data.get('hedef') or '').strip().lower() == 'otonom'
+    if otonom and not _otonom_ayar(cfg)['etkin']:
+        return jsonify({'hata': 'Otonom bakım entegrasyonu bu sunucuda kapalı'}), 503
     makine = str(data.get('makine') or '').strip()
     lokasyon = (g.operator_lokasyon or request.args.get('lokasyon') or 'TK2').upper()
     conn = get_db()
@@ -18557,16 +18573,21 @@ def bakim_handoff():
     }
     govde = {'machine_code': kod, 'user': kullanici}
 
-    # Duruş bağlamı varsa gönder: external_id çift talebi önler, started_at
-    # arıza süresini doğru başlatır, sebep forma başlık olur (kılavuz 4. bölüm).
-    if data.get('durus_id'):
-        govde['external_id'] = f'durus-{data["durus_id"]}'
-    sebep = str(data.get('durus_sebebi') or '').strip()
-    if sebep:
-        govde['title'] = f'{makine} — {sebep}'[:120]
-    bas_ts = str(data.get('baslangic_ts') or '').strip()
-    if re.match(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}', bas_ts):
-        govde['started_at'] = bas_ts.replace('T', ' ')[:19]
+    if otonom:
+        # Otonom bilette title/description/priority/started_at/external_id
+        # kullanılmaz (v1.9.3 §1) — gönderilmez.
+        govde['hedef'] = 'otonom'
+    else:
+        # Duruş bağlamı varsa gönder: external_id çift talebi önler, started_at
+        # arıza süresini doğru başlatır, sebep forma başlık olur (kılavuz 4. bölüm).
+        if data.get('durus_id'):
+            govde['external_id'] = f'durus-{data["durus_id"]}'
+        sebep = str(data.get('durus_sebebi') or '').strip()
+        if sebep:
+            govde['title'] = f'{makine} — {sebep}'[:120]
+        bas_ts = str(data.get('baslangic_ts') or '').strip()
+        if re.match(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}', bas_ts):
+            govde['started_at'] = bas_ts.replace('T', ' ')[:19]
     donus = str(data.get('donus_url') or '').strip()
     if donus.startswith(('http://', 'https://')):
         govde['return_url'] = donus
@@ -18588,11 +18609,504 @@ def bakim_handoff():
                  403: 'Bakım sistemi izin vermedi (kullanıcı pasif ya da makine lokasyon dışı)',
                  404: 'Makine kodu bakım sisteminde bulunamadı — eşlemeyi kontrol edin',
                  }.get(r.status_code, f'Bakım sistemi hatası (HTTP {r.status_code})')
-        print(f'[BAKIM] handoff {r.status_code}: {d.get("error") or d}')
+        # Otonom bilette bakımın kendi Türkçe metni daha açıklayıcı ("Bu makine
+        # otonom bakım listesinde değil", "… hattında form henüz açılmadı") —
+        # 401 hariç (anahtar sorununu operatöre değil yönetime söyleriz).
+        if otonom and r.status_code in (403, 404, 409) and d.get('error'):
+            mesaj = str(d['error'])[:200]
+        print(f'[BAKIM] handoff{" (otonom)" if otonom else ""} {r.status_code}: {d.get("error") or d}')
         return jsonify({'hata': mesaj}), 424
-    print(f'[BAKIM] handoff OK: {g.operator_adi} → {kod} '
+    print(f'[BAKIM] handoff{" (otonom)" if otonom else ""} OK: {g.operator_adi} → {kod} '
           f'({govde.get("external_id") or "duruşsuz"})')
     return jsonify({'url': d.get('url'), 'makine': (d.get('machine') or {}).get('name')})
+
+
+# ─────────────────────────────────────────────────────────────
+# OTONOM BAKIM (Halil Bilgin v1.9.3 + v1.9.4 — 2026-10-19)
+# ─────────────────────────────────────────────────────────────
+# Dört parça (Halil Bey'in 19.10 e-postası, belge: forge-otonom-entegrasyon.md):
+#   1. Operatör makinenin "🛠️ Otonom Bakım" düğmesiyle bakımın vardiya başı /
+#      vardiya sonu formunu açar — arıza handoff'uyla AYNI uç, hedef='otonom'.
+#   2. Vardiya sonunda her makinenin üretim özeti bakıma gider (POST /uretim).
+#      Bakımda anahtar makine + tarih + vardiya: yeniden gönderim GÜNCELLER.
+#   3. Yanıtta form bekleniyor ve vardiya sonu formu boşsa operatöre push;
+#      vardiya kapanışı form dolana kadar tamamlanmış sayılmaz. Engelin sertliği
+#      bakim_config.json → otonom.kapanis: 'gerekce' (gerekçe yazıp kapatır,
+#      gerekçe saklanır) | 'engelle' | 'uyari' (yalnız uyarır).
+#   4. Düğmenin yanında formun durumu (GET /otonom-durum; webhook yok).
+# KAPALIYKEN SIFIR ETKİ: otonom.etkin false (varsayılan) ya da bakım
+# entegrasyonu hazır değilse hiçbir çağrı yapılmaz, kapanış eskisi gibi.
+# BAKIMA ULAŞILAMAZSA KAPANIŞ ENGELLENMEZ: bakım sunucusundaki bir kesinti
+# üretimin vardiya kapatmasını durdurmasın; özet 15 dk'lık işte yeniden denenir.
+BAKIM_OTONOM_DURUM_YOLU = '/api/integrations/forge/otonom-durum'
+BAKIM_URETIM_YOLU = '/api/integrations/forge/uretim'
+OTONOM_KAPANIS_KIPLERI = ('gerekce', 'engelle', 'uyari')
+_OTONOM_DURUM_ONBELLEK = {}
+
+
+def _otonom_ayar(cfg=None):
+    cfg = cfg if cfg is not None else _bakim_config()
+    o = cfg.get('otonom') or {}
+    kip = str(o.get('kapanis') or 'gerekce').strip().lower()
+    try:
+        aralik = max(5, int(o.get('push_aralik_dk') or 15))
+    except (TypeError, ValueError):
+        aralik = 15
+    return {'etkin': bool(o.get('etkin')) and _bakim_hazir(cfg),
+            'kapanis': kip if kip in OTONOM_KAPANIS_KIPLERI else 'gerekce',
+            'push_aralik_dk': aralik,
+            'push_bitis': str(o.get('push_bitis') or '20:00').strip()[:5]}
+
+
+def _otonom_vardiya_no(vardiya_turu):
+    """Forge vardiya türü → bakımın vardiya numarası (1/2/3). Sahada bugün
+    yalnız 'Gunduz' var; bilinmeyen tür 1 sayılır."""
+    t = _ariza_ara_norm(vardiya_turu)
+    if 'GECE' in t:
+        return 3
+    if 'AKSAM' in t:
+        return 2
+    return 1
+
+
+def _otonom_vardiya_kodlari(conn, cfg, v):
+    """Vardiyanın makineleri → {bakim_kodu: forge_makine}. Sabit hatlı
+    bölümlerde (tel, plastik, pres, TK1 montaj) makine ÜRETİM KAYDINDADIR,
+    vardiyanın robot_no'su hat adıdır. Bakımda karşılığı olmayan makine atlanır."""
+    hat = str(v['robot_no'] or '').strip()
+    lok = (v['lokasyon'] or 'TK2').upper()
+    adlar = []
+    if HAT_MAKINELERI.get(hat):
+        for r in conn.execute("SELECT DISTINCT istasyon FROM uretim_kayitlari WHERE vardiya_id=?",
+                              (v['id'],)):
+            m = kayit_makine_ad(hat, r['istasyon'])
+            if m and m not in adlar:
+                adlar.append(m)
+    elif hat:
+        adlar.append(hat)
+    out = {}
+    for m in adlar:
+        kod = (_bakim_kodu(cfg, m, lok, conn) or '').strip().upper()
+        if kod and kod not in out:
+            out[kod] = m
+    return out
+
+
+def _otonom_ozet(conn, cfg, kod, tarih, vno):
+    """(bakım kodu, tarih, vardiya no) için bakıma gidecek üretim özeti.
+
+    Aynı makine aynı gün birden çok Forge vardiyasında kullanılmış olabilir (iki
+    operatör, masa değişimi). Bakımın anahtarı makine + tarih + vardiya olduğu
+    için HEPSİ birlikte toplanır — yalnız biri gönderilseydi öbürünü ezerdi.
+    Süreler: çalışma = makinenin çalışılan zaman aralıklarının birleşimi − tüm
+    duruşlar; duruş = PLANSIZ duruşlar (mola gibi planlı duruşlar iki tarafa da
+    girmez). Sabit hatlı bölümlerde süre kaydın başlangıç-bitiş penceresinden
+    gelir; o bölümlerde duruş makineye bağlı tutulmadığı için 0 gider.
+    (govde, operatorler, lokasyon, makineler, acik_vardiya_var) döner."""
+    operatorler, makineler, urunler, araliklar = [], [], {}, []
+    durus_toplam = durus_plansiz = 0
+    lok, acik = '', False
+    for v in conn.execute("SELECT * FROM vardiyalar WHERE tarih=? ORDER BY id", (tarih,)).fetchall():
+        if _otonom_vardiya_no(v['vardiya_turu']) != vno:
+            continue
+        kodlar = _otonom_vardiya_kodlari(conn, cfg, v)
+        if kod not in kodlar:
+            continue
+        lok = lok or (v['lokasyon'] or 'TK2').upper()
+        mak, hat = kodlar[kod], str(v['robot_no'] or '').strip()
+        if mak not in makineler:
+            makineler.append(mak)
+        if (v['durum'] or '') != 'kapali':
+            acik = True
+        ad = str(v['operator_adi'] or '').strip()
+        if ad and ad not in operatorler:
+            operatorler.append(ad)
+        if HAT_MAKINELERI.get(hat):
+            kayitlar = conn.execute("SELECT * FROM uretim_kayitlari WHERE vardiya_id=? AND istasyon=?",
+                                    (v['id'], kayit_ist_no(hat, mak))).fetchall()
+            for k in kayitlar:
+                b = _ts_parse(k['baslangic_ts'])
+                s = _ts_parse(k['bitis_ts']) if k['bitis_ts'] else datetime.now()
+                if b and s and s > b:
+                    araliklar.append((b, s))
+        else:
+            kayitlar = conn.execute("SELECT * FROM uretim_kayitlari WHERE vardiya_id=?",
+                                    (v['id'],)).fetchall()
+            pencere = _vardiya_pencere(v)
+            if pencere and pencere[0] and pencere[1] and pencere[1] > pencere[0]:
+                araliklar.append(pencere)
+            for d in conn.execute("SELECT sure_dk, durus_tipi FROM duruslar WHERE vardiya_id=?", (v['id'],)):
+                dk = max(0, int(d['sure_dk'] or 0))
+                durus_toplam += dk
+                if (d['durus_tipi'] or '') != 'planli':
+                    durus_plansiz += dk
+        for k in kayitlar:
+            ref = ' '.join(str(k['referans_kodu'] or '').split())
+            if ref:
+                urunler[ref] = urunler.get(ref, 0) + max(0, int(k['ok_adet'] or 0))
+    # Aralıkların BİRLEŞİMİ: iki operatör aynı makinede çakışan saatlerde
+    # çalıştıysa süre iki kez sayılmasın.
+    toplam_dk, son = 0.0, None
+    for b, s in sorted(araliklar):
+        if son and b < son:
+            b = son
+        if s > b:
+            toplam_dk += (s - b).total_seconds() / 60
+            son = s if son is None else max(son, s)
+    durus = min(durus_plansiz, 1440)
+    calisma = max(0, min(int(round(toplam_dk)) - durus_toplam, 1440 - durus))
+    adlar = {}
+    urun_kodlari = {r.split(' ')[0].upper() for r in urunler}
+    if urun_kodlari:
+        yer = ','.join('?' * len(urun_kodlari))
+        for r in conn.execute(f"SELECT upper(trim(referans_kodu)) k, aciklama FROM referans_listesi "
+                              f"WHERE upper(trim(referans_kodu)) IN ({yer})", tuple(urun_kodlari)):
+            if r['aciklama'] and r['k'] not in adlar:
+                adlar[r['k']] = str(r['aciklama']).strip()
+    liste = []
+    for ref, adet in sorted(urunler.items(), key=lambda x: -x[1]):
+        if adet <= 0:
+            continue
+        u = {'urun_kodu': ref[:60], 'adet': min(adet, 10_000_000)}
+        ad = adlar.get(ref.split(' ')[0].upper())
+        if ad:
+            u['urun_adi'] = ad[:120]
+        liste.append(u)
+    govde = {
+        'machine_code': kod, 'tarih': tarih, 'vardiya': vno,
+        # 'Admin' (PIN 9999) MES'in sistem hesabı, gerçek kişi değil — listeye girmez
+        'operatorler': [{'username': _bakim_kullanici(conn, o, lok)[:60], 'full_name': o[:100]}
+                        for o in operatorler if len(o) >= 2 and o.lower() != 'admin'][:20],
+        'urunler': liste[:50],
+        'calisma_dk': calisma, 'durus_dk': durus,
+        'external_id': f'forge-{kod}-{tarih}-{vno}'[:100],
+    }
+    return govde, operatorler, lok, makineler, acik
+
+
+def _otonom_uretim_gonder(conn, cfg, kod, tarih, vno, kapanis=False):
+    """Özeti bakıma gönderir, sonucu otonom_uretim'e yazar. Bakım yanıtı (dict)
+    ya da None (ulaşılamadı / reddetti — 15 dk'lık iş yeniden dener).
+    kapanis=True: vardiya kapandıktan sonraki (kesin) gönderim; makinede hâlâ
+    açık vardiya varsa kesin sayılmaz (push başlamasın)."""
+    govde, operatorler, lok, makineler, acik = _otonom_ozet(conn, cfg, kod, tarih, vno)
+    kodh, d, hata = 0, {}, ''
+    try:
+        r = _bakim_post(cfg['api_url'].rstrip('/') + BAKIM_URETIM_YOLU, cfg['api_anahtari'], govde)
+        kodh = r.status_code
+        try:
+            d = r.json() or {}
+        except Exception:
+            d = {}
+        if kodh != 200:
+            hata = str(d.get('error') or d)[:300]
+    except Exception as e:
+        hata = f'ulaşılamadı: {e}'[:300]
+    ok = (kodh == 200)
+    son = d.get('son') if ok else None
+    conn.execute(
+        "INSERT INTO otonom_uretim (bakim_kodu, tarih, vardiya_no, lokasyon, forge_makine, operatorler, "
+        "  govde, durum, http_kod, hata, otonom, form_bekleniyor, son_dolu, son_saat, kapanis, "
+        "  gonderim_ts, deneme) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),1) "
+        "ON CONFLICT(bakim_kodu, tarih, vardiya_no) DO UPDATE SET "
+        "  lokasyon=excluded.lokasyon, forge_makine=excluded.forge_makine, "
+        "  operatorler=excluded.operatorler, govde=excluded.govde, durum=excluded.durum, "
+        "  http_kod=excluded.http_kod, hata=excluded.hata, "
+        "  otonom=COALESCE(excluded.otonom, otonom), "
+        "  form_bekleniyor=COALESCE(excluded.form_bekleniyor, form_bekleniyor), "
+        "  son_dolu=COALESCE(excluded.son_dolu, son_dolu), "
+        "  son_saat=COALESCE(excluded.son_saat, son_saat), "
+        "  kapanis=excluded.kapanis, gonderim_ts=excluded.gonderim_ts, deneme=deneme+1",
+        (kod, tarih, vno, lok, ', '.join(makineler), json.dumps(operatorler, ensure_ascii=False),
+         json.dumps(govde, ensure_ascii=False), 'ok' if ok else 'hata', kodh or None, hata or None,
+         (1 if d.get('otonom') else 0) if ok else None,
+         (1 if d.get('form_bekleniyor') else 0) if ok else None,
+         (1 if son else 0) if ok else None,
+         (son.get('saat') if isinstance(son, dict) else None) if ok else None,
+         1 if (kapanis and not acik) else 0))
+    conn.commit()
+    if not ok:
+        print(f'[OTONOM] özet {kod} {tarih}/{vno} gönderilemedi: HTTP {kodh} {hata}')
+        return None
+    _OTONOM_DURUM_ONBELLEK.pop((kod, tarih), None)
+    _OTONOM_DURUM_ONBELLEK.pop((kod, ''), None)
+    return d
+
+
+def _otonom_durum_al(cfg, kod, tarih=None, taze=False):
+    """GET /otonom-durum → dict | None. Mobil her vardiya ekranında sorar;
+    30 sn önbellek bakımı gereksiz sorgudan korur."""
+    import time
+    from urllib.parse import urlencode
+    anahtar = (kod, tarih or '')
+    simdi = time.time()
+    if not taze:
+        o = _OTONOM_DURUM_ONBELLEK.get(anahtar)
+        if o and simdi - o[0] < 30:
+            return o[1]
+    q = {'machine_code': kod}
+    if tarih:
+        q['tarih'] = tarih
+    k, d = _bakim_get(cfg, BAKIM_OTONOM_DURUM_YOLU + '?' + urlencode(q), timeout=(3, 8))
+    if k != 200 or not isinstance(d, dict):
+        if k:
+            print(f'[OTONOM] durum {kod}: HTTP {k} {str(d)[:200]}')
+        return None
+    _OTONOM_DURUM_ONBELLEK[anahtar] = (simdi, d)
+    return d
+
+
+def _otonom_bekleyenler(conn, cfg, v, gonder=True):
+    """Vardiyanın makinelerinden vardiya sonu formu BEKLENENLER.
+    gonder=True: önce özet gönderilir (bakım üretim yapıldığını özetten bilir —
+    'Forge' beklenti kipinde form beklentisini özet kurar). (liste, ulasilamadi)."""
+    vno = _otonom_vardiya_no(v['vardiya_turu'])
+    out, ulasilamadi = [], False
+    for kod, mak in _otonom_vardiya_kodlari(conn, cfg, v).items():
+        d = (_otonom_uretim_gonder(conn, cfg, kod, v['tarih'], vno) if gonder
+             else _otonom_durum_al(cfg, kod, v['tarih'], taze=True))
+        if d is None:
+            ulasilamadi = True
+            continue
+        if d.get('form_bekleniyor') and not d.get('son'):
+            out.append({'bakim_kodu': kod, 'makine': mak, 'bakim_ad': _bakim_makine_adi(conn, kod),
+                        'form_acik': d.get('form_acik') is not False,
+                        'baslangic': d.get('baslangic')})
+    return out, ulasilamadi
+
+
+def _otonom_atlandi_mi(conn, kod, tarih):
+    return bool(conn.execute("SELECT 1 FROM otonom_atlama WHERE bakim_kodu=? AND tarih=? LIMIT 1",
+                             (kod, tarih)).fetchone())
+
+
+def _otonom_push(conn, satir):
+    """Vardiya sonu formu boş makine için o makinede çalışan operatörlere push.
+    Bildirime dokununca mobil açılır ve formun biletini kendisi ister (?otonom=)."""
+    try:
+        alicilar = [a for a in json.loads(satir['operatorler'] or '[]') if a and a.lower() != 'admin']
+    except Exception:
+        alicilar = []
+    if not alicilar:
+        return False
+    kod = satir['bakim_kodu']
+    yol = ('/tk1' if (satir['lokasyon'] or '').upper() == 'TK1' else '/') + f'?otonom={kod}'
+    makine = satir['forge_makine'] or kod
+    _push_gonder_async(alicilar, '🛠️ Otonom bakım formu bekleniyor',
+                       f'{makine} ({kod}) — vardiya sonu otonom bakım formunu doldurun', yol)
+    conn.execute("UPDATE otonom_uretim SET son_push_ts=datetime('now','localtime'), "
+                 "push_sayisi=COALESCE(push_sayisi,0)+1 WHERE id=?", (satir['id'],))
+    conn.commit()
+    print(f'[OTONOM] push: {kod} → {", ".join(alicilar)}')
+    return True
+
+
+def _otonom_kapanis_sonrasi(vid):
+    """Vardiya kapandı: makinelerin KESİN özeti gönderilir; vardiya sonu formu
+    boşsa (ve gerekçeyle atlanmadıysa) operatöre ilk push hemen gider. Arka
+    planda koşar — operatörün 'Vardiyayı Kapat' yanıtını bakım çağrısı bekletmez."""
+    cfg = _bakim_config()
+    if not _otonom_ayar(cfg)['etkin']:
+        return
+    conn = db_connect()
+    try:
+        v = conn.execute("SELECT * FROM vardiyalar WHERE id=?", (vid,)).fetchone()
+        if not v:
+            return
+        vno = _otonom_vardiya_no(v['vardiya_turu'])
+        for kod in _otonom_vardiya_kodlari(conn, cfg, v):
+            d = _otonom_uretim_gonder(conn, cfg, kod, v['tarih'], vno, kapanis=True)
+            if not d or not d.get('form_bekleniyor') or d.get('son') or _otonom_atlandi_mi(conn, kod, v['tarih']):
+                continue
+            satir = conn.execute("SELECT * FROM otonom_uretim WHERE bakim_kodu=? AND tarih=? AND vardiya_no=?",
+                                 (kod, v['tarih'], vno)).fetchone()
+            if satir and satir['kapanis']:
+                _otonom_push(conn, satir)
+    except Exception as e:
+        print(f'[OTONOM] kapanış sonrası hata (vardiya {vid}): {e!r}')
+    finally:
+        conn.close()
+
+
+def _otonom_kapanis_tetikle(vid):
+    import threading
+    threading.Thread(target=_otonom_kapanis_sonrasi, args=(vid,), daemon=True).start()
+
+
+def _otonom_kapanis_engeli(conn, v, data, operator_adi=''):
+    """Kapanış ÖNCESİ kontrol. Engel varsa yanıt dict'i, yoksa None.
+    'gerekce' kipinde gerekçe geldiyse otonom_atlama'ya yazılır ve kapanışa izin
+    verilir. 'Admin' (PIN 9999) her kipte gerekçeyle kapatabilir: amir sahada
+    bir vardiyayı kapatırken kilitlenmesin. Bakıma ulaşılamazsa engel YOK."""
+    cfg = _bakim_config()
+    ay = _otonom_ayar(cfg)
+    if not ay['etkin'] or ay['kapanis'] == 'uyari':
+        return None
+    try:
+        bekleyen, _ul = _otonom_bekleyenler(conn, cfg, v, gonder=True)
+    except Exception as e:
+        print(f'[OTONOM] kapanış kontrolü hatası (vardiya {v["id"]}): {e!r} — engel uygulanmadı')
+        return None
+    if not bekleyen:
+        return None
+    gerekce = ' '.join(str((data or {}).get('otonom_gerekce') or '').split())[:500]
+    admin = (operator_adi or '').strip().lower() == 'admin'
+    if len(gerekce) >= 5 and (ay['kapanis'] == 'gerekce' or admin):
+        for b in bekleyen:
+            conn.execute("INSERT INTO otonom_atlama (ts, vardiya_id, bakim_kodu, tarih, operator_adi, gerekce) "
+                         "VALUES (datetime('now','localtime'),?,?,?,?,?)",
+                         (v['id'], b['bakim_kodu'], v['tarih'], operator_adi or v['operator_adi'], gerekce))
+        conn.commit()
+        print(f'[OTONOM] vardiya {v["id"]} formsuz kapatıldı ({operator_adi}): '
+              f'{", ".join(b["bakim_kodu"] for b in bekleyen)} — {gerekce[:60]}')
+        return None
+    adlar = ', '.join(b['makine'] for b in bekleyen)
+    if ay['kapanis'] == 'engelle' and not admin:
+        mesaj = f'Vardiya sonu otonom bakım formu doldurulmadan vardiya kapatılamaz ({adlar})'
+    else:
+        mesaj = f'Vardiya sonu otonom bakım formu doldurulmadı ({adlar}) — formu doldurun ya da gerekçe yazın'
+    return {'hata': mesaj, 'otonom_bekleyen': bekleyen,
+            'kip': 'gerekce' if admin else ay['kapanis']}
+
+
+def otonom_bakim_job():
+    """15 dk'da bir:
+      (a) bugün kapanmış vardiyaların henüz KESİN gönderilmemiş makine özetleri,
+      (b) başarısız gönderimlerin tekrarı (son 7 gün — bakım daha eskisini almaz),
+      (c) vardiya sonu formu hâlâ boşsa push tekrarı (push_bitis saatine kadar;
+          gerekçeyle atlanan makine-günde tekrarlanmaz). Bakımın kendi 'eksik
+          form' bildirimi formene ayrıca gider (Otonom Bakım Ayarları, 16:45)."""
+    cfg = _bakim_config()
+    ay = _otonom_ayar(cfg)
+    if not ay['etkin']:
+        return
+    conn = db_connect()
+    try:
+        bugun = date.today().isoformat()
+        hedef = set()
+        for v in conn.execute("SELECT * FROM vardiyalar WHERE tarih=? AND durum='kapali'", (bugun,)).fetchall():
+            vno = _otonom_vardiya_no(v['vardiya_turu'])
+            for kod in _otonom_vardiya_kodlari(conn, cfg, v):
+                hedef.add((kod, bugun, vno))
+        for kod, t, vno in sorted(hedef):
+            r = conn.execute("SELECT kapanis, durum FROM otonom_uretim WHERE bakim_kodu=? AND tarih=? "
+                             "AND vardiya_no=?", (kod, t, vno)).fetchone()
+            if r is None or not r['kapanis']:
+                _otonom_uretim_gonder(conn, cfg, kod, t, vno, kapanis=True)
+        for r in conn.execute("SELECT bakim_kodu, tarih, vardiya_no, kapanis FROM otonom_uretim "
+                              "WHERE durum='hata' AND tarih >= date('now','localtime','-6 day')").fetchall():
+            _otonom_uretim_gonder(conn, cfg, r['bakim_kodu'], r['tarih'], r['vardiya_no'],
+                                  kapanis=bool(r['kapanis']))
+        if datetime.now().strftime('%H:%M') > ay['push_bitis']:
+            return
+        for s in conn.execute("SELECT * FROM otonom_uretim WHERE tarih=? AND kapanis=1 AND durum='ok' "
+                              "AND form_bekleniyor=1 AND COALESCE(son_dolu,0)=0", (bugun,)).fetchall():
+            if _otonom_atlandi_mi(conn, s['bakim_kodu'], bugun):
+                continue
+            son_push = _ts_parse(s['son_push_ts']) if s['son_push_ts'] else None
+            if son_push and (datetime.now() - son_push).total_seconds() < ay['push_aralik_dk'] * 60:
+                continue
+            d = _otonom_durum_al(cfg, s['bakim_kodu'], bugun, taze=True)
+            if d is None:
+                continue
+            if d.get('son') or not d.get('form_bekleniyor'):
+                conn.execute("UPDATE otonom_uretim SET son_dolu=?, form_bekleniyor=?, son_saat=? WHERE id=?",
+                             (1 if d.get('son') else 0, 1 if d.get('form_bekleniyor') else 0,
+                              (d.get('son') or {}).get('saat') if isinstance(d.get('son'), dict) else None,
+                              s['id']))
+                conn.commit()
+                continue
+            _otonom_push(conn, s)
+    except Exception as e:
+        print(f'[OTONOM] periyodik iş hatası: {e!r}')
+    finally:
+        conn.close()
+
+
+@app.route('/api/otonom/durum', methods=['GET'])
+@operator_required
+def otonom_durum():
+    """Mobildeki 'Otonom Bakım' satırı. ?makine= (vardiyanın hattı/makinesi) &bakim_kodu=?
+    Sabit hatlı bölümde (tel, plastik, pres, TK1 montaj) makine hat adıdır:
+    eşlemesi olan makineler liste olarak döner, operatör kendininkini seçer."""
+    if not g.operator_adi:
+        return jsonify({'hata': 'Operatör girişi gerekli — PIN ile giriş yapın'}), 401
+    cfg = _bakim_config()
+    ay = _otonom_ayar(cfg)
+    if not ay['etkin']:
+        return jsonify({'etkin': False})
+    lok = (g.operator_lokasyon or request.args.get('lokasyon') or 'TK2').upper()
+    makine = str(request.args.get('makine') or '').strip()
+    kod = str(request.args.get('bakim_kodu') or '').strip().upper()
+    conn = get_db()
+    if not kod and HAT_MAKINELERI.get(makine):
+        liste = []
+        for m in HAT_MAKINELERI[makine]:
+            if m in GIZLI_HATLAR:
+                continue
+            k = _bakim_kodu(cfg, m, lok, conn)
+            if k:
+                liste.append({'makine': m, 'bakim_kodu': k.upper()})
+        return jsonify({'etkin': True, 'tip': 'hat', 'kip': ay['kapanis'], 'makineler': liste,
+                        'etiket': KAYIT_MAKINE_ETIKETI.get(makine, 'Makine')})
+    kod = kod or (_bakim_kodu(cfg, makine, lok, conn) or '').strip().upper()
+    if not kod:
+        return jsonify({'etkin': True, 'tip': 'makine', 'makine': makine, 'eslesme': False})
+    d = _otonom_durum_al(cfg, kod)
+    taban = {'etkin': True, 'tip': 'makine', 'makine': makine, 'bakim_kodu': kod,
+             'bakim_ad': _bakim_makine_adi(conn, kod), 'kip': ay['kapanis'], 'eslesme': True}
+    if d is None:
+        return jsonify({**taban, 'ulasilamadi': True})
+    return jsonify({**taban, 'otonom': bool(d.get('otonom')), 'form_acik': d.get('form_acik'),
+                    'baslangic': d.get('baslangic'), 'son': d.get('son'), 'calismadi': d.get('calismadi'),
+                    'form_bekleniyor': d.get('form_bekleniyor'), 'tatil': d.get('tatil')})
+
+
+@app.route('/api/otonom/kapanis_kontrol/<int:vid>', methods=['POST'])
+@operator_required
+def otonom_kapanis_kontrol(vid):
+    """'Vardiyayı Kapat'tan ÖNCE mobil sorar: hangi makinede vardiya sonu formu
+    bekleniyor? Özet bu sırada bakıma gider (bakım beklentiyi özetten kurar).
+    Kapatmaz; engeli asıl uygulayan vardiya_kapat'tır."""
+    ok, hata = _vardiya_sahibi_kontrol(vid)
+    if not ok:
+        return jsonify({'hata': hata}), 403
+    cfg = _bakim_config()
+    ay = _otonom_ayar(cfg)
+    if not ay['etkin']:
+        return jsonify({'etkin': False, 'bekleyen': []})
+    conn = get_db()
+    v = conn.execute("SELECT * FROM vardiyalar WHERE id=?", (vid,)).fetchone()
+    if not v:
+        return jsonify({'hata': 'Vardiya bulunamadı'}), 404
+    try:
+        bekleyen, ulasilamadi = _otonom_bekleyenler(conn, cfg, v, gonder=True)
+    except Exception as e:
+        print(f'[OTONOM] kapanış kontrolü hatası (vardiya {vid}): {e!r}')
+        bekleyen, ulasilamadi = [], True
+    admin = (g.operator_adi or '').strip().lower() == 'admin'
+    return jsonify({'etkin': True, 'kip': 'gerekce' if (admin and ay['kapanis'] == 'engelle') else ay['kapanis'],
+                    'bekleyen': bekleyen, 'ulasilamadi': ulasilamadi})
+
+
+@app.route('/api/otonom/gun', methods=['GET'])
+@panel_gerekli(izin='ariza-onay')
+def otonom_gun():
+    """Amir/yönetici: bir günün özet gönderimleri ve formsuz kapatma gerekçeleri. ?tarih="""
+    tarih = str(request.args.get('tarih') or date.today().isoformat())[:10]
+    conn = get_db()
+    satirlar = [dict(r) for r in conn.execute(
+        "SELECT bakim_kodu, tarih, vardiya_no, lokasyon, forge_makine, operatorler, durum, http_kod, hata, "
+        "otonom, form_bekleniyor, son_dolu, son_saat, kapanis, gonderim_ts, deneme, son_push_ts, push_sayisi "
+        "FROM otonom_uretim WHERE tarih=? ORDER BY lokasyon, forge_makine", (tarih,))]
+    for s in satirlar:
+        s['bakim_ad'] = _bakim_makine_adi(conn, s['bakim_kodu'])
+    atlama = [dict(r) for r in conn.execute(
+        "SELECT ts, vardiya_id, bakim_kodu, operator_adi, gerekce FROM otonom_atlama WHERE tarih=? ORDER BY ts",
+        (tarih,))]
+    return jsonify({'tarih': tarih, 'ayar': {k: v for k, v in _otonom_ayar().items()},
+                    'gonderimler': satirlar, 'atlamalar': atlama})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -19456,6 +19970,8 @@ if __name__ == '__main__':
                           (5, ariza_hatirlatma_job, 'Arıza Hatırlatma'),
                           # Bakıma iletilmiş talebin durumu (v0.9.8 ucu)
                           (5, ariza_durum_job, 'Arıza Bakım Durumu'),
+                          # Otonom bakım: özet tekrarı + vardiya sonu formu push'u
+                          (15, otonom_bakim_job, 'Otonom Bakım'),
                           # Satış planı (S650B9) — değiştiyse günün kopyası
                           (30, satis_plani_job, 'Satış Planı Arşivi')]
             # KURULUM PROFİLİ: kapalı modülün işi hiç kurulmaz (AS400'süz bir
@@ -19464,7 +19980,8 @@ if __name__ == '__main__':
                             erken_teyit_job: 'as400', agent_nobet_job: 'as400',
                             satis_plani_job: 'as400',
                             bakim_katalog_job: 'bakim', ariza_hatirlatma_job: 'bakim',
-                            ariza_durum_job: 'bakim', kaynak_plan_oto_job: 'planlar',
+                            ariza_durum_job: 'bakim', otonom_bakim_job: 'bakim',
+                            kaynak_plan_oto_job: 'planlar',
                             montaj_plan_oto_job: 'planlar', metal_plan_oto_job: 'planlar',
                             tel_plani_oto_job: 'planlar'}
             _ek = [j for j in _ek if KUR.modul(_GOREV_MODUL.get(j[2], ''))]

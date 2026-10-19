@@ -22,5 +22,13 @@
   "hatirlatma_dk": 30,
 
   "_work_order_notu": "Halil Bey'in v0.9.0 work-order ucunun yolu (or. /api/integrations/forge/work-order). BOSSA handoff kullanilir: amir bakim formunda tamamlar. Acil hizli yol icin bu uc GEREKLI (ekran yok).",
-  "work_order_yolu": ""
+  "work_order_yolu": "",
+
+  "_otonom_notu": "OTONOM BAKIM (Halil Bilgin v1.9.3/v1.9.4, 2026-10-19). etkin=false iken HICBIR etki yok (dugme gorunmez, ozet gitmez, kapanis eskisi gibi). Bakim entegrasyonu da hazir olmali (etkin + api_url + anahtar). kapanis: 'gerekce' = vardiya sonu formu doldurulmadan kapatmak icin gerekce yazilir ve saklanir | 'engelle' = form dolmadan kapanmaz (Admin gerekceyle kapatabilir) | 'uyari' = yalniz uyarir. push_aralik_dk: form bos kaldikca push tekrari; push_bitis: bu saatten sonra push tekrarlanmaz. Bakimda 'Beklenen formlar' = Forge secilmeli (Otonom Bakim Ayarlari). RESTART GEREKMEZ.",
+  "otonom": {
+    "etkin": false,
+    "kapanis": "gerekce",
+    "push_aralik_dk": 15,
+    "push_bitis": "20:00"
+  }
 }

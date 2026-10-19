@@ -686,6 +686,50 @@ def init_db(_ikinci_tur=False):
         )
     ''')
 
+    # ── OTONOM BAKIM (Halil Bilgin v1.9.3/v1.9.4, 2026-10-19) ──────────────
+    # Vardiya sonunda bakima giden uretim ozeti: anahtar bakim tarafinda da
+    # makine + tarih + vardiya (yeniden gonderim GUNCELLER). Son yanittaki
+    # form_bekleniyor / son burada tutulur: push tekrari ve kapanis kontrolu
+    # bakimi her seferinde sorgulamadan okuyabilsin.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS otonom_uretim (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bakim_kodu TEXT NOT NULL,
+            tarih TEXT NOT NULL,
+            vardiya_no INTEGER NOT NULL DEFAULT 1,
+            lokasyon TEXT,
+            forge_makine TEXT,
+            operatorler TEXT,              -- JSON: push alicilari (operator_adi)
+            govde TEXT,                    -- gonderilen son ozet (JSON)
+            durum TEXT,                    -- ok | hata
+            http_kod INTEGER,
+            hata TEXT,
+            otonom INTEGER,
+            form_bekleniyor INTEGER,
+            son_dolu INTEGER,
+            son_saat TEXT,
+            kapanis INTEGER DEFAULT 0,     -- 1: vardiya kapandiktan sonra gonderildi
+            gonderim_ts TEXT,
+            deneme INTEGER DEFAULT 0,
+            son_push_ts TEXT,
+            push_sayisi INTEGER DEFAULT 0,
+            UNIQUE (bakim_kodu, tarih, vardiya_no)
+        )
+    ''')
+    # Form doldurulmadan vardiya kapatildiysa operatorun gerekcesi (kapanis
+    # kipi 'gerekce'). Halil: "atlama varsa gerekce Forge'da saklanir."
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS otonom_atlama (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT,
+            vardiya_id INTEGER,
+            bakim_kodu TEXT,
+            tarih TEXT,
+            operator_adi TEXT,
+            gerekce TEXT
+        )
+    ''')
+
     # Operator dogrudan bir BAKIM makinesi sectiyse kodu kayitta durur
     # (hidrolik pres hatti: bizim adlarimiz bakimdakiyle ortusmuyor).
     try:
