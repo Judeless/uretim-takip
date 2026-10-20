@@ -8922,6 +8922,123 @@ def durus_sebebi_sil():
     return jsonify({'basarili': True, 'mesaj': f'"{sebep}" panel tanımı silindi'})
 
 
+# ── TALEP & ÖNERİ (kullanıcı 2026-10-20: "kullanıcıların benden değişiklik ya da talep
+# etmek istediği şeyleri yazabileceği bir alan") ──
+# Her panel kullanıcısı yazar ve TÜM talepleri görür (aynı şey iki kez yazılmasın);
+# sayfa izni gerekmez. Durum + yanıt yalnız yönetici. Sahibi talebi 'yeni' iken
+# düzeltebilir / silebilir; işleme alındıktan sonra yeni talep yazar.
+_TALEP_TUR = ('hata', 'degisiklik', 'istek', 'soru')
+_TALEP_ONCELIK = ('dusuk', 'normal', 'acil')
+_TALEP_DURUM = ('yeni', 'inceleniyor', 'yapildi', 'reddedildi')
+_TALEP_METIN = {'baslik': 150, 'aciklama': 4000, 'sayfa': 80}
+
+
+def _talep_alanlari(d):
+    """İstek gövdesinden doğrulanmış talep metin/tür alanları (yalnız gönderilenler)."""
+    out = {}
+    for k, uzun in _TALEP_METIN.items():
+        if k in d:
+            v = str(d.get(k) or '').strip()
+            out[k] = (v if k == 'aciklama' else ' '.join(v.split()))[:uzun]
+    if 'tur' in d:
+        out['tur'] = d.get('tur') if d.get('tur') in _TALEP_TUR else 'istek'
+    if 'oncelik' in d:
+        out['oncelik'] = d.get('oncelik') if d.get('oncelik') in _TALEP_ONCELIK else 'normal'
+    return out
+
+
+@app.route('/api/panel_talepleri', methods=['GET'])
+@panel_gerekli()
+def panel_talepleri_liste():
+    """?durum=acik (varsayılan: yeni + inceleniyor) | kapali | hepsi"""
+    kapsam = (request.args.get('durum') or 'acik').strip()
+    kosul = {'acik': "WHERE durum IN ('yeni','inceleniyor')",
+             'kapali': "WHERE durum NOT IN ('yeni','inceleniyor')"}.get(kapsam, '')
+    conn = get_db()
+    rows = conn.execute(
+        f"SELECT * FROM panel_talepleri {kosul} ORDER BY "
+        "CASE durum WHEN 'yeni' THEN 0 WHEN 'inceleniyor' THEN 1 ELSE 2 END, "
+        "CASE oncelik WHEN 'acil' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, id DESC").fetchall()
+    ku = g.panel_ku
+    talepler = []
+    for r in rows:
+        t = dict(r)
+        t['benim'] = t['olusturan'] == ku['kullanici_adi']
+        t['silinebilir'] = ku['admin'] or (t['benim'] and t['durum'] == 'yeni')
+        talepler.append(t)
+    sayilar = {r[0]: r[1] for r in conn.execute('SELECT durum, COUNT(*) FROM panel_talepleri GROUP BY durum')}
+    return jsonify({'talepler': talepler, 'sayilar': sayilar, 'admin': ku['admin']})
+
+
+@app.route('/api/panel_talepleri', methods=['POST'])
+@panel_gerekli()
+def panel_talep_ekle():
+    """Body: {baslik, aciklama, tur: hata|degisiklik|istek|soru, oncelik: dusuk|normal|acil, sayfa}"""
+    d = request.get_json(silent=True) or {}
+    a = _talep_alanlari({'tur': 'istek', 'oncelik': 'normal', 'aciklama': '', 'sayfa': '', **d})
+    if not a.get('baslik'):
+        return jsonify({'hata': 'Başlık boş olamaz'}), 400
+    ku = g.panel_ku
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO panel_talepleri (tur, oncelik, sayfa, baslik, aciklama, olusturan, olusturan_ad) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (a['tur'], a['oncelik'], a['sayfa'], a['baslik'], a['aciklama'],
+         ku['kullanici_adi'], ku['ad_soyad'] or ku['kullanici_adi']))
+    conn.commit()
+    print(f"[TALEP] #{cur.lastrowid} {ku['kullanici_adi']} · {a['tur']}/{a['oncelik']}: {a['baslik']}")
+    return jsonify({'basarili': True, 'id': cur.lastrowid, 'mesaj': f'Talep #{cur.lastrowid} kaydedildi'})
+
+
+@app.route('/api/panel_talepleri/<int:tid>', methods=['PATCH'])
+@panel_gerekli()
+def panel_talep_guncelle(tid):
+    """Yönetici: {durum, yanit} + metin alanları. Sahibi: talep 'yeni' iken metin alanları."""
+    d = request.get_json(silent=True) or {}
+    ku = g.panel_ku
+    conn = get_db()
+    r = conn.execute('SELECT olusturan, durum FROM panel_talepleri WHERE id=?', (tid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Talep bulunamadı'}), 404
+    if not ku['admin'] and ('durum' in d or 'yanit' in d):
+        return jsonify({'hata': 'Durum ve yanıtı yalnız yönetici girer'}), 403
+    alanlar = _talep_alanlari(d)
+    if alanlar and not ku['admin'] and not (r['olusturan'] == ku['kullanici_adi'] and r['durum'] == 'yeni'):
+        return jsonify({'hata': 'Bu talep işleme alındı, değiştirilemez — yeni talep yazın'}), 403
+    if 'baslik' in alanlar and not alanlar['baslik']:
+        return jsonify({'hata': 'Başlık boş olamaz'}), 400
+    if 'durum' in d:
+        if d['durum'] not in _TALEP_DURUM:
+            return jsonify({'hata': f"Geçersiz durum: {d['durum']}"}), 400
+        alanlar['durum'] = d['durum']
+    if 'yanit' in d:
+        alanlar['yanit'] = str(d.get('yanit') or '').strip()[:4000]
+    if not alanlar:
+        return jsonify({'hata': 'Değişiklik yok'}), 400
+    alanlar['guncelleyen'] = ku['kullanici_adi']
+    alanlar['updated_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn.execute(f"UPDATE panel_talepleri SET {', '.join(k + '=?' for k in alanlar)} WHERE id=?",
+                 (*alanlar.values(), tid))
+    conn.commit()
+    return jsonify({'basarili': True, 'mesaj': f'Talep #{tid} güncellendi'})
+
+
+@app.route('/api/panel_talepleri/<int:tid>', methods=['DELETE'])
+@panel_gerekli()
+def panel_talep_sil(tid):
+    """Yönetici her talebi, sahibi yalnız 'yeni' talebini siler."""
+    ku = g.panel_ku
+    conn = get_db()
+    r = conn.execute('SELECT olusturan, durum FROM panel_talepleri WHERE id=?', (tid,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Talep bulunamadı'}), 404
+    if not ku['admin'] and not (r['olusturan'] == ku['kullanici_adi'] and r['durum'] == 'yeni'):
+        return jsonify({'hata': 'Yalnız işleme alınmamış kendi talebinizi silebilirsiniz'}), 403
+    conn.execute('DELETE FROM panel_talepleri WHERE id=?', (tid,))
+    conn.commit()
+    return jsonify({'basarili': True, 'mesaj': f'Talep #{tid} silindi'})
+
+
 # ── DURUŞ ANALİZİ (kullanıcı 2026-09-16: "duruşları analiz edebileceğimiz bir kısım") ──
 def _durus_grupla(rows, anahtar):
     """rows → [{'ad','dk','adet'}] (süreye göre azalan)."""

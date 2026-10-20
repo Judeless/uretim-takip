@@ -1469,6 +1469,27 @@
         .rt-form select { cursor: pointer; }
         .rt-form input:focus, .rt-form select:focus { border-color: var(--primary); }
         .rt-form .btn { min-height: 40px; padding: 9px 18px; }
+        /* Talep & Öneri sayfası (2026-10-20) */
+        #page-talepler .f-lbl {
+            font-size: 0.68rem; font-weight: 800; color: var(--dim);
+            text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px;
+        }
+        #page-talepler .tl-input, #page-talepler select, .tl-yonet select, .tl-yonet textarea {
+            width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text);
+            border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+            font-family: var(--font-main); font-size: 0.84rem; outline: none; min-height: 40px;
+        }
+        #page-talepler textarea { resize: vertical; line-height: 1.5; }
+        #page-talepler .tl-input:focus, .tl-yonet textarea:focus { border-color: var(--primary); }
+        .tl-ust { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 10px; }
+        .tl-kart { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-top: 10px; }
+        .tl-rozet { display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+        .tl-metin { white-space: pre-wrap; word-break: break-word; font-size: .82rem; line-height: 1.55; margin-top: 8px; }
+        .tl-yanit { margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); font-size: .8rem; }
+        .tl-yonet { display: grid; grid-template-columns: 170px 1fr auto auto; gap: 8px; margin-top: 10px; align-items: start; }
+        @media (max-width: 760px) {
+            .tl-ust, .tl-yonet { grid-template-columns: 1fr; }
+        }
         /* Bölüm başlığı (h4) — violet/cyan degrade pill (eski panel dili, v2 tonunda) */
         #ref-takip-baslik {
             display: inline-flex; align-items: center; gap: 8px;
@@ -2053,6 +2074,37 @@
     <!-- ══════════ i18n ÇEVİRİ SÖZLÜĞÜ (TR kaynak → EN/IT) ══════════ -->
     <script id="i18n-sozluk">
 window.__I18N_SOZLUK__ = {
+  "Destek": {"en": "Support", "it": "Supporto"},
+  "Talep & Öneri": {"en": "Requests & Suggestions", "it": "Richieste e suggerimenti"},
+  "Programda gördüğünüz bir hatayı, değişmesini ya da eklenmesini istediğiniz bir şeyi buraya yazın. Talepler sistem yöneticisine iletilir; durumunu ve yanıtını bu sayfadan takip edebilirsiniz.": {"en": "Write here any bug you see in the program, or anything you want changed or added. Requests go to the system administrator; you can follow their status and reply on this page.", "it": "Scrivete qui un errore che vedete nel programma o qualcosa che volete modificare o aggiungere. Le richieste arrivano all'amministratore di sistema; potete seguirne stato e risposta da questa pagina."},
+  "Yeni talep": {"en": "New request", "it": "Nuova richiesta"},
+  "Hata / çalışmayan bir şey": {"en": "Bug / something not working", "it": "Errore / qualcosa non funziona"},
+  "Değişiklik": {"en": "Change", "it": "Modifica"},
+  "Yeni istek": {"en": "New feature", "it": "Nuova funzionalità"},
+  "Soru": {"en": "Question", "it": "Domanda"},
+  "Normal": {"en": "Normal", "it": "Normale"},
+  "Acil": {"en": "Urgent", "it": "Urgente"},
+  "Acil (işi durduruyor)": {"en": "Urgent (blocks work)", "it": "Urgente (blocca il lavoro)"},
+  "İlgili ekran": {"en": "Related screen", "it": "Schermata interessata"},
+  "Başlık": {"en": "Title", "it": "Titolo"},
+  "ör. Raporda vardiya toplamı yanlış görünüyor": {"en": "e.g. Shift total looks wrong in the report", "it": "es. Il totale del turno nel report sembra errato"},
+  "Ne oldu, ne bekliyordunuz? Hangi tarih, bölüm, makine ya da referans?": {"en": "What happened, what did you expect? Which date, department, machine or reference?", "it": "Cosa è successo, cosa vi aspettavate? Quale data, reparto, macchina o riferimento?"},
+  "Gönder": {"en": "Send", "it": "Invia"},
+  "Talepler": {"en": "Requests", "it": "Richieste"},
+  "Açık": {"en": "Open", "it": "Aperte"},
+  "Hepsi": {"en": "All", "it": "Tutte"},
+  "Açıkları kopyala": {"en": "Copy open ones", "it": "Copia aperte"},
+  "Açık talepleri metin olarak panoya kopyalar": {"en": "Copies open requests to the clipboard as text", "it": "Copia le richieste aperte negli appunti come testo"},
+  "Genel / diğer": {"en": "General / other", "it": "Generale / altro"},
+  "Operatör mobil ekranı": {"en": "Operator mobile screen", "it": "Schermata mobile operatore"},
+  "Andon ekranı": {"en": "Andon screen", "it": "Schermata Andon"},
+  "Yeni": {"en": "New", "it": "Nuova"},
+  "İnceleniyor": {"en": "In review", "it": "In esame"},
+  "Yapıldı": {"en": "Done", "it": "Fatto"},
+  "Yapılmayacak": {"en": "Won't do", "it": "Non verrà fatto"},
+  "Yanıt": {"en": "Reply", "it": "Risposta"},
+  "Yanıt (talebi yazan görür)": {"en": "Reply (visible to the requester)", "it": "Risposta (visibile al richiedente)"},
+  "Bu listede talep yok.": {"en": "No requests in this list.", "it": "Nessuna richiesta in questo elenco."},
   "📥 Üretim müdürü kapasite Excel'i": {"en": "📥 Production manager capacity Excel", "it": "📥 Excel capacità del responsabile"},
   "📥 Kapasite Excel'i": {"en": "📥 Capacity Excel", "it": "📥 Excel capacità"},
   "Excel dosyası": {"en": "Excel file", "it": "File Excel"},
@@ -5901,6 +5953,16 @@ window.__I18N_SOZLUK__ = {
             </div>
             {% endif %}
 
+            <!-- TALEP & ÖNERİ (2026-10-20): her panel kullanıcısına açık (sayfa izni gerekmez) -->
+            <div class="nav-group">
+                <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Destek</span><span class="ok">▼</span></button>
+                <div class="nav-group-govde">
+                <a class="nav-item" data-sayfa="talepler" onclick="sayfaAc('talepler')">
+                    <span class="nav-icon">💬</span> Talep &amp; Öneri
+                    <span id="talep-nav-rozet" style="display:none;margin-left:auto;background:var(--primary);color:#fff;border-radius:999px;padding:1px 8px;font-size:.7rem;font-weight:800"></span></a>
+                </div>
+            </div>
+
 <div class="nav-group" id="ng-sistem" style="display:none">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Sistem</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
@@ -8628,6 +8690,71 @@ window.__I18N_SOZLUK__ = {
             </section>
 
             <!-- ══════ SAYFA: KULLANICILAR (panel giriş yetkileri — yalnız admin) ══════ -->
+            <section class="page" id="page-talepler">
+                <div style="margin-bottom:18px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">💬 Talep &amp; Öneri</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Programda gördüğünüz bir hatayı, değişmesini ya da eklenmesini istediğiniz bir şeyi buraya yazın. Talepler sistem yöneticisine iletilir; durumunu ve yanıtını bu sayfadan takip edebilirsiniz.</p>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>✍️ Yeni talep</h3>
+                    </div>
+                    <div style="padding:14px 20px">
+                        <div class="tl-ust">
+                            <div>
+                                <div class="f-lbl">Tür</div>
+                                <select id="tl-tur">
+                                    <option value="hata">Hata / çalışmayan bir şey</option>
+                                    <option value="degisiklik">Değişiklik</option>
+                                    <option value="istek" selected>Yeni istek</option>
+                                    <option value="soru">Soru</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="f-lbl">Öncelik</div>
+                                <select id="tl-oncelik">
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="acil">Acil (işi durduruyor)</option>
+                                    <option value="dusuk">Düşük</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="f-lbl">İlgili ekran</div>
+                                <select id="tl-sayfa"></select>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px">
+                            <div class="f-lbl">Başlık</div>
+                            <input type="text" id="tl-baslik" class="tl-input" maxlength="150" placeholder="ör. Raporda vardiya toplamı yanlış görünüyor">
+                        </div>
+                        <div style="margin-top:10px">
+                            <div class="f-lbl">Açıklama</div>
+                            <textarea id="tl-aciklama" class="tl-input" maxlength="4000" rows="5" placeholder="Ne oldu, ne bekliyordunuz? Hangi tarih, bölüm, makine ya da referans?"></textarea>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+                            <button class="btn btn-primary" onclick="tlGonder()">Gönder</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>📋 Talepler</h3>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                            <span class="adet-info" id="tl-sayi"></span>
+                            <select id="tl-filtre" onchange="tlYukle()" style="min-height:34px;padding:5px 10px;width:auto">
+                                <option value="acik">Açık</option>
+                                <option value="kapali">Tamamlanan</option>
+                                <option value="hepsi">Hepsi</option>
+                            </select>
+                            <button class="btn btn-ghost" data-admin-only="1" style="display:none;padding:5px 12px;font-size:.78rem" onclick="tlKopyala()" title="Açık talepleri metin olarak panoya kopyalar">📋 Açıkları kopyala</button>
+                        </div>
+                    </div>
+                    <div id="tl-liste" style="padding:4px 20px 18px"></div>
+                </div>
+            </section>
+
             <section class="page" id="page-kullanicilar">
                 <div class="panel-card">
                     <div class="panel-header">
@@ -9715,6 +9842,8 @@ window.__I18N_SOZLUK__ = {
             if (!panelSayfaIzinli(sayfa)) {
                 sayfa = panelIlkIzinliSayfa();
             }
+            // Talep formunda "ilgili ekran" kullanıcının geldiği sayfayla dolsun
+            if (sayfa === 'talepler' && aktifSayfa !== 'talepler') window._tlOnceki = aktifSayfa;
             aktifSayfa = sayfa;
             // Yenilemede aynı sayfa açılsın (kullanıcı 2026-09-16). localStorage
             // cihaz başına: kullanıcı değişse bile sayfaAc yetki kapısı koruyor.
@@ -9748,6 +9877,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'aylik-uretim') ? 'page-aylik-uretim'
                         : (sayfa === 'ariza-onay') ? 'page-ariza-onay'
                         : (sayfa === 'proje-takip') ? 'page-proje-takip'
+                        : (sayfa === 'talepler') ? 'page-talepler'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
             document.querySelectorAll('.page').forEach(function (p) {
                 p.classList.toggle('active', p.id === hedefId);
@@ -9791,6 +9921,7 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();
             if (sayfa === 'zaman-cizelgesi') zcSekmeAcildi();
             if (sayfa === 'durus-sebepleri') dsSekmeAcildi();
+            if (sayfa === 'talepler') tlSekmeAcildi();
             if (sayfa === 'durus-analizi') daSekmeAcildi();
             if (sayfa === 'kapasite') kapSekmeAcildi();
             if (sayfa === 'satis-plani') spSekmeAcildi();
@@ -9869,6 +10000,8 @@ window.__I18N_SOZLUK__ = {
                 bc.innerHTML = 'AS400 İşlemler ▸ <b>Planlama</b>';
             } else if (aktifSayfa === 'kullanicilar') {
                 bc.innerHTML = '<b>Kullanıcılar</b>';
+            } else if (aktifSayfa === 'talepler') {
+                bc.innerHTML = 'Destek ▸ <b>Talep &amp; Öneri</b>';
             } else {
                 bc.innerHTML = '<b>' + esc(aktifSayfa) + '</b>';
             }
@@ -21479,12 +21612,229 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
         setInterval(arizaRozetYokla, 120000);
         setTimeout(arizaRozetYokla, 2500);
 
+        // ══ TALEP & ÖNERİ (kullanıcı 2026-10-20) ═══════════════════════════════
+        // Panel kullanıcıları hata / değişiklik / yeni istek yazar; herkes tüm talepleri
+        // görür, durum + yanıtı yalnız yönetici girer. Yönetici açık talepleri tek düğmeyle
+        // metin olarak kopyalar (geliştirmeye aktarmak için). Rozet: yöneticiye 'yeni' sayısı.
+        var _tl = { liste: [], admin: false };
+        var TL_TUR = {
+            hata: ['Hata', 'var(--danger)'], degisiklik: ['Değişiklik', 'var(--b-montaj)'],
+            istek: ['Yeni istek', 'var(--primary)'], soru: ['Soru', 'var(--lg-slate)']
+        };
+        var TL_DURUM = {
+            yeni: ['Yeni', 'var(--primary)'], inceleniyor: ['İnceleniyor', 'var(--b-kaynak)'],
+            yapildi: ['Yapıldı', 'var(--success)'], reddedildi: ['Yapılmayacak', 'var(--muted)']
+        };
+
+        function tlSekmeAcildi() {
+            tlEkranDoldur();
+            tlYukle();
+        }
+
+        function tlNavAdi(a) {
+            // nav metni: ikon + ad + (varsa) rozet sayısı → yalnız ad
+            var t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+            return t.replace(/^[^0-9A-Za-zÇĞİÖŞÜçğıöşü]+/, '').replace(/\s+\d+$/, '').trim();
+        }
+
+        function tlEkranDoldur() {
+            var sel = document.getElementById('tl-sayfa');
+            if (!sel) return;
+            var adlar = [];
+            document.querySelectorAll('.nav-item[data-sayfa]').forEach(function (a) {
+                if (a.style.display === 'none' || a.getAttribute('data-sayfa') === 'talepler') return;
+                var t = tlNavAdi(a);
+                if (t && adlar.indexOf(t) === -1) adlar.push(t);
+            });
+            adlar.push('Operatör mobil ekranı', 'Andon ekranı');
+            sel.innerHTML = '<option value="">Genel / diğer</option>' + adlar.map(function (t) {
+                return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+            }).join('');
+            var onceki = window._tlOnceki && document.querySelector('.nav-item[data-sayfa="' + window._tlOnceki + '"]');
+            if (onceki) sel.value = tlNavAdi(onceki);
+        }
+
+        async function tlYukle() {
+            var kutu = document.getElementById('tl-liste');
+            var f = (document.getElementById('tl-filtre') || {}).value || 'acik';
+            if (kutu && !_tl.liste.length) kutu.innerHTML = '<div class="empty-state">Yükleniyor…</div>';
+            try {
+                var r = await panelFetch('/api/panel_talepleri?durum=' + encodeURIComponent(f));
+                var d = await r.json();
+                if (!r.ok) {
+                    if (kutu) kutu.innerHTML = '<div class="empty-state">' + esc(d.hata || 'Yüklenemedi') + '</div>';
+                    return;
+                }
+                _tl.liste = d.talepler || [];
+                _tl.admin = !!d.admin;
+                tlRozetGuncelle((d.sayilar || {}).yeni || 0);
+                tlCiz(d.sayilar || {});
+            } catch (e) {
+                if (kutu) kutu.innerHTML = '<div class="empty-state">' + esc(e.message) + '</div>';
+            }
+        }
+
+        function tlCiz(sayilar) {
+            var kutu = document.getElementById('tl-liste');
+            if (!kutu) return;
+            var sayi = document.getElementById('tl-sayi');
+            if (sayi) sayi.textContent = 'Açık ' + ((sayilar.yeni || 0) + (sayilar.inceleniyor || 0)) +
+                ' · Tamamlanan ' + ((sayilar.yapildi || 0) + (sayilar.reddedildi || 0));
+            if (!_tl.liste.length) {
+                kutu.innerHTML = '<div class="empty-state">Bu listede talep yok.</div>';
+                return;
+            }
+            kutu.innerHTML = _tl.liste.map(function (t) {
+                var tur = TL_TUR[t.tur] || TL_TUR.istek;
+                var du = TL_DURUM[t.durum] || TL_DURUM.yeni;
+                var h = '<div class="tl-kart">' +
+                    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+                    '<span style="color:var(--dim);font-weight:800;font-size:.8rem">#' + t.id + '</span>' +
+                    '<span class="tl-rozet" style="color:' + tur[1] + ';background:rgba(148,163,184,0.15)">' + tur[0] + '</span>' +
+                    (t.oncelik === 'acil' ? '<span class="tl-rozet" style="color:#fff;background:var(--danger)">Acil</span>' : '') +
+                    (t.oncelik === 'dusuk' ? '<span class="tl-rozet" style="color:var(--muted);background:rgba(148,163,184,0.12)">Düşük</span>' : '') +
+                    '<b style="flex:1;min-width:180px;font-size:.9rem">' + esc(t.baslik) + '</b>' +
+                    '<span class="tl-rozet" style="color:' + du[1] + ';border:1px solid currentColor">' + du[0] + '</span></div>' +
+                    '<div style="font-size:.72rem;color:var(--muted);margin-top:4px">' +
+                    esc(t.olusturan_ad || t.olusturan) + ' · ' + esc((t.created_at || '').slice(0, 16)) +
+                    (t.sayfa ? ' · ' + esc(t.sayfa) : '') + '</div>' +
+                    (t.aciklama ? '<div class="tl-metin">' + esc(t.aciklama) + '</div>' : '') +
+                    (t.yanit ? '<div class="tl-yanit"><b>Yanıt</b> <span style="color:var(--muted);font-size:.7rem">' +
+                        esc((t.updated_at || '').slice(0, 16)) + '</span><div class="tl-metin" style="margin-top:4px">' +
+                        esc(t.yanit) + '</div></div>' : '');
+                if (_tl.admin) {
+                    h += '<div class="tl-yonet"><select id="tl-d-' + t.id + '">' +
+                        Object.keys(TL_DURUM).map(function (k) {
+                            return '<option value="' + k + '"' + (k === t.durum ? ' selected' : '') + '>' + TL_DURUM[k][0] + '</option>';
+                        }).join('') + '</select>' +
+                        '<textarea id="tl-y-' + t.id + '" rows="2" placeholder="Yanıt (talebi yazan görür)">' + esc(t.yanit || '') + '</textarea>' +
+                        '<button class="btn btn-primary" onclick="tlKaydet(' + t.id + ')">Kaydet</button>' +
+                        '<button class="btn btn-ghost" style="color:var(--danger)" onclick="tlSil(' + t.id + ')">Sil</button></div>';
+                } else if (t.silinebilir) {
+                    h += '<div style="margin-top:8px;text-align:right"><button class="btn btn-ghost" ' +
+                        'style="padding:3px 10px;font-size:.76rem;color:var(--danger)" onclick="tlSil(' + t.id + ')">Sil</button></div>';
+                }
+                return h + '</div>';
+            }).join('');
+        }
+
+        async function tlIstek(url, opts, basari) {
+            try {
+                var r = await panelFetch(url, opts);
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'İşlem yapılamadı', 'err'); return false; }
+                toast(d.mesaj || basari, 'ok');
+                tlYukle();
+                return true;
+            } catch (e) {
+                toast('İşlem yapılamadı: ' + e.message, 'err');
+                return false;
+            }
+        }
+
+        async function tlGonder() {
+            var baslikEl = document.getElementById('tl-baslik');
+            var aciklamaEl = document.getElementById('tl-aciklama');
+            var baslik = (baslikEl.value || '').trim();
+            if (!baslik) { toast('Kısa bir başlık yazın', 'err'); baslikEl.focus(); return; }
+            var ok = await tlIstek('/api/panel_talepleri', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    baslik: baslik, aciklama: aciklamaEl.value || '',
+                    tur: document.getElementById('tl-tur').value,
+                    oncelik: document.getElementById('tl-oncelik').value,
+                    sayfa: document.getElementById('tl-sayfa').value || ''
+                })
+            }, 'Talep kaydedildi');
+            if (ok) {
+                baslikEl.value = '';
+                aciklamaEl.value = '';
+                var f = document.getElementById('tl-filtre');
+                if (f && f.value === 'kapali') { f.value = 'acik'; tlYukle(); }
+            }
+        }
+
+        function tlKaydet(id) {
+            tlIstek('/api/panel_talepleri/' + id, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    durum: document.getElementById('tl-d-' + id).value,
+                    yanit: document.getElementById('tl-y-' + id).value || ''
+                })
+            }, 'Güncellendi');
+        }
+
+        function tlSil(id) {
+            if (!confirm('Talep #' + id + ' silinsin mi?')) return;
+            tlIstek('/api/panel_talepleri/' + id, { method: 'DELETE' }, 'Silindi');
+        }
+
+        // Yönetici: açık talepleri düz metin olarak panoya al (yerel ağdaki http
+        // adresinde Clipboard API yok → gizli textarea + execCommand yedeği)
+        async function tlKopyala() {
+            try {
+                var r = await panelFetch('/api/panel_talepleri?durum=acik');
+                var d = await r.json();
+                var liste = d.talepler || [];
+                if (!liste.length) { toast('Açık talep yok', 'ok'); return; }
+                var satirlar = [document.title + ' · açık talepler (' + liste.length + ') · ' +
+                                new Date().toLocaleString('tr-TR'), ''];
+                liste.forEach(function (t) {
+                    satirlar.push('#' + t.id + ' [' + (TL_TUR[t.tur] || TL_TUR.istek)[0] +
+                        (t.oncelik !== 'normal' ? ' · ' + (t.oncelik === 'acil' ? 'Acil' : 'Düşük') : '') + '] ' + t.baslik);
+                    satirlar.push('   Ekran: ' + (t.sayfa || '-') + ' · Yazan: ' + (t.olusturan_ad || t.olusturan) +
+                        ' · ' + (t.created_at || '').slice(0, 16) + ' · Durum: ' + (TL_DURUM[t.durum] || TL_DURUM.yeni)[0]);
+                    if (t.aciklama) t.aciklama.split('\n').forEach(function (s) { satirlar.push('   ' + s); });
+                    if (t.yanit) satirlar.push('   Yanıt: ' + t.yanit.replace(/\n/g, ' '));
+                    satirlar.push('');
+                });
+                var metin = satirlar.join('\n');
+                var bitti = function () { toast(liste.length + ' açık talep kopyalandı', 'ok'); };
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(metin).then(bitti, function () { tlKopyalaYedek(metin, bitti); });
+                } else {
+                    tlKopyalaYedek(metin, bitti);
+                }
+            } catch (e) {
+                toast('Kopyalanamadı: ' + e.message, 'err');
+            }
+        }
+        function tlKopyalaYedek(metin, bitti) {
+            var ta = document.createElement('textarea');
+            ta.value = metin;
+            ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { }
+            document.body.removeChild(ta);
+            if (ok) bitti(); else prompt('Kopyalayın:', metin);
+        }
+
+        function tlRozetGuncelle(n) {
+            var r = document.getElementById('talep-nav-rozet');
+            if (!r) return;
+            if (!panelAdmin()) n = 0;
+            r.textContent = n || '';
+            r.style.display = (n > 0) ? '' : 'none';
+        }
+        function tlRozetYokla() {
+            if (!panelAdmin()) return;
+            panelFetch('/api/panel_talepleri?durum=acik')
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) { if (d) tlRozetGuncelle((d.sayilar || {}).yeni || 0); })
+                .catch(function () {});
+        }
+        setInterval(tlRozetYokla, 300000);
+        setTimeout(tlRozetYokla, 3000);
+
         function panelSayfaIzinli(sayfa) {
             // 'AS400 İşlemler' grubu TEK izinle yönetilir: as400-teyit izni olan
             // teyit + 02'den aktarım + planlama sayfalarını görür (2026-07-23).
             if (sayfa === 'as400-transfer' || sayfa === 'as400-planlama') sayfa = 'as400-teyit';
             // KURULUM PROFİLİ: bu kurulumda olmayan modülün sayfası admin için de kapalı
             if (window.KURULUM && (KURULUM.kapali_sayfalar || []).indexOf(sayfa) !== -1) return false;
+            if (sayfa === 'talepler') return true;           // Talep & Öneri: her kullanıcıya açık
             if (!window.PANEL_KU) return sayfa !== 'kullanicilar'; // eski backend (gate yok) → kısıtlama yok
             if (panelAdmin()) return true;
             if (sayfa === 'kullanicilar') return false;      // yalnız admin

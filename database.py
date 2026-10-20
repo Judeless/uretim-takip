@@ -1642,6 +1642,27 @@ def init_db(_ikinci_tur=False):
     ''')
     c.execute('CREATE INDEX IF NOT EXISTS ix_haftalik_plan ON haftalik_plan(bolum, lokasyon, tarih)')
 
+    # TALEP & ÖNERİ (kullanıcı 2026-10-20): panel kullanıcıları programla ilgili hata /
+    # değişiklik / yeni istek yazar; durumunu ve yanıtını yalnız yönetici girer.
+    # durum: yeni · inceleniyor · yapildi · reddedildi
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS panel_talepleri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tur TEXT NOT NULL DEFAULT 'istek',
+            oncelik TEXT NOT NULL DEFAULT 'normal',
+            sayfa TEXT DEFAULT '',
+            baslik TEXT NOT NULL,
+            aciklama TEXT DEFAULT '',
+            durum TEXT NOT NULL DEFAULT 'yeni',
+            yanit TEXT DEFAULT '',
+            olusturan TEXT DEFAULT '',
+            olusturan_ad TEXT DEFAULT '',
+            guncelleyen TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT ''
+        )
+    """)
+
     # DURUŞ SEBEBİ — PANELDEN (kullanıcı 2026-09-16): "robot kaynak için ekstra bir
     # duruş tanımlamak istiyorum, her seferinde Excel'e yazıp oradan güncellemek zor
     # oluyor." Sebepler Excel sayfalarından okunuyordu (Duruş Listesi); buraya eklenen
