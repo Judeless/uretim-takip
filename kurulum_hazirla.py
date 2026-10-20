@@ -13,8 +13,13 @@ Yaptıkları:
   3. Yönetici hesabını RASTGELE şifreyle açar; şifre yalnız ekrana bir kez yazılır
      (ilk girişte değiştirilmesi istenir)
   4. Excel verilmişse referansları içe alır (metal: göz + parça başı süre; CNC
-     işleme: delme/diş/taşlama; montaj: bileşenler)
+     işleme: delme/diş/taşlama; montaj: bileşenler; plastik: 'PLASTİK ENJEKSİYON
+     KODLAR' bloğu + tonaj sayfasındaki plastik hammaddeli satırlar)
   5. Bölüm başına varsayılan duruş sebeplerini ekler (panelden değiştirilir)
+
+Kurulumdan SONRA Excel'e yeni referans eklenince (var olanlara dokunmaz):
+
+    python kurulum_hazirla.py --sadece-referans --excel "ÜRETİM SÜRELERİ DATA.xlsb"
 
 GÜVENLİK: Cofle'nin kendi kurulumunu DÖNÜŞTÜRMEZ — klasörde üretim verisi olan bir
 veritabanı ya da Cofle'nin varsayılan yöneticisi varsa hiçbir şey yazmadan durur.
@@ -112,6 +117,39 @@ def _kod(v):
     return str(v).strip()
 
 
+def _gecersiz_kod(kod):
+    """'6' / '4' gibi kısa salt sayılar kod değil, hücreye kayan adet/göz değeri."""
+    return kod.isdigit() and len(kod) < 5
+
+
+def _kod_ayir(v):
+    """Plastik tablosundaki kod hücresi → [(kod, not)]:
+    '10.300.2607 ( İÇ PARÇA)' → not olarak ayrılır;
+    '10.300.0499-0500' / '10.300.2612 - 0500' (aile kalıbı, tek baskıda iki parça) → iki kod."""
+    s = _kod(v)
+    m = re.match(r'^(\d{2}\.\d{3}\.\d{4}[A-Z]?)\s*\(\s*(.*?)\s*\)\s*$', s)
+    if m:
+        return [(m.group(1), m.group(2))]
+    m = re.match(r'^(\d{2}\.\d{3}\.)(\d{4})\s*-\s*(\d{4})$', s)
+    if m:
+        return [(m.group(1) + m.group(2), f'aile kalıbı {s}'), (m.group(1) + m.group(3), f'aile kalıbı {s}')]
+    return [(s, '')]
+
+
+def _tekille(liste):
+    """Aynı kod birden çok satırda: süresi DOLU olan kalır (yoksa ilki)."""
+    out = {}
+    for r in liste:
+        if r['kod'] not in out or (not out[r['kod']]['ct'] and r['ct']):
+            out[r['kod']] = r
+    return list(out.values())
+
+
+# Tonaj sayfasında hammaddesi bu desene uyan satır METAL, diğer dolu hammaddeler
+# (PA66.GF30, PP, ABS, ASA, TPE...) PLASTİK enjeksiyon ürünüdür
+_METAL_HAMMADDE = re.compile(r'zamak|zamac|alümin|alumin|pirin|brass', re.I)
+
+
 def _makine(v):
     """'50 Ton' / '51 Ton' / '100 TON' / '50/100 Ton' → '50 Ton' / '100 Ton' / '50 / 100 Ton'.
     51/53/101 gibi değerler veri girişi farkı — en yakın sınıfa yuvarlanır."""
@@ -166,38 +204,174 @@ def referanslari_cikar(satirlar):
                         and '+' not in str(x)]          # 'a+b+c' özet hücresi tekrar etmesin
             if parcalar:
                 montaj.append({'kod': kod, 'aciklama': 'Bileşenler: ' + ', '.join(dict.fromkeys(parcalar))})
-    return metal, isleme, montaj
+    return metal, isleme, montaj, plastik_bloku(satirlar, bas, k['kod'])
+
+
+def plastik_bloku(satirlar, bas, ilk_kod_kol):
+    """Aynı sayfada metal tablosunun SAĞINDA ikinci bir 'Group/Ext. Code' bloğu,
+    üstündeki başlıkta 'PLASTİK ENJEKSİYON KODLAR' (Aspanda Excel'i, BJ sütunu): kod ·
+    göz · baskı süresi. Makine yok — plastikte operatör makineyi (107/350 Ton) vardiyada seçer."""
+    h = [str(x or '').strip().lower() for x in satirlar[bas]]
+    out = []
+    for j, x in enumerate(h):
+        if j == ilk_kod_kol or x != 'group/ext. code':
+            continue
+        baslik = ' '.join(str(satirlar[i][c] or '') for i in range(bas)
+                          for c in range(max(0, j - 1), j + 3) if c < len(satirlar[i]))
+        if 'PLAST' not in baslik.upper():
+            continue
+        yakin = h[j:j + 10]
+        k_goz = j + yakin.index('# of cavities') if '# of cavities' in yakin else None
+        k_ct = j + yakin.index('cycle time (sec)') if 'cycle time (sec)' in yakin else None
+        for r in satirlar[bas + 1:]:
+            if not r or j >= len(r):
+                continue
+            goz = max(1, int(_sayi(r[k_goz]) or 1)) if k_goz is not None and k_goz < len(r) else 1
+            baski = _sayi(r[k_ct]) if k_ct is not None and k_ct < len(r) else 0
+            for kod, notu in _kod_ayir(r[j]):
+                if not kod or len(kod) > 40 or _gecersiz_kod(kod):
+                    continue
+                aciklama = f'{goz} göz · {baski:g} sn/baskı' if baski else f'{goz} göz'
+                out.append({'kod': kod, 'goz': goz, 'ct': round(baski / goz, 2) if baski else 0,
+                            'aciklama': aciklama + (f' · {notu}' if notu else '')})
+    return _tekille(out)
+
+
+def _tonaj_bloku(ad, satirlar):
+    """'200T' sayfasının makinesi + başlık satırı + kolonları; biçim uymuyorsa None."""
+    m = re.match(r'^\s*(\d+)\s*T(?:on)?\s*$', str(ad), re.I)
+    if not m:
+        return None
+    bas = next((i for i, r in enumerate(satirlar[:15])
+                if any(str(x or '').strip().lower() == 'enjeksiyon prosesi' for x in r)), None)
+    if bas is None:
+        return None
+    h = [str(x or '').strip().lower() for x in satirlar[bas]]
+    kol = {a: (h.index(b) if b in h else None) for a, b in
+           (('kod', 'enjeksiyon prosesi'), ('goz', 'göz adedi'), ('ct', 'çevrim süresi'), ('ham', 'hammadde cinsi'))}
+    return f'{int(m.group(1))} Ton', bas, kol
 
 
 def tonaj_sayfasi_refleri(ad, satirlar):
     """'200T' gibi tek makinelik maliyet sayfası (Aspanda Excel'i, 2026-10-19): başlık
     satırında 'Enjeksiyon Prosesi' (kod) · 'Göz Adedi' · 'Çevrim Süresi' (baskı süresi).
-    Makine sayfa adından gelir: '200T' → '200 Ton'. Biçim uymuyorsa boş liste."""
-    m = re.match(r'^\s*(\d+)\s*T(?:on)?\s*$', str(ad), re.I)
-    if not m:
+    Makine sayfa adından gelir: '200T' → '200 Ton'. Biçim uymuyorsa boş liste.
+    Sayfa zamak ile plastiği KARIŞIK tutar (2026-10-20): 'Hammadde Cinsi' ZAMAK → metal
+    (makine = sayfa), PA66/PP/ABS/ASA/TPE... → plastik (her kayıtta 'bolum' anahtarı)."""
+    blok = _tonaj_bloku(ad, satirlar)
+    if not blok:
         return []
-    mk = f'{int(m.group(1))} Ton'
-    bas = next((i for i, r in enumerate(satirlar[:15])
-                if any(str(x or '').strip().lower() == 'enjeksiyon prosesi' for x in r)), None)
-    if bas is None:
-        return []
-    h = [str(x or '').strip().lower() for x in satirlar[bas]]
-    k_kod = h.index('enjeksiyon prosesi')
-    k_goz = h.index('göz adedi') if 'göz adedi' in h else None
-    k_ct = h.index('çevrim süresi') if 'çevrim süresi' in h else None
+    mk, bas, k = blok
+
+    def hucre(r, a):
+        return r[k[a]] if k[a] is not None and k[a] < len(r) else None
     out, gorulen = [], set()
     for r in satirlar[bas + 1:]:
-        if not r or k_kod >= len(r):
+        if not r:
             continue
-        kod = _kod(r[k_kod])
-        if not kod or kod in gorulen or len(kod) > 40:
+        kod = _kod(hucre(r, 'kod'))
+        if not kod or kod in gorulen or len(kod) > 40 or _gecersiz_kod(kod):
             continue
         gorulen.add(kod)
-        goz = max(1, int(_sayi(r[k_goz]) or 1)) if k_goz is not None and k_goz < len(r) else 1
-        baski = _sayi(r[k_ct]) if k_ct is not None and k_ct < len(r) else 0
-        out.append({'kod': kod, 'goz': goz, 'ct': round(baski / goz, 2) if baski else 0,
-                    'aciklama': f'{mk} · {goz} göz · {baski:g} sn/baskı'.strip(' ·')})
+        goz = max(1, int(_sayi(hucre(r, 'goz')) or 1))
+        baski = _sayi(hucre(r, 'ct'))
+        ham = str(hucre(r, 'ham') or '').strip()
+        ct = round(baski / goz, 2) if baski else 0
+        if ham and not _METAL_HAMMADDE.search(ham):
+            out.append({'bolum': 'plastik', 'kod': kod, 'goz': goz, 'ct': ct,
+                        'aciklama': f'{ham} · {goz} göz · {baski:g} sn/baskı'})
+        else:
+            out.append({'bolum': 'metal', 'kod': kod, 'goz': goz, 'ct': ct,
+                        'aciklama': f'{mk} · {goz} göz · {baski:g} sn/baskı'})
     return out
+
+
+def _tonaj_eski_kodlari(ad, satirlar):
+    """Eski sürümün (2026-10-19) bu sayfadan METAL diye yazdığı kodların tamamı —
+    düzeltme modunda yanlış bölüme düşenleri bulmak için."""
+    blok = _tonaj_bloku(ad, satirlar)
+    if not blok:
+        return None
+    mk, bas, k = blok
+    return {kod for r in satirlar[bas + 1:] if r and k['kod'] < len(r)
+            for kod in [_kod(r[k['kod']])] if kod and len(kod) <= 40}, mk
+
+
+def excel_referanslari(yol):
+    """Excel → {bölüm: [referans]} (metal · isleme · montaj · plastik)."""
+    sayfalar = excel_sayfalari(yol)
+    metal, isleme, montaj, plastik = referanslari_cikar(next(iter(sayfalar.values())))
+    # Tonaj sayfaları ('200T'): o makinede basılan zamak ürünler metal, plastik hammaddeliler plastik
+    for _ad, _sat in sayfalar.items():
+        for r in tonaj_sayfasi_refleri(_ad, _sat):
+            (plastik if r['bolum'] == 'plastik' else metal).append(r)
+    return {'metal': metal, 'isleme': isleme, 'montaj': montaj, 'plastik': plastik}, sayfalar
+
+
+def referans_ekle(cn, refs, bolumler, lok):
+    """INSERT OR IGNORE — var olan referansa (süresi/açıklaması elle düzeltilmiş olabilir) DOKUNMAZ."""
+    sayac = {b: 0 for b in refs}
+    for bolum, liste in refs.items():
+        if bolum not in bolumler:
+            continue
+        for r in liste:
+            sayac[bolum] += cn.execute(
+                "INSERT OR IGNORE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, "
+                "bolum, lokasyon, kalip_goz, paket_adedi, sure_teyit) VALUES (?,?,?,?,?,?,?,0)",
+                (r['kod'], r['aciklama'], r.get('ct', 0), bolum, lok, r.get('goz', 1),
+                 r.get('goz', 1) if bolum in ('metal', 'plastik') else 1)).rowcount
+    return sayac
+
+
+def referans_guncelle(excel):
+    """--sadece-referans: MEVCUT markalı kurulumda Excel'deki EKSİK referansları ekler.
+    Profil/yönetici/duruş sebeplerine dokunmaz; var olan referansı değiştirmez. Eski sürümün
+    tonaj sayfasından METAL diye yazdığı plastik ürünleri (ve '6'/'4' gibi bozuk kodları)
+    siler — yalnız üretim kaydında hiç kullanılmamışsa."""
+    if not excel:
+        dur('--sadece-referans için --excel gerekli')
+    if not os.path.exists(HEDEF_PROFIL) or not os.path.exists(DB):
+        dur('Bu klasörde kurulum yok (data/kurulum.json ya da uretim.db eksik)')
+    import kurulum
+    p = kurulum.yukle(tazele=True)
+    cn = sqlite3.connect(DB, timeout=30)
+    try:
+        if kurulum.cofle_mi() or cn.execute(
+                "SELECT 1 FROM panel_kullanicilari WHERE kullanici_adi='emre.dogutekin'").fetchone():
+            dur('Bu Cofle kurulumu — referans güncelleme yalnız markalı kurulumda çalışır')
+        bolumler = p.get('bolumler') or []
+        lok = ((p.get('lokasyonlar') or [{}])[0] or {}).get('kod') or 'TK2'
+        refs, sayfalar = excel_referanslari(excel)
+        yeni_metal = {r['kod'] for r in refs['metal']}
+        silinen, korunan = [], []
+        for _ad, _sat in sayfalar.items():
+            eski = _tonaj_eski_kodlari(_ad, _sat)
+            if not eski:
+                continue
+            kodlar, mk = eski
+            for kod in sorted(kodlar - yeni_metal):
+                if not cn.execute("SELECT 1 FROM referans_listesi WHERE referans_kodu=? AND bolum='metal' "
+                                  "AND lokasyon=? AND aciklama LIKE ?", (kod, lok, f'{mk} ·%')).fetchone():
+                    continue
+                if cn.execute('SELECT 1 FROM uretim_kayitlari WHERE referans_kodu=? LIMIT 1', (kod,)).fetchone():
+                    korunan.append(kod)
+                    continue
+                cn.execute("DELETE FROM referans_listesi WHERE referans_kodu=? AND bolum='metal' AND lokasyon=? "
+                           "AND aciklama LIKE ?", (kod, lok, f'{mk} ·%'))
+                silinen.append(kod)
+        sayac = referans_ekle(cn, refs, bolumler, lok)
+        cn.commit()
+        toplam = dict(cn.execute('SELECT bolum, COUNT(*) FROM referans_listesi WHERE lokasyon=? GROUP BY bolum',
+                                 (lok,)).fetchall())
+    finally:
+        cn.close()
+    print(f"Metalden çıkarılan (plastik ya da bozuk kod): {len(silinen)}"
+          + (f"  — {', '.join(silinen[:8])}{' …' if len(silinen) > 8 else ''}" if silinen else ''))
+    if korunan:
+        print(f"Üretim kaydı olduğu için metalde BIRAKILAN: {', '.join(korunan)}")
+    print('Eklenen: ' + ' · '.join(f'{b} {n}' for b, n in sayac.items() if b in bolumler))
+    print('Toplam : ' + ' · '.join(f'{b} {toplam.get(b, 0)}' for b in bolumler))
+    print('\nTAMAM — yeniden başlatma gerekmez, panelde Referanslar sayfasını yenileyin.')
 
 
 def main():
@@ -206,7 +380,13 @@ def main():
     ap.add_argument('--excel', help='referans/süre verisi (.xlsb / .xlsx)')
     ap.add_argument('--yonetici', default='admin', help='yönetici kullanıcı adı')
     ap.add_argument('--yonetici-ad', default='Yönetici', help='yöneticinin adı soyadı')
+    ap.add_argument('--sadece-referans', action='store_true',
+                    help="MEVCUT markalı kurulumda yalnız Excel'deki eksik referansları ekler")
     a = ap.parse_args()
+
+    if a.sadece_referans:
+        referans_guncelle(a.excel)
+        return
 
     neden = cofle_verisi_var_mi()
     if neden:
@@ -255,22 +435,9 @@ def main():
             cn.execute("INSERT INTO operatorler (ad, bolum, pin, lokasyon) VALUES ('Admin', ?, ?, ?)",
                        ((bolumler or ['montaj'])[0], admin_pin, lok))
 
-        sayac = {'metal': 0, 'isleme': 0, 'montaj': 0}
+        sayac = {'metal': 0, 'isleme': 0, 'montaj': 0, 'plastik': 0}
         if a.excel:
-            sayfalar = excel_sayfalari(a.excel)
-            metal, isleme, montaj = referanslari_cikar(next(iter(sayfalar.values())))
-            # Tonaj sayfaları ('200T'): o makinede basılan ürünler metal referansı olur
-            for _ad, _sat in sayfalar.items():
-                metal += tonaj_sayfasi_refleri(_ad, _sat)
-            for bolum, liste in (('metal', metal), ('isleme', isleme), ('montaj', montaj)):
-                if bolum not in bolumler:
-                    continue
-                for r in liste:
-                    sayac[bolum] += cn.execute(
-                        "INSERT OR IGNORE INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, "
-                        "bolum, lokasyon, kalip_goz, paket_adedi, sure_teyit) VALUES (?,?,?,?,?,?,?,0)",
-                        (r['kod'], r['aciklama'], r.get('ct', 0), bolum, lok,
-                         r.get('goz', 1), r.get('goz', 1) if bolum == 'metal' else 1)).rowcount
+            sayac = referans_ekle(cn, excel_referanslari(a.excel)[0], bolumler, lok)
 
         durus = 0
         for b in bolumler:
@@ -288,7 +455,8 @@ def main():
     if admin_pin:
         print(f"   Mobil 'Admin' operatörü PIN: {admin_pin}  (tüm vardiyaları düzenler — panelden değiştirilebilir)")
     if a.excel:
-        print(f"4. Referanslar: metal {sayac['metal']} · CNC işleme {sayac['isleme']} · montaj {sayac['montaj']}")
+        print(f"4. Referanslar: metal {sayac['metal']} · plastik {sayac['plastik']} · "
+              f"CNC işleme {sayac['isleme']} · montaj {sayac['montaj']}")
     else:
         print('4. Referans Excel\'i verilmedi — referanslar panelden eklenir')
     print(f'5. Varsayılan duruş sebepleri: {durus} (panel → Duruş Sebepleri)')
