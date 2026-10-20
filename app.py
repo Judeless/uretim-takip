@@ -3568,8 +3568,11 @@ def vardiya_ac(vid):
         "  AND bitis_ts IS NOT NULL AND bitis_ts IN (?, ?)",
         (vid, _eski_kapanis, _eski_kapanis_ertesi)
     )
+    # bitis_saati / toplam_sure_dk NOT NULL kolonlar: açık vardiya '' ve 0 taşır
+    # (yeni vardiya da böyle açılır). NULL yazmak IntegrityError veriyordu —
+    # "Vardiyayı Geri Aç" hiç çalışmıyordu (2026-10-20, ABB4 otonom denemesi).
     c.execute(
-        "UPDATE vardiyalar SET durum='aktif', bitis_saati=NULL, toplam_sure_dk=NULL WHERE id=?",
+        "UPDATE vardiyalar SET durum='aktif', bitis_saati='', toplam_sure_dk=0 WHERE id=?",
         (vid,)
     )
     conn.commit()
