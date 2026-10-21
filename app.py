@@ -255,7 +255,7 @@ PANEL_SAYFALAR = [
 # kutucukları + yöneticinin izinleri) hiç girmez; panel menüsü de gizler.
 _SAYFA_MODUL = {
     'as400-teyit': 'as400', 'kaynak-plan': 'planlar', 'montaj-plan': 'planlar',
-    'metal-plan': 'planlar', 'kapasite': 'kapasite', 'ariza-onay': 'bakim',
+    'metal-plan': 'planlar', 'kapasite': 'kapasite', 'bolum-kapasite': 'kapasite', 'ariza-onay': 'bakim',
     'satis-plani': 'as400', 'tel-plani': 'planlar', 'aylik-uretim': 'as400',
     'proje-takip': 'proje', 'proje-yonetim': 'proje', 'saha-cihazlari': 'sayac',
     'sinyal-analizi': 'sayac', 'andon-ayarlari': 'andon', 'is-yonetimi': 'is_yonetimi',
@@ -268,7 +268,8 @@ def _sayfa_acik(sayfa):
     return KUR.modul(_SAYFA_MODUL.get(sayfa, ''))
 
 
-_TUM_PANEL_SAYFALARI = PANEL_SAYFALAR[:] + ['as400-transfer', 'as400-planlama']
+# Kendi izni olmayan alt sayfalar: as400-* → 'as400-teyit', bolum-kapasite → 'kapasite'
+_TUM_PANEL_SAYFALARI = PANEL_SAYFALAR[:] + ['as400-transfer', 'as400-planlama', 'bolum-kapasite']
 PANEL_SAYFALAR = [s for s in PANEL_SAYFALAR if _sayfa_acik(s)]
 
 def panel_kullanici():
@@ -2232,7 +2233,7 @@ _MODUL_YOLLARI = (
     ('/api/as400/', 'as400'), ('/api/kaynak_eoq', 'as400'), ('/kaynak_eoq', 'as400'),
     ('/api/kaynak_plan', 'planlar'), ('/api/montaj_plan', 'planlar'), ('/api/metal_plan', 'planlar'),
     ('/api/tel_plani', 'planlar'), ('/api/aylik_uretim', 'as400'),
-    ('/api/kapasite', 'kapasite'), ('/api/proje', 'proje'),
+    ('/api/kapasite', 'kapasite'), ('/api/bolum_kapasite', 'kapasite'), ('/api/proje', 'proje'),
     ('/api/bakim', 'bakim'), ('/api/ariza', 'bakim'), ('/api/otonom', 'bakim'),
     # 2026-10-19: profil altyapısından (713d2d3) sonra eklenen Cofle'ye özgü uçlar
     ('/api/satis_plani', 'as400'),
@@ -7738,6 +7739,70 @@ def _durus_sebep_listesi(bolum, lokasyon):
 # Sınıflandırma ELLE DEĞİL ROTADAN gelir: ERP'de (BSPEF1) aktif P kodların %92'sinin
 # rotası ve saniye cinsinden süresi tanımlı. Panel yalnız eşlemeyi ve istisnaları alır.
 import kapasite as KAP
+import bolum_kapasite as BKAP
+
+
+# ── BÖLÜM KAPASİTESİ (kullanıcı 2026-10-21) — Ana Veri'ye göre 4 haftalık kişi ihtiyacı ──
+# İhtiyaç KAP.talep_senkron'un kapasite_talep tablosundan (AS400 XPRO90), bölüm + süre Ana
+# Veri'den. Hesap bolum_kapasite.py'de; gereken kişi / doluluk istemcide (kişi kutusu anlık).
+@app.route('/api/bolum_kapasite', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def bolum_kapasite_api():
+    try:
+        hafta = max(1, min(8, int(request.args.get('hafta') or 4)))
+    except (TypeError, ValueError):
+        hafta = 4
+    try:
+        return jsonify(BKAP.hesapla(get_db(), hafta))
+    except FileNotFoundError:
+        return jsonify({'hata': "Ana Veri dosyası (data/AnaVeri.xlsx) yok — önce Referanslar › Ana Veri Yükle"}), 404
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+
+
+@app.route('/api/bolum_kapasite/detay', methods=['GET'])
+@panel_gerekli(izin='kapasite')
+def bolum_kapasite_detay_api():
+    anahtar = (request.args.get('anahtar') or '').strip()
+    hafta_no = (request.args.get('hafta') or '').strip()
+    if not anahtar or not hafta_no:
+        return jsonify({'hata': 'anahtar ve hafta gerekli'}), 400
+    try:
+        n = max(1, min(8, int(request.args.get('n_hafta') or 4)))
+    except (TypeError, ValueError):
+        n = 4
+    return jsonify({'anahtar': anahtar, 'hafta': hafta_no,
+                    'urunler': BKAP.detay(get_db(), anahtar, hafta_no, n)})
+
+
+@app.route('/api/bolum_kapasite/ayar', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def bolum_kapasite_ayar_api():
+    """Body: {anahtar, kisi?, gunluk_saat?, verim?} — gönderilmeyen alan korunur."""
+    d = request.get_json(silent=True) or {}
+    anahtar = str(d.get('anahtar') or '').strip()
+    if not anahtar or '|' not in anahtar:
+        return jsonify({'hata': 'Geçersiz bölüm'}), 400
+    try:
+        BKAP.ayar_kaydet(get_db(), anahtar, d.get('kisi'), d.get('gunluk_saat'), d.get('verim'),
+                         g.panel_ku['kullanici_adi'])
+    except (TypeError, ValueError) as e:
+        return jsonify({'hata': f'Geçersiz değer: {e}'}), 400
+    return jsonify({'basarili': True})
+
+
+def bolum_kapasite_talep_job():
+    """Her sabah AS400 açık iş emirlerini tazeler — kapasite ekranı bayat ihtiyaçla
+    hesaplamasın (eskiden yalnız Ürün Havuzu'ndaki düğmeyle çekiliyordu; 21.10'da
+    son çekim 17.09'du)."""
+    conn = db_connect()
+    try:
+        t = KAP.talep_senkron(conn, 'oto')
+        print(f"[KAPASITE] açık iş emirleri tazelendi: {t.get('acik', 0)} emir · {t.get('kod', 0)} kod")
+    except Exception as e:
+        print(f'[KAPASITE] iş emri tazeleme hatası: {e}')
+    finally:
+        conn.close()
 
 
 def _kapasite_bolum_gecerli(bolum):
@@ -15118,6 +15183,16 @@ def _kaynak_plan_erpden_kur(conn, ufuk=None, pf=None):
               sum((tum_stok.get(k) or {}).get(x, 0) for x in _ref_depo),
               ' '.join(f'{dp}:{v:g}' for dp, v in (tum_stok.get(k) or {}).items() if v), simdi)
              for k in kodlar])
+    # PLANDAN ÇIKAN KODUN AÇIK OLAYI KAPANIR (kullanıcı 2026-10-21, 10.300.1845): Ana
+    # Veri'de bölümü kaldırılan kod listeden düşüp aktif=0 oluyor, ama 'emir açılacaklar'
+    # olayı açık kalıp panelde görünmeye devam ediyordu — _kp_bildirim_guncelle yalnız
+    # AKTİF satırları dolaşır. Liste boş kurulduysa (ERP'den hiç OPR gelmediyse) dokunma:
+    # geçici bir okuma sorunu bütün olayları kapatmasın.
+    if sirali:
+        conn.execute(
+            f"UPDATE {pf['bildirim']} SET durum='kapandi', kapanma_ts=?, kapatan='sistem', "
+            "kapanma_sebebi='plandan_cikti' WHERE durum='acik' AND kaynak_kod NOT IN "
+            f"(SELECT kaynak_kod FROM {pf['tablo']} WHERE aktif=1)", (simdi,))
     conn.commit()
     if indirilen:
         print(f"[{pf['anahtar'].upper()}-PLAN] üst kod → plana giren alt kod: "
@@ -16719,6 +16794,36 @@ def _oto_gonderilecek_adet(r, l=None):
     return max(0, min(aday)) if aday else 0
 
 
+def _launch_sira(l):
+    """Launch'ın açılış sırası — 'RED1-RED2-RENU' (yüzyıl-yıl-numara), küçük = eski.
+    AS400 sorgusu sırasız gelir; 'ilk launch' en eskisi olmayabilir."""
+    try:
+        return tuple(int(x) for x in str(l.get('launch') or '').split('-'))
+    except ValueError:
+        return tuple(int(x) if str(x).isdigit() else 0 for x in (l.get('red2'), l.get('renu')))
+
+
+def _launch_dagit(launchlar, adet):
+    """Teyit adedini açık launch'lara ESKİDEN YENİYE dağıtır (kullanıcı 2026-10-20):
+    "bir mekanizmada 2 launch varsa eski olanı önce kapatıyoruz, fakat bütün adedi eski
+    launch'a giriş yapma — 180 üretim, eski launch 40, yeni 100 → eskiyi 40 kapat,
+    yeniyi 140 kapat." Eski launch'lar KALAN adetleri kadar alır; artan EN YENİYE gider
+    (launch adedini aşsa da). Bayrak tek launch'taki kuralla aynı: adet ≥ kalan − 1 → S.
+    Döner: [(launch, adet, bayrak)] — adet yetmezse yalnız eskiler (A ile) dolar."""
+    sirali = sorted(launchlar, key=_launch_sira)
+    out, kalan_adet = [], int(adet or 0)
+    for i, l in enumerate(sirali):
+        if kalan_adet <= 0:
+            break
+        lk = float(l.get('kalan') or 0)
+        pay = kalan_adet if i == len(sirali) - 1 else min(kalan_adet, max(0, int(lk)))
+        if pay <= 0:
+            continue
+        out.append((l, pay, 'S' if pay >= lk - 1 else 'A'))
+        kalan_adet -= pay
+    return out
+
+
 def _fazla_teyit_bul(conn, gun=30):
     """Son N günde ERP'ye üretimden FAZLA teyit gitmiş referanslar
     (_mutabakat_farklari fark<0) + o gün kimin ne gönderdiği. Teşhis:
@@ -16856,14 +16961,14 @@ def _oto_kuyruk_olustur(conn, tarihler):
                 sabaha('olasi', t, r, 'Kısmi/uyuşmayan teyit görünüyor — elle kontrol edin',
                        temiz[0].get('launch', ''))
                 continue
-            l0 = temiz[0]
-            adet = _oto_gonderilecek_adet(r, l0)
+            adet = _oto_gonderilecek_adet(r, min(temiz, key=_launch_sira))
             if adet <= 0:
                 continue
-            bayrak = 'S' if adet >= float(l0.get('kalan') or 0) - 1 else 'A'
-            launchQ.append({'yil': l0['red2'], 'no': l0['renu'], 'article': l0['article'],
-                            'referans': r['referans'], 'adet': adet, 'uretim_tarihi': t,
-                            'bayrak': bayrak})
+            # Birden çok açık launch: eskiden yeniye dağıt (bkz. _launch_dagit)
+            for l, pay, bayrak in _launch_dagit(temiz, adet):
+                launchQ.append({'yil': l['red2'], 'no': l['renu'], 'article': l['article'],
+                                'referans': r['referans'], 'adet': pay, 'uretim_tarihi': t,
+                                'bayrak': bayrak})
         for r in L.get('SUPHELI', []):
             ls = r.get('launchlar') or []
             if any(l.get('zaten_teyitli') == 'kesin' for l in ls):
@@ -17119,11 +17224,17 @@ def _mutabakat_uygula(conn, tarih, kullanici='oto-mutabakat'):
             continue
         launchlar = [l for l in (r.get('launchlar') or []) if l.get('durum') == 40]
         if launchlar:
-            l = launchlar[0]
-            launchQ.append({'uretim_tarihi': tarih, 'yil': l['red2'], 'no': l['renu'],
-                            'article': l['article'], 'referans': r['referans'],
-                            'adet': f['fark'], 'bayrak': 'A'})
-            rapor.append({**f, 'karar': f'EKSİK TEYİT → launch {l["launch"]} ile {f["fark"]} adet gönderildi'})
+            # Eskiden yeniye dağıt (kullanıcı 2026-10-20); kalanı biten launch zombi
+            # sayılır — hepsi zombiyse eskisi gibi tümüne bakılır.
+            parcalar = _launch_dagit([l for l in launchlar if not l.get('zombi')] or launchlar,
+                                     f['fark'])
+            for l, pay, bayrak in parcalar:
+                launchQ.append({'uretim_tarihi': tarih, 'yil': l['red2'], 'no': l['renu'],
+                                'article': l['article'], 'referans': r['referans'],
+                                'adet': pay, 'bayrak': bayrak})
+            rapor.append({**f, 'karar': 'EKSİK TEYİT → ' + ', '.join(
+                f'launch {l["launch"]} ile {pay} adet' + (' (S)' if b == 'S' else '')
+                for l, pay, b in parcalar) + ' gönderildi'})
         else:
             # tesis/bolum ŞART — depo kodu bunlarla çözülür (bkz. _cfi_depo_kodlari)
             cfiQ.append({'uretim_tarihi': tarih, 'referans': r['referans'],
@@ -20114,6 +20225,8 @@ if __name__ == '__main__':
             # Bakım makine kataloğu günde bir (Halil Bey: günde bir yeterli);
             # anahtar yoksa iş sessizce döner.
             _ek.append((6, 30, bakim_katalog_job, 'Bakım Makine Kataloğu'))
+            # Bölüm kapasitesi: AS400 açık iş emirleri her sabah (plan koşularından önce)
+            _ek.append((6, 40, bolum_kapasite_talep_job, 'Kapasite İş Emirleri'))
             # Kaynak planı: AS400'den kur + stok ölç + artışları duyur (07:00, 13:00).
             for _ks in ((_ocfg.get('kaynak_plan') or {}).get('saatler') or ['07:00', '13:00']):
                 try:
@@ -20163,7 +20276,8 @@ if __name__ == '__main__':
                             ariza_durum_job: 'bakim', otonom_bakim_job: 'bakim',
                             kaynak_plan_oto_job: 'planlar',
                             montaj_plan_oto_job: 'planlar', metal_plan_oto_job: 'planlar',
-                            tel_plani_oto_job: 'planlar'}
+                            tel_plani_oto_job: 'planlar',
+                            bolum_kapasite_talep_job: 'kapasite'}
             _ek = [j for j in _ek if KUR.modul(_GOREV_MODUL.get(j[2], ''))]
             _periyodik = [j for j in _periyodik if KUR.modul(_GOREV_MODUL.get(j[1], ''))]
             start_scheduler(ek_gorevler=_ek, periyodik_gorevler=_periyodik)

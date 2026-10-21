@@ -1642,6 +1642,19 @@ def init_db(_ikinci_tur=False):
     ''')
     c.execute('CREATE INDEX IF NOT EXISTS ix_haftalik_plan ON haftalik_plan(bolum, lokasyon, tarih)')
 
+    # BÖLÜM KAPASİTESİ (kullanıcı 2026-10-21): bölüm başına elle girilen kişi / günlük saat /
+    # verim (boş = Ana Veri 'Aylık NçS' varsayılanı). Anahtar 'TK2|kaynak', 'TK1|tel' …
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS bolum_kapasite_ayar (
+            anahtar TEXT PRIMARY KEY,
+            kisi REAL,
+            gunluk_saat REAL,
+            verim REAL,
+            guncelleyen TEXT DEFAULT '',
+            updated_at TEXT DEFAULT ''
+        )
+    """)
+
     # TALEP & ÖNERİ (kullanıcı 2026-10-20): panel kullanıcıları programla ilgili hata /
     # değişiklik / yeni istek yazar; durumunu ve yanıtını yalnız yönetici girer.
     # durum: yeni · inceleniyor · yapildi · reddedildi

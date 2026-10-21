@@ -1490,6 +1490,28 @@
         @media (max-width: 760px) {
             .tl-ust, .tl-yonet { grid-template-columns: 1fr; }
         }
+        /* Bölüm Kapasitesi (2026-10-21) */
+        .bk-tablo td, .bk-tablo th { white-space: nowrap; }
+        .bk-tablo tr.bk-grup td { background: var(--bg); font-size: .7rem; font-weight: 800; color: var(--dim);
+            text-transform: uppercase; letter-spacing: .06em; padding: 6px 12px; }
+        .bk-tablo tr.bk-satir { cursor: pointer; }
+        .bk-tablo tr.bk-satir.secili td { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+        .bk-tablo td.bk-hucre { cursor: pointer; text-align: center; }
+        .bk-tablo td.bk-hucre:hover { outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent); outline-offset: -2px; }
+        .bk-tablo td.bk-hucre.secili { outline: 2px solid var(--primary); outline-offset: -2px; }
+        .bk-kisi { width: 64px; text-align: right; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+            border-radius: 8px; padding: 5px 7px; font-weight: 800; font-family: var(--font-main); }
+        .bk-sayi { font-weight: 800; font-size: .92rem; color: var(--text); }
+        .bk-rozet { display: inline-block; margin-top: 3px; border-radius: 6px; padding: 1px 7px; font-size: .7rem; font-weight: 800; }
+        .bk-rozet.ok { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+        .bk-rozet.uyari { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+        .bk-rozet.asim { color: #fff; background: var(--danger); }
+        .bk-rozet.yok { color: var(--dim); background: rgba(148, 163, 184, .15); }
+        .bk-alt { font-size: .68rem; color: var(--dim); }
+        .bk-grafikler { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .bk-ayar input { width: 70px; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+            border-radius: 8px; padding: 5px 7px; font-family: var(--font-main); font-weight: 700; }
+        @media (max-width: 1100px) { .bk-grafikler { grid-template-columns: 1fr; } }
         /* Bölüm başlığı (h4) — violet/cyan degrade pill (eski panel dili, v2 tonunda) */
         #ref-takip-baslik {
             display: inline-flex; align-items: center; gap: 8px;
@@ -5809,6 +5831,8 @@ window.__I18N_SOZLUK__ = {
             <div class="nav-group">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>Kapasite</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
+                <a class="nav-item" data-sayfa="bolum-kapasite" onclick="sayfaAc('bolum-kapasite')">
+                    <span class="nav-icon">📊</span> Bölüm Kapasitesi</a>
                 <a class="nav-item" data-sayfa="kapasite" onclick="sayfaAc('kapasite')">
                     <span class="nav-icon">🧮</span> Ürün Havuzu</a>
                 </div>
@@ -8690,6 +8714,68 @@ window.__I18N_SOZLUK__ = {
             </section>
 
             <!-- ══════ SAYFA: KULLANICILAR (panel giriş yetkileri — yalnız admin) ══════ -->
+            <section class="page" id="page-bolum-kapasite">
+                <div style="margin-bottom:14px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">📊 Bölüm Kapasitesi</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Önümüzdeki 4 haftada her bölümde kaç kişi gerektiğini gösterir. İhtiyaç AS400'deki açık iş emirlerinden (OPR + launch), bölüm ve birim süre Ana Veri'den gelir. Kişi sayısını değiştirdiğiniz anda doluluk yeniden hesaplanır ve kaydedilir.</p>
+                </div>
+
+                <div class="ky-filtre" style="align-items:center">
+                    <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;font-weight:700;color:var(--muted);cursor:pointer">
+                        <input type="checkbox" id="bk-yay" onchange="bkCiz()"> Gecikmiş işi 4 haftaya yay</label>
+                    <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;font-weight:700;color:var(--muted);cursor:pointer">
+                        <input type="checkbox" id="bk-tahmin" checked onchange="bkCiz()"> Süresiz ürünleri bölüm ortancasıyla tahmin et</label>
+                    <button class="btn btn-ghost" onclick="bkTazele()" title="AS400'den açık iş emirlerini yeniden çeker" style="margin-left:auto">🔄 AS400'den tazele</button>
+                    <div id="bk-durum" style="font-size:.7rem;color:var(--muted);width:100%"></div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3>👥 Gereken kişi — bölüm × hafta</h3>
+                        <span class="adet-info">✓ ≤%85 · ! %85–100 · ▲ %100 üstü</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table bk-tablo">
+                            <thead id="bk-baslik"></thead>
+                            <tbody id="bk-govde"><tr><td><div class="empty-state">Yükleniyor…</div></td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bk-grafikler">
+                    <div class="panel-card">
+                        <div class="panel-header"><h3>📈 Ortalama doluluk</h3><span class="adet-info" id="bk-genel-not"></span></div>
+                        <div style="padding:10px 16px 16px;height:340px"><canvas id="bk-genel-grafik"></canvas></div>
+                    </div>
+                    <div class="panel-card">
+                        <div class="panel-header"><h3 id="bk-bolum-baslik">📊 Bölüm</h3>
+                            <span class="bk-ayar" id="bk-ayar"></span></div>
+                        <div style="padding:10px 16px 16px;height:340px"><canvas id="bk-bolum-grafik"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header"><h3 id="bk-detay-baslik">🔎 Ürünler</h3><span class="adet-info" id="bk-detay-not"></span></div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead><tr><th>Kod</th><th style="text-align:right">Adet</th><th style="text-align:right">Launch'lı</th>
+                                <th style="text-align:right">Emir</th><th style="text-align:right">Birim süre</th>
+                                <th style="text-align:right">Kişi-saat</th><th>En eski emir</th></tr></thead>
+                            <tbody id="bk-detay"><tr><td colspan="7"><div class="empty-state">Tablodan bir hücre seçin.</div></td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="panel-header"><h3>⚠️ Ana Veri'de bölümü olmayan üretim kodları</h3><span class="adet-info" id="bk-atanmamis-not"></span></div>
+                    <div style="padding:6px 20px 4px;font-size:.76rem;color:var(--muted)">Bu kodların açık iş emri var ama Ana Veri'de bölümü yok — yükleri yukarıdaki hiçbir bölüme girmiyor. Ana Veri'ye bölüm ve süre eklenince hesaba katılır.</div>
+                    <div class="table-wrap" style="max-height:320px;overflow:auto">
+                        <table class="admin-table"><thead><tr><th>Kod</th><th style="text-align:right">Açık adet</th><th style="text-align:right">Emir</th><th>Durum</th></tr></thead>
+                            <tbody id="bk-atanmamis"></tbody></table>
+                    </div>
+                </div>
+            </section>
+
             <section class="page" id="page-talepler">
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">💬 Talep &amp; Öneri</h2>
@@ -9878,6 +9964,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'ariza-onay') ? 'page-ariza-onay'
                         : (sayfa === 'proje-takip') ? 'page-proje-takip'
                         : (sayfa === 'talepler') ? 'page-talepler'
+                        : (sayfa === 'bolum-kapasite') ? 'page-bolum-kapasite'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
             document.querySelectorAll('.page').forEach(function (p) {
                 p.classList.toggle('active', p.id === hedefId);
@@ -9922,6 +10009,7 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'zaman-cizelgesi') zcSekmeAcildi();
             if (sayfa === 'durus-sebepleri') dsSekmeAcildi();
             if (sayfa === 'talepler') tlSekmeAcildi();
+            if (sayfa === 'bolum-kapasite') bkSekmeAcildi();
             if (sayfa === 'durus-analizi') daSekmeAcildi();
             if (sayfa === 'kapasite') kapSekmeAcildi();
             if (sayfa === 'satis-plani') spSekmeAcildi();
@@ -10002,6 +10090,8 @@ window.__I18N_SOZLUK__ = {
                 bc.innerHTML = '<b>Kullanıcılar</b>';
             } else if (aktifSayfa === 'talepler') {
                 bc.innerHTML = 'Destek ▸ <b>Talep &amp; Öneri</b>';
+            } else if (aktifSayfa === 'bolum-kapasite') {
+                bc.innerHTML = 'Kapasite ▸ <b>Bölüm Kapasitesi</b> <span style="color:var(--dim)">· 4 hafta</span>';
             } else {
                 bc.innerHTML = '<b>' + esc(aktifSayfa) + '</b>';
             }
@@ -15847,6 +15937,31 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             return Math.max(0, Math.min.apply(null, aday));
         }
 
+        // Launch açılış sırası: 'RED1-RED2-RENU' (yüzyıl-yıl-numara) — küçük = eski
+        function as4LaunchKarsilastir(a, b) {
+            var x = String((a && a.launch) || '').split('-'), y = String((b && b.launch) || '').split('-');
+            for (var i = 0; i < Math.max(x.length, y.length); i++) {
+                var d = (parseInt(x[i], 10) || 0) - (parseInt(y[i], 10) || 0);
+                if (d) return d;
+            }
+            return 0;
+        }
+        // Teyit adedini launch'lara ESKİDEN YENİYE dağıtır (kullanıcı 2026-10-20; sunucudaki
+        // _launch_dagit ile aynı kural): eski launch KALAN adedi kadar alır, artan en yeniye.
+        // 180 üretim, eski 40 + yeni 100 → eski 40 (S), yeni 140 (S).
+        function as4LaunchDagit(launchlar, adet) {
+            var sirali = launchlar.slice().sort(as4LaunchKarsilastir), out = [], kalan = adet;
+            for (var i = 0; i < sirali.length && kalan > 0; i++) {
+                var l = sirali[i];
+                var pay = (i === sirali.length - 1) ? kalan
+                        : Math.min(kalan, Math.max(0, Math.floor(Number(l.kalan) || 0)));
+                if (pay <= 0) continue;
+                out.push({ l: l, adet: pay });
+                kalan -= pay;
+            }
+            return out;
+        }
+
         // Adet neden üretimden düşük? Satırın altına tek satırlık gerekçe.
         function as4AdetNotu(r, l) {
             var g = as4GonderilecekAdet(r, l);
@@ -19174,6 +19289,18 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                     }
                     // 'olasi' şüphesi ➕ teyit ver ile EZİLEBİLİR (karar insanın)
                     if (olasi && !teyitVer) { dikkat.push({ tip: olasi.zaten_teyitli || 'olasi', tarih: g.tarih, r: r, l: olasi }); return; }
+                    // Birden çok açık launch: eskiden yeniye BÖLÜNMÜŞ satırlar önerilir
+                    // (kullanıcı 2026-10-20) — her launch kendi satırında, adedi ve A/S'si ile.
+                    var parcalar = (temiz.length > 1)
+                        ? as4LaunchDagit(temiz, as4GonderilecekAdet(r, temiz.slice().sort(as4LaunchKarsilastir)[0])) : [];
+                    if (parcalar.length > 1) {
+                        parcalar.forEach(function (p, k) {
+                            _as4Bekleyen.push({ tarih: g.tarih, r: r, launchlar: [p.l], bugunMu: g.tarih === bugun,
+                                                payAdet: p.adet, parcaNo: k + 1, parcaSayi: parcalar.length });
+                        });
+                        return;
+                    }
+                    if (parcalar.length === 1) temiz = [parcalar[0].l];   // adet yalnız en eskiye yetiyor
                     _as4Bekleyen.push({ tarih: g.tarih, r: r, launchlar: temiz, bugunMu: g.tarih === bugun });
                 });
                 (L.SUPHELI || []).forEach(function (r) {
@@ -19388,7 +19515,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                     var gunU = b.bugunMu ? ' <span style="color:var(--lg-amber)" title="Gün bitmeden teyit önerilmez">⚠</span>' : '';
                     // ÖNERİ: bu teyit launch'ı tamamlıyor mu? (gönderilecek >= kalan-1) → S öner
                     // Bu satirda GONDERILECEK adet: kalan (bolunmus teyit) ya da gunun tamami.
-                    var onerAdet = as4GonderilecekAdet(r, l0);
+                    var onerAdet = (b.payAdet != null) ? b.payAdet : as4GonderilecekAdet(r, l0);
                     // Bayrak onerisi onerAdet ile kiyaslanmali: kutuda 57 varken 98'e gore
                     // S (KAPAT) onermek launch'i erken kapatirdi.
                     var onerS = (onerAdet >= l0.kalan - 1);
@@ -19410,7 +19537,10 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                             '<input type="number" id="as4-adet-' + i + '" value="' +
                             onerAdet +
                             '" min="1" class="rt-row-input" style="width:80px;text-align:right" onchange="as4BayrakOner(' + i + ')">' +
-                            as4AdetNotu(r, l0) +
+                            (b.parcaNo > 1 ? '' : as4AdetNotu(r, l0)) +
+                            (b.parcaNo ? '<div style="font-size:.68rem;color:var(--primary);margin-top:2px" ' +
+                                'title="Eski launch kalanı kadar alır ve kapanır; artan yeni launch\'a gider">' +
+                                b.parcaNo + '/' + b.parcaSayi + ' · eskiden yeniye</div>' : '') +
                             '</td>' +
                         '<td><select id="as4-bayrak-' + i + '" class="rt-row-select" onchange="as4BayrakElle(' + i + ')" style="font-weight:800' + (onerS ? ';color:var(--lg-red);border-color:color-mix(in srgb,var(--lg-red) 53%,transparent)' : '') + '">' +
                             '<option value="A"' + (onerS ? '' : ' selected') + '>A · devam</option>' +
@@ -19942,7 +20072,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                 var bayrak = (document.getElementById('as4-bayrak-' + i) || {}).value === 'S' ? 'S' : 'A';
                 launchSec.push({ uretim_tarihi: b.tarih, yil: l.red2, no: l.renu, article: l.article,
                                  referans: b.r.referans, adet: adet, launch: l.launch, bayrak: bayrak,
-                                 hurda: (b.r.hurda || 0) });
+                                 hurda: (b.parcaNo > 1 ? 0 : (b.r.hurda || 0)) });   // bölünmüş satırda hurda bir kez
             });
             // 2) CFI seçimleri (launch'sız üretim)
             var cfiSec = [];
@@ -21828,10 +21958,337 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
         setInterval(tlRozetYokla, 300000);
         setTimeout(tlRozetYokla, 3000);
 
+        // ══ BÖLÜM KAPASİTESİ (kullanıcı 2026-10-21) ════════════════════════════
+        // Sunucu bölüm × hafta KİŞİ-SAAT yükünü verir (bolum_kapasite.py); gereken kişi ve
+        // doluluk BURADA hesaplanır → kişi kutusu değişince sayfa sunucuya gitmeden güncellenir.
+        //   kişi-saat = sn'li ürün: saat ÷ verim · vardiya adetli ürün: vardiya × günlük saat
+        //   gereken kişi = kişi-saat ÷ (gün × günlük saat) · doluluk = gereken ÷ mevcut kişi
+        var _bk = { veri: null, secili: null, hafta: null, grafik1: null, grafik2: null, kayit: {} };
+
+        function bkSekmeAcildi() { bkYukle(); }
+
+        async function bkYukle() {
+            var govde = document.getElementById('bk-govde');
+            try {
+                var r = await panelFetch('/api/bolum_kapasite?hafta=4');
+                var d = await r.json();
+                if (!r.ok) { govde.innerHTML = '<tr><td><div class="empty-state">' + esc(d.hata || 'Yüklenemedi') + '</div></td></tr>'; return; }
+                _bk.veri = d;
+                if (!_bk.secili || !d.bolumler.some(function (b) { return b.anahtar === _bk.secili; })) {
+                    var ilk = d.bolumler.filter(function (b) { return b.kisi > 0; })[0] || d.bolumler[0];
+                    _bk.secili = ilk ? ilk.anahtar : null;
+                    _bk.hafta = d.haftalar.length ? d.haftalar[0].no : null;
+                }
+                bkCiz();
+                bkDetayYukle();
+            } catch (e) {
+                govde.innerHTML = '<tr><td><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        function bkYuk(b, k) {
+            // { tanimli, tahmini } kişi-saat — 'yay' açıksa gecikmiş işin payı her haftaya eklenir
+            var h = b.hucre[k], n = _bk.veri.haftalar.length;
+            var tahminAcik = document.getElementById('bk-tahmin').checked;
+            function hesap(x, carpan) {
+                var t = (x.saat_sn / (b.verim / 100) + x.vardiya * b.gunluk_saat) * carpan;
+                var tah = 0;
+                if (tahminAcik && x.adet_suresiz) {
+                    if (b.ortanca_sn) tah = x.adet_suresiz * b.ortanca_sn / 3600 / (b.verim / 100);
+                    else if (b.ortanca_kap1v) tah = x.adet_suresiz / b.ortanca_kap1v * b.gunluk_saat;
+                }
+                return { tanimli: t, tahmini: tah * carpan };
+            }
+            var y = hesap(h, 1);
+            if (k !== 'gecikmis' && document.getElementById('bk-yay').checked) {
+                var g = hesap(b.hucre.gecikmis, 1 / n);
+                y.tanimli += g.tanimli; y.tahmini += g.tahmini;
+            }
+            return y;
+        }
+        function bkKisiHafta(b) { return b.gun * b.gunluk_saat; }     // bir kişinin haftalık saati
+        function bkGereken(b, k) { var y = bkYuk(b, k); return (y.tanimli + y.tahmini) / bkKisiHafta(b); }
+        function bkDurum(gereken, kisi) {
+            if (gereken < 0.05) return { sinif: 'ok', metin: '—', oran: 0 };
+            if (!(kisi > 0)) return { sinif: 'yok', metin: 'kişi yok', oran: null };
+            var o = gereken / kisi * 100;
+            return o > 100 ? { sinif: 'asim', metin: '▲ %' + Math.round(o), oran: o }
+                 : o > 85 ? { sinif: 'uyari', metin: '! %' + Math.round(o), oran: o }
+                 : { sinif: 'ok', metin: '✓ %' + Math.round(o), oran: o };
+        }
+        function bkSayi(x) { return (Math.round(x * 10) / 10).toLocaleString('tr-TR'); }
+
+        function bkCiz() {
+            var d = _bk.veri; if (!d) return;
+            var yay = document.getElementById('bk-yay').checked;
+            var eski = d.talep_ts && (Date.now() - new Date(String(d.talep_ts).replace(' ', 'T')).getTime()) > 2 * 864e5;
+            document.getElementById('bk-durum').innerHTML =
+                'İhtiyaç: AS400 açık iş emirleri — son çekim <b' + (eski ? ' style="color:var(--danger)"' : '') + '>' +
+                esc(String(d.talep_ts || 'yok').slice(0, 16)) + '</b>' + (eski ? ' (eski — tazeleyin)' : '') +
+                ' · Bölüm ve süre: Ana Veri <b>' + esc(d.ana_veri || '') + '</b>' +
+                ' · Haftalar: ' + esc(d.haftalar.map(function (h) { return h.no + ' (' + h.bas.slice(8, 10) + '.' + h.bas.slice(5, 7) + ')'; }).join(', '));
+            document.getElementById('bk-baslik').innerHTML = '<tr><th>Bölüm</th><th style="text-align:right">Mevcut kişi</th>' +
+                '<th style="text-align:center" title="Bu haftadan önce bitmesi gereken, hâlâ açık iş — kişi-hafta">Gecikmiş iş</th>' +
+                d.haftalar.map(function (h) { return '<th style="text-align:center">' + h.no + '</th>'; }).join('') +
+                '<th style="text-align:center">4 hafta ort.</th></tr>';
+            var grup = { TK2: 'TK2', TK1: 'TK1' }, onceki = null, html = '';
+            d.bolumler.forEach(function (b, i) {
+                var g = grup[b.tesis] || 'Fason / dış üretici';
+                if (g !== onceki) {
+                    html += '<tr class="bk-grup"><td colspan="' + (d.haftalar.length + 4) + '">' + esc(g) + '</td></tr>';
+                    onceki = g;
+                }
+                var toplam = 0;
+                var hucreler = d.haftalar.map(function (h) {
+                    var ger = bkGereken(b, h.no), du = bkDurum(ger, b.kisi);
+                    toplam += ger;
+                    var sec = (_bk.secili === b.anahtar && _bk.hafta === h.no) ? ' secili' : '';
+                    return '<td class="bk-hucre' + sec + '" onclick="event.stopPropagation();bkHucreSec(' + i + ',\'' + h.no + '\')" ' +
+                        'title="' + esc(Math.round(b.hucre[h.no].adet).toLocaleString('tr-TR') + ' adet · ' + b.hucre[h.no].kod_sayisi + ' kod') + '">' +
+                        '<div class="bk-sayi">' + (ger >= 0.05 ? bkSayi(ger) : '—') + '</div>' +
+                        (ger >= 0.05 ? '<span class="bk-rozet ' + du.sinif + '">' + du.metin + '</span>' : '') + '</td>';
+                }).join('');
+                var gec = bkGereken(b, 'gecikmis');
+                var ort = toplam / d.haftalar.length, oD = bkDurum(ort, b.kisi);
+                var secG = (_bk.secili === b.anahtar && _bk.hafta === 'gecikmis') ? ' secili' : '';
+                html += '<tr class="bk-satir' + (_bk.secili === b.anahtar ? ' secili' : '') + '" onclick="bkSec(' + i + ')">' +
+                    '<td><b>' + esc(b.ad) + '</b><div class="bk-alt">' +
+                        (b.kapsama == null ? 'ihtiyaç yok' : 'süre kapsaması %' + Math.round(b.kapsama)) +
+                        (b.kisi_kaynagi ? ' · kişi: ' + esc(b.kisi_kaynagi) : '') + '</div></td>' +
+                    '<td style="text-align:right" onclick="event.stopPropagation()"><input type="number" class="bk-kisi" min="0" max="500" step="0.5" value="' +
+                        (b.kisi || 0) + '" oninput="bkKisiDegisti(' + i + ', this.value)"></td>' +
+                    '<td class="bk-hucre' + secG + '" onclick="event.stopPropagation();bkHucreSec(' + i + ',\'gecikmis\')" title="' +
+                        esc(Math.round(b.hucre.gecikmis.adet).toLocaleString('tr-TR') + ' adet · ' + b.hucre.gecikmis.kod_sayisi + ' kod') + '"' +
+                        (yay ? ' style="opacity:.55"' : '') + '>' +
+                        '<div class="bk-sayi">' + (gec >= 0.05 ? bkSayi(gec) : '—') + '</div>' +
+                        (gec >= 0.05 ? '<span class="bk-alt">kişi-hafta' + (yay ? ' · haftalara yayıldı' : '') + '</span>' : '') + '</td>' +
+                    hucreler +
+                    '<td style="text-align:center"><div class="bk-sayi">' + (ort >= 0.05 ? bkSayi(ort) : '—') + '</div>' +
+                        (ort >= 0.05 ? '<span class="bk-rozet ' + oD.sinif + '">' + oD.metin + '</span>' : '') + '</td></tr>';
+            });
+            document.getElementById('bk-govde').innerHTML = html ||
+                '<tr><td><div class="empty-state">Açık iş emri olan bölüm yok.</div></td></tr>';
+            var at = d.atanmamis || {};
+            document.getElementById('bk-atanmamis-not').textContent = (at.kod || 0) + ' kod · ' + (at.adet || 0).toLocaleString('tr-TR') + ' adet';
+            document.getElementById('bk-atanmamis').innerHTML = (at.ilk || []).map(function (a) {
+                return '<tr><td style="font-weight:700">' + esc(a.kod) + '</td><td style="text-align:right">' + a.adet.toLocaleString('tr-TR') +
+                    '</td><td style="text-align:right">' + a.emir + '</td><td style="color:var(--muted)">' + esc(a.neden) + '</td></tr>';
+            }).join('') || '<tr><td colspan="4"><div class="empty-state">Yok 👍</div></td></tr>';
+            bkGrafikler();
+        }
+
+        function bkSec(i) {
+            var b = _bk.veri.bolumler[i]; if (!b) return;
+            _bk.secili = b.anahtar;
+            if (!_bk.hafta) _bk.hafta = _bk.veri.haftalar[0].no;
+            bkCiz(); bkDetayYukle();
+        }
+        function bkHucreSec(i, hafta) {
+            var b = _bk.veri.bolumler[i]; if (!b) return;
+            _bk.secili = b.anahtar; _bk.hafta = hafta;
+            bkCiz(); bkDetayYukle();
+        }
+
+        function bkKisiDegisti(i, deger) {
+            var b = _bk.veri.bolumler[i]; if (!b) return;
+            var v = parseFloat(String(deger).replace(',', '.'));
+            if (isNaN(v) || v < 0) return;
+            b.kisi = v; b.kisi_kaynagi = 'elle';
+            // Anında yeniden çiz — odaktaki kutuyu kaybetmemek için yalnız hücreleri tazele
+            var aktif = document.activeElement, sec = aktif && aktif.selectionStart;
+            bkCiz();
+            var kutu = document.querySelectorAll('#bk-govde .bk-kisi')[i];   // satır sırası = bölüm sırası
+            if (kutu) { kutu.focus(); try { kutu.setSelectionRange(sec, sec); } catch (e) { } }
+            bkAyarKaydet(b, { kisi: v });
+        }
+
+        function bkAyarKaydet(b, alanlar) {
+            clearTimeout(_bk.kayit[b.anahtar]);
+            _bk.kayit[b.anahtar] = setTimeout(function () {
+                panelFetch('/api/bolum_kapasite/ayar', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Object.assign({ anahtar: b.anahtar }, alanlar))
+                }).then(function (r) { return r.json(); }).then(function (d) {
+                    if (d.hata) toast(d.hata, 'err'); else toast(b.ad + ' kaydedildi', 'ok');
+                }).catch(function () { toast('Kaydedilemedi', 'err'); });
+            }, 700);
+        }
+
+        function bkAyarDegisti(alan, deger) {
+            var b = (_bk.veri.bolumler || []).filter(function (x) { return x.anahtar === _bk.secili; })[0];
+            var v = parseFloat(String(deger).replace(',', '.'));
+            if (!b || isNaN(v) || v <= 0) return;
+            b[alan] = v;
+            var ob = {}; ob[alan] = v;
+            bkCiz();
+            bkAyarKaydet(b, ob);
+        }
+
+        function bkRenk(ad, alfa) {
+            var v = getComputedStyle(document.documentElement).getPropertyValue(ad).trim() || '#6D28D9';
+            if (alfa == null) return v;
+            var m = v.match(/^#([0-9a-f]{6})$/i);
+            if (!m) return v;
+            var n = parseInt(m[1], 16);
+            return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alfa + ')';
+        }
+
+        function bkGrafikler() {
+            if (typeof Chart === 'undefined') return;
+            var d = _bk.veri, metin = bkRenk('--muted'), izgara = bkRenk('--border', 0.6);
+            // 1) Ortalama doluluk — kişisi olan bölümler, yüksekten düşüğe; %100 çizgisi
+            var satir = d.bolumler.map(function (b) {
+                var t = 0; d.haftalar.forEach(function (h) { t += bkGereken(b, h.no); });
+                var ort = t / d.haftalar.length;
+                return { b: b, ort: ort, oran: b.kisi > 0 ? ort / b.kisi * 100 : null };
+            }).filter(function (x) { return x.oran != null && x.ort >= 0.05; })
+              .sort(function (a, b) { return b.oran - a.oran; });
+            document.getElementById('bk-genel-not').textContent = d.haftalar[0].no + '–' + d.haftalar[d.haftalar.length - 1].no +
+                (document.getElementById('bk-yay').checked ? ' · gecikmiş dahil' : ' · gecikmiş hariç');
+            var renkler = satir.map(function (x) {
+                return x.oran > 100 ? bkRenk('--danger') : x.oran > 85 ? bkRenk('--warn') : bkRenk('--success');
+            });
+            if (_bk.grafik1) _bk.grafik1.destroy();
+            _bk.grafik1 = new Chart(document.getElementById('bk-genel-grafik'), {
+                type: 'bar',
+                data: { labels: satir.map(function (x) { return (x.b.tesis === 'TK2' ? '' : x.b.tesis + ' ') + x.b.ad; }),
+                        datasets: [{ label: 'Doluluk %', data: satir.map(function (x) { return Math.round(x.oran); }),
+                                     backgroundColor: renkler, borderRadius: 4, borderSkipped: 'start', barThickness: 16 }] },
+                options: {
+                    indexAxis: 'y', maintainAspectRatio: false, animation: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function (c) {
+                            var x = satir[c.dataIndex];
+                            return ' %' + c.parsed.x + ' · ' + bkSayi(x.ort) + ' kişi gerekli / ' + bkSayi(x.b.kisi) + ' mevcut';
+                        } } }
+                    },
+                    scales: {
+                        // Ölçek en yüksek doluluğa göre: etiket çubuğun sağına sığsın (Büküm %235 kesiliyordu)
+                        x: { beginAtZero: true, max: Math.ceil(Math.max(120, (satir[0] ? satir[0].oran : 0) * 1.18) / 20) * 20,
+                             ticks: { color: metin, callback: function (v) { return '%' + v; } },
+                             grid: { color: izgara } },
+                        y: { ticks: { color: bkRenk('--text'), font: { weight: 700 } }, grid: { display: false } }
+                    },
+                    onClick: function (e, el) {
+                        if (el && el.length) { var b = satir[el[0].index].b; bkSec(d.bolumler.indexOf(b)); }
+                    }
+                },
+                plugins: [{
+                    id: 'bkYuzEtiket',     // %100 çizgisi + çubuk sonunda değer (renk tek başına değil)
+                    afterDatasetsDraw: function (ch) {
+                        var c = ch.ctx, x = ch.scales.x, a = ch.chartArea, x100 = x.getPixelForValue(100);
+                        c.save();
+                        c.strokeStyle = bkRenk('--text'); c.setLineDash([4, 3]); c.lineWidth = 1.5;
+                        c.beginPath(); c.moveTo(x100, a.top); c.lineTo(x100, a.bottom); c.stroke();
+                        c.setLineDash([]); c.font = '700 11px sans-serif'; c.textBaseline = 'middle';
+                        ch.getDatasetMeta(0).data.forEach(function (bar, i) {
+                            var o = satir[i].oran, t = (o > 100 ? '▲ ' : o > 85 ? '! ' : '✓ ') + '%' + Math.round(o);
+                            var w = c.measureText(t).width;
+                            c.fillStyle = bkRenk('--card');          // %100 çizgisinin üstünde okunur kalsın
+                            c.fillRect(bar.x + 3, bar.y - 8, w + 6, 16);
+                            c.fillStyle = bkRenk('--text');
+                            c.fillText(t, bar.x + 6, bar.y);
+                        });
+                        c.restore();
+                    }
+                }]
+            });
+            // 2) Seçili bölüm — haftalık gereken kişi (tanımlı + tahmini) ve mevcut kişi çizgisi
+            var b = d.bolumler.filter(function (x) { return x.anahtar === _bk.secili; })[0];
+            if (_bk.grafik2) { _bk.grafik2.destroy(); _bk.grafik2 = null; }
+            if (!b) return;
+            document.getElementById('bk-bolum-baslik').textContent = '📊 ' + (b.tesis !== 'TK2' ? b.tesis + ' ' : '') + b.ad + ' — haftalık gereken kişi';
+            document.getElementById('bk-ayar').innerHTML =
+                'Günlük net saat <input type="number" step="0.1" min="1" max="24" value="' + b.gunluk_saat + '" onchange="bkAyarDegisti(\'gunluk_saat\', this.value)"> ' +
+                ' Verim % <input type="number" step="1" min="10" max="150" value="' + b.verim + '" onchange="bkAyarDegisti(\'verim\', this.value)">';
+            // Yalnız haftalar: gecikmiş iş KİŞİ-HAFTA (birikmiş), haftalık 'kişi' ile aynı eksene
+            // konunca yanıltıyordu — tabloda ayrı sütun; 'haftalara yay' açıkken haftalara eklenir.
+            var anahtarlar = d.haftalar.map(function (h) { return h.no; });
+            var etiket = d.haftalar.map(function (h) { return h.no + ' (' + h.bas.slice(8, 10) + '.' + h.bas.slice(5, 7) + ')'; });
+            var yukler = anahtarlar.map(function (k) { return bkYuk(b, k); });
+            var kh = bkKisiHafta(b);
+            _bk.grafik2 = new Chart(document.getElementById('bk-bolum-grafik'), {
+                type: 'bar',
+                data: {
+                    labels: etiket,
+                    datasets: [
+                        { type: 'bar', label: 'Süresi tanımlı', stack: 'y', backgroundColor: bkRenk('--primary'),
+                          data: yukler.map(function (y) { return +(y.tanimli / kh).toFixed(2); }), borderRadius: 4, barPercentage: 0.6 },
+                        { type: 'bar', label: 'Tahmini (süresiz ürünler)', stack: 'y', backgroundColor: bkRenk('--primary', 0.35),
+                          data: yukler.map(function (y) { return +(y.tahmini / kh).toFixed(2); }), borderRadius: 4, barPercentage: 0.6 },
+                        { type: 'line', label: 'Mevcut kişi', data: anahtarlar.map(function () { return b.kisi; }),
+                          borderColor: bkRenk('--text'), borderWidth: 2, borderDash: [5, 4], pointRadius: 0, stepped: true, fill: false }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: metin, boxWidth: 12 } },
+                        tooltip: { callbacks: {
+                            label: function (c) { return ' ' + c.dataset.label + ': ' + bkSayi(c.parsed.y) + ' kişi'; },
+                            footer: function (it) {
+                                var i = it[0].dataIndex, y = yukler[i];
+                                var top = (y.tanimli + y.tahmini) / kh;
+                                return 'Toplam ' + bkSayi(top) + ' kişi · ' + Math.round(y.tanimli + y.tahmini) + ' kişi-saat';
+                            } } }
+                    },
+                    scales: {
+                        x: { stacked: true, ticks: { color: metin }, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, title: { display: true, text: 'kişi', color: metin },
+                             ticks: { color: metin }, grid: { color: izgara } }
+                    },
+                    onClick: function (e, el) {
+                        if (el && el.length) { _bk.hafta = anahtarlar[el[0].index]; bkCiz(); bkDetayYukle(); }
+                    }
+                }
+            });
+        }
+
+        async function bkDetayYukle() {
+            var b = (_bk.veri && _bk.veri.bolumler || []).filter(function (x) { return x.anahtar === _bk.secili; })[0];
+            if (!b || !_bk.hafta) return;
+            var etk = _bk.hafta === 'gecikmis' ? 'gecikmiş iş' : _bk.hafta;
+            document.getElementById('bk-detay-baslik').textContent = '🔎 ' + b.ad + ' — ' + etk + ' ürünleri';
+            var govde = document.getElementById('bk-detay');
+            govde.innerHTML = '<tr><td colspan="7"><div class="empty-state">Yükleniyor…</div></td></tr>';
+            try {
+                var r = await panelFetch('/api/bolum_kapasite/detay?anahtar=' + encodeURIComponent(b.anahtar) + '&hafta=' + encodeURIComponent(_bk.hafta));
+                var d = await r.json();
+                var u = d.urunler || [];
+                document.getElementById('bk-detay-not').textContent = u.length ? 'yüke göre ilk ' + u.length : '';
+                govde.innerHTML = u.map(function (x) {
+                    var sure = x.sn ? bkSayi(x.sn) + ' sn' : x.kap1v ? x.kap1v + ' adet/vardiya' : '<span style="color:var(--warn)">süre yok</span>';
+                    var ks = x.saat_sn != null ? x.saat_sn / (b.verim / 100) : x.vardiya != null ? x.vardiya * b.gunluk_saat : null;
+                    return '<tr><td style="font-weight:700">' + esc(x.kod) + '</td>' +
+                        '<td style="text-align:right">' + x.adet.toLocaleString('tr-TR') + '</td>' +
+                        '<td style="text-align:right;color:var(--muted)">' + (x.launch ? x.launch.toLocaleString('tr-TR') : '—') + '</td>' +
+                        '<td style="text-align:right">' + x.emir + '</td>' +
+                        '<td style="text-align:right">' + sure + '</td>' +
+                        '<td style="text-align:right;font-weight:700">' + (ks != null ? bkSayi(ks) : '—') + '</td>' +
+                        '<td>' + esc(String(x.en_eski || '').slice(0, 10)) + '</td></tr>';
+                }).join('') || '<tr><td colspan="7"><div class="empty-state">Bu hücrede açık iş emri yok.</div></td></tr>';
+            } catch (e) {
+                govde.innerHTML = '<tr><td colspan="7"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+            }
+        }
+
+        async function bkTazele() {
+            toast('AS400\'den açık iş emirleri çekiliyor…', 'ok');
+            try {
+                var r = await panelFetch('/api/kapasite/senkron?sadece_talep=1', { method: 'POST' });
+                var d = await r.json();
+                if (!r.ok || d.hata) { toast(d.hata || 'Tazelenemedi', 'err'); return; }
+                toast(d.mesaj || 'Tazelendi', 'ok');
+                bkYukle();
+            } catch (e) { toast('Tazelenemedi: ' + e.message, 'err'); }
+        }
+
         function panelSayfaIzinli(sayfa) {
             // 'AS400 İşlemler' grubu TEK izinle yönetilir: as400-teyit izni olan
             // teyit + 02'den aktarım + planlama sayfalarını görür (2026-07-23).
             if (sayfa === 'as400-transfer' || sayfa === 'as400-planlama') sayfa = 'as400-teyit';
+            if (sayfa === 'bolum-kapasite') sayfa = 'kapasite';   // Kapasite izniyle açılır
             // KURULUM PROFİLİ: bu kurulumda olmayan modülün sayfası admin için de kapalı
             if (window.KURULUM && (KURULUM.kapali_sayfalar || []).indexOf(sayfa) !== -1) return false;
             if (sayfa === 'talepler') return true;           // Talep & Öneri: her kullanıcıya açık
