@@ -9,7 +9,8 @@ bir şey yapalım sonrasında onu görselleştirelim de grafiklerle."
 HESAP (tek ölçü: KİŞİ)
   İhtiyaç   AS400 açık iş emirleri (XPRO90: OPR + açık launch, kalan = adet − teyit) —
             kapasite.talep_senkron'un kapasite_talep tablosu. Emir bitiş tarihinin haftasına
-            yazılır; bu haftanın pazartesisinden eskisi 'gecikmiş' (ayrı sütun).
+            yazılır (bitişi PAZARTESİ olan bir önceki haftaya); bu haftanın pazartesisinden
+            eskisi 'gecikmiş' (bakiye, ayrı sütun).
   Bölüm     Ana Veri (data/AnaVeri.xlsx): D 'TK-1/2' + E 'Bölüm'. TK2 bölümleri Forge
             anahtarıyla (Kaynak, Lazer Kesim, Büküm, Metal Enjeksiyon, İşleme, Montaj), diğer
             tesisler E'deki adla (TK1 Tel, LF, Joystick…). Satın alma / ADP / Aspanda dışarıda.
@@ -231,6 +232,14 @@ def hafta_gun_kaydet(conn, bas, gun, kullanici=''):
     conn.commit()
 
 
+def _is_tarihi(bitis):
+    """Emrin YÜKÜNÜN yazılacağı gün. Bitişi Pazartesi olan emir bir önceki hafta üretilir
+    (kullanıcı 2026-10-21: "pazartesi emirlerini önceki haftaya yaz") → Pazar'a çekilir;
+    hafta sonu bitişliler zaten Pzt–Paz haftasının içinde. ValueError: tarih yok."""
+    bt = date.fromisoformat(str(bitis)[:10])
+    return bt - timedelta(days=1) if bt.weekday() == 0 else bt
+
+
 def _haftalar(bugun, n, conn=None):
     """[{no, bas, bit, gun, gun_varsayilan, elle, tatil[]}] — gün: hafta içi − tatil − arife,
     elle girilmişse o."""
@@ -298,7 +307,7 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
             sayac['disarida'] += 1
             continue
         try:
-            bt = date.fromisoformat(str(r[2])[:10])
+            bt = _is_tarihi(r[2])
         except ValueError:
             sayac['tarihsiz'] += 1
             continue
@@ -376,7 +385,7 @@ def detay(conn, anahtar, hafta_no, hafta=4, bugun=None, yol=None, n=40):
         if not u or u.get('anahtar') != anahtar:
             continue
         try:
-            bt = date.fromisoformat(str(r[2])[:10])
+            bt = _is_tarihi(r[2])
         except ValueError:
             continue
         if not aralik[0] <= bt < aralik[1]:
