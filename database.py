@@ -1655,6 +1655,16 @@ def init_db(_ikinci_tur=False):
         )
     """)
 
+    # Haftanın çalışma günü elle (anahtar = pazartesi tarihi); yoksa hafta içi − tatil − arife
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_hafta_gun (
+            hafta TEXT PRIMARY KEY,
+            gun REAL NOT NULL,
+            guncelleyen TEXT DEFAULT '',
+            updated_at TEXT DEFAULT ''
+        )
+    """)
+
     # TALEP & ÖNERİ (kullanıcı 2026-10-20): panel kullanıcıları programla ilgili hata /
     # değişiklik / yeni istek yazar; durumunu ve yanıtını yalnız yönetici girer.
     # durum: yeni · inceleniyor · yapildi · reddedildi

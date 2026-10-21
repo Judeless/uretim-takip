@@ -7791,6 +7791,18 @@ def bolum_kapasite_ayar_api():
     return jsonify({'basarili': True})
 
 
+@app.route('/api/bolum_kapasite/hafta_gun', methods=['POST'])
+@panel_gerekli(izin='kapasite')
+def bolum_kapasite_hafta_gun_api():
+    """Body: {bas: 'YYYY-MM-DD' (pazartesi), gun: 0–7 | null (varsayılana dön)} — tüm bölümlere."""
+    d = request.get_json(silent=True) or {}
+    try:
+        BKAP.hafta_gun_kaydet(get_db(), str(d.get('bas') or '')[:10], d.get('gun'), g.panel_ku['kullanici_adi'])
+    except (TypeError, ValueError) as e:
+        return jsonify({'hata': f'Geçersiz değer: {e}'}), 400
+    return jsonify({'basarili': True})
+
+
 def bolum_kapasite_talep_job():
     """Her sabah AS400 açık iş emirlerini tazeler — kapasite ekranı bayat ihtiyaçla
     hesaplamasın (eskiden yalnız Ürün Havuzu'ndaki düğmeyle çekiliyordu; 21.10'da

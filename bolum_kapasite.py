@@ -17,22 +17,46 @@ HESAP (tek ölçü: KİŞİ)
             hedef çevrim). G yoksa M 'Kapasite 1V/Adet' (bir kişinin bir vardiyada yaptığı adet).
   Kişi-saat sn'li ürün: adet × sn ÷ 3600 ÷ verim · vardiya adetli ürün: adet ÷ M × günlük saat
             (M zaten gerçekçi vardiya adedi → verim ikinci kez düşülmez)
-  Gereken kişi = haftalık kişi-saat ÷ (gün × günlük saat). Doluluk = gereken ÷ mevcut kişi.
+  Gereken kişi = haftalık kişi-saat ÷ (o haftanın ÇALIŞMA GÜNÜ × günlük saat). Doluluk = gereken
+            ÷ mevcut kişi. Çalışma günü = hafta içi − resmî tatil − arife (Cofle'de yarım günde
+            çalışılmıyor; kullanıcı 2026-10-21: "W44'te 3 gün çalışacağız"); panelden haftaya elle.
   Süresiz   Ana Veri'de süresi olmayan ürünün yükü bölümün ORTANCA birim süresiyle TAHMİN
             edilir ve ayrı gösterilir (gizlenmez, tanımlıya da karışmaz).
 
-Varsayılanlar 'Aylık NçS' sayfasından: Kişi + günlük saat = NçS ÷ kişi ÷ o ayın iş günü.
-Kişi / günlük saat / verim panelden bölüm başına değiştirilir (bolum_kapasite_ayar).
+Varsayılan kişi 'Aylık NçS' sayfasından; günlük saat SABİT varsayılan (kullanıcı 2026-10-21:
+"kapasiteleri NçS'ye göre değil çalışma gün sayısına göre"). Kişi / günlük saat / verim panelden
+bölüm başına (bolum_kapasite_ayar), haftanın gün sayısı haftaya (kapasite_hafta_gun) değiştirilir.
 """
-import calendar
 import os
 import statistics
 from datetime import date, datetime, timedelta
 
-VARSAYILAN_GUN = 5
+STANDART_GUN = 5                 # bakiye (gecikmiş iş) 'kişi-hafta'sı standart haftayla
 VARSAYILAN_SAAT = 8.5
 VARSAYILAN_VERIM = 85.0
-TK2_SIRA = ('kaynak', 'lazer', 'pres', 'metal', 'isleme', 'montaj')
+TK2_SIRA = ('kaynak', 'lazer', 'pres', 'metal', 'montaj')
+HARIC_BOLUM = ('TK2|isleme',)    # kullanıcı 2026-10-21: "işlemeyi kaldır"
+# Resmî tatiller (tam gün) ve arifeler (yarım gün — Cofle'de yarım günde çalışılmıyor, o gün
+# çalışma gününden düşer). Dini bayramlar Diyanet takvimine göre girildi; köprü / ek tatil
+# ya da farklı bir karar için haftanın gün sayısı panelden elle düzeltilir.
+TATILLER = {
+    '2026-01-01': 'Yılbaşı',
+    '2026-03-19': 'Ramazan Bayramı arifesi', '2026-03-20': 'Ramazan Bayramı',
+    '2026-03-21': 'Ramazan Bayramı', '2026-03-22': 'Ramazan Bayramı',
+    '2026-04-23': '23 Nisan', '2026-05-01': '1 Mayıs', '2026-05-19': '19 Mayıs',
+    '2026-05-26': 'Kurban Bayramı arifesi', '2026-05-27': 'Kurban Bayramı', '2026-05-28': 'Kurban Bayramı',
+    '2026-05-29': 'Kurban Bayramı', '2026-05-30': 'Kurban Bayramı',
+    '2026-07-15': '15 Temmuz', '2026-08-30': '30 Ağustos',
+    '2026-10-28': 'Cumhuriyet Bayramı arifesi', '2026-10-29': 'Cumhuriyet Bayramı',
+    '2027-01-01': 'Yılbaşı',
+    '2027-03-08': 'Ramazan Bayramı arifesi', '2027-03-09': 'Ramazan Bayramı',
+    '2027-03-10': 'Ramazan Bayramı', '2027-03-11': 'Ramazan Bayramı',
+    '2027-04-23': '23 Nisan', '2027-05-01': '1 Mayıs',
+    '2027-05-15': 'Kurban Bayramı arifesi', '2027-05-16': 'Kurban Bayramı', '2027-05-17': 'Kurban Bayramı',
+    '2027-05-18': 'Kurban Bayramı', '2027-05-19': 'Kurban Bayramı · 19 Mayıs',
+    '2027-07-15': '15 Temmuz', '2027-08-30': '30 Ağustos',
+    '2027-10-28': 'Cumhuriyet Bayramı arifesi', '2027-10-29': 'Cumhuriyet Bayramı',
+}
 # Bizim üretmediğimiz kaynaklar: kapasiteye girmez (fason / satın alma)
 DISARIDA_TESIS = ('satınalma', 'satinalma', 'adp', 'aspanda', 'depo')
 HARIC_ONEK = ('92.',)            # 92.* bizde üretilmiyor (feedback 2026-10)
@@ -47,6 +71,14 @@ def tablolari_kur(conn):
             kisi REAL,
             gunluk_saat REAL,
             verim REAL,
+            guncelleyen TEXT DEFAULT '',
+            updated_at TEXT DEFAULT ''
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kapasite_hafta_gun (
+            hafta TEXT PRIMARY KEY,
+            gun REAL NOT NULL,
             guncelleyen TEXT DEFAULT '',
             updated_at TEXT DEFAULT ''
         )
@@ -132,17 +164,8 @@ def ana_veri_oku(yol=None):
     return veri
 
 
-def _is_gunu(ay):
-    """'2026-09' → hafta içi gün sayısı (resmî tatil bilinmiyor)."""
-    try:
-        y, m = (int(x) for x in str(ay).split('-')[:2])
-    except ValueError:
-        return 22
-    return sum(1 for d in range(1, calendar.monthrange(y, m)[1] + 1) if date(y, m, d).weekday() < 5)
-
-
 def _ncs_oku(wb):
-    """'Aylık NçS' → {anahtar: {'kisi', 'gunluk_saat', 'ay'}} (varsayılan kişi + saat)."""
+    """'Aylık NçS' → {anahtar: {'kisi', 'ay'}} (varsayılan kişi)."""
     if 'Aylık NçS' not in wb.sheetnames:
         return {}
     ay, out, bas = '', {}, None
@@ -161,10 +184,9 @@ def _ncs_oku(wb):
         if tesis == 'TK1' and 'tel' in _tr(e):
             e = 'Tel'
         anahtar, _ad = _bolum_ad(tesis, e)
-        kisi, saat = _sayi(r[4]), _sayi(r[2])
+        kisi = _sayi(r[4])
         if anahtar and kisi:
-            gs = round(saat / kisi / _is_gunu(ay), 2) if saat else None
-            out[anahtar] = {'kisi': kisi, 'gunluk_saat': gs if gs and 3 <= gs <= 12 else None, 'ay': ay}
+            out[anahtar] = {'kisi': kisi, 'ay': ay}
     return out
 
 
@@ -194,11 +216,42 @@ def ayar_kaydet(conn, anahtar, kisi=None, gunluk_saat=None, verim=None, kullanic
     conn.commit()
 
 
-def _haftalar(bugun, n):
+def hafta_gun_kaydet(conn, bas, gun, kullanici=''):
+    """Haftanın çalışma günü (bas = pazartesi). gun boş/None → varsayılana dön."""
+    date.fromisoformat(bas)                       # geçersiz tarih → ValueError
+    if gun is None or str(gun).strip() == '':
+        conn.execute("DELETE FROM kapasite_hafta_gun WHERE hafta=?", (bas,))
+    else:
+        g = float(str(gun).replace(',', '.'))
+        if not 0 <= g <= 7:
+            raise ValueError('gün 0–7 arasında olmalı')
+        conn.execute("INSERT INTO kapasite_hafta_gun (hafta, gun, guncelleyen, updated_at) VALUES (?,?,?,?) "
+                     "ON CONFLICT(hafta) DO UPDATE SET gun=excluded.gun, guncelleyen=excluded.guncelleyen, "
+                     "updated_at=excluded.updated_at", (bas, g, kullanici, datetime.now().strftime('%Y-%m-%d %H:%M')))
+    conn.commit()
+
+
+def _haftalar(bugun, n, conn=None):
+    """[{no, bas, bit, gun, gun_varsayilan, elle, tatil[]}] — gün: hafta içi − tatil − arife,
+    elle girilmişse o."""
     pzt = bugun - timedelta(days=bugun.weekday())
-    return [{'no': f'H{(pzt + timedelta(days=7 * i)).isocalendar()[1]}',
-             'bas': (pzt + timedelta(days=7 * i)).isoformat(),
-             'bit': (pzt + timedelta(days=7 * i + 6)).isoformat()} for i in range(n)]
+    elle = {}
+    if conn is not None:
+        try:
+            elle = {r[0]: r[1] for r in conn.execute("SELECT hafta, gun FROM kapasite_hafta_gun")}
+        except Exception:
+            elle = {}
+    out = []
+    for i in range(n):
+        bas = pzt + timedelta(days=7 * i)
+        gunler = [bas + timedelta(days=j) for j in range(5)]
+        tatil = [f"{g.strftime('%d.%m')} {TATILLER[g.isoformat()]}" for g in gunler if g.isoformat() in TATILLER]
+        varsayilan = sum(1 for g in gunler if g.isoformat() not in TATILLER)
+        out.append({'no': f'H{bas.isocalendar()[1]}', 'bas': bas.isoformat(),
+                    'bit': (bas + timedelta(days=6)).isoformat(), 'gun_varsayilan': varsayilan,
+                    'gun': elle.get(bas.isoformat(), varsayilan), 'elle': bas.isoformat() in elle,
+                    'tatil': tatil})
+    return out
 
 
 def hesapla(conn, hafta=4, bugun=None, yol=None):
@@ -208,7 +261,7 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
     bugun = bugun or date.today()
     av = ana_veri_oku(yol)
     urun = av['urun']
-    hft = _haftalar(bugun, hafta)
+    hft = _haftalar(bugun, hafta, conn)
     sinir = [date.fromisoformat(h['bas']) for h in hft] + [date.fromisoformat(hft[-1]['bit']) + timedelta(days=1)]
     ay = ayarlar(conn)
     bolumler, atanmamis, sayac = {}, {}, {'tarihsiz': 0, 'ufuk_disi': 0, 'disarida': 0}
@@ -220,10 +273,10 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
             bolumler[anahtar] = {
                 'anahtar': anahtar, 'ad': ad, 'tesis': tesis,
                 'kisi': a.get('kisi') if a.get('kisi') is not None else (n.get('kisi') or 0),
-                'gunluk_saat': a.get('gunluk_saat') or n.get('gunluk_saat') or VARSAYILAN_SAAT,
+                'gunluk_saat': a.get('gunluk_saat') or VARSAYILAN_SAAT,
                 'verim': a.get('verim') or VARSAYILAN_VERIM,
                 'kisi_kaynagi': 'elle' if a.get('kisi') is not None else ('NçS ' + n['ay'] if n.get('kisi') else ''),
-                'guncelleyen': a.get('guncelleyen') or '', 'gun': VARSAYILAN_GUN,
+                'guncelleyen': a.get('guncelleyen') or '',
                 'hucre': {k: {'saat_sn': 0.0, 'vardiya': 0.0, 'adet': 0.0, 'adet_suresiz': 0.0, 'kod': set(),
                               'suresiz_kod': set()} for k in ['gecikmis'] + [h['no'] for h in hft]},
                 '_sn': [], '_kap': []}
@@ -241,7 +294,7 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
             a['adet'] += r[1]
             a['emir'] += 1
             continue
-        if u.get('disarida'):
+        if u.get('disarida') or u.get('anahtar') in HARIC_BOLUM:
             sayac['disarida'] += 1
             continue
         try:
@@ -297,7 +350,7 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
         prov = {}
     at = sorted((a for a in atanmamis.values() if prov.get(a['kod'], 'P') == 'P'), key=lambda a: -a['adet'])
     return {'haftalar': hft, 'bolumler': liste, 'ana_veri': av['mtime'], 'talep_ts': talep_ts,
-            'varsayilan': {'gun': VARSAYILAN_GUN, 'saat': VARSAYILAN_SAAT, 'verim': VARSAYILAN_VERIM},
+            'varsayilan': {'standart_gun': STANDART_GUN, 'saat': VARSAYILAN_SAAT, 'verim': VARSAYILAN_VERIM},
             'atanmamis': {'kod': len(at), 'adet': round(sum(a['adet'] for a in at)),
                           'ilk': [{**a, 'adet': round(a['adet'])} for a in at[:40]]},
             'sayac': sayac}
