@@ -189,6 +189,9 @@ def ana_veri_oku(yol=None):
                 goz = _sayi(al(r, 'goz')) or 1.0
                 sn = g / goz                                  # G baskı başı; bir baskıda göz kadar parça
                 ek = {'baski_sn': g, 'goz': goz}
+            elif tesis == 'TK1':
+                sn = None                                     # TK1: yalnız M 'Kapasite 1V/Adet' (kullanıcı 2026-10-22;
+                                                              # G'de süre değil hat kodu var: 913, 914, 110…)
             else:
                 sn = g
             urun[kod] = {'anahtar': anahtar, 'tesis': tesis or 'TK2', 'bolum': ad,
