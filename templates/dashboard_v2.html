@@ -8740,6 +8740,7 @@ window.__I18N_SOZLUK__ = {
                     <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;font-weight:700;color:var(--muted);cursor:pointer">
                         <input type="checkbox" id="bk-tahmin" checked onchange="bkCiz()"> Süresiz ürünleri bölüm ortancasıyla tahmin et</label>
                     <button class="btn btn-ghost" onclick="bkTazele()" title="AS400'den açık iş emirlerini yeniden çeker" style="margin-left:auto">🔄 AS400'den tazele</button>
+                    <button class="btn btn-primary" onclick="bkSunumIndir()" title="Ekrandaki hesapla (kişi, gün, devir, 4/8 hafta) yönetim sunumu üretir">📥 Sunum (PowerPoint)</button>
                     <div id="bk-durum" style="font-size:.7rem;color:var(--muted);width:100%"></div>
                 </div>
 
@@ -22426,6 +22427,78 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                 toast(d.mesaj || 'Tazelendi', 'ok');
                 bkYukle();
             } catch (e) { toast('Tazelenemedi: ' + e.message, 'err'); }
+        }
+
+        // ── YÖNETİM SUNUMU (kullanıcı 2026-10-22) ── ekrandaki hesap → PowerPoint. Çizim
+        // static/bolum_kapasite_sunum.js'te (laptopta node ile aynı dosya test edilir);
+        // burası yalnız o anki hesabı (kişi / gün / verim düzeltmeleri, devir, görünüm) toplar.
+        function bkSunumVerisi() {
+            var d = _bk.veri, hs = bkHaftalar(), devirli = bkDevir();
+            function sonlu(x) { return (x == null || !isFinite(x)) ? null : x; }
+            var bugun = new Date();
+            return {
+                tarih: bugun.toLocaleDateString('tr-TR'),
+                donem: hs[0].no + '–' + hs[hs.length - 1].no,
+                devirli: devirli, yay: !devirli && document.getElementById('bk-yay').checked,
+                tahmin: document.getElementById('bk-tahmin').checked,
+                talep_ts: String(d.talep_ts || '').slice(0, 16), ana_veri: d.ana_veri || '',
+                atanmamis: { kod: (d.atanmamis || {}).kod || 0, adet: (d.atanmamis || {}).adet || 0 },
+                haftalar: hs.map(function (h) {
+                    return { no: h.no, tarih: bkTarih(h), gun: h.gun, kismi: !!h.kismi, elle: !!h.elle, tatil: h.tatil || [] };
+                }),
+                bolumler: d.bolumler.map(function (b) {
+                    var seri = devirli ? bkSeri(b) : null, ort = sonlu(bkOrtalama(b, hs));
+                    var kapToplam = hs.reduce(function (t, h) { return t + h.gun * b.gunluk_saat; }, 0);
+                    var erime = null;
+                    if (seri && bkToplam(bkYuk(b, 'gecikmis')) > 0.5) {
+                        for (var i = 0; i < hs.length; i++) { if (seri[hs[i].no].cikis < 0.5) { erime = hs[i].no; break; } }
+                    }
+                    return {
+                        ad: b.ad, tesis: b.tesis, kisi: b.kisi || 0, gunluk_saat: b.gunluk_saat, verim: b.verim, kapsama: b.kapsama,
+                        ort: ort, oran: (b.kisi > 0 && ort != null) ? ort / b.kisi * 100 : null,
+                        bakiye_kh: bkBakiye(b),
+                        donem_sonu_kh: seri ? seri[hs[hs.length - 1].no].cikis / (5 * b.gunluk_saat) : null,
+                        erime_haftasi: erime,
+                        haftalik_saat: hs.length ? kapToplam / hs.length : 0,     // bir kişinin dönemdeki ort. haftalık saati
+                        hafta: hs.map(function (h) {
+                            var kap = h.gun * b.gunluk_saat, ger = sonlu(bkGereken(b, h));
+                            return { no: h.no, gereken: ger, oran: (b.kisi > 0 && ger != null) ? ger / b.kisi * 100 : null,
+                                     kendi_kisi: kap > 0 ? bkToplam(bkYuk(b, h.no)) / kap : null,
+                                     devir_kisi: (kap > 0 && seri) ? seri[h.no].giris / kap : 0, adet: b.hucre[h.no].adet };
+                        })
+                    };
+                })
+            };
+        }
+        function bkScriptYukle(src) {
+            return new Promise(function (ok, hata) {
+                var e = document.createElement('script');
+                e.src = src; e.onload = ok;
+                e.onerror = function () { hata(new Error(src.split('?')[0] + ' yüklenemedi')); };
+                document.head.appendChild(e);
+            });
+        }
+        async function bkSunumIndir() {
+            if (!_bk.veri) { toast('Önce veri yüklensin', 'err'); return; }
+            toast('Sunum hazırlanıyor…', 'ok');
+            try {
+                if (!window.PptxGenJS) await bkScriptYukle('https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js');
+                if (!window.bkSunumOlustur) await bkScriptYukle('/static/bolum_kapasite_sunum.js?v=20261022');
+                var logo = null;
+                try {
+                    var lr = await fetch('/static/logo_koyu.png');
+                    if (lr.ok) {
+                        var blob = await lr.blob();
+                        logo = await new Promise(function (ok) { var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.readAsDataURL(blob); });
+                    }
+                } catch (e) { }
+                var v = bkSunumVerisi();
+                var p = window.bkSunumOlustur(window.PptxGenJS, v, { logo: logo });
+                await p.writeFile({ fileName: 'Bolum_Kapasite_' + v.donem.replace(/[^0-9A-Za-z]+/g, '-') + '_' + v.tarih.replace(/\./g, '-') + '.pptx' });
+                toast('Sunum indirildi', 'ok');
+            } catch (e) {
+                toast('Sunum hazırlanamadı: ' + e.message, 'err');
+            }
         }
 
         function panelSayfaIzinli(sayfa) {
