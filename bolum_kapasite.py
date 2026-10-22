@@ -43,7 +43,16 @@ STANDART_GUN = 5                 # bakiye (gecikmiş iş) 'kişi-hafta'sı stand
 VARSAYILAN_SAAT = 8.5
 VARSAYILAN_VERIM = 85.0
 TK2_SIRA = ('kaynak', 'lazer', 'pres', 'metal', 'montaj')
-HARIC_BOLUM = ('TK2|isleme',)    # kullanıcı 2026-10-21: "işlemeyi kaldır"
+HARIC_BOLUM = ('TK2|isleme',     # kullanıcı 2026-10-21: "işlemeyi kaldır"
+               'TK1|elektronik', 'TK1|bükme')   # 2026-10-22: TK1'de elektronik + bükme iptal
+# Ana Veri'deki alt bölüm → kapasitede sayıldığı bölüm (kullanıcı 2026-10-22)
+BOLUM_BIRLESTIR = {
+    'TK1|joystick': ('TK1|montaj', 'Montaj'),
+    'TK1|lf': ('TK1|montaj', 'Montaj'),
+    'TK1|grup': ('TK1|montaj', 'Montaj'),
+    'TK1|kesim': ('TK1|tel', 'Tel'),
+    'TK1|pp': ('TK1|tel', 'Tel'),
+}
 # Bölüme özgü varsayılanlar (kullanıcı 2026-10-22) — panelden değiştirilir (bolum_kapasite_ayar)
 BOLUM_VARSAYILAN = {
     'TK2|lazer': {'birim': 'makine', 'kisi': 4, 'kurulu': 6},   # 6 makinenin 4'ü aynı anda kesimde
@@ -136,7 +145,8 @@ def _bolum_ad(tesis, e):
     if not ad or any(x in _tr(ad) for x in ('bölüm yok', 'olabilir', 'fason')):
         return None, None
     ad = ad[:1].upper() + ad[1:]
-    return f'{tesis}|{_tr(ad)}', ad
+    anahtar = f'{tesis}|{_tr(ad)}'
+    return BOLUM_BIRLESTIR.get(anahtar, (anahtar, ad))
 
 
 def ana_veri_oku(yol=None):
