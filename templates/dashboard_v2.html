@@ -22126,17 +22126,18 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                 'İhtiyaç: AS400 açık iş emirleri — son çekim <b' + (eski ? ' style="color:var(--danger)"' : '') + '>' +
                 esc(String(d.talep_ts || 'yok').slice(0, 16)) + '</b>' + (eski ? ' (eski — tazeleyin)' : '') +
                 ' · Bölüm ve süre: Ana Veri <b>' + esc(d.ana_veri || '') + '</b>' +
-                ' · Çalışma günü: hafta içi − resmî tatil − arife (başlıktan düzeltilir)';
+                ' · Çalışma günü: hafta içi − resmî tatil − arife; bu hafta bugünden itibaren kalan günler (başlıktan düzeltilir)';
             document.getElementById('bk-baslik').innerHTML = '<tr><th>Bölüm</th><th style="text-align:right">Mevcut kişi</th>' +
                 '<th style="text-align:center" title="Bu haftadan önce bitmesi gereken, hâlâ açık iş. Doluluk = kaç haftalık kapasite (mevcut kişiyle)">Bakiye<div class="bk-alt" style="text-transform:none">gecikmiş iş</div></th>' +
                 hs.map(function (h) {
                     var i = hepsi.indexOf(h);
-                    var not = (h.tatil.length ? h.tatil.join(' · ') + ' — ' : '') + 'varsayılan ' + h.gun_varsayilan + ' gün' +
+                    var not = (h.kismi ? 'Bu hafta: bugün dahil KALAN iş günü (geçen günlerin işi teyitle emirden düşmüş) — ' : '') +
+                              (h.tatil.length ? h.tatil.join(' · ') + ' — ' : '') + 'varsayılan ' + h.gun_varsayilan + ' gün' +
                               (h.elle ? ' · elle düzeltildi (boşaltırsanız varsayılana döner)' : '');
                     return '<th style="text-align:center">' + h.no + ' <span style="font-weight:600;color:var(--dim)">' + bkTarih(h) + '</span>' +
                         '<div style="margin-top:4px;text-transform:none"><input type="number" class="bk-gun' + (h.elle ? ' elle' : '') +
                         '" min="0" max="7" step="0.5" value="' + h.gun + '" title="' + esc(not) + '" onchange="bkGunDegisti(' + i + ', this.value)">' +
-                        ' <span class="bk-alt">gün' + (h.tatil.length ? ' 🎌' : '') + '</span></div></th>';
+                        ' <span class="bk-alt">' + (h.kismi ? 'gün kaldı' : 'gün') + (h.tatil.length ? ' 🎌' : '') + '</span></div></th>';
                 }).join('') +
                 '<th style="text-align:center">4 hafta ort.</th><th style="text-align:center">8 hafta ort.</th></tr>';
             var grup = { TK2: 'TK2', TK1: 'TK1' }, onceki = null, html = '';

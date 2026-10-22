@@ -241,9 +241,14 @@ def _is_tarihi(bitis):
 
 
 def _haftalar(bugun, n, conn=None):
-    """[{no, bas, bit, gun, gun_varsayilan, elle, tatil[]}] — gün: hafta içi − tatil − arife,
-    elle girilmişse o."""
+    """[{no, bas, bit, gun, gun_varsayilan, elle, kismi, tatil[]}] — gün: hafta içi − tatil −
+    arife, elle girilmişse o. BU HAFTA yalnız BUGÜNDEN itibaren kalan iş günleri sayılır
+    (kullanıcı 2026-10-22: "4. günündeyiz, önceki 3 günü dahil etmek mantıklı mı") — geçen
+    günlerde yapılan iş teyitle zaten emirden düşmüş; o günlerin kapasitesini saymak işi iki kez
+    karşılamak olurdu. Hafta sonundaysak liste gelecek haftadan başlar."""
     pzt = bugun - timedelta(days=bugun.weekday())
+    if bugun.weekday() >= 5:
+        pzt += timedelta(days=7)
     elle = {}
     if conn is not None:
         try:
@@ -255,11 +260,12 @@ def _haftalar(bugun, n, conn=None):
         bas = pzt + timedelta(days=7 * i)
         gunler = [bas + timedelta(days=j) for j in range(5)]
         tatil = [f"{g.strftime('%d.%m')} {TATILLER[g.isoformat()]}" for g in gunler if g.isoformat() in TATILLER]
-        varsayilan = sum(1 for g in gunler if g.isoformat() not in TATILLER)
+        kismi = bas < bugun                       # hafta başladı: geçen günler sayılmaz
+        varsayilan = sum(1 for g in gunler if g.isoformat() not in TATILLER and g >= bugun)
         out.append({'no': f'H{bas.isocalendar()[1]}', 'bas': bas.isoformat(),
                     'bit': (bas + timedelta(days=6)).isoformat(), 'gun_varsayilan': varsayilan,
                     'gun': elle.get(bas.isoformat(), varsayilan), 'elle': bas.isoformat() in elle,
-                    'tatil': tatil})
+                    'kismi': kismi, 'tatil': tatil})
     return out
 
 
