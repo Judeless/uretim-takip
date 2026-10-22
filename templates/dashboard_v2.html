@@ -8774,9 +8774,10 @@ window.__I18N_SOZLUK__ = {
                     <div class="table-wrap">
                         <table class="admin-table">
                             <thead><tr><th>Kod</th><th style="text-align:right">Adet</th><th style="text-align:right">Launch'lı</th>
-                                <th style="text-align:right">Emir</th><th style="text-align:right">Birim süre</th>
-                                <th style="text-align:right">Kişi-saat</th><th>En eski emir</th></tr></thead>
-                            <tbody id="bk-detay"><tr><td colspan="7"><div class="empty-state">Tablodan bir hücre seçin.</div></td></tr></tbody>
+                                <th style="text-align:right">Emir</th><th style="text-align:right">Parça başı süre</th>
+                                <th style="text-align:right" title="Adet × parça başı süre (verim hariç)">Std. saat</th>
+                                <th style="text-align:right" title="Standart saat ÷ verim">Kapasite saati</th><th>En eski emir</th></tr></thead>
+                            <tbody id="bk-detay"><tr><td colspan="8"><div class="empty-state">Tablodan bir hücre seçin.</div></td></tr></tbody>
                         </table>
                     </div>
                 </div>
@@ -22036,10 +22037,13 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             // { tanimli, tahmini } kişi-saat — 'yay' açıksa bakiyenin payı ilk 4 haftaya eklenir
             var tahminAcik = document.getElementById('bk-tahmin').checked;
             function hesap(x, carpan) {
-                var t = (x.saat_sn / (b.verim / 100) + x.vardiya * b.gunluk_saat) * carpan;
+                // ÇİFT İSTASYON (kaynak, kullanıcı 2026-10-22): robot bir istasyonda kaynak yaparken
+                // operatör diğerinde söktak yapar → parça başı K + S − uyum × min(K,S)
+                var uy = (b.uyum || 0) / 100;
+                var t = ((x.saat_sn - uy * (x.saat_min || 0)) / (b.verim / 100) + x.vardiya * b.gunluk_saat) * carpan;
                 var tah = 0;
                 if (tahminAcik && x.adet_suresiz) {
-                    if (b.ortanca_sn) tah = x.adet_suresiz * b.ortanca_sn / 3600 / (b.verim / 100);
+                    if (b.ortanca_sn) tah = x.adet_suresiz * b.ortanca_sn * (1 - uy * (b.ortanca_min_oran || 0)) / 3600 / (b.verim / 100);
                     else if (b.ortanca_kap1v) tah = x.adet_suresiz / b.ortanca_kap1v * b.gunluk_saat;
                 }
                 return { tanimli: t, tahmini: tah * carpan };
@@ -22095,13 +22099,15 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
         function bkDurum(gereken, kisi) {
             if (gereken === Infinity) return { sinif: 'asim', metin: '▲ çalışma yok', oran: Infinity };
             if (gereken < 0.05) return { sinif: 'ok', metin: '—', oran: 0 };
-            if (!(kisi > 0)) return { sinif: 'yok', metin: 'kişi yok', oran: null };
+            if (!(kisi > 0)) return { sinif: 'yok', metin: 'kapasite yok', oran: null };
             var o = gereken / kisi * 100;
             return o > 100 ? { sinif: 'asim', metin: '▲ %' + Math.round(o), oran: o }
                  : o > 85 ? { sinif: 'uyari', metin: '! %' + Math.round(o), oran: o }
                  : { sinif: 'ok', metin: '✓ %' + Math.round(o), oran: o };
         }
         function bkSayi(x) { return (Math.round(x * 10) / 10).toLocaleString('tr-TR'); }
+        // Kapasite birimi: kişi ya da MAKİNE (lazer: 6 kurulu makinenin 4'ü aynı anda çalışıyor)
+        function bkBirim(b) { return b && b.birim === 'makine' ? 'makine' : 'kişi'; }
         function bkTarih(h) { return h.bas.slice(8, 10) + '.' + h.bas.slice(5, 7); }
         // İş var ama yük sıfır → ürünlerin hiçbirinin süresi yok (tahmin de yok); 0 < yük < 0,05 → '<0,1'
         function bkKucuk(ger, adet) {
@@ -22128,7 +22134,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                 esc(String(d.talep_ts || 'yok').slice(0, 16)) + '</b>' + (eski ? ' (eski — tazeleyin)' : '') +
                 ' · Bölüm ve süre: Ana Veri <b>' + esc(d.ana_veri || '') + '</b>' +
                 ' · Çalışma günü: hafta içi − resmî tatil − arife; bu hafta bugünden itibaren kalan günler (başlıktan düzeltilir)';
-            document.getElementById('bk-baslik').innerHTML = '<tr><th>Bölüm</th><th style="text-align:right">Mevcut kişi</th>' +
+            document.getElementById('bk-baslik').innerHTML = '<tr><th>Bölüm</th><th style="text-align:right">Mevcut kapasite</th>' +
                 '<th style="text-align:center" title="Bu haftadan önce bitmesi gereken, hâlâ açık iş. Doluluk = kaç haftalık kapasite (mevcut kişiyle)">Bakiye<div class="bk-alt" style="text-transform:none">gecikmiş iş</div></th>' +
                 hs.map(function (h) {
                     var i = hepsi.indexOf(h);
@@ -22168,14 +22174,16 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                         (b.kapsama == null ? 'ihtiyaç yok' : 'süre kapsaması %' + Math.round(b.kapsama)) +
                         (b.kisi_kaynagi ? ' · kişi: ' + esc(b.kisi_kaynagi) : '') + '</div></td>' +
                     '<td style="text-align:right" onclick="event.stopPropagation()"><input type="number" class="bk-kisi" min="0" max="500" step="0.5" value="' +
-                        (b.kisi || 0) + '" oninput="bkKisiDegisti(' + i + ', this.value)"></td>' +
+                        (b.kisi || 0) + '" oninput="bkKisiDegisti(' + i + ', this.value)">' +
+                        '<div class="bk-alt">' + bkBirim(b) + (b.birim === 'makine' && b.kurulu ? ' · ' + bkSayi(b.kurulu) + ' kurulu' : '') +
+                        (b.uyum != null ? ' · uyum %' + Math.round(b.uyum) : '') + '</div></td>' +
                     '<td class="bk-hucre' + secG + '" onclick="event.stopPropagation();bkHucreSec(' + i + ',\'gecikmis\')" title="' +
                         esc(Math.round(b.hucre.gecikmis.adet).toLocaleString('tr-TR') + ' adet · ' + b.hucre.gecikmis.kod_sayisi + ' kod' +
                             (b.kisi > 0 && bak >= 0.05 ? ' · mevcut kişiyle ≈ ' + bkSayi(bak / b.kisi) + ' haftalık iş' : '')) + '"' +
                         ((yay || devirli) ? ' style="opacity:.55"' : '') + '>' +
                         '<div class="bk-sayi">' + (bak >= 0.05 ? bkSayi(bak) : bkKucuk(bak, b.hucre.gecikmis.adet)) + '</div>' +
                         (bak >= 0.05 ? '<span class="bk-rozet ' + bD.sinif + '">' + bD.metin + '</span>' +
-                            '<div class="bk-alt">kişi-hafta' + (devirli ? ' · 1. haftaya devreder' : yay ? ' · ilk 4 haftaya yayıldı' : '') + '</div>' : '') + '</td>' +
+                            '<div class="bk-alt">' + bkBirim(b) + '-hafta' + (devirli ? ' · 1. haftaya devreder' : yay ? ' · ilk 4 haftaya yayıldı' : '') + '</div>' : '') + '</td>' +
                     hucreler +
                     '<td style="text-align:center">' + bkHucre(bkOrtalama(b, ilk4), b.kisi, bkAdet(b, ilk4)) + bkDonemSonu(b, seri, ilk4) + '</td>' +
                     '<td style="text-align:center">' + bkHucre(bkOrtalama(b, hepsi), b.kisi, bkAdet(b, hepsi)) + bkDonemSonu(b, seri, hepsi) + '</td></tr>';
@@ -22196,7 +22204,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             if (!seri || !haftalar.length) return '';
             var kalan = seri[haftalar[haftalar.length - 1].no].cikis;
             return kalan > 0.5
-                ? '<div class="bk-alt" style="color:var(--danger)">dönem sonu ' + bkSayi(kalan / (5 * b.gunluk_saat)) + ' kişi-hafta kalır</div>'
+                ? '<div class="bk-alt" style="color:var(--danger)">dönem sonu ' + bkSayi(kalan / (5 * b.gunluk_saat)) + ' ' + bkBirim(b) + '-hafta kalır</div>'
                 : '<div class="bk-alt" style="color:var(--success)">dönem içinde biter</div>';
         }
 
@@ -22258,11 +22266,20 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
         function bkAyarDegisti(alan, deger) {
             var b = (_bk.veri.bolumler || []).filter(function (x) { return x.anahtar === _bk.secili; })[0];
             var v = parseFloat(String(deger).replace(',', '.'));
-            if (!b || isNaN(v) || v <= 0) return;
+            var sifirOlur = (alan === 'uyum' || alan === 'kurulu');
+            if (!b || isNaN(v) || v < 0 || (!sifirOlur && v === 0)) return;
             b[alan] = v;
             var ob = {}; ob[alan] = v;
             bkCiz();
             bkAyarKaydet(b, ob);
+        }
+
+        function bkBirimDegisti(deger) {
+            var b = (_bk.veri.bolumler || []).filter(function (x) { return x.anahtar === _bk.secili; })[0];
+            if (!b || (deger !== 'kisi' && deger !== 'makine')) return;
+            b.birim = deger;
+            bkCiz();
+            bkAyarKaydet(b, { birim: deger });
         }
 
         function bkRenk(ad, alfa) {
@@ -22301,7 +22318,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                         legend: { display: false },
                         tooltip: { callbacks: { label: function (c) {
                             var x = satir[c.dataIndex];
-                            return ' %' + c.parsed.x + ' · ort. ' + bkSayi(x.ort) + ' kişi gerekli / ' + bkSayi(x.b.kisi) + ' mevcut';
+                            return ' %' + c.parsed.x + ' · ort. ' + bkSayi(x.ort) + ' ' + bkBirim(x.b) + ' gerekli / ' + bkSayi(x.b.kisi) + ' mevcut';
                         } } }
                     },
                     scales: {
@@ -22340,9 +22357,14 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             var b = d.bolumler.filter(function (x) { return x.anahtar === _bk.secili; })[0];
             if (_bk.grafik2) { _bk.grafik2.destroy(); _bk.grafik2 = null; }
             if (!b) return;
-            document.getElementById('bk-bolum-baslik').textContent = '📊 ' + (b.tesis !== 'TK2' ? b.tesis + ' ' : '') + b.ad + ' — haftalık gereken kişi';
+            document.getElementById('bk-bolum-baslik').textContent = '📊 ' + (b.tesis !== 'TK2' ? b.tesis + ' ' : '') + b.ad + ' — haftalık gereken ' + bkBirim(b);
             document.getElementById('bk-ayar').innerHTML =
-                'Günlük net saat <input type="number" step="0.1" min="1" max="24" value="' + b.gunluk_saat + '" onchange="bkAyarDegisti(\'gunluk_saat\', this.value)"> ' +
+                'Birim <select onchange="bkBirimDegisti(this.value)" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 6px;font-weight:700">' +
+                    '<option value="kisi"' + (b.birim !== 'makine' ? ' selected' : '') + '>kişi</option>' +
+                    '<option value="makine"' + (b.birim === 'makine' ? ' selected' : '') + '>makine</option></select> ' +
+                (b.birim === 'makine' ? ' Kurulu <input type="number" step="1" min="0" max="500" value="' + (b.kurulu || '') + '" onchange="bkAyarDegisti(\'kurulu\', this.value)" title="Toplam makine — ek makine önerisi için"> ' : '') +
+                (b.uyum != null || b.anahtar === 'TK2|kaynak' ? ' İstasyon uyumu % <input type="number" step="5" min="0" max="100" value="' + (b.uyum == null ? '' : b.uyum) + '" onchange="bkAyarDegisti(\'uyum\', this.value)" title="Çift istasyon: robot kaynak yaparken diğer istasyonda söktak. %100 = tam örtüşme (parça başı max(K,S)), %0 = seri (K+S)"> ' : '') +
+                ' Günlük net saat <input type="number" step="0.1" min="1" max="24" value="' + b.gunluk_saat + '" onchange="bkAyarDegisti(\'gunluk_saat\', this.value)"> ' +
                 ' Verim % <input type="number" step="1" min="10" max="150" value="' + b.verim + '" onchange="bkAyarDegisti(\'verim\', this.value)">';
             var anahtarlar = hs.map(function (h) { return h.no; });
             var etiket = hs.map(function (h) { return h.no + ' (' + bkTarih(h) + ' · ' + bkSayi(h.gun) + 'g)'; });
@@ -22362,7 +22384,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                           data: yukler.map(function (y, i) { return kisi(y.tahmini, i); }), borderRadius: 4, barPercentage: 0.6 },
                         seri ? { type: 'bar', label: 'Önceki haftadan devreden', stack: 'y', backgroundColor: bkRenk('--muted', 0.45),
                           data: girisler.map(function (v, i) { return kisi(v, i); }), borderRadius: 4, barPercentage: 0.6 } : null,
-                        { type: 'line', label: 'Mevcut kişi', data: anahtarlar.map(function () { return b.kisi; }),
+                        { type: 'line', label: 'Mevcut ' + bkBirim(b), data: anahtarlar.map(function () { return b.kisi; }),
                           borderColor: bkRenk('--text'), borderWidth: 2, borderDash: [5, 4], pointRadius: 0, stepped: true, fill: false }
                     ].filter(Boolean)
                 },
@@ -22371,16 +22393,16 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                     plugins: {
                         legend: { labels: { color: metin, boxWidth: 12 } },
                         tooltip: { callbacks: {
-                            label: function (c) { return c.parsed.y == null ? ' ' + c.dataset.label + ': —' : ' ' + c.dataset.label + ': ' + bkSayi(c.parsed.y) + ' kişi'; },
+                            label: function (c) { return c.parsed.y == null ? ' ' + c.dataset.label + ': —' : ' ' + c.dataset.label + ': ' + bkSayi(c.parsed.y) + ' ' + bkBirim(b); },
                             footer: function (it) {
                                 var i = it[0].dataIndex, ks = bkToplam(yukler[i]) + girisler[i];
-                                return (kap[i] > 0 ? 'Toplam ' + bkSayi(ks / kap[i]) + ' kişi · ' : 'Çalışma günü yok · ') +
+                                return (kap[i] > 0 ? 'Toplam ' + bkSayi(ks / kap[i]) + ' ' + bkBirim(b) + ' · ' : 'Çalışma günü yok · ') +
                                        Math.round(ks) + ' kişi-saat · ' + bkSayi(hs[i].gun) + ' gün';
                             } } }
                     },
                     scales: {
                         x: { stacked: true, ticks: { color: metin }, grid: { display: false } },
-                        y: { stacked: true, beginAtZero: true, title: { display: true, text: 'kişi', color: metin },
+                        y: { stacked: true, beginAtZero: true, title: { display: true, text: bkBirim(b), color: metin },
                              ticks: { color: metin }, grid: { color: izgara } }
                     },
                     onClick: function (e, el) {
@@ -22396,25 +22418,35 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             var etk = _bk.hafta === 'gecikmis' ? 'bakiye (gecikmiş iş)' : _bk.hafta;
             document.getElementById('bk-detay-baslik').textContent = '🔎 ' + b.ad + ' — ' + etk + ' ürünleri';
             var govde = document.getElementById('bk-detay');
-            govde.innerHTML = '<tr><td colspan="7"><div class="empty-state">Yükleniyor…</div></td></tr>';
+            govde.innerHTML = '<tr><td colspan="8"><div class="empty-state">Yükleniyor…</div></td></tr>';
             try {
                 var r = await panelFetch('/api/bolum_kapasite/detay?anahtar=' + encodeURIComponent(b.anahtar) + '&hafta=' + encodeURIComponent(_bk.hafta) + '&n_hafta=8');
                 var d = await r.json();
                 var u = d.urunler || [];
                 document.getElementById('bk-detay-not').textContent = u.length ? 'yüke göre ilk ' + u.length : '';
                 govde.innerHTML = u.map(function (x) {
-                    var sure = x.sn ? bkSayi(x.sn) + ' sn' : x.kap1v ? x.kap1v + ' adet/vardiya' : '<span style="color:var(--warn)">süre yok</span>';
-                    var ks = x.saat_sn != null ? x.saat_sn / (b.verim / 100) : x.vardiya != null ? x.vardiya * b.gunluk_saat : null;
+                    var uy = (b.uyum || 0) / 100, std = null, sure;
+                    if (x.sn) {
+                        var etkin = x.sn - uy * (x.min_sn || 0);
+                        std = x.saat_sn - uy * (x.saat_min || 0);
+                        sure = x.goz ? bkSayi(x.baski_sn) + ' sn ÷ ' + bkSayi(x.goz) + ' göz = ' + bkSayi(etkin) + ' sn'
+                             : (x.min_sn && uy) ? 'K ' + bkSayi(x.k_sn) + ' + S ' + bkSayi(x.s_sn) + ' − %' + Math.round(uy * 100) + '×' + bkSayi(x.min_sn) + ' = ' + bkSayi(etkin) + ' sn'
+                             : bkSayi(x.sn) + ' sn';
+                    } else {
+                        sure = x.kap1v ? x.kap1v + ' adet/vardiya' : '<span style="color:var(--warn)">süre yok</span>';
+                    }
+                    var ks = std != null ? std / (b.verim / 100) : x.vardiya != null ? x.vardiya * b.gunluk_saat : null;
                     return '<tr><td style="font-weight:700">' + esc(x.kod) + '</td>' +
                         '<td style="text-align:right">' + x.adet.toLocaleString('tr-TR') + '</td>' +
                         '<td style="text-align:right;color:var(--muted)">' + (x.launch ? x.launch.toLocaleString('tr-TR') : '—') + '</td>' +
                         '<td style="text-align:right">' + x.emir + '</td>' +
-                        '<td style="text-align:right">' + sure + '</td>' +
+                        '<td style="text-align:right;white-space:nowrap">' + sure + '</td>' +
+                        '<td style="text-align:right">' + (std != null ? bkSayi(std) : '—') + '</td>' +
                         '<td style="text-align:right;font-weight:700">' + (ks != null ? bkSayi(ks) : '—') + '</td>' +
                         '<td>' + esc(String(x.en_eski || '').slice(0, 10)) + '</td></tr>';
-                }).join('') || '<tr><td colspan="7"><div class="empty-state">Bu hücrede açık iş emri yok.</div></td></tr>';
+                }).join('') || '<tr><td colspan="8"><div class="empty-state">Bu hücrede açık iş emri yok.</div></td></tr>';
             } catch (e) {
-                govde.innerHTML = '<tr><td colspan="7"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
+                govde.innerHTML = '<tr><td colspan="8"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
             }
         }
 
@@ -22455,6 +22487,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                     }
                     return {
                         ad: b.ad, tesis: b.tesis, kisi: b.kisi || 0, gunluk_saat: b.gunluk_saat, verim: b.verim, kapsama: b.kapsama,
+                        birim: bkBirim(b), kurulu: b.kurulu || null, uyum: b.uyum,
                         ort: ort, oran: (b.kisi > 0 && ort != null) ? ort / b.kisi * 100 : null,
                         bakiye_kh: bkBakiye(b),
                         donem_sonu_kh: seri ? seri[hs[hs.length - 1].no].cikis / (5 * b.gunluk_saat) : null,

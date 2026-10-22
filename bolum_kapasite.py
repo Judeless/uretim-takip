@@ -14,8 +14,15 @@ HESAP (tek ölçü: KİŞİ)
   Bölüm     Ana Veri (data/AnaVeri.xlsx): D 'TK-1/2' + E 'Bölüm'. TK2 bölümleri Forge
             anahtarıyla (Kaynak, Lazer Kesim, Büküm, Metal Enjeksiyon, İşleme, Montaj), diğer
             tesisler E'deki adla (TK1 Tel, LF, Joystick…). Satın alma / ADP / Aspanda dışarıda.
-  Süre      G 'Çevrim süresi / söktak' (sn/adet; kaynakta G + H 'Kaynak süresi' = OEE'deki
-            hedef çevrim). G yoksa M 'Kapasite 1V/Adet' (bir kişinin bir vardiyada yaptığı adet).
+  Süre      G 'Çevrim süresi / söktak' (sn/adet). G yoksa M 'Kapasite 1V/Adet' (bir kişinin bir
+            vardiyada yaptığı adet). METAL: G baskı başı çevrim → parça başı = G ÷ I 'Kalıp göz'
+            (kullanıcı 2026-10-22: 3914W 4 göz 65 sn, 811 adet = 3,66 saat). KAYNAK: çift istasyon —
+            robot bir istasyonda kaynak yaparken operatör diğerinde söktak yapar (oee.pair_cycle):
+            parça başı = K + S − uyum × min(K, S); uyum %100 → max(K,S)'ye iner, %0 → seri (K+S).
+            Uyum bölüm ayarı (varsayılan %50, kullanıcı 2026-10-22); min(K,S) payı ayrı taşınır,
+            uyum panelde değişince sayfa sunucuya gitmeden yeniden hesaplanır.
+  Birim     Kişi ya da MAKİNE (lazer: 6 kurulu makinenin 4'ü aynı anda çalışıyor → 'aktif makine';
+            kurulu sayı 'devreye alınabilecek ek makine' için).
   Kişi-saat sn'li ürün: adet × sn ÷ 3600 ÷ verim · vardiya adetli ürün: adet ÷ M × günlük saat
             (M zaten gerçekçi vardiya adedi → verim ikinci kez düşülmez)
   Gereken kişi = haftalık kişi-saat ÷ (o haftanın ÇALIŞMA GÜNÜ × günlük saat). Doluluk = gereken
@@ -37,6 +44,11 @@ VARSAYILAN_SAAT = 8.5
 VARSAYILAN_VERIM = 85.0
 TK2_SIRA = ('kaynak', 'lazer', 'pres', 'metal', 'montaj')
 HARIC_BOLUM = ('TK2|isleme',)    # kullanıcı 2026-10-21: "işlemeyi kaldır"
+# Bölüme özgü varsayılanlar (kullanıcı 2026-10-22) — panelden değiştirilir (bolum_kapasite_ayar)
+BOLUM_VARSAYILAN = {
+    'TK2|lazer': {'birim': 'makine', 'kisi': 4, 'kurulu': 6},   # 6 makinenin 4'ü aynı anda kesimde
+    'TK2|kaynak': {'uyum': 50},                                # çift istasyon süre uyumu %50
+}
 # Resmî tatiller (tam gün) ve arifeler (yarım gün — Cofle'de yarım günde çalışılmıyor, o gün
 # çalışma gününden düşer). Dini bayramlar Diyanet takvimine göre girildi; köprü / ek tatil
 # ya da farklı bir karar için haftanın gün sayısı panelden elle düzeltilir.
@@ -76,6 +88,11 @@ def tablolari_kur(conn):
             updated_at TEXT DEFAULT ''
         )
     """)
+    for kolon in ('uyum REAL', 'birim TEXT', 'kurulu REAL'):
+        try:
+            conn.execute(f'ALTER TABLE bolum_kapasite_ayar ADD COLUMN {kolon}')
+        except Exception:
+            pass
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kapasite_hafta_gun (
             hafta TEXT PRIMARY KEY,
@@ -154,9 +171,18 @@ def ana_veri_oku(yol=None):
                 urun[kod] = {'bolumsuz': True}
                 continue
             g, h = _sayi(al(r, 'cevrim')), _sayi(al(r, 'kaynak'))
-            sn = ((g or 0) + (h or 0)) if anahtar == 'TK2|kaynak' and (g or h) else g
+            ek = {}
+            if anahtar == 'TK2|kaynak' and (g or h):
+                sn = (g or 0) + (h or 0)                      # seri: söktak (G) + kaynak (H)
+                ek = {'s_sn': g, 'k_sn': h, 'min_sn': min(g, h) if (g and h) else 0.0}
+            elif anahtar == 'TK2|metal' and g:
+                goz = _sayi(al(r, 'goz')) or 1.0
+                sn = g / goz                                  # G baskı başı; bir baskıda göz kadar parça
+                ek = {'baski_sn': g, 'goz': goz}
+            else:
+                sn = g
             urun[kod] = {'anahtar': anahtar, 'tesis': tesis or 'TK2', 'bolum': ad,
-                         'sn': sn, 'kap1v': _sayi(al(r, 'kapasite')) if not sn else None}
+                         'sn': sn, 'kap1v': _sayi(al(r, 'kapasite')) if not sn else None, **ek}
         ncs = _ncs_oku(wb)
     finally:
         wb.close()
@@ -192,12 +218,14 @@ def _ncs_oku(wb):
 
 
 def ayarlar(conn):
-    return {r[0]: {'kisi': r[1], 'gunluk_saat': r[2], 'verim': r[3], 'guncelleyen': r[4], 'updated_at': r[5]}
-            for r in conn.execute("SELECT anahtar, kisi, gunluk_saat, verim, guncelleyen, updated_at "
-                                  "FROM bolum_kapasite_ayar")}
+    return {r[0]: {'kisi': r[1], 'gunluk_saat': r[2], 'verim': r[3], 'guncelleyen': r[4], 'updated_at': r[5],
+                   'uyum': r[6], 'birim': r[7], 'kurulu': r[8]}
+            for r in conn.execute("SELECT anahtar, kisi, gunluk_saat, verim, guncelleyen, updated_at, "
+                                  "uyum, birim, kurulu FROM bolum_kapasite_ayar")}
 
 
-def ayar_kaydet(conn, anahtar, kisi=None, gunluk_saat=None, verim=None, kullanici=''):
+def ayar_kaydet(conn, anahtar, kisi=None, gunluk_saat=None, verim=None, kullanici='',
+                uyum=None, birim=None, kurulu=None):
     eski = ayarlar(conn).get(anahtar, {})
 
     def sec(yeni, ad, alt, ust):
@@ -207,13 +235,17 @@ def ayar_kaydet(conn, anahtar, kisi=None, gunluk_saat=None, verim=None, kullanic
         if not alt <= v <= ust:
             raise ValueError(f'{ad} {alt}–{ust} arasında olmalı')
         return v
+    if birim not in (None, '') and birim not in ('kisi', 'makine'):
+        raise ValueError('birim kisi ya da makine olmalı')
     conn.execute(
-        "INSERT INTO bolum_kapasite_ayar (anahtar, kisi, gunluk_saat, verim, guncelleyen, updated_at) "
-        "VALUES (?,?,?,?,?,?) ON CONFLICT(anahtar) DO UPDATE SET kisi=excluded.kisi, "
+        "INSERT INTO bolum_kapasite_ayar (anahtar, kisi, gunluk_saat, verim, guncelleyen, updated_at, uyum, birim, kurulu) "
+        "VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(anahtar) DO UPDATE SET kisi=excluded.kisi, "
         "gunluk_saat=excluded.gunluk_saat, verim=excluded.verim, guncelleyen=excluded.guncelleyen, "
-        "updated_at=excluded.updated_at",
+        "updated_at=excluded.updated_at, uyum=excluded.uyum, birim=excluded.birim, kurulu=excluded.kurulu",
         (anahtar, sec(kisi, 'kisi', 0, 500), sec(gunluk_saat, 'gunluk_saat', 1, 24),
-         sec(verim, 'verim', 10, 150), kullanici, datetime.now().strftime('%Y-%m-%d %H:%M')))
+         sec(verim, 'verim', 10, 150), kullanici, datetime.now().strftime('%Y-%m-%d %H:%M'),
+         sec(uyum, 'uyum', 0, 100), birim if birim not in (None, '') else eski.get('birim'),
+         sec(kurulu, 'kurulu', 0, 500)))
     conn.commit()
 
 
@@ -284,17 +316,24 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
 
     def bolum(anahtar, ad, tesis):
         if anahtar not in bolumler:
-            a, n = ay.get(anahtar, {}), av['ncs'].get(anahtar, {})
+            a, n, v = ay.get(anahtar, {}), av['ncs'].get(anahtar, {}), BOLUM_VARSAYILAN.get(anahtar, {})
+            if a.get('kisi') is not None:
+                kisi, kaynak = a['kisi'], 'elle'
+            elif v.get('kisi') is not None:
+                kisi, kaynak = v['kisi'], 'varsayılan'
+            else:
+                kisi, kaynak = (n.get('kisi') or 0), ('NçS ' + n['ay'] if n.get('kisi') else '')
             bolumler[anahtar] = {
-                'anahtar': anahtar, 'ad': ad, 'tesis': tesis,
-                'kisi': a.get('kisi') if a.get('kisi') is not None else (n.get('kisi') or 0),
+                'anahtar': anahtar, 'ad': ad, 'tesis': tesis, 'kisi': kisi, 'kisi_kaynagi': kaynak,
                 'gunluk_saat': a.get('gunluk_saat') or VARSAYILAN_SAAT,
                 'verim': a.get('verim') or VARSAYILAN_VERIM,
-                'kisi_kaynagi': 'elle' if a.get('kisi') is not None else ('NçS ' + n['ay'] if n.get('kisi') else ''),
+                'birim': a.get('birim') or v.get('birim') or 'kisi',
+                'kurulu': a.get('kurulu') if a.get('kurulu') is not None else v.get('kurulu'),
+                'uyum': a.get('uyum') if a.get('uyum') is not None else v.get('uyum'),
                 'guncelleyen': a.get('guncelleyen') or '',
-                'hucre': {k: {'saat_sn': 0.0, 'vardiya': 0.0, 'adet': 0.0, 'adet_suresiz': 0.0, 'kod': set(),
-                              'suresiz_kod': set()} for k in ['gecikmis'] + [h['no'] for h in hft]},
-                '_sn': [], '_kap': []}
+                'hucre': {k: {'saat_sn': 0.0, 'saat_min': 0.0, 'vardiya': 0.0, 'adet': 0.0, 'adet_suresiz': 0.0,
+                              'kod': set(), 'suresiz_kod': set()} for k in ['gecikmis'] + [h['no'] for h in hft]},
+                '_sn': [], '_kap': [], '_oran': []}
         return bolumler[anahtar]
 
     for r in conn.execute("SELECT kod, kalan, bitis, senk_at FROM kapasite_talep WHERE kalan > 0"):
@@ -330,6 +369,7 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
         h['kod'].add(kod)
         if u.get('sn'):
             h['saat_sn'] += r[1] * u['sn'] / 3600.0
+            h['saat_min'] += r[1] * (u.get('min_sn') or 0) / 3600.0     # çift istasyonda örtüşebilen
         elif u.get('kap1v'):
             h['vardiya'] += r[1] / u['kap1v']
         else:
@@ -342,18 +382,22 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
         b = bolumler.get(u.get('anahtar'))
         if b is not None:
             (b['_sn'] if u.get('sn') else b['_kap'] if u.get('kap1v') else []).append(u.get('sn') or u.get('kap1v'))
+            if u.get('sn') and u.get('min_sn'):
+                b['_oran'].append(u['min_sn'] / u['sn'])
     for b in bolumler.values():
         b['ortanca_sn'] = round(statistics.median(b['_sn']), 1) if b['_sn'] else None
         b['ortanca_kap1v'] = round(statistics.median(b['_kap']), 1) if b['_kap'] else None
+        # Süresiz kaynak ürününün tahmininde de çift istasyon payı: min(K,S) ÷ (K+S) ortancası
+        b['ortanca_min_oran'] = round(statistics.median(b['_oran']), 3) if b['_oran'] else 0
         tanimli = suresiz = 0.0
         for h in b['hucre'].values():
             h['kod_sayisi'], h['suresiz_kod_sayisi'] = len(h.pop('kod')), len(h.pop('suresiz_kod'))
             tanimli += h['adet'] - h['adet_suresiz']
             suresiz += h['adet_suresiz']
             h['adet'], h['adet_suresiz'] = round(h['adet']), round(h['adet_suresiz'])
-            h['saat_sn'], h['vardiya'] = round(h['saat_sn'], 2), round(h['vardiya'], 3)
+            h['saat_sn'], h['saat_min'], h['vardiya'] = round(h['saat_sn'], 2), round(h['saat_min'], 2), round(h['vardiya'], 3)
         b['kapsama'] = round(100.0 * tanimli / (tanimli + suresiz), 1) if (tanimli + suresiz) else None
-        del b['_sn'], b['_kap']
+        del b['_sn'], b['_kap'], b['_oran']
     sira = {f'TK2|{k}': i for i, k in enumerate(TK2_SIRA)}
     liste = sorted(bolumler.values(), key=lambda b: ({'TK2': 0, 'TK1': 1}.get(b['tesis'], 2),
                                                      sira.get(b['anahtar'], 99), b['ad']))
@@ -397,7 +441,9 @@ def detay(conn, anahtar, hafta_no, hafta=4, bugun=None, yol=None, n=40):
         if not aralik[0] <= bt < aralik[1]:
             continue
         d = out.setdefault(kod, {'kod': kod, 'adet': 0.0, 'emir': 0, 'launch': 0.0, 'en_eski': r[2],
-                                 'sn': u.get('sn'), 'kap1v': u.get('kap1v')})
+                                 'sn': u.get('sn'), 'kap1v': u.get('kap1v'), 'min_sn': u.get('min_sn') or 0,
+                                 'k_sn': u.get('k_sn'), 's_sn': u.get('s_sn'),
+                                 'baski_sn': u.get('baski_sn'), 'goz': u.get('goz')})
         d['adet'] += r[1]
         d['emir'] += 1
         if str(r[3]) != '10':
@@ -405,6 +451,7 @@ def detay(conn, anahtar, hafta_no, hafta=4, bugun=None, yol=None, n=40):
         d['en_eski'] = min(d['en_eski'], r[2])
     for d in out.values():
         d['saat_sn'] = round(d['adet'] * d['sn'] / 3600.0, 2) if d['sn'] else None
+        d['saat_min'] = round(d['adet'] * d['min_sn'] / 3600.0, 2)
         d['vardiya'] = round(d['adet'] / d['kap1v'], 2) if d['kap1v'] else None
         d['adet'], d['launch'] = round(d['adet']), round(d['launch'])
     # Yüke göre: süreli ürünler kişi-saatiyle, süresizler en sonda adetle

@@ -7778,14 +7778,16 @@ def bolum_kapasite_detay_api():
 @app.route('/api/bolum_kapasite/ayar', methods=['POST'])
 @panel_gerekli(izin='kapasite')
 def bolum_kapasite_ayar_api():
-    """Body: {anahtar, kisi?, gunluk_saat?, verim?} — gönderilmeyen alan korunur."""
+    """Body: {anahtar, kisi?, gunluk_saat?, verim?, uyum?, birim? (kisi|makine), kurulu?}
+    — gönderilmeyen alan korunur."""
     d = request.get_json(silent=True) or {}
     anahtar = str(d.get('anahtar') or '').strip()
     if not anahtar or '|' not in anahtar:
         return jsonify({'hata': 'Geçersiz bölüm'}), 400
     try:
         BKAP.ayar_kaydet(get_db(), anahtar, d.get('kisi'), d.get('gunluk_saat'), d.get('verim'),
-                         g.panel_ku['kullanici_adi'])
+                         g.panel_ku['kullanici_adi'], uyum=d.get('uyum'), birim=d.get('birim'),
+                         kurulu=d.get('kurulu'))
     except (TypeError, ValueError) as e:
         return jsonify({'hata': f'Geçersiz değer: {e}'}), 400
     return jsonify({'basarili': True})

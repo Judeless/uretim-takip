@@ -1655,6 +1655,13 @@ def init_db(_ikinci_tur=False):
         )
     """)
 
+    # 2026-10-22: istasyon uyumu (kaynak çift istasyon) · kapasite birimi kişi/makine · kurulu makine
+    for _kol in ('uyum REAL', 'birim TEXT', 'kurulu REAL'):
+        try:
+            c.execute(f'ALTER TABLE bolum_kapasite_ayar ADD COLUMN {_kol}')
+        except Exception:
+            pass
+
     # Haftanın çalışma günü elle (anahtar = pazartesi tarihi); yoksa hafta içi − tatil − arife
     c.execute("""
         CREATE TABLE IF NOT EXISTS kapasite_hafta_gun (

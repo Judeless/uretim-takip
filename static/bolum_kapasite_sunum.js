@@ -30,6 +30,21 @@
     }
     function yuzde(oran) { return oran == null || !isFinite(oran) ? '—' : '%' + Math.round(oran); }
     function bolumAdi(b) { return (b.tesis === 'TK2' ? '' : b.tesis + ' ') + b.ad; }
+    function birim(b) { return b.birim === 'makine' ? 'makine' : 'kişi'; }
+    function makineMi(b) { return b.birim === 'makine'; }
+    function mevcutMetin(b) {
+        return sayi(b.kisi, b.kisi % 1 ? 1 : 0) + ' ' + birim(b) + (makineMi(b) && b.kurulu ? ' (' + sayi(b.kurulu, 0) + ' kurulu)' : '');
+    }
+    // Ek kapasite önerisi: makine bölümünde kurulu makine yetiyorsa 'devreye al'
+    function oneri(b) {
+        var ek = Math.max(0, (b.ort || 0) - (b.kisi || 0));
+        if (ek <= 0.05) return null;
+        if (makineMi(b) && b.kurulu && b.ort <= b.kurulu + 0.05)
+            return { ek: '+' + sayi(ek) + ' makine', alt: 'kurulu ' + sayi(b.kurulu, 0) + ' makineyle karşılanır' };
+        if (makineMi(b))
+            return { ek: '+' + sayi(ek) + ' makine', alt: (b.kurulu ? 'kurulu ' + sayi(b.kurulu, 0) + ' yetmiyor · ' : '') + '≈ ' + sayi(ek * b.haftalik_saat, 0) + ' makine-saat/hafta' };
+        return { ek: '+' + sayi(ek) + ' kişi', alt: '≈ ' + sayi(ek * b.haftalik_saat, 0) + ' saat/hafta fazla mesai' };
+    }
 
     // Başlık + alt bilgi (her içerik sayfası)
     function sayfa(p, v, baslik, alt) {
@@ -77,31 +92,33 @@
             x: 0.6, y: 6.7, w: 12.1, h: 0.4, fontFace: YAZI, fontSize: 12, color: 'A5A3BD', margin: 0, isTextBox: true });
 
         // ── 2) YÖNETİCİ ÖZETİ ──────────────────────────────────────────────────────
-        s = sayfa(p, v, 'Yönetici özeti', v.donem + ' dönem ortalaması · mevcut kişi sayılarıyla');
+        s = sayfa(p, v, 'Yönetici özeti', v.donem + ' dönem ortalaması · mevcut kapasiteyle');
         var tk2 = olculen.filter(function (b) { return b.tesis === 'TK2'; });
         var gerekTk2 = tk2.reduce(function (t, b) { return t + b.ort; }, 0), mevcutTk2 = tk2.reduce(function (t, b) { return t + b.kisi; }, 0);
         var genelOran = mevcutTk2 > 0 ? gerekTk2 / mevcutTk2 * 100 : null;
         var asan = olculen.filter(function (b) { return b.oran > 100; });
         var bakiye = ic.reduce(function (t, b) { return t + (b.bakiye_kh || 0); }, 0);
-        var ekKisi = olculen.reduce(function (t, b) { return t + Math.max(0, b.ort - b.kisi); }, 0);
-        var ekSaat = olculen.reduce(function (t, b) { return t + Math.max(0, b.ort - b.kisi) * b.haftalik_saat; }, 0);
+        var kisiler = olculen.filter(function (b) { return !makineMi(b); });
+        var ekKisi = kisiler.reduce(function (t, b) { return t + Math.max(0, b.ort - b.kisi); }, 0);
+        var ekSaat = kisiler.reduce(function (t, b) { return t + Math.max(0, b.ort - b.kisi) * b.haftalik_saat; }, 0);
         kpiKart(p, s, 0.6, 1.7, 2.9, 1.95, yuzde(genelOran), 'Ortalama doluluk · TK2', durum(genelOran).renk,
-                sayi(gerekTk2) + ' kişi gerekli / ' + sayi(mevcutTk2, 0) + ' mevcut');
+                'gereken ' + sayi(gerekTk2) + ' / mevcut ' + sayi(mevcutTk2, 0));
         kpiKart(p, s, 3.7, 1.7, 2.9, 1.95, asan.length + ' / ' + olculen.length, 'Kapasiteyi aşan bölüm', asan.length ? R.asim : R.ok,
                 asan.length ? asan.map(function (b) { return b.ad; }).slice(0, 3).join(', ') : 'tüm bölümler kapasite içinde');
-        kpiKart(p, s, 6.8, 1.7, 2.9, 1.95, sayi(bakiye), 'Bakiye · kişi-hafta', bakiye >= 1 ? R.asim : R.metin, 'bitiş tarihi geçmiş açık iş');
+        kpiKart(p, s, 6.8, 1.7, 2.9, 1.95, sayi(bakiye), 'Bakiye (gecikmiş iş)', bakiye >= 1 ? R.asim : R.metin, 'kişi/makine-hafta toplamı');
         kpiKart(p, s, 9.9, 1.7, 2.85, 1.95, '+' + sayi(ekKisi), 'Ek kişi ihtiyacı', ekKisi > 0.05 ? R.asim : R.ok,
                 '≈ ' + sayi(ekSaat, 0) + ' saat/hafta fazla mesai');
         var maddeler = [];
         siraliEk.filter(function (b) { return ek(b) > 0.05; }).slice(0, 3).forEach(function (b) {
-            maddeler.push(bolumAdi(b) + ': dönemde ortalama ' + sayi(b.ort) + ' kişi gerekiyor, mevcut ' + sayi(b.kisi, b.kisi % 1 ? 1 : 0) +
-                          ' kişi (' + yuzde(b.oran) + ') → +' + sayi(ek(b)) + ' kişi.');
+            var o = oneri(b);
+            maddeler.push(bolumAdi(b) + ': dönemde ortalama ' + sayi(b.ort) + ' ' + birim(b) + ' gerekiyor, mevcut ' + mevcutMetin(b) +
+                          ' (' + yuzde(b.oran) + ') → ' + o.ek + (makineMi(b) ? ', ' + o.alt : '') + '.');
         });
         if (v.devirli) {
             olculen.filter(function (b) { return (b.bakiye_kh || 0) >= 0.5; })
                    .sort(function (a, b) { return (b.donem_sonu_kh || 0) - (a.donem_sonu_kh || 0); }).slice(0, 2).forEach(function (b) {
                 maddeler.push(bolumAdi(b) + ': mevcut kişiyle bakiye ' + (b.donem_sonu_kh > 0.05
-                    ? 'dönem içinde erimiyor — sonunda ' + sayi(b.donem_sonu_kh) + ' kişi-hafta kalıyor.'
+                    ? 'dönem içinde erimiyor — sonunda ' + sayi(b.donem_sonu_kh) + ' ' + birim(b) + '-hafta kalıyor.'
                     : (b.erime_haftasi ? b.erime_haftasi + ' haftasında eriyor.' : 'dönem içinde eriyor.')));
             });
         }
@@ -114,11 +131,14 @@
             x: 0.6, y: 4.45, w: 12.1, h: 2.45, fontFace: YAZI, fontSize: 15, color: R.metin, paraSpaceAfter: 6, valign: 'top', margin: 0, isTextBox: true });
 
         // ── 3) GEREKEN vs MEVCUT KİŞİ ────────────────────────────────────────────────
-        s = sayfa(p, v, 'Gereken ve mevcut kişi', 'Dönem ortalaması (' + v.donem + ')' + (v.devirli ? ' · bakiye dahil' : ''));
+        s = sayfa(p, v, 'Gereken ve mevcut kapasite', 'Dönem ortalaması (' + v.donem + ')' + (v.devirli ? ' · bakiye dahil' : '') +
+                  ' · lazer gibi makine bölümlerinde birim aktif makine');
         var g3 = olculen.slice().concat(ic.filter(function (b) { return !(b.kisi > 0) && b.ort >= 0.05; }));
         s.addChart(p.charts.BAR, [
-            { name: 'Gereken kişi (ort.)', labels: g3.map(bolumAdi), values: g3.map(function (b) { return Math.round(b.ort * 10) / 10; }) },
-            { name: 'Mevcut kişi', labels: g3.map(bolumAdi), values: g3.map(function (b) { return b.kisi; }) }
+            { name: 'Gereken (ort.)', labels: g3.map(function (b) { return bolumAdi(b) + (makineMi(b) ? ' (makine)' : ''); }),
+              values: g3.map(function (b) { return Math.round(b.ort * 10) / 10; }) },
+            { name: 'Mevcut', labels: g3.map(function (b) { return bolumAdi(b) + (makineMi(b) ? ' (makine)' : ''); }),
+              values: g3.map(function (b) { return b.kisi; }) }
         ], {
             x: 0.6, y: 1.55, w: 8.4, h: 5.35, barDir: 'bar', barGrouping: 'clustered', barGapWidthPct: 55,
             chartColors: [R.mor, R.mevcut], catAxisOrientation: 'maxMin',
@@ -133,18 +153,18 @@
         ]];
         g3.forEach(function (b) {
             var d = durum(b.oran);
-            t3.push([{ text: bolumAdi(b) }, { text: (d.isaret ? d.isaret + ' ' : '') + (b.kisi > 0 ? yuzde(b.oran) : 'kişi yok'),
+            t3.push([{ text: bolumAdi(b) }, { text: (d.isaret ? d.isaret + ' ' : '') + (b.kisi > 0 ? yuzde(b.oran) : 'kapasite yok'),
                 options: { bold: true, color: d.renk, fill: { color: d.zemin }, align: 'center' } }]);
         });
         s.addTable(t3, { x: 9.3, y: 1.6, w: 3.45, colW: [2.15, 1.3], fontFace: YAZI, fontSize: 12, color: R.metin,
                          border: { type: 'solid', pt: 0.5, color: R.cizgi }, rowH: 0.36, valign: 'middle' });
-        s.addText('Doluluk = gereken ÷ mevcut kişi · ✓ ≤%85 · ! %85–100 · ▲ %100 üstü', {
+        s.addText('Doluluk = gereken ÷ mevcut kapasite · ✓ ≤%85 · ! %85–100 · ▲ %100 üstü', {
             x: 9.3, y: 6.55, w: 3.45, h: 0.35, fontFace: YAZI, fontSize: 9, color: R.soluk, margin: 0, isTextBox: true });
 
         // ── 4) HAFTALIK TABLO ─────────────────────────────────────────────────────────
-        s = sayfa(p, v, 'Haftalık gereken kişi', 'Her hücre: o hafta gereken kişi ve mevcut kişiye göre doluluk' +
+        s = sayfa(p, v, 'Haftalık gereken kapasite', 'Her hücre: o hafta gereken kişi (makine bölümünde makine) ve mevcuda göre doluluk' +
                   (v.devirli ? ' · ilk hafta bakiyeyi taşır, bitmeyen iş sonraki haftaya devreder' : ''));
-        var bas4 = [{ text: 'Bölüm' }, { text: 'Mevcut' }, { text: 'Bakiye\n(kişi-hf)' }].concat(v.haftalar.map(function (h) {
+        var bas4 = [{ text: 'Bölüm' }, { text: 'Mevcut' }, { text: 'Bakiye\n(hafta)' }].concat(v.haftalar.map(function (h) {
             return { text: h.no + '\n' + h.tarih + ' · ' + sayi(h.gun, h.gun % 1 ? 1 : 0) + ' gün' + (h.kismi ? ' (kalan)' : '') };
         })).concat([{ text: 'Dönem\nort.' }]);
         bas4.forEach(function (c) { c.options = { bold: true, color: R.beyaz, fill: { color: R.koyu }, align: 'center' }; });
@@ -152,7 +172,7 @@
         var bol4 = ic.filter(function (b) { return (b.ort || 0) >= 0.05; });
         bol4.forEach(function (b) {
             var satir = [{ text: bolumAdi(b), options: { bold: true } },
-                         { text: sayi(b.kisi, b.kisi % 1 ? 1 : 0), options: { align: 'center' } },
+                         { text: sayi(b.kisi, b.kisi % 1 ? 1 : 0) + (makineMi(b) ? ' mak.' : ''), options: { align: 'center' } },
                          { text: (b.bakiye_kh || 0) >= 0.05 ? sayi(b.bakiye_kh) : '—', options: { align: 'center', color: R.ikinci } }];
             b.hafta.forEach(function (h) {
                 var d = durum(b.kisi > 0 ? h.oran : null);
@@ -175,42 +195,44 @@
         // ── 5) BÖLÜM SAYFALARI ─────────────────────────────────────────────────────────
         ic.filter(function (b) { return b.ort >= 0.05; }).forEach(function (b) {
             var d = durum(b.kisi > 0 ? b.oran : null);
-            s = sayfa(p, v, bolumAdi(b) + ' — haftalık iş yükü', 'Gereken kişi (haftanın çalışma gününe göre)' +
-                      (v.devirli ? ' · önceki haftadan devreden iş dahil' : '') + ' · kesik çizgi: mevcut kişi');
+            s = sayfa(p, v, bolumAdi(b) + ' — haftalık iş yükü', 'Gereken ' + birim(b) + ' (haftanın çalışma gününe göre)' +
+                      (v.devirli ? ' · önceki haftadan devreden iş dahil' : '') + ' · kesik çizgi: mevcut ' + birim(b) +
+                      (b.uyum != null ? ' · çift istasyon uyumu %' + Math.round(b.uyum) : ''));
             var et = v.haftalar.map(function (h) { return h.no + ' (' + sayi(h.gun, h.gun % 1 ? 1 : 0) + 'g)'; });
             var cubuk = [{ name: 'Haftanın işi', labels: et, values: b.hafta.map(function (h) { return Math.round((h.kendi_kisi || 0) * 10) / 10; }) }];
             if (v.devirli) cubuk.push({ name: 'Önceki haftadan devreden', labels: et,
                                          values: b.hafta.map(function (h) { return Math.round((h.devir_kisi || 0) * 10) / 10; }) });
             s.addChart([
                 { type: p.charts.BAR, data: cubuk, options: { barGrouping: 'stacked', chartColors: [R.mor, R.morAcik], barGapWidthPct: 45 } },
-                { type: p.charts.LINE, data: [{ name: 'Mevcut kişi', labels: et, values: b.hafta.map(function () { return b.kisi; }) }],
+                { type: p.charts.LINE, data: [{ name: 'Mevcut ' + birim(b), labels: et, values: b.hafta.map(function () { return b.kisi; }) }],
                   options: { chartColors: [R.metin], lineSize: 2, lineDash: 'dash', lineDataSymbol: 'none' } }
             ], {
                 x: 0.6, y: 1.55, w: 8.3, h: 5.35, catAxisLabelColor: R.ikinci, catAxisLabelFontSize: 11, catAxisLabelFontFace: YAZI,
                 valAxisLabelColor: R.soluk, valAxisLabelFontSize: 10, valGridLine: { color: R.cizgi, size: 0.5 }, catGridLine: { style: 'none' },
-                showValAxisTitle: true, valAxisTitle: 'kişi', valAxisTitleColor: R.soluk, valAxisTitleFontSize: 11,
+                showValAxisTitle: true, valAxisTitle: birim(b), valAxisTitleColor: R.soluk, valAxisTitleFontSize: 11,
                 showLegend: true, legendPos: 'b', legendFontSize: 11, legendFontFace: YAZI
             });
             // Sağ panel: anahtar rakamlar
             s.addShape(p.shapes.ROUNDED_RECTANGLE, { x: 9.2, y: 1.6, w: 3.55, h: 5.25, fill: { color: R.morZemin }, line: { color: R.morZemin }, rectRadius: 0.1 });
-            s.addText(b.kisi > 0 ? yuzde(b.oran) : 'kişi yok', { x: 9.45, y: 1.8, w: 3.1, h: 0.85, fontFace: YAZI, fontSize: 40, bold: true, color: d.renk, margin: 0, isTextBox: true });
+            s.addText(b.kisi > 0 ? yuzde(b.oran) : 'kapasite yok', { x: 9.45, y: 1.8, w: 3.1, h: 0.85, fontFace: YAZI, fontSize: 40, bold: true, color: d.renk, margin: 0, isTextBox: true });
             s.addText('dönem ortalaması doluluk', { x: 9.45, y: 2.62, w: 3.1, h: 0.35, fontFace: YAZI, fontSize: 12, color: R.ikinci, margin: 0, isTextBox: true });
             var satirlar = [
-                ['Mevcut kişi', sayi(b.kisi, b.kisi % 1 ? 1 : 0)],
-                ['Gereken kişi (ort.)', sayi(b.ort)],
-                ['Bakiye', sayi(b.bakiye_kh) + ' kişi-hafta'],
-                ['Dönem sonu', v.devirli ? (b.donem_sonu_kh > 0.05 ? sayi(b.donem_sonu_kh) + ' kişi-hafta kalır' : (b.erime_haftasi ? b.erime_haftasi + ' haftasında erir' : 'dönem içinde erir')) : '—'],
+                ['Mevcut', mevcutMetin(b)],
+                ['Gereken (ort.)', sayi(b.ort) + ' ' + birim(b)],
+                ['Bakiye', sayi(b.bakiye_kh) + ' ' + birim(b) + '-hafta'],
+                ['Dönem sonu', v.devirli ? (b.donem_sonu_kh > 0.05 ? sayi(b.donem_sonu_kh) + ' ' + birim(b) + '-hf kalır' : (b.erime_haftasi ? b.erime_haftasi + ' haftasında erir' : 'dönem içinde erir')) : '—'],
                 ['Süre kapsaması', b.kapsama == null ? '—' : '%' + Math.round(b.kapsama)],
                 ['Günlük saat · verim', sayi(b.gunluk_saat) + ' sa · %' + Math.round(b.verim)]
             ];
+            if (b.uyum != null) satirlar.splice(5, 0, ['İstasyon uyumu', '%' + Math.round(b.uyum)]);
             s.addTable(satirlar.map(function (r) {
                 return [{ text: r[0], options: { color: R.ikinci } }, { text: r[1], options: { bold: true, align: 'right' } }];
-            }), { x: 9.4, y: 3.1, w: 3.15, colW: [1.6, 1.55], fontFace: YAZI, fontSize: 12, color: R.metin, rowH: 0.42, valign: 'middle',
+            }), { x: 9.4, y: 3.1, w: 3.15, colW: [1.45, 1.7], fontFace: YAZI, fontSize: 11, color: R.metin, rowH: satirlar.length > 6 ? 0.36 : 0.42, valign: 'middle',
                   border: { type: 'solid', pt: 0.5, color: R.cizgi } });
-            var ek = Math.max(0, b.ort - b.kisi);
-            var yorum = !(b.kisi > 0) ? 'Mevcut kişi girilmemiş; ' + sayi(b.ort) + ' kişilik iş var.'
-                : ek > 0.05 ? 'Dönemi karşılamak için +' + sayi(ek) + ' kişi ya da ≈ ' + sayi(ek * b.haftalik_saat, 0) + ' saat/hafta fazla mesai gerekiyor.'
-                : 'Mevcut kişi dönemi karşılıyor; ' + sayi(b.kisi - b.ort) + ' kişilik pay var.';
+            var on = oneri(b);
+            var yorum = !(b.kisi > 0) ? 'Mevcut kapasite girilmemiş; ' + sayi(b.ort) + ' ' + birim(b) + 'lik iş var.'
+                : on ? 'Dönemi karşılamak için ' + on.ek + ' gerekiyor (' + on.alt + ').'
+                : 'Mevcut ' + birim(b) + ' dönemi karşılıyor; ' + sayi(b.kisi - b.ort) + ' ' + birim(b) + ' pay var.';
             s.addText(yorum, { x: 9.45, y: 5.75, w: 3.1, h: 1.0, fontFace: YAZI, fontSize: 12, color: R.metin, valign: 'top', margin: 0, isTextBox: true });
         });
 
@@ -221,24 +243,24 @@
             s.addText('Tüm bölümler mevcut kişiyle dönem ortalamasında %85 doluluğun altında.', {
                 x: 0.6, y: 2.0, w: 12, h: 0.6, fontFace: YAZI, fontSize: 20, color: R.ok, bold: true, margin: 0, isTextBox: true });
         } else {
-            var t6 = [['Bölüm', 'Doluluk', 'Gereken (ort.)', 'Mevcut', 'Ek kişi', 'veya fazla mesai', 'Bakiye'].map(function (x) {
+            var t6 = [['Bölüm', 'Doluluk', 'Gereken (ort.)', 'Mevcut', 'Ek kapasite', 'Nasıl karşılanır', 'Bakiye'].map(function (x) {
                 return { text: x, options: { bold: true, color: R.beyaz, fill: { color: R.koyu }, align: 'center' } };
             })];
             riskli.forEach(function (b) {
-                var d = durum(b.oran), ek = Math.max(0, b.ort - b.kisi);
+                var d = durum(b.oran), on = oneri(b);
                 t6.push([
                     { text: bolumAdi(b), options: { bold: true } },
                     { text: d.isaret + ' ' + yuzde(b.oran), options: { bold: true, color: d.renk, fill: { color: d.zemin }, align: 'center' } },
-                    { text: sayi(b.ort), options: { align: 'center' } },
-                    { text: sayi(b.kisi, b.kisi % 1 ? 1 : 0), options: { align: 'center' } },
-                    { text: ek > 0.05 ? '+' + sayi(ek) + ' kişi' : '—', options: { align: 'center', bold: true } },
-                    { text: ek > 0.05 ? '≈ ' + sayi(ek * b.haftalik_saat, 0) + ' saat/hafta' : '—', options: { align: 'center' } },
-                    { text: (b.bakiye_kh || 0) >= 0.05 ? sayi(b.bakiye_kh) + ' kişi-hf' : '—', options: { align: 'center' } }
+                    { text: sayi(b.ort) + ' ' + birim(b), options: { align: 'center' } },
+                    { text: mevcutMetin(b), options: { align: 'center' } },
+                    { text: on ? on.ek : '—', options: { align: 'center', bold: true } },
+                    { text: on ? on.alt : '—', options: { align: 'center' } },
+                    { text: (b.bakiye_kh || 0) >= 0.05 ? sayi(b.bakiye_kh) + ' ' + birim(b) + '-hf' : '—', options: { align: 'center' } }
                 ]);
             });
-            s.addTable(t6, { x: 0.6, y: 1.6, w: 12.15, colW: [2.45, 1.45, 1.6, 1.25, 1.6, 2.2, 1.6], fontFace: YAZI, fontSize: 14,
+            s.addTable(t6, { x: 0.6, y: 1.6, w: 12.15, colW: [2.1, 1.3, 1.55, 1.95, 1.5, 2.45, 1.3], fontFace: YAZI, fontSize: 13,
                              color: R.metin, rowH: 0.5, valign: 'middle', border: { type: 'solid', pt: 0.5, color: R.cizgi } });
-            s.addText('Ek kişi: dönem ortalamasını karşılamak için gereken fark. Fazla mesai: aynı farkı mevcut kişiyle karşılamak için haftalık toplam ek saat (verim dahil).', {
+            s.addText('Ek kapasite: dönem ortalamasını karşılamak için gereken fark. Fazla mesai: aynı farkı mevcutla karşılamak için haftalık toplam ek saat (verim dahil). Makine bölümünde kurulu makine yetiyorsa önce onlar devreye alınır.', {
                 x: 0.6, y: 6.45, w: 12.1, h: 0.45, fontFace: YAZI, fontSize: 11, color: R.soluk, margin: 0, isTextBox: true });
         }
 
@@ -246,7 +268,9 @@
         s = sayfa(p, v, 'Yöntem ve varsayımlar', null);
         var y = [
             'İhtiyaç: AS400 açık iş emirleri (OPR + launch), kalan adet; emrin bitiş haftasına yazılır, Pazartesi bitişli emir önceki haftaya.',
-            'Bölüm ve birim süre: Ana Veri (kaynakta söktak + kaynak süresi; süre yoksa vardiya başı kapasite).',
+            'Bölüm ve birim süre: Ana Veri; süre yoksa vardiya başı kapasite. Metal: çevrim ÷ kalıp göz.',
+            'Robot kaynak çift istasyon: parça başı = kaynak + söktak − uyum × min(kaynak, söktak); istasyon uyumu bölüm ayarından.',
+            'Kapasite birimi kişi ya da aktif makine (lazer: aynı anda çalışan makine; kurulu makine ek kapasite önerisi için).',
             'Süresi olmayan ürünler bölümün ortanca süresiyle ' + (v.tahmin ? 'tahmin edildi.' : 'hesaba katılmadı.'),
             'Gereken kişi = kişi-saat ÷ (haftanın çalışma günü × günlük saat); kişi-saat = standart süre ÷ verim.',
             v.devirli ? 'Devir: bakiye ilk haftaya, mevcut kişiyle bitmeyen iş sonraki haftaya geçer.'
@@ -256,7 +280,7 @@
                 Number(v.atanmamis.adet || 0).toLocaleString('tr-TR') + ' adet) hesaba girmedi.'
         ];
         s.addText(y.map(function (m, i) { return { text: m, options: { bullet: true, breakLine: i < y.length - 1 } }; }), {
-            x: 0.6, y: 1.3, w: 7.3, h: 5.6, fontFace: YAZI, fontSize: 14, color: R.metin, paraSpaceAfter: 8, valign: 'top', margin: 0, isTextBox: true });
+            x: 0.6, y: 1.3, w: 7.3, h: 5.6, fontFace: YAZI, fontSize: 13, color: R.metin, paraSpaceAfter: 6, valign: 'top', margin: 0, isTextBox: true });
         var t7 = [['Hafta', 'Tarih', 'Gün', 'Not'].map(function (x) {
             return { text: x, options: { bold: true, color: R.beyaz, fill: { color: R.koyu }, align: 'center' } };
         })];
