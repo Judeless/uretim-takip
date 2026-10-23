@@ -18,6 +18,8 @@ import openpyxl
 import sqlite3
 import io
 import os
+import threading
+import functools
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_YOL   = os.path.join(PROJECT_DIR, 'data', 'uretim_verileri.xlsx')
@@ -403,6 +405,20 @@ def _durus_oku(excel_yol, sayfa_adi, bolum, lokasyon, montaj_dus=True):
 ANA_VERI_YOL = os.path.join(PROJECT_DIR, 'data', 'AnaVeri.xlsx')
 ANA_VERI_SAYFA = 'Ana Veri'
 ANA_VERI_YEDEK_KLASOR = os.path.join(PROJECT_DIR, 'data', 'ana_veri_yedek')
+# YAZMA KİLİDİ (2026-10-23): iki istek aynı anda dosyanın üzerine wb.save yaptı, baytlar
+# birbirine karıştı → 'Bad CRC-32 for file docProps/core.xml', Ana Veri'yi okuyan her
+# sayfa (Bölüm Kapasitesi…) açılmadı. Yazanlar sıraya girer (aç → değiştir → kaydet tek
+# parça, kayıp güncelleme de olmaz) ve kayıt geçici dosyaya yapılıp tek hamlede
+# değiştirilir — okuyan hiçbir zaman yarım dosya görmez.
+ANA_VERI_KILIT = threading.RLock()
+
+
+def _kilitli(f):
+    @functools.wraps(f)
+    def sarici(*a, **k):
+        with ANA_VERI_KILIT:
+            return f(*a, **k)
+    return sarici
 ANA_VERI_ETIKET = {'montaj': 'Montaj', 'kaynak': 'Kaynak', 'metal': 'Metal Enjeksiyon',
                    'lazer': 'Lazer Kesim', 'pres': 'Büküm', 'isleme': 'İşleme'}
 ANA_VERI_KALIP_GOZ_UST = 64          # app.KALIP_GOZ_UST ile aynı olmalı
@@ -1142,6 +1158,7 @@ def ana_veri_uygula(satirlar, uygula=False, commit_oncesi=None, kume=None, taban
         conn.close()
 
 
+@_kilitli
 def ana_veri_operator_ekle(ad, bolum, lokasyon='TK2'):
     """Panelden eklenen operatörü Ana Veri'ye de yazar (eskiden yalnız veritabanına
     giriyordu, Excel ile liste ayrışıyordu): tek 'Operatörler' sayfası varsa oraya (TK1
@@ -1209,6 +1226,7 @@ def _operatorler_sayfaya_ekle(wb, ws, ad, bolum, lokasyon):
     return _ana_veri_kaydet(wb)
 
 
+@_kilitli
 def ana_veri_dosya_kaydet(ham):
     """Yüklenen dosyayı data/AnaVeri.xlsx yapar; öncekini ana_veri_yedek/'e alır (son 20)."""
     from datetime import datetime as _dt
@@ -1227,7 +1245,7 @@ def ana_veri_dosya_kaydet(ham):
     gecici = ANA_VERI_YOL + '.yukleniyor'
     with open(gecici, 'wb') as fh:
         fh.write(ham)
-    os.replace(gecici, ANA_VERI_YOL)
+    _yerine_koy(gecici, ANA_VERI_YOL)
 
 
 def _ana_veri_yazma_engeli():
@@ -1253,12 +1271,72 @@ def _ana_veri_yazmak_icin_ac():
     return wb, ws, kol
 
 
+def _yerine_koy(gecici, hedef, deneme=10):
+    """os.replace; hedefi o an okuyan varsa (Windows'ta değiştirilemez) kısa aralıklarla
+    yeniden dener. Olmazsa geçici dosya silinir, PermissionError yükselir."""
+    import time
+    for i in range(deneme):
+        try:
+            os.replace(gecici, hedef)
+            return
+        except PermissionError:
+            if i == deneme - 1:
+                try:
+                    os.remove(gecici)
+                except OSError:
+                    pass
+                raise
+            time.sleep(0.3)
+
+
 def _ana_veri_kaydet(wb):
+    gecici = ANA_VERI_YOL + '.kaydediliyor'
+    with ANA_VERI_KILIT:
+        try:
+            wb.save(gecici)
+            _yerine_koy(gecici, ANA_VERI_YOL)
+            return None
+        except PermissionError:
+            return 'AnaVeri.xlsx şu an açık — kapatıp tekrar deneyin.'
+
+
+def _xlsx_saglam(yol):
+    import zipfile
     try:
-        wb.save(ANA_VERI_YOL)
+        with zipfile.ZipFile(yol) as z:
+            return z.testzip() is None and 'xl/workbook.xml' in z.namelist()
+    except Exception:
+        return False
+
+
+@_kilitli
+def ana_veri_onar():
+    """Okunamayan (bozuk zip) AnaVeri.xlsx'i sistemin kendi EN YENİ sağlam kopyasıyla
+    değiştirir: son yüklenen + indirilen (damgalı) kopyalar + yükleme yedekleri. Bozuk
+    hâl ana_veri_yedek/BOZUK-*.xlsx olarak saklanır. Kopyadan sonra panelden girilen
+    süre/teyit değişiklikleri veritabanında durur, bir sonraki dışa aktarımda dosyaya
+    yazılır. → mesaj | None (dosya sağlam / yok)"""
+    from datetime import datetime as _dt
+    import shutil
+    if not os.path.exists(ANA_VERI_YOL) or _xlsx_saglam(ANA_VERI_YOL):
         return None
-    except PermissionError:
-        return 'AnaVeri.xlsx şu an açık — kapatıp tekrar deneyin.'
+    adaylar = []
+    for klasor, on in ((ANA_VERI_INDIRILEN_KLASOR, ''), (ANA_VERI_YEDEK_KLASOR, 'AnaVeri-')):
+        if os.path.isdir(klasor):
+            adaylar += [os.path.join(klasor, f) for f in os.listdir(klasor)
+                        if f.startswith(on) and f.endswith('.xlsx')]
+    adaylar.sort(key=os.path.getmtime, reverse=True)
+    os.makedirs(ANA_VERI_YEDEK_KLASOR, exist_ok=True)
+    bozuk = os.path.join(ANA_VERI_YEDEK_KLASOR, 'BOZUK-' + _dt.now().strftime('%Y%m%d-%H%M%S') + '.xlsx')
+    shutil.copy2(ANA_VERI_YOL, bozuk)
+    for a in adaylar:
+        if _xlsx_saglam(a):
+            gecici = ANA_VERI_YOL + '.onariliyor'
+            shutil.copy2(a, gecici)
+            _yerine_koy(gecici, ANA_VERI_YOL)
+            zaman = _dt.fromtimestamp(os.path.getmtime(a)).strftime('%d.%m.%Y %H:%M')
+            return f'AnaVeri.xlsx bozuktu — {os.path.basename(a)} ({zaman}) ile değiştirildi; bozuk hâl {os.path.basename(bozuk)}'
+    return f'AnaVeri.xlsx bozuk ve sağlam kopya bulunamadı (bozuk hâl {os.path.basename(bozuk)})'
 
 
 def _sayi_hucre(v):
@@ -1268,6 +1346,7 @@ def _sayi_hucre(v):
     return int(v) if v == int(v) else v
 
 
+@_kilitli
 def _ana_veri_export(conn, bolum_listesi, zorla_ekle=None):
     """DB → Ana Veri. Mevcut satırın süre/göz/büküm/açıklama/teyit hücreleri güncellenir;
     DB'de olup listede olmayan HER referans sona eklenir — SÜRESİZ OLANLAR DA (kullanıcı
@@ -1353,6 +1432,7 @@ def _ana_veri_export(conn, bolum_listesi, zorla_ekle=None):
     return {'basarili': True, 'yazilan': toplam, 'dosya': ANA_VERI_YOL}
 
 
+@_kilitli
 def ana_veri_satir_sil(kod, bolum=None):
     """Panelden silinen referansın satırını Ana Veri'den de kaldırır (yoksa sonraki
     yüklemede geri gelirdi). bolum=None → koddaki tüm satırlar. → hata metni | None"""
@@ -1380,6 +1460,7 @@ def ana_veri_satir_sil(kod, bolum=None):
     return _ana_veri_kaydet(wb)
 
 
+@_kilitli
 def ana_veri_kod_degistir(degistir):
     """Kod yeniden adlandırması (app._guvenli_kod_replace) Ana Veri'nin kod sütununa da
     uygulanır; yoksa sonraki yüklemede eski kod geri gelir, yenisi silinirdi.

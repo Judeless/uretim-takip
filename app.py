@@ -19424,6 +19424,24 @@ def otonom_gun():
 init_db()
 
 
+def _ana_veri_acilis_onarimi():
+    """AnaVeri.xlsx bozulduysa (2026-10-23: eşzamanlı yazma, 'Bad CRC-32') sağlam
+    kopyasından onarılır; kopyadan sonraki süre/teyit değişiklikleri veritabanından
+    dosyaya geri yazılır."""
+    try:
+        import import_excel as _ie
+        m = _ie.ana_veri_onar()
+        if m:
+            print(f'[ana_veri] {m}')
+            if m.startswith('AnaVeri.xlsx bozuktu'):
+                print(f'[ana_veri] dışa aktarım: {export_referans_cycle_times()}')
+    except Exception as e:
+        print(f'[ana_veri] açılış onarımı başarısız: {e}')
+
+
+_threading.Thread(target=_ana_veri_acilis_onarimi, daemon=True).start()
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  PROJE TAKİP (kullanıcı 2026-09-15 · v2 hiyerarşi aynı gün)
 # ═════════════════════════════════════════════════════════════════════════════

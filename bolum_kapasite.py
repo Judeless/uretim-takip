@@ -35,8 +35,10 @@ Varsayılan kişi 'Aylık NçS' sayfasından; günlük saat SABİT varsayılan (
 "kapasiteleri NçS'ye göre değil çalışma gün sayısına göre"). Kişi / günlük saat / verim panelden
 bölüm başına (bolum_kapasite_ayar), haftanın gün sayısı haftaya (kapasite_hafta_gun) değiştirilir.
 """
+import io
 import os
 import statistics
+import zipfile
 from datetime import date, datetime, timedelta
 
 STANDART_GUN = 5                 # bakiye (gecikmiş iş) 'kişi-hafta'sı standart haftayla
@@ -158,7 +160,17 @@ def ana_veri_oku(yol=None):
     mt = os.path.getmtime(yol)
     if _ONBELLEK['anahtar'] == (yol, mt):
         return _ONBELLEK['veri']
-    wb = openpyxl.load_workbook(yol, read_only=True, data_only=True)
+    # Bellekten oku: dosya açık tutulmaz (yazan atomik değiştirebilsin). Bozuk zip ise
+    # (2026-10-23 eşzamanlı yazma) sistemin sağlam kopyasından onarılıp bir kez daha denenir.
+    try:
+        with open(yol, 'rb') as fh:
+            wb = openpyxl.load_workbook(io.BytesIO(fh.read()), read_only=True, data_only=True)
+    except zipfile.BadZipFile:
+        if yol != IE.ANA_VERI_YOL or not (IE.ana_veri_onar() or '').startswith('AnaVeri.xlsx bozuktu'):
+            raise
+        mt = os.path.getmtime(yol)
+        with open(yol, 'rb') as fh:
+            wb = openpyxl.load_workbook(io.BytesIO(fh.read()), read_only=True, data_only=True)
     try:
         ws, kol = IE._ana_sayfa_bul(wb)
         if ws is None:
