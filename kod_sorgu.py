@@ -43,6 +43,39 @@ def urun_kartlari(cn, kodlar):
     return out
 
 
+def depo_durumu(cn, kod):
+    """07-10-01 ekranının depo satırları: [{depo, stok, engaged, ordered, avail}] — AS400 Planlama
+    (app._plan_stoklar) ile AYNI sorgu: Engaged = S0IMPP + S0IMPC, Ordered = S0ORDF + S0ORDP,
+    Available = stok − engaged + ordered (ekranla birebir: 01D −118 + 207 = 89)."""
+    out = []
+    for r in cn.cursor().execute(
+            "SELECT TRIM(S0MGCD), SUM(S0GIAD), SUM(S0IMPP)+SUM(S0IMPC), SUM(S0ORDF)+SUM(S0ORDP) "
+            "FROM TKC0300F.BSMAF0 WHERE S0SOCI='01' AND S0ARTI=? GROUP BY TRIM(S0MGCD)", [kod]):
+        stok, eng, ordd = float(r[1] or 0), float(r[2] or 0), float(r[3] or 0)
+        if stok or eng or ordd:
+            out.append({'depo': r[0], 'stok': stok, 'engaged': eng, 'ordered': ordd, 'avail': stok - eng + ordd})
+    return sorted(out, key=lambda x: x['depo'])
+
+
+def musteri_siparisleri(cn, kod, limit=20):
+    """Açık müşteri siparişleri (2=Ord./Eng.) — app._plan_siparisler ile aynı kaynak (BORDF1)."""
+    out, toplam = [], 0.0
+    for r in cn.cursor().execute(
+            "SELECT d.OCRED2, d.OCRENU, TRIM(a.ABRGSC), d.OCQTOR, d.OCQTCO, d.OCCCD2, d.OCCCD3, d.OCCCD4 "
+            "FROM TKC0301F.BORDF1 d LEFT JOIN TKC0301F.BANAF0 a ON a.ABCFCD=d.OCCFCD "
+            "WHERE d.OCARCD=? AND d.OCDOSO<>'C' AND d.OCQTOR>d.OCQTCO "
+            "ORDER BY d.OCCCD2, d.OCCCD3, d.OCCCD4", [kod]):
+        acik = float(r[3] or 0) - float(r[4] or 0)
+        toplam += acik
+        if len(out) < limit:
+            out.append({'siparis': f'{int(r[0])}-{int(r[1])}',
+                        # EBCDIC(1026)→ODBC: "=Ü £=Ö $=İ §=Ş (bkz. app._plan_siparisler)
+                        'musteri': str(r[2] or '').strip().translate(str.maketrans('"£$§', 'ÜÖİŞ')),
+                        'acik': acik, 'adet': float(r[3] or 0),
+                        'teslim': f'20{int(r[5] or 0):02d}-{int(r[6] or 0):02d}-{int(r[7] or 0):02d}'})
+    return {'acik_toplam': toplam, 'satirlar': out}
+
+
 def oneriler(conn, q, limit=15):
     """Yazılan parçaya uyan kodlar (yerel kapasite_urun): tam > sonu > başı > içinde.
     Kısa yazım (LTK.685 → 94.LTK.685) ve açıklamada arama da çalışır."""
@@ -74,9 +107,14 @@ def sorgula(cn, kod, sayilan, gosterilen, eksi_dusulen, kisit_disi=(), acilmayan
     if not kart:
         return {'kod': kod, 'bulundu': False, 'sure_ms': int((time.time() - t0) * 1000)}
 
-    depolar = kp.stoklar(cn, [kod]).get(kod, {})
+    ayrinti = depo_durumu(cn, kod)
+    depolar = {x['depo']: x['stok'] for x in ayrinti}
     stok = {'ggi': sum(depolar.get(d, 0) for d in GGI_DEPOLAR),
-            'depolar': {d: q for d, q in sorted(depolar.items()) if q}}
+            'depolar': {d: q for d, q in sorted(depolar.items()) if q}, 'ayrinti': ayrinti}
+    try:
+        siparis = musteri_siparisleri(cn, kod)
+    except Exception as e:                          # sipariş okunamazsa ekranın geri kalanı gelsin
+        siparis = {'acik_toplam': 0, 'satirlar': [], 'hata': str(e)}
 
     o = kp.opr_ihtiyaclari(cn, [kod], ufuk_gun=3650).get(kod) or {}
     emirler = [{'no': s['opr'], 'durum': s['durum'], 'durum_ad': DURUM_AD.get(s['durum'], s['durum']),
@@ -105,7 +143,7 @@ def sorgula(cn, kod, sayilan, gosterilen, eksi_dusulen, kisit_disi=(), acilmayan
     parcalar.sort(key=lambda p: (p['kapasite'] is None, p['kapasite'] if p['kapasite'] is not None else 0, p['kod']))
     return {
         'kod': kod, 'bulundu': True, **kart,
-        'stok': stok, 'emirler': emirler, 'emir_ozet': emir_ozet,
+        'stok': stok, 'emirler': emirler, 'emir_ozet': emir_ozet, 'siparis': siparis,
         'agac': {'durum': s.get('durum'), 'uretilebilir': s.get('uretilebilir'),
                  'kisitlayan': s.get('kisitlayan') or '', 'eksi_var': bool(s.get('eksi_var')),
                  'parcalar': parcalar},

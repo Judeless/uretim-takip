@@ -36,6 +36,7 @@ Varsayılan kişi 'Aylık NçS' sayfasından; günlük saat SABİT varsayılan (
 bölüm başına (bolum_kapasite_ayar), haftanın gün sayısı haftaya (kapasite_hafta_gun) değiştirilir.
 """
 import io
+import re
 import os
 import statistics
 import zipfile
@@ -179,11 +180,12 @@ def ana_veri_oku(yol=None):
         def al(r, a):
             i = kol.get(a)
             return r[i] if (i is not None and i < len(r)) else None
-        urun = {}
+        urun, ham_kod = {}, {}
         for r in ws.iter_rows(min_row=2, values_only=True):
             kod = IE._norm_kod(al(r, 'kod'))
             if len(kod) < 2 or kod in urun:
                 continue
+            ham_kod[kod] = str(al(r, 'kod') or '').strip()
             tesis = _tesis(al(r, 'tk'))
             if tesis is None:
                 urun[kod] = {'disarida': True}
@@ -201,19 +203,90 @@ def ana_veri_oku(yol=None):
                 goz = _sayi(al(r, 'goz')) or 1.0
                 sn = g / goz                                  # G baskı başı; bir baskıda göz kadar parça
                 ek = {'baski_sn': g, 'goz': goz}
-            elif tesis == 'TK1':
-                sn = None                                     # TK1: yalnız M 'Kapasite 1V/Adet' (kullanıcı 2026-10-22;
-                                                              # G'de süre değil hat kodu var: 913, 914, 110…)
             else:
+                # TK1 dahil G önce (2026-10-26: Hızlı Doldurma artıkları temizlendi, M'deki
+                # vardiya adedi G'ye saniye olarak yazıldı); G yoksa M, o da yoksa Forge
                 sn = g
             urun[kod] = {'anahtar': anahtar, 'tesis': tesis or 'TK2', 'bolum': ad,
                          'sn': sn, 'kap1v': _sayi(al(r, 'kapasite')) if not sn else None, **ek}
+        _adimlari_topla(urun, ham_kod)
         ncs = _ncs_oku(wb)
     finally:
         wb.close()
     veri = {'urun': urun, 'ncs': ncs, 'mtime': datetime.fromtimestamp(mt).strftime('%Y-%m-%d %H:%M')}
     _ONBELLEK.update(anahtar=(yol, mt), veri=veri)
     return veri
+
+
+ADIM_DESENI = re.compile(r'^([^\s(]+)[\s(]+(.+?)\)?$')
+ADIM_BOLUMLERI = ('TK2|kaynak',)
+HARIC_ADIM = ('TEST',)            # plastikte test adımı sayılmaz (kullanıcı 2026-10-26)
+
+
+def _adimlari_topla(urun, ham_kod):
+    """ÇOK ADIMLI KAYNAK (kullanıcı 2026-10-26): "bir ürün için birden fazla kaynak prosesi
+    olabilir — 300.0541'i iki operasyonda kaynatıyoruz, 2757W-10'u da; yalnız son prosesi
+    baz alırsak eksik olur." Ara adımlar Ana Veri'de ANA KOD + ek adıyla durur
+    ('10.300.0541W 1.ist', '10.300.2757W-10(hazırlık)') ve ERP emri almaz; emri alan ana
+    kodun süresine eklenir. Ana kodun kendi süresi yoksa süre adımların toplamıdır."""
+    for kod, u in list(urun.items()):
+        if u.get('anahtar') not in ADIM_BOLUMLERI or not u.get('sn'):
+            continue
+        m = ADIM_DESENI.match(ham_kod.get(kod, ''))
+        if not m:
+            continue
+        ana = m.group(1).upper()
+        hedef = urun.get(ana)
+        if ana == kod or not hedef or hedef.get('anahtar') != u['anahtar']:
+            continue
+        ad = m.group(2).strip()
+        if any(x in ad.upper() for x in HARIC_ADIM):
+            continue
+        if 'adimlar' not in hedef:
+            hedef['adimlar'] = []
+            hedef['kendi_sn'] = hedef.get('sn') or 0.0
+        hedef['adimlar'].append({'ad': ad, 'kod': ham_kod.get(kod, kod), 'sn': u['sn']})
+        hedef['sn'] = (hedef.get('sn') or 0.0) + u['sn']
+        for alan in ('s_sn', 'k_sn', 'min_sn'):
+            if u.get(alan) or hedef.get(alan):
+                hedef[alan] = (hedef.get(alan) or 0.0) + (u.get(alan) or 0.0)
+        hedef['kap1v'] = None
+
+
+FORGE_TK1_BOLUM = {'plastik': 'Plastik Enjeksiyon', 'montaj': 'Montaj', 'tel': 'Tel'}
+
+
+def _tk1_forge_tamamla(conn, urun):
+    """TK1'de M (Kapasite 1V/Adet) boşsa Forge'daki TK1 referans süresi (panelden girilen,
+    OEE'nin kullandığı) parça başı saniye sayılır. Kullanıcı 2026-10-26: "plastik enjeksiyonda
+    neden bir şey gelmemiş" — 36 plastik kodun hiçbirinde M yok, Forge'da 51 plastik
+    referansın 47'sinde süre var. Önbellekteki sözlük değiştirilmez (değişen kayıt kopyalanır)."""
+    # Ana Veri'de HİÇ olmayan TK1 kodu da Forge'daki bölümüyle sayılır (kullanıcı 2026-10-26:
+    # "300.2452G için 2452A, 2452B ve yapıştırma adımlarını saymamız gerekiyor" — A/B'nin kendi
+    # ERP emri var ama Ana Veri'de yoklar; 15 plastik kodda 6.443 adet açık emir görünmüyordu).
+    # G'li kodun süresi yapıştırma; test aynı kodla yapılır, ayrıca eklenmez.
+    try:
+        forge = {}
+        for kod, bolum, ct in conn.execute("SELECT referans_kodu, bolum, COALESCE(hedef_cycle_time_sn,0) "
+                                           "FROM referans_listesi WHERE lokasyon='TK1'"):
+            k, ct = str(kod or '').strip().upper().replace(' ', ''), float(ct or 0)
+            if k not in forge or ct > forge[k][1]:      # aynı kod iki bölümde: süresi olan kazanır
+                forge[k] = (bolum, ct)
+    except Exception:
+        return urun
+    yeni = dict(urun)
+    for k, u in urun.items():
+        f = forge.get(k)
+        if f and f[1] > 0 and u.get('tesis') == 'TK1' and u.get('anahtar') and not u.get('sn') and not u.get('kap1v'):
+            yeni[k] = {**u, 'sn': f[1], 'sure_kaynagi': 'Forge'}
+    for k, (bolum, ct) in forge.items():
+        if k in urun or bolum not in FORGE_TK1_BOLUM or any(x in k for x in HARIC_ADIM):
+            continue
+        anahtar, ad = _bolum_ad('TK1', FORGE_TK1_BOLUM[bolum])
+        if anahtar and anahtar not in HARIC_BOLUM:
+            yeni[k] = {'anahtar': anahtar, 'tesis': 'TK1', 'bolum': ad, 'sn': ct or None, 'kap1v': None,
+                       'sure_kaynagi': "Forge (Ana Veri'de yok)"}
+    return yeni
 
 
 def _ncs_oku(wb):
@@ -332,7 +405,7 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
     (kişi kutusu değişince sayfa sunucuya gitmeden güncellensin)."""
     bugun = bugun or date.today()
     av = ana_veri_oku(yol)
-    urun = av['urun']
+    urun = _tk1_forge_tamamla(conn, av['urun'])
     hft = _haftalar(bugun, hafta, conn)
     sinir = [date.fromisoformat(h['bas']) for h in hft] + [date.fromisoformat(hft[-1]['bit']) + timedelta(days=1)]
     ay = ayarlar(conn)
@@ -443,7 +516,7 @@ def hesapla(conn, hafta=4, bugun=None, yol=None):
 def detay(conn, anahtar, hafta_no, hafta=4, bugun=None, yol=None, n=40):
     """Bir bölümün bir haftasındaki ürünler (yüke göre azalan): kod, adet, süre, kişi-saat."""
     bugun = bugun or date.today()
-    urun = ana_veri_oku(yol)['urun']
+    urun = _tk1_forge_tamamla(conn, ana_veri_oku(yol)['urun'])
     hft = _haftalar(bugun, hafta)
     bas0 = date.fromisoformat(hft[0]['bas'])
     if hafta_no == 'gecikmis':
@@ -468,7 +541,9 @@ def detay(conn, anahtar, hafta_no, hafta=4, bugun=None, yol=None, n=40):
         d = out.setdefault(kod, {'kod': kod, 'adet': 0.0, 'emir': 0, 'launch': 0.0, 'en_eski': r[2],
                                  'sn': u.get('sn'), 'kap1v': u.get('kap1v'), 'min_sn': u.get('min_sn') or 0,
                                  'k_sn': u.get('k_sn'), 's_sn': u.get('s_sn'),
-                                 'baski_sn': u.get('baski_sn'), 'goz': u.get('goz')})
+                                 'baski_sn': u.get('baski_sn'), 'goz': u.get('goz'),
+                                 'sure_kaynagi': u.get('sure_kaynagi'), 'adimlar': u.get('adimlar'),
+                                 'kendi_sn': u.get('kendi_sn')})
         d['adet'] += r[1]
         d['emir'] += 1
         if str(r[3]) != '10':

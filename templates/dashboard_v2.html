@@ -2086,6 +2086,42 @@
                    padding: 9px 0; border-top: 1px solid var(--border); font-size: .82rem; }
         .ks-emir.ilk { border-top: 0; }
         .ks-alt { font-size: .74rem; color: var(--muted); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+        /* AS400 ekranı görünümü (2026-10-26) — tema ne olursa olsun siyah zemin, ekrandaki renkler */
+        .ks-term { background: #000; color: #3FD3FF; border-radius: 10px; padding: 12px 14px; margin-top: 12px;
+                   font-family: 'Consolas', 'Lucida Console', 'Courier New', monospace; font-size: 13.5px; line-height: 1.5;
+                   box-shadow: var(--shadow); overflow-x: auto; }
+        @media (max-width: 600px) { .ks-term { font-size: 12px; padding: 10px 10px; } }
+        .ks-term .kt-sat { display: flex; gap: 4px 14px; flex-wrap: wrap; align-items: baseline; }
+        .ks-term .kt-ust { justify-content: space-between; }
+        .ks-term .kt-bilgi { margin-top: 6px; }
+        .kt-y { color: #4BE36A; }
+        .kt-b { color: #F2F2F2; }
+        .kt-s { color: #FFE14D; }
+        .kt-p { color: #FF79F2; }
+        .kt-m { color: #3FD3FF; }
+        .kt-kalin { font-weight: 700; font-size: 1.12em; letter-spacing: .02em; }
+        .kt-neg { background: #D8C200; color: #000; font-weight: 400; padding: 0 2px; }
+        .kt-top { background: #FFE14D; color: #000; font-weight: 400; padding: 0 2px; }
+        .kt-tus { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 8px; padding-top: 8px; border-top: 1px solid #1E4A24; }
+        .kt-tus button { background: none; border: 1px solid #1E4A24; color: #3FD3FF; font: inherit; padding: 4px 9px;
+                         min-height: 34px; cursor: pointer; border-radius: 3px; }
+        .kt-tus button.aktif { background: #3FD3FF; color: #000; border-color: #3FD3FF; }
+        .kt-tablo { display: grid; column-gap: 12px; row-gap: 2px; align-items: baseline; white-space: nowrap; }
+        .kt-tablo .bas { color: #4BE36A; border-bottom: 1px dotted #2E7D32; padding-bottom: 2px; margin-bottom: 2px; }
+        .kt-tablo .sag { text-align: right; font-variant-numeric: tabular-nums; }
+        .kt-stok { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
+        .kt-agac { grid-template-columns: minmax(0, 1fr) 7.5ch 7.5ch 6ch; }
+        .kt-sip { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+        .kt-emir { grid-template-columns: auto auto auto auto auto; }
+        .kt-kes { overflow: hidden; text-overflow: ellipsis; }
+        .kt-parca { padding: 5px 0; border-bottom: 1px dotted #17331A; }
+        .kt-parca.kisit { background: #2B2600; margin: 0 -10px; padding: 5px 10px; }
+        .kt-link { color: #3FD3FF; background: none; border: 0; font: inherit; padding: 0; cursor: pointer; text-align: left;
+                   text-decoration: underline dotted; text-underline-offset: 3px; overflow: hidden; text-overflow: ellipsis; }
+        .kt-alt { color: #9FB3BD; font-size: .88em; white-space: normal; margin-top: 2px; }
+        .kt-durum { margin-top: 10px; padding-top: 6px; border-top: 1px solid #1E4A24; color: #4BE36A; font-size: .9em;
+                    display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: center; }
+        .kt-durum select { background: #000; color: #FFE14D; border: 1px solid #2E7D32; font: inherit; min-height: 32px; border-radius: 3px; }
         .ks-alt select { min-height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
                          color: var(--text); font: 600 .78rem var(--font-main); padding: 4px 8px; }
     </style>
@@ -10381,6 +10417,7 @@ window.__I18N_SOZLUK__ = {
                 .then(function (x) {
                     if (!x.ok) { el.innerHTML = '<div class="ks-kart" style="color:var(--danger);font-weight:700">⚠ ' + esc(x.d.hata || 'Sorgu başarısız') + '</div>'; return; }
                     _ks.veri = x.d;
+                    _ks.sekme = '1';
                     if (x.d.bulundu) ksSonYaz(x.d.kod);
                     ksSonCiz();
                     ksCiz();
@@ -10405,6 +10442,21 @@ window.__I18N_SOZLUK__ = {
                     (sayilan && sayilan.indexOf(d) !== -1 ? ' style="font-weight:700"' : '') + '><b>' + esc(d) + '</b>' + ksSayi(v) + '</span>';
             }).join('');
         }
+        // AS400 07-10-01 GÖRÜNÜMÜ (kullanıcı 2026-10-26: "verileri daha rahat görebilmek için as400
+        // ekranının görseli gibi bir tasarımda gösterelim"). Siyah zemin, sabit genişlikli yazı,
+        // ekrandaki renkler; sekmeler ekranın seçenek tuşları gibi (1=Stok 9=Ağaç 2=Sipariş 6=Emir).
+        function ksSekme(s) { _ks.sekme = s; ksCiz(); }
+        function ksNo(v) {                // AS400 sayı biçimi: 1.065 · 2,500 · eksi SONDA: 118-
+            var n = Number(v || 0);
+            if (!n) return '';
+            var t = Math.abs(n).toLocaleString('it-IT', { maximumFractionDigits: 3 });
+            return n < 0 ? t + '-' : t;
+        }
+        function ksHucre(v, sinif) {
+            var t = ksNo(v);
+            return '<span class="sag' + (sinif ? ' ' + sinif : '') + '">' + (t && Number(v) < 0 ? '<b class="kt-neg">' + t + '</b>' : t) + '</span>';
+        }
+        function ksTarihKisa(t) { return t ? t.slice(8, 10) + '/' + t.slice(5, 7) + '/' + t.slice(2, 4) : ''; }
         function ksCiz() {
             var d = _ks.veri, el = document.getElementById('ks-sonuc');
             var geri = _ks.gecmis.length ? '<button type="button" class="ks-geri" onclick="ksGeri()">← ' + esc(_ks.gecmis[_ks.gecmis.length - 1]) + '</button>' : '';
@@ -10415,69 +10467,93 @@ window.__I18N_SOZLUK__ = {
                     '</div>';
                 return;
             }
-            var a = d.agac || {}, st = d.stok || {}, eo = d.emir_ozet || {}, kural = d.kural || {};
-            var emirler = d.emirler || [], parcalar = a.parcalar || [];
-            var nOpr = emirler.filter(function (e) { return e.durum === '10'; }).length;
-            var uret = (a.uretilebilir == null)
-                ? { d: '—', a: a.durum === 'AGAC YOK' ? 'ürün ağacı yok' : a.durum === 'BIRIM YOK' ? 'birim miktar yok' : '' }
-                : { d: ksSayi(a.uretilebilir), a: (function () {
-                        var k = parcalar.filter(function (p) { return p.kisit; });
-                        return k.length > 1 ? k.length + ' parça kısıtlıyor' : a.kisitlayan ? 'kısıt: ' + esc(a.kisitlayan) : '';
-                    })() };
-            var h = geri + '<div class="ks-kart"><div class="ks-bas"><div style="min-width:0">' +
-                '<div class="ks-kod">' + esc(d.kod) + '</div><div class="ks-ack">' + esc(d.aciklama || '') + '</div></div>' +
-                '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">' +
-                '<span class="ks-cip">' + (d.prov === 'A' ? 'Satınalma' : d.prov === 'P' ? 'Üretim' : esc(d.prov || '?')) + '</span>' +
-                (d.hayali ? '<span class="ks-cip sari" title="Hayali (fictitious) — stokta tutulmaz">Hayali</span>' : '') +
-                (d.forge_bolum ? '<span class="ks-cip">' + esc(bolumAdi(d.forge_bolum)) + '</span>' : '') + '</div></div>' +
-                '<div class="ks-metrik">' +
-                '<div class="ks-m"><div class="e">Stok (G GI)</div><div class="d">' + ksSayi(st.ggi) + '</div><div class="a">01D + MDT</div></div>' +
-                '<div class="ks-m"><div class="e">Açık OPR</div><div class="d">' + ksSayi(eo.opr) + '</div><div class="a">' + nOpr + ' emir' +
-                    (eo.gecikmis ? ' · <span style="color:var(--danger);font-weight:700">' + ksSayi(eo.gecikmis) + ' gecikmiş</span>' : '') + '</div></div>' +
-                '<div class="ks-m"><div class="e">Launch kalan</div><div class="d">' + ksSayi(eo.launch) + '</div><div class="a">' + (emirler.length - nOpr) + ' launch</div></div>' +
-                '<div class="ks-m"' + (a.uretilebilir === 0 ? ' style="background:var(--danger-soft)"' : '') + '><div class="e">Üretilebilir</div><div class="d"' +
-                    (a.uretilebilir === 0 ? ' style="color:var(--danger)"' : '') + '>' + uret.d + '</div><div class="a">' + uret.a + '</div></div>' +
-                '</div><div class="ks-depolar">' + ksDepolar(st.depolar) + '</div></div>';
+            var a = d.agac || {}, st = d.stok || {}, eo = d.emir_ozet || {}, kural = d.kural || {}, sip = d.siparis || {};
+            var emirler = d.emirler || [], parcalar = a.parcalar || [], depolar = st.ayrinti || [];
+            var sekme = _ks.sekme || '1';
+            var bugun = new Date();
+            var tarih = ('0' + bugun.getDate()).slice(-2) + '/' + ('0' + (bugun.getMonth() + 1)).slice(-2) + '/' + String(bugun.getFullYear()).slice(2);
+            var kisit = parcalar.filter(function (p) { return p.kisit; });
+            var uret = a.uretilebilir == null ? (a.durum === 'AGAC YOK' ? 'ağaç yok' : a.durum === 'BIRIM YOK' ? 'birim yok' : '—')
+                : (ksNo(a.uretilebilir) || '0');
 
-            if (parcalar.length) {
-                h += '<div class="ks-kart"><div class="ks-baslik"><span>Alt parçalar · ' + parcalar.length + '</span><span>kaç ürün çıkar</span></div>';
-                parcalar.forEach(function (p, i) {
-                    var etiket = [];
-                    if (p.kisit) etiket.push('<span class="ks-cip kirmizi">🔒 kısıtlayan</span>');
-                    if (p.hayali) etiket.push('<span class="ks-cip sari">hayali · sayılmaz</span>');
-                    if (p.muaf) etiket.push('<span class="ks-cip">kısıt dışı</span>');
-                    if (p.eksi_bakiye) etiket.push('<span class="ks-cip kirmizi">eksi bakiye</span>');
-                    if (p.yol) etiket.push('<span>› ' + esc(p.yol) + '</span>');
-                    h += '<div class="ks-parca' + (i === 0 ? ' ilk' : '') + (p.kisit ? ' kisit' : '') + '">' +
-                        '<div style="min-width:0"><button type="button" class="k" data-kod="' + esc(p.kod) + '" onclick="ksSorgula(this.dataset.kod)">' + esc(p.kod) + '</button>' +
-                        ' <span class="s">× ' + ksSayi(p.birim) + ' ' + esc(p.um || '') + '</span>' +
-                        (p.aciklama ? '<div class="s" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.aciklama) + '</div>' : '') + '</div>' +
-                        '<div class="u"' + (p.kapasite === 0 ? ' style="color:var(--danger)"' : '') + '>' + (p.kapasite == null ? '—' : ksSayi(p.kapasite)) +
-                        '<div class="s" style="font-weight:600">stok ' + ksSayi(p.stok_sayilan) + '</div></div>' +
-                        '<div class="s2">' + ksDepolar(p.depolar, kural.sayilan) + etiket.join('') + '</div></div>';
+            var h = geri + '<div class="ks-term">' +
+                '<div class="kt-sat kt-ust"><span class="kt-y">AS400</span><span class="kt-b">SITUAZIONE ARTICOLO</span><span class="kt-s">' + tarih + '</span></div>' +
+                '<div class="kt-sat"><span class="kt-b kt-kalin">' + esc(d.kod) + '</span><span class="kt-b">' + esc(d.aciklama || '') + '</span></div>' +
+                '<div class="kt-sat kt-bilgi">' +
+                    '<span><span class="kt-y">A/P</span> <span class="kt-s">' + esc(d.prov || '?') + '</span></span>' +
+                    (d.hayali ? '<span class="kt-p">HAYALİ</span>' : '') +
+                    (d.forge_bolum ? '<span><span class="kt-y">Bölüm</span> <span class="kt-s">' + esc(bolumAdi(d.forge_bolum)) + '</span></span>' : '') +
+                    '<span><span class="kt-y">G GI</span> <span class="kt-s">' + (ksNo(st.ggi) || '0') + '</span></span>' +
+                    '<span><span class="kt-y">OPR</span> <span class="kt-s">' + (ksNo(eo.opr) || '0') + '</span>' +
+                        (eo.gecikmis ? ' <b class="kt-neg">' + ksNo(eo.gecikmis) + ' gecikmiş</b>' : '') + '</span>' +
+                    '<span><span class="kt-y">Launch</span> <span class="kt-s">' + (ksNo(eo.launch) || '0') + '</span></span>' +
+                    '<span><span class="kt-y">Üretilebilir</span> ' + (a.uretilebilir === 0 ? '<b class="kt-neg">0</b>' : '<span class="kt-s">' + uret + '</span>') +
+                        (kisit.length ? ' <span class="kt-y">kısıt</span> <span class="kt-b">' + esc(kisit[0].kod) + (kisit.length > 1 ? ' +' + (kisit.length - 1) : '') + '</span>' : '') + '</span>' +
+                '</div>' +
+                '<div class="kt-tus">' + [['1', 'Stok'], ['9', 'Ağaç'], ['2', 'Sipariş'], ['6', 'Emir']].map(function (t) {
+                    return '<button type="button" class="' + (sekme === t[0] ? 'aktif' : '') + '" onclick="ksSekme(\'' + t[0] + '\')">' + t[0] + '=' + t[1] + '</button>';
+                }).join('') + '</div>';
+
+            if (sekme === '1') {
+                var top = { stok: 0, engaged: 0, ordered: 0, avail: 0 };
+                h += '<div class="kt-tablo kt-stok"><span class="bas">War.</span><span class="bas sag">Stock</span><span class="bas sag">Engaged</span>' +
+                    '<span class="bas sag">Ordered</span><span class="bas sag">Available</span>';
+                depolar.forEach(function (x) {
+                    ['stok', 'engaged', 'ordered', 'avail'].forEach(function (k) { top[k] += x[k]; });
+                    h += '<span class="kt-m">' + esc(x.depo) + '</span>' + ksHucre(x.stok, 'kt-b') + ksHucre(x.engaged, 'kt-b') +
+                        ksHucre(x.ordered, 'kt-b') + ksHucre(x.avail, 'kt-b');
                 });
-                h += '</div>';
+                if (depolar.length) h += '<span class="kt-s">***</span>' + ['stok', 'engaged', 'ordered', 'avail'].map(function (k) {
+                    return '<span class="sag kt-s">' + (ksNo(top[k]) ? '<b class="' + (top[k] < 0 ? 'kt-neg' : 'kt-top') + '">' + ksNo(top[k]) + '</b>' : '') + '</span>';
+                }).join('');
+                h += '</div>' + (depolar.length ? '' : '<div class="kt-alt">stok kaydı yok</div>');
+            } else if (sekme === '9') {
+                h += '<div class="kt-tablo kt-agac"><span class="bas">Parça</span><span class="bas sag">Birim</span><span class="bas sag">Stok</span><span class="bas sag">Ürün</span></div>';
+                if (!parcalar.length) h += '<div class="kt-alt">ürün ağacı yok</div>';
+                parcalar.forEach(function (p) {
+                    var etiket = [];
+                    if (p.kisit) etiket.push('<b class="kt-neg">KISIT</b>');
+                    if (p.hayali) etiket.push('<span class="kt-p">hayali · sayılmaz</span>');
+                    if (p.muaf) etiket.push('<span class="kt-p">kısıt dışı</span>');
+                    if (p.eksi_bakiye) etiket.push('<span class="kt-p">eksi bakiye</span>');
+                    var dep = Object.keys(p.depolar || {}).map(function (k) {
+                        var v = p.depolar[k];
+                        return k + ' ' + (v < 0 ? '<b class="kt-neg">' + ksNo(v) + '</b>' : ksNo(v));
+                    }).join(' · ');
+                    h += '<div class="kt-parca' + (p.kisit ? ' kisit' : '') + '"><div class="kt-tablo kt-agac">' +
+                        '<button type="button" class="kt-link" data-kod="' + esc(p.kod) + '" onclick="ksSorgula(this.dataset.kod)">' + esc(p.kod) + '</button>' +
+                        '<span class="sag kt-b">' + ksNo(p.birim) + ' ' + esc(p.um || '') + '</span>' +
+                        ksHucre(p.stok_sayilan, 'kt-b') +
+                        '<span class="sag ' + (p.kapasite === 0 ? '' : 'kt-s') + '">' + (p.kapasite == null ? '—' : (p.kapasite === 0 ? '<b class="kt-neg">0</b>' : ksNo(p.kapasite))) + '</span>' +
+                        '</div><div class="kt-alt">' + (p.aciklama ? esc(p.aciklama) + ' ' : '') + etiket.join(' ') +
+                        (dep ? '<br>' + dep : '') + (p.yol ? '<br>› ' + esc(p.yol) : '') + '</div></div>';
+                });
+                var secenek = [['', 'Otomatik (' + (kural.ad || '') + ')'], ['kaynak', 'Kaynak'], ['montaj', 'Montaj'], ['metal', 'Metal']];
+                h += '<div class="kt-durum"><span>Depo kuralı</span><select onchange="ksKural(this.value)">' + secenek.map(function (o) {
+                    return '<option value="' + o[0] + '"' + (_ks.kural === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+                }).join('') + '</select><span>sayılan: ' + esc((kural.sayilan || []).join(', ')) + '</span></div>';
+            } else if (sekme === '2') {
+                var ss = sip.satirlar || [];
+                h += '<div class="kt-tablo kt-sip"><span class="bas">Sipariş</span><span class="bas">Müşteri</span><span class="bas sag">Açık</span><span class="bas sag">Teslim</span>';
+                var bugunIso = isoTarih(bugun);
+                ss.forEach(function (x) {
+                    h += '<span class="kt-m">' + esc(x.siparis) + '</span><span class="kt-b kt-kes">' + esc(x.musteri || '') + '</span>' +
+                        ksHucre(x.acik, 'kt-s') + '<span class="sag ' + (x.teslim < bugunIso ? 'kt-p' : 'kt-b') + '">' + ksTarihKisa(x.teslim) + '</span>';
+                });
+                h += '</div>' + (ss.length ? '<div class="kt-alt">toplam açık ' + (ksNo(sip.acik_toplam) || '0') + '</div>'
+                    : '<div class="kt-alt">' + (sip.hata ? 'okunamadı: ' + esc(sip.hata) : 'açık müşteri siparişi yok') + '</div>');
+            } else {
+                h += '<div class="kt-tablo kt-emir"><span class="bas">Emir</span><span class="bas">Durum</span><span class="bas sag">Teslim</span><span class="bas sag">Kalan</span><span class="bas sag">Adet</span>';
+                var bugunIso2 = isoTarih(bugun);
+                emirler.forEach(function (e) {
+                    h += '<span class="kt-m">' + esc(e.no) + '</span><span class="' + (e.durum === '10' ? 'kt-b' : 'kt-y') + '">' + esc(e.durum_ad) + '</span>' +
+                        '<span class="sag ' + (e.tarih && e.tarih < bugunIso2 ? 'kt-p' : 'kt-b') + '">' + ksTarihKisa(e.tarih) + '</span>' +
+                        ksHucre(e.kalan, 'kt-s') + ksHucre(e.adet, 'kt-b');
+                });
+                h += '</div>' + (emirler.length ? '' : '<div class="kt-alt">açık OPR / launch yok</div>');
             }
-
-            h += '<div class="ks-kart"><div class="ks-baslik"><span>Açık emirler · ' + emirler.length + '</span><span>kalan / adet</span></div>';
-            if (!emirler.length) h += '<div class="ks-ack">Açık OPR ya da launch yok.</div>';
-            var bugun = isoTarih(new Date());
-            emirler.forEach(function (e, i) {
-                var gec = e.tarih && e.tarih < bugun;
-                h += '<div class="ks-emir' + (i === 0 ? ' ilk' : '') + '"><span class="ks-cip' + (e.durum === '10' ? '' : ' yesil') + '">' + esc(e.durum_ad) + '</span>' +
-                    '<span style="min-width:0">' + esc(e.no) + ' · <span' + (gec ? ' style="color:var(--danger);font-weight:700"' : '') + '>' + ksTarih(e.tarih) + '</span></span>' +
-                    '<span style="text-align:right;font-weight:800;font-variant-numeric:tabular-nums">' + ksSayi(e.kalan) +
-                    (e.adet !== e.kalan ? '<span style="color:var(--muted);font-weight:600"> / ' + ksSayi(e.adet) + '</span>' : '') + '</span></div>';
-            });
-            h += '</div>';
-
-            var secenek = [['', 'Otomatik'], ['kaynak', 'Kaynak'], ['montaj', 'Montaj'], ['metal', 'Metal']];
-            h += '<div class="ks-alt"><span>Depo kuralı</span><select onchange="ksKural(this.value)">' +
-                secenek.map(function (o) { return '<option value="' + o[0] + '"' + (_ks.kural === o[0] ? ' selected' : '') + '>' +
-                    (o[0] ? o[1] : 'Otomatik (' + esc(kural.ad || '') + ')') + '</option>'; }).join('') + '</select>' +
-                '<span>sayılan: ' + esc((kural.sayilan || []).join(', ')) + '</span>' +
-                '<span>· ' + (d.sure_ms / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' sn · ' +
-                new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + '</span></div>';
+            h += '<div class="kt-durum"><span>MW</span><span>' + (d.sure_ms / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' sn</span>' +
+                '<span>' + bugun.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + '</span></div></div>';
             el.innerHTML = h;
         }
 
@@ -22794,9 +22870,13 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                     if (x.sn) {
                         var etkin = x.sn - uy * (x.min_sn || 0);
                         std = x.saat_sn - uy * (x.saat_min || 0);
-                        sure = x.goz ? bkSayi(x.baski_sn) + ' sn ÷ ' + bkSayi(x.goz) + ' göz = ' + bkSayi(etkin) + ' sn'
+                        // Çok adımlı kaynak (2026-10-26): ana kod + ara adımlar ('1.ist', 'hazırlık') toplanır
+                        if (x.adimlar && x.adimlar.length) sure = (x.kendi_sn ? bkSayi(x.kendi_sn) + ' + ' : '') +
+                            x.adimlar.map(function (a) { return esc(a.ad) + ' ' + bkSayi(a.sn); }).join(' + ') + ' = ' + bkSayi(x.sn) + ' sn' +
+                            ((x.min_sn && uy) ? ' − %' + Math.round(uy * 100) + '×' + bkSayi(x.min_sn) + ' = ' + bkSayi(etkin) + ' sn' : '');
+                        else sure = x.goz ? bkSayi(x.baski_sn) + ' sn ÷ ' + bkSayi(x.goz) + ' göz = ' + bkSayi(etkin) + ' sn'
                              : (x.min_sn && uy) ? 'K ' + bkSayi(x.k_sn) + ' + S ' + bkSayi(x.s_sn) + ' − %' + Math.round(uy * 100) + '×' + bkSayi(x.min_sn) + ' = ' + bkSayi(etkin) + ' sn'
-                             : bkSayi(x.sn) + ' sn';
+                             : bkSayi(x.sn) + ' sn' + (x.sure_kaynagi ? ' <span style="color:var(--muted)" title="Ana Veri M boş — Forge referans süresi">· ' + esc(x.sure_kaynagi) + '</span>' : '');
                     } else {
                         sure = x.kap1v ? x.kap1v + ' adet/vardiya' : '<span style="color:var(--warn)">süre yok</span>';
                     }

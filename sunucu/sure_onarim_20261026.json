@@ -1,0 +1,8982 @@
+{
+ "aciklama": "2026-10-26 Excel otomatik doldurma (Flash Fill) hasarı: boş G hücrelerine 924 / 120 / test değerleri yazıldı, Ana Veri yüklemesi bunları referanslara ve GEÇMİŞ üretim kayıtlarına işledi. eski = 21.10 11:54 sunucu kopyasındaki değer.",
+ "son_kayit_id": 11929,
+ "referanslar": [
+  {
+   "grup": "924",
+   "id": 1651,
+   "kod": "94.LTK.668",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1665,
+   "kod": "94.PBL.101",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1709,
+   "kod": "94.LTK.10",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1722,
+   "kod": "94.FMR.013",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2510,
+   "kod": "94.LTK.733",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2704,
+   "kod": "94.LTK.854",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2769,
+   "kod": "10.300.5124G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2776,
+   "kod": "94.LTK.890",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3116,
+   "kod": "94.pbl.84/40 A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3290,
+   "kod": "94.LTK.804",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3317,
+   "kod": "94.LTK.788",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3521,
+   "kod": "94.LTK.342/10",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3614,
+   "kod": "94.KTK.348",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3962,
+   "kod": "94.LTK.766",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4049,
+   "kod": "94.LTK.817A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4179,
+   "kod": "94.LTK.759",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4246,
+   "kod": "94.LTK.706",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4352,
+   "kod": "94.PBL.109",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4355,
+   "kod": "94.TTK.211",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4401,
+   "kod": "94.LTK.734",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4510,
+   "kod": "94.LTK.704",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4531,
+   "kod": "94.LTK.848",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 4549,
+   "kod": "10.300.5581G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4564,
+   "kod": "94.LTK.701",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 4778,
+   "kod": "10.300.1936GA",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4790,
+   "kod": "94.LTK.341/10",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 14881,
+   "kod": "94.LTK.685",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 14885,
+   "kod": "94.LTK.853",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 14886,
+   "kod": "94.LTK.876",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 17921,
+   "kod": "10.300.6174",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "test",
+   "id": 20872,
+   "kod": "1111",
+   "bolum": "pres",
+   "simdi": 12111.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "test",
+   "id": 20876,
+   "kod": "112111",
+   "bolum": "pres",
+   "simdi": 1212111.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "test",
+   "id": 20877,
+   "kod": "2132",
+   "bolum": "pres",
+   "simdi": 22132.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 20921,
+   "kod": "10 300 4416",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 24064,
+   "kod": "10.300.4517G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 24065,
+   "kod": "10.300.5666g",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 33892,
+   "kod": "94.PDF.016.2",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 34260,
+   "kod": "94.LTK.695",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 34490,
+   "kod": "94.LTK.806",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 34654,
+   "kod": "94.LTK.904",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 34667,
+   "kod": "94.LTK.487/10 hazırlık",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 34673,
+   "kod": "94.LTK.859",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35140,
+   "kod": "94.LTK.905",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35176,
+   "kod": "94.LTK.356/10",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 35333,
+   "kod": "10.130. 5176 G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 35390,
+   "kod": "10.300.6340A",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35476,
+   "kod": "94.LTK.13-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 35856,
+   "kod": "10.3001847B.op.1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 35912,
+   "kod": "10.300.6349a",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35923,
+   "kod": "94.pbl.84.40",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 35927,
+   "kod": "10.300.6443A.op1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35929,
+   "kod": "94.LTK.885",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35951,
+   "kod": "94.LTK.704A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35953,
+   "kod": "94.FMR.012.1",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 35963,
+   "kod": "94.PBL.58-20 hazırlık",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 35996,
+   "kod": "10.300.6487A 1.op",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36014,
+   "kod": "10.300.6487A 2.op",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36057,
+   "kod": "94.PBL.144",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36076,
+   "kod": "94.FMR.013.1",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36082,
+   "kod": "94.LTK.768",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36146,
+   "kod": "94.LTK.850",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36221,
+   "kod": "10.300.6443.op.2.zınpara",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36222,
+   "kod": "10.300.6338A numune",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36228,
+   "kod": "10.300.6443.op.3",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36230,
+   "kod": "10.300.6443A",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36248,
+   "kod": "94.LTK.673/10",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36347,
+   "kod": "10.8042958",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36360,
+   "kod": "10.300.6451A.op.1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36713,
+   "kod": "10.300.6451A",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36830,
+   "kod": "10.130.1957",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36836,
+   "kod": "10.300.4390G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36837,
+   "kod": "10.300.4392G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36838,
+   "kod": "94.LTK.654",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36839,
+   "kod": "94.LTK.411",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36840,
+   "kod": "10.300.4403",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36841,
+   "kod": "94.PBL.57",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36842,
+   "kod": "10.130.1082G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36843,
+   "kod": "94.LTK.655",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36844,
+   "kod": "94.LTK.366",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36845,
+   "kod": "10.300.1561GA.3",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36846,
+   "kod": "10.300.4602G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36847,
+   "kod": "10.300.4614",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36848,
+   "kod": "94.LTK.688",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36849,
+   "kod": "10.300.2969G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36850,
+   "kod": "94.LTK.687",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36851,
+   "kod": "94.PBL.108A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36853,
+   "kod": "94.LTK.694",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36854,
+   "kod": "94.LTK.137",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36855,
+   "kod": "94.LFC.001",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36856,
+   "kod": "94.LTK.623",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36857,
+   "kod": "94.LTK.349",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36858,
+   "kod": "94.PZ.17",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36859,
+   "kod": "94.LTK.625",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36860,
+   "kod": "94.LTK.626",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36861,
+   "kod": "94.LTK.641",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36862,
+   "kod": "94.LTK.712",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36863,
+   "kod": "94.LTK.713",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36864,
+   "kod": "94.LTK.705A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36865,
+   "kod": "94.PBL.111A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36866,
+   "kod": "94.PBL.110",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36867,
+   "kod": "94.LTK.715",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36868,
+   "kod": "94.LTK.717",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36869,
+   "kod": "94.LTK.718",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36870,
+   "kod": "94.LTK.719",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36871,
+   "kod": "10.300.4982G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36872,
+   "kod": "10.300.4984G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36873,
+   "kod": "94.LTK.707",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36874,
+   "kod": "94.LTK.710",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36875,
+   "kod": "10.DTC.924B",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36876,
+   "kod": "94.LTK.65",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36877,
+   "kod": "94.LTK.726",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36878,
+   "kod": "94.LTK.684",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36879,
+   "kod": "94.LTK.419",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36880,
+   "kod": "94.LTK.707A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36881,
+   "kod": "94.TL.015",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36882,
+   "kod": "94.PBL.51",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36883,
+   "kod": "10.DTC.1374GC",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36884,
+   "kod": "10.300.5195",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36885,
+   "kod": "10.300.5198G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36886,
+   "kod": "94.PBL.83",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36887,
+   "kod": "94.PBL.114A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36888,
+   "kod": "94.LTK.729",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36889,
+   "kod": "94.LTK.735",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36890,
+   "kod": "94.LTK.741",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36891,
+   "kod": "94.LTK.742",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36892,
+   "kod": "94.LTK.743",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36893,
+   "kod": "94.LTK.744",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36894,
+   "kod": "10.300.5241G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36895,
+   "kod": "10.300.5242G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36896,
+   "kod": "10.300.5294",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36897,
+   "kod": "94.ACM.02M95",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36898,
+   "kod": "94.LFC.002",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36899,
+   "kod": "10.300.1925G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36900,
+   "kod": "10.300.5531G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36901,
+   "kod": "94.LTK.755",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36903,
+   "kod": "94.LTK.762",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36904,
+   "kod": "94.PBL.119A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36905,
+   "kod": "10.300.4132G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36906,
+   "kod": "10.300.4133G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36907,
+   "kod": "10.300.4664G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36908,
+   "kod": "10.300.4672G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36910,
+   "kod": "94.PBL.10",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36911,
+   "kod": "94.LTK.700A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36912,
+   "kod": "10.300.4134G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36913,
+   "kod": "94.LTK.706A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36914,
+   "kod": "94.LTK.760",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36915,
+   "kod": "94.LTK.761",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36916,
+   "kod": "94.SBR.004A.1",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36917,
+   "kod": "94.LTK.501",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36918,
+   "kod": "10.300.5638G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36919,
+   "kod": "10.130.3778G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36920,
+   "kod": "94.SBR.002A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36922,
+   "kod": "94.LTK.770",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36923,
+   "kod": "94.LTK.771",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36924,
+   "kod": "94.PBL.126A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36925,
+   "kod": "94.LTK.767",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36926,
+   "kod": "94.LTK.787",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36927,
+   "kod": "10.DTC.1377G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36928,
+   "kod": "94.LTK.764",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36929,
+   "kod": "94.LTK.801",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36930,
+   "kod": "94.LTK.784",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36931,
+   "kod": "94.LTK.785",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36932,
+   "kod": "94.LTK.786",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36933,
+   "kod": "94.TL.016",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36934,
+   "kod": "94.LTK.805",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36935,
+   "kod": "94.LTK.809",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36936,
+   "kod": "94.LTK.810",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36937,
+   "kod": "94.LTK.814",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36938,
+   "kod": "94.LTK.807",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36939,
+   "kod": "94.LTK.813",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36940,
+   "kod": "94.LTK.819",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36941,
+   "kod": "94.PBL.128A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36942,
+   "kod": "94.LTK.821",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36943,
+   "kod": "94.LTK.825",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36944,
+   "kod": "94.LTK.825A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36945,
+   "kod": "10.300.5646G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36946,
+   "kod": "94.PBL.58",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36947,
+   "kod": "94.PBL.133A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36948,
+   "kod": "94.LTK.827",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36949,
+   "kod": "94.LTK.830",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36950,
+   "kod": "94.LTK.831",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36951,
+   "kod": "94.LTK.832",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36952,
+   "kod": "94.LTK.834",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36953,
+   "kod": "94.LTK.844",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36954,
+   "kod": "10.300.6055G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36955,
+   "kod": "94.LTK.823",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36956,
+   "kod": "10.300.5483G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36957,
+   "kod": "10.300.5484G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36958,
+   "kod": "94.LTK.852",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36959,
+   "kod": "94.LTK.799",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36960,
+   "kod": "10.300.6106G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36963,
+   "kod": "10.130.4294",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36964,
+   "kod": "10.300.6227G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36965,
+   "kod": "10.300.6228G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36966,
+   "kod": "10.300.6229G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36967,
+   "kod": "10.300.6230G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36968,
+   "kod": "94.ARM.001",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36969,
+   "kod": "94.LTK.846",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36971,
+   "kod": "10.300.6248G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36972,
+   "kod": "10.300.6224G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36973,
+   "kod": "94.LTK.811",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36974,
+   "kod": "94.LTK.866",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36975,
+   "kod": "94.LTK.865",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36977,
+   "kod": "94.LTK.836",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36979,
+   "kod": "94.LTK.867",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36980,
+   "kod": "94.PBL.14",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36981,
+   "kod": "10.DTC.1143",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 36982,
+   "kod": "10.DTC.903B",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36983,
+   "kod": "94.PBL.136",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36984,
+   "kod": "94.LTK.05-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36985,
+   "kod": "94.LTK.08-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36986,
+   "kod": "94.LTK.886",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36987,
+   "kod": "94.LTK.14-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36988,
+   "kod": "94.LTK.19-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36989,
+   "kod": "94.LTK.321-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36990,
+   "kod": "94.LTK.894",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36991,
+   "kod": "94.LTK.701A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36993,
+   "kod": "94.LTK.901",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36994,
+   "kod": "94.LTK.03-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36995,
+   "kod": "94.LTK.197-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36996,
+   "kod": "94.LTK.211-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36997,
+   "kod": "94.LTK.38-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36998,
+   "kod": "94.LTK.47-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 36999,
+   "kod": "94.LTK.478-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37000,
+   "kod": "94.LTK.479-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37001,
+   "kod": "10.300.4886",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37002,
+   "kod": "10.300.5967G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37003,
+   "kod": "94.LTK.720",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37004,
+   "kod": "94.LTK.903",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37005,
+   "kod": "94.LTK.902",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37006,
+   "kod": "94.LTK.332",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37007,
+   "kod": "94.LTK.09-C",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37008,
+   "kod": "94.LTK.871",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37009,
+   "kod": "94.LTK.872",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37011,
+   "kod": "10.300.4602w",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37012,
+   "kod": "10.300.0541W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37013,
+   "kod": "10.300.2062GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37014,
+   "kod": "10.130.3984GR",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37015,
+   "kod": "10.300.0177W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37016,
+   "kod": "10.300.2915W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37018,
+   "kod": "10.300.3701W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37019,
+   "kod": "10.300.2430GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37020,
+   "kod": "10.300.3072W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37022,
+   "kod": "10.300.2061GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37023,
+   "kod": "10.300.1933GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37024,
+   "kod": "10.300.2910W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37025,
+   "kod": "10.300.4195W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37026,
+   "kod": "10.300.2929W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37027,
+   "kod": "10.300.4269W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37028,
+   "kod": "10.300.4271",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37029,
+   "kod": "10.300.4225",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37030,
+   "kod": "10.300.4256",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37031,
+   "kod": "10.300.4472",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37032,
+   "kod": "10.300.2316W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37033,
+   "kod": "10.300.2536GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37034,
+   "kod": "10.300.2537GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37035,
+   "kod": "10.300.2575W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37036,
+   "kod": "10.300.2578W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37037,
+   "kod": "10.300.2707W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37038,
+   "kod": "10.300.2708GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37039,
+   "kod": "10.300.3058W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37040,
+   "kod": "10.300.3916W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37041,
+   "kod": "10.300.3909W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37042,
+   "kod": "10.300.3851W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37043,
+   "kod": "10.300.4234",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37044,
+   "kod": "10.300.4235",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37046,
+   "kod": "10.300.0324GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37047,
+   "kod": "10.300.1522GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37048,
+   "kod": "10.300.2208W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37049,
+   "kod": "10.130.3836W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37050,
+   "kod": "10.300.1883GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37051,
+   "kod": "10.300.1409W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37052,
+   "kod": "10.300.1410W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37053,
+   "kod": "10.300.2922W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37054,
+   "kod": "10.300.2956W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37055,
+   "kod": "10.300.3864W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37056,
+   "kod": "10.300.3871W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37057,
+   "kod": "10.300.3613W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37058,
+   "kod": "10.300.3886W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37059,
+   "kod": "10.300.3535W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37060,
+   "kod": "10.130.4505",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37061,
+   "kod": "10.300.3480W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37062,
+   "kod": "10.300.3485W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37063,
+   "kod": "10.300.3489W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37064,
+   "kod": "10.300.3873W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37065,
+   "kod": "10.300.4280",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37066,
+   "kod": "10.300.4097W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37067,
+   "kod": "10.300.3993W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37068,
+   "kod": "10.300.4024W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37069,
+   "kod": "10.300.2586AW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37070,
+   "kod": "10.300.3845W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37071,
+   "kod": "10.300.3847W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37072,
+   "kod": "10.300.4336",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37073,
+   "kod": "10.300.4338",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37074,
+   "kod": "10.130.3808GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37075,
+   "kod": "10.300.4493",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37076,
+   "kod": "10.300.4342W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37077,
+   "kod": "10.300.0355.2W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37078,
+   "kod": "10.300.2979W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37079,
+   "kod": "10.300.2571W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37080,
+   "kod": "10.300.3397W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37081,
+   "kod": "10.300.3464W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37085,
+   "kod": "10.300.4663W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37086,
+   "kod": "10.300.4921W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37087,
+   "kod": "10.300.5347W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37088,
+   "kod": "10.300.5285W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37089,
+   "kod": "10.300.5286W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37090,
+   "kod": "10.300.4604W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37092,
+   "kod": "10.130.5421GRW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37093,
+   "kod": "10.130.5422GRW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37094,
+   "kod": "10.130.5434W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37095,
+   "kod": "10.130.5433W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37096,
+   "kod": "10.300.0540",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37097,
+   "kod": "10.300.5379W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37098,
+   "kod": "10.300.5380W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37099,
+   "kod": "10.130.4716W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37100,
+   "kod": "10.130.4717W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37102,
+   "kod": "10.300.5107W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37103,
+   "kod": "10.300.4610W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37104,
+   "kod": "10.300.5419",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37105,
+   "kod": "10.300.5421",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37106,
+   "kod": "10.300.5422",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37107,
+   "kod": "10.300.4741W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37108,
+   "kod": "10.300.4781W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37109,
+   "kod": "10.300.4909.1",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37110,
+   "kod": "10.300.4910.1",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37111,
+   "kod": "10.300.5144W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37112,
+   "kod": "10.300.5145W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37113,
+   "kod": "10.300.5524",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37114,
+   "kod": "10.300.4890",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37115,
+   "kod": "10.300.3214W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37116,
+   "kod": "10.300.5681",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37117,
+   "kod": "10.300.5206",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37118,
+   "kod": "10.300.5208W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37119,
+   "kod": "10.300.5209",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37120,
+   "kod": "10.300.5677W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37121,
+   "kod": "10.300.5678W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37122,
+   "kod": "10.300.5214W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37123,
+   "kod": "10.130.5777",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37124,
+   "kod": "10.130.5788",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37125,
+   "kod": "10.130.5797",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37126,
+   "kod": "10.130.5798",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37127,
+   "kod": "10.300.5788",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37128,
+   "kod": "10.300.4259W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37129,
+   "kod": "10.300.4260W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37130,
+   "kod": "10.300.4343W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37131,
+   "kod": "10.300.5962",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37132,
+   "kod": "10.300.5865W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37133,
+   "kod": "10.300.5866W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37134,
+   "kod": "10.300.5861",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37135,
+   "kod": "10.300.5980",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37136,
+   "kod": "10.300.5979",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37137,
+   "kod": "10.300.5933W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37138,
+   "kod": "10.300.5467W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37139,
+   "kod": "10.300.5475W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37140,
+   "kod": "10.300.5481W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37141,
+   "kod": "10.300.5490W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37142,
+   "kod": "10.300.5196W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37143,
+   "kod": "10.300.5197W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37144,
+   "kod": "10.300.6106W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37145,
+   "kod": "10.300.6184",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37146,
+   "kod": "10.300.6185W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37147,
+   "kod": "10.300.6186W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37148,
+   "kod": "10.300.6129W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37149,
+   "kod": "10.300.6132W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37150,
+   "kod": "10.300.6133W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37151,
+   "kod": "10.300.6135W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37152,
+   "kod": "10.300.6227",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37153,
+   "kod": "10.300.6228",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37154,
+   "kod": "10.300.6229",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37155,
+   "kod": "10.300.6230",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37156,
+   "kod": "10.300.6248W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37157,
+   "kod": "10.300.6157W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37158,
+   "kod": "10.300.6058W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37159,
+   "kod": "10.130.5109GRW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37160,
+   "kod": "10.300.6443",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37161,
+   "kod": "10.300.6444",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37164,
+   "kod": "10.300.6577",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37166,
+   "kod": "10.300.0249GW",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37169,
+   "kod": "10.300.4534",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "924",
+   "id": 37281,
+   "kod": "94.LTK.911",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37282,
+   "kod": "94.LTK.875-10",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37283,
+   "kod": "94.PBL.119A2",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37284,
+   "kod": "10.300.6705W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37285,
+   "kod": "10.300.5749A.op.1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37289,
+   "kod": "10.130.4749 rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37291,
+   "kod": "10.300.1847B.op.1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37294,
+   "kod": "10.300.1377/10GR mop",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37297,
+   "kod": "10.300.4672 rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37301,
+   "kod": "10.130.5743A 1.op",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37304,
+   "kod": "10.300.5749A 2.op",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37309,
+   "kod": "10.130.3609 delme havşa",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37310,
+   "kod": "10.300.5959 rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37312,
+   "kod": "10.300.3059 Rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37327,
+   "kod": "10.300.6705D",
+   "bolum": "lazer",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37329,
+   "kod": "10.300.1983G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37365,
+   "kod": "10.300.3842 delme",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37367,
+   "kod": "10.300.0447 rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37370,
+   "kod": "10.300.1394 rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37386,
+   "kod": "10.300.6709A 1.op",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37389,
+   "kod": "10.300.2315.op.2",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37393,
+   "kod": "10.300.0447 delme",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37397,
+   "kod": "10.300.1377/10GR kumlama",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37402,
+   "kod": "10.300.4474 rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37416,
+   "kod": "10.300.2984 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37417,
+   "kod": "10.300.2315  zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37419,
+   "kod": "10.300.6705F",
+   "bolum": "lazer",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37427,
+   "kod": "10.300.6705 diş",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37432,
+   "kod": "10.300.2986 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37441,
+   "kod": "10.300.2934 eye",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37442,
+   "kod": "10.300.6705 havşa",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37452,
+   "kod": "10.300.2986 eye",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37454,
+   "kod": "10.300.6445",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37455,
+   "kod": "10.300.5749 1 op",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37466,
+   "kod": "10.300.1377 paket",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37467,
+   "kod": "10.300.5749 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37477,
+   "kod": "10.300.2060 diş",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37489,
+   "kod": "10.300.1842.op.1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37500,
+   "kod": "10.300.6709 havşa",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37512,
+   "kod": "10.300.6709C",
+   "bolum": "lazer",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37514,
+   "kod": "10.300.3213 delme",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37528,
+   "kod": "10.300.2933G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37529,
+   "kod": "10.300.4672",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37534,
+   "kod": "10.300.4416 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37542,
+   "kod": "10.300.6709",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37547,
+   "kod": "10.300.4474",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37559,
+   "kod": "10.300.6451A.op1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37572,
+   "kod": "10.300.0541 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37576,
+   "kod": "10.300.1951 diş",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37588,
+   "kod": "10.300.6445 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37650,
+   "kod": "10.300.6339W(Rework)",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 120.0
+  },
+  {
+   "grup": "120",
+   "id": 37651,
+   "kod": "10.130 4917 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37652,
+   "kod": "10.300.6445-SB",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37669,
+   "kod": "10.300.6443A.op.1",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37671,
+   "kod": "10.300.5532 diş",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37677,
+   "kod": "10.300.1951",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37681,
+   "kod": "10.300.2973 paket",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37683,
+   "kod": "10.300.2973 diş",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37685,
+   "kod": "10.300.6680A-S",
+   "bolum": "lazer",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37689,
+   "kod": "10.300.6680B-S",
+   "bolum": "lazer",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37692,
+   "kod": "10.300.6680A",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37693,
+   "kod": "10.300.6680A.op.2",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37694,
+   "kod": "10.130.4917 Rayba",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37698,
+   "kod": "10. 300.6451 zımpara",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37703,
+   "kod": "10.130.4917 diş",
+   "bolum": "isleme",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37716,
+   "kod": "94.BPL.135",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37718,
+   "kod": "10MM Numune",
+   "bolum": "lazer",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37746,
+   "kod": "10.300.6680b",
+   "bolum": "pres",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37784,
+   "kod": "10.300.6705",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37785,
+   "kod": "10.300.2278G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37786,
+   "kod": "10.300.4177G",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 37787,
+   "kod": "10.300.5282",
+   "bolum": "montaj",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37788,
+   "kod": "94.LTK.608",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37789,
+   "kod": "94.LTK.661",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37790,
+   "kod": "94.LTK.716",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37791,
+   "kod": "94.LTK.727.1",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37792,
+   "kod": "94.LTK.11",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37793,
+   "kod": "94.PBL.135",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37794,
+   "kod": "94.PBL.141",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37795,
+   "kod": "94.LTK.875A",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 37796,
+   "kod": "94.LTK.875B",
+   "bolum": "montaj",
+   "simdi": 924.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 0.0,
+   "simdi_soktak": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 38381,
+   "kod": "10.300.6709W",
+   "bolum": "kaynak",
+   "simdi": 120.0,
+   "eski": 0.0,
+   "eski_kaynak": 0.0,
+   "eski_soktak": 0.0,
+   "simdi_kaynak": 60.0,
+   "simdi_soktak": 60.0
+  }
+ ],
+ "kayitlar": [
+  {
+   "grup": "924",
+   "id": 720,
+   "kod": "94.LTK.668",
+   "simdi": 924.0,
+   "eski": 612.0
+  },
+  {
+   "grup": "924",
+   "id": 1561,
+   "kod": "94.LTK.668",
+   "simdi": 924.0,
+   "eski": 612.0
+  },
+  {
+   "grup": "924",
+   "id": 1566,
+   "kod": "94.LTK.668",
+   "simdi": 924.0,
+   "eski": 612.0
+  },
+  {
+   "grup": "924",
+   "id": 2721,
+   "kod": "94.LTK.668",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2754,
+   "kod": "94.LTK.668",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3056,
+   "kod": "94.LTK.668",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7519,
+   "kod": "94.LTK.668",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 708,
+   "kod": "94.PBL.101",
+   "simdi": 924.0,
+   "eski": 437.1428571428571
+  },
+  {
+   "grup": "924",
+   "id": 710,
+   "kod": "94.PBL.101",
+   "simdi": 924.0,
+   "eski": 437.1428571428571
+  },
+  {
+   "grup": "924",
+   "id": 1105,
+   "kod": "94.PBL.101",
+   "simdi": 924.0,
+   "eski": 437.1428571428571
+  },
+  {
+   "grup": "924",
+   "id": 1107,
+   "kod": "94.PBL.101",
+   "simdi": 924.0,
+   "eski": 437.1428571428571
+  },
+  {
+   "grup": "924",
+   "id": 868,
+   "kod": "94.LTK.10",
+   "simdi": 924.0,
+   "eski": 240.0
+  },
+  {
+   "grup": "924",
+   "id": 869,
+   "kod": "94.LTK.10",
+   "simdi": 924.0,
+   "eski": 240.0
+  },
+  {
+   "grup": "924",
+   "id": 954,
+   "kod": "94.LTK.10",
+   "simdi": 924.0,
+   "eski": 240.0
+  },
+  {
+   "grup": "924",
+   "id": 522,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 523,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1203,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1204,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1215,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1236,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1249,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1265,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1290,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 1301,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 300.0
+  },
+  {
+   "grup": "924",
+   "id": 2426,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2472,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2496,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2500,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3100,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3123,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3153,
+   "kod": "94.FMR.013",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 723,
+   "kod": "94.LTK.733",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1727,
+   "kod": "94.LTK.733",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2177,
+   "kod": "94.LTK.733",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4419,
+   "kod": "94.LTK.733",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5877,
+   "kod": "94.LTK.733",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10097,
+   "kod": "94.LTK.733",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10839,
+   "kod": "94.LTK.733",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 779,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1156,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1158,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2178,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2233,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2253,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3802,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4806,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4834,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5735,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5826,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6062,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7596,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8275,
+   "kod": "94.LTK.854",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 813,
+   "kod": "10.300.5124G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2798,
+   "kod": "10.300.5124G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7852,
+   "kod": "10.300.5124G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 820,
+   "kod": "94.LTK.890",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2570,
+   "kod": "94.LTK.890",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3234,
+   "kod": "94.LTK.890",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3249,
+   "kod": "94.LTK.890",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3620,
+   "kod": "94.LTK.890",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3621,
+   "kod": "94.LTK.890",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6788,
+   "kod": "94.LTK.890",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 911,
+   "kod": "94.pbl.84/40 A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 912,
+   "kod": "94.pbl.84/40 A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 980,
+   "kod": "94.LTK.804",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 985,
+   "kod": "94.LTK.788",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1019,
+   "kod": "94.LTK.788",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3010,
+   "kod": "94.LTK.788",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3377,
+   "kod": "94.LTK.788",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3378,
+   "kod": "94.LTK.788",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1068,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1422,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1456,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1457,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1830,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1831,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1941,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2092,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2093,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4928,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5034,
+   "kod": "94.LTK.342/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 638,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 973,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 255.3191489361702
+  },
+  {
+   "grup": "924",
+   "id": 1232,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1233,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1262,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1560,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2193,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2398,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2399,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2595,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2603,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3749,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4661,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5108,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5148,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8491,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9733,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9768,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10387,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10614,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10915,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11174,
+   "kod": "94.LTK.766",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1277,
+   "kod": "94.LTK.817A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1770,
+   "kod": "94.LTK.817A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1343,
+   "kod": "94.LTK.759",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8919,
+   "kod": "94.LTK.759",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10189,
+   "kod": "94.LTK.759",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1368,
+   "kod": "94.LTK.706",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1426,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2508,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2814,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2844,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2860,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3293,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3311,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5067,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8720,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8771,
+   "kod": "94.PBL.109",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1429,
+   "kod": "94.TTK.211",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1463,
+   "kod": "94.LTK.734",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1558,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1595,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1758,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1759,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2869,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2895,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3213,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3218,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11169,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11188,
+   "kod": "94.LTK.704",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1579,
+   "kod": "94.LTK.848",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1629,
+   "kod": "94.LTK.848",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 1596,
+   "kod": "10.300.5581G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 4274,
+   "kod": "10.300.5581G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8728,
+   "kod": "10.300.5581G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1608,
+   "kod": "94.LTK.701",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1625,
+   "kod": "94.LTK.701",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1643,
+   "kod": "94.LTK.701",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2048,
+   "kod": "94.LTK.701",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2630,
+   "kod": "94.LTK.701",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2651,
+   "kod": "94.LTK.701",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 6139,
+   "kod": "10.300.1936GA",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 6244,
+   "kod": "10.300.1936GA",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 749,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 1151,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 1162,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 1737,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 1748,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 2245,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 3395,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 3417,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 3550,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 3551,
+   "kod": "94.LTK.341/10",
+   "simdi": 924.0,
+   "eski": 600.0
+  },
+  {
+   "grup": "924",
+   "id": 415,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2656,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2725,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3264,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3265,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3266,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3267,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3268,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4448,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5389,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5420,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5958,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5970,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6019,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8538,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8614,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9996,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10142,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11361,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11502,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11798,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11843,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11853,
+   "kod": "94.LTK.685",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 485,
+   "kod": "94.LTK.853",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3547,
+   "kod": "94.LTK.853",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3552,
+   "kod": "94.LTK.853",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3037,
+   "kod": "94.LTK.876",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4324,
+   "kod": "94.LTK.876",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4357,
+   "kod": "94.LTK.876",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5644,
+   "kod": "94.LTK.876",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7395,
+   "kod": "94.LTK.876",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9862,
+   "kod": "94.LTK.876",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11035,
+   "kod": "94.LTK.876",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "test",
+   "id": 3613,
+   "kod": "112111",
+   "simdi": 1212111.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "test",
+   "id": 3614,
+   "kod": "2132",
+   "simdi": 22132.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 4130,
+   "kod": "10.300.4517G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 11906,
+   "kod": "10.300.4517G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 4134,
+   "kod": "10.300.5666g",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4433,
+   "kod": "94.PDF.016.2",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 4780,
+   "kod": "94.LTK.695",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5279,
+   "kod": "94.LTK.695",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6067,
+   "kod": "94.LTK.695",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6721,
+   "kod": "94.LTK.695",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9464,
+   "kod": "94.LTK.695",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9967,
+   "kod": "94.LTK.695",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10884,
+   "kod": "94.LTK.695",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3059,
+   "kod": "94.LTK.806",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3365,
+   "kod": "94.LTK.806",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5274,
+   "kod": "94.LTK.806",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5533,
+   "kod": "94.LTK.806",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5538,
+   "kod": "94.LTK.806",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5639,
+   "kod": "94.LTK.904",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5664,
+   "kod": "94.LTK.487/10 hazırlık",
+   "simdi": 924.0,
+   "eski": 514.0
+  },
+  {
+   "grup": "924",
+   "id": 10832,
+   "kod": "94.LTK.487/10 hazırlık",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 600,
+   "kod": "94.LTK.859",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5700,
+   "kod": "94.LTK.859",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10548,
+   "kod": "94.LTK.859",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3596,
+   "kod": "94.LTK.905",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6080,
+   "kod": "94.LTK.905",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10104,
+   "kod": "94.LTK.905",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6079,
+   "kod": "94.LTK.356/10",
+   "simdi": 924.0,
+   "eski": 500.0
+  },
+  {
+   "grup": "924",
+   "id": 6151,
+   "kod": "94.LTK.356/10",
+   "simdi": 924.0,
+   "eski": 500.0
+  },
+  {
+   "grup": "120",
+   "id": 6468,
+   "kod": "10.130. 5176 G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 6543,
+   "kod": "10.300.6340A",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 6623,
+   "kod": "94.LTK.13-C",
+   "simdi": 924.0,
+   "eski": 255.3191489361702
+  },
+  {
+   "grup": "924",
+   "id": 6672,
+   "kod": "94.LTK.13-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7147,
+   "kod": "10.3001847B.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7274,
+   "kod": "10.300.6349a",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7436,
+   "kod": "10.300.6443A.op1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7965,
+   "kod": "10.300.6443A.op1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2820,
+   "kod": "94.LTK.885",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7294,
+   "kod": "94.LTK.885",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7293,
+   "kod": "94.LTK.704A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7337,
+   "kod": "94.LTK.704A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7339,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7355,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7369,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7434,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8601,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8602,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8630,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8667,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10359,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10515,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10521,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11034,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11036,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11132,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11146,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11883,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11884,
+   "kod": "94.FMR.012.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7354,
+   "kod": "94.PBL.58-20 hazırlık",
+   "simdi": 924.0,
+   "eski": 514.2857142857142
+  },
+  {
+   "grup": "924",
+   "id": 7356,
+   "kod": "94.PBL.58-20 hazırlık",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7517,
+   "kod": "94.PBL.58-20 hazırlık",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7472,
+   "kod": "10.300.6487A 1.op",
+   "simdi": 120.0,
+   "eski": 30.0
+  },
+  {
+   "grup": "120",
+   "id": 11164,
+   "kod": "10.300.6487A 1.op",
+   "simdi": 120.0,
+   "eski": 30.0
+  },
+  {
+   "grup": "120",
+   "id": 11172,
+   "kod": "10.300.6487A 2.op",
+   "simdi": 120.0,
+   "eski": 30.0
+  },
+  {
+   "grup": "924",
+   "id": 7587,
+   "kod": "94.PBL.144",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11563,
+   "kod": "94.PBL.144",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7633,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9923,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9928,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10520,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10645,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10673,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10701,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11353,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11391,
+   "kod": "94.FMR.013.1",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7641,
+   "kod": "94.LTK.768",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 7796,
+   "kod": "94.LTK.850",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8005,
+   "kod": "10.300.6443.op.2.zınpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8007,
+   "kod": "10.300.6338A numune",
+   "simdi": 120.0,
+   "eski": 36.0
+  },
+  {
+   "grup": "120",
+   "id": 8023,
+   "kod": "10.300.6443.op.3",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8028,
+   "kod": "10.300.6443A",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10326,
+   "kod": "10.300.6443A",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10481,
+   "kod": "10.300.6443A",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8069,
+   "kod": "94.LTK.673/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8072,
+   "kod": "94.LTK.673/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8247,
+   "kod": "94.LTK.673/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 8248,
+   "kod": "94.LTK.673/10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8423,
+   "kod": "10.300.6451A.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8716,
+   "kod": "10.300.6451A.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8876,
+   "kod": "10.300.6451A.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10214,
+   "kod": "10.300.6451A",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 561,
+   "kod": "94.LTK.694",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 647,
+   "kod": "94.LTK.694",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 649,
+   "kod": "94.LTK.694",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 1958,
+   "kod": "94.LTK.694",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2468,
+   "kod": "94.LTK.694",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11544,
+   "kod": "94.LTK.694",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 491,
+   "kod": "94.PZ.17",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 506,
+   "kod": "94.PZ.17",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9415,
+   "kod": "94.LTK.713",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 9471,
+   "kod": "94.LTK.713",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2006,
+   "kod": "94.PBL.110",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2518,
+   "kod": "94.PBL.110",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2532,
+   "kod": "94.PBL.110",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2053,
+   "kod": "94.LTK.767",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3334,
+   "kod": "94.LTK.767",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3335,
+   "kod": "94.LTK.767",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10212,
+   "kod": "94.PBL.128A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10220,
+   "kod": "94.PBL.128A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 519,
+   "kod": "94.LTK.823",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10106,
+   "kod": "94.LTK.823",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10924,
+   "kod": "94.LTK.823",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2589,
+   "kod": "94.LTK.799",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3397,
+   "kod": "94.LTK.799",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 10354,
+   "kod": "94.LTK.799",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 686,
+   "kod": "94.LTK.865",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2195,
+   "kod": "94.LTK.865",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3606,
+   "kod": "94.LTK.836",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3607,
+   "kod": "94.LTK.836",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2645,
+   "kod": "94.LTK.05-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 5524,
+   "kod": "94.LTK.05-C",
+   "simdi": 924.0,
+   "eski": 255.3191489361702
+  },
+  {
+   "grup": "924",
+   "id": 5535,
+   "kod": "94.LTK.05-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2298,
+   "kod": "94.LTK.08-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2950,
+   "kod": "94.LTK.19-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3303,
+   "kod": "94.LTK.321-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3304,
+   "kod": "94.LTK.321-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11156,
+   "kod": "94.LTK.701A",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2965,
+   "kod": "94.LTK.03-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3019,
+   "kod": "94.LTK.211-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3173,
+   "kod": "94.LTK.47-C",
+   "simdi": 924.0,
+   "eski": 255.3191489361702
+  },
+  {
+   "grup": "924",
+   "id": 3208,
+   "kod": "94.LTK.47-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2293,
+   "kod": "94.LTK.478-C",
+   "simdi": 924.0,
+   "eski": 255.3191489361702
+  },
+  {
+   "grup": "924",
+   "id": 3389,
+   "kod": "94.LTK.479-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3390,
+   "kod": "94.LTK.479-C",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 2670,
+   "kod": "94.LTK.903",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3319,
+   "kod": "94.LTK.902",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 3321,
+   "kod": "94.LTK.902",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 40,
+   "kod": "10.300.0541W",
+   "simdi": 120.0,
+   "eski": 48.0
+  },
+  {
+   "grup": "120",
+   "id": 46,
+   "kod": "10.300.0541W",
+   "simdi": 120.0,
+   "eski": 48.0
+  },
+  {
+   "grup": "120",
+   "id": 48,
+   "kod": "10.300.0541W",
+   "simdi": 120.0,
+   "eski": 48.0
+  },
+  {
+   "grup": "120",
+   "id": 68,
+   "kod": "10.300.0541W",
+   "simdi": 120.0,
+   "eski": 48.0
+  },
+  {
+   "grup": "120",
+   "id": 21,
+   "kod": "10.300.0177W",
+   "simdi": 120.0,
+   "eski": 69.0
+  },
+  {
+   "grup": "120",
+   "id": 2102,
+   "kod": "10.300.0177W",
+   "simdi": 120.0,
+   "eski": 69.0
+  },
+  {
+   "grup": "120",
+   "id": 2119,
+   "kod": "10.300.0177W",
+   "simdi": 120.0,
+   "eski": 69.0
+  },
+  {
+   "grup": "120",
+   "id": 2150,
+   "kod": "10.300.0177W",
+   "simdi": 120.0,
+   "eski": 69.0
+  },
+  {
+   "grup": "120",
+   "id": 2198,
+   "kod": "10.300.0177W",
+   "simdi": 120.0,
+   "eski": 69.0
+  },
+  {
+   "grup": "120",
+   "id": 2864,
+   "kod": "10.300.0177W",
+   "simdi": 120.0,
+   "eski": 69.0
+  },
+  {
+   "grup": "120",
+   "id": 10275,
+   "kod": "10.300.4269W",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10309,
+   "kod": "10.300.4269W",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9753,
+   "kod": "10.300.0324GW",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 6566,
+   "kod": "10.300.5107W",
+   "simdi": 120.0,
+   "eski": 243.0
+  },
+  {
+   "grup": "120",
+   "id": 11443,
+   "kod": "10.300.4741W",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 11514,
+   "kod": "10.300.4741W",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 11038,
+   "kod": "10.300.5208W",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 11134,
+   "kod": "10.300.5208W",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11392,
+   "kod": "94.LTK.875-10",
+   "simdi": 924.0,
+   "eski": 1380.0
+  },
+  {
+   "grup": "924",
+   "id": 11399,
+   "kod": "94.LTK.875-10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11545,
+   "kod": "94.LTK.875-10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11566,
+   "kod": "94.LTK.875-10",
+   "simdi": 924.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 11803,
+   "kod": "10.300.6705W",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9400,
+   "kod": "10.130.4749 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9405,
+   "kod": "10.300.1847B.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9418,
+   "kod": "10.300.1377/10GR mop",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 6038,
+   "kod": "10.300.4672 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9429,
+   "kod": "10.300.4672 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9433,
+   "kod": "10.130.5743A 1.op",
+   "simdi": 120.0,
+   "eski": 20.0
+  },
+  {
+   "grup": "120",
+   "id": 9443,
+   "kod": "10.300.5749A 2.op",
+   "simdi": 120.0,
+   "eski": 20.0
+  },
+  {
+   "grup": "120",
+   "id": 9444,
+   "kod": "10.300.5749A 2.op",
+   "simdi": 120.0,
+   "eski": 20.0
+  },
+  {
+   "grup": "120",
+   "id": 9461,
+   "kod": "10.130.3609 delme havşa",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9467,
+   "kod": "10.300.5959 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9654,
+   "kod": "10.300.5959 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9875,
+   "kod": "10.300.5959 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9473,
+   "kod": "10.300.3059 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9664,
+   "kod": "10.300.3059 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9894,
+   "kod": "10.300.3059 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9500,
+   "kod": "10.300.6705D",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2857,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3006,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3602,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3672,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3897,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8388,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8417,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8571,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9516,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9557,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10420,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 11655,
+   "kod": "10.300.3842 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9524,
+   "kod": "10.300.0447 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3344,
+   "kod": "10.300.1394 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9532,
+   "kod": "10.300.1394 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9653,
+   "kod": "10.300.1394 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9917,
+   "kod": "10.300.1394 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10082,
+   "kod": "10.300.1394 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 11112,
+   "kod": "10.300.1394 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9596,
+   "kod": "10.300.6709A 1.op",
+   "simdi": 120.0,
+   "eski": 30.0
+  },
+  {
+   "grup": "120",
+   "id": 9611,
+   "kod": "10.300.2315.op.2",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9696,
+   "kod": "10.300.2315.op.2",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10076,
+   "kod": "10.300.2315.op.2",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10136,
+   "kod": "10.300.2315.op.2",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 5222,
+   "kod": "10.300.0447 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 5493,
+   "kod": "10.300.0447 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 5575,
+   "kod": "10.300.0447 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9623,
+   "kod": "10.300.0447 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2394,
+   "kod": "10.300.1377/10GR kumlama",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9630,
+   "kod": "10.300.1377/10GR kumlama",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3556,
+   "kod": "10.300.4474 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3618,
+   "kod": "10.300.4474 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7098,
+   "kod": "10.300.4474 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9637,
+   "kod": "10.300.4474 rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 5603,
+   "kod": "10.300.2984 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 6227,
+   "kod": "10.300.2984 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9672,
+   "kod": "10.300.2984 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10393,
+   "kod": "10.300.2984 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9673,
+   "kod": "10.300.2315  zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9868,
+   "kod": "10.300.2315  zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9678,
+   "kod": "10.300.6705F",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9706,
+   "kod": "10.300.6705 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 5753,
+   "kod": "10.300.2986 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7862,
+   "kod": "10.300.2986 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7938,
+   "kod": "10.300.2986 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9719,
+   "kod": "10.300.2986 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10500,
+   "kod": "10.300.2986 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10545,
+   "kod": "10.300.2934 eye",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9769,
+   "kod": "10.300.6705 havşa",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 6039,
+   "kod": "10.300.2986 eye",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8010,
+   "kod": "10.300.2986 eye",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9844,
+   "kod": "10.300.2986 eye",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9206,
+   "kod": "10.300.6445",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9806,
+   "kod": "10.300.6445",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9810,
+   "kod": "10.300.5749 1 op",
+   "simdi": 120.0,
+   "eski": 48.0
+  },
+  {
+   "grup": "120",
+   "id": 9846,
+   "kod": "10.300.1377 paket",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9847,
+   "kod": "10.300.5749 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3038,
+   "kod": "10.300.2060 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8681,
+   "kod": "10.300.2060 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 8809,
+   "kod": "10.300.2060 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9874,
+   "kod": "10.300.2060 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9949,
+   "kod": "10.300.2060 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9903,
+   "kod": "10.300.1842.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9951,
+   "kod": "10.300.1842.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9926,
+   "kod": "10.300.6709 havşa",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9930,
+   "kod": "10.300.6709C",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2750,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2789,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3338,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 5630,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 5717,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 7802,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9936,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10272,
+   "kod": "10.300.3213 delme",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9978,
+   "kod": "10.300.2933G",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9982,
+   "kod": "10.300.4672",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10006,
+   "kod": "10.300.4416 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10036,
+   "kod": "10.300.6709",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10045,
+   "kod": "10.300.4474",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10053,
+   "kod": "10.300.6451A.op1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2749,
+   "kod": "10.300.0541 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2866,
+   "kod": "10.300.0541 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3455,
+   "kod": "10.300.0541 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10071,
+   "kod": "10.300.0541 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10288,
+   "kod": "10.300.0541 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10328,
+   "kod": "10.300.0541 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3315,
+   "kod": "10.300.1951 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10084,
+   "kod": "10.300.1951 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10095,
+   "kod": "10.300.6445 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10131,
+   "kod": "10.300.6339W(Rework)",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10147,
+   "kod": "10.300.6339W(Rework)",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10132,
+   "kod": "10.130 4917 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10178,
+   "kod": "10.130 4917 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 9950,
+   "kod": "10.300.6445-SB",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10138,
+   "kod": "10.300.6445-SB",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10201,
+   "kod": "10.300.6443A.op.1",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10213,
+   "kod": "10.300.5532 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3373,
+   "kod": "10.300.1951",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10233,
+   "kod": "10.300.1951",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3828,
+   "kod": "10.300.2973 paket",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10250,
+   "kod": "10.300.2973 paket",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3826,
+   "kod": "10.300.2973 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10257,
+   "kod": "10.300.2973 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10260,
+   "kod": "10.300.6680A-S",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10273,
+   "kod": "10.300.6680B-S",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10280,
+   "kod": "10.300.6680A",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10282,
+   "kod": "10.300.6680A",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10281,
+   "kod": "10.300.6680A.op.2",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2388,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2643,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3735,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3947,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 4003,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 4050,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10289,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10295,
+   "kod": "10.130.4917 Rayba",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10347,
+   "kod": "10. 300.6451 zımpara",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 2352,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3129,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3195,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3712,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3723,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3810,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 3969,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10368,
+   "kod": "10.130.4917 diş",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "120",
+   "id": 10402,
+   "kod": "10.300.6680b",
+   "simdi": 120.0,
+   "eski": 0.0
+  },
+  {
+   "grup": "924",
+   "id": 11584,
+   "kod": "94.PBL.141",
+   "simdi": 924.0,
+   "eski": 0.0
+  }
+ ]
+}

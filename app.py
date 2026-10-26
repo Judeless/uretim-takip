@@ -5698,6 +5698,7 @@ def referans_excel_export():
 # dosya taşımaya gerek kalmasın). Yükleme ÖNCE önizleme döner, onayla uygulanır.
 # Ayrıntı: import_excel.py 'ANA VERİ' bölümü.
 _ANA_VERI_SILME_UYARI_ORAN = 0.2      # bir bölümün %20'sinden fazlası silinecekse uyar
+_ANA_VERI_TOPLU_DOLUM_ESIK = 20       # boş süreli bu kadar referansa aynı değer yazılıyorsa uyar
 
 
 @app.route('/api/ana_veri/durum', methods=['GET'])
@@ -5824,6 +5825,13 @@ def ana_veri_yukle():
         if d['mevcut'] and d['referanslar_silinen'] > d['mevcut'] * _ANA_VERI_SILME_UYARI_ORAN:
             uyarilar.append(f'{ad}: mevcut {d["mevcut"]} referansın {d["referanslar_silinen"]} tanesi '
                             f'SİLİNECEK — dosyanın eksik/eski olmadığından emin olun')
+        # 2026-10-26: Excel'in otomatik doldurması süresiz 179 montaj referansına 924 yazdı;
+        # süre değişince GEÇMİŞ üretim kayıtları da güncellendiği için OEE geriye dönük bozuldu
+        for _v, _n in sorted((d.get('bos_dolum') or {}).items(), key=lambda x: -x[1]):
+            if _n >= _ANA_VERI_TOPLU_DOLUM_ESIK:
+                uyarilar.append(f'{ad}: süresi BOŞ olan {_n} referansa AYNI süre ({_v:g} sn) yazılacak — '
+                                "Excel'de otomatik doldurma / sürükleme olabilir. Onaylarsanız bu referansların "
+                                f'GEÇMİŞ üretim kayıtlarının süresi de değişir (OEE geriye dönük).')
     if onay:
         try:
             kim = g.panel_ku['kullanici_adi']
@@ -14709,13 +14717,15 @@ def kod_sorgu_api():
     try:
         cn = kp.erp_baglan()
     except Exception as e:
-        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 503
+        # 500 (502/503 DEĞİL): panelin GET sarmalayıcısı 502/503'ü 3 kez yeniden dener — AS400'e
+        # art arda bağlanmasın (kimlik hatasında bağlantı kilidi de var)
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 500
     try:
         sonuc = KS.sorgula(cn, kod, sayilan, gosterilen, _kp_eksi_depolar(pf),
                            kisit_disi=_kp_kisit_disi(pf),
                            acilmayan_onekler=pf.get('kontrol_disi_onek') or ())
     except Exception as e:
-        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 500
     finally:
         try:
             cn.close()

@@ -961,7 +961,8 @@ def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12, taban=None):
     son = {'referanslar_eklenen': 0, 'referanslar_guncellenen': 0, 'referanslar_ayni': 0,
            'referanslar_silinen': 0, 'referanslar_korunan': 0, 'referanslar_geri_eklenmeyen': 0,
            'kalip_acik_kayit': 0, 'dosyada': len(satirlar),
-           'ornek_eklenen': [], 'ornek_degisen': [], 'ornek_silinen': [], 'ornek_korunan': []}
+           'ornek_eklenen': [], 'ornek_degisen': [], 'ornek_silinen': [], 'ornek_korunan': [],
+           'bos_dolum': {}}
     son['mevcut'] = conn.execute(
         "SELECT COUNT(*) FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? "
         "AND COALESCE(lokasyon,'TK2')='TK2'", (bolum,)).fetchone()[0]
@@ -1017,6 +1018,11 @@ def _ana_veri_bolum_uygula(conn, bolum, satirlar, ornek_n=12, taban=None):
             conn.execute(f"UPDATE referans_listesi SET {', '.join(k + '=?' for k in fark)} WHERE id=?",
                          list(fark.values()) + [m[0]])
             son['referanslar_guncellenen'] += 1
+            # BOŞ SÜREYE TOPLU AYNI DEĞER (2026-10-26): Excel'in otomatik doldurması süresiz 179
+            # montaj referansına 924 yazdı, geçmiş üretim kayıtları da onunla değişti → önizleme uyarır
+            if not float(eski['hedef_cycle_time_sn'] or 0) and fark.get('hedef_cycle_time_sn'):
+                _v = round(float(fark['hedef_cycle_time_sn']), 2)
+                son['bos_dolum'][_v] = son['bos_dolum'].get(_v, 0) + 1
             if len(son['ornek_degisen']) < ornek_n:
                 son['ornek_degisen'].append({'kod': kod, 'alanlar': {
                     k: [m[1] if k == 'referans_kodu' else eski.get(k), v] for k, v in fark.items()}})
