@@ -1980,6 +1980,114 @@
             .topbar { position: static; margin: 0 0 12px; border-bottom: 0; }
             .table-wrap { overflow: visible; max-height: none; }
         }
+
+        /* ── 13) TELEFON + ANA EKRAN UYGULAMASI (kullanıcı 2026-10-26: "tarayıcıdan
+               uygulama olarak kaydettiğimizde uygulamada bozuk yerler oluyor").
+               12) bloğundan SONRA olmalı — aynı özgüllükteki kuralları o ezer. ───── */
+        /* Kapalı detay paneli ekran dışında beklerken gölgesi sağ kenara sızıyordu */
+        .detail-panel:not(.open) { box-shadow: none; }
+        /* 100vh telefonda adres çubuğunu da sayıyor: menünün altı (Şifre / Çıkış)
+           ekran dışında kalıyordu → dinamik yükseklik + alt çentik (home çubuğu) payı */
+        .sidebar { height: 100vh; height: 100dvh; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+        .detail-panel { height: 100vh; height: 100dvh; }
+        .modal { max-height: 90vh; max-height: calc(100dvh - 40px); }
+        /* Ana ekran uygulamasında tarayıcının yenile düğmesi yok → üst barda ⟳ */
+        .pwa-yenile { display: none; }
+        @media (display-mode: standalone) { .pwa-yenile { display: inline-flex; } }
+        html.pwa .pwa-yenile { display: inline-flex; }
+        /* Telefonda tema + dil düğmeleri menünün altına taşınır (bkz. mobilYerlesim) */
+        .sb-mobil-ayar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+                         padding: 0 0 12px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+        @media (max-width: 900px) {
+            /* Üst bar TEK satır: ☰ · sayfa adı · (⟳) · TK2|TK1. Eskiden üstte 34px boşluk +
+               hamburger tek başına bir satır + iki satır kontrol vardı. */
+            .topbar { margin: 0 0 12px; padding: 0 0 10px; flex-wrap: wrap; gap: 8px; align-items: center; }
+            .topbar-left { display: contents; }
+            .hamburger { order: 1; flex: 0 0 auto; }
+            .breadcrumb { display: block; order: 2; flex: 1 1 0; min-width: 0; font-size: 0; }
+            /* Yol (TK2 ▸ Robot Kaynak ▸) dar ekranda sayfa adını kesiyordu: yalnız sayfa adı */
+            .breadcrumb b { font-size: .95rem; }
+            .topbar-right { order: 3; flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; }
+            .bolum-sec-ust { order: 4; flex: 1 1 100%; min-height: 44px; }
+            .sayac-rozet { display: none; }
+            .main { padding-bottom: calc(50px + env(safe-area-inset-bottom)); }
+            .detail-panel { padding-top: calc(20px + env(safe-area-inset-top));
+                            padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+            .modal-overlay { padding: 12px; padding-top: max(12px, env(safe-area-inset-top));
+                             padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+            /* İki sayfada arama kutusu sabit en az genişlikle ekrandan taşıyordu */
+            .ky-filtre .ky-ref-input, #kap-ara { width: 100% !important; min-width: 0 !important; }
+            /* Filtre kutuları (Kayıtlar, Sinyal Analizi…) tek satıra sıkıştırılıyordu; çoklu
+               seçim düğmesinin 170px en az genişliği yüzünden Bölüm / Vardiya / Referans üst
+               üste biniyordu → satırda ikişer kutu, düğme kutusunu doldurur. */
+            .ky-filtre .f-group { flex: 1 1 calc(50% - 7px); min-width: 0; }
+            .ky-filtre .cs-btn { min-width: 0; max-width: none; width: 100%; }
+            /* Satır içi min-width (Kapasite: 150–190px) seçim kutularını üst üste bindiriyordu */
+            .ky-filtre select, .ky-filtre input[type="text"], .ky-filtre input[type="search"] { min-width: 0 !important; }
+            .cs-panel { min-width: 100%; max-width: calc(100vw - 32px); }
+            /* Güvenlik ağı: ekrandan taşan tek bir öğe bütün sayfayı uzaklaştırıp küçültüyordu
+               (telefon sayfayı taşan genişliğe sığdırır). Geniş tablolar kendi kutusunda kayar. */
+            body { overflow-x: hidden; }
+        }
+
+        /* ── KOD SORGU (2026-10-26) — AS400 07-10-01 telefondan; telefon öncelikli ── */
+        .ks-form { display: flex; gap: 8px; }
+        .ks-form input { flex: 1; min-width: 0; min-height: 48px; font-size: 1.05rem; font-weight: 700;
+                         padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px;
+                         background: var(--bg); color: var(--text); font-family: var(--font-main); }
+        .ks-form input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
+        .ks-form .btn { min-height: 48px; padding: 0 18px; }
+        .ks-oneri { margin-top: 6px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); }
+        .ks-oneri:empty { display: none; }
+        .ks-oneri button { display: flex; width: 100%; text-align: left; gap: 10px; align-items: baseline;
+                           padding: 10px 14px; min-height: 44px; border: 0; border-bottom: 1px solid var(--border);
+                           background: none; color: var(--text); font: inherit; cursor: pointer; }
+        .ks-oneri button:last-child { border-bottom: 0; }
+        .ks-oneri button:hover { background: var(--bg); }
+        .ks-oneri b { font-size: .9rem; white-space: nowrap; }
+        .ks-oneri span { font-size: .76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .ks-son { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+        .ks-son:empty { display: none; }
+        .ks-son button, .ks-geri { border: 1px solid var(--border); background: var(--bg); color: var(--text);
+                                   border-radius: 999px; padding: 6px 12px; min-height: 36px;
+                                   font: 700 .78rem var(--font-main); cursor: pointer; }
+        .ks-geri { margin-top: 12px; }
+        .ks-kart { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px;
+                   padding: 14px 16px; margin-top: 12px; box-shadow: var(--shadow); }
+        .ks-bas { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; }
+        .ks-kod { font-size: 1.25rem; font-weight: 800; letter-spacing: -.01em; overflow-wrap: anywhere; }
+        .ks-ack { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+        .ks-cip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 800;
+                  background: var(--bg); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+        .ks-cip.kirmizi { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+        .ks-cip.yesil { background: var(--success-soft); color: var(--success); border-color: transparent; }
+        .ks-cip.sari { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+        .ks-metrik { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+        @media (max-width: 600px) { .ks-metrik { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .ks-m { background: var(--bg); border-radius: 10px; padding: 9px 10px; min-width: 0; }
+        .ks-m .d { font-size: 1.25rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+        .ks-m .e { font-size: .66rem; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+        .ks-m .a { font-size: .72rem; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+        .ks-depolar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .ks-depo { font-size: .76rem; padding: 4px 9px; border-radius: 8px; background: var(--bg); font-variant-numeric: tabular-nums; }
+        .ks-depo b { margin-right: 4px; }
+        .ks-depo.eksi { color: var(--danger); background: var(--danger-soft); }
+        .ks-baslik { font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+                     margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; }
+        .ks-parca { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+        .ks-parca.ilk { border-top: 0; }
+        .ks-parca.kisit { background: var(--danger-soft); margin: 0 -16px; padding: 10px 16px; border-top-color: transparent; border-radius: 8px; }
+        .ks-parca .k { font-weight: 800; font-size: .92rem; color: var(--primary); background: none; border: 0; padding: 0;
+                       text-align: left; font-family: inherit; cursor: pointer; overflow-wrap: anywhere; }
+        .ks-parca .u { text-align: right; font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .ks-parca .s { font-size: .74rem; color: var(--muted); }
+        .ks-parca .s2 { grid-column: 1 / -1; font-size: .72rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+        .ks-emir { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+                   padding: 9px 0; border-top: 1px solid var(--border); font-size: .82rem; }
+        .ks-emir.ilk { border-top: 0; }
+        .ks-alt { font-size: .74rem; color: var(--muted); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+        .ks-alt select { min-height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+                         color: var(--text); font: 600 .78rem var(--font-main); padding: 4px 8px; }
     </style>
 </head>
 
@@ -5922,6 +6030,9 @@ window.__I18N_SOZLUK__ = {
             <div class="nav-group">
                 <button class="nav-group-title" onclick="navGrupTogle(this)"><span>AS400 İşlemler</span><span class="ok">▼</span></button>
                 <div class="nav-group-govde">
+                <!-- KOD SORGU (2026-10-26): AS400 07-10-01 ekranı telefondan -->
+                <a class="nav-item" data-sayfa="kod-sorgu" onclick="sayfaAc('kod-sorgu')">
+                    <span class="nav-icon">🔎</span> Kod Sorgu</a>
                 <a class="nav-item" data-sayfa="as400-teyit" onclick="sayfaAc('as400-teyit')">
                     <span class="nav-icon">🔁</span> Launch Kapama / Teyit</a>
                 <a class="nav-item" data-sayfa="as400-transfer" onclick="sayfaAc('as400-transfer')">
@@ -6003,6 +6114,7 @@ window.__I18N_SOZLUK__ = {
             </div>
 
             <div class="sidebar-footer">
+                <div id="sb-mobil-ayar" class="sb-mobil-ayar" style="display:none"></div>
                 <div id="panel-kullanici-kutu" style="padding:10px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px;display:none">
                     <div style="display:flex;align-items:center;gap:9px">
                         <span style="width:32px;height:32px;border-radius:50%;background:var(--grad-violet);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff" id="panel-ku-avatar">?</span>
@@ -6057,6 +6169,8 @@ window.__I18N_SOZLUK__ = {
                         <span class="sr-deger" id="sayac-rozet-deger">—</span>
                     </button>
                     {% endif %}
+                    <button type="button" class="tema-anahtar pwa-yenile" onclick="location.reload()"
+                            title="Sayfayı yenile" aria-label="Sayfayı yenile">⟳</button>
                     <button type="button" class="tema-anahtar" id="tema-anahtar"
                             onclick="temaDegistir()" title="Açık / koyu tema"
                             aria-label="Tema değiştir">🌙</button>
@@ -8792,6 +8906,24 @@ window.__I18N_SOZLUK__ = {
                 </div>
             </section>
 
+            <!-- ══ KOD SORGU (kullanıcı 2026-10-26) — AS400 07-10-01 telefondan ══ -->
+            <section class="page" id="page-kod-sorgu">
+                <div style="margin-bottom:12px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">🔎 Kod Sorgu</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">AS400 07-10-01 ekranının karşılığı: kodu yazın — stok, açık emirler ve alt parça kısıtı ERP'den canlı okunur.</p>
+                </div>
+                <div class="ks-kart" style="margin-top:0">
+                    <form class="ks-form" onsubmit="ksSorgula();return false" autocomplete="off">
+                        <input type="search" id="ks-kod" placeholder="Kod: 10.300.1845W · LTK.685" enterkeyhint="search"
+                               autocapitalize="characters" autocorrect="off" spellcheck="false" oninput="ksOneri()">
+                        <button type="submit" class="btn btn-primary">Sorgula</button>
+                    </form>
+                    <div id="ks-oneri" class="ks-oneri"></div>
+                    <div id="ks-son" class="ks-son"></div>
+                </div>
+                <div id="ks-sonuc"></div>
+            </section>
+
             <section class="page" id="page-talepler">
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">💬 Talep &amp; Öneri</h2>
@@ -9939,7 +10071,7 @@ window.__I18N_SOZLUK__ = {
             }
         }
 
-        function sayfaAc(sayfa) {
+        function sayfaAc(sayfa, gecmistenMi) {
             // Yetki kapısı: kullanıcı izin verilmeyen sayfaya geçemez → ilk izinli sayfaya düş
             if (!panelSayfaIzinli(sayfa)) {
                 sayfa = panelIlkIzinliSayfa();
@@ -9981,6 +10113,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'proje-takip') ? 'page-proje-takip'
                         : (sayfa === 'talepler') ? 'page-talepler'
                         : (sayfa === 'bolum-kapasite') ? 'page-bolum-kapasite'
+                        : (sayfa === 'kod-sorgu') ? 'page-kod-sorgu'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
             document.querySelectorAll('.page').forEach(function (p) {
                 p.classList.toggle('active', p.id === hedefId);
@@ -9992,7 +10125,7 @@ window.__I18N_SOZLUK__ = {
             bolumSecGuncelle();     // üst bar bölüm seçicisi bu sayfada anlamlı mı?
             tarihSeritGuncelle();   // tarih şeridi bu sayfada anlamlı mı?
             breadcrumbGuncelle();
-            sidebarAc(false);
+            sidebarAc(false, true);
             if (sayfa === 'ozet') yukleOzet();
             if (sayfa === 'bolum') yukleBolum();
             if (sayfa === 'kayitlar') yukleKayitlar();
@@ -10026,6 +10159,7 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'durus-sebepleri') dsSekmeAcildi();
             if (sayfa === 'talepler') tlSekmeAcildi();
             if (sayfa === 'bolum-kapasite') bkSekmeAcildi();
+            if (sayfa === 'kod-sorgu') ksSekmeAcildi();
             if (sayfa === 'durus-analizi') daSekmeAcildi();
             if (sayfa === 'kapasite') kapSekmeAcildi();
             if (sayfa === 'satis-plani') spSekmeAcildi();
@@ -10046,6 +10180,18 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'kullanicilar') yukleKullanicilar();
             if (sayfa === 'ariza-onay') arizaKuyrukYukle();
             window.scrollTo(0, 0);
+            // GERİ TUŞU (kullanıcı 2026-10-26): panel tek sayfa — ana ekran uygulamasında
+            // (Android) geri tuşu sayfalar arasında dönmek yerine uygulamayı KAPATIYORDU.
+            // Her sayfa geçişi geçmişe yazılır (#sayfa); geri = önceki sayfa (bkz. popstate).
+            if (!gecmistenMi) {
+                try {
+                    var _st = history.state || {};
+                    if (_st.sayfa === sayfa && !_st.sb) { /* aynı sayfa: yeni adım yok */ }
+                    else if (_st.sb && _st.sayfa === sayfa) history.back();     // menüden aynı sayfa: menü adımını geri al
+                    else if (_st.sb || !_st.sayfa) history.replaceState({ sayfa: sayfa }, '', '#' + sayfa);
+                    else history.pushState({ sayfa: sayfa }, '', '#' + sayfa);
+                } catch (e) { }
+            }
         }
 
         function breadcrumbGuncelle() {
@@ -10108,17 +10254,231 @@ window.__I18N_SOZLUK__ = {
                 bc.innerHTML = 'Destek ▸ <b>Talep &amp; Öneri</b>';
             } else if (aktifSayfa === 'bolum-kapasite') {
                 bc.innerHTML = 'Kapasite ▸ <b>Bölüm Kapasitesi</b>';
+            } else if (aktifSayfa === 'kod-sorgu') {
+                bc.innerHTML = 'AS400 ▸ <b>Kod Sorgu</b>';
             } else {
                 bc.innerHTML = '<b>' + esc(aktifSayfa) + '</b>';
             }
         }
 
-        function sidebarAc(force) {
+        function sidebarAc(force, sessiz) {
             var sb = document.getElementById('sidebar');
             var bd = document.getElementById('sb-backdrop');
-            var acik = (typeof force === 'boolean') ? force : !sb.classList.contains('open');
+            var onceki = sb.classList.contains('open');
+            var acik = (typeof force === 'boolean') ? force : !onceki;
             sb.classList.toggle('open', acik);
             bd.classList.toggle('open', acik);
+            // Telefonda açılan menü geçmişe bir adım yazar: geri tuşu önce menüyü kapatır.
+            // sessiz = sayfaAc içinden kapatma (o adımı sayfaAc kendisi değiştirir).
+            if (sessiz || acik === onceki || !mobilMi()) return;
+            try {
+                if (acik) history.pushState({ sayfa: aktifSayfa, sb: 1 }, '', location.hash || ('#' + aktifSayfa));
+                else if (history.state && history.state.sb) history.back();
+            } catch (e) { }
+        }
+
+        // ══ TELEFON / ANA EKRAN UYGULAMASI (kullanıcı 2026-10-26) ══════════════════
+        function mobilMi() { return !!(window.matchMedia && window.matchMedia('(max-width: 900px)').matches); }
+        // Üst bar telefonda tek satır: tema + dil düğmeleri menünün altına taşınır,
+        // geniş ekranda yerlerine döner (olay bağları onclick özniteliğinde, taşınınca bozulmaz).
+        function mobilYerlesim() {
+            var hedef = document.getElementById('sb-mobil-ayar');
+            var sag = document.querySelector('.topbar-right');
+            if (!hedef || !sag) return;
+            var mobil = mobilMi();
+            var tema = document.getElementById('tema-anahtar'), dil = document.getElementById('dil-secici');
+            if (tema) {
+                if (mobil && tema.parentNode !== hedef) hedef.appendChild(tema);
+                else if (!mobil && tema.parentNode === hedef) sag.insertBefore(tema, sag.querySelector('.lok-segment'));
+            }
+            if (dil) {
+                if (mobil && dil.parentNode !== hedef) hedef.appendChild(dil);
+                else if (!mobil && dil.parentNode === hedef) sag.appendChild(dil);
+            }
+            hedef.style.display = mobil ? '' : 'none';
+        }
+        window.addEventListener('resize', mobilYerlesim);
+        window.addEventListener('popstate', function (e) {
+            var st = e.state || {};
+            var sb = document.getElementById('sidebar');
+            // Açık pencere / detay paneli varken geri tuşu ÖNCE onu kapatır, sayfa değişmez
+            var acik = Array.prototype.slice.call(document.querySelectorAll('.modal-overlay.open, .detail-panel.open'));
+            if (acik.length && !(sb && sb.classList.contains('open'))) {
+                acik.forEach(function (m) { m.classList.remove('open'); });
+                try { history.pushState({ sayfa: aktifSayfa }, '', '#' + aktifSayfa); } catch (x) { }
+                return;
+            }
+            if (sb && sb.classList.contains('open')) sidebarAc(false, true);
+            if (st.sb) {        // ileri tuşuyla menü adımına gelindi: menüyü açma, sayfada kal
+                try { history.replaceState({ sayfa: st.sayfa || aktifSayfa }, '', location.hash); } catch (x) { }
+            }
+            var hedef = st.sayfa || (location.hash || '').slice(1);
+            if (hedef && hedef !== aktifSayfa) sayfaAc(hedef, true);
+        });
+        // iOS: 16px'ten küçük yazılı kutuya dokununca sayfa yakınlaşıyor ve ana ekran
+        // uygulamasında geri uzaklaşmıyordu ("bozuk görünüm"). maximum-scale yalnız
+        // iOS'a — iOS iki parmakla yakınlaştırmaya yine izin verir; Android'e dokunulmaz.
+        (function () {
+            var ios = /iP(hone|ad|od)/.test(navigator.platform || '') ||
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            var m = document.querySelector('meta[name=viewport]');
+            if (ios && m && m.content.indexOf('maximum-scale') === -1) m.setAttribute('content', m.content + ', maximum-scale=1');
+            if (navigator.standalone) document.documentElement.classList.add('pwa');   // eski iOS
+        })();
+
+        // ══ KOD SORGU (kullanıcı 2026-10-26) — AS400 07-10-01 telefondan ════════════
+        // Kod → ürün kartı, depo stokları, açık emirler, alt parçalar (kısıt sırasıyla).
+        // Parçaya dokununca o parça sorgulanır; '←' ile geri. Son 8 kod cihazda saklanır.
+        var _ks = { veri: null, gecmis: [], zaman: null, kural: '' };
+        function ksSekmeAcildi() {
+            ksSonCiz();
+            var i = document.getElementById('ks-kod');
+            if (i && !_ks.veri && !mobilMi()) i.focus();      // telefonda klavye kendiliğinden açılmasın
+        }
+        function ksSonOku() { try { return JSON.parse(localStorage.getItem('ks_son') || '[]'); } catch (e) { return []; } }
+        function ksSonYaz(kod) {
+            var l = ksSonOku().filter(function (k) { return k !== kod; });
+            l.unshift(kod);
+            try { localStorage.setItem('ks_son', JSON.stringify(l.slice(0, 8))); } catch (e) { }
+        }
+        function ksKodDugme(kod, ek) {
+            return '<button type="button" data-kod="' + esc(kod) + '" onclick="ksSorgula(this.dataset.kod)">' + (ek || esc(kod)) + '</button>';
+        }
+        function ksSonCiz() {
+            var el = document.getElementById('ks-son'); if (!el) return;
+            var l = ksSonOku();
+            el.innerHTML = l.length ? '<span style="font-size:.72rem;color:var(--muted);align-self:center">Son:</span>' +
+                l.map(function (k) { return ksKodDugme(k); }).join('') : '';
+        }
+        function ksOneri() {
+            clearTimeout(_ks.zaman);
+            var q = document.getElementById('ks-kod').value.trim();
+            var el = document.getElementById('ks-oneri');
+            if (q.length < 2) { el.innerHTML = ''; return; }
+            _ks.zaman = setTimeout(function () {
+                panelFetch('/api/as400/kod_sorgu/oneri?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (d) {
+                    if (document.getElementById('ks-kod').value.trim() !== q) return;     // bayat cevap
+                    el.innerHTML = (d.oneriler || []).map(function (o) {
+                        return ksKodDugme(o.kod, '<b>' + esc(o.kod) + '</b><span>' + esc(o.aciklama) + '</span>');
+                    }).join('');
+                }).catch(function () { });
+            }, 250);
+        }
+        function ksSorgula(kod, gecmiseYazma) {
+            var inp = document.getElementById('ks-kod');
+            kod = String(kod == null ? inp.value : kod).trim().toUpperCase().replace(/\s+/g, '');
+            if (!kod) { inp.focus(); return; }
+            clearTimeout(_ks.zaman);
+            inp.value = kod;
+            document.getElementById('ks-oneri').innerHTML = '';
+            inp.blur();                                   // telefonda klavye kapansın, sonuç görünsün
+            if (!gecmiseYazma && _ks.veri && _ks.veri.kod && _ks.veri.kod !== kod) _ks.gecmis.push(_ks.veri.kod);
+            var el = document.getElementById('ks-sonuc');
+            el.innerHTML = '<div class="ks-kart" style="text-align:center;color:var(--muted)"><span class="spinner"></span>' +
+                '<div style="margin-top:8px;font-size:.82rem">AS400\'den okunuyor…</div></div>';
+            panelFetch('/api/as400/kod_sorgu?kod=' + encodeURIComponent(kod) + (_ks.kural ? '&kural=' + _ks.kural : ''))
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+                .then(function (x) {
+                    if (!x.ok) { el.innerHTML = '<div class="ks-kart" style="color:var(--danger);font-weight:700">⚠ ' + esc(x.d.hata || 'Sorgu başarısız') + '</div>'; return; }
+                    _ks.veri = x.d;
+                    if (x.d.bulundu) ksSonYaz(x.d.kod);
+                    ksSonCiz();
+                    ksCiz();
+                    window.scrollTo(0, 0);
+                })
+                .catch(function (e) { el.innerHTML = '<div class="ks-kart" style="color:var(--danger);font-weight:700">⚠ ' + esc(e.message) + '</div>'; });
+        }
+        function ksGeri() { var k = _ks.gecmis.pop(); if (k) ksSorgula(k, true); }
+        function ksKural(v) { _ks.kural = v; if (_ks.veri) ksSorgula(_ks.veri.kod, true); }
+        function ksSayi(v) {
+            if (v == null || v === '') return '—';
+            var n = Number(v);
+            return n.toLocaleString('tr-TR', { maximumFractionDigits: (n % 1) ? 2 : 0 });
+        }
+        function ksTarih(t) { return t ? t.slice(8, 10) + '.' + t.slice(5, 7) + '.' + t.slice(2, 4) : '—'; }
+        function ksDepolar(dep, sayilan) {
+            var k = Object.keys(dep || {});
+            if (!k.length) return '<span class="ks-depo">stok yok</span>';
+            return k.map(function (d) {
+                var v = dep[d];
+                return '<span class="ks-depo' + (v < 0 ? ' eksi' : '') + '"' +
+                    (sayilan && sayilan.indexOf(d) !== -1 ? ' style="font-weight:700"' : '') + '><b>' + esc(d) + '</b>' + ksSayi(v) + '</span>';
+            }).join('');
+        }
+        function ksCiz() {
+            var d = _ks.veri, el = document.getElementById('ks-sonuc');
+            var geri = _ks.gecmis.length ? '<button type="button" class="ks-geri" onclick="ksGeri()">← ' + esc(_ks.gecmis[_ks.gecmis.length - 1]) + '</button>' : '';
+            if (!d.bulundu) {
+                el.innerHTML = geri + '<div class="ks-kart"><div style="font-weight:800">"' + esc(d.kod) + '" AS400\'de bulunamadı</div>' +
+                    ((d.oneriler || []).length ? '<div class="ks-ack" style="margin:8px 0 4px">Bunlardan biri mi?</div><div class="ks-oneri">' +
+                        d.oneriler.map(function (o) { return ksKodDugme(o.kod, '<b>' + esc(o.kod) + '</b><span>' + esc(o.aciklama) + '</span>'); }).join('') + '</div>' : '') +
+                    '</div>';
+                return;
+            }
+            var a = d.agac || {}, st = d.stok || {}, eo = d.emir_ozet || {}, kural = d.kural || {};
+            var emirler = d.emirler || [], parcalar = a.parcalar || [];
+            var nOpr = emirler.filter(function (e) { return e.durum === '10'; }).length;
+            var uret = (a.uretilebilir == null)
+                ? { d: '—', a: a.durum === 'AGAC YOK' ? 'ürün ağacı yok' : a.durum === 'BIRIM YOK' ? 'birim miktar yok' : '' }
+                : { d: ksSayi(a.uretilebilir), a: (function () {
+                        var k = parcalar.filter(function (p) { return p.kisit; });
+                        return k.length > 1 ? k.length + ' parça kısıtlıyor' : a.kisitlayan ? 'kısıt: ' + esc(a.kisitlayan) : '';
+                    })() };
+            var h = geri + '<div class="ks-kart"><div class="ks-bas"><div style="min-width:0">' +
+                '<div class="ks-kod">' + esc(d.kod) + '</div><div class="ks-ack">' + esc(d.aciklama || '') + '</div></div>' +
+                '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">' +
+                '<span class="ks-cip">' + (d.prov === 'A' ? 'Satınalma' : d.prov === 'P' ? 'Üretim' : esc(d.prov || '?')) + '</span>' +
+                (d.hayali ? '<span class="ks-cip sari" title="Hayali (fictitious) — stokta tutulmaz">Hayali</span>' : '') +
+                (d.forge_bolum ? '<span class="ks-cip">' + esc(bolumAdi(d.forge_bolum)) + '</span>' : '') + '</div></div>' +
+                '<div class="ks-metrik">' +
+                '<div class="ks-m"><div class="e">Stok (G GI)</div><div class="d">' + ksSayi(st.ggi) + '</div><div class="a">01D + MDT</div></div>' +
+                '<div class="ks-m"><div class="e">Açık OPR</div><div class="d">' + ksSayi(eo.opr) + '</div><div class="a">' + nOpr + ' emir' +
+                    (eo.gecikmis ? ' · <span style="color:var(--danger);font-weight:700">' + ksSayi(eo.gecikmis) + ' gecikmiş</span>' : '') + '</div></div>' +
+                '<div class="ks-m"><div class="e">Launch kalan</div><div class="d">' + ksSayi(eo.launch) + '</div><div class="a">' + (emirler.length - nOpr) + ' launch</div></div>' +
+                '<div class="ks-m"' + (a.uretilebilir === 0 ? ' style="background:var(--danger-soft)"' : '') + '><div class="e">Üretilebilir</div><div class="d"' +
+                    (a.uretilebilir === 0 ? ' style="color:var(--danger)"' : '') + '>' + uret.d + '</div><div class="a">' + uret.a + '</div></div>' +
+                '</div><div class="ks-depolar">' + ksDepolar(st.depolar) + '</div></div>';
+
+            if (parcalar.length) {
+                h += '<div class="ks-kart"><div class="ks-baslik"><span>Alt parçalar · ' + parcalar.length + '</span><span>kaç ürün çıkar</span></div>';
+                parcalar.forEach(function (p, i) {
+                    var etiket = [];
+                    if (p.kisit) etiket.push('<span class="ks-cip kirmizi">🔒 kısıtlayan</span>');
+                    if (p.hayali) etiket.push('<span class="ks-cip sari">hayali · sayılmaz</span>');
+                    if (p.muaf) etiket.push('<span class="ks-cip">kısıt dışı</span>');
+                    if (p.eksi_bakiye) etiket.push('<span class="ks-cip kirmizi">eksi bakiye</span>');
+                    if (p.yol) etiket.push('<span>› ' + esc(p.yol) + '</span>');
+                    h += '<div class="ks-parca' + (i === 0 ? ' ilk' : '') + (p.kisit ? ' kisit' : '') + '">' +
+                        '<div style="min-width:0"><button type="button" class="k" data-kod="' + esc(p.kod) + '" onclick="ksSorgula(this.dataset.kod)">' + esc(p.kod) + '</button>' +
+                        ' <span class="s">× ' + ksSayi(p.birim) + ' ' + esc(p.um || '') + '</span>' +
+                        (p.aciklama ? '<div class="s" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.aciklama) + '</div>' : '') + '</div>' +
+                        '<div class="u"' + (p.kapasite === 0 ? ' style="color:var(--danger)"' : '') + '>' + (p.kapasite == null ? '—' : ksSayi(p.kapasite)) +
+                        '<div class="s" style="font-weight:600">stok ' + ksSayi(p.stok_sayilan) + '</div></div>' +
+                        '<div class="s2">' + ksDepolar(p.depolar, kural.sayilan) + etiket.join('') + '</div></div>';
+                });
+                h += '</div>';
+            }
+
+            h += '<div class="ks-kart"><div class="ks-baslik"><span>Açık emirler · ' + emirler.length + '</span><span>kalan / adet</span></div>';
+            if (!emirler.length) h += '<div class="ks-ack">Açık OPR ya da launch yok.</div>';
+            var bugun = isoTarih(new Date());
+            emirler.forEach(function (e, i) {
+                var gec = e.tarih && e.tarih < bugun;
+                h += '<div class="ks-emir' + (i === 0 ? ' ilk' : '') + '"><span class="ks-cip' + (e.durum === '10' ? '' : ' yesil') + '">' + esc(e.durum_ad) + '</span>' +
+                    '<span style="min-width:0">' + esc(e.no) + ' · <span' + (gec ? ' style="color:var(--danger);font-weight:700"' : '') + '>' + ksTarih(e.tarih) + '</span></span>' +
+                    '<span style="text-align:right;font-weight:800;font-variant-numeric:tabular-nums">' + ksSayi(e.kalan) +
+                    (e.adet !== e.kalan ? '<span style="color:var(--muted);font-weight:600"> / ' + ksSayi(e.adet) + '</span>' : '') + '</span></div>';
+            });
+            h += '</div>';
+
+            var secenek = [['', 'Otomatik'], ['kaynak', 'Kaynak'], ['montaj', 'Montaj'], ['metal', 'Metal']];
+            h += '<div class="ks-alt"><span>Depo kuralı</span><select onchange="ksKural(this.value)">' +
+                secenek.map(function (o) { return '<option value="' + o[0] + '"' + (_ks.kural === o[0] ? ' selected' : '') + '>' +
+                    (o[0] ? o[1] : 'Otomatik (' + esc(kural.ad || '') + ')') + '</option>'; }).join('') + '</select>' +
+                '<span>sayılan: ' + esc((kural.sayilan || []).join(', ')) + '</span>' +
+                '<span>· ' + (d.sure_ms / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' sn · ' +
+                new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + '</span></div>';
+            el.innerHTML = h;
         }
 
         // ═══════════════════════════════════════════════════════
@@ -17543,6 +17903,10 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
         var _kpKodSuzgec = null;      // { etiket, kodlar: {kod: true} } — aktifse liste buna süzülür
         function kpNotlarYukle() {
             var el = document.getElementById('kp-notlar'); if (!el) return;
+            // GİZLİ (kullanıcı 2026-10-26: "öne çıkanlar kısmına gerek yok, gizleyelim").
+            // Geri açmak için aşağıdaki iki satırı silmek yeterli.
+            el.innerHTML = '';
+            if (true) return;
             fetch(kpApi() + '/notlar').then(function (r) { return r.json(); }).then(function (d) {
                 if (d.hata) { el.innerHTML = ''; return; }
                 _kpNotVeri = d;
@@ -20455,6 +20819,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
         // ═══════════════════════════════════════════════════════
         // Sayfa anahtarı → görünen ad (Kullanıcılar tablosu + izin kutucukları)
         var PANEL_SAYFA_ETIKET = {
+            'kod-sorgu': 'Kod Sorgu (AS400 07-10-01: stok, açık emir, alt parça kısıtı — plan/teyit izni olan zaten görür)',
             'ozet': 'Fabrika Özeti', 'bolum': 'Üretim & OEE', 'kayitlar': 'Kayıtlar',
             'is-yonetimi': 'İş Yönetimi', 'fikstur': 'Fikstür', 'referanslar': 'Referanslar',
             'operatorler': 'Operatörler', 'saha-cihazlari': 'Saha Cihazları',
@@ -22542,6 +22907,9 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             // KURULUM PROFİLİ: bu kurulumda olmayan modülün sayfası admin için de kapalı
             if (window.KURULUM && (KURULUM.kapali_sayfalar || []).indexOf(sayfa) !== -1) return false;
             if (sayfa === 'talepler') return true;           // Talep & Öneri: her kullanıcıya açık
+            // Kod Sorgu: kendi izni ya da AS400 verisiyle çalışan plan/teyit izinleri (app._KOD_SORGU_IZIN)
+            if (sayfa === 'kod-sorgu' && window.PANEL_KU && !panelAdmin() &&
+                ['kaynak-plan', 'montaj-plan', 'metal-plan', 'as400-teyit'].some(function (i) { return panelIzinler().indexOf(i) !== -1; })) return true;
             if (!window.PANEL_KU) return sayfa !== 'kullanicilar'; // eski backend (gate yok) → kısıtlama yok
             if (panelAdmin()) return true;
             if (sayfa === 'kullanicilar') return false;      // yalnız admin
@@ -24257,8 +24625,12 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             // KAPI 'page-<ad>' elemanı: kayıtlı değer eski bir sürümden kalma
             // bilinmeyen bir sayfaysa sayfaAc onu 'ozet' gövdesiyle açar ama
             // aktifSayfa'yı o bilinmeyen değere set ederdi (breadcrumb bozulurdu).
+            mobilYerlesim();
             var _son = '';
             try { _son = localStorage.getItem('dbv2_sayfa') || ''; } catch (e) { }
+            // Adresteki #sayfa önce gelir (ana ekran kısayolu /dashboard#kod-sorgu, yenileme)
+            var _hash = (location.hash || '').slice(1);
+            if (_hash && (document.getElementById('page-' + _hash) || /^(montaj|metal)-plan$/.test(_hash))) _son = _hash;
             var _gecerli = _son && document.getElementById('page-' + _son) && panelSayfaIzinli(_son);
             sayfaAc(_gecerli ? _son : panelIlkIzinliSayfa());
             // Geçici şifreyle giren kullanıcıyı şifre değiştirmeye yönlendir

@@ -2,9 +2,18 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ marka.ad }} — Giriş</title>
     <link rel="icon" href="/logo?tip=mark">
+    <!-- ANA EKRANA EKLE (2026-10-26): giriş ekranı da /dashboard adresinde açılır; panelin
+         manifesti burada da olmalı — yoksa giriş yapmadan eklenen kısayol uygulama gibi
+         değil tarayıcı sekmesi olarak açılıyordu. -->
+    <link rel="manifest" href="/manifest.json?sayfa=panel">
+    <link rel="apple-touch-icon" href="/logo?tip=mark">
+    <meta name="theme-color" content="#ECECF1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="{{ marka.kisa }} Panel">
     <style>
         /* ═══════════════════════════════════════════════════════════════
            COFLE FORGE giriş — dashboard paletiyle eşitlendi (2026-07-30).

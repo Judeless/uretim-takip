@@ -249,6 +249,9 @@ PANEL_SAYFALAR = [
     # kişi atar, talep termini girer (sayfa değil yetki; sayfayı da açar).
     # Yeni → mevcut kullanıcılarda yok, yönetici tek tek verir.
     'proje-takip', 'proje-yonetim',
+    # 2026-10-26: Kod Sorgu (AS400 07-10-01 telefondan). Plan / teyit izni olan zaten
+    # görür (_KOD_SORGU_IZIN); başkasına yönetici tek tek verir.
+    'kod-sorgu',
 ]
 
 # KURULUM PROFİLİ: kapalı modülün sayfası izin listesine (kullanıcı yönetimi
@@ -259,6 +262,7 @@ _SAYFA_MODUL = {
     'satis-plani': 'as400', 'tel-plani': 'planlar', 'aylik-uretim': 'as400',
     'proje-takip': 'proje', 'proje-yonetim': 'proje', 'saha-cihazlari': 'sayac',
     'sinyal-analizi': 'sayac', 'andon-ayarlari': 'andon', 'is-yonetimi': 'is_yonetimi',
+    'kod-sorgu': 'as400',
 }
 
 
@@ -2935,6 +2939,12 @@ def web_manifest():
                 {"src": "/static/pwa_icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
                 {"src": "/static/pwa_icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
                 {"src": "/static/pwa_icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+            ],
+            # Simgeye basılı tutunca (Android) doğrudan Kod Sorgu — panel #sayfa adresini açar
+            "shortcuts": [
+                {"name": "Kod Sorgu", "short_name": "Kod Sorgu", "description": "AS400 stok ve alt parça kısıtı",
+                 "url": "/dashboard#kod-sorgu",
+                 "icons": [{"src": "/static/pwa_icon.png", "sizes": "192x192", "type": "image/png"}]}
             ]
         })
     lokasyon = (request.args.get('lokasyon') or 'TK2').upper()
@@ -14648,6 +14658,75 @@ def _kp_yetki(fn):
         g.panel_ku = ku
         return fn(*args, **kwargs)
     return sarmal
+
+
+# ══ KOD SORGU (kullanıcı 2026-10-26) — AS400 07-10-01 ekranı telefondan ══════
+# Kod yaz → ürün kartı, depo stokları, açık emirler, ürün ağacı + alt parça kısıtı.
+# Canlı ERP okuması (kod_sorgu.py); öneri listesi yerel kapasite_urun'dan. Kendi izni
+# 'kod-sorgu'; AS400 verisiyle zaten çalışan plan/teyit izinlerine de açık.
+_KOD_SORGU_IZIN = ('kod-sorgu', 'kaynak-plan', 'montaj-plan', 'metal-plan', 'as400-teyit')
+
+
+def _kod_sorgu_yetki(fn):
+    @wraps(fn)
+    def sarmal(*args, **kwargs):
+        ku = panel_kullanici()
+        if not ku:
+            return jsonify({'hata': 'Oturum gerekli', 'giris_gerekli': True}), 401
+        if not ku['admin'] and not any(i in ku['izinler'] for i in _KOD_SORGU_IZIN):
+            return jsonify({'hata': 'Bu sayfa için yetkiniz yok (kod-sorgu)'}), 403
+        g.panel_ku = ku
+        return fn(*args, **kwargs)
+    return sarmal
+
+
+@app.route('/api/as400/kod_sorgu/oneri', methods=['GET'])
+@_kod_sorgu_yetki
+def kod_sorgu_oneri():
+    import kod_sorgu as KS
+    return jsonify({'oneriler': KS.oneriler(get_db(), request.args.get('q') or '')})
+
+
+@app.route('/api/as400/kod_sorgu', methods=['GET'])
+@_kod_sorgu_yetki
+def kod_sorgu_api():
+    """?kod=10.300.1845W [&kural=kaynak|montaj|metal]. Kural verilmezse ürünün Forge
+    bölümünden (kaynak / metal) seçilir, bilinmiyorsa montaj (en geniş depo kümesi)."""
+    import kod_sorgu as KS
+    kod = KS.kod_normal(request.args.get('kod'))
+    kp = _kp_modul()
+    if not kp.GUVENLI_KOD.match(kod):
+        return jsonify({'hata': 'Geçersiz kod'}), 400
+    conn = get_db()
+    r = conn.execute("SELECT bolum FROM referans_listesi WHERE UPPER(REPLACE(referans_kodu,' ',''))=? "
+                     "ORDER BY (COALESCE(lokasyon,'TK2')='TK2') DESC LIMIT 1", (kod,)).fetchone()
+    forge_bolum = (r['bolum'] if r else '') or ''
+    kural = request.args.get('kural') or ''
+    if kural not in KP_PROFILLER:
+        kural = forge_bolum if forge_bolum in ('kaynak', 'metal') else 'montaj'
+    pf = KP_PROFILLER[kural]
+    _ref, sayilan, gosterilen = _kp_depolar(pf)
+    try:
+        cn = kp.erp_baglan()
+    except Exception as e:
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 503
+    try:
+        sonuc = KS.sorgula(cn, kod, sayilan, gosterilen, _kp_eksi_depolar(pf),
+                           kisit_disi=_kp_kisit_disi(pf),
+                           acilmayan_onekler=pf.get('kontrol_disi_onek') or ())
+    except Exception as e:
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 502
+    finally:
+        try:
+            cn.close()
+        except Exception:
+            pass
+    sonuc['forge_bolum'] = forge_bolum
+    sonuc['kural'] = {'anahtar': kural, 'ad': pf['ad'], 'sayilan': list(sayilan),
+                      'kisit_disi': list(_kp_kisit_disi(pf))}
+    if not sonuc.get('bulundu'):
+        sonuc['oneriler'] = KS.oneriler(conn, kod, 8)
+    return jsonify(sonuc)
 
 
 def _kp_satirlar(conn, pf=None):
