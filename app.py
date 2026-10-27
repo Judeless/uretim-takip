@@ -890,7 +890,8 @@ ADMIN_ADI = 'Admin'
 # yeni bölümler; sayaç/andon/iş takibi YOK, sadece vardiya + üretim girişi + rapor.
 # Yeni bölüm eklerken: import_excel.BOLUM_SAYFA + mobil/dashboard/rapor template
 # toggle'ları da güncellenmeli (anahtarlar ASCII slug — URL/CSS class/JS map'lerde kullanılır).
-GECERLI_BOLUMLER = ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik', 'tel')
+GECERLI_BOLUMLER = ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik', 'tel',
+                    'depo', 'kalite')   # son ikisi faaliyet bölümü (KUR.FAALIYET_BOLUMLERI)
 BOLUM_AD = {
     'kaynak': 'Robot Kaynak',
     'montaj': 'Montaj',
@@ -900,6 +901,8 @@ BOLUM_AD = {
     'pres':   'Pres Abkant',
     'plastik': 'Plastik Enjeksiyon',
     'tel':    'Tel Üretimi',
+    'depo':   'Depo / Sevkiyat',
+    'kalite': 'Kalite',
 }
 
 # ── TEL ÜRETİMİ PROSES ADIMLARI (TK1, 2026-08-04) ──────────────────────────
@@ -3864,6 +3867,8 @@ def uretim_ekle():
                 ).fetchone()
                 if ref_row:
                     ct_in = float(ref_row['hedef_cycle_time_sn'] or 0)
+            if vardiya_bolum in KUR.FAALIYET_BOLUMLERI:
+                ct_in = 0.0      # depo / kalite: iş sayımı, süre ve OEE yok
 
             ok_val  = int(satir.get('ok_adet', 0) or 0)
 
@@ -4105,6 +4110,8 @@ def uretim_guncelle(uid):
             "       robot_no "
             "FROM vardiyalar WHERE id=?", (mevcut['vardiya_id'],)
         ).fetchone()
+        if v_bl and v_bl['bolum'] in KUR.FAALIYET_BOLUMLERI:
+            ct = 0.0
         _duz_hat = kayit_hatti(v_bl['robot_no'] if v_bl else '',
                                int(data.get('istasyon', 0) or 0))
         bop = _bukum_op_coz(c, data.get('bukum_operasyon'), ref,
@@ -5302,7 +5309,7 @@ def _toplu_bolum_adlari(lokasyon):
             "SELECT DISTINCT COALESCE(bolum,'kaynak') FROM referans_listesi WHERE COALESCE(lokasyon,'TK2')=?",
             (lokasyon,))}
         bl = [b for b in GECERLI_BOLUMLER if b in var]
-    return {b: adlar.get(b, b) for b in bl}
+    return {b: adlar.get(b, b) for b in bl if b not in KUR.FAALIYET_BOLUMLERI}
 
 
 _TOPLU_SQL = ("SELECT id, referans_kodu, COALESCE(aciklama,'') aciklama, COALESCE(hedef_cycle_time_sn,0) ct, "
@@ -8941,7 +8948,7 @@ def kapasite_parametre_listesi():
     """Bölümlerin kapasite parametreleri + haftalık kapasite saati.
     Tanımsız bölüm varsayılanla döner (kaydedilmemiş olduğu 'varsayilan' ile bellidir)."""
     lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
-    par = KAP.parametreler(get_db(), lokasyon, [b for b in GECERLI_BOLUMLER])
+    par = KAP.parametreler(get_db(), lokasyon, [b for b in GECERLI_BOLUMLER if b not in KUR.FAALIYET_BOLUMLERI])
     out = []
     for b in sorted(par, key=lambda x: list(GECERLI_BOLUMLER).index(x) if x in GECERLI_BOLUMLER else 99):
         p = dict(par[b])
@@ -9044,7 +9051,7 @@ def kapasite_kaynaklar_api():
                     'bolum': r['bolum'] or '', 'iptal': bool(r['iptal']),
                     'elle': bool(r['elle']), 'kullanim': kullanim.get(str(r['kaynak_kod']).upper(), 0),
                     'iscilik': str(r['kaynak_kod']).upper() in KAP.ISCILIK_KAYNAKLARI})
-    return jsonify({'kaynaklar': out, 'bolumler': list(GECERLI_BOLUMLER),
+    return jsonify({'kaynaklar': out, 'bolumler': [b for b in GECERLI_BOLUMLER if b not in KUR.FAALIYET_BOLUMLERI],
                     'bolum_disi': list(KAP.BOLUM_DISI)})
 
 
@@ -9840,7 +9847,9 @@ def ozet():
                u.nok_adet,
                u.hedef_adet,
                u.cycle_time_sn,
-               COALESCE(u.istasyon, 0) as istasyon
+               COALESCE(u.istasyon, 0) as istasyon,
+               COALESCE(u.aciklama, '') as aciklama,
+               COALESCE(u.baslangic_ts, u.created_at) as kayit_ts
         FROM uretim_kayitlari u
         JOIN vardiyalar v ON v.id = u.vardiya_id
         WHERE {sart_vardiya}
@@ -19785,6 +19794,73 @@ def _ana_veri_acilis_onarimi():
 
 
 _threading.Thread(target=_ana_veri_acilis_onarimi, daemon=True).start()
+
+
+# ── FAALİYET BÖLÜMLERİ: başlangıç türleri (kullanıcı 2026-10-27, Aspanda) ──────────
+# Profilde depo / kalite açıksa ve o bölümün HİÇ türü / duruş sebebi yoksa varsayılanlar
+# yazılır (bir kez; sonra panelden düzenlenir — silinen tür geri gelmez çünkü bölüm boş
+# kalmadıkça dokunulmaz). Tür = referans_listesi satırı, süresi 0.
+FAALIYET_TURLERI = {
+    'depo': [('Mal Kabul', 'Gelen malzeme kabulü — adet: irsaliye / kalem'),
+             ('Sevkiyat Hazırlığı', 'Sipariş toplama, sevke hazırlama — adet: kalem / koli'),
+             ('Araç Yükleme', 'Sevkiyat aracı yükleme — adet: palet'),
+             ('Hatta Malzeme Besleme', 'Üretim hattına malzeme taşıma — adet: sefer'),
+             ('Paketleme', 'Ürün paketleme — adet: koli'),
+             ('Depo Yerleştirme', 'Adresleme / rafa yerleştirme — adet: palet'),
+             ('Sayım', 'Stok sayımı — adet: kalem'),
+             ('İade İşlemi', 'Müşteri / tedarikçi iadesi — adet: kalem')],
+    'kalite': [('Giriş Kontrol', 'Gelen malzeme ölçümü — adet: ölçülen parça'),
+               ('İlk Parça Onayı', 'Proses başı ilk parça ölçümü — adet: ölçülen parça'),
+               ('Proses Kontrol', 'Hat içi periyodik ölçüm — adet: ölçülen parça'),
+               ('Final Kontrol', 'Sevk öncesi son kontrol — adet: ölçülen parça'),
+               ('CMM Ölçümü', '3 boyutlu ölçüm — adet: ölçülen parça'),
+               ('Müşteri İadesi Kontrolü', 'İade gelen parçanın incelenmesi — adet: parça')],
+}
+FAALIYET_DURUS = {
+    'depo': [('Toplantı / Eğitim', 'planli'), ('Başka Bölüme Destek', 'planli'),
+             ('İş Bekleme', 'plansiz'), ('Forklift / Ekipman Arızası', 'plansiz'),
+             ('Malzeme / Evrak Bekleme', 'plansiz'), ('Sistem Arızası', 'plansiz')],
+    'kalite': [('Toplantı / Eğitim', 'planli'), ('Kalibrasyon', 'planli'),
+               ('Başka Bölüme Destek', 'planli'), ('Numune Bekleme', 'plansiz'),
+               ('Ölçüm Cihazı Arızası', 'plansiz'), ('Sistem Arızası', 'plansiz')],
+}
+
+
+def _faaliyet_tohumla():
+    bl = KUR.bolumler() or []
+    hedef = [b for b in KUR.FAALIYET_BOLUMLERI if b in bl]
+    if not hedef:
+        return
+    loklar = [str(l.get('kod') or 'TK2') for l in (KUR.yukle().get('lokasyonlar') or [{'kod': 'TK2'}])]
+    from database import get_db as _db_ac
+    cn = _db_ac()
+    try:
+        for lok in loklar:
+            for b in hedef:
+                n = 0
+                if not cn.execute("SELECT 1 FROM referans_listesi WHERE bolum=? AND COALESCE(lokasyon,'TK2')=? "
+                                  "LIMIT 1", (b, lok)).fetchone():
+                    for kod, acik in FAALIYET_TURLERI[b]:
+                        n += cn.execute("INSERT OR IGNORE INTO referans_listesi (referans_kodu, aciklama, "
+                                        "hedef_cycle_time_sn, bolum, lokasyon) VALUES (?,?,0,?,?)",
+                                        (kod, acik, b, lok)).rowcount
+                d = 0
+                if not cn.execute("SELECT 1 FROM durus_sebebi WHERE bolum=? AND COALESCE(lokasyon,'TK2')=? "
+                                  "LIMIT 1", (b, lok)).fetchone():
+                    for i, (sebep, tip) in enumerate(FAALIYET_DURUS[b], start=1):
+                        d += cn.execute("INSERT OR IGNORE INTO durus_sebebi (lokasyon, bolum, sebep, tip, "
+                                        "aktif, sira, olusturan) VALUES (?,?,?,?,1,?,'kurulum')",
+                                        (lok, b, sebep, tip, i)).rowcount
+                if n or d:
+                    print(f'[faaliyet] {lok}/{b}: {n} tür, {d} duruş sebebi eklendi')
+        cn.commit()
+    except Exception as e:
+        print(f'[faaliyet] başlangıç türleri yazılamadı: {e}')
+    finally:
+        cn.close()
+
+
+_faaliyet_tohumla()
 
 
 # ═════════════════════════════════════════════════════════════════════════════

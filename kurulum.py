@@ -36,7 +36,13 @@ MODULLER = {
     'excel_senkron': 'Referans/duruş listesinin data/uretim_verileri.xlsx ile senkronu',
     'eski_sayfalar': 'Eski panel/andon/operatör sayfaları (legacy, önizleme)',
 }
-TUM_BOLUMLER = ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik', 'tel')
+TUM_BOLUMLER = ('kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres', 'plastik', 'tel', 'depo', 'kalite')
+# FAALİYET BÖLÜMLERİ (kullanıcı 2026-10-27, Aspanda): "depo ve sevkiyat bir bölüm — operatörler
+# gün içinde neler yapıyor görelim; kalite personeli günlük ne kadar ölçüm yaptığını yazsın".
+# Makine / süre / OEE yok: kayıt = İŞ TÜRÜ (depo) ya da ÖLÇÜM TÜRÜ (kalite) + adet; türler
+# referans listesinde durur (panel → Referanslar). Yalnız profilin 'bolumler' listesinde
+# varsa açılır — Cofle'nin tam listesine (bolumler None) girmez.
+FAALIYET_BOLUMLERI = ('depo', 'kalite')
 
 VARSAYILAN = {
     'kimlik': 'cofle',
@@ -92,10 +98,18 @@ def yukle(tazele=False):
         # ayarlar (ör. molalar) ancak bu tabanla sunucuya ulaşır.
         _kim = str(dosya.get('kimlik') or '')
         _taban = os.path.join(KOK, 'ornek_kurulum', _kim + '.json')
+        _taban_bl = None
         if _kim and _kim != 'cofle' and _kim.replace('_', '').isalnum() and os.path.exists(_taban):
             with open(_taban, encoding='utf-8-sig') as f:
-                _birlestir(p, json.load(f))
+                _tb = json.load(f)
+            _birlestir(p, _tb)
+            _taban_bl = _tb.get('bolumler')
         _birlestir(p, dosya)
+        # 'bolumler' bir LİSTE: üst katman tabanı tümden ezer → profile sonradan eklenen
+        # bölüm (depo / kalite, 2026-10-27) sunucunun eski kopyasının arkasında kalırdı.
+        # Taban + yerel BİRLEŞİMİ (taban sırası). Bölüm kaldırmak = repodaki profilden.
+        if isinstance(_taban_bl, list) and isinstance(dosya.get('bolumler'), list):
+            p['bolumler'] = list(_taban_bl) + [b for b in dosya['bolumler'] if b not in _taban_bl]
         p['_dosya'] = YOL
         # Profil dosyası olan kurulum Cofle değildir: kimlik verilmemişse 'ozel'
         if p.get('kimlik') == 'cofle' and 'kimlik' not in dosya:
@@ -125,7 +139,7 @@ def bolumler():
 
 def bolum_var(b):
     bl = bolumler()
-    return True if bl is None else b in bl
+    return (b not in FAALIYET_BOLUMLERI) if bl is None else b in bl
 
 
 def makineler(bolum):

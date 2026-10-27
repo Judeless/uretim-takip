@@ -77,6 +77,8 @@
     .bolum-pill.pres   { background: rgba(236,72,153,.15); color: #f9a8d4; border:1px solid rgba(236,72,153,.4); }
     .bolum-pill.plastik { background: rgba(168,85,247,.15); color: #d8b4fe; border:1px solid rgba(168,85,247,.4); }
     .bolum-pill.tel     { background: rgba(245,158,11,.15); color: #fcd34d; border:1px solid rgba(245,158,11,.4); }
+    .bolum-pill.depo    { background: rgba(168,162,158,.15); color: #e7e5e4; border:1px solid rgba(168,162,158,.4); }
+    .bolum-pill.kalite  { background: rgba(129,140,248,.15); color: #c7d2fe; border:1px solid rgba(129,140,248,.4); }
 
     /* ── FİLTRE BARI ── */
     .toolbar {
@@ -320,7 +322,10 @@ const BOLUM_BILGI = {
   // tel (2026-08-19): tanım eksikti → rapor açılsa bile başlık/kolon adı
   // undefined kalıyordu. 'tekil' = gruplama kolonunun adı; tel'de grup PROSES
   // ADIMI (hat), o yüzden 'Hat' değil 'Proses Adımı'.
-  tel:     { ad: 'Tel Üretimi',      tekil: 'Proses Adımı', ikon: '🧵', kolon3: 'PARÇA KODU' }
+  tel:     { ad: 'Tel Üretimi',      tekil: 'Proses Adımı', ikon: '🧵', kolon3: 'PARÇA KODU' },
+  // Faaliyet bölümleri (2026-10-27): kod = iş / ölçüm türü
+  depo:    { ad: 'Depo / Sevkiyat',  tekil: 'Alan', ikon: '📦', kolon3: 'İŞ TÜRÜ' },
+  kalite:  { ad: 'Kalite',           tekil: 'Alan', ikon: '🔍', kolon3: 'ÖLÇÜM TÜRÜ' }
 };
 
 // ── URL'den bolum oku (default: kaynak)

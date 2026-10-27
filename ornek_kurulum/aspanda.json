@@ -12,12 +12,15 @@
     "renk": "#1F2A44"
   },
   "lokasyonlar": [{"kod": "TK2", "ad": "Merkez"}],
-  "bolumler": ["metal", "plastik", "isleme", "montaj"],
+  "_bolum_notu": "2026-10-27: depo (Depo / Sevkiyat) ve kalite FAALİYET bölümleri — makine yok; kayıt = iş / ölçüm türü + adet. Türler panelde Referanslar sayfasından düzenlenir.",
+  "bolumler": ["metal", "plastik", "isleme", "montaj", "depo", "kalite"],
   "bolum_adlari": {
     "metal": "Metal Enjeksiyon",
     "plastik": "Plastik Enjeksiyon",
     "isleme": "CNC İşleme",
-    "montaj": "Montaj"
+    "montaj": "Montaj",
+    "depo": "Depo / Sevkiyat",
+    "kalite": "Kalite"
   },
   "_makine_notu": "Metal: Excel'in tonaj sınıfları (general table 50/100 Ton, '200T' sayfası 200 Ton) — operatör vardiyada tonajlı makineyi seçer. Montaj: operatör '+ Yeni hat ekle' deyince sıradaki numara (Montaj 7) kendiliğinden açılır.",
   "makineler": {

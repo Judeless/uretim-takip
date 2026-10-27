@@ -110,6 +110,9 @@
                     --rgb-kaynak: 29,78,216;  --rgb-montaj: 7,115,79;   --rgb-metal: 143,97,0;
                     --rgb-isleme: 63,98,18; --rgb-lazer: 14,116,144;  --rgb-pres: 157,23,77;
                     --rgb-plastik: 162,28,175;
+                    --b-depo:    #57534E;  /* taş gri · faaliyet bölümü (2026-10-27) */
+                    --b-kalite:  #4338CA;  /* çivit   · faaliyet bölümü (2026-10-27) */
+                    --rgb-depo: 87,83,78;  --rgb-kalite: 67,56,202;
 
                     /* ── TABLO ────────────────────────────────────────────────────── */
                     --table-header:   #F3F3F8;              /* üstünde --muted 6.88:1 ✓ */
@@ -218,6 +221,9 @@
                     --rgb-kaynak: 96,165,250;  --rgb-montaj: 52,211,153;  --rgb-metal: 232,163,61;
                     --rgb-isleme: 163,230,53;  --rgb-lazer: 34,211,238;   --rgb-pres: 244,114,182;
                     --rgb-plastik: 232,121,249;
+                    --b-depo:    #D6D3D1;
+                    --b-kalite:  #A5B4FC;
+                    --rgb-depo: 214,211,209;  --rgb-kalite: 165,180,252;
 
                     --table-header:   #232040;
                     --table-hover:    rgba(255, 255, 255, 0.05);
@@ -6497,9 +6503,9 @@ window.__I18N_SOZLUK__ = {
                                         <th>Tarih</th>
                                         <th id="ky-th-robot-uretim">Robot</th>
                                         <th>Operatör</th>
-                                        <th>Referans Kodu</th>
-                                        <th style="text-align:right">OK</th>
-                                        <th style="text-align:right">NOK</th>
+                                        <th id="ky-th-ref-uretim">Referans Kodu</th>
+                                        <th id="ky-th-ok-uretim" style="text-align:right">OK</th>
+                                        <th id="ky-th-nok-uretim" style="text-align:right">NOK</th>
                                         <th style="text-align:right">CT (sn)</th>
                                         <th style="text-align:right">İşlem</th>
                                     </tr>
@@ -9548,7 +9554,13 @@ window.__I18N_SOZLUK__ = {
             plastik: { ad: 'Plastik Enjeksiyon', ikon: '🧪', renk: 'var(--b-plastik)', parlak: 'var(--b-plastik)', mark: 'var(--b-plastik)', rgb: '162,28,175', tekil: 'Makine' },
             // Tel üretimi (TK1, 2026-08-04): "tekil" = Proses Adımı — bu bölümde
             // hat bir makine değil, üretim akışının adımı (halat kesme → … → montaj).
-            tel:     { ad: 'Tel Üretimi', ikon: '🧵', renk: '#B45309', parlak: '#F59E0B', mark: '#B45309', rgb: '180,83,9', tekil: 'Proses Adımı' }
+            tel:     { ad: 'Tel Üretimi', ikon: '🧵', renk: '#B45309', parlak: '#F59E0B', mark: '#B45309', rgb: '180,83,9', tekil: 'Proses Adımı' },
+            // FAALİYET BÖLÜMLERİ (2026-10-27, Aspanda): makine yok, kayıt = iş / ölçüm türü + adet.
+            // Yalnız profil açarsa BOLUM_SIRA'ya girer (Cofle'de görünmez).
+            depo:    { ad: 'Depo / Sevkiyat', ikon: '📦', renk: 'var(--b-depo)', parlak: 'var(--b-depo)', mark: 'var(--b-depo)', rgb: '87,83,78', tekil: 'Alan',
+                       faaliyet: { ref: 'İş Türü', ok: 'Adet', nok: 'NOK' } },
+            kalite:  { ad: 'Kalite', ikon: '🔍', renk: 'var(--b-kalite)', parlak: 'var(--b-kalite)', mark: 'var(--b-kalite)', rgb: '67,56,202', tekil: 'Alan',
+                       faaliyet: { ref: 'Ölçüm Türü', ok: 'Uygun', nok: 'Uygunsuz' } }
         };
         var BOLUM_SIRA = ['kaynak', 'montaj', 'metal', 'isleme', 'lazer', 'pres'];
         // KURULUM PROFİLİ: markalı kurulumun bölümleri ve adları (Cofle'de profil yok → değişmez)
@@ -11256,6 +11268,14 @@ window.__I18N_SOZLUK__ = {
                 thU.textContent = !tek ? 'Makine / Hat'
                     : (kyMakineEtiketi || bilgi.tekil);
             }
+            // Depo / kalite: kod = iş / ölçüm türü (2026-10-27). Asıl başlık ilk değişimde saklanır.
+            var fa = tek ? (BOLUMLER[tek] || {}).faaliyet : null;
+            [['ky-th-ref-uretim', 'ref'], ['ky-th-ok-uretim', 'ok'], ['ky-th-nok-uretim', 'nok']].forEach(function (x) {
+                var th = document.getElementById(x[0]);
+                if (!th) return;
+                if (th.dataset.asil === undefined) th.dataset.asil = th.textContent;
+                th.textContent = fa ? fa[x[1]] : th.dataset.asil;
+            });
             var rrB = document.getElementById('ky-robot-ref-baslik');
             if (rrB) rrB.textContent = '🤖 ' + bilgi.tekil + ' Bazlı Ürün Kırılımı';
             var rdB = document.getElementById('ky-robot-durus-baslik');
@@ -11805,6 +11825,12 @@ window.__I18N_SOZLUK__ = {
                     let refHucre = (i === 0)
                         ? `<b>${u.referans_kodu}</b>` + (cok ? ` <span style="color:var(--dim);font-size:.72rem">×${blok.length}</span>` : '')
                         : `<span style="color:var(--dim)">↳</span>`;
+                    // Depo / kalite: ne yapıldığı açıklamada (irsaliye no, ölçülen parça) + kayıt saati
+                    if ((BOLUMLER[u.bolum] || {}).faaliyet) {
+                        const saat = String(u.kayit_ts || '').slice(11, 16);
+                        refHucre += (saat ? ` <span style="color:var(--muted);font-size:.72rem">${saat}</span>` : '') +
+                            (u.aciklama ? `<div style="font-size:.74rem;color:var(--muted);margin-top:2px">📝 ${esc(u.aciklama)}</div>` : '');
+                    }
                     // NOT: kodun yanındaki makine rozeti KALDIRILDI (kullanıcı
                     // 2026-08-26): "her üretim için 2 adet makine etiketi bulunuyor,
                     // parça kodunun yanındakini kaldıralım." Makine zaten satırın

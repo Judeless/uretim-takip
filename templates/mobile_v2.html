@@ -586,6 +586,8 @@
     .bolum-btn.plastik:hover { border-color: #a855f7; background: rgba(168,85,247,0.07); box-shadow: 0 0 28px rgba(168,85,247,0.14); }
     .bolum-btn.tel { border-left: 4px solid #f59e0b; }
     .bolum-btn.tel:hover { border-color: #f59e0b; background: rgba(245,158,11,0.07); box-shadow: 0 0 28px rgba(245,158,11,0.14); }
+    .bolum-btn.depo { border-left: 4px solid #a8a29e; }
+    .bolum-btn.kalite { border-left: 4px solid #818cf8; }
 
     .bolum-badge {
       flex-shrink: 0;
@@ -603,6 +605,8 @@
     .bolum-badge.pres   { background: rgba(236,72,153,0.15);  color: #fbcfe8; border: 1px solid rgba(236,72,153,0.35); }
     .bolum-badge.plastik { background: rgba(168,85,247,0.15); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.35); }
     .bolum-badge.tel     { background: rgba(245,158,11,0.15); color: #fde68a; border: 1px solid rgba(245,158,11,0.35); }
+    .bolum-badge.depo    { background: rgba(168,162,158,0.15); color: #e7e5e4; border: 1px solid rgba(168,162,158,0.35); }
+    .bolum-badge.kalite  { background: rgba(129,140,248,0.15); color: #c7d2fe; border: 1px solid rgba(129,140,248,0.35); }
 
     /* ╔══ VARDİYA KARTLARI (ANA EKRAN LİSTESİ) ══╗ */
     .vardiya-kart {
@@ -1173,9 +1177,12 @@
     .bolum-btn.pres    { border-left: 3px solid #9D174D; }
     .bolum-btn.plastik { border-left: 3px solid #A21CAF; }
     .bolum-btn.tel     { border-left: 3px solid #B45309; }
+    .bolum-btn.depo    { border-left: 3px solid #57534E; }
+    .bolum-btn.kalite  { border-left: 3px solid #4338CA; }
     .bolum-btn.kaynak:hover, .bolum-btn.montaj:hover, .bolum-btn.metal:hover,
     .bolum-btn.isleme:hover, .bolum-btn.lazer:hover, .bolum-btn.pres:hover,
-    .bolum-btn.plastik:hover, .bolum-btn.tel:hover {
+    .bolum-btn.plastik:hover, .bolum-btn.tel:hover,
+    .bolum-btn.depo:hover, .bolum-btn.kalite:hover {
       background: var(--surface-2); box-shadow: var(--shadow); border-color: var(--line);
     }
     /* Bölüm rozeti = KİMLİK → outline pill, dolu değil */
@@ -1192,6 +1199,16 @@
     .bolum-badge.pres    { color: #9D174D; }
     .bolum-badge.plastik { color: #A21CAF; }
     .bolum-badge.tel     { color: #B45309; }
+    .bolum-badge.depo    { color: #57534E; }
+    .bolum-badge.kalite  { color: #4338CA; }
+    /* Faaliyet türü seçici (depo / kalite): iri, tek dokunuşluk çipler */
+    .tur-cips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+    .tur-cip {
+      padding: 10px 14px; border-radius: var(--r-pill); border: 1px solid var(--line-strong);
+      background: var(--card); color: var(--text); font-size: .84rem; font-weight: 700; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tur-cip.secili { background: var(--primary); border-color: var(--primary); color: #fff; }
 
     /* ── 8) VARDİYA KARTLARI + DURUM ROZETLERİ (durum = DOLU ÇİP, 6px) ─────── */
     .vardiya-kart {
@@ -2667,6 +2684,22 @@ window.__I18N_SOZLUK__ = {
               </div>
               <span class="bolum-badge tel">TEL</span>
             </button>
+            <button class="bolum-btn depo" type="button" onclick="raporAc('depo')" style="display:none">
+              <div class="bolum-icon">📦</div>
+              <div class="bolum-info">
+                <div class="bolum-title">Depo / Sevkiyat</div>
+                <div class="bolum-desc">Günlük yapılan işler</div>
+              </div>
+              <span class="bolum-badge depo">DEPO</span>
+            </button>
+            <button class="bolum-btn kalite" type="button" onclick="raporAc('kalite')" style="display:none">
+              <div class="bolum-icon">🔍</div>
+              <div class="bolum-info">
+                <div class="bolum-title">Kalite</div>
+                <div class="bolum-desc">Günlük ölçümler</div>
+              </div>
+              <span class="bolum-badge kalite">KALİTE</span>
+            </button>
           </div>
         </div>
       </div>
@@ -2751,6 +2784,23 @@ window.__I18N_SOZLUK__ = {
               <div class="bolum-desc">Kesim · kapama · montaj</div>
             </div>
             <span class="bolum-badge tel">TEL</span>
+          </div>
+          <!-- FAALİYET BÖLÜMLERİ (2026-10-27): yalnız profilde varsa görünür (KURULUM bloğu) -->
+          <div class="bolum-btn depo b0-faaliyet" onclick="bolumSec('depo')" style="display:none">
+            <div class="bolum-icon">📦</div>
+            <div class="bolum-info">
+              <div class="bolum-title">Depo / Sevkiyat</div>
+              <div class="bolum-desc">Mal kabul · sevkiyat · hat besleme</div>
+            </div>
+            <span class="bolum-badge depo">DEPO</span>
+          </div>
+          <div class="bolum-btn kalite b0-faaliyet" onclick="bolumSec('kalite')" style="display:none">
+            <div class="bolum-icon">🔍</div>
+            <div class="bolum-info">
+              <div class="bolum-title">Kalite</div>
+              <div class="bolum-desc">Ölçüm ve kontrol kayıtları</div>
+            </div>
+            <span class="bolum-badge kalite">KALİTE</span>
           </div>
         </div>
       </div>
@@ -2884,7 +2934,7 @@ window.__I18N_SOZLUK__ = {
       </div>
 
       <div class="section-hd">
-        <h3>📦 Üretim Kayıtları</h3>
+        <h3 id="c-uretim-baslik">📦 Üretim Kayıtları</h3>
         <div style="display:flex;gap:8px">
           <button class="section-add-btn" id="c-sayac-log-btn" onclick="sayacLogAc()"
             style="background:var(--info-soft);border-color:rgba(29,78,216,0.30);color:var(--c-blue)">📡 Sinyal Geçmişi</button>
@@ -2913,7 +2963,9 @@ window.__I18N_SOZLUK__ = {
         <div class="card-title" id="d-baslik">📦 Yeni Üretim Kaydı</div>
         <input type="hidden" id="d-uid" value="">
 
-        <label>Referans Kodu</label>
+        <label id="d-ref-lbl">Referans Kodu</label>
+        <!-- Depo / Kalite: iş / ölçüm türü TEK DOKUNUŞLA seçilir (liste = bölümün referansları) -->
+        <div id="d-tur-secici" class="tur-cips" style="display:none"></div>
         <div class="ac-wrap">
           <input type="text" id="d-ref" placeholder="Kod yazın... (örn: 10.130)"
             oninput="refAC(this)" onchange="refKodDegisti()" autocomplete="off" data-cycle="0">
@@ -3002,15 +3054,15 @@ window.__I18N_SOZLUK__ = {
 
         <div class="grid-3" style="margin-top:14px">
           <div>
-            <label>ADET (OK)</label>
+            <label id="d-ok-lbl">ADET (OK)</label>
             <input type="number" id="d-ok" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
           </div>
-          <div>
+          <div id="d-tamir-kutu">
             <label>TAMİR</label>
             <input type="number" id="d-tamir" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
           </div>
-          <div>
-            <label>HURDA</label>
+          <div id="d-nok-kutu">
+            <label id="d-nok-lbl">HURDA</label>
             <input type="number" id="d-nok" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
           </div>
           <!-- Sensor ipucu: grid-column:1/-1 ile TAM SATIR kaplar, bu yuzden uc alanin
@@ -3021,7 +3073,7 @@ window.__I18N_SOZLUK__ = {
           </div>
         </div>
 
-        <div style="margin-top:12px">
+        <div id="d-launch-kutu" style="margin-top:12px">
           <label>Launch Adet <span style="font-weight:400;text-transform:none">(Opsiyonel)</span></label>
           <input type="number" id="d-launch" placeholder="0" min="0" inputmode="numeric" pattern="[0-9]*">
         </div>
@@ -3451,6 +3503,9 @@ window.__I18N_SOZLUK__ = {
     // profil yok (bolumler null) → bu blok hiçbir şey yapmaz.
     var KURULUM = {{ kurulum|tojson }};
     if (KURULUM.bolumler) {
+      // Açılış bölümü profilde olmalı: varsayılan 'kaynak' Aspanda'da yok → duruş listesi
+      // boş gelip "Duruş listesi sunucudan gelmedi" uyarısı çıkıyordu (2026-10-27).
+      if (KURULUM.bolumler.length && KURULUM.bolumler.indexOf(secilenBolum) === -1) secilenBolum = KURULUM.bolumler[0];
       try {
         document.querySelectorAll('.bolum-btn').forEach(function (el) {
           var mm = (el.getAttribute('onclick') || '').match(/(?:bolumSec|raporAc)\('([a-z]+)'\)/);
@@ -3465,6 +3520,88 @@ window.__I18N_SOZLUK__ = {
           document.querySelectorAll('#bottom-menu .bm-tab[data-tab="F"], #bottom-menu .bm-tab[data-tab="G"]')
             .forEach(function (el) { el.style.display = 'none'; });
       } catch (e) {}
+    }
+    // ── FAALİYET BÖLÜMLERİ (kullanıcı 2026-10-27, Aspanda): depo/sevkiyat + kalite.
+    // Makine yok; vardiya hattı sabit (hat), kayıt = iş / ölçüm türü + adet. Türler
+    // panelde Referanslar sayfasında, bölümün referans listesi olarak durur.
+    var FAALIYET = {
+      depo:   { hat: 'Depo Sevkiyat', tur: 'İş Türü', adet: 'Adet', nok: '',
+                baslik: '📋 Yapılan İşler', yeni: '📋 Yeni İş Kaydı', duzenle: '✏️ İş Kaydını Düzenle',
+                bos: 'Henüz iş kaydı yok', kayit: 'İş kaydedildi',
+                aciklama: 'Örn: müşteri, sipariş / irsaliye no, palet sayısı' },
+      // Kalite: toplam ölçüm = uygun + uygunsuz (ok + nok — raporlarla aynı anlam)
+      kalite: { hat: 'Kalite', tur: 'Ölçüm Türü', adet: 'Uygun Ölçüm', nok: 'Uygunsuz',
+                baslik: '🔍 Ölçüm Kayıtları', yeni: '🔍 Yeni Ölçüm Kaydı', duzenle: '✏️ Ölçüm Kaydını Düzenle',
+                bos: 'Henüz ölçüm kaydı yok', kayit: 'Ölçüm kaydedildi',
+                aciklama: 'Örn: ölçülen parça kodu, bulgu' }
+    };
+    function faaliyetBolumu(b) { return Object.prototype.hasOwnProperty.call(FAALIYET, b || secilenBolum); }
+    // Metni değiştir; asıl (çevrilmiş olabilir) metin ilk değişimde saklanır, diğer
+    // bölümlerde geri yazılır — cihaz depo vardiyasından montaja geçince etiket kalmasın.
+    function _faalMetin(el, yeni, alan) {
+      if (!el) return;
+      alan = alan || 'textContent';
+      var k = 'asil' + alan;
+      if (el.dataset[k] === undefined) el.dataset[k] = el[alan];
+      el[alan] = (yeni != null && yeni !== '') ? yeni : el.dataset[k];
+    }
+    function faaliyetFormu(duzenle) {
+      var f = faaliyetBolumu() ? FAALIYET[secilenBolum] : null;
+      _faalMetin(document.getElementById('d-ref-lbl'), f && f.tur);
+      _faalMetin(document.getElementById('d-ok-lbl'), f && f.adet);
+      _faalMetin(document.getElementById('d-nok-lbl'), f && f.nok);
+      _faalMetin(document.getElementById('d-ref'), f && (f.tur + ' seçin ya da yazın'), 'placeholder');
+      _faalMetin(document.getElementById('d-aciklama'), f && f.aciklama, 'placeholder');
+      ['d-tamir-kutu', 'd-launch-kutu'].forEach(function (id) {
+        var e = document.getElementById(id); if (e) e.style.display = f ? 'none' : '';
+      });
+      var nk = document.getElementById('d-nok-kutu');
+      if (nk) nk.style.display = (f && !f.nok) ? 'none' : '';
+      var kutu = document.getElementById('d-tur-secici');
+      if (!kutu) return;
+      if (!f) { kutu.style.display = 'none'; kutu.innerHTML = ''; return; }
+      document.getElementById('d-baslik').textContent = duzenle ? f.duzenle : f.yeni;
+      kutu.style.display = '';
+      kutu.innerHTML = '<span style="font-size:.78rem;color:var(--muted)">Yükleniyor…</span>';
+      fetch('/api/referanslar?q=&bolum=' + encodeURIComponent(secilenBolum) + '&lokasyon=' + encodeURIComponent(LOKASYON))
+        .then(function (r) { return r.json(); })
+        .then(function (items) {
+          var inp = document.getElementById('d-ref');
+          if (!items.length) {
+            kutu.innerHTML = '<span style="font-size:.78rem;color:var(--muted)">Tanımlı tür yok — aşağıya yazın (panel → Referanslar).</span>';
+            return;
+          }
+          kutu.innerHTML = '';
+          items.sort(function (a, b) { return String(a.referans_kodu).localeCompare(String(b.referans_kodu), 'tr'); });
+          items.forEach(function (r) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'tur-cip' + (inp.value.trim() === r.referans_kodu ? ' secili' : '');
+            b.textContent = r.referans_kodu;
+            if (r.aciklama) b.title = r.aciklama;
+            b.onclick = function () {
+              inp.value = r.referans_kodu;
+              inp.dataset.cycle = '0';
+              document.getElementById('d-acl').style.display = 'none';
+              kutu.querySelectorAll('.tur-cip').forEach(function (x) { x.classList.toggle('secili', x === b); });
+              var ok = document.getElementById('d-ok');
+              if (ok && !ok.value) ok.focus();
+            };
+            kutu.appendChild(b);
+          });
+        }).catch(function () { kutu.innerHTML = ''; });
+    }
+    // Ekran C: başlık, boş liste metni, OEE yerine günün toplamı
+    function faaliyetEkranC(uretim) {
+      var f = faaliyetBolumu() ? FAALIYET[secilenBolum] : null;
+      var bas = document.getElementById('c-uretim-baslik');
+      var top = (uretim || []).reduce(function (t, u) { return t + (u.ok_adet || 0) + (u.nok_adet || 0); }, 0);
+      _faalMetin(bas, f && (f.baslik + ' · ' + top));
+      var oee = document.getElementById('c-oee');
+      var oeeLbl = document.querySelector('#screen-C .vb-oee-label');
+      if (oee) oee.style.display = f ? 'none' : '';
+      if (oeeLbl) oeeLbl.style.display = f ? 'none' : '';
+      return f;
     }
     function kurulumMakineleri(bolum, varsayilan) {
       var l = (KURULUM.makineler || {})[bolum];
@@ -3867,8 +4004,9 @@ window.__I18N_SOZLUK__ = {
       // Bolum badge goster + "Bolum Degistir" butonu
       var badgeWrap = document.getElementById('b-bolum-badge-wrap');
       var _lok = localStorage.getItem('mobile_aktif_lokasyon') || 'TK2';
-      var badgeLabel = {kaynak: 'Kaynakhane', montaj: (_lok === 'TK1' ? 'TK1 Montaj' : 'Montaj'), metal: 'Metal Enjeksiyon', isleme: 'İşleme', lazer: 'Lazer Kesim', pres: 'Pres Abkant', plastik: 'Plastik Enjeksiyon'};
-      var badgeClass = {kaynak: 'kaynak', montaj: 'montaj', metal: 'metal', isleme: 'isleme', lazer: 'lazer', pres: 'pres', plastik: 'plastik'};
+      var badgeLabel = {kaynak: 'Kaynakhane', montaj: (_lok === 'TK1' ? 'TK1 Montaj' : 'Montaj'), metal: 'Metal Enjeksiyon', isleme: 'İşleme', lazer: 'Lazer Kesim', pres: 'Pres Abkant', plastik: 'Plastik Enjeksiyon', tel: 'Tel Üretimi', depo: 'Depo / Sevkiyat', kalite: 'Kalite'};
+      var badgeClass = {kaynak: 'kaynak', montaj: 'montaj', metal: 'metal', isleme: 'isleme', lazer: 'lazer', pres: 'pres', plastik: 'plastik', tel: 'tel', depo: 'depo', kalite: 'kalite'};
+      if (KURULUM.bolum_adlari && KURULUM.bolum_adlari[bolum]) badgeLabel[bolum] = KURULUM.bolum_adlari[bolum];
       // "Bölüm Değiştir" hep gösterilir — TK1 artık iki bölümlü (montaj + plastik).
       var bolumDegistirBtn =
         ' <button type="button" onclick="bolumDegistirGeri()" style="margin-left:8px;background:transparent;border:1px dashed var(--border);color:var(--muted);padding:3px 10px;border-radius:8px;font-size:.7rem;font-weight:700;cursor:pointer">Bölüm Değiştir</button>';
@@ -3943,6 +4081,11 @@ window.__I18N_SOZLUK__ = {
         // Vardiya hattı tek ve sabit: 'Pres Abkant'; makine ekran D'de istasyon 1..10.
         robotWrap.style.display = 'none';
         rsel.innerHTML = '<option value="Pres Abkant" selected>Pres Abkant</option>';
+        rsel.onchange = null;
+      } else if (faaliyetBolumu(bolum)) {
+        // DEPO / KALİTE (2026-10-27): makine yok — vardiya hattı sabit
+        robotWrap.style.display = 'none';
+        rsel.innerHTML = '<option value="' + esc(FAALIYET[bolum].hat) + '" selected>' + esc(FAALIYET[bolum].hat) + '</option>';
         rsel.onchange = null;
       } else if (bolum === 'tel') {
         // TEL ÜRETİMİ (TK1): hat = PROSES ADIMI (halat kesme / yarı-tam otomat /
@@ -4195,6 +4338,7 @@ window.__I18N_SOZLUK__ = {
       // seçiniz" diyordu (ilk açılışta fetch async olduğu için sorun görünmüyordu).
       var khWrap = document.getElementById('d-kayit-hat-wrap');
       if (khWrap) khWrap.style.display = kayitHatliBolum() ? 'block' : 'none';
+      faaliyetFormu(false);
       kayitHatYukle(function () {
         var khSel = document.getElementById('d-kayit-hat');
         if (!khSel || !kayitHatliBolum()) return;
@@ -4649,7 +4793,9 @@ window.__I18N_SOZLUK__ = {
           isleme: { title: '🛠️ İşleme', color: '#3F6212', bg: '#EDE7FB' },
           lazer: { title: '🔦 Lazer Kesim', color: '#0E7490', bg: '#E3EEF6' },
           pres: { title: '🗜️ Pres Abkant', color: '#9D174D', bg: '#F8E4EC' },
-          plastik: { title: '🧪 Plastik Enjeksiyon', color: '#6D28D9', bg: '#EDE9FE' }
+          plastik: { title: '🧪 Plastik Enjeksiyon', color: '#6D28D9', bg: '#EDE9FE' },
+          depo: { title: '📦 Depo / Sevkiyat', color: '#57534E', bg: '#EFEDEB' },
+          kalite: { title: '🔍 Kalite', color: '#4338CA', bg: '#E8E7FB' }
         };
 
         // SABIT BOLUM DIZISI YOK (2026-08-04 duzeltmesi): burada elle sayilan liste
@@ -4885,7 +5031,7 @@ window.__I18N_SOZLUK__ = {
       var aktifBolumKayit = (aktifVardiyaData && aktifVardiyaData.bolum) || secilenBolum || 'kaynak';
       var wrap = document.getElementById('c-next-jobs');
       if (aktifBolumKayit === 'montaj' || aktifBolumKayit === 'isleme' ||
-          aktifBolumKayit === 'lazer' || aktifBolumKayit === 'pres') {
+          aktifBolumKayit === 'lazer' || aktifBolumKayit === 'pres' || faaliyetBolumu(aktifBolumKayit)) {
         if (wrap) wrap.style.display = 'none';
         return;
       }
@@ -4953,7 +5099,7 @@ window.__I18N_SOZLUK__ = {
         if (sayacLogBtn) {
           var _slBolum = d.vardiya.bolum || secilenBolum || 'kaynak';
           sayacLogBtn.style.display =
-            (_slBolum === 'isleme' || _slBolum === 'lazer' || _slBolum === 'pres') ? 'none' : '';
+            (_slBolum === 'isleme' || _slBolum === 'lazer' || _slBolum === 'pres' || faaliyetBolumu(_slBolum)) ? 'none' : '';
         }
 
         // Robotla Çalışıyor toggle — sadece metal bölümünde göster
@@ -4973,10 +5119,11 @@ window.__I18N_SOZLUK__ = {
         }
 
         cacheUretim = d.uretim || [];
+        var _faal = faaliyetEkranC(cacheUretim);
         var ulEl = document.getElementById('c-uretim-list');
         ulEl.innerHTML = '';
         if (!cacheUretim.length) {
-          ulEl.innerHTML = '<div class="empty-msg"><div class="em-icon">📦</div>Henüz üretim kaydı yok</div>';
+          ulEl.innerHTML = '<div class="empty-msg"><div class="em-icon">📦</div>' + (_faal ? _faal.bos : 'Henüz üretim kaydı yok') + '</div>';
         } else {
           cacheUretim.forEach(function (u) {
             var div = document.createElement('div');
@@ -4985,7 +5132,7 @@ window.__I18N_SOZLUK__ = {
             var ctSn = u.cycle_time_sn || 0;
             var ctTxt = ctSn > 0 ? ' · CT:' + Math.round(ctSn) + 'sn' : '';
             var isDkTxt = ctSn > 0 ? ' · ≈' + (adet * ctSn / 60).toFixed(1) + ' dk' : '';
-            var nokTxt = u.nok_adet > 0 ? ' · NOK: ' + u.nok_adet : '';
+            var nokTxt = u.nok_adet > 0 ? ' · ' + (_faal && _faal.nok ? _faal.nok : 'NOK') + ': ' + u.nok_adet : '';
             // Sayaç otomatik kaydı: OK adet sensörden besleniyor (canlı). Operatör
             // düzeltirse donar. 📡 rozeti operatöre bunun sayaçtan geldiğini gösterir.
             var sayacBadge = (u.sayac_otomatik == 1) ? ' <span style="color:var(--success);font-weight:700">📡 sayaç</span>' : '';
@@ -5012,10 +5159,11 @@ window.__I18N_SOZLUK__ = {
             // sag taraftaki butonlari (✏️/🗑) ekran disina itiyordu (2026-08-04).
             div.innerHTML = '<div class="ki-head"><div style="flex:1;min-width:0">' +
               '<div class="ki-kod" style="' + (tamam ? 'opacity:.5;text-decoration:line-through;' : '') + '">' + u.referans_kodu + '</div>' +
-              '<div class="ki-detail">' + makineTxt + 'OK: ' + u.ok_adet + sayacBadge + nokTxt + ctTxt + isDkTxt + '</div>' +
+              '<div class="ki-detail">' + makineTxt + (_faal ? _faal.adet : 'OK') + ': ' + u.ok_adet + sayacBadge + nokTxt + ctTxt + isDkTxt +
+              (_faal && (u.baslangic_ts || u.created_at) ? ' · ' + String(u.baslangic_ts || u.created_at).slice(11, 16) : '') + '</div>' +
               aciklamaSatiri +
               '</div><div class="ki-actions">' +
-              '<button class="' + tamamCls + '" title="' + tamamBtnTitle + '" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>' +
+              (_faal ? '' : '<button class="' + tamamCls + '" title="' + tamamBtnTitle + '" data-id="' + u.id + '" data-tamam="' + tamam + '" data-type="u-tamam">' + tamamBtnTxt + '</button>') +
               '<button class="ki-btn ki-btn-edit" data-id="' + u.id + '" data-type="u-edit">✏️</button>' +
               '<button class="ki-btn ki-btn-del" data-id="' + u.id + '" data-type="u-del">🗑</button>' +
               '</div></div>';
@@ -6028,6 +6176,7 @@ window.__I18N_SOZLUK__ = {
       var ttg = document.getElementById('d-test-toggle');
       if (ttg) ttg.checked = false;
       document.getElementById('d-baslik').textContent = '✏️ Üretim Kaydını Düzenle';
+      faaliyetFormu(true);
       gitEkran('D');
     }
 
@@ -6084,7 +6233,7 @@ window.__I18N_SOZLUK__ = {
         .then(function (res) {
           var d = res.body;
           if (!res.ok || d.hata) { toast(d.hata || ('Sunucu hatası: ' + (res.status||'')), 'error'); return; }
-          toast(uid ? 'Kayıt güncellendi' : 'Üretim kaydedildi', 'success');
+          toast(uid ? 'Kayıt güncellendi' : (faaliyetBolumu() ? FAALIYET[secilenBolum].kayit : 'Üretim kaydedildi'), 'success');
           gitEkran('C');
           setTimeout(refreshOEE, 300);
         }).catch(function (e) { toast('Bağlantı hatası: ' + (e && e.message || ''), 'error'); });

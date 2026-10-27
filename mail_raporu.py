@@ -42,6 +42,8 @@ BOLUM_AD = {
     'pres':   'Pres Abkant',
     'plastik': 'Plastik Enjeksiyon',
     'tel':    'Tel Üretimi',
+    'depo':   'Depo / Sevkiyat',
+    'kalite': 'Kalite',
 }
 
 
@@ -386,7 +388,7 @@ def gunluk_veri(tarih=None, lokasyon=None):
 # Bölüm kimlik renkleri — dashboard paletiyle (--b-*) AYNI değerler.
 _BOLUM_RENK = {'kaynak': '#1D4ED8', 'montaj': '#07734F', 'metal': '#8F6100',
                'isleme': '#3F6212', 'lazer': '#0E7490', 'pres': '#9D174D',
-               'plastik': '#A21CAF', 'tel': '#B45309'}
+               'plastik': '#A21CAF', 'tel': '#B45309', 'depo': '#57534E', 'kalite': '#4338CA'}
 
 
 def _bolum_kirilimi(tarih, lokasyon=None):
