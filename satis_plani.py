@@ -936,10 +936,30 @@ def _musteri_araya(my, me, ilk, ufuk, son):
     return ekle, araya, min(araya, disari), dusen
 
 
-def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True, ara=''):
+def _mad(ad):
+    """Müşteri süzgeci anahtarı: ADA göre — aynı firma birden çok müşteri koduyla gelir
+    (ERKUNT 10505 + 10506); kod ayrımı açılan satırda görünür."""
+    return re.sub(r'\s+', ' ', ad or '').strip().upper()
+
+
+def _musteri_h(d, ad):
+    """Ürünün yalnız `ad` müşterisine (bütün kodları ve sevk adresleri) ait haftalık talebi."""
+    h = {}
+    for m, v in (d or {}).get('musteri', {}).items():
+        if _mad(v['musteri']) == ad:
+            for w, a in v['h'].items():
+                h[w] = h.get(w, 0) + a
+    return h
+
+
+def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True, ara='', musteri=''):
     """Yeni çekimde termin penceresine (gecikmiş + ilk `termin` hafta) eski çekime göre eklenen
     talep, ürün × müşteri. cekim_idler: [yeni, eski] (üçüncüsü yok sayılır).
-    → {'cekimler', 'haftalar', 'termin', 'satirlar', 'ozet', 'notlar', 'tesis', 'termin_disi'}"""
+    musteri: müşteri ADI (kullanıcı 2026-10-27) — araya giren / hafta / müşteri sütunları yalnız o
+    müşterinin; stok ve termin içi talep ürünün tamamı (stok bütün müşterilere ortak).
+    → {'cekimler', 'haftalar', 'termin', 'satirlar', 'ozet', 'notlar', 'tesis', 'termin_disi',
+       'musteri_listesi' (süzgeçten önce, açılır liste için)}"""
+    musteri = _mad(musteri)
     ck, termin, notlar, tesis, harita, toplam, ilk, ufuk, son = _kiyas_hazirla(
         conn, list(cekim_idler)[:2], termin, kapsam_secimi)
     # TERMİN PENCERESİ TARİHLE (kullanıcı 2026-10-15, 94.PBL.47): pencere 'çekimin ilk N
@@ -966,11 +986,12 @@ def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True,
     ara = re.sub(r'\s', '', ara or '').upper()
     mus_y = {m: v['musteri'] for d in t_y.values() for m, v in d['musteri'].items()}
     mus_e = {m for d in t_e.values() for m in d['musteri']}
-    yok = sorted({mus_y[m] for m in mus_y if m not in mus_e})
+    yok = sorted({mus_y[m] for m in mus_y if m not in mus_e and (not musteri or _mad(mus_y[m]) == musteri)})
     if yok:
         notlar.append(f"Eski çekimde HİÇ satırı olmayan müşteri: {', '.join(yok)} — bütün talebi 'araya giren' "
                       f"görünür; eski çekim eksik olabilir, AS400'de sipariş giriş tarihine bakın.")
     satirlar, termin_disi = [], {'urun': 0, 'adet': 0.0}
+    mus_oz = {}                           # müşteri kodu → araya giren özeti (müşteri süzgecinden önce)
     son_ufuk = _hafta_sira(ufuk[-1]) if ufuk else ilk
     for k in set(t_y) | set(t_e):
         dy, de = t_y.get(k), t_e.get(k)
@@ -988,6 +1009,13 @@ def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True,
             ekle, ar, one, dusen = _musteri_araya(my, me, ilk, ufuk, son)
             if ar <= 0.001:
                 continue
+            ad = _mad((my or me)['musteri'])
+            mo = mus_oz.setdefault(ad, {'ad': (my or me)['musteri'], 'kodlar': set(), 'urun': set(), 'adet': 0.0})
+            mo['kodlar'].add(str(m[0]))
+            mo['urun'].add(k)
+            mo['adet'] += ar
+            if musteri and ad != musteri:
+                continue
             top_ar += ar
             top_one += one
             for h, a in ekle.items():
@@ -998,8 +1026,10 @@ def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True,
                                'haftalar': {h: round(a, 2) for h, a in ekle.items()}})
         if top_ar <= 0.001:
             # termine uygun (pencereden sonraki haftalara) eklenen yeni talep — bilgi
-            ileri = sum(max(0.0, (dy or {}).get('h', {}).get(w, 0) - (de or {}).get('h', {}).get(w, 0))
-                        for w in set((dy or {}).get('h', {})) if _hafta_sira(w) and son_ufuk < _hafta_sira(w) <= son)
+            hy_ = _musteri_h(dy, musteri) if musteri else (dy or {}).get('h', {})
+            he_ = _musteri_h(de, musteri) if musteri else (de or {}).get('h', {})
+            ileri = sum(max(0.0, hy_.get(w, 0) - he_.get(w, 0))
+                        for w in set(hy_) if _hafta_sira(w) and son_ufuk < _hafta_sira(w) <= son)
             if ileri > 0.001:
                 termin_disi['urun'] += 1
                 termin_disi['adet'] += ileri
@@ -1024,9 +1054,17 @@ def araya_giren(conn, cekim_idler, termin=4, kapsam_secimi='oto', yalniz_p=True,
         l = [s for s in satirlar if kosul(s)]
         if l:
             ozet[anahtar] = {'urun': len(l), 'adet': round(sum(s['one'] if anahtar == 'one_cekildi' else s['araya'] for s in l), 2)}
+    musteri_listesi = sorted(({'anahtar': a, 'ad': v['ad'], 'kodlar': sorted(v['kodlar']), 'urun': len(v['urun']),
+                               'adet': round(v['adet'], 2)} for a, v in mus_oz.items()), key=lambda x: (-x['adet'], x['ad']))
+    musteri_ad = ''
+    if musteri:
+        musteri_ad = (mus_oz.get(musteri) or {}).get('ad') or next(
+            (v['musteri'] for t in (t_y, t_e) for d in t.values() for v in d['musteri'].values()
+             if _mad(v['musteri']) == musteri), musteri)
     return {'gorunum': 'araya', 'cekimler': ck, 'haftalar': ufuk, 'termin': termin, 'ilk_n': termin,
             'tesis': tesis or '', 'satirlar': satirlar, 'ozet': ozet, 'notlar': notlar,
-            'termin_disi': {'urun': termin_disi['urun'], 'adet': round(termin_disi['adet'], 2)}}
+            'termin_disi': {'urun': termin_disi['urun'], 'adet': round(termin_disi['adet'], 2)},
+            'musteri': musteri, 'musteri_ad': musteri_ad, 'musteri_listesi': musteri_listesi}
 
 
 def araya_giren_excel(sonuc):
@@ -1039,8 +1077,10 @@ def araya_giren_excel(sonuc):
     ws = wb.active
     ws.title = 'araya giren siparişler'
     ws.append([f"Araya giren siparişler — {g(ck[0])} çekimi, {g(ck[1])} çekimine göre termin penceresine "
-               f"(gecikmiş + ilk {sonuc['termin']} hafta) eklenen talep"])
-    tur_ad = {'yeni_kod': 'yeni kod', 'eklendi': 'ek sipariş', 'one_cekildi': 'öne çekildi'}
+               f"(gecikmiş + ilk {sonuc['termin']} hafta) eklenen talep" +
+               (f" — yalnız müşteri {sonuc.get('musteri_ad') or sonuc['musteri']}; stok ve termin içi talep ürünün tamamı"
+                if sonuc.get('musteri') else '')])
+    tur_ad ={'yeni_kod': 'yeni kod', 'eklendi': 'ek sipariş', 'one_cekildi': 'öne çekildi'}
     ws.append(['Ürün kodu', 'Tür', 'Stok', f"Termin içi talep ({g(ck[0])})", 'Stokla karşılanamayan',
                'Araya giren', 'öne çekilen', 'Gecikmiş (+)'] + [f'{w} (+)' for w in ufuk] + ['Müşteriler'])
     kirmizi = PatternFill('solid', fgColor='F8CBAD')

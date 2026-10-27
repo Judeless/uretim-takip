@@ -8260,7 +8260,7 @@ def _sp_urun_fark_params():
         kapsam = 'oto'
     if araya:                  # varsayılan (kullanıcı 2026-10-13): termin içine araya giren siparişler
         return SP.araya_giren(get_db(), ids, n, kapsam, request.args.get('p', '1') != '0',
-                              (request.args.get('ara') or '')[:40])
+                              (request.args.get('ara') or '')[:40], (request.args.get('musteri') or '')[:120])
     return SP.urun_farki(get_db(), ids, n, kapsam, request.args.get('p', '1') != '0',
                          (request.args.get('ara') or '')[:40])
 
@@ -8268,7 +8268,7 @@ def _sp_urun_fark_params():
 @app.route('/api/satis_plani/urun_fark', methods=['GET'])
 @panel_gerekli(izin='satis-plani')
 def satis_plani_urun_fark():
-    """?yeni=&eski=(&ucuncu=)&n=4&kapsam=oto&p=1&ara=&gorunum=araya|hepsi — 'araya' (varsayılan):
+    """?yeni=&eski=(&ucuncu=)&n=4&kapsam=oto&p=1&ara=&musteri=&gorunum=araya|hepsi — 'araya' (varsayılan):
     termin penceresine araya giren siparişler; 'hepsi': planlamanın 'Sipariş farkları' mantığı."""
     try:
         sonuc = _sp_urun_fark_params()
@@ -8635,6 +8635,76 @@ def tel_plani_talep_sil(tid):
     if not n:
         return jsonify({'hata': 'Talep bulunamadı'}), 404
     return jsonify({'ok': True})
+
+# ══ HAFTALIK ÜRETİM (kullanıcı 2026-10-27) — ayrıntı: haftalik_uretim.py ══════════
+# "TK2'de haftalık bazlı geçmişe dönük üretilen ürün miktarlarını görmek istiyorum (metal,
+#  robot kaynak, montaj) — W30'da 5000 mekanizma üretilmiş gibi; hafta bazlı karşılaştırma."
+# Forge kayıtları (ERP değil), 'raporlar' izniyle; faaliyet bölümleri (depo/kalite) girmez.
+def _hu_lokasyon():
+    lok = request.args.get('lokasyon') or 'TK2'
+    return lok if lok in ('TK1', 'TK2') else 'TK2'
+
+
+def _hu_hafta(ad):
+    """?a= / ?b= → '2026-W30' | ValueError."""
+    import haftalik_uretim as HU
+    v = (request.args.get(ad) or '').strip().upper()
+    HU.hafta_araligi(v)                       # biçim / tarih denetimi
+    return v
+
+
+@app.route('/api/haftalik_uretim', methods=['GET'])
+@panel_gerekli(izin='raporlar')
+def haftalik_uretim_ozet():
+    """?lokasyon=TK2&n=26 (0 = verinin başından) → hafta × bölüm OK adet."""
+    import haftalik_uretim as HU
+    try:
+        n = max(0, min(260, int(request.args.get('n') or 26)))
+    except ValueError:
+        n = 26
+    conn = get_db()
+    lok = _hu_lokasyon()
+    _acik_auto_vardiyalari_senkronla(conn, None, lok)     # bu haftanın açık vardiyaları canlı adetle
+    return jsonify(HU.ozet(conn, lok, n, KUR.FAALIYET_BOLUMLERI))
+
+
+@app.route('/api/haftalik_uretim/karsilastir', methods=['GET'])
+@panel_gerekli(izin='raporlar')
+def haftalik_uretim_karsilastir():
+    """?lokasyon=&a=2026-W30&b=2026-W29 → bölüm × referans iki hafta."""
+    import haftalik_uretim as HU
+    try:
+        a, b = _hu_hafta('a'), _hu_hafta('b')
+    except ValueError:
+        return jsonify({'hata': 'Hafta biçimi 2026-W30 olmalı'}), 400
+    return jsonify(HU.karsilastir(get_db(), _hu_lokasyon(), a, b, KUR.FAALIYET_BOLUMLERI))
+
+
+@app.route('/api/haftalik_uretim.xlsx', methods=['GET'])
+@panel_gerekli(izin='raporlar')
+def haftalik_uretim_excel():
+    """Haftalık tablo; ?a=&b= verilirse 'Karşılaştırma' sayfası da eklenir."""
+    import haftalik_uretim as HU
+    import io as _io
+    try:
+        n = max(0, min(260, int(request.args.get('n') or 26)))
+    except ValueError:
+        n = 26
+    conn = get_db()
+    lok = _hu_lokasyon()
+    sonuc = HU.ozet(conn, lok, n, KUR.FAALIYET_BOLUMLERI)
+    karsi = None
+    try:
+        karsi = HU.karsilastir(conn, lok, _hu_hafta('a'), _hu_hafta('b'), KUR.FAALIYET_BOLUMLERI)
+    except ValueError:
+        pass
+    ad = dict(BOLUM_AD)
+    ad.update(KUR.yukle().get('bolum_adlari') or {})
+    veri = HU.excel(sonuc, ad, karsi)
+    return send_file(_io.BytesIO(veri), as_attachment=True,
+                     download_name=f"Haftalik_Uretim_{lok}_{date.today().strftime('%d.%m.%Y')}.xlsx",
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 
 # ══ AYLIK ÜRETİM RAPORU (kullanıcı 2026-10-09) — ayrıntı: aylik_uretim.py ═════════
 # "Aylık üretilen, üretim teyidi verilen referansları bölümlere göre ayırıp Excel hâlinde

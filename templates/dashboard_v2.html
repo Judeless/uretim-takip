@@ -997,6 +997,18 @@
         .sf-arti { color: var(--danger); font-weight: 800; }
         .sf-eksi { color: var(--success); font-weight: 700; }
         .sf-acik td { background: var(--surface-2); text-align: left; font-size: .76rem; }
+        /* HAFTALIK ÜRETİM (2026-10-27): üretim artışı İYİ → yeşil ▲, düşüş kırmızı ▼ */
+        .hu-up { color: var(--success); font-weight: 700; }
+        .hu-down { color: var(--danger); font-weight: 700; }
+        .hu-d { font-size: .72rem; margin-left: 4px; white-space: nowrap; }
+        .hu-alt { color: var(--dim); font-size: .7rem; font-weight: 400; }
+        .hu-nokta { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+        .sf-tablo tr.hu-sec td { background: var(--primary-soft); }
+        .sf-tablo tr.hu-ozet td { background: var(--surface-2); }
+        .hu-rozet { display: inline-block; min-width: 16px; padding: 0 4px; margin-left: 5px; border-radius: 5px;
+                    background: var(--primary); color: #fff; font-size: .66rem; font-weight: 800; text-align: center; }
+        .hu-k-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+        .hu-k-blok { border: 1px solid var(--border-subtle); border-radius: 10px; padding: 10px 12px; min-width: 0; overflow-x: auto; }
         .sf-not { margin: 8px 20px 0; padding: 8px 12px; border-radius: 8px; background: var(--warn-soft);
                   border: 1px solid var(--warn); font-size: .78rem; }
 
@@ -5656,6 +5668,10 @@ window.__I18N_SOZLUK__ = {
   "Metal Planı": {"en": "Die Casting Plan", "it": "Piano pressofusione"},
   "Tel Planı": {"en": "Cable Plan", "it": "Piano cavi"},
   "Aylık Üretim Raporu": {"en": "Monthly Production Report", "it": "Report produzione mensile"},
+  "Haftalık Üretim": {"en": "Weekly Production", "it": "Produzione settimanale"},
+  "📊 Haftalık Üretim": {"en": "📊 Weekly Production", "it": "📊 Produzione settimanale"},
+  "📈 Hafta hafta üretim": {"en": "📈 Production week by week", "it": "📈 Produzione settimana per settimana"},
+  "⚖️ İki haftayı karşılaştır": {"en": "⚖️ Compare two weeks", "it": "⚖️ Confronta due settimane"},
   "📅 Aylık Üretim Raporu": {"en": "📅 Monthly Production Report", "it": "📅 Report produzione mensile"},
   "📊 Bölüm özeti": {"en": "📊 Department summary", "it": "📊 Riepilogo reparti"},
   "🧾 Bölümü belirsiz kodlar": {"en": "🧾 Codes without a department", "it": "🧾 Codici senza reparto"},
@@ -6055,6 +6071,9 @@ window.__I18N_SOZLUK__ = {
                     <span class="nav-icon">⛔</span> Duruş Analizi</a>
                 <a class="nav-item" data-sayfa="raporlar" onclick="sayfaAc('raporlar')">
                     <span class="nav-icon">📈</span> Raporlar</a>
+                <!-- HAFTALIK ÜRETİM (2026-10-27): hafta × bölüm üretilen adet — 'raporlar' izniyle açılır -->
+                <a class="nav-item" data-sayfa="haftalik-uretim" onclick="sayfaAc('haftalik-uretim')">
+                    <span class="nav-icon">📊</span> Haftalık Üretim</a>
                 <a class="nav-item" data-sayfa="operator-performans" onclick="sayfaAc('operator-performans')">
                     <span class="nav-icon">👷</span> Operatör Performansı</a>
                 {% if modul('analiz') %}
@@ -7782,6 +7801,7 @@ window.__I18N_SOZLUK__ = {
                         <label>Kapsam <select id="sf-kapsam" onchange="sfYukle()">
                             <option value="oto">Otomatik</option><option value="TK2">Yalnız TK2</option><option value="TK1">Yalnız TK1</option>
                             <option value="hepsi">Tümü</option><option value="ortak">İki çekimde de olan kodlar</option></select></label>
+                        <label title="Yalnız bu müşterinin araya giren siparişleri — liste en çok araya sipariş girenden başlar">Müşteri <select id="sf-musteri" onchange="sfYukle()" style="max-width:280px"><option value="">Tüm müşteriler</option></select></label>
                         <label><input type="checkbox" id="sf-p" checked onchange="sfYukle()"> <span>Yalnız P (üretim)</span></label>
                         <input type="search" id="sf-ara" placeholder="kod ara" oninput="sfAraGecikmeli()">
                     </div>
@@ -7903,6 +7923,44 @@ window.__I18N_SOZLUK__ = {
                 <div class="panel-card">
                     <div class="panel-header"><h3>🧾 Bölümü belirsiz kodlar</h3><span class="adet-info" id="au-tanimsiz-bilgi"></span></div>
                     <div style="padding:10px 20px 16px;overflow-x:auto;max-height:50vh" id="au-tanimsiz">—</div>
+                </div>
+            </section>
+
+            <!-- HAFTALIK ÜRETİM (kullanıcı 2026-10-27): ISO hafta × bölüm üretilen OK adet, geçmişe dönük
+                 hafta karşılaştırması. Forge üretim kayıtları; hesap haftalik_uretim.py. -->
+            <section class="page" id="page-haftalik-uretim">
+                <div style="margin-bottom:18px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">📊 Haftalık Üretim</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
+                        Her hafta (pazartesi–pazar) üretilen OK adet, bölüm bazında — operatörlerin üretim kayıtlarından, vardiyanın tarihine göre. Yalnız bitmiş ürün sayılır: tamir / punta / rework, test cihazı ve ara operasyon (1. op, hazırlık) kayıtları sayılmaz (ERP teyidiyle aynı kural). Montaj = mekanizma, robot kaynak = kaynatılan parça, metal = dökülen parça; bölümler birbirine toplanmaz.
+                    </p>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
+                        <h3>📈 Hafta hafta üretim</h3>
+                        <div class="sf-arac" style="padding:0">
+                            <select id="hu-n" onchange="huYukle()">
+                                <option value="13">Son 13 hafta</option><option value="26" selected>Son 26 hafta</option>
+                                <option value="52">Son 52 hafta</option><option value="0">Tümü</option></select>
+                        </div>
+                        <span class="adet-info" id="hu-bilgi"></span>
+                        <button class="btn btn-outline" onclick="huExcel()" style="margin-left:auto" title="Haftalık tablo + seçili iki haftanın referans karşılaştırması">⬇️ Excel</button>
+                    </div>
+                    <div id="hu-bolumler" style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 20px 0"></div>
+                    <div style="padding:10px 20px 0"><div style="position:relative;height:300px"><canvas id="hu-grafik"></canvas></div></div>
+                    <div id="hu-not" style="padding:8px 20px 0;font-size:.74rem;color:var(--muted)"></div>
+                    <div style="padding:8px 20px 16px;overflow:auto;max-height:65vh" id="hu-tablo">—</div>
+                </div>
+                <div class="panel-card" id="hu-karsi-kart">
+                    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
+                        <h3>⚖️ İki haftayı karşılaştır</h3>
+                        <div class="sf-arac" style="padding:0">
+                            <label>A <select id="hu-a" onchange="huKarsilastir()"></select></label>
+                            <label>B <select id="hu-b" onchange="huKarsilastir()"></select></label>
+                        </div>
+                        <span class="adet-info">Tabloda ya da grafikte bir haftaya tıklayınca o hafta önceki haftayla gelir · Fark = A − B</span>
+                    </div>
+                    <div style="padding:10px 20px 16px" id="hu-karsi">—</div>
                 </div>
             </section>
 
@@ -10170,6 +10228,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'satis-plani') ? 'page-satis-plani'
                         : (sayfa === 'tel-plani') ? 'page-tel-plani'
                         : (sayfa === 'aylik-uretim') ? 'page-aylik-uretim'
+                        : (sayfa === 'haftalik-uretim') ? 'page-haftalik-uretim'
                         : (sayfa === 'ariza-onay') ? 'page-ariza-onay'
                         : (sayfa === 'proje-takip') ? 'page-proje-takip'
                         : (sayfa === 'talepler') ? 'page-talepler'
@@ -10226,6 +10285,7 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'satis-plani') spSekmeAcildi();
             if (sayfa === 'tel-plani') tpSekmeAcildi();
             if (sayfa === 'aylik-uretim') auSekmeAcildi();
+            if (sayfa === 'haftalik-uretim') huYukle();
             if (sayfa === 'raporlar') initRaporlar();
             if (sayfa === 'operator-performans') initOperatorPerformans();
             if (sayfa === 'analiz') initAnaliz();
@@ -10291,6 +10351,8 @@ window.__I18N_SOZLUK__ = {
                 bc.innerHTML = 'AS400 ▸ <b>Satış Planı</b> <span style="color:var(--dim)">· 10-05-03-06</span>';
             } else if (aktifSayfa === 'aylik-uretim') {
                 bc.innerHTML = 'Raporlar ▸ <b>Aylık Üretim Raporu</b> <span style="color:var(--dim)">· AS400 RPR + CFI + COP</span>';
+            } else if (aktifSayfa === 'haftalik-uretim') {
+                bc.innerHTML = esc(aktifLokasyon) + ' ▸ <b>Haftalık Üretim</b>';
             } else if (aktifSayfa === 'tel-plani') {
                 bc.innerHTML = 'AS400 ▸ <b>Tel Planı</b> <span style="color:var(--dim)">· TK2 mekanizma telleri</span>';
             } else if (aktifSayfa === 'durus-sebepleri') {
@@ -10619,6 +10681,7 @@ window.__I18N_SOZLUK__ = {
             else if (aktifSayfa === 'saha-cihazlari') yukleSahaCihazlari();         // TK1'de YF1 görünümü (lokasyon fetch wrapper'dan)
             else if (aktifSayfa === 'sinyal-analizi') sinyalAnalizSekmeAcildi();    // TK1 → bölüm montaj sabit + YF1 listesi
             else if (aktifSayfa === 'raporlar') { yukleRaporRobotListesi(); yukleRaporlar(); }
+            else if (aktifSayfa === 'haftalik-uretim') huYukle();      // bölüm listesi tesise göre
             // Duruş sayfalarının bölüm listeleri lokasyona bağlı — tesis değişince
             // seçici yeniden doldurulmazsa TK1'de TK2 bölümleri görünüyordu.
             else if (aktifSayfa === 'durus-sebepleri') dsSekmeAcildi();
@@ -13309,7 +13372,29 @@ window.__I18N_SOZLUK__ = {
                 (v('sf-ucuncu') ? '&ucuncu=' + encodeURIComponent(v('sf-ucuncu')) : '') +
                 '&n=' + encodeURIComponent(v('sf-n') || 4) + '&kapsam=' + encodeURIComponent(v('sf-kapsam') || 'oto') +
                 '&gorunum=' + encodeURIComponent(v('sf-gorunum') || 'araya') +
-                '&p=' + ((document.getElementById('sf-p') || {}).checked ? 1 : 0) + '&ara=' + encodeURIComponent(v('sf-ara'));
+                '&p=' + ((document.getElementById('sf-p') || {}).checked ? 1 : 0) + '&ara=' + encodeURIComponent(v('sf-ara')) +
+                (v('sf-musteri') ? '&musteri=' + encodeURIComponent(v('sf-musteri')) : '');
+        }
+        // Müşteri süzgeci (kullanıcı 2026-10-27): ADA göre (aynı firma birden çok kodla gelir);
+        // liste sunucudan — süzgeçten ÖNCEKİ araya sipariş giren müşteriler, en çok adetten
+        function sfMusteriDoldur(d) {
+            var sel = document.getElementById('sf-musteri'); if (!sel) return;
+            var secili = d.musteri || '', liste = d.musteri_listesi || [];
+            var html = '<option value="">Tüm müşteriler (' + fmt(liste.length) + ')</option>' + liste.map(function (m) {
+                return '<option value="' + esc(m.anahtar) + '">' + esc(m.ad) + ' (' + esc(m.kodlar.join(', ')) + ') · ' +
+                    fmt(m.urun) + ' ürün · +' + fmt(m.adet) + '</option>';
+            }).join('');
+            if (secili && !liste.some(function (m) { return m.anahtar === secili; }))
+                html += '<option value="' + esc(secili) + '">' + esc(d.musteri_ad || secili) + ' · bu süzgeçte araya giren yok</option>';
+            sel.innerHTML = html;
+            sel.value = secili;
+        }
+        function sfMusteriSec(ad) {
+            var sel = document.getElementById('sf-musteri'); if (!sel) return;
+            if (!Array.prototype.some.call(sel.options, function (o) { return o.value === ad; }))
+                sel.insertAdjacentHTML('beforeend', '<option value="' + esc(ad) + '">' + esc(ad) + '</option>');
+            sel.value = ad;
+            sfYukle();
         }
         function sfAraGecikmeli() { clearTimeout(_sf.araZaman); _sf.araZaman = setTimeout(sfYukle, 350); }
         async function sfYukle() {
@@ -13359,7 +13444,11 @@ window.__I18N_SOZLUK__ = {
                 esc(gun(ck[0] || {})) + ' çekiminde, ' + esc(gun(ck[1] || {})) + ' çekimine göre <b>gecikmiş + ilk ' + d.termin + ' hafta</b> içine EKLENEN talep — müşteri ve hafta bazında ' +
                 '(bir müşterinin sevkiyatı başka siparişi gizlemez; pencere içinde ileri kaydırma sayılmaz; sonraki haftalardan pencereye çekilen talep "öne çekilen").' +
                 (td.urun ? ' Termine uygun (' + d.termin + ' haftadan sonraya) eklenen talep: ' + fmt(td.urun) + ' ürün · ' + fmt(td.adet) + ' ad — listede yok.' : '') + '</div>' +
+                (d.musteri ? '<div style="margin:6px 20px 0;font-size:.78rem"><b>👤 Yalnız ' + esc(d.musteri_ad || d.musteri) + '</b>' +
+                    ' <span style="color:var(--muted)">— araya giren, hafta ve müşteri sütunları yalnız bu müşterinin; stok ve termin içi talep ürünün tamamı.</span>' +
+                    ' <a href="#" onclick="sfMusteriSec(\'\');return false">Tüm müşteriler</a></div>' : '') +
                 ((d.notlar || []).length ? '<div class="sf-not">ℹ ' + d.notlar.map(esc).join('<br>') + '</div>' : '');
+            sfMusteriDoldur(d);
             var chip = function (k, ad, o) {
                 return '<button class="btn ' + (_sf.tur === k ? 'btn-primary' : 'btn-outline') + '" style="padding:3px 10px;font-size:.76rem" onclick="sfFiltre(\'' + k + '\')">' +
                     esc(ad) + ' · ' + fmt(o.urun) + ' ürün · +' + fmt(o.adet) + ' ad</button>';
@@ -13388,7 +13477,8 @@ window.__I18N_SOZLUK__ = {
                 if (_sf.acik[i]) {
                     satir += '<tr class="sf-acik"><td colspan="' + sutun + '">' + s.musteriler.map(function (m) {
                         var hs = Object.keys(m.haftalar).map(function (h) { return (h === 'Bakiye' ? 'gecikmiş' : h) + ' +' + sfSayi(m.haftalar[h]); }).join(' · ');
-                        return '<div><b>' + esc(m.musteri) + '</b> <span style="color:var(--dim)">(' + esc(m.musteri_kodu) + (m.dest ? '/' + esc(m.dest) : '') + ')</span> · <b>+' + sfSayi(m.araya) + '</b>: ' + esc(hs) +
+                        return '<div><a href="#" style="font-weight:700;color:inherit" title="Yalnız bu müşteriyi göster" data-mk="' + esc(m.musteri) +
+                            '" onclick="sfMusteriSec(this.dataset.mk);return false">' + esc(m.musteri) + '</a> <span style="color:var(--dim)">(' + esc(m.musteri_kodu) + (m.dest ? '/' + esc(m.dest) : '') + ')</span> · <b>+' + sfSayi(m.araya) + '</b>: ' + esc(hs) +
                             (m.yeni_satir ? ' · <span style="color:var(--warn)">eski çekimde bu müşteri × ürün yoktu</span>' : '') +
                             (m.one > 0 ? ' · <span style="color:#0284C7">' + sfSayi(m.one) + ' sonraki haftalardan öne çekildi</span>' : '') +
                             (m.dusen > 0 ? ' · <span style="color:var(--muted)">aynı müşterinin gecikmiş/bu hafta talebi −' + sfSayi(m.dusen) + ' (sevk ya da erteleme olabilir)</span>' : '') + '</div>';
@@ -13406,7 +13496,8 @@ window.__I18N_SOZLUK__ = {
             if (d.gorunum === 'araya') {
                 var ck0 = d.cekimler || [];
                 document.getElementById('sf-bilgi').textContent = ck0.map(function (c) { return spTarihTr(c.tarih).slice(0, 5) + ' (' + ((c.kapsam || {}).etiket || '?') + ')'; }).join(' ↔ ') +
-                    ' · ' + fmt(d.toplam_satir || 0) + ' ürüne araya sipariş girdi' + (d.tesis ? ' · yalnız ' + d.tesis : '');
+                    ' · ' + fmt(d.toplam_satir || 0) + ' ürüne araya sipariş girdi' + (d.tesis ? ' · yalnız ' + d.tesis : '') +
+                    (d.musteri ? ' · müşteri: ' + (d.musteri_ad || d.musteri) : '');
                 sfCizAraya(d);
                 return;
             }
@@ -13508,6 +13599,227 @@ window.__I18N_SOZLUK__ = {
             sel.innerHTML = opts.join('');
         }
         function auSekmeAcildi() { auAylariDoldur(); auYukle(); }
+
+        // ══ HAFTALIK ÜRETİM (kullanıcı 2026-10-27) ══════════════════════════════
+        // ISO hafta × bölüm OK adet; tamir / rework / test / ara op sayılmaz (haftalik_uretim.py).
+        // Varsayılan bölümler kullanıcının istediği üçü; seçim cihazda tesis başına hatırlanır.
+        var _hu = { veri: null, secili: [], grafik: null, istekNo: 0, karsiNo: 0, karsi: null, acik: {} };
+        var HU_VARSAYILAN = ['metal', 'kaynak', 'montaj'];
+        function huEtiket(h) { return 'W' + pad2(h.no) + (h.yil !== new Date().getFullYear() ? ' ' + h.yil : ''); }
+        function huAnahtarEtiket(a) {
+            var h = ((_hu.veri || {}).haftalar || []).filter(function (x) { return x.anahtar === a; })[0];
+            return h ? huEtiket(h) : String(a || '').replace(/^\d+-/, '');
+        }
+        function huAralik(h) { return h.bas.slice(8, 10) + '.' + h.bas.slice(5, 7) + '–' + h.bit.slice(8, 10) + '.' + h.bit.slice(5, 7); }
+        function huRenk(b, alfa) {
+            var r = (BOLUMLER[b] || {}).renk || '#6D28D9';
+            var m = /^var\((--[^)]+)\)$/.exec(r);
+            if (m) r = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || '#6D28D9';
+            var h = /^#([0-9a-f]{6})$/i.exec(r);
+            if (alfa == null || !h) return r;
+            var n = parseInt(h[1], 16);
+            return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alfa + ')';
+        }
+        function huNokta(b) { return '<span class="hu-nokta" style="background:' + huRenk(b) + '"></span>'; }
+        function huYuzde(yeni, eski) {
+            if (!eski) return '';
+            var p = Math.round((yeni - eski) / eski * 100);
+            return p ? '<span class="hu-d ' + (p > 0 ? 'hu-up' : 'hu-down') + '">' + (p > 0 ? '▲' : '▼') + ' %' + fmt(Math.abs(p)) + '</span>' : '';
+        }
+        async function huYukle() {
+            var el = document.getElementById('hu-tablo');
+            var no = ++_hu.istekNo;
+            el.innerHTML = '<div class="yukleniyor">Yükleniyor…</div>';
+            try {
+                var r = await panelFetch('/api/haftalik_uretim?n=' + encodeURIComponent(document.getElementById('hu-n').value));
+                var d = await spJson(r);
+                if (no !== _hu.istekNo) return;
+                if (!r.ok) throw new Error(d.hata || ('HTTP ' + r.status));
+                // Sıra: kullanıcının istediği üç bölüm önde, diğerleri adede göre
+                d.bolumler = HU_VARSAYILAN.filter(function (b) { return d.bolumler.indexOf(b) !== -1; })
+                    .concat(d.bolumler.filter(function (b) { return HU_VARSAYILAN.indexOf(b) === -1; }));
+                var kayit = null;
+                try { kayit = JSON.parse(localStorage.getItem('hu_bolum_' + aktifLokasyon) || 'null'); } catch (e) { }
+                // TK2 varsayılanı istenen üç bölüm; TK1'de (montaj / tel / plastik) hepsi
+                var sec = (kayit || (aktifLokasyon === 'TK2' ? HU_VARSAYILAN : d.bolumler)).filter(function (b) { return d.bolumler.indexOf(b) !== -1; });
+                _hu.veri = d;
+                _hu.secili = sec.length ? sec : d.bolumler.slice(0, 3);
+                _hu.karsi = null;
+                huHaftaSecenekleri();
+                huCiz();
+                huKarsilastir();
+            } catch (e) {
+                if (no !== _hu.istekNo) return;
+                el.innerHTML = '<div class="empty" style="color:var(--danger)">⚠ Yüklenemedi: ' + esc(e.message) +
+                    ' <button class="btn btn-ghost" style="margin-left:10px;padding:3px 10px;font-size:.78rem" onclick="huYukle()">↻ Tekrar dene</button></div>';
+            }
+        }
+        function huBolumTogle(b) {
+            var i = _hu.secili.indexOf(b);
+            if (i !== -1) { if (_hu.secili.length > 1) _hu.secili.splice(i, 1); }
+            else _hu.secili.push(b);
+            _hu.secili = _hu.veri.bolumler.filter(function (x) { return _hu.secili.indexOf(x) !== -1; });
+            try { localStorage.setItem('hu_bolum_' + aktifLokasyon, JSON.stringify(_hu.secili)); } catch (e) { }
+            huCiz();
+            huKarsiCiz();
+        }
+        function huHaftaSecenekleri() {
+            var hs = _hu.veri.haftalar.slice().reverse();
+            var tam = hs.filter(function (h) { return !h.devam; });
+            ['hu-a', 'hu-b'].forEach(function (id, i) {
+                var sel = document.getElementById(id), onceki = sel.value;
+                sel.innerHTML = hs.map(function (h) {
+                    return '<option value="' + h.anahtar + '">' + huEtiket(h) + ' · ' + huAralik(h) + (h.devam ? ' (devam ediyor)' : '') + '</option>';
+                }).join('');
+                if (onceki && hs.some(function (h) { return h.anahtar === onceki; })) sel.value = onceki;
+                else { var v = tam[i] || hs[i] || hs[0]; sel.value = v ? v.anahtar : ''; }   // A = son tam hafta, B = ondan önceki
+            });
+        }
+        function huSecKarsi(anahtar) {
+            var hs = _hu.veri.haftalar, i = hs.map(function (h) { return h.anahtar; }).indexOf(anahtar);
+            if (i === -1) return;
+            document.getElementById('hu-a').value = anahtar;
+            document.getElementById('hu-b').value = (hs[i - 1] || hs[i + 1] || hs[i]).anahtar;
+            huKarsilastir();
+            var k = document.getElementById('hu-karsi-kart');
+            if (k) k.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        function huCiz() {
+            var d = _hu.veri; if (!d) return;
+            var hs = d.haftalar, bl = _hu.secili;
+            var A = document.getElementById('hu-a').value, B = document.getElementById('hu-b').value;
+            document.getElementById('hu-bolumler').innerHTML = d.bolumler.map(function (b) {
+                var on = bl.indexOf(b) !== -1;
+                return '<button class="btn ' + (on ? 'btn-outline' : 'btn-ghost') + '" style="padding:3px 10px;font-size:.78rem;' + (on ? 'font-weight:800' : 'opacity:.6') +
+                    '" onclick="huBolumTogle(\'' + b + '\')" title="Grafikte ve tabloda göster / gizle">' + huNokta(b) + esc(bolumAdi(b)) + '</button>';
+            }).join('');
+            document.getElementById('hu-bilgi').textContent = hs.length
+                ? huEtiket(hs[0]) + ' – ' + huEtiket(hs[hs.length - 1]) + ' · ' + hs.length + ' hafta' : '';
+            var ho = d.haric_ozet || {};
+            var not = bl.map(function (b) {
+                var x = ho[b] || {}, ks = Object.keys(x).filter(function (k) { return x[k] > 0; });
+                return ks.length ? bolumAdi(b) + ': ' + ks.map(function (k) { return fmt(Math.round(x[k])) + ' ad ' + ((d.sebep_ad || {})[k] || k); }).join(', ') : '';
+            }).filter(Boolean);
+            document.getElementById('hu-not').textContent = not.length ? 'Dönemde sayılmayan kayıtlar — ' + not.join(' · ') : '';
+            huGrafik();
+            var el = document.getElementById('hu-tablo');
+            if (!hs.length) { el.innerHTML = '<div class="empty">Bu dönemde üretim kaydı yok.</div>'; return; }
+            var tam = hs.filter(function (h) { return !h.devam; });
+            var ozet = bl.map(function (b) {
+                var v = [], en = null;
+                tam.forEach(function (h) {
+                    var x = (h.b[b] || {}).ok || 0;
+                    if (x > 0) { v.push(x); if (!en || x > en.v) en = { v: x, h: h }; }
+                });
+                return { ort: v.length ? v.reduce(function (a, c) { return a + c; }, 0) / v.length : null, en: en, n: v.length };
+            });
+            var bas = '<tr><th class="sol">Hafta</th>' + bl.map(function (b) { return '<th>' + huNokta(b) + esc(bolumAdi(b)) + '</th>'; }).join('') + '</tr>';
+            var govde = '<tr class="hu-ozet"><td class="sol"><b>Ortalama</b><div class="hu-alt">üretim olan tam haftalar</div></td>' + ozet.map(function (o) {
+                return '<td><b>' + (o.ort == null ? '—' : fmt(Math.round(o.ort))) + '</b><div class="hu-alt">' + o.n + ' hafta</div></td>';
+            }).join('') + '</tr><tr class="hu-ozet"><td class="sol"><b>En yüksek</b></td>' + ozet.map(function (o) {
+                return '<td>' + (o.en ? '<b>' + fmt(Math.round(o.en.v)) + '</b><div class="hu-alt">' + huEtiket(o.en.h) + '</div>' : '—') + '</td>';
+            }).join('') + '</tr>';
+            for (var i = hs.length - 1; i >= 0; i--) {
+                var h = hs[i], o = hs[i - 1];
+                var rozet = (h.anahtar === A ? '<span class="hu-rozet">A</span>' : '') + (h.anahtar === B ? '<span class="hu-rozet">B</span>' : '');
+                govde += '<tr class="sf-satir' + (rozet ? ' hu-sec' : '') + '" onclick="huSecKarsi(\'' + h.anahtar + '\')" title="Bu haftayı önceki haftayla karşılaştır">' +
+                    '<td class="sol" style="white-space:nowrap"><b>' + huEtiket(h) + '</b>' + rozet + '<div class="hu-alt">' + huAralik(h) + (h.devam ? ' · devam ediyor' : '') + '</div></td>' +
+                    bl.map(function (b) {
+                        var x = h.b[b];
+                        if (!x || !x.ok) return '<td style="color:var(--dim)">—</td>';
+                        var onc = (o && o.b[b] && !h.devam) ? o.b[b].ok : 0;
+                        return '<td><b>' + fmt(Math.round(x.ok)) + '</b>' + huYuzde(x.ok, onc) +
+                            '<div class="hu-alt">' + x.vardiya + ' vardiya · ' + x.gun + ' gün</div></td>';
+                    }).join('') + '</tr>';
+            }
+            el.innerHTML = '<table class="sf-tablo"><thead>' + bas + '</thead><tbody>' + govde + '</tbody></table>' +
+                '<div class="hu-alt" style="margin-top:6px">▲▼ önceki haftaya göre · devam eden haftada karşılaştırma yapılmaz</div>';
+        }
+        function huGrafik() {
+            if (typeof Chart === 'undefined') return;
+            var hs = _hu.veri.haftalar, bl = _hu.secili.slice();
+            if (_hu.grafik) { _hu.grafik.destroy(); _hu.grafik = null; }
+            if (!hs.length) return;
+            var metin = bkRenk('--muted'), izgara = bkRenk('--border', 0.6);
+            _hu.grafik = new Chart(document.getElementById('hu-grafik'), {
+                type: 'bar',
+                data: {
+                    labels: hs.map(huEtiket),
+                    datasets: bl.map(function (b) {
+                        return {
+                            label: bolumAdi(b), data: hs.map(function (h) { return Math.round((h.b[b] || {}).ok || 0); }),
+                            // devam eden hafta soluk (eksik hafta, kıyas için değil)
+                            backgroundColor: function (c) { var h = hs[c.dataIndex]; return h && h.devam ? huRenk(b, 0.35) : huRenk(b); },
+                            borderRadius: 3, maxBarThickness: 22
+                        };
+                    })
+                },
+                options: {
+                    maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: metin, boxWidth: 12 } },
+                        tooltip: { callbacks: {
+                            title: function (it) { var h = hs[it[0].dataIndex]; return huEtiket(h) + ' · ' + huAralik(h) + (h.devam ? ' (devam ediyor)' : ''); },
+                            label: function (c) {
+                                var x = hs[c.dataIndex].b[bl[c.datasetIndex]] || {};
+                                return ' ' + c.dataset.label + ': ' + fmt(c.parsed.y) + ' ad' + (x.vardiya ? ' · ' + x.vardiya + ' vardiya' : '');
+                            }
+                        } }
+                    },
+                    scales: {
+                        x: { ticks: { color: metin }, grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { color: metin, callback: function (v) { return fmt(v); } }, grid: { color: izgara } }
+                    },
+                    onClick: function (e, el) { if (el && el.length) huSecKarsi(hs[el[0].index].anahtar); }
+                }
+            });
+        }
+        async function huKarsilastir() {
+            var a = document.getElementById('hu-a').value, b = document.getElementById('hu-b').value;
+            var el = document.getElementById('hu-karsi');
+            if (!a || !b) { el.innerHTML = '—'; return; }
+            var no = ++_hu.karsiNo;
+            el.innerHTML = '<div class="yukleniyor">Hesaplanıyor…</div>';
+            try {
+                var r = await panelFetch('/api/haftalik_uretim/karsilastir?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b));
+                var d = await spJson(r);
+                if (no !== _hu.karsiNo) return;
+                if (!r.ok) throw new Error(d.hata || ('HTTP ' + r.status));
+                _hu.karsi = d; _hu.acik = {};
+                huKarsiCiz();
+                huCiz();                       // tabloda A / B rozetleri
+            } catch (e) { if (no === _hu.karsiNo) el.innerHTML = '<div class="empty" style="color:var(--danger)">⚠ ' + esc(e.message) + '</div>'; }
+        }
+        function huAcKapat(b) { _hu.acik[b] = !_hu.acik[b]; huKarsiCiz(); }
+        function huKarsiCiz() {
+            var d = _hu.karsi, el = document.getElementById('hu-karsi');
+            if (!d || !el) return;
+            var A = huAnahtarEtiket(d.a.anahtar), B = huAnahtarEtiket(d.b.anahtar);
+            var sayi = function (v) { return v ? fmt(Math.round(v)) : '—'; };
+            var bloklar = _hu.secili.filter(function (b) { return d.bolumler[b]; }).map(function (b) {
+                var x = d.bolumler[b], fark = x.a.ok - x.b.ok;
+                var refs = x.referanslar.filter(function (r) { return Math.abs(r.fark) >= 0.5; });
+                var goster = _hu.acik[b] ? refs : refs.slice(0, 12);
+                return '<div class="hu-k-blok"><div style="font-weight:800;margin-bottom:4px">' + huNokta(b) + esc(bolumAdi(b)) + '</div>' +
+                    '<div style="font-size:.8rem;margin-bottom:8px">' + A + ': <b>' + fmt(Math.round(x.a.ok)) + '</b> <span class="hu-alt">(' + x.a.vardiya + ' vardiya)</span> ↔ ' +
+                    B + ': <b>' + fmt(Math.round(x.b.ok)) + '</b> <span class="hu-alt">(' + x.b.vardiya + ' vardiya)</span> · ' +
+                    '<span class="' + (fark >= 0 ? 'hu-up' : 'hu-down') + '">' + (fark > 0 ? '+' : '') + fmt(Math.round(fark)) + '</span>' + huYuzde(x.a.ok, x.b.ok) + '</div>' +
+                    (refs.length ? '<table class="sf-tablo"><thead><tr><th class="sol">Referans</th><th>' + A + '</th><th>' + B + '</th><th>Fark</th></tr></thead><tbody>' +
+                        goster.map(function (r) {
+                            return '<tr><td class="sol">' + esc(r.kod) + '</td><td>' + sayi(r.a) + '</td><td>' + sayi(r.b) + '</td>' +
+                                '<td class="' + (r.fark > 0 ? 'hu-up' : 'hu-down') + '">' + (r.fark > 0 ? '+' : '') + fmt(Math.round(r.fark)) + '</td></tr>';
+                        }).join('') + '</tbody></table>' : '<div class="hu-alt">Referans bazında fark yok.</div>') +
+                    (refs.length > 12 ? '<a href="#" onclick="huAcKapat(\'' + b + '\');return false" style="font-size:.76rem;display:inline-block;margin-top:6px">' +
+                        (_hu.acik[b] ? 'Daha az göster' : 'Tümünü göster (' + refs.length + ' referans)') + '</a>' : '') + '</div>';
+            });
+            el.innerHTML = bloklar.length ? '<div class="hu-k-grid">' + bloklar.join('') + '</div>'
+                : '<div class="empty">Seçili bölümlerde bu iki haftada üretim yok.</div>';
+        }
+        function huExcel() {
+            var v = function (id) { return (document.getElementById(id) || {}).value || ''; };
+            spDosyaIndir('/api/haftalik_uretim.xlsx?n=' + encodeURIComponent(v('hu-n')) + '&a=' + encodeURIComponent(v('hu-a')) +
+                '&b=' + encodeURIComponent(v('hu-b')), 'Haftalik_Uretim.xlsx');
+        }
         async function auYukle() {
             var s = auSecili(), el = document.getElementById('au-tablo');
             el.innerHTML = '<div class="yukleniyor">Yükleniyor…</div>';
@@ -23168,6 +23480,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             // teyit + 02'den aktarım + planlama sayfalarını görür (2026-07-23).
             if (sayfa === 'as400-transfer' || sayfa === 'as400-planlama') sayfa = 'as400-teyit';
             if (sayfa === 'bolum-kapasite') sayfa = 'kapasite';   // Kapasite izniyle açılır
+            if (sayfa === 'haftalik-uretim') sayfa = 'raporlar';  // Raporlar izniyle açılır
             // KURULUM PROFİLİ: bu kurulumda olmayan modülün sayfası admin için de kapalı
             if (window.KURULUM && (KURULUM.kapali_sayfalar || []).indexOf(sayfa) !== -1) return false;
             if (sayfa === 'talepler') return true;           // Talep & Öneri: her kullanıcıya açık
