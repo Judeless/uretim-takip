@@ -12948,12 +12948,13 @@ window.__I18N_SOZLUK__ = {
             } catch (e) { toast('İndirilemedi: ' + e.message, 'err'); }
             finally { if (btn) { btn.disabled = false; btn.textContent = eski; } }
         }
-        var _refTopluDosya = null;
+        var _refTopluDosya = null, _refTopluSil = {};
         async function referansTopluSec(inp) {
             var f = inp && inp.files && inp.files[0];
             inp.value = '';
             if (!f) return;
             _refTopluDosya = f;
+            _refTopluSil = {};
             await referansTopluGonder(false);
         }
         async function referansTopluGonder(onay) {
@@ -12964,14 +12965,17 @@ window.__I18N_SOZLUK__ = {
             try {
                 var fd = new FormData();
                 fd.append('dosya', _refTopluDosya);
+                var sil = Object.keys(_refTopluSil).filter(function (k) { return _refTopluSil[k]; }).join(',');
                 var r = await panelFetch('/api/referanslar/toplu_yukle?lokasyon=' + encodeURIComponent(aktifLokasyon) +
-                                         (onay ? '&onay=1' : ''), { method: 'POST', body: fd });
+                                         (onay ? '&onay=1' : '') + (sil ? '&sil=' + encodeURIComponent(sil) : ''),
+                                         { method: 'POST', body: fd });
                 var d = {}; try { d = await r.json(); } catch (e) {}
                 if (!r.ok || d.hata) { toast(d.hata || ('Yüklenemedi (HTTP ' + r.status + ')'), 'err'); return; }
                 refTopluSonucGoster(d);
                 if (onay) {
                     _refTopluDosya = null;
-                    toast(fmt(d.toplam.yeni) + ' referans eklendi, ' + fmt(d.toplam.degisen) + ' güncellendi', 'ok');
+                    toast(fmt(d.toplam.yeni) + ' referans eklendi, ' + fmt(d.toplam.degisen) + ' güncellendi' +
+                          (d.toplam.silinecek ? ', ' + fmt(d.toplam.silinecek) + ' silindi' : ''), 'ok');
                     yukleReferanslar();
                 }
             } catch (e) { toast('Yüklenemedi: ' + e.message, 'err'); }
@@ -12985,6 +12989,7 @@ window.__I18N_SOZLUK__ = {
                 (d.onay ? '✓ Uygulandı' : '🔎 Önizleme — henüz hiçbir şey değişmedi') + '</b>' +
                 '<span style="color:var(--success);font-weight:700">' + fmt(t.yeni || 0) + ' yeni</span>' +
                 '<span style="color:var(--primary);font-weight:700">' + fmt(t.degisen || 0) + ' değişecek</span>' +
+                (t.silinecek ? '<span style="color:var(--danger);font-weight:700">' + fmt(t.silinecek) + ' silinecek</span>' : '') +
                 (d.hatali_sayi ? '<span style="color:var(--danger)">' + fmt(d.hatali_sayi) + ' hatalı satır</span>' : '') +
                 '<button class="btn btn-ghost" style="margin-left:auto;padding:2px 10px" onclick="document.getElementById(\'ref-sure-sonuc\').style.display=\'none\'">✕</button></div>';
             (d.uyarilar || []).forEach(function (u) { h += '<div style="margin-top:6px;color:var(--warn);font-weight:700">⚠ ' + esc(u) + '</div>'; });
@@ -13001,12 +13006,24 @@ window.__I18N_SOZLUK__ = {
                                 ' ' + esc(String(v[0] === '' ? '—' : v[0])) + '→' + esc(String(v[1]));
                         }).join(', ') + ')';
                     }).join(' · ') + '</span>';
+                // Dosyada olmayanlar: bölüm bölüm SİL seçimi (önizleme yeniden hesaplanır)
+                if (b.dosyada_olmayan) {
+                    h += '<br><label style="display:inline-flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer;color:' +
+                        (b.sil ? 'var(--danger)' : 'var(--muted)') + '"><input type="checkbox"' + (b.sil ? ' checked' : '') +
+                        (d.onay ? ' disabled' : '') +
+                        ' onchange="_refTopluSil[\'' + b.bolum + '\']=this.checked;referansTopluGonder(false)">' +
+                        '<b>Dosyada olmayan ' + fmt(b.dosyada_olmayan) + ' referans</b> ' + (b.sil ? 'SİLİNECEK' : 'silinsin mi?') +
+                        '</label> <span style="color:var(--muted)">' + b.ornek_olmayan.map(esc).join(', ') +
+                        (b.dosyada_olmayan > b.ornek_olmayan.length ? ' …' : '') + '</span>';
+                }
+                if (b.uretimi_olan) h += '<br><span style="color:var(--muted)">Dosyada olmayıp üretim kaydı olan ' +
+                    fmt(b.uretimi_olan) + ' referans silinmez.</span>';
                 h += '</div>';
             });
             if ((d.tanimsiz_sayfa || []).length) h += '<div style="margin-top:6px;font-size:.8rem;color:var(--warn)">Tanınmayan sayfa (atlandı): ' + d.tanimsiz_sayfa.map(esc).join(', ') + '</div>';
             if ((d.hatali || []).length) h += '<div style="margin-top:6px;font-size:.8rem"><b>Hatalı satırlar</b>: ' +
                 d.hatali.map(function (x) { return esc(x.sayfa || '') + ' satır ' + x.satir + ' (' + esc(x.kod) + '): ' + esc(x.sebep); }).join(' · ') + '</div>';
-            if (!d.onay && ((t.yeni || 0) + (t.degisen || 0)) > 0)
+            if (!d.onay && ((t.yeni || 0) + (t.degisen || 0) + (t.silinecek || 0)) > 0)
                 h += '<div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" onclick="referansTopluGonder(true)">Onayla ve uygula</button>' +
                     '<button class="btn btn-ghost" onclick="_refTopluDosya=null;document.getElementById(\'ref-sure-sonuc\').style.display=\'none\'">Vazgeç</button></div>';
             el.innerHTML = h;

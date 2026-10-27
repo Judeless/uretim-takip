@@ -5331,10 +5331,14 @@ def referans_toplu_sablon():
 @app.route('/api/referanslar/toplu_yukle', methods=['POST'])
 @panel_gerekli(izin='referanslar')
 def referans_toplu_yukle():
-    """multipart 'dosya'. onay=1 YOKSA önizleme (hiçbir şey yazılmaz)."""
+    """multipart 'dosya'. onay=1 YOKSA önizleme (hiçbir şey yazılmaz).
+    sil=isleme,montaj → o bölümlerde DOSYADA OLMAYAN referanslar silinir (kullanıcı 2026-10-27:
+    Aspanda'nın yanlış gruplanmış CNC / montaj kodları). Önizleme her bölüm için dosyada olmayan
+    sayısını verir; seçim panelde bölüm bölüm yapılır. Üretim kaydı olan referans SİLİNMEZ."""
     import toplu_sablon as TS
     lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
     onay = (request.args.get('onay') or request.form.get('onay') or '') == '1'
+    sil_bolum = {x.strip() for x in (request.args.get('sil') or request.form.get('sil') or '').split(',') if x.strip()}
     f = request.files.get('dosya')
     if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
         return jsonify({'hata': 'Yalnız .xlsx dosyası yükleyin'}), 400
@@ -5351,7 +5355,7 @@ def referans_toplu_yukle():
     for bolum, satirlar in veri.items():
         mevcut = {TS.kod_norm(r['referans_kodu']): r for r in conn.execute(_TOPLU_SQL, (bolum, lokasyon))}
         d = {'bolum': bolum, 'ad': adlar[bolum], 'yeni': 0, 'degisen': 0, 'ayni': 0,
-             'ornek_yeni': [], 'ornek_degisen': []}
+             'ornek_yeni': [], 'ornek_degisen': [], 'mevcut': len(mevcut)}
         gorulen, bos_dolum = set(), {}
         for s_ in satirlar:
             n = TS.kod_norm(s_['kod'])
@@ -5440,6 +5444,30 @@ def referans_toplu_yukle():
             if _n >= _ANA_VERI_TOPLU_DOLUM_ESIK:      # 2026-10-26 Hızlı Doldurma dersi
                 uyarilar.append(f"{adlar[bolum]}: süresi BOŞ olan {_n} referansa AYNI süre ({_v:g} sn) "
                                 "yazılacak — Excel'de otomatik doldurma / sürükleme olabilir.")
+        # DOSYADA OLMAYANLAR — bölüm seçilirse silinir; boş sayfa bir bölümü silemez
+        olmayan, korunan = [], []
+        if gorulen:
+            for n_, r in mevcut.items():
+                if n_ in gorulen:
+                    continue
+                if conn.execute(
+                        "SELECT 1 FROM uretim_kayitlari k JOIN vardiyalar v ON v.id=k.vardiya_id "
+                        "WHERE UPPER(REPLACE(k.referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                        "AND COALESCE(v.lokasyon,'TK2')=? AND COALESCE(v.bolum,'kaynak')=? LIMIT 1",
+                        (r['referans_kodu'], lokasyon, bolum)).fetchone():
+                    korunan.append(r['referans_kodu'])
+                else:
+                    olmayan.append(r)
+        d['dosyada_olmayan'] = len(olmayan)
+        d['ornek_olmayan'] = [r['referans_kodu'] for r in olmayan[:15]]
+        d['uretimi_olan'] = len(korunan)
+        d['sil'] = bolum in sil_bolum
+        if d['sil'] and onay:
+            for r in olmayan:
+                conn.execute("DELETE FROM referans_listesi WHERE id=?", (r['id'],))
+        if d['sil'] and len(mevcut) and len(olmayan) > len(mevcut) * 0.5:
+            uyarilar.append(f"{adlar[bolum]}: mevcut {len(mevcut)} referansın {len(olmayan)} tanesi SİLİNECEK — "
+                            "dosyanın o bölüm için eksiksiz olduğundan emin olun.")
         ozet.append(d)
     if onay:
         conn.commit()
@@ -5451,7 +5479,8 @@ def referans_toplu_yukle():
             print(f'[toplu_yukle] Ana Veri eşitlenemedi: {e}')
     return jsonify({'onay': onay, 'bolumler': ozet, 'uyarilar': uyarilar, 'tanimsiz_sayfa': tanimsiz,
                     'hatali': hatali[:60], 'hatali_sayi': len(hatali),
-                    'toplam': {'yeni': sum(d['yeni'] for d in ozet), 'degisen': sum(d['degisen'] for d in ozet)}})
+                    'toplam': {'yeni': sum(d['yeni'] for d in ozet), 'degisen': sum(d['degisen'] for d in ozet),
+                               'silinecek': sum(d['dosyada_olmayan'] for d in ozet if d['sil'])}})
 
 
 @app.route('/api/referanslar/sure_sablonu', methods=['GET'])
