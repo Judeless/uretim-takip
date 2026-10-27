@@ -4,6 +4,9 @@ REM   Aspanda Flow - referans Excel'inden EKSIK referanslari ekler
 REM   Kullanim: Excel dosyasini (.xlsb / .xlsx) bu dosyanin UZERINE
 REM   surukleyip birakin. Var olan referanslara DOKUNMAZ; eski surumun
 REM   200T sayfasindan metale yazdigi plastik urunleri plastige tasir.
+REM   2026-10-27: baslikli bloklar okunur (SICAK / 200 TON ZAMAK = metal,
+REM   MONTAJ, CNC, PLASTIK); yanlis gruptaki referanslar ONAY SORULARAK
+REM   silinir (uretim kaydi olan kalir), once veritabani yedeklenir.
 REM   ONCE Aspanda_Guncelle.bat calismis olmali (yeni kod).
 REM ============================================================
 set "GECICI=%TEMP%\aspanda_referans"
@@ -20,7 +23,7 @@ if not defined EXCEL (
     pause & exit /b 1
 )
 cd /d C:\aspanda || (echo [HATA] C:\aspanda yok - once Aspanda_Kur.bat & pause & exit /b 1)
-findstr /c:"sadece-referans" kurulum_hazirla.py >nul || (
+findstr /c:"_bloklu_duzelt" kurulum_hazirla.py >nul || (
     echo [HATA] C:\aspanda kodu eski - once Aspanda_Guncelle.bat calistirin.
     pause & exit /b 1
 )

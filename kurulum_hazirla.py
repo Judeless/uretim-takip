@@ -156,7 +156,7 @@ def _makine(v):
     sayilar = [int(x) for x in re.findall(r'\d+', str(v or ''))]
     if not sayilar:
         return str(v or '').strip()
-    sinif = sorted({50 if s < 75 else 100 for s in sayilar})
+    sinif = sorted({50 if s < 75 else 100 if s < 150 else s for s in sayilar})
     return ' / '.join(str(s) for s in sinif) + ' Ton'
 
 
@@ -297,9 +297,75 @@ def _tonaj_eski_kodlari(ad, satirlar):
             for kod in [_kod(r[k['kod']])] if kod and len(kod) <= 40}, mk
 
 
+# BAŞLIKLI BLOKLAR (kullanıcı 2026-10-27: "referans gruplamasında hata var"): ilk sayfada yan
+# yana 'Group/Ext. Code' blokları, her birinin ÜSTÜNDE başlık. Bölüm BAŞLIKTAN gelir:
+#   SICAK KAMARA ZAMAK · 200 TON SOĞUK KAMARA ZAMAK → metal ("sıcak/soğuk ayrımına gerek yok")
+#   MONTAJ KODLARI → montaj · CNC KODLARI → isleme · PLASTİK ENJEKSİYON KODLAR → plastik
+# Eski okuma CNC'yi metal satırlarının Drilling/Threading MALİYET sütunlarından, montajı
+# 'Assembled parts' sütunlarından türetiyordu — gerçek MONTAJ / CNC bloklarını hiç okumuyordu.
+BLOK_BOLUM = (('PLAST', 'plastik'), ('MONTAJ', 'montaj'), ('CNC', 'isleme'),
+              ('ZAMAK', 'metal'), ('KAMARA', 'metal'), ('METAL', 'metal'))
+_KOD_DESENI = re.compile(r'^[0-9A-Za-z][0-9A-Za-z./\-]*\d[0-9A-Za-z./\-]*$')
+
+
+def blok_referanslari(satirlar):
+    """→ {bölüm: [referans]} ya da None (en az iki başlıklı blok yoksa — eski biçim)."""
+    bas = next((i for i, r in enumerate(satirlar[:15])
+                if any(str(x or '').strip().lower() == 'group/ext. code' for x in r)), None)
+    if not bas:
+        return None
+    h = [str(x or '').strip().lower() for x in satirlar[bas]]
+    kolon = [j for j, x in enumerate(h) if x == 'group/ext. code']
+    out = {'metal': [], 'isleme': [], 'montaj': [], 'plastik': []}
+    taninan = 0
+    for n, j in enumerate(kolon):
+        son = kolon[n + 1] if n + 1 < len(kolon) else len(h)
+        baslik = ' '.join(str(satirlar[i][c] or '') for i in range(bas)
+                          for c in range(j, min(son, j + 4)) if c < len(satirlar[i])).upper()
+        bolum = next((b for anahtar, b in BLOK_BOLUM if anahtar in baslik), None)
+        if not bolum:
+            continue
+        taninan += 1
+        k = {}
+        for c in range(j, son):
+            k.setdefault(h[c], c)
+        k_mk, k_goz, k_ct = k.get('machine'), k.get('# of cavities'), k.get('cycle time (sec)')
+        k_ack = k.get('açiklama', k.get('açıklama'))
+        m = re.search(r'(\d+)\s*TON', baslik)
+        blok_mk = f'{int(m.group(1))} Ton' if m else ''
+        for r in satirlar[bas + 1:]:
+            if not r or j >= len(r):
+                continue
+
+            def hucre(c):
+                return r[c] if c is not None and c < len(r) else None
+            goz = max(1, int(_sayi(hucre(k_goz)) or 1)) if k_goz is not None else 1
+            sure = _sayi(hucre(k_ct))
+            ek = str(hucre(k_ack) or '').strip()
+            for kod, notu in _kod_ayir(r[j]):
+                if not kod or len(kod) > 40 or _gecersiz_kod(kod) or not _KOD_DESENI.match(kod):
+                    continue
+                notlar = ' · '.join(x for x in (notu, ek) if x)
+                if bolum in ('metal', 'plastik'):
+                    mk = (_makine(hucre(k_mk)) if hucre(k_mk) not in (None, '') else '') or blok_mk
+                    ack = ' · '.join(x for x in (mk, f'{goz} göz', f'{sure:g} sn/baskı' if sure else '', notlar) if x)
+                    out[bolum].append({'kod': kod, 'goz': goz, 'ct': round(sure / goz, 2) if sure else 0,
+                                       'aciklama': ack})
+                else:
+                    out[bolum].append({'kod': kod, 'goz': 1, 'ct': round(sure, 2) if sure else 0,
+                                       'aciklama': notlar})
+    if taninan < 2:
+        return None
+    return {b: _tekille(v) for b, v in out.items()}
+
+
 def excel_referanslari(yol):
-    """Excel → {bölüm: [referans]} (metal · isleme · montaj · plastik)."""
+    """Excel → {bölüm: [referans]} (metal · isleme · montaj · plastik). Başlıklı bloklu biçimde
+    YALNIZ bloklar okunur (maliyet sayfaları — '200T' — referans kaynağı değil)."""
     sayfalar = excel_sayfalari(yol)
+    blok = blok_referanslari(next(iter(sayfalar.values())))
+    if blok is not None:
+        return blok, sayfalar
     metal, isleme, montaj, plastik = referanslari_cikar(next(iter(sayfalar.values())))
     # Tonaj sayfaları ('200T'): o makinede basılan zamak ürünler metal, plastik hammaddeliler plastik
     for _ad, _sat in sayfalar.items():
@@ -323,7 +389,84 @@ def referans_ekle(cn, refs, bolumler, lok):
     return sayac
 
 
-def referans_guncelle(excel):
+def _bloklu_duzelt(cn, refs, bolumler, lok, evet=False):
+    """BAŞLIKLI BLOK biçiminde referansları DÜZELTİR (kullanıcı 2026-10-27):
+      · eksik referans eklenir (INSERT OR IGNORE)
+      · süresi BOŞ olan mevcut referansa Excel'in süresi/gözü/açıklaması yazılır (dolu süreye —
+        panelden düzeltilmiş olabilir — dokunulmaz, farklıysa yalnız raporlanır)
+      · YANLIŞ GRUPTAKİ referans silinir: kendi bölümünün bloğunda olmayıp BAŞKA bölümün
+        bloğunda olan (eski okuma CNC / montajı metal satırlarından türetmişti) ya da kod gibi
+        görünmeyen ('KAPAK', 'TEKERLEK'). Üretim kaydında kullanılmışsa SİLİNMEZ, raporlanır.
+    Önce plan yazılır, onay sorulur (--evet ile sorulmaz); uygulamadan önce veritabanı yedeklenir."""
+    from datetime import datetime as _dt
+    blok = {b: {_kod(r['kod']): r for r in refs.get(b, [])} for b in bolumler}
+    mevcut = {}
+    for kod, bolum, ct in cn.execute("SELECT referans_kodu, bolum, COALESCE(hedef_cycle_time_sn,0) FROM referans_listesi "
+                                     "WHERE COALESCE(lokasyon,'TK2')=?", (lok,)):
+        mevcut.setdefault(bolum, {})[kod] = ct
+    sil, koru, ekle, doldur, farkli = [], [], [], [], 0
+    for b in bolumler:
+        for kod, ct in sorted((mevcut.get(b) or {}).items()):
+            if kod in blok[b]:
+                yeni = blok[b][kod]
+                if not ct and yeni.get('ct'):
+                    doldur.append((b, kod, yeni))
+                elif ct and yeni.get('ct') and abs(float(ct) - float(yeni['ct'])) > 0.01:
+                    farkli += 1
+                continue
+            baska = [x for x in bolumler if x != b and kod in blok[x]]
+            # başka bölümün bloğundaki kod (eski okuma CNC/montajı metal satırlarından türetmişti) ya da
+            # kod olmayan satır ('KAPAK'); panelden elle açılmış, hiçbir blokta olmayan referansa dokunulmaz
+            yanlis = bool(baska) or not _KOD_DESENI.match(kod)
+            if not yanlis:
+                continue                      # bloklarda yok ama yanlış grup da değil: dokunma
+            kullanildi = cn.execute(
+                "SELECT 1 FROM uretim_kayitlari k JOIN vardiyalar v ON v.id=k.vardiya_id "
+                "WHERE k.referans_kodu=? AND COALESCE(v.bolum,'')=? LIMIT 1", (kod, b)).fetchone()
+            (koru if kullanildi else sil).append((b, kod, baska))
+        ekle += [(b, k) for k in blok[b] if k not in (mevcut.get(b) or {})]
+
+    def ozet(liste, n=8):
+        return ', '.join(f'{k}' for _b, k, *_ in liste[:n]) + (' …' if len(liste) > n else '')
+    print('\nPLAN (bölüm bloklarına göre):')
+    for b in bolumler:
+        s_b = [x for x in sil if x[0] == b]
+        print(f'  {b:<8} Excel bloğunda {len(blok[b]):>4} · eklenecek {sum(1 for x in ekle if x[0] == b):>4} · '
+              f'süresi doldurulacak {sum(1 for x in doldur if x[0] == b):>4} · yanlış grup SİLİNECEK {len(s_b):>4}'
+              + (f'  ({ozet(s_b, 5)})' if s_b else ''))
+    if koru:
+        print(f'  Üretim kaydı olduğu için SİLİNMEYEN yanlış grup: {len(koru)} — {ozet(koru)}')
+    if farkli:
+        print(f'  Dolu süresi Excel\'den farklı {farkli} referansa dokunulmadı (panelden değişmiş olabilir).')
+    if not (sil or ekle or doldur):
+        print('\nDeğişiklik yok.')
+        return
+    if not evet and input('\nUygulansın mı? (E/H): ').strip().upper() not in ('E', 'EVET'):
+        print('Vazgeçildi — hiçbir şey değişmedi.')
+        return
+    yedek = os.path.join(KOK, 'uretim_ONCE_referans_duzelt_' + _dt.now().strftime('%Y%m%d_%H%M%S') + '.db')
+    with sqlite3.connect(yedek) as y:
+        cn.backup(y)
+    for b, kod, _baska in sil:
+        cn.execute("DELETE FROM referans_listesi WHERE referans_kodu=? AND bolum=? AND COALESCE(lokasyon,'TK2')=?",
+                   (kod, b, lok))
+    for b, kod, r in doldur:
+        cn.execute("UPDATE referans_listesi SET hedef_cycle_time_sn=?, kalip_goz=?, "
+                   "aciklama=CASE WHEN COALESCE(aciklama,'')='' THEN ? ELSE aciklama END "
+                   "WHERE referans_kodu=? AND bolum=? AND COALESCE(lokasyon,'TK2')=?",
+                   (r['ct'], r.get('goz', 1), r.get('aciklama', ''), kod, b, lok))
+    sayac = referans_ekle(cn, {b: [blok[b][k] for bb, k in ekle if bb == b] for b in bolumler}, bolumler, lok)
+    cn.commit()
+    toplam = dict(cn.execute("SELECT bolum, COUNT(*) FROM referans_listesi WHERE COALESCE(lokasyon,'TK2')=? GROUP BY bolum",
+                             (lok,)).fetchall())
+    print(f'\n[OK] yedek: {yedek}')
+    print(f'Silinen {len(sil)} · süresi doldurulan {len(doldur)} · eklenen ' +
+          ' · '.join(f'{b} {n}' for b, n in sayac.items()))
+    print('Toplam : ' + ' · '.join(f'{b} {toplam.get(b, 0)}' for b in bolumler))
+    print('\nTAMAM — yeniden başlatma gerekmez, panelde Referanslar sayfasını yenileyin.')
+
+
+def referans_guncelle(excel, evet=False):
     """--sadece-referans: MEVCUT markalı kurulumda Excel'deki EKSİK referansları ekler.
     Profil/yönetici/duruş sebeplerine dokunmaz; var olan referansı değiştirmez. Eski sürümün
     tonaj sayfasından METAL diye yazdığı plastik ürünleri (ve '6'/'4' gibi bozuk kodları)
@@ -342,6 +485,9 @@ def referans_guncelle(excel):
         bolumler = p.get('bolumler') or []
         lok = ((p.get('lokasyonlar') or [{}])[0] or {}).get('kod') or 'TK2'
         refs, sayfalar = excel_referanslari(excel)
+        if blok_referanslari(next(iter(sayfalar.values()))) is not None:
+            _bloklu_duzelt(cn, refs, bolumler, lok, evet)
+            return
         yeni_metal = {r['kod'] for r in refs['metal']}
         silinen, korunan = [], []
         for _ad, _sat in sayfalar.items():
@@ -380,10 +526,14 @@ def main():
     ap.add_argument('--excel', help='referans/süre verisi (.xlsb / .xlsx)')
     ap.add_argument('--yonetici', default='admin', help='yönetici kullanıcı adı')
     ap.add_argument('--yonetici-ad', default='Yönetici', help='yöneticinin adı soyadı')
+    ap.add_argument('--evet', action='store_true', help='--sadece-referans: plan sorulmadan uygulansın')
     ap.add_argument('--sadece-referans', action='store_true',
                     help="MEVCUT markalı kurulumda yalnız Excel'deki eksik referansları ekler")
     a = ap.parse_args()
 
+    if a.sadece_referans and getattr(a, 'evet', False):
+        referans_guncelle(a.excel, evet=True)
+        return
     if a.sadece_referans:
         referans_guncelle(a.excel)
         return
