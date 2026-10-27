@@ -2347,6 +2347,9 @@ window.__I18N_SOZLUK__ = {
   "Bölüm geneli (hat tanımı olmayan kayıtlar)": {"en": "Department default (records without a line)", "it": "Predefinito reparto (record senza linea)"},
   "🧾 Süre Şablonu": {"en": "🧾 Time template", "it": "🧾 Modello tempi"},
   "⬆️ Süreleri Yükle": {"en": "⬆️ Upload times", "it": "⬆️ Carica tempi"},
+  "🗂 Toplu Şablon": {"en": "🗂 Bulk template", "it": "🗂 Modello completo"},
+  "⬆️ Toplu Yükle": {"en": "⬆️ Bulk upload", "it": "⬆️ Caricamento completo"},
+  "Yemek molası": {"en": "Lunch break", "it": "Pausa pranzo"},
   "⬇️ Ana Veri İndir": {"en": "⬇️ Download master data", "it": "⬇️ Scarica dati master"},
   "⬆️ Ana Veri Yükle": {"en": "⬆️ Upload master data", "it": "⬆️ Carica dati master"},
   "TK2 referanslarının tek listesini (AnaVeri.xlsx) en güncel süreleriyle indirir": {"en": "Downloads the single TK2 reference list (AnaVeri.xlsx) with the latest times", "it": "Scarica l'elenco unico dei riferimenti TK2 (AnaVeri.xlsx) con i tempi aggiornati"},
@@ -6643,6 +6646,10 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-outline" id="ref-sure-sablon-btn" onclick="referansSureSablonu()" style="border-color:rgba(109,40,217,0.5);color:var(--primary)" title="Bu bölüm + tesisin TÜM referanslarını (süresi boş olanlar dahil) doldurulacak şablon olarak indirir">🧾 Süre Şablonu</button>
                         <input type="file" id="ref-sure-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="referansSureYukle(this)">
                         <button class="btn btn-outline" id="ref-sure-yukle-btn" onclick="document.getElementById('ref-sure-dosya').click()" style="border-color:rgba(16,185,129,0.5);color:var(--success)" title="Doldurduğunuz şablonu yükleyin — süreler koda göre eşleşip toplu güncellenir">⬆️ Süreleri Yükle</button>
+                        <!-- TOPLU ŞABLON (2026-10-26, Aspanda): TÜM bölümler, her biri ayrı sayfa; yükleme önce önizleme -->
+                        <button class="btn btn-outline" id="ref-toplu-sablon-btn" onclick="referansTopluSablon()" style="border-color:rgba(31,42,68,0.5);color:var(--text)" title="Tüm bölümlerin referansları — her bölüm ayrı sayfa. Doldurup Toplu Yükle ile geri yükleyin (yeni kod = yeni referans).">🗂 Toplu Şablon</button>
+                        <input type="file" id="ref-toplu-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="referansTopluSec(this)">
+                        <button class="btn btn-outline" id="ref-toplu-yukle-btn" onclick="document.getElementById('ref-toplu-dosya').click()" style="border-color:rgba(31,42,68,0.5);color:var(--text)" title="Doldurduğunuz toplu şablonu yükleyin — önce önizleme gösterilir, onaylayınca uygulanır">⬆️ Toplu Yükle</button>
                         <!-- ANA VERİ (2026-10-05): TK2'nin altı bölümünün tek listesi (data/AnaVeri.xlsx).
                              Yükleme önce önizleme döner; onaylanınca uygulanır. TK1'de gizli. -->
                         {% if modul('excel_senkron') %}
@@ -7212,6 +7219,11 @@ window.__I18N_SOZLUK__ = {
                                    placeholder="0000" onkeydown="if(event.key=='Enter')operatorEkle()"
                                    style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.9rem;text-align:center;color-scheme:dark">
                         </div>
+                        <!-- YEMEK GRUBU (2026-10-26, Aspanda): yalnız kurulum profilinde yemek grupları varsa görünür -->
+                        <div id="op-ekle-yemek-kutu" style="flex:1 1 170px;display:none">
+                            <label style="display:block;font-size:.72rem;color:var(--muted);font-weight:700;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">Yemek molası</label>
+                            <select id="op-ekle-yemek" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.86rem;color-scheme:dark"></select>
+                        </div>
                         <button id="op-ekle-btn" onclick="operatorEkle()"
                                 style="background:var(--grad-violet);color:#fff;border:0;border-radius:8px;padding:9px 20px;font-size:.84rem;font-weight:800;cursor:pointer;font-family:var(--font-main)">
                             ➕ Ekle
@@ -7241,6 +7253,7 @@ window.__I18N_SOZLUK__ = {
                                     <th>Bölüm</th>
                                     <th>Mevcut PIN</th>
                                     <th>Yeni PIN</th>
+                                    <th id="op-yemek-th" style="display:none">Yemek molası</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -12918,6 +12931,88 @@ window.__I18N_SOZLUK__ = {
                 if (btn) { btn.disabled = false; btn.textContent = eski; }
             }
         }
+        // ── TOPLU ŞABLON (kullanıcı 2026-10-26, Aspanda): her bölüm ayrı sayfa ──
+        async function referansTopluSablon() {
+            var btn = document.getElementById('ref-toplu-sablon-btn');
+            var eski = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Hazırlanıyor…'; }
+            try {
+                var r = await panelFetch('/api/referanslar/toplu_sablon?lokasyon=' + encodeURIComponent(aktifLokasyon));
+                if (!r.ok) { var h = ''; try { h = (await r.json()).hata || ''; } catch (e) {} toast(h || ('İndirilemedi (HTTP ' + r.status + ')'), 'err'); return; }
+                var url = URL.createObjectURL(await r.blob());
+                var a = document.createElement('a');
+                a.href = url; a.download = 'referans_sablonu_' + aktifLokasyon + '.xlsx';
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+                toast('Şablon indirildi — doldurup "Toplu Yükle" ile geri yükleyin', 'ok');
+            } catch (e) { toast('İndirilemedi: ' + e.message, 'err'); }
+            finally { if (btn) { btn.disabled = false; btn.textContent = eski; } }
+        }
+        var _refTopluDosya = null;
+        async function referansTopluSec(inp) {
+            var f = inp && inp.files && inp.files[0];
+            inp.value = '';
+            if (!f) return;
+            _refTopluDosya = f;
+            await referansTopluGonder(false);
+        }
+        async function referansTopluGonder(onay) {
+            if (!_refTopluDosya) return;
+            var btn = document.getElementById('ref-toplu-yukle-btn');
+            var eski = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = onay ? '⏳ Uygulanıyor…' : '⏳ Okunuyor…'; }
+            try {
+                var fd = new FormData();
+                fd.append('dosya', _refTopluDosya);
+                var r = await panelFetch('/api/referanslar/toplu_yukle?lokasyon=' + encodeURIComponent(aktifLokasyon) +
+                                         (onay ? '&onay=1' : ''), { method: 'POST', body: fd });
+                var d = {}; try { d = await r.json(); } catch (e) {}
+                if (!r.ok || d.hata) { toast(d.hata || ('Yüklenemedi (HTTP ' + r.status + ')'), 'err'); return; }
+                refTopluSonucGoster(d);
+                if (onay) {
+                    _refTopluDosya = null;
+                    toast(fmt(d.toplam.yeni) + ' referans eklendi, ' + fmt(d.toplam.degisen) + ' güncellendi', 'ok');
+                    yukleReferanslar();
+                }
+            } catch (e) { toast('Yüklenemedi: ' + e.message, 'err'); }
+            finally { if (btn) { btn.disabled = false; btn.textContent = eski; } }
+        }
+        function refTopluSonucGoster(d) {
+            var el = document.getElementById('ref-sure-sonuc');
+            if (!el) return;
+            var t = d.toplam || {};
+            var h = '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline"><b>' +
+                (d.onay ? '✓ Uygulandı' : '🔎 Önizleme — henüz hiçbir şey değişmedi') + '</b>' +
+                '<span style="color:var(--success);font-weight:700">' + fmt(t.yeni || 0) + ' yeni</span>' +
+                '<span style="color:var(--primary);font-weight:700">' + fmt(t.degisen || 0) + ' değişecek</span>' +
+                (d.hatali_sayi ? '<span style="color:var(--danger)">' + fmt(d.hatali_sayi) + ' hatalı satır</span>' : '') +
+                '<button class="btn btn-ghost" style="margin-left:auto;padding:2px 10px" onclick="document.getElementById(\'ref-sure-sonuc\').style.display=\'none\'">✕</button></div>';
+            (d.uyarilar || []).forEach(function (u) { h += '<div style="margin-top:6px;color:var(--warn);font-weight:700">⚠ ' + esc(u) + '</div>'; });
+            (d.bolumler || []).forEach(function (b) {
+                h += '<div style="margin-top:8px;font-size:.82rem"><b>' + esc(b.ad) + '</b>: ' + fmt(b.yeni) + ' yeni · ' +
+                    fmt(b.degisen) + ' değişen · ' + fmt(b.ayni) + ' aynı';
+                if ((b.ornek_yeni || []).length) h += '<br><span style="color:var(--muted)">Yeni: ' +
+                    b.ornek_yeni.map(function (x) { return esc(x.kod) + (x.sure ? ' (' + bkSayi(x.sure) + ' sn)' : ''); }).join(', ') + '</span>';
+                if ((b.ornek_degisen || []).length) h += '<br><span style="color:var(--muted)">Değişen: ' +
+                    b.ornek_degisen.map(function (x) {
+                        return esc(x.kod) + ' (' + Object.keys(x.alanlar).map(function (k) {
+                            var v = x.alanlar[k];
+                            return ({ hedef_cycle_time_sn: 'süre', aciklama: 'açıklama', kalip_goz: 'göz', kaynak_suresi_sn: 'kaynak', soktak_suresi_sn: 'söktak' }[k] || k) +
+                                ' ' + esc(String(v[0] === '' ? '—' : v[0])) + '→' + esc(String(v[1]));
+                        }).join(', ') + ')';
+                    }).join(' · ') + '</span>';
+                h += '</div>';
+            });
+            if ((d.tanimsiz_sayfa || []).length) h += '<div style="margin-top:6px;font-size:.8rem;color:var(--warn)">Tanınmayan sayfa (atlandı): ' + d.tanimsiz_sayfa.map(esc).join(', ') + '</div>';
+            if ((d.hatali || []).length) h += '<div style="margin-top:6px;font-size:.8rem"><b>Hatalı satırlar</b>: ' +
+                d.hatali.map(function (x) { return esc(x.sayfa || '') + ' satır ' + x.satir + ' (' + esc(x.kod) + '): ' + esc(x.sebep); }).join(' · ') + '</div>';
+            if (!d.onay && ((t.yeni || 0) + (t.degisen || 0)) > 0)
+                h += '<div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" onclick="referansTopluGonder(true)">Onayla ve uygula</button>' +
+                    '<button class="btn btn-ghost" onclick="_refTopluDosya=null;document.getElementById(\'ref-sure-sonuc\').style.display=\'none\'">Vazgeç</button></div>';
+            el.innerHTML = h;
+            el.style.display = '';
+        }
+
         // Sonuç özeti: güncellenen / değişmeyen / listede olmayan kodlar / hatalı satırlar
         function refSureSonucGoster(d) {
             var el = document.getElementById('ref-sure-sonuc');
@@ -15049,7 +15144,36 @@ window.__I18N_SOZLUK__ = {
         // Ekleme formunu aktif tesise göre hazırla — bölüm listesi lokasyona bağlı
         // (TK1: montaj/plastik/tel · TK2: kaynak/montaj/metal/...). Tesis toggle'ı
         // değişince yenilenmeli, o yüzden liste yüklemesiyle birlikte çağrılıyor.
+        // Yemek grupları kurulum profilinden (Aspanda: 12:00–12:30 / 12:30–13:00); yoksa boş
+        function opYemekGruplari() {
+            var m = window.KURULUM && KURULUM.molalar;
+            var g = (m && m.yemek_gruplari) || {};
+            return Object.keys(g).sort().map(function (k) { return { kod: k, ad: g[k].ad || (k + '. grup ' + (g[k].saat || '')) }; });
+        }
+        function opYemekSecenek(secili) {
+            return opYemekGruplari().map(function (g, i) {
+                var sec = secili ? secili === g.kod : i === 0;
+                return '<option value="' + esc(g.kod) + '"' + (sec ? ' selected' : '') + '>' + esc(g.ad) + '</option>';
+            }).join('');
+        }
+        async function opYemekDegistir(id, grup) {
+            try {
+                var r = await fetch('/api/operator/' + id + '/yemek', { method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grup: grup }) });
+                var d = await r.json();
+                if (!r.ok) { toast(d.hata || 'Kaydedilemedi', 'error'); return; }
+                toast(d.operator_adi + ' → ' + (d.ad || ('grup ' + d.grup)), 'success');
+            } catch (e) { toast('Bağlantı hatası', 'error'); }
+        }
+
         function operatorEkleFormHazirla() {
+            const yk = document.getElementById('op-ekle-yemek-kutu');
+            if (yk) {
+                const var_ = opYemekGruplari().length > 0;
+                yk.style.display = var_ ? '' : 'none';
+                if (var_ && !document.getElementById('op-ekle-yemek').options.length)
+                    document.getElementById('op-ekle-yemek').innerHTML = opYemekSecenek('');
+            }
             const sel = document.getElementById('op-ekle-bolum');
             const lokEl = document.getElementById('op-ekle-lok');
             if (lokEl) lokEl.textContent = aktifLokasyon + ' tesisine eklenir';
@@ -15080,7 +15204,8 @@ window.__I18N_SOZLUK__ = {
                 const res = await fetch('/api/operatorler', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ad: ad, bolum: bolEl.value, pin: pin || '0000' })
+                    body: JSON.stringify({ ad: ad, bolum: bolEl.value, pin: pin || '0000',
+                                           yemek_grubu: opYemekGruplari().length ? document.getElementById('op-ekle-yemek').value : '' })
                 });
                 const d = await res.json();
                 if (!res.ok) { toast(d.hata || 'Eklenemedi', 'error'); return; }
@@ -15121,13 +15246,16 @@ window.__I18N_SOZLUK__ = {
                 const sira = [];
                 list.forEach(o => {
                     if (!gruplar[o.ad]) {
-                        gruplar[o.ad] = { id: o.id, ad: o.ad, pin: o.pin || '0000', bolumler: [] };
+                        gruplar[o.ad] = { id: o.id, ad: o.ad, pin: o.pin || '0000', bolumler: [], yemek: o.yemek_grubu || '' };
                         sira.push(o.ad);
                     }
                     if (o.bolum && !gruplar[o.ad].bolumler.includes(o.bolum)) {
                         gruplar[o.ad].bolumler.push(o.bolum);
                     }
                 });
+                const yemekVar = opYemekGruplari().length > 0;
+                const yth = document.getElementById('op-yemek-th');
+                if (yth) yth.style.display = yemekVar ? '' : 'none';
                 tbody.innerHTML = sira.map(ad => {
                     const g = gruplar[ad];
                     const rozetler = g.bolumler.length ? g.bolumler.map(b => {
@@ -15149,6 +15277,8 @@ window.__I18N_SOZLUK__ = {
                                        id="op-pin-input-${g.id}"
                                        style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.95rem;text-align:center;background:var(--bg);color:var(--text);color-scheme:dark">
                             </td>
+                            ${yemekVar ? `<td>${g.ad === 'Admin' ? '—' : `<select onchange="opYemekDegistir(${g.id}, this.value)"
+                                    style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:.8rem;color-scheme:dark">${opYemekSecenek(g.yemek)}</select>`}</td>` : ''}
                             <td style="white-space:nowrap">
                                 <button onclick="opPinDegistir(${g.id},'${g.ad.replace(/'/g,"\\'")}')"
                                     style="background:var(--grad-violet);color:#fff;border:0;border-radius:6px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font-main)">
@@ -22889,7 +23019,18 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                         '<td style="text-align:right">' + (std != null ? bkSayi(std) : '—') + '</td>' +
                         '<td style="text-align:right;font-weight:700">' + (ks != null ? bkSayi(ks) : '—') + '</td>' +
                         '<td>' + esc(String(x.en_eski || '').slice(0, 10)) + '</td></tr>';
-                }).join('') || '<tr><td colspan="8"><div class="empty-state">Bu hücrede açık iş emri yok.</div></td></tr>';
+                }).join('') || (function () {
+                    // Devirli görünümde hücre dolu görünür ama bitişi bu hafta olan emir olmayabilir:
+                    // yük önceki haftalardan / bakiyeden devreden iştir (kullanıcı 2026-10-26: "plastikte
+                    // H44'te neden açık emir görünmüyor" — 6 kodluk bakiye H44'e devrediyordu)
+                    var bak = (b.hucre && b.hucre.gecikmis) || {};
+                    var devir = _bk.hafta !== 'gecikmis' && document.getElementById('bk-devir') && document.getElementById('bk-devir').checked;
+                    return '<tr><td colspan="8"><div class="empty-state">Bitişi bu haftaya düşen açık iş emri yok.' +
+                        (devir && bak.adet ? '<br>Tablodaki yük, bitişi geçmiş işten (bakiye: ' + bak.kod_sayisi + ' kod, ' +
+                            bak.adet.toLocaleString('tr-TR') + ' adet) ve önceki haftalardan devrediyor. ' +
+                            '<a href="#" onclick="_bk.hafta=\'gecikmis\';bkCiz();bkDetayYukle();return false">Bakiyedeki emirleri göster</a>' : '') +
+                        '</div></td></tr>';
+                })();
             } catch (e) {
                 govde.innerHTML = '<tr><td colspan="8"><div class="empty-state">' + esc(e.message) + '</div></td></tr>';
             }

@@ -764,6 +764,13 @@ def init_db(_ikinci_tur=False):
     except Exception:
         pass
 
+    # Migration (2026-10-26, Aspanda): yemek molası grubu ('1' = 12:00–12:30, '2' = 12:30–13:00 —
+    # saatler kurulum profilinde, kurulum.molalar). Boş = 1. grup. Kişi başı (tüm bölüm satırları).
+    try:
+        c.execute("ALTER TABLE operatorler ADD COLUMN yemek_grubu TEXT")
+    except Exception:
+        pass
+
     # Varsayilan referanslar
     referanslar = [
         ('REF-001', 'On Panel', 45),

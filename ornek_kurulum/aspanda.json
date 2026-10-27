@@ -32,5 +32,14 @@
     "eski_sayfalar": false, "analiz": false,
     "andon": true, "is_yonetimi": true, "mail": true
   },
+  "_mola_notu": "Kullanıcı 2026-10-26: çay 10:00 / 14:00 / 16:00 (10'ar dk) otomatik; yemek iki grup — operatörün grubu panelde Operatörler ekranında seçilir.",
+  "molalar": {
+    "cay": [["10:00", 10], ["14:00", 10], ["16:00", 10]],
+    "yemek_sebep": "Yemek Molası",
+    "yemek_gruplari": {
+      "1": {"saat": "12:00", "dk": 30, "ad": "1. grup · 12:00–12:30"},
+      "2": {"saat": "12:30", "dk": 30, "ad": "2. grup · 12:30–13:00"}
+    }
+  },
   "varsayilan_yonetici": false
 }

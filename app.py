@@ -1739,7 +1739,22 @@ def _acik_auto_vardiyalari_senkronla(conn, bolum=None, lokasyon=None):
 # Çay tüm bölümlerde aynı; YEMEK bölüme göre değişir:
 #   metal → 'Maden Tkv. ve Yemek Molası' 40dk (döküm alanı: maden takviyesi + yemek)
 #   diğer → 'Yemek Molası' 30dk
-def _bolum_molalari(bolum):
+_CAY_BITLERI = (1, 2, 4, 16, 32, 64)        # 8 = yemek (eski vardiyalarla uyumlu)
+
+
+def _bolum_molalari(bolum, yemek_grubu=None):
+    # KURULUM PROFİLİ (kullanıcı 2026-10-26, Aspanda): çay saatleri profilden ("10:00, 14:00,
+    # 16:00 — 10'ar dk"); yemek İKİ GRUP (12:00–12:30 / 12:30–13:00), operatörün grubu
+    # operatorler.yemek_grubu'nda — panelde admin seçer. Grubu seçilmemiş kişi 1. grupta.
+    prof = KUR.molalar()
+    if prof:
+        m = [(bit, str(saat), int(dk), 'Çay Molası')
+             for bit, (saat, dk) in zip(_CAY_BITLERI, prof.get('cay') or [])]
+        gruplar = prof.get('yemek_gruplari') or {}
+        g = gruplar.get(str(yemek_grubu or '')) or (gruplar[sorted(gruplar)[0]] if gruplar else None)
+        if g:
+            m.append((8, str(g.get('saat')), int(g.get('dk') or 30), prof.get('yemek_sebep') or 'Yemek Molası'))
+        return sorted(m, key=lambda x: x[1])
     m = [
         (1, '09:00', 10, 'Çay Molası'),
         (2, '13:00', 10, 'Çay Molası'),
@@ -1790,7 +1805,17 @@ def _otomatik_mola_uygula(conn, vardiya):
         vardiya_bolum = 'kaynak'
     bayrak = vardiya['cay_molasi_bayrak'] or 0
     yeni = bayrak
-    for bit, mola_saati, mola_dk, sebep in _bolum_molalari(vardiya_bolum):
+    yemek_grubu = None
+    if KUR.molalar():                   # yemek saati operatörün grubundan (profil, 2026-10-26)
+        try:
+            _r = conn.execute(
+                "SELECT yemek_grubu FROM operatorler WHERE ad=? AND COALESCE(lokasyon,'TK2')=? "
+                "AND COALESCE(yemek_grubu,'')<>'' LIMIT 1",
+                (vardiya['operator_adi'], (vardiya['lokasyon'] if 'lokasyon' in vardiya.keys() else '') or 'TK2')).fetchone()
+            yemek_grubu = _r[0] if _r else None
+        except Exception:
+            yemek_grubu = None
+    for bit, mola_saati, mola_dk, sebep in _bolum_molalari(vardiya_bolum, yemek_grubu):
         if bayrak & bit:
             continue                    # bu mola zaten islendi
         mola_t = _saat_to_time(mola_saati)
@@ -5263,6 +5288,172 @@ def hat_cycle_kaydet():
     return jsonify({'basarili': True, 'mesaj': mesaj, 'yazilan': yazilan, 'silinen': silinen})
 
 
+# ══ TOPLU REFERANS ŞABLONU (kullanıcı 2026-10-26, Aspanda) ══════════════════════
+# "Her bölümü ayrı bir sayfa yap; Aspanda toplu güncellemek isterse o şablon üzerinden
+# ilerlesin." Biçim toplu_sablon.py'de (tek seferlik dönüştürme betikleriyle ORTAK).
+# Yükleme önce ÖNİZLEME döner, onay=1 ile uygulanır; yeni kod = yeni referans, boş hücre
+# = dokunma, hiçbir referans silinmez.
+def _toplu_bolum_adlari(lokasyon):
+    adlar = dict(BOLUM_AD)
+    adlar.update(KUR.yukle().get('bolum_adlari') or {})
+    bl = KUR.bolumler()
+    if bl is None:                       # Cofle: bu tesiste referansı olan bölümler
+        var = {r[0] for r in get_db().execute(
+            "SELECT DISTINCT COALESCE(bolum,'kaynak') FROM referans_listesi WHERE COALESCE(lokasyon,'TK2')=?",
+            (lokasyon,))}
+        bl = [b for b in GECERLI_BOLUMLER if b in var]
+    return {b: adlar.get(b, b) for b in bl}
+
+
+_TOPLU_SQL = ("SELECT id, referans_kodu, COALESCE(aciklama,'') aciklama, COALESCE(hedef_cycle_time_sn,0) ct, "
+              "COALESCE(kalip_goz,1) goz, COALESCE(kaynak_suresi_sn,0) ks, COALESCE(soktak_suresi_sn,0) ss "
+              "FROM referans_listesi WHERE COALESCE(bolum,'kaynak')=? AND COALESCE(lokasyon,'TK2')=? "
+              "ORDER BY referans_kodu")
+
+
+@app.route('/api/referanslar/toplu_sablon', methods=['GET'])
+@panel_gerekli(izin='referanslar')
+def referans_toplu_sablon():
+    import io as _io
+    import toplu_sablon as TS
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    adlar = _toplu_bolum_adlari(lokasyon)
+    conn = get_db()
+    veri = {b: [{'kod': r['referans_kodu'], 'aciklama': r['aciklama'], 'ct': r['ct'], 'goz': r['goz'],
+                 'ks': r['ks'], 'ss': r['ss']} for r in conn.execute(_TOPLU_SQL, (b, lokasyon))]
+            for b in adlar}
+    ham = TS.yaz(veri, adlar, f"{KUR.marka()['ad']} · {lokasyon} · {date.today().strftime('%d.%m.%Y')}")
+    return send_file(_io.BytesIO(ham), as_attachment=True,
+                     download_name=f'referans_sablonu_{lokasyon}_{date.today().isoformat()}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/api/referanslar/toplu_yukle', methods=['POST'])
+@panel_gerekli(izin='referanslar')
+def referans_toplu_yukle():
+    """multipart 'dosya'. onay=1 YOKSA önizleme (hiçbir şey yazılmaz)."""
+    import toplu_sablon as TS
+    lokasyon = (request.args.get('lokasyon') or 'TK2').strip().upper() or 'TK2'
+    onay = (request.args.get('onay') or request.form.get('onay') or '') == '1'
+    f = request.files.get('dosya')
+    if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify({'hata': 'Yalnız .xlsx dosyası yükleyin'}), 400
+    adlar = _toplu_bolum_adlari(lokasyon)
+    try:
+        veri, hatali, tanimsiz = TS.oku(f, adlar)
+    except Exception as e:
+        return jsonify({'hata': f'Excel okunamadı: {e}'}), 400
+    if not veri:
+        return jsonify({'hata': 'Dosyada bölüm sayfası bulunamadı — sayfa adları: '
+                                + ', '.join(adlar.values())}), 400
+    conn = get_db()
+    ozet, uyarilar = [], []
+    for bolum, satirlar in veri.items():
+        mevcut = {TS.kod_norm(r['referans_kodu']): r for r in conn.execute(_TOPLU_SQL, (bolum, lokasyon))}
+        d = {'bolum': bolum, 'ad': adlar[bolum], 'yeni': 0, 'degisen': 0, 'ayni': 0,
+             'ornek_yeni': [], 'ornek_degisen': []}
+        gorulen, bos_dolum = set(), {}
+        for s_ in satirlar:
+            n = TS.kod_norm(s_['kod'])
+            if n in gorulen:
+                hatali.append({'sayfa': adlar[bolum], 'satir': s_['satir'], 'kod': s_['kod'],
+                               'sebep': 'aynı sayfada tekrar eden kod'})
+                continue
+            gorulen.add(n)
+            r = mevcut.get(n)
+            goz = max(1, min(KALIP_GOZ_UST, int(s_['goz']))) if s_['goz'] is not None else None
+            ct = s_['ct']
+            if bolum in TS.GOZLU and s_['baski'] is not None:
+                # Baskı süresi yalnız DEĞİŞTİYSE (ya da göz değiştiyse) esas: şablon baskıyı bir ondalığa
+                # yuvarlı yazar (9,56 × 4 = 38,2) — dokunulmamış satır sahte değişiklik saymasın; yalnız
+                # 'Parça Başı Süre' değiştirildiyse o kullanılır.
+                _g = goz or (int(r['goz'] or 1) if r else 1)
+                _baski_ayni = r is not None and abs(s_['baski'] - float(r['ct']) * int(r['goz'] or 1)) <= 0.051
+                _goz_ayni = goz is None or (r is not None and goz == int(r['goz'] or 1))
+                if ct is None or not (_baski_ayni and _goz_ayni):
+                    ct = round(s_['baski'] / _g, 4)
+            if bolum == 'kaynak' and ct is None and (s_['ks'] is not None or s_['ss'] is not None):
+                ct = round((s_['ks'] if s_['ks'] is not None else (float(r['ks']) if r else 0.0)) +
+                           (s_['ss'] if s_['ss'] is not None else (float(r['ss']) if r else 0.0)), 2)
+            yeni = {}
+            if ct is not None:
+                yeni['hedef_cycle_time_sn'] = ct
+            if s_['aciklama'] is not None:
+                yeni['aciklama'] = s_['aciklama'][:200]
+            if bolum in TS.GOZLU and goz is not None:
+                yeni['kalip_goz'] = goz
+            if bolum == 'kaynak':
+                if s_['ks'] is not None:
+                    yeni['kaynak_suresi_sn'] = s_['ks']
+                if s_['ss'] is not None:
+                    yeni['soktak_suresi_sn'] = s_['ss']
+            if r is None:
+                d['yeni'] += 1
+                if len(d['ornek_yeni']) < 12:
+                    d['ornek_yeni'].append({'kod': s_['kod'], 'sure': ct})
+                if onay:
+                    conn.execute(
+                        "INSERT INTO referans_listesi (referans_kodu, aciklama, hedef_cycle_time_sn, bolum, "
+                        "lokasyon, kalip_goz, kaynak_suresi_sn, soktak_suresi_sn) VALUES (?,?,?,?,?,?,?,?)",
+                        (s_['kod'].strip(), yeni.get('aciklama', ''), yeni.get('hedef_cycle_time_sn', 0),
+                         bolum, lokasyon, yeni.get('kalip_goz', 1), yeni.get('kaynak_suresi_sn', 0),
+                         yeni.get('soktak_suresi_sn', 0)))
+                continue
+            eski = {'hedef_cycle_time_sn': float(r['ct']), 'aciklama': r['aciklama'], 'kalip_goz': int(r['goz'] or 1),
+                    'kaynak_suresi_sn': float(r['ks']), 'soktak_suresi_sn': float(r['ss'])}
+            fark = {}
+            for k, v in yeni.items():
+                if k == 'aciklama':
+                    if (eski[k] or '').strip() != v:
+                        fark[k] = v
+                elif abs(float(eski[k] or 0) - float(v)) > 0.001:
+                    fark[k] = v
+            if not fark:
+                d['ayni'] += 1
+                continue
+            d['degisen'] += 1
+            if len(d['ornek_degisen']) < 12:
+                d['ornek_degisen'].append({'kod': r['referans_kodu'],
+                                           'alanlar': {k: [eski[k], v] for k, v in fark.items()}})
+            if not eski['hedef_cycle_time_sn'] and fark.get('hedef_cycle_time_sn'):
+                _v = round(float(fark['hedef_cycle_time_sn']), 2)
+                bos_dolum[_v] = bos_dolum.get(_v, 0) + 1
+            if onay:
+                conn.execute(f"UPDATE referans_listesi SET {', '.join(k + '=?' for k in fark)} WHERE id=?",
+                             list(fark.values()) + [r['id']])
+                # Geçmiş üretim kayıtlarının cycle'ı — sure_yukle / tek referans kaydıyla AYNI kural
+                if fark.get('hedef_cycle_time_sn', 0) > 0:
+                    conn.execute(
+                        "UPDATE uretim_kayitlari SET cycle_time_sn=? "
+                        "WHERE UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                        "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+                        "                   AND COALESCE(bolum,'kaynak')=?)",
+                        (fark['hedef_cycle_time_sn'], r['referans_kodu'], lokasyon, bolum))
+                if 'kalip_goz' in fark and bolum == 'metal':
+                    conn.execute(
+                        "UPDATE uretim_kayitlari SET paket_adedi=? WHERE sayac_otomatik=1 "
+                        "AND UPPER(REPLACE(referans_kodu,' ',''))=UPPER(REPLACE(?,' ','')) "
+                        "AND vardiya_id IN (SELECT id FROM vardiyalar WHERE COALESCE(lokasyon,'TK2')=? "
+                        "                   AND COALESCE(bolum,'kaynak')='metal')",
+                        (fark['kalip_goz'], r['referans_kodu'], lokasyon))
+        for _v, _n in sorted(bos_dolum.items(), key=lambda x: -x[1]):
+            if _n >= _ANA_VERI_TOPLU_DOLUM_ESIK:      # 2026-10-26 Hızlı Doldurma dersi
+                uyarilar.append(f"{adlar[bolum]}: süresi BOŞ olan {_n} referansa AYNI süre ({_v:g} sn) "
+                                "yazılacak — Excel'de otomatik doldurma / sürükleme olabilir.")
+        ozet.append(d)
+    if onay:
+        conn.commit()
+        try:                             # Cofle TK2: Ana Veri dosyası da veritabanıyla eşitlensin
+            from import_excel import ana_veri_aktif
+            if lokasyon == 'TK2' and ana_veri_aktif():
+                export_referans_cycle_times()
+        except Exception as e:
+            print(f'[toplu_yukle] Ana Veri eşitlenemedi: {e}')
+    return jsonify({'onay': onay, 'bolumler': ozet, 'uyarilar': uyarilar, 'tanimsiz_sayfa': tanimsiz,
+                    'hatali': hatali[:60], 'hatali_sayi': len(hatali),
+                    'toplam': {'yeni': sum(d['yeni'] for d in ozet), 'degisen': sum(d['degisen'] for d in ozet)}})
+
+
 @app.route('/api/referanslar/sure_sablonu', methods=['GET'])
 @panel_gerekli(izin='referanslar')
 def referans_sure_sablonu():
@@ -6244,7 +6435,8 @@ def operator_listesi_yonetim():
     """
     lokasyon = request.args.get('lokasyon')
     conn = get_db()
-    sql = "SELECT id, ad, bolum, pin, COALESCE(lokasyon,'TK2') as lokasyon FROM operatorler WHERE 1=1"
+    sql = ("SELECT id, ad, bolum, pin, COALESCE(lokasyon,'TK2') as lokasyon, "
+           "COALESCE(yemek_grubu,'') as yemek_grubu FROM operatorler WHERE 1=1")
     params = []
     if lokasyon:
         sql += " AND COALESCE(lokasyon,'TK2') = ?"
@@ -6326,6 +6518,17 @@ def operator_ekle():
         cur = conn.execute(
             "INSERT INTO operatorler (ad, bolum, pin, lokasyon) VALUES (?, ?, ?, ?)",
             (ad, bolum, pin, lokasyon))
+        # Yemek grubu (profilde varsa): formdan seçildiyse kişinin bütün satırlarına; seçilmediyse
+        # aynı kişinin başka bölüm satırındaki grup devralınır (PIN ile aynı "bir kişi" modeli)
+        _gruplar = (KUR.molalar() or {}).get('yemek_gruplari') or {}
+        _grup = str(data.get('yemek_grubu') or '').strip()
+        if _gruplar and _grup in _gruplar:
+            conn.execute("UPDATE operatorler SET yemek_grubu=? WHERE ad=? AND COALESCE(lokasyon,'TK2')=?",
+                         (_grup, ad, lokasyon))
+        elif _gruplar:
+            conn.execute("UPDATE operatorler SET yemek_grubu=(SELECT yemek_grubu FROM operatorler "
+                         "WHERE ad=? AND COALESCE(lokasyon,'TK2')=? AND COALESCE(yemek_grubu,'')<>'' LIMIT 1) "
+                         "WHERE id=?", (ad, lokasyon, cur.lastrowid))
         conn.commit()
     except sqlite3.IntegrityError as e:
         return jsonify({'hata': f'Eklenemedi (kayıt çakışması): {e}'}), 409
@@ -6417,6 +6620,30 @@ def operator_pin_guncelle(oid):
     conn.commit()
     conn.close()
     return jsonify({'basarili': True, 'operator_adi': row['ad']}), 200
+
+
+@app.route('/api/operator/<int:oid>/yemek', methods=['PATCH'])
+@panel_gerekli(izin='operatorler')
+def operator_yemek_guncelle(oid):
+    """Operatörün yemek molası grubu (kullanıcı 2026-10-26, Aspanda: "yemek molası 2 şekilde —
+    bir grup 12:00–12:30, ikinci grup 12:30–13:00; operatör tanımlama ekranında admin
+    belirlesin"). Body: {grup} — profildeki yemek_gruplari anahtarı ya da '' (varsayılan
+    = 1. grup). PIN gibi kişinin o tesisteki TÜM bölüm satırlarına yazılır."""
+    gruplar = (KUR.molalar() or {}).get('yemek_gruplari') or {}
+    if not gruplar:
+        return jsonify({'hata': 'Bu kurulumda yemek grubu tanımlı değil'}), 400
+    grup = str((request.get_json() or {}).get('grup') or '').strip()
+    if grup and grup not in gruplar:
+        return jsonify({'hata': f'Geçersiz grup: {grup}'}), 400
+    conn = get_db()
+    row = conn.execute("SELECT ad, COALESCE(lokasyon,'TK2') lokasyon FROM operatorler WHERE id=?", (oid,)).fetchone()
+    if not row:
+        return jsonify({'hata': 'Operatör bulunamadı'}), 404
+    conn.execute("UPDATE operatorler SET yemek_grubu=? WHERE ad=? AND COALESCE(lokasyon,'TK2')=?",
+                 (grup or None, row['ad'], row['lokasyon']))
+    conn.commit()
+    return jsonify({'basarili': True, 'operator_adi': row['ad'], 'grup': grup,
+                    'ad': (gruplar.get(grup) or {}).get('ad', '')})
 
 
 @app.route('/api/operator/<int:oid>/ad', methods=['PATCH'])

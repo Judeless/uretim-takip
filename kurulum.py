@@ -54,6 +54,11 @@ VARSAYILAN = {
     'bolum_adlari': {},                    # {'isleme': 'CNC İşleme'}
     'makineler': {},                       # {'metal': ['50T-1', ...], 'isleme': [...]}
     'moduller': {m: True for m in MODULLER},
+    # OTOMATİK MOLALAR (2026-10-26). None = kodun içindeki Cofle saatleri (app._bolum_molalari).
+    # {'cay': [['10:00', 10], ...], 'yemek_sebep': 'Yemek Molası',
+    #  'yemek_gruplari': {'1': {'saat': '12:00', 'dk': 30, 'ad': '...'}, ...}}
+    # Yemek grubu operatöre bağlıdır (operatorler.yemek_grubu, panelden admin seçer).
+    'molalar': None,
     # Veritabanı ilk kurulumunda bilinen şifreli Cofle yöneticisi açılsın mı?
     # Yalnız Cofle'de: internete açık yeni bir kurulumda bilinen şifre = açık kapı.
     'varsayilan_yonetici': True,
@@ -81,6 +86,15 @@ def yukle(tazele=False):
     if os.path.exists(YOL):
         with open(YOL, encoding='utf-8-sig') as f:
             dosya = json.load(f)
+        # İKİ KATMAN (2026-10-26): repodaki ornek_kurulum/<kimlik>.json TABAN, sunucudaki
+        # data/kurulum.json ÜSTÜNE yazar. data/kurulum.json kurulumda bir kez kopyalanır ve
+        # güncellemelerde (Aspanda_Guncelle.bat) dokunulmaz — profile sonradan eklenen
+        # ayarlar (ör. molalar) ancak bu tabanla sunucuya ulaşır.
+        _kim = str(dosya.get('kimlik') or '')
+        _taban = os.path.join(KOK, 'ornek_kurulum', _kim + '.json')
+        if _kim and _kim != 'cofle' and _kim.replace('_', '').isalnum() and os.path.exists(_taban):
+            with open(_taban, encoding='utf-8-sig') as f:
+                _birlestir(p, json.load(f))
         _birlestir(p, dosya)
         p['_dosya'] = YOL
         # Profil dosyası olan kurulum Cofle değildir: kimlik verilmemişse 'ozel'
@@ -124,6 +138,12 @@ def marka():
     return yukle()['marka']
 
 
+def molalar():
+    """Profildeki mola tanımı ya da None (Cofle'nin kod içi saatleri)."""
+    m = yukle().get('molalar')
+    return m if isinstance(m, dict) and (m.get('cay') or m.get('yemek_gruplari')) else None
+
+
 def istemci_ozeti():
     """Şablonlara / tarayıcıya giden kısım (dosya yolu ve iç alanlar hariç)."""
     p = yukle()
@@ -133,4 +153,5 @@ def istemci_ozeti():
         'lokasyonlar': p.get('lokasyonlar'), 'bolumler': p.get('bolumler'),
         'bolum_adlari': p.get('bolum_adlari') or {}, 'makineler': p.get('makineler') or {},
         'moduller': {m: modul(m) for m in MODULLER},
+        'molalar': molalar(),
     }
