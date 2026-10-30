@@ -19,10 +19,16 @@ KOLONLAR — 1. çalıştırmanın (2026-10-30 09:38) SYSCOLUMNS + ham verisiyle
                                    emirde launch tarihinden bile önce); Q0LNCV hep boş
     Q0MGPR ana depo → tesis: 01D/MT2 = TK2 · 01/02/02B/02Z = TK1 · 02M = Aspanda fason
            (1. çalıştırmada Forge ürün eşlemesiyle çapraz kontrol: 02M'yi 54/57 ASPANDA açmış)
-  BPROF0'da KAPANIŞ TARİHİ YOK. Kapanış = launch'ı kapatan teyit: önce ERP teyit başlığı
-  BPRCF0'daki saldo (J0FLSA='S') satırı (bizim BPRCF0I import tablosunun aslı — varsa), yoksa
-  son RPR hareketi (BMMAF0). Kullanıcı = o hareketi giren (MGUTVA). Teyitsiz kapatılan emrin
-  kapanış tarihi ERP'de yok — listede ayrıca belirtilir.
+  BPROF0'da KAPANIŞ TARİHİ YOK. Kapanış = ERP teyit başlığı BPRCF0'daki SALDO satırı
+  (J0FLSA='S'; bizim BPRCF0I import tablosunun aslı), kullanıcı J0SER. TARİH: saldo satırı bir
+  depo hareketine bağlıysa (J0MGSS/AA/NU/PG = MGSERE/MGANRE/MGNURE/MGPRRE) o hareketin KAYIT
+  tarihi; 0 adetlik kapatmanın hareketi yok → J0DAT ('dt ult. variaz.' — 24 satırda hareketten
+  1–30 gün SONRA: satır sonradan değiştirilmiş).
+  2. çalıştırma (10:12) kanıtı: kapalı emirlerin HEPSİNDE saldo satırı var; çoğu launch SONRADAN
+  ayrı bir 0 adetlik saldo satırıyla kapatılıyor (ör. 26-77711: teyit 17.06 KORAYTK, kapanış
+  02.09 ONURTK1). 0 adetlik satırın depo hareketi YOK → son RPR'yi kapanış saymak YANLIŞTI.
+  Saldo satırı yoksa (BPRCF0 okunamazsa) yedek: son RPR hareketi + MGUTVA.
+  BPRCF0'da aynı numara başka yıllarda da var (J0RED2 18…26) → eşleşme HER ZAMAN yıl + numara.
 """
 import io
 import os
@@ -163,14 +169,29 @@ def main(donemler):
         d = dict(zip(adlar, r))
         emirler[anahtar(d.get('Q0RED2'), d.get('Q0RENU'))] = d
     print(f'Dönemde launch edilen: {len(emirler)}')
+    # Dönemde KAPANAN: BPRCF0 saldo satırı dönemde (0 adetle kapatmanın depo hareketi yok);
+    # BPRCF0 okunamazsa yedek olarak dönemde RPR hareketi olanlar.
+    kol_c, bprc_not = [], ''
+    try:
+        kol_c = kolonlar(cur, 'BPRCF0')
+    except Exception as e:
+        bprc_not = f'kolonlar okunamadı: {e}'
+    bprc = {'J0RED2', 'J0RENU', 'J0FLSA', 'J0SER', 'J0DAT1', 'J0DAT4'} <= {k['ad'] for k in kol_c}
     cur.execute(f"SELECT DISTINCT MGRED2, MGRENU FROM {SEMA}.BMMAF0 WHERE MGCACD = 'RPR' AND {aralik_sql(MG_TARIH)}")
-    ek = {anahtar(r[0], r[1]) for r in cur.fetchall()} - set(emirler)
+    ek = {anahtar(r[0], r[1]) for r in cur.fetchall()}
+    if bprc:
+        jd = '(J0DAT1*1000000 + J0DAT2*10000 + J0DAT3*100 + J0DAT4)'
+        cur.execute(f"SELECT DISTINCT J0RED2, J0RENU FROM {SEMA}.BPRCF0 WHERE J0FLSA = 'S' AND {aralik_sql(jd)}")
+        ek |= {anahtar(r[0], r[1]) for r in cur.fetchall()}
+    else:
+        bprc_not = bprc_not or 'BPRCF0 yok ya da J0RED2 / J0RENU / J0FLSA / J0SER / J0DAT kolonu yok'
+    ek -= set(emirler)
     satir, _ = _parcali(cur, secim_p + ' WHERE p.Q0RENU IN ({yer})', [nu(x) for x in sorted({e[1] for e in ek})])
     for r in satir:
         d = dict(zip(adlar, r))
         if anahtar(d.get('Q0RED2'), d.get('Q0RENU')) in ek:
             emirler[anahtar(d.get('Q0RED2'), d.get('Q0RENU'))] = d
-    print(f'Dönemde teyidi olan ek emir: {len(ek)} · toplam aday: {len(emirler)}')
+    print(f'Dönemde teyidi ya da saldo (kapanış) kaydı olan ek emir: {len(ek)} · toplam aday: {len(emirler)}')
     renular = [nu(x) for x in sorted({k[1] for k in emirler})]
 
     # ── 2) Teyit hareketleri (BMMAF0 RPR) ──
@@ -186,34 +207,32 @@ def main(donemler):
     print(f'Teyit hareketi: {len(satir)} (launch: {len(hareket)})')
     hareket_reg = {h['reg']: h for l in hareket.values() for h in l}
 
-    # ── 3) Saldo teyidi: ERP teyit başlığı BPRCF0 (varsa) ──
-    kol_c, saldo, ham_c, c_adlar, bprc_not = [], {}, [], [], ''
-    try:
-        kol_c = kolonlar(cur, 'BPRCF0')
-        c_set = {k['ad'] for k in kol_c}
-        if not {'J0RENU', 'J0FLSA'} <= c_set:
-            bprc_not = 'BPRCF0 yok ya da J0RENU / J0FLSA kolonu yok'
-        else:
+    # ── 3) Saldo (kapanış) kaydı: ERP teyit başlığı BPRCF0 — tarih J0DAT, kullanıcı J0SER ──
+    saldo, ham_c, c_adlar = {}, [], []
+    if bprc:
+        try:
             c_sayisal = next((k['tip'] in SAYISAL for k in kol_c if k['ad'] == 'J0RENU'), True)
             ham_c, aciklama = _parcali(cur, f'SELECT * FROM {SEMA}.BPRCF0 WHERE J0RENU IN ({{yer}})',
                                        [int(x) if c_sayisal else str(x) for x in renular])
             c_adlar = [d[0].strip().upper() for d in (aciklama or [])]
-            kul_c = next((k['ad'] for k in kol_c if 'UTEN' in _metin(k)), None)
+            i2, inu = c_adlar.index('J0RED2'), c_adlar.index('J0RENU')
+            ham_c = [r for r in ham_c if anahtar(r[i2], r[inu]) in emirler]      # başka yılın aynı numarası
             for r in ham_c:
                 d = dict(zip(c_adlar, r))
                 if _t(d.get('J0FLSA')).upper() != 'S':
                     continue
-                reg = tuple(_k(d.get(c)) for c in ('J0MGSS', 'J0MGAA', 'J0MGNU', 'J0MGPG'))
-                h = hareket_reg.get(reg) or {}
-                ts = d.get('J0TIME')
-                tarih = h.get('tarih') or (ts.date() if isinstance(ts, datetime) else None)
-                kul = h.get('kul') or (_t(d.get(kul_c)) if kul_c else '')
-                onceki = saldo.get(anahtar(d.get('J0RED2'), d.get('J0RENU')))
-                if not onceki or (tarih and (not onceki['tarih'] or tarih >= onceki['tarih'])):
-                    saldo[anahtar(d.get('J0RED2'), d.get('J0RENU'))] = {'tarih': tarih, 'kul': kul}
-            bprc_not = f'{len(ham_c)} teyit satırı, {len(saldo)} saldo (S)'
-    except Exception as e:                    # tablo yok / yetki yok → son RPR yedeği
-        bprc_not = f'okunamadı: {e}'
+                key = anahtar(d.get('J0RED2'), d.get('J0RENU'))
+                h = hareket_reg.get(tuple(_k(d.get(c)) for c in ('J0MGSS', 'J0MGAA', 'J0MGNU', 'J0MGPG')))
+                yeni = {'tarih': (h or {}).get('tarih') or _gun4(*(d.get(f'J0DAT{i}') for i in range(1, 5))),
+                        'kul': _t(d.get('J0SER')) or (h or {}).get('kul', ''), 'hareketli': bool(h),
+                        'adet': _sayi(d.get('J0QTRI')) or 0, 'sira': _sayi(d.get('J0CNPR')) or 0}
+                onceki = saldo.get(key)
+                if not onceki or ((yeni['tarih'] or date.min, yeni['sira']) >=
+                                  (onceki['tarih'] or date.min, onceki['sira'])):
+                    saldo[key] = yeni
+            bprc_not = f'{len(ham_c)} teyit satırı, {len(saldo)} emirde saldo (S)'
+        except Exception as e:                # okunamazsa son RPR yedeği
+            bprc_not = f'okunamadı: {e}'
     print(f'BPRCF0: {bprc_not}')
 
     # ── 4) Dönemde teyidi olup emri bulunamayanlar için ek okuma yok — liste ──
@@ -228,15 +247,19 @@ def main(donemler):
         sip = _gun4(*(r.get(f'{SIPARIS}{i}') for i in range(1, 5)))
         kp, kapatan, kaynak = None, '', ''
         if durum == 70:
-            if key in saldo and saldo[key]['tarih']:
-                kp, kapatan, kaynak = saldo[key]['tarih'], saldo[key]['kul'], 'Saldo teyidi (BPRCF0)'
+            sd = saldo.get(key)
+            if sd and sd['tarih']:
+                kp, kapatan = sd['tarih'], sd['kul']
+                kaynak = ('Saldo kaydı (son teyitle birlikte)' if sd['hareketli'] else
+                          'Saldo kaydı (0 adet — ayrı kapatma kaydı)' if not sd['adet'] else
+                          'Saldo kaydı (hareketi bulunamadı — kayıt tarihi)')
             elif son.get('tarih'):
-                kp, kapatan, kaynak = son['tarih'], son['kul'], 'Son teyit (BMMAF0 RPR)'
+                kp, kapatan, kaynak = son['tarih'], son['kul'], 'Saldo kaydı yok — son teyit (BMMAF0)'
             else:
-                kaynak = "Teyitsiz kapatılmış — ERP'de kapanış tarihi yok"
+                kaynak = 'Kapanış kaydı bulunamadı'
         d_ac, d_kp = donemde(ac), donemde(kp)
         if not (d_ac or d_kp):
-            continue                          # teyidi dönemde ama ne launch ne kapanış dönemde
+            continue                          # ne launch ne kapanış dönemde
         kod = _t(r.get('Q0ARTI'))
         depo = _t(r.get('Q0MGPR'))
         tesis = DEPO_TESIS.get(depo) or ('TK1' if durum in (45, 50) else tesis_bul(kod, harita)) or '?'
@@ -303,13 +326,15 @@ def main(donemler):
             t[3] += s[12] or 0
     for (d, tesis), t in sorted(toplam.items()):
         oz.append([d, tesis] + t)
-    teyitsiz = sum(1 for s in satirlar if s[15].startswith('Teyitsiz'))
+    teyitsiz = sum(1 for s in satirlar if s[15] == 'Kapanış kaydı bulunamadı')
     oz.append([])
     for x in ['Açılış = launch tarihi (BPROF0 Q0LPD "Dt inizio lancio"). Sipariş tarihi = OPR (Q0ORD).',
-              f"Kapanış = launch'ı kapatan teyit — BPRCF0 saldo satırı ya da son RPR hareketi (BPRCF0: {bprc_not}).",
-              'Kapatan kullanıcı = o teyit hareketini giren AS400 kullanıcısı (BMMAF0.MGUTVA).',
+              f"Kapanış = ERP teyit başlığındaki SALDO kaydı (BPRCF0, J0FLSA='S'), kullanıcı J0SER ({bprc_not}). "
+              "Tarih: saldo teyidinin depo hareketi (BMMAF0) kayıt tarihi; 0 adetlik kapatmada kaydın tarihi (J0DAT).",
+              "Launch'ların çoğu son teyitten sonra AYRI bir 0 adetlik saldo kaydıyla kapatılıyor — kapanış tarihi o kayıttır.",
+              'İlk / son teyit = üretim teyit hareketleri (BMMAF0 RPR).',
               'Tesis = emrin ana deposu (Q0MGPR): 01D / MT2 = TK2 · 01 / 02 / 02B / 02Z = TK1 · 02M = Aspanda fason.',
-              f"Teyitsiz kapatılan (adet 0) emirlerin kapanış tarihi ERP'de tutulmuyor: listede {teyitsiz} satır."]:
+              f"Kapalı olup kapanış kaydı bulunamayan: {teyitsiz} satır."]:
         oz.append([x])
     for i, gen in enumerate([22, 16, 14, 14, 22, 22], start=1):
         oz.column_dimensions[H(i)].width = gen
