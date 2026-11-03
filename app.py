@@ -3425,13 +3425,14 @@ def vardiya_bugun():
 # Açık kalan vardiyaların otomatik kapatılacağı saat (kullanıcı 2026-08-26:
 # "16:30'dan sonra vardiya kapanmamış olursa açık olan vardiyaları kapat").
 # Vardiya bu saatte kapanır; operatör unutsa bile sayaç ertesi güne taşmaz.
-VARDIYA_OTO_KAPAT_SAAT = (16, 30)
+# Kuruluma göre değişir: profilde 'vardiya_oto_kapat' (Aspanda 18:30, 2026-11-03); yoksa 16:30.
+VARDIYA_OTO_KAPAT_SAAT = KUR.vardiya_oto_kapat((16, 30))
 
 
 def _vardiya_kapat_uygula(conn, vardiya, bitis):
     """Bir vardiyayı kapatır. (sure_dk, hata) döner; hata varsa kapatılmadı.
 
-    ORTAK GÖVDE: hem operatörün kapat düğmesi hem 16:30 otomatik işi buradan
+    ORTAK GÖVDE: hem operatörün kapat düğmesi hem otomatik kapatma işi (16:30) buradan
     geçer. Ayrı yazılsalardı biri güncellenip diğeri unutulurdu — kapanış
     sırasında yapılan işler (mola kesinleştirme, sayaç dondurma, pencere
     damgası) sessizce ayrışırdı."""
@@ -3474,7 +3475,7 @@ def _vardiya_kapat_uygula(conn, vardiya, bitis):
 
 
 def vardiya_oto_kapat_job():
-    """16:30 — o güne ait AÇIK kalan tüm vardiyaları kapatır.
+    """VARDIYA_OTO_KAPAT_SAAT (Cofle 16:30, Aspanda 18:30) — o güne ait AÇIK kalan tüm vardiyaları kapatır.
 
     Neden gerekli (kullanıcı 2026-08-26): operatör vardiyasını kapatmayı
     unuttuğunda kayıt AÇIK kalıyor; sayaç ertesi gün de o kayda yazmaya devam
@@ -20934,7 +20935,7 @@ if __name__ == '__main__':
                 _ekd = max(1, int((_ocfg.get('erken_teyit') or {}).get('kontrol_dk') or 2))
             except (TypeError, ValueError):
                 _ekd = 2
-            # 16:30 — açık kalan vardiyaları kapat (kullanıcı 2026-08-26).
+            # 16:30 (profilde 'vardiya_oto_kapat' varsa o saat) — açık kalan vardiyaları kapat (kullanıcı 2026-08-26).
             # AS400 transfer iptalinden (16:45) ÖNCE: teyit kuyruğu kapanmış
             # vardiyaların adetleriyle çalışsın, açık kayıtla değil.
             _ek.append((VARDIYA_OTO_KAPAT_SAAT[0], VARDIYA_OTO_KAPAT_SAAT[1],

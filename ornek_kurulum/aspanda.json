@@ -44,5 +44,7 @@
       "2": {"saat": "12:30", "dk": 30, "ad": "2. grup · 12:30–13:00"}
     }
   },
+  "_mesai_notu": "Kullanıcı 2026-11-03: son mesai saati 18:30 — o saatte hâlâ açık olan vardiyalar otomatik kapanır (Cofle'de 16:30).",
+  "vardiya_oto_kapat": "18:30",
   "varsayilan_yonetici": false
 }

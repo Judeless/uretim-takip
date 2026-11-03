@@ -65,6 +65,9 @@ VARSAYILAN = {
     #  'yemek_gruplari': {'1': {'saat': '12:00', 'dk': 30, 'ad': '...'}, ...}}
     # Yemek grubu operatöre bağlıdır (operatorler.yemek_grubu, panelden admin seçer).
     'molalar': None,
+    # SON MESAİ SAATİ (2026-11-03): açık kalan vardiyaların otomatik kapatıldığı saat, "HH:MM".
+    # None = Cofle'nin 16:30'u (app.VARDIYA_OTO_KAPAT_SAAT).
+    'vardiya_oto_kapat': None,
     # Veritabanı ilk kurulumunda bilinen şifreli Cofle yöneticisi açılsın mı?
     # Yalnız Cofle'de: internete açık yeni bir kurulumda bilinen şifre = açık kapı.
     'varsayilan_yonetici': True,
@@ -156,6 +159,21 @@ def molalar():
     """Profildeki mola tanımı ya da None (Cofle'nin kod içi saatleri)."""
     m = yukle().get('molalar')
     return m if isinstance(m, dict) and (m.get('cay') or m.get('yemek_gruplari')) else None
+
+
+def vardiya_oto_kapat(varsayilan=(16, 30)):
+    """Açık vardiyaların otomatik kapanış saati (saat, dakika). Profilde yoksa ya da
+    bozuksa varsayılan — yanlış yazılmış bir saat kapatma işini durdurmasın."""
+    v = str(yukle().get('vardiya_oto_kapat') or '').strip()
+    try:
+        s, d = (int(x) for x in v.split(':'))
+        if 0 <= s <= 23 and 0 <= d <= 59:
+            return s, d
+    except ValueError:
+        pass
+    if v:
+        print(f"[KURULUM] vardiya_oto_kapat '{v}' geçersiz (HH:MM olmalı) — {varsayilan[0]:02d}:{varsayilan[1]:02d} kullanılıyor")
+    return varsayilan
 
 
 def istemci_ozeti():
