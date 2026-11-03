@@ -17,8 +17,9 @@ KOLONLAR — 1. çalıştırmanın (2026-10-30 09:38) SYSCOLUMNS + ham verisiyle
     Q0IPD/Q0FPD                  = PLANLANAN üretim başı / sonu (açılış/kapanış DEĞİL)
     Q0DAT1-4 + Q0SER 'ult. variaz.' = kartın son ELLE değişikliği — KAPANIŞ DEĞİL (çoğu
                                    emirde launch tarihinden bile önce); Q0LNCV hep boş
-    Q0MGPR ana depo → tesis: 01D/MT2 = TK2 · 01/02/02B/02Z = TK1 · 02M = Aspanda fason
-           (1. çalıştırmada Forge ürün eşlemesiyle çapraz kontrol: 02M'yi 54/57 ASPANDA açmış)
+    Q0MGPR ana depo → tesis: 01D/MT2 = TK2 · 01/02 = TK1 (kullanıcı onayı 2026-10-30) ·
+           02M = Aspanda fason (54/57'yi ASPANDA açmış) · diğer depolar 'Diğer depo (kod)':
+           02B = 92.* fren telleri (bizde üretilmiyor, COFLETKRB toplu kapatmış), 02Z = 94.CV.024/20
   BPROF0'da KAPANIŞ TARİHİ YOK. Kapanış = ERP teyit başlığı BPRCF0'daki SALDO satırı
   (J0FLSA='S'; bizim BPRCF0I import tablosunun aslı), kullanıcı J0SER. TARİH: saldo satırı bir
   depo hareketine bağlıysa (J0MGSS/AA/NU/PG = MGSERE/MGANRE/MGNURE/MGPRRE) o hareketin KAYIT
@@ -49,8 +50,7 @@ DONEMLER = [('2026-06-15', '2026-06-19'), ('2026-09-07', '2026-09-11')]
 SAYISAL = ('DECIMAL', 'NUMERIC', 'INTEGER', 'SMALLINT', 'BIGINT')
 ACILIS = 'Q0LPD'          # Dt inizio lancio
 SIPARIS = 'Q0ORD'         # Dt ordine
-DEPO_TESIS = {'01D': 'TK2', 'MT2': 'TK2', '01': 'TK1', '02': 'TK1', '02B': 'TK1', '02Z': 'TK1',
-              '02M': 'Fason (Aspanda)'}
+DEPO_TESIS = {'01D': 'TK2', 'MT2': 'TK2', '01': 'TK1', '02': 'TK1', '02M': 'Fason (Aspanda)'}
 DURUM_AD = {10: 'OPR (launch alınmamış)', 40: 'Launch açık', 45: 'Launch açık (TK1 akışı)',
             50: 'Launch açık (TK1 akışı)', 70: 'Kapalı'}
 _TR = str.maketrans('"£$§°', 'ÜÖİŞÇ')     # EBCDIC(1026)→ODBC bozulması: AL"M$NYUM PAR°A
@@ -262,7 +262,9 @@ def main(donemler):
             continue                          # ne launch ne kapanış dönemde
         kod = _t(r.get('Q0ARTI'))
         depo = _t(r.get('Q0MGPR'))
-        tesis = DEPO_TESIS.get(depo) or ('TK1' if durum in (45, 50) else tesis_bul(kod, harita)) or '?'
+        # Tanımsız depo TK1/TK2 sayılmaz (02B = 92.* fren telleri bizde üretilmiyor); depo yoksa ürün eşlemesi
+        tesis = DEPO_TESIS.get(depo) or (f'Diğer depo ({depo})' if depo else
+                                         ('TK1' if durum in (45, 50) else tesis_bul(kod, harita)) or '?')
         planlanan = _sayi(r.get('Q0QTOR')) or 0
         uretilen = _sayi(r.get('Q0QTRI')) or 0
         donem_adet = {}
@@ -333,7 +335,7 @@ def main(donemler):
               "Tarih: saldo teyidinin depo hareketi (BMMAF0) kayıt tarihi; 0 adetlik kapatmada kaydın tarihi (J0DAT).",
               "Launch'ların çoğu son teyitten sonra AYRI bir 0 adetlik saldo kaydıyla kapatılıyor — kapanış tarihi o kayıttır.",
               'İlk / son teyit = üretim teyit hareketleri (BMMAF0 RPR).',
-              'Tesis = emrin ana deposu (Q0MGPR): 01D / MT2 = TK2 · 01 / 02 / 02B / 02Z = TK1 · 02M = Aspanda fason.',
+              'Tesis = emrin ana deposu (Q0MGPR): 01D / MT2 = TK2 · 01 / 02 = TK1 · 02M = Aspanda fason · diğerleri "Diğer depo".',
               f"Kapalı olup kapanış kaydı bulunamayan: {teyitsiz} satır."]:
         oz.append([x])
     for i, gen in enumerate([22, 16, 14, 14, 22, 22], start=1):

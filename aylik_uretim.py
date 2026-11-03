@@ -577,9 +577,10 @@ def ncs_farki(conn, n):
             'mevcut_kaynak': sorted(k for k in kaynak if k), 'hatalar': n.get('hatalar') or []}
 
 
-def ncs_yaz(conn, yil, ay, saatler, kullanici, commit=True):
+def ncs_yaz(conn, yil, ay, saatler, kullanici, commit=True, dosya=NCS_KAYNAK):
     """O ayın aylik_calisma satırlarını sayfadakilerle DEĞİŞTİRİR (anahtar 'TK2/kaynak').
-    commit=False: çağıranın işlemi içinde (tablolar önceden kurulmuş olmalı)."""
+    commit=False: çağıranın işlemi içinde (tablolar önceden kurulmuş olmalı).
+    dosya: panelde '⏱ Çalışma saati' yanında görünen kaynak adı (Ana Veri NçS ya da IK Excel'i)."""
     if commit:
         tablolari_kur(conn)
     conn.execute("DELETE FROM aylik_calisma WHERE yil=? AND ay=?", (yil, ay))
@@ -587,10 +588,240 @@ def ncs_yaz(conn, yil, ay, saatler, kullanici, commit=True):
     conn.executemany("INSERT INTO aylik_calisma (yil, ay, excel_bolum, nos, mesai, kisi, isimsiz, dosya, kullanici, "
                      "guncellendi) VALUES (?,?,?,?,?,?,0,?,?,?)",
                      [(yil, ay, f'{t}/{b}', round(v['nos'], 1), round(v['mesai'], 1), int(v['kisi'] or 0),
-                       NCS_KAYNAK, kullanici or '', simdi) for (t, b), v in saatler.items()])
+                       dosya, kullanici or '', simdi) for (t, b), v in saatler.items()])
     if commit:
         conn.commit()
     return len(saatler)
+
+
+# ── IK ÇALIŞMA SAATİ EXCEL'İ (kullanıcı 2026-11-03) ───────────────────────────────
+# "Aylık toplam çalışma saatini IK'dan bu Excel ile alıyoruz; dashboard'a yükleyeyim ve hangi
+#  sütunları toplayacağını yazabileyim — total NçS için I, mesaileri de katmak için R,S,T."
+# Dosya: her ay ayrı sayfa ('2026-09'); kişi başı satır: Sicil No · İsim · Ay · … · NçS (I) ·
+# … · %90 (R) · %95 (S) · %100 (T) …. BÖLÜM SÜTUNU YOK → kişi → (tesis, bölüm) eşlemesi SİCİL
+# ile kalıcı saklanır (ik_personel). İlk yüklemede Forge operatör adıyla tek eşleşen kişi
+# önerilir; kalanlar panelde atanır, 'disi' = üretim dışı (saate girmez). Toplanacak sütunlar
+# panelden yazılır (aylik_ayar). Yazım Aylık NçS ile aynı biçimde (ncs_yaz, 'TK2/kaynak').
+IK_VARSAYILAN = {'nos': 'I', 'mesai': 'R,S,T'}
+IK_DISI = 'disi'
+IK_KLASOR = os.path.join(PROJECT_DIR, 'data', 'ik_saat')
+_TR_ASCII = str.maketrans('çğıöşüÇĞİÖŞÜ', 'cgiosuCGIOSU')
+
+
+def ik_tablolari_kur(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS ik_personel (
+        sicil TEXT PRIMARY KEY, isim TEXT DEFAULT '', hedef TEXT DEFAULT '', kaynak TEXT DEFAULT '',
+        kullanici TEXT DEFAULT '', guncellendi TEXT DEFAULT '')""")
+    conn.execute("CREATE TABLE IF NOT EXISTS aylik_ayar (anahtar TEXT PRIMARY KEY, deger TEXT)")
+
+
+def _harf_indeks(h):
+    n = 0
+    for ch in h:
+        n = n * 26 + (ord(ch) - 64)
+    return n - 1
+
+
+def _indeks_harf(i):
+    s = ''
+    i += 1
+    while i:
+        i, r = divmod(i - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def sutun_listesi(metin):
+    """'I' · 'R,S,T' · 'R+S+T' · 'R:T' / 'R-T' → [indeks] (A=0). Boş → []. Hatalıysa ValueError."""
+    out = []
+    for parca in re.split(r'[,;+\s]+', str(metin or '').upper().strip()):
+        if not parca:
+            continue
+        m = re.fullmatch(r'([A-Z]{1,3})(?:[:\-]([A-Z]{1,3}))?', parca)
+        if not m:
+            raise ValueError(f'Sütun harfi anlaşılmadı: {parca!r} (ör. I · R,S,T · R:T)')
+        a = _harf_indeks(m.group(1))
+        b = _harf_indeks(m.group(2)) if m.group(2) else a
+        a, b = min(a, b), max(a, b)
+        out += [i for i in range(a, b + 1) if i not in out]
+    return out
+
+
+def ik_ayar(conn):
+    ik_tablolari_kur(conn)
+    r = conn.execute("SELECT deger FROM aylik_ayar WHERE anahtar='ik_sutunlar'").fetchone()
+    try:
+        d = json.loads(r[0]) if r else {}
+    except ValueError:
+        d = {}
+    return {k: (d.get(k) or v) for k, v in IK_VARSAYILAN.items()}
+
+
+def ik_ayar_yaz(conn, nos, mesai):
+    if not sutun_listesi(nos):
+        raise ValueError('NçS için en az bir sütun yazın (ör. I)')
+    sutun_listesi(mesai)
+    ik_tablolari_kur(conn)
+    d = {'nos': str(nos).strip().upper(), 'mesai': str(mesai or '').strip().upper()}
+    conn.execute("INSERT OR REPLACE INTO aylik_ayar (anahtar, deger) VALUES ('ik_sutunlar', ?)", (json.dumps(d),))
+    conn.commit()
+    return d
+
+
+def _ik_sayfa_ay(ad):
+    """'2026-09' → (2026, 9) | None."""
+    m = re.match(r'^\s*(\d{4})\D+(\d{1,2})\s*$', str(ad or ''))
+    return (int(m.group(1)), int(m.group(2))) if m and 1 <= int(m.group(2)) <= 12 else None
+
+
+def _sayi_hucre(v):
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(str(v).strip().replace(',', '.')) if v not in (None, '') else 0.0
+    except ValueError:
+        return 0.0
+
+
+def ik_oku(yol, sayfa=None):
+    """IK Excel'i → {'sayfalar': [{ad, yil, ay}], 'sayfa', 'satirlar', 'basliklar', 's_i', 'i_i'}.
+    sayfa verilmezse yıl-ay adlı EN SON sayfa."""
+    from openpyxl import load_workbook
+    wb = load_workbook(yol, read_only=True, data_only=True)
+    try:
+        sayfalar = [{'ad': s, 'yil': (_ik_sayfa_ay(s) or (None, None))[0], 'ay': (_ik_sayfa_ay(s) or (None, None))[1]}
+                    for s in wb.sheetnames]
+        if not sayfa:
+            aylik = [s for s in sayfalar if s['yil']]
+            sayfa = max(aylik, key=lambda s: (s['yil'], s['ay']))['ad'] if aylik else wb.sheetnames[0]
+        if sayfa not in wb.sheetnames:
+            raise ValueError(f"Dosyada '{sayfa}' sayfası yok")
+        satirlar = [list(r) for r in wb[sayfa].iter_rows(values_only=True)]
+    finally:
+        wb.close()
+    bas = next((i for i, r in enumerate(satirlar[:20]) if any('sicil' in _kucuk(v) for v in r)), None)
+    if bas is None:
+        raise ValueError(f"'{sayfa}' sayfasında başlık satırı bulunamadı — 'Sicil No' sütunu olmalı")
+    h = [str(v if v is not None else '').strip() for v in satirlar[bas]]
+    s_i = next(i for i, v in enumerate(h) if 'sicil' in _kucuk(v))
+    i_i = next((i for i, v in enumerate(h) if _kucuk(v) in ('isim', 'ad soyad', 'adı soyadı', 'adi soyadi', 'ad')), s_i + 1)
+    return {'sayfalar': sayfalar, 'sayfa': sayfa, 'satirlar': satirlar[bas + 1:], 'basliklar': h,
+            's_i': s_i, 'i_i': i_i}
+
+
+def ik_kisiler(okuma, nos_kol, mesai_kol):
+    """Satırlar → [{sicil, isim, nos, mesai}] — seçili sütunların toplamı."""
+    out = []
+    for r in okuma['satirlar']:
+        s = r[okuma['s_i']] if okuma['s_i'] < len(r) else None
+        if s in (None, ''):
+            continue
+        sicil = str(int(s)) if isinstance(s, float) and s.is_integer() else str(s).strip()
+        if not re.search(r'\d', sicil):
+            continue                          # alt toplam / açıklama satırı
+        topla = lambda kol: sum(_sayi_hucre(r[j]) for j in kol if j < len(r))   # noqa: E731
+        out.append({'sicil': sicil, 'isim': str(r[okuma['i_i']] or '').strip() if okuma['i_i'] < len(r) else '',
+                    'nos': round(topla(nos_kol), 2), 'mesai': round(topla(mesai_kol), 2)})
+    return out
+
+
+def _ad_anahtar(ad):
+    return re.sub(r'[^A-Z]', '', str(ad or '').translate(_TR_ASCII).upper())
+
+
+def ik_eslestir(conn, kisiler):
+    """Her kişiye 'hedef' ('TK2/kaynak' | 'disi' | '') + 'kaynak' (kayıtlı / operatör / '') ekler."""
+    ik_tablolari_kur(conn)
+    kayitli = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT sicil, hedef, kaynak FROM ik_personel")}
+    ops = {}
+    for ad, bolum, lok in conn.execute("SELECT ad, COALESCE(bolum,'kaynak'), COALESCE(lokasyon,'TK2') FROM operatorler"):
+        if (lok, bolum) in NCS_BOLUM_AD:
+            ops.setdefault(_ad_anahtar(ad), set()).add(f'{lok}/{bolum}')
+    for k in kisiler:
+        h = kayitli.get(k['sicil'])
+        if h and h[0]:
+            k['hedef'], k['kaynak'] = h[0], 'kayıtlı'
+        else:
+            aday = ops.get(_ad_anahtar(k['isim'])) or set()
+            k['hedef'], k['kaynak'] = (next(iter(aday)), 'operatör') if len(aday) == 1 else ('', '')
+    return kisiler
+
+
+def ik_toplam(kisiler):
+    """→ (saatler {(tesis, bölüm): {nos, mesai, kisi}}, atanmamış {kisi, saat}, üretim dışı {kisi, saat})."""
+    saatler, atanmamis, disi = {}, {'kisi': 0, 'saat': 0.0}, {'kisi': 0, 'saat': 0.0}
+    for k in kisiler:
+        top = k['nos'] + k['mesai']
+        if top <= 0:
+            continue
+        if not k.get('hedef') or k['hedef'] == IK_DISI:
+            d = disi if k.get('hedef') == IK_DISI else atanmamis
+            d['kisi'] += 1
+            d['saat'] = round(d['saat'] + top, 1)
+            continue
+        t, b = k['hedef'].split('/', 1)
+        d = saatler.setdefault((t, b), {'nos': 0.0, 'mesai': 0.0, 'kisi': 0})
+        d['nos'] += k['nos']
+        d['mesai'] += k['mesai']
+        d['kisi'] += 1
+    return saatler, atanmamis, disi
+
+
+def ik_hedefler():
+    return [{'deger': f'{t}/{b}', 'ad': f'{t} · {ad}'} for (t, b), ad in NCS_BOLUM_AD.items()] + \
+           [{'deger': IK_DISI, 'ad': 'Üretim dışı (saate girmez)'}]
+
+
+def ik_onizle(conn, yol, sayfa, nos, mesai, atamalar=None):
+    """Önizleme: bölüm toplamları + kişi listesi (atamalar: panelde değiştirilen {sicil: hedef})."""
+    nos_kol, mesai_kol = sutun_listesi(nos), sutun_listesi(mesai)
+    if not nos_kol:
+        raise ValueError('NçS için en az bir sütun yazın (ör. I)')
+    ok = ik_oku(yol, sayfa)
+    kisiler = ik_eslestir(conn, ik_kisiler(ok, nos_kol, mesai_kol))
+    gecerli = {h['deger'] for h in ik_hedefler()}
+    for k in kisiler:
+        if atamalar and k['sicil'] in atamalar:
+            v = atamalar[k['sicil']]
+            k['hedef'], k['kaynak'] = (v, 'elle') if v in gecerli else ('', '')
+    saatler, atanmamis, disi = ik_toplam(kisiler)
+    ya = _ik_sayfa_ay(ok['sayfa'])
+    bas = ok['basliklar']
+    etiket = lambda kol: [{'harf': _indeks_harf(j), 'baslik': bas[j] if j < len(bas) else ''} for j in kol]  # noqa: E731
+    sira = list(NCS_BOLUM_AD)
+    mevcut = []
+    if ya:
+        tablolari_kur(conn)
+        mevcut = sorted({r[0] for r in conn.execute("SELECT DISTINCT dosya FROM aylik_calisma WHERE yil=? AND ay=?", ya) if r[0]})
+    return {'sayfalar': ok['sayfalar'], 'sayfa': ok['sayfa'], 'yil': ya[0] if ya else None, 'ay': ya[1] if ya else None,
+            'ay_ad': f'{AY_AD[ya[1]]} {ya[0]}' if ya else '', 'nos_sutun': etiket(nos_kol), 'mesai_sutun': etiket(mesai_kol),
+            'bolumler': [{'hedef': f'{t}/{b}', 'tesis': t, 'bolum': NCS_BOLUM_AD[(t, b)], 'nos': round(v['nos'], 1),
+                          'mesai': round(v['mesai'], 1), 'kisi': v['kisi']}
+                         for (t, b), v in sorted(saatler.items(), key=lambda x: sira.index(x[0]))],
+            'toplam': {'nos': round(sum(v['nos'] for v in saatler.values()), 1),
+                       'mesai': round(sum(v['mesai'] for v in saatler.values()), 1),
+                       'kisi': sum(v['kisi'] for v in saatler.values())},
+            'atanmamis': atanmamis, 'disi': disi, 'kisiler': kisiler, 'hedefler': ik_hedefler(), 'mevcut': mevcut}
+
+
+def ik_kaydet(conn, yol, dosya_adi, sayfa, nos, mesai, atamalar, kullanici, yil=None, ay=None):
+    """Eşlemeyi (ik_personel) kalıcı yazar + ayın çalışma saatlerini DEĞİŞTİRİR. Ay sayfa adından
+    ('2026-09'); ad aya benzemiyorsa çağıranın yil/ay'ı."""
+    o = ik_onizle(conn, yol, sayfa, nos, mesai, atamalar)
+    yil, ay = (o['yil'], o['ay']) if o['yil'] else (yil, ay)
+    if not (yil and ay):
+        raise ValueError(f"'{sayfa}' sayfa adından ay anlaşılmadı (ör. 2026-09)")
+    simdi = datetime.now().strftime('%Y-%m-%d %H:%M')
+    conn.executemany(
+        "INSERT INTO ik_personel (sicil, isim, hedef, kaynak, kullanici, guncellendi) VALUES (?,?,?,?,?,?) "
+        "ON CONFLICT(sicil) DO UPDATE SET isim=excluded.isim, hedef=excluded.hedef, kaynak=excluded.kaynak, "
+        "kullanici=excluded.kullanici, guncellendi=excluded.guncellendi",
+        [(k['sicil'], k['isim'], k['hedef'], 'elle' if k['kaynak'] == 'elle' else (k['kaynak'] or ''), kullanici, simdi)
+         for k in o['kisiler'] if k['hedef'] and k['kaynak'] != 'kayıtlı'])
+    saatler, atanmamis, disi = ik_toplam(o['kisiler'])
+    ncs_yaz(conn, yil, ay, saatler, kullanici, dosya=f'IK › {dosya_adi} · {sayfa}')
+    return {'yil': yil, 'ay': ay, 'ay_ad': f'{AY_AD[ay]} {yil}', 'bolum': len(saatler), 'toplam': o['toplam'],
+            'atanmamis': atanmamis, 'disi': disi}
 
 
 def calisma_haritasi(conn, yil, ay):

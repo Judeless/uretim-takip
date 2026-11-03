@@ -893,6 +893,19 @@
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast.ok { background: var(--success); color: #fff; border-color: transparent; }
         .toast.err { background: var(--danger); color: #fff; border-color: transparent; }
+        /* Silinen iş emri: geri al bildirimi + Silinenler listesi (2026-11-02) */
+        .rt-geri-al { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+                      opacity: 0; pointer-events: none; transition: all .25s; z-index: 10000;
+                      display: flex; gap: 14px; align-items: center; padding: 8px 10px 8px 20px;
+                      border-radius: var(--r-lg, 14px); background: var(--text); color: var(--bg);
+                      font-weight: 700; font-size: .88rem; box-shadow: var(--shadow-pop); }
+        .rt-geri-al.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+        .rt-geri-al button { color: inherit; border: 1px solid currentColor; padding: 4px 12px; }
+        .rt-cop { margin: 10px 20px 14px; padding: 12px 14px; border: 1px solid var(--card-border);
+                  border-radius: 12px; background: var(--surface-2); overflow-x: auto; }
+        .rt-cop table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+        .rt-cop th { text-align: left; color: var(--muted); font-size: .72rem; padding: 4px 6px; white-space: nowrap; }
+        .rt-cop td { padding: 5px 6px; border-top: 1px solid var(--card-border); vertical-align: top; }
 
         /* Genel amaçlı modal (gem) */
         /* ── Haftalık önemli referanslar (TK2 montaj, 2026-10-08) ── */
@@ -7056,10 +7069,15 @@ window.__I18N_SOZLUK__ = {
                     <div class="panel-header">
                         <h3>🚀 Referans Takip (Launch / İş Emri)</h3>
                         <span class="adet-info" id="ref-takip-count"></span>
+                        <button class="btn btn-ghost" id="rt-cop-btn" onclick="rtCopAcKapat()" style="padding:4px 12px;font-size:.78rem"
+                                title="Silinen iş emirlerini gör ve geri al (son 30 gün)">🗑 Silinenler</button>
                     </div>
                     <!-- Bölüm sekmeleri — İş Yönetimi içinde kaynak/montaj/metal arası geçiş
                          (sayfadan çıkmadan). Lokasyona göre doldurulur (TK1=yalnız montaj). -->
                     <div id="rt-bolum-tablari" class="rt-bolum-tablari"></div>
+                    <!-- SİLİNENLER (kullanıcı 2026-11-02): elle ya da AS400 teyidiyle silinen iş emirleri,
+                         geri al düğmesiyle (referans_takip_silinen) -->
+                    <div id="rt-cop" class="rt-cop" style="display:none"></div>
                     <!-- HAFTALIK ÖNEMLİ REFERANSLAR (TK2 montaj, kullanıcı 2026-10-08): kağıtta
                          tutulan haftalık pano — gün gün üretilecek mekanizma, eksik parça notu,
                          bitince üstü çizili. Yalnız montaj sekmesi + TK2'de; sekme satırındaki
@@ -7900,11 +7918,32 @@ window.__I18N_SOZLUK__ = {
                             <button class="btn btn-ghost" onclick="document.getElementById('au-kap-dosya').click()" title="Üretim müdürünün 'Kapasite Kullanım Oranı' Excel'i — Çalışma Saati + Database">📥 Çalışma saati yükle</button>
                             <button class="btn btn-ghost" onclick="auKapasiteKlasor()" title="Sunucu planlama klasörüne erişebiliyorsa en yeni kapasite Excel'i">📂 Klasörden oku</button>
                             <input type="file" id="au-kap-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="auKapasiteYukle(this)">
+                            <button class="btn btn-ghost" onclick="auIkAc()" title="IK'dan gelen 'Aylık Toplam Çalışma Saati' Excel'i — toplanacak sütunları siz seçersiniz">👥 IK saat Excel'i</button>
                             <button class="btn btn-primary" onclick="auExcel()">⬇️ Excel (yöneticiyle paylaş)</button>
                         </div>
                     </div>
                     <div id="au-not"></div>
                     <div style="padding:10px 20px 16px;overflow-x:auto" id="au-tablo">—</div>
+                </div>
+                <!-- IK ÇALIŞMA SAATİ EXCEL'İ (kullanıcı 2026-11-03): ay başına sayfa, kişi başı satır;
+                     toplanacak sütunlar (NçS / mesai) burada yazılır; kişi → bölüm eşlemesi sicil ile kalıcı. -->
+                <div class="panel-card" id="au-ik-kart" style="display:none">
+                    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
+                        <h3>👥 IK çalışma saati Excel'i</h3>
+                        <span class="adet-info" id="au-ik-bilgi"></span>
+                        <button class="btn btn-ghost" style="margin-left:auto" onclick="auIkKapat()">✕ Kapat</button>
+                    </div>
+                    <div class="sf-arac" style="padding:10px 20px 0">
+                        <label title="Normal çalışma saati sütunu/sütunları — harfle: I · birden çoksa virgülle ya da aralıkla (R:T)">NçS sütunları
+                            <input id="au-ik-nos" style="width:90px;font-size:.8rem;padding:5px 8px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)" placeholder="I"></label>
+                        <label title="Mesai sütunları — ör. R,S,T (%90, %95, %100). Boş bırakılırsa mesai 0">Mesai sütunları
+                            <input id="au-ik-mesai" style="width:110px;font-size:.8rem;padding:5px 8px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)" placeholder="R,S,T"></label>
+                        <button class="btn btn-outline" onclick="document.getElementById('au-ik-dosya').click()">📥 IK Excel'ini seç</button>
+                        <input type="file" id="au-ik-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="auIkYukle(this)">
+                        <label>Ay sayfası <select id="au-ik-sayfa" onchange="auIkOnizle(this.value)" disabled></select></label>
+                        <button class="btn btn-ghost" onclick="auIkOnizle()" title="Sütunları değiştirdikten sonra yeniden hesapla">↻ Hesapla</button>
+                    </div>
+                    <div style="padding:10px 20px 16px" id="au-ik-icerik"><span style="color:var(--muted);font-size:.8rem">IK'nın aylık Excel'ini seçin. Sayfalar ay ay (2026-09 gibi) okunur; seçtiğiniz sütunlar kişi başı toplanır, kişiler bölümlerine göre toplanır.</span></div>
                 </div>
                 <div class="panel-card">
                     <div class="panel-header" style="flex-wrap:wrap;gap:8px">
@@ -13598,6 +13637,15 @@ window.__I18N_SOZLUK__ = {
             }
             sel.innerHTML = opts.join('');
         }
+        // Saati (Aylık NçS / kapasite Excel'i) yüklü aylar seçicide ⏱ ile işaretlenir (kullanıcı 2026-11-03)
+        function auAyIsaretle(aylar) {
+            var sel = document.getElementById('au-ay'); if (!sel) return;
+            var yuklu = {};
+            (aylar || []).forEach(function (x) { yuklu[x.yil + '-' + x.ay] = true; });
+            Array.prototype.forEach.call(sel.options, function (o) {
+                o.textContent = o.textContent.replace(/ · ⏱ saat yüklü$/, '') + (yuklu[o.value] ? ' · ⏱ saat yüklü' : '');
+            });
+        }
         function auSekmeAcildi() { auAylariDoldur(); auYukle(); }
 
         // ══ HAFTALIK ÜRETİM (kullanıcı 2026-10-27) ══════════════════════════════
@@ -13835,6 +13883,7 @@ window.__I18N_SOZLUK__ = {
         function auCiz() {
             var d = _au.veri; if (!d) return;
             auHaricCiz(d);
+            auAyIsaretle(d.calisma_aylari);
             var r = d.rapor, el = document.getElementById('au-tablo');
             var btn = document.getElementById('au-hazirla-btn');
             if (btn) btn.title = d.gelistirme_kopyasi ? 'Geliştirme kopyası: AS400 okuması yalnız sunucudaki panelde' : 'Ayın RPR + CFI + COP hareketlerini AS400\'den oku';
@@ -13852,7 +13901,7 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('au-not').innerHTML = '<div class="au-not">' +
                 (cb ? '⏱ Çalışma saati: <b>' + esc(cb.dosya) + '</b> (' + esc(cb.guncellendi) + ')' +
                       (dis ? ' · bölüme atanmamış ' + fmt(Math.round(dis)) + ' saat (' + (r.calisma_disarida || []).map(function (x) { return esc(x.excel_bolum); }).join(', ') + ') — performansa girmez' : '')
-                    : '<span style="color:var(--warn)">⏱ Bu ay için çalışma saati yüklenmedi — performans hesaplanmadı. Ana Veri\'nin \'Aylık NçS\' sayfasına bu ayı yazıp Referanslar › Ana Veri Yükle (ya da kapasite Excel\'ini yükleyin).' +
+                    : '<span style="color:var(--warn)">⏱ Bu ay için çalışma saati yüklenmedi — performans hesaplanmadı. 👥 IK saat Excel\'ini yükleyin ya da Ana Veri\'nin \'Aylık NçS\' sayfasına bu ayı yazıp Referanslar › Ana Veri Yükle (ya da kapasite Excel\'ini yükleyin).' +
                       (yuklu ? ' (Saat yüklü aylar: ' + esc(yuklu) + ')' : '') + '</span>') +
                 '<br>🧾 Bölümü belirsiz: ' + fmt(r.tanimsiz_sayi || 0) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet (özete girmez) · hammadde (20.* / 21.*): ' + fmt(r.hammadde_adet) + ' — adet toplamına girmez' +
                 (r.haric_sayi ? '<br>🚫 Rapordan hariç tutulan: ' + fmt(r.haric_sayi) + ' kod · ' + fmt(r.haric_adet) + ' adet — hiçbir toplama ve performansa girmez' : '') +
@@ -14015,6 +14064,111 @@ window.__I18N_SOZLUK__ = {
             };
             try { await gonder(false); } catch (e) { toast(e.message, 'err'); }
             finally { inp.value = ''; }
+        }
+        // ══ IK ÇALIŞMA SAATİ EXCEL'İ (kullanıcı 2026-11-03) ══════════════════════
+        // Dosya sunucuda saklanır (belirteç); sütun / sayfa / kişi ataması değişince sunucu yeniden
+        // hesaplar. Atamalar KAYDET'te sicil ile kalıcı olur (sonraki aylarda sorulmaz).
+        var _auIk = { veri: null, atamalar: {} };
+        function auIkDeger(id) { return ((document.getElementById(id) || {}).value || '').trim(); }
+        async function auIkAc() {
+            var k = document.getElementById('au-ik-kart');
+            k.style.display = '';
+            if (!auIkDeger('au-ik-nos')) {
+                try {
+                    var r = await panelFetch('/api/aylik_uretim/ik_ayar'), a = await spJson(r);
+                    if (r.ok) { document.getElementById('au-ik-nos').value = a.nos || ''; document.getElementById('au-ik-mesai').value = a.mesai || ''; }
+                } catch (e) { }
+            }
+            k.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        function auIkKapat() { document.getElementById('au-ik-kart').style.display = 'none'; }
+        async function auIkYukle(inp) {
+            var f = inp.files && inp.files[0]; if (!f) return;
+            var el = document.getElementById('au-ik-icerik');
+            el.innerHTML = '<div class="yukleniyor">Okunuyor…</div>';
+            var fd = new FormData();
+            fd.append('dosya', f); fd.append('nos', auIkDeger('au-ik-nos')); fd.append('mesai', auIkDeger('au-ik-mesai'));
+            try {
+                var r = await panelFetch('/api/aylik_uretim/ik_yukle', { method: 'POST', body: fd }), d = await spJson(r);
+                if (!r.ok) throw new Error(d.hata || ('HTTP ' + r.status));
+                _auIk.veri = d; _auIk.atamalar = {};
+                // Rapordaki seçili ayın sayfası varsa onu göster (yoksa dosyanın son ayı)
+                var s = auSecili(), es = (d.sayfalar || []).filter(function (x) { return x.yil === s.yil && x.ay === s.ay; })[0];
+                if (es && es.ad !== d.sayfa) await auIkOnizle(es.ad); else auIkCiz();
+            } catch (e) { el.innerHTML = '<span style="color:var(--danger)">⚠ ' + esc(e.message) + '</span>'; }
+            finally { inp.value = ''; }
+        }
+        async function auIkOnizle(sayfa) {
+            if (!_auIk.veri) { toast('Önce IK Excel\'ini seçin', 'err'); return; }
+            var el = document.getElementById('au-ik-icerik');
+            try {
+                var r = await panelFetch('/api/aylik_uretim/ik_onizle', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ belirtec: _auIk.veri.belirtec, sayfa: sayfa || auIkDeger('au-ik-sayfa'), nos: auIkDeger('au-ik-nos'),
+                                           mesai: auIkDeger('au-ik-mesai'), atamalar: _auIk.atamalar }) });
+                var d = await spJson(r);
+                if (!r.ok) throw new Error(d.hata || ('HTTP ' + r.status));
+                _auIk.veri = d;
+                auIkCiz();
+            } catch (e) { el.innerHTML = '<span style="color:var(--danger)">⚠ ' + esc(e.message) + '</span>'; }
+        }
+        function auIkAta(sicil, hedef) { _auIk.atamalar[sicil] = hedef; auIkOnizle(); }
+        function auIkCiz() {
+            var d = _auIk.veri, el = document.getElementById('au-ik-icerik');
+            var sel = document.getElementById('au-ik-sayfa');
+            sel.innerHTML = (d.sayfalar || []).map(function (x) { return '<option value="' + esc(x.ad) + '"' + (x.ad === d.sayfa ? ' selected' : '') + '>' + esc(x.ad) + '</option>'; }).join('');
+            sel.disabled = false;
+            document.getElementById('au-ik-bilgi').textContent = (d.dosya || '') + ' · ' + d.sayfa;
+            var s = auSecili(), hedefAy = d.yil ? d.ay_ad : (AU_AY[s.ay] + ' ' + s.yil);
+            var sutun = function (l) { return (l || []).map(function (x) { return '<b>' + esc(x.harf) + '</b> (' + esc(x.baslik || '?') + ')'; }).join(' + ') || '—'; };
+            var t = d.toplam || {};
+            var tablo = '<table class="sf-tablo" style="max-width:720px"><thead><tr><th class="sol">Tesis</th><th class="sol">Bölüm</th><th>NçS</th><th>Mesai</th><th>Toplam</th><th>Kişi</th></tr></thead><tbody>' +
+                (d.bolumler || []).map(function (b) {
+                    return '<tr><td class="sol">' + esc(b.tesis) + '</td><td class="sol">' + esc(b.bolum) + '</td><td>' + fmt(b.nos) + '</td><td>' + fmt(b.mesai) +
+                        '</td><td><b>' + fmt(Math.round((b.nos + b.mesai) * 10) / 10) + '</b></td><td>' + fmt(b.kisi) + '</td></tr>';
+                }).join('') +
+                '<tr style="font-weight:800"><td class="sol" colspan="2">Toplam (üretim bölümleri)</td><td>' + fmt(t.nos) + '</td><td>' + fmt(t.mesai) + '</td><td>' + fmt(Math.round(((t.nos || 0) + (t.mesai || 0)) * 10) / 10) + '</td><td>' + fmt(t.kisi) + '</td></tr></tbody></table>';
+            var secenek = function (k) {
+                return '<select onchange="auIkAta(\'' + esc(k.sicil) + '\', this.value)" style="font-size:.76rem;padding:2px 4px;border-radius:6px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)">' +
+                    '<option value=""' + (k.hedef ? '' : ' selected') + '>— atanmamış —</option>' +
+                    (d.hedefler || []).map(function (h) { return '<option value="' + esc(h.deger) + '"' + (h.deger === k.hedef ? ' selected' : '') + '>' + esc(h.ad) + '</option>'; }).join('') + '</select>';
+            };
+            var kisiler = (d.kisiler || []).slice().sort(function (a, b) {
+                var aa = !a.hedef && (a.nos + a.mesai) > 0 ? 0 : 1, bb = !b.hedef && (b.nos + b.mesai) > 0 ? 0 : 1;
+                return aa - bb || String(a.hedef).localeCompare(String(b.hedef)) || String(a.isim).localeCompare(String(b.isim), 'tr');
+            });
+            var at = d.atanmamis || {}, di = d.disi || {};
+            el.innerHTML =
+                '<div style="font-size:.8rem;line-height:1.7;margin-bottom:8px">NçS = ' + sutun(d.nos_sutun) + ' · Mesai = ' + sutun(d.mesai_sutun) +
+                (d.yil ? '' : '<br><span style="color:var(--warn)">Sayfa adı ay değil — rapordaki seçili aya (' + esc(hedefAy) + ') yazılır.</span>') +
+                (at.kisi ? '<br><span style="color:var(--danger)">⚠ Bölümü atanmamış ' + at.kisi + ' kişi · ' + fmt(at.saat) + ' saat — aşağıdaki listeden atayın (atanmazsa saate girmez).</span>' : '') +
+                (di.kisi ? '<br><span style="color:var(--muted)">Üretim dışı: ' + di.kisi + ' kişi · ' + fmt(di.saat) + ' saat (saate girmez).</span>' : '') +
+                ((d.mevcut || []).length ? '<br><span style="color:var(--muted)">' + esc(hedefAy) + ' için mevcut saatler (' + esc(d.mevcut.join(', ')) + ') bunlarla DEĞİŞTİRİLİR.</span>' : '') + '</div>' +
+                tablo +
+                '<div style="margin:12px 0"><button class="btn btn-primary" onclick="auIkKaydet()">💾 ' + esc(hedefAy) + ' çalışma saatine yaz</button></div>' +
+                '<details' + (at.kisi ? ' open' : '') + '><summary style="cursor:pointer;font-size:.82rem;font-weight:700">Kişi → bölüm eşlemesi (' + kisiler.length + ' kişi) — sicil ile saklanır, sonraki aylarda sorulmaz</summary>' +
+                '<div style="max-height:50vh;overflow:auto;margin-top:8px"><table class="sf-tablo"><thead><tr><th class="sol">Sicil</th><th class="sol">İsim</th><th>NçS</th><th>Mesai</th><th class="sol">Bölüm</th><th class="sol"></th></tr></thead><tbody>' +
+                kisiler.map(function (k) {
+                    var etiket = k.kaynak === 'operatör' ? 'operatör adından öneri' : (k.kaynak === 'elle' ? 'değiştirildi' : '');
+                    return '<tr><td class="sol">' + esc(k.sicil) + '</td><td class="sol">' + esc(k.isim) + '</td><td>' + fmt(k.nos) + '</td><td>' + fmt(k.mesai) + '</td>' +
+                        '<td class="sol">' + secenek(k) + '</td><td class="sol" style="color:var(--muted);font-size:.72rem">' + esc(etiket) + '</td></tr>';
+                }).join('') + '</tbody></table></div></details>';
+        }
+        async function auIkKaydet() {
+            var d = _auIk.veri; if (!d) return;
+            var s = auSecili();
+            try {
+                var r = await panelFetch('/api/aylik_uretim/ik_kaydet', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ belirtec: d.belirtec, sayfa: d.sayfa, nos: auIkDeger('au-ik-nos'), mesai: auIkDeger('au-ik-mesai'),
+                                           atamalar: _auIk.atamalar, yil: s.yil, ay: s.ay }) });
+                var x = await spJson(r);
+                if (!r.ok) throw new Error(x.hata || ('HTTP ' + r.status));
+                toast('👥 ' + x.ay_ad + ' çalışma saati yazıldı · ' + x.bolum + ' bölüm · ' + fmt(Math.round((x.toplam.nos + x.toplam.mesai) * 10) / 10) + ' saat', 'ok');
+                _auIk.atamalar = {};
+                var sel = document.getElementById('au-ay'), v = x.yil + '-' + x.ay;
+                if (sel && Array.prototype.some.call(sel.options, function (o) { return o.value === v; })) sel.value = v;
+                auYukle();
+                auIkOnizle(d.sayfa);
+            } catch (e) { toast(e.message, 'err'); }
         }
         async function auKapasiteKlasor() {
             var gonder = async function (zorla) {
@@ -15065,6 +15219,7 @@ window.__I18N_SOZLUK__ = {
         async function yukleRefTakipPanel() {
             const istek = ++_rtIstekNo;
             try { hpYukle(); } catch (e) { console.error(e); }      // haftalık pano (montaj/TK2)
+            if (_rtCopAcik) rtCopYukle();                           // Silinenler açıksa bölüme göre tazele
             const tb0 = document.getElementById('ref-takip-tbody');
             if (tb0 && !tb0.querySelector('tr')) tb0.innerHTML = '<tr><td colspan="9"><div class="yukleniyor">Yükleniyor…</div></td></tr>';
             try {
@@ -15374,7 +15529,7 @@ window.__I18N_SOZLUK__ = {
         }
 
         async function refTakipSil(id) {
-            if (!confirm('Bu kaydı silmek istiyor musunuz?')) return;
+            if (!confirm('Bu kaydı silmek istiyor musunuz? (🗑 Silinenler\'den geri alınabilir)')) return;
             try {
                 const res = await fetch('/api/referans_takip/' + id, { method: 'DELETE' });
                 const body = await res.json().catch(() => ({}));
@@ -15383,8 +15538,71 @@ window.__I18N_SOZLUK__ = {
                     return;
                 }
                 await yukleRefTakipPanel();
-                toast('Kayıt silindi', 'ok');
+                if (body.cop_id) rtGeriAlBildir('Kayıt silindi', body.cop_id);
+                else toast('Kayıt silindi', 'ok');
             } catch(e) { toast('Bağlantı hatası', 'error'); }
+        }
+
+        // ── SİLİNENLER / GERİ AL (kullanıcı 2026-11-02: "yanlış silinen hareketi geri alabilmeliyim") ──
+        // Silme satırı çöpe taşır (referans_takip_silinen); AS400 teyidi sonrası otomatik silinenler de
+        // burada. Geri al = aynı kayıt (depo notu, öncelik, durum dahil) listeye döner.
+        var _rtCopAcik = false;
+        var RT_DURUM_AD = { launch_alinacak: 'Launch alınacak', launch_alindi: 'Launch alındı',
+                            launch_hazir: 'Launch hazır', uretimde: 'Üretimde' };
+        function rtGeriAlBildir(mesaj, copId) {
+            var el = document.getElementById('rt-geri-al-bildirim');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'rt-geri-al-bildirim';
+                el.className = 'rt-geri-al';
+                document.body.appendChild(el);
+            }
+            el.innerHTML = '<span>' + esc(mesaj) + '</span><button class="btn btn-ghost" onclick="rtGeriAl(' + copId + ')">↩ Geri al</button>';
+            el.classList.add('show');
+            clearTimeout(window._rtGeriAlZaman);
+            window._rtGeriAlZaman = setTimeout(function () { el.classList.remove('show'); }, 10000);
+        }
+        async function rtGeriAl(copId) {
+            var bild = document.getElementById('rt-geri-al-bildirim');
+            if (bild) bild.classList.remove('show');
+            try {
+                var res = await fetch('/api/referans_takip/geri_al/' + copId, { method: 'POST' });
+                var body = await res.json().catch(function () { return {}; });
+                if (!res.ok || body.hata) { toast(body.hata || ('Sunucu hatası: ' + res.status), 'err'); return; }
+                await yukleRefTakipPanel();
+                toast('↩ ' + (body.referans_kodu || 'Kayıt') + ' geri alındı', 'ok');
+            } catch (e) { toast('Bağlantı hatası', 'err'); }
+        }
+        function rtCopAcKapat() { _rtCopAcik = !_rtCopAcik; rtCopYukle(); }
+        async function rtCopYukle() {
+            var el = document.getElementById('rt-cop');
+            if (!el) return;
+            el.style.display = _rtCopAcik ? '' : 'none';
+            var btn = document.getElementById('rt-cop-btn');
+            if (btn) btn.classList.toggle('active', _rtCopAcik);
+            if (!_rtCopAcik) return;
+            if (!el.querySelector('table')) el.innerHTML = '<div class="yukleniyor">Yükleniyor…</div>';
+            try {
+                var res = await fetch('/api/referans_takip/silinenler?bolum=' + encodeURIComponent(aktifBolum));
+                var list = await res.json();
+                if (!res.ok || !Array.isArray(list)) throw new Error((list && list.hata) || ('HTTP ' + res.status));
+                var bas = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b>🗑 Silinen iş emirleri</b>' +
+                    '<span style="color:var(--muted);font-size:.76rem">' + esc(bolumAdi(aktifBolum)) + ' · son 30 gün</span>' +
+                    '<button class="btn btn-ghost" style="margin-left:auto;padding:2px 10px" onclick="rtCopAcKapat()">✕ Kapat</button></div>';
+                if (!list.length) { el.innerHTML = bas + '<div style="color:var(--muted);font-size:.8rem">Silinen kayıt yok.</div>'; return; }
+                el.innerHTML = bas + '<table><tr><th>Silinme</th><th>Referans</th><th>Hedef</th><th>Durum</th><th>Açıklama / depo notu</th><th>Silen</th><th></th></tr>' +
+                    list.map(function (s) {
+                        var t = String(s.silinme_ts || '');
+                        var not = [s.aciklama, s.depo_notu ? '📦 ' + s.depo_notu : ''].filter(Boolean).join(' · ');
+                        return '<tr><td style="white-space:nowrap">' + esc(t.slice(8, 10) + '.' + t.slice(5, 7) + ' ' + t.slice(11, 16)) + '</td>' +
+                            '<td><b>' + esc(s.referans_kodu) + '</b></td><td>' + fmt(s.hedef_adet || 0) + ' adet</td>' +
+                            '<td>' + esc(RT_DURUM_AD[s.durum] || s.durum || '') + '</td><td>' + esc(not || '—') + '</td>' +
+                            '<td>' + esc(s.silen || '—') + (s.sebep === 'teyit' ? ' <span style="color:var(--muted)">(otomatik)</span>' : '') + '</td>' +
+                            '<td style="text-align:right"><button class="btn btn-outline" style="padding:2px 10px;font-size:.76rem" onclick="rtGeriAl(' + s.id + ')">↩ Geri al</button></td></tr>';
+                    }).join('') + '</table>';
+            } catch (e) {
+                el.innerHTML = '<div style="color:var(--danger);font-size:.8rem">⚠ Silinenler yüklenemedi: ' + esc(e.message) + '</div>';
+            }
         }
 
         // ═══════════════════════════════════════════════════════

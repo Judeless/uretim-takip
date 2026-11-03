@@ -8849,6 +8849,102 @@ def aylik_uretim_calisma_klasor():
         return jsonify({'hata': str(e)}), 400
 
 
+# ── IK ÇALIŞMA SAATİ EXCEL'İ (kullanıcı 2026-11-03) — ayrıntı: aylik_uretim.ik_* ──────────
+# Yüklenen dosya data/ik_saat/'a kaydedilir; önizleme / kaydet aynı dosyayı 'belirteç' (dosya adı)
+# ile kullanır — kişi atamaları değişince dosya yeniden gönderilmez.
+_IK_BELIRTEC = re.compile(r'^\d{8}_\d{6}_[\w.\- ]{1,120}\.xls[xm]$', re.UNICODE)
+
+
+def _ik_dosya(belirtec):
+    import aylik_uretim as AU
+    b = os.path.basename(str(belirtec or ''))
+    if not _IK_BELIRTEC.match(b):
+        raise ValueError('Geçersiz dosya belirteci — Excel\'i yeniden yükleyin')
+    yol = os.path.join(AU.IK_KLASOR, b)
+    if not os.path.exists(yol):
+        raise ValueError('Yüklenen dosya bulunamadı — Excel\'i yeniden yükleyin')
+    return yol, b.split('_', 2)[2]
+
+
+@app.route('/api/aylik_uretim/ik_ayar', methods=['GET', 'POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_ik_ayar():
+    """Toplanacak IK sütunları: {'nos': 'I', 'mesai': 'R,S,T'}."""
+    import aylik_uretim as AU
+    conn = get_db()
+    if request.method == 'GET':
+        return jsonify(AU.ik_ayar(conn))
+    d = request.get_json(silent=True) or {}
+    try:
+        return jsonify(AU.ik_ayar_yaz(conn, d.get('nos'), d.get('mesai')))
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+
+
+@app.route('/api/aylik_uretim/ik_yukle', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_ik_yukle():
+    """form: dosya (+ nos, mesai). Dosyayı saklar, son ayın sayfasıyla önizleme döner."""
+    import aylik_uretim as AU
+    from werkzeug.utils import secure_filename
+    f = request.files.get('dosya')
+    if not f or not f.filename:
+        return jsonify({'hata': 'Dosya seçilmedi'}), 400
+    uzanti = os.path.splitext(f.filename)[1].lower()
+    if uzanti not in ('.xlsx', '.xlsm'):
+        return jsonify({'hata': 'IK Excel\'i .xlsx olmalı'}), 400
+    os.makedirs(AU.IK_KLASOR, exist_ok=True)
+    ad = secure_filename(os.path.splitext(f.filename)[0]) or 'ik'
+    belirtec = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{ad[:100]}{uzanti}"
+    yol = os.path.join(AU.IK_KLASOR, belirtec)
+    f.save(yol)
+    conn = get_db()
+    ayar = AU.ik_ayar(conn)
+    try:
+        o = AU.ik_onizle(conn, yol, request.form.get('sayfa') or None,
+                         request.form.get('nos') or ayar['nos'], request.form.get('mesai', ayar['mesai']))
+    except Exception as e:
+        try:
+            os.remove(yol)
+        except OSError:
+            pass
+        return jsonify({'hata': f'Excel okunamadı: {e}'}), 400
+    return jsonify(dict(o, belirtec=belirtec, dosya=f.filename))
+
+
+@app.route('/api/aylik_uretim/ik_onizle', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_ik_onizle():
+    """json: belirtec, sayfa, nos, mesai, atamalar {sicil: hedef}."""
+    import aylik_uretim as AU
+    d = request.get_json(silent=True) or {}
+    try:
+        yol, dosya = _ik_dosya(d.get('belirtec'))
+        o = AU.ik_onizle(get_db(), yol, d.get('sayfa') or None, d.get('nos'), d.get('mesai'), d.get('atamalar') or {})
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    return jsonify(dict(o, belirtec=d.get('belirtec'), dosya=dosya))
+
+
+@app.route('/api/aylik_uretim/ik_kaydet', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_ik_kaydet():
+    """json: belirtec, sayfa, nos, mesai, atamalar, yil, ay — eşlemeyi + ayın saatlerini yazar,
+    sütun ayarını da saklar."""
+    import aylik_uretim as AU
+    d = request.get_json(silent=True) or {}
+    conn = get_db()
+    try:
+        yol, dosya = _ik_dosya(d.get('belirtec'))
+        AU.ik_ayar_yaz(conn, d.get('nos'), d.get('mesai'))
+        yil, ay = _au_ay(d)
+        sonuc = AU.ik_kaydet(conn, yol, dosya, d.get('sayfa'), d.get('nos'), d.get('mesai'), d.get('atamalar') or {},
+                             g.panel_ku['kullanici_adi'], yil, ay)
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    return jsonify(dict(sonuc, ok=True))
+
+
 @app.route('/api/aylik_uretim.xlsx', methods=['GET'])
 @panel_gerekli(izin='aylik-uretim')
 def aylik_uretim_excel():
@@ -11433,14 +11529,110 @@ def robot_atama_listesi(robot_no):
     return jsonify([dict(r) for r in rows])
 
 
+# ── SİLİNEN İŞ EMRİNİ GERİ ALMA (kullanıcı 2026-11-02: "yanlış silinen hareketi geri
+# alabilmeliyim") ──────────────────────────────────────────────────────────────────
+# Silme artık satırı ÇÖPE taşır: referans_takip_silinen'de satırın TAMAMI (JSON, depo notu
+# dahil) + kim / ne zaman / neden ('elle' ya da AS400 teyidi sonrası otomatik 'teyit').
+# Geri alma AYNI id ile geri yazar (AUTOINCREMENT → id başka kayda verilmez); öncelik doluysa
+# o sıraya yerleşir, diğerleri kayar (eklemedeki _oncelik_kaydir kuralı).
+def _rt_cop_kur(conn):
+    conn.execute('''CREATE TABLE IF NOT EXISTS referans_takip_silinen (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, takip_id INTEGER, referans_kodu TEXT, bolum TEXT,
+        lokasyon TEXT, veri TEXT, silen TEXT DEFAULT '', sebep TEXT DEFAULT '',
+        silinme_ts TEXT DEFAULT (datetime('now','localtime')), geri_alan TEXT, geri_alma_ts TEXT)''')
+
+
+def _rt_cope_tasi(conn, takip_id, sebep, silen=''):
+    """referans_takip satırını çöpe taşır (commit ETMEZ). Döner: çöp kaydının id'si | None."""
+    _rt_cop_kur(conn)
+    row = conn.execute('SELECT * FROM referans_takip WHERE id=?', (takip_id,)).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    cur = conn.execute(
+        'INSERT INTO referans_takip_silinen (takip_id, referans_kodu, bolum, lokasyon, veri, silen, sebep) '
+        'VALUES (?,?,?,?,?,?,?)',
+        (takip_id, d.get('referans_kodu'), d.get('bolum') or 'kaynak', d.get('lokasyon') or 'TK2',
+         json.dumps(d, ensure_ascii=False), silen, sebep))
+    conn.execute('DELETE FROM referans_takip WHERE id=?', (takip_id,))
+    return cur.lastrowid
+
+
+def _panel_ad():
+    ku = panel_kullanici() or {}
+    return ku.get('ad_soyad') or ku.get('kullanici_adi') or ''
+
+
 @app.route('/api/referans_takip/<int:id>', methods=['DELETE'])
 @panel_gerekli(izin='is-yonetimi')
 def referans_takip_sil(id):
     conn = get_db()
-    conn.execute('DELETE FROM referans_takip WHERE id=?', (id,))
+    cop_id = _rt_cope_tasi(conn, id, 'elle', _panel_ad())
     conn.commit()
-    conn.close()
-    return jsonify({'basarili': True})
+    return jsonify({'basarili': True, 'cop_id': cop_id})
+
+
+@app.route('/api/referans_takip/silinenler', methods=['GET'])
+@panel_gerekli(izin='is-yonetimi')
+def referans_takip_silinenler():
+    """?bolum=&lokasyon= — son 30 günde silinen, geri alınmamış iş emirleri (yeniden eskiye)."""
+    conn = get_db()
+    _rt_cop_kur(conn)
+    sql = ("SELECT id, takip_id, referans_kodu, bolum, lokasyon, veri, silen, sebep, silinme_ts "
+           "FROM referans_takip_silinen WHERE geri_alma_ts IS NULL "
+           "AND silinme_ts >= datetime('now','localtime','-30 days')")
+    params = []
+    if request.args.get('bolum'):
+        sql += ' AND bolum = ?'
+        params.append(request.args.get('bolum'))
+    if request.args.get('lokasyon'):
+        sql += ' AND lokasyon = ?'
+        params.append(request.args.get('lokasyon'))
+    out = []
+    for r in conn.execute(sql + ' ORDER BY id DESC LIMIT 200', params).fetchall():
+        try:
+            v = json.loads(r['veri'] or '{}')
+        except ValueError:
+            v = {}
+        out.append({'id': r['id'], 'takip_id': r['takip_id'], 'referans_kodu': r['referans_kodu'],
+                    'silen': r['silen'], 'sebep': r['sebep'], 'silinme_ts': r['silinme_ts'],
+                    **{k: v.get(k) for k in ('hedef_adet', 'durum', 'aciklama', 'depo_notu', 'oncelik',
+                                             'robot_no', 'istasyon', 'olusturma_tarihi')}})
+    return jsonify(out)
+
+
+@app.route('/api/referans_takip/geri_al/<int:cop_id>', methods=['POST'])
+@panel_gerekli(izin='is-yonetimi')
+def referans_takip_geri_al(cop_id):
+    conn = get_db()
+    _rt_cop_kur(conn)
+    r = conn.execute('SELECT * FROM referans_takip_silinen WHERE id=?', (cop_id,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'Silinen kayıt bulunamadı'}), 404
+    if r['geri_alma_ts']:
+        return jsonify({'hata': f"Bu kayıt {r['geri_alma_ts']} tarihinde zaten geri alındı"}), 409
+    try:
+        d = json.loads(r['veri'] or '{}')
+    except ValueError:
+        return jsonify({'hata': 'Silinen kaydın verisi okunamadı'}), 500
+    kolonlar = {x[1] for x in conn.execute('PRAGMA table_info(referans_takip)')}
+    d = {k: v for k, v in d.items() if k in kolonlar}
+    if d.get('id') is not None and conn.execute('SELECT 1 FROM referans_takip WHERE id=?', (d['id'],)).fetchone():
+        d.pop('id')                       # (olmamalı) aynı id doluysa yeni id ile geri yaz
+    c = conn.cursor()
+    bolum, lok = d.get('bolum') or 'kaynak', d.get('lokasyon') or 'TK2'
+    if d.get('oncelik'):
+        d['oncelik'] = _oncelik_clamp(c, bolum, int(d['oncelik']), lokasyon=lok)
+        _oncelik_kaydir(c, bolum, None, d['oncelik'], lokasyon=lok)
+    d['guncelleme_tarihi'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    kol = list(d)
+    c.execute(f"INSERT INTO referans_takip ({','.join(kol)}) VALUES ({','.join('?' * len(kol))})",
+              [d[k] for k in kol])
+    c.execute("UPDATE referans_takip_silinen SET geri_alan=?, geri_alma_ts=datetime('now','localtime') WHERE id=?",
+              (_panel_ad(), cop_id))
+    conn.commit()
+    return jsonify({'basarili': True, 'id': d.get('id') or c.lastrowid, 'referans_kodu': d.get('referans_kodu'),
+                    'bolum': bolum, 'lokasyon': lok})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -13658,9 +13850,11 @@ def _is_emri_dus(conn, referans, adet, article=''):
         ek = '' if nasil == 'tam' else f", iş emri kodu '{satir['referans_kodu']}' ({nasil} eşleşme)"
         kalan = int(satir['hedef_adet']) - adet
         if kalan <= 3:
-            conn.execute("DELETE FROM referans_takip WHERE id=?", (satir['id'],))
+            # Çöpe taşınır: yanlış eşleşmeyle silinen iş emri panelde 'Silinenler'den geri alınır
+            _rt_cope_tasi(conn, satir['id'], 'teyit', f'AS400 teyidi ({referans} · {adet} ad)')
             conn.commit()
-            return f" · iş emri listeden SİLİNDİ ({satir['bolum']}, hedef {satir['hedef_adet']}, kalan {kalan}{ek})"
+            return (f" · iş emri listeden SİLİNDİ ({satir['bolum']}, hedef {satir['hedef_adet']}, kalan {kalan}{ek}"
+                    f" — İş Yönetimi > Silinenler'den geri alınabilir)")
         conn.execute(
             "UPDATE referans_takip SET hedef_adet=?, guncelleme_tarihi=datetime('now','localtime') WHERE id=?",
             (kalan, satir['id']))
