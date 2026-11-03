@@ -42,7 +42,7 @@ import os
 import re
 import threading
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 HAREKET_TABLO = 'tkc0301F.BMMAF0'
@@ -79,6 +79,10 @@ ANAVERI_BOLUM = {
 # Pandora / Pull tellerinin RPR-CFI'ı tedarikçinin işidir — TK1 Tel'e sayılsaydı teorik süresi TK1
 # çalışanlarının saatine bölünür, performansı şişirirdi. Ayrı satır, performansa girmez.
 FASON = 'fason'
+# RAPORA DAHİL EDİLMEYEN bölümler (kullanıcı 2026-11-03: "işleme ve fason kısımlarını bu rapora dahil
+# etmeyelim"): yalnız bunlarda tanımlı kodlar özete, tesis toplamına, performansa ve Forge
+# karşılaştırmasına girmez; kaç kod / adet olduğu notta yazar.
+RAPOR_DISI = ('isleme', FASON)
 
 
 def _w_teli(kod):
@@ -859,6 +863,169 @@ def _forge(conn):
     return out
 
 
+# ÇOK ADIMLI KAYNAK (kullanıcı 2026-11-03: "130.5422GRW'yi üretmek için 1. op kaynağını da yapıyoruz,
+# bu gibi ön işlem kaynakları da göz önünde bulundurmalıyız"). Bölüm Kapasitesi'nin kuralı
+# (bolum_kapasite._adimlari_topla, kullanıcı 2026-10-26): ara adım satırları ('KOD 1. op',
+# 'KOD 1.ist', 'KOD(hazırlık)') ERP teyidi ALMAZ; süreleri teyidi alan ANA kodun süresine EKLENİR
+# (ana kodun kendi süresi yoksa süre adımların toplamıdır). Önceden ana kodun kendi süresi doluysa
+# adımlar atlanıyordu (2757W-10: 116 sn sayılıyor, hazırlık 233 sn yoktu; 4415W: 120, op'lar 178 yok)
+# ve paranteze yazılmış adım ('…(hazırlık)') hiç bulunmuyordu.
+ADIM_BOLUMLERI = (('TK2', 'kaynak'),)
+
+
+def _adimlar(conn):
+    """{(tesis, bölüm): {ANA_KOD: [(adım adı, sn)]}} — referans_listesi'ndeki ara adım satırları."""
+    import bolum_kapasite as BK
+    out = {}
+    for kod, bolum, lok, ct in conn.execute(
+            "SELECT referans_kodu, COALESCE(bolum,'kaynak'), COALESCE(lokasyon,'TK2'), COALESCE(hedef_cycle_time_sn,0) "
+            "FROM referans_listesi"):
+        if (lok, bolum) not in ADIM_BOLUMLERI or not ct:
+            continue
+        m = BK.ADIM_DESENI.match(str(kod or '').strip())
+        if not m:
+            continue
+        ana, ad = m.group(1).upper(), m.group(2).strip()
+        if ana == _norm(kod) or any(x in ad.upper() for x in BK.HARIC_ADIM):
+            continue
+        out.setdefault((lok, bolum), {}).setdefault(ana, []).append((ad, float(ct)))
+    return out
+
+
+# ── FORGE KARŞILAŞTIRMASI (kullanıcı 2026-11-03) ──────────────────────────────────
+# "RPR / CFI'ı AS400'den, NçS'yi IK'dan alıyoruz. Karşılaştırma yapılabilmesi ve gerçek veriyi
+#  bilmek için aynı verileri Forge'a göre de hesaplayıp raporda görelim."
+#  · Adet: operatörlerin üretim kayıtları, BİTMİŞ ÜRÜN (haftalik_uretim kuralı — ara op, tamir /
+#    punta / rework, TK1 test cihazı sayılmaz; son op ana koda yazılır). TEL: her adım ayrı kayıt
+#    ('93.TK.464 KAPAMA') → kablo başına adım toplamlarının EN BÜYÜĞÜ (adım sayısı kadar katlanmasın).
+#  · Teorik süre: ERP tarafıyla AYNI birim süre (aynı ürüne aynı çarpan; fark yalnız adetten gelir).
+#  · Çalışma saati: vardiya giriş–çıkış; kişi-gün başına aralıkların BİRLEŞİMİ (aynı kişi iki robota
+#    paralel vardiya açabiliyor — toplanırsa saat ikiye katlanır), çay / yemek molası ve namaz
+#    düşülür (setup, fikstür, robot programı gibi planlı işler çalışma sayılır). Kişi = farklı operatör.
+FAALIYET = ('depo', 'kalite')
+
+
+def _ay_araligi(yil, ay):
+    bas = date(yil, ay, 1)
+    return bas, date(yil + (ay == 12), ay % 12 + 1, 1) - timedelta(days=1)
+
+
+# İŞLEM EKİ: operatör kodun yanına işlemi yazıyor — '10.130.5158 delme', '10.300.6342A(somun)',
+# '10.300.1845. Op.1', '10.300.2315.op.1', '93.TK.464 KAPAMA'. Aynı parça her işlemde AYRI kayıt;
+# toplanırsa işlem sayısı kadar katlanır (Eylül işleme: ERP 4.965 ↔ ham Forge 52.173).
+_OP_SONEK = re.compile(r'(?i)[\s.\-_]*(op[r]?t?\.?\s*\d+|\d+\s*\.?\s*(op[r]?t?|ist)\.?)\s*$')
+
+
+def _taban(kod):
+    """İşlem ekini atar: '10.300.1845. Op.1' → '10.300.1845', '10.300.6342A(somun)' → '10.300.6342A'."""
+    k = re.split(r'[\s(]', str(kod or '').strip(), maxsplit=1)[0]
+    return _OP_SONEK.sub('', k).rstrip('.-_ ') or str(kod or '').strip()
+
+
+def forge_uretim(conn, yil, ay):
+    """{(tesis, bölüm): {ANAHTAR: {'kod', 'adet', 'tur'}}} — Forge'un bitmiş ürün adedi. ANAHTAR nokta /
+    boşluk farkını yutar (haftalik_uretim.ref_anahtar: '10 300 0609' = '10.300.0609' = '10.3000609').
+    Kodun YALIN kaydı varsa adet odur (işlem ekli kayıtlar ara işlemdir, süresi birim süreye girer);
+    yalnız işlem ekli kayıt varsa her işlem aynı parçaları işlediği için EN BÜYÜĞÜ; tel'de kablonun
+    girdiği SON adım (kesim parça sayar — en büyük adım kesim olurdu)."""
+    import haftalik_uretim as HU
+    import tel_proses as TP
+    bas, bit = _ay_araligi(yil, ay)
+    gruplar = {}
+    for lok in ('TK2', 'TK1'):
+        for r in HU._kayitlar(conn, lok, bas, bit, FAALIYET)[0]:
+            ref, ok = r['referans'], r['ok'] or 0
+            taban = TP.tel_ek_ayikla(ref) if r['bolum'] == 'tel' else _taban(ref)
+            a = HU.ref_anahtar(taban)
+            g = gruplar.setdefault((lok, r['bolum'], a), {'kod': taban, 'yalin': None, 'islem': {}})
+            adim = TP.tel_koddan_adim(ref) if r['bolum'] == 'tel' else None
+            # Yalın kayıt: ekin hiçbiri yok ('10 300 0609' boşluklu yazımı nokta sayılır; parantez /
+            # boşluk sonrası ad / op eki = işlem kaydı — ref_anahtar parantezi yuttuğu için ayrıca bakılır)
+            temiz = HU._le.bosluk_nokta(ref) if HU._le else ref
+            if adim or re.search(r'[\s(]', temiz) or _OP_SONEK.search(temiz) or HU.ref_anahtar(ref) != a:
+                i = adim or ref.strip().upper()
+                g['islem'][i] = g['islem'].get(i, 0.0) + ok
+                continue
+            g['yalin'] = (g['yalin'] or 0.0) + ok
+            if temiz.count('.') > g['kod'].count('.'):    # noktalı yazım görünsün
+                g['kod'] = temiz
+    out = {}
+    for (lok, b, a), g in gruplar.items():
+        if g['yalin'] is not None:
+            adet, tur = g['yalin'], ''
+        elif b == 'tel':
+            son = max(g['islem'], key=lambda x: TP.TEL_ADIM_SIRA.get(x, 0))
+            adet, tur = g['islem'][son], f'son adım: {son}'
+        else:
+            adet, tur = max(g['islem'].values()), 'işlem kayıtlarının en büyüğü'
+        out.setdefault((lok, b), {})[a] = {'kod': g['kod'], 'adet': adet, 'tur': tur}
+    return out
+
+
+def _dakika(s):
+    m = re.match(r'^\s*(\d{1,2}):(\d{2})', str(s or ''))
+    return int(m.group(1)) * 60 + int(m.group(2)) if m else None
+
+
+def forge_calisma(conn, yil, ay):
+    """{(tesis, bölüm): {'saat', 'brut', 'mola', 'kisi', 'kisi_gun'}} — vardiyalardan."""
+    bas, bit = _ay_araligi(yil, ay)
+    bugun, simdi = date.today().isoformat(), datetime.now()
+    araliklar, vk = {}, {}
+    for vid, t, lok, b, op, bs, bt, dk in conn.execute(
+            "SELECT id, tarih, COALESCE(lokasyon,'TK2'), COALESCE(bolum,'kaynak'), COALESCE(operator_adi,''), "
+            "baslangic_saati, bitis_saati, COALESCE(toplam_sure_dk,0) FROM vardiyalar WHERE tarih BETWEEN ? AND ?",
+            (bas.isoformat(), bit.isoformat())):
+        if b in FAALIYET:
+            continue
+        s, e = _dakika(bs), _dakika(bt)
+        if s is None:
+            if not dk:
+                continue
+            s, e = 0, dk                       # saat yok: süre tek başına (birleşime giremez)
+        elif e is None:
+            e = (simdi.hour * 60 + simdi.minute) if t == bugun else s + (dk or 0)   # açık vardiya
+        elif e < s:
+            e += 1440                          # gece yarısını geçen vardiya
+        k = (lok, b, op.strip().upper(), t)
+        araliklar.setdefault(k, []).append((s, e))
+        vk[vid] = k
+    molalar = {}
+    for vid, sebep, ds, sdk in conn.execute(
+            "SELECT d.vardiya_id, d.durus_sebebi, d.baslangic_saati, COALESCE(d.sure_dk,0) FROM duruslar d "
+            "JOIN vardiyalar v ON v.id = d.vardiya_id WHERE v.tarih BETWEEN ? AND ? AND d.durus_tipi = 'planli'",
+            (bas.isoformat(), bit.isoformat())):
+        s = _kucuk(sebep)
+        k = vk.get(vid)
+        if not k or not ('mola' in s or 'namaz' in s):
+            continue
+        # Paralel vardiyaların otomatik molaları aynı saatte iki kez yazılır → (sebep, başlangıç) tekil
+        anahtar = (s, ds or f'v{vid}')
+        m = molalar.setdefault(k, {})
+        m[anahtar] = max(m.get(anahtar, 0.0), float(sdk or 0))
+    out = {}
+    for k, ar in araliklar.items():
+        ar.sort()
+        sure, son_s, son_e = 0.0, None, None
+        for s, e in ar:
+            if son_e is None or s > son_e:
+                if son_e is not None:
+                    sure += son_e - son_s
+                son_s, son_e = s, e
+            else:
+                son_e = max(son_e, e)
+        sure += (son_e - son_s) if son_e is not None else 0
+        mola = min(sum(molalar.get(k, {}).values()), sure)
+        o = out.setdefault((k[0], k[1]), {'brut': 0.0, 'mola': 0.0, 'kisi': set(), 'kisi_gun': 0})
+        o['brut'] += sure
+        o['mola'] += mola
+        o['kisi'].add(k[2])
+        o['kisi_gun'] += 1
+    return {k: {'saat': round((v['brut'] - v['mola']) / 60, 1), 'brut': round(v['brut'] / 60, 1),
+                'mola': round(v['mola'] / 60, 1), 'kisi': len(v['kisi']), 'kisi_gun': v['kisi_gun']}
+            for k, v in out.items()}
+
+
 def _sure_kaynaklari(conn):
     kap, rota, db = {}, {}, {}
     try:
@@ -887,6 +1054,7 @@ def rapor(conn, yil, ay):
     if not veri:
         return None
     forge = _forge(conn)
+    adimlar = _adimlar(conn)
     kap, rota, kdb = _sure_kaynaklari(conn)
     ana = AV.haritasi(conn)
     # Teller (93.*): önce Ana Veri'nin tel satırları (yüklendiyse), yoksa planlamanın Anaveri'si
@@ -894,6 +1062,44 @@ def rapor(conn, yil, ay):
     kurallar = haric_kurallari(conn)
     acik = veri.get('aciklama') or {}
     cop_okundu = 'COP' in (veri.get('causallar') or [])
+
+    def forge_sn_bul(n, kod, tesis, b):
+        """Ana Veri / Forge birim süresi (çok adımlı kaynakta ara adımlar eklenmiş) + adım notu."""
+        tam, kok = forge[tesis]
+        t = (tam.get(n) or {}).get(b, 0.0)
+        # Tel: ERP kodu köktür, Forge'da adım ekli satırlar (KESIM, KAPAMA…) — süre kökte TOPLANIR;
+        # eksiz satır süresizse kökün toplamı kullanılır.
+        fsn = t if t > 0 else (kok.get(_kok(kod)) or {}).get(b, 0.0)
+        ad = adimlar.get((tesis, b), {}).get(n)
+        if not ad:
+            return fsn, None
+        return t + sum(x for _, x in ad), ' + '.join(([f'ana kod {t:g}'] if t else []) + [f'{a} {x:g}' for a, x in ad])
+
+    def sure_sec(n, kod, tesis, b, forge_sn):
+        """Birim süre → (sn, kaynak). ÖNCE ANA VERİ (kullanıcı 2026-10-13: "önce Ana Veri, yoksa
+        planlama süresi"): TK2'de Forge süresi = Ana Veri'nin çevrim/kaynak süresi → varsa o; yoksa
+        planlamanın kapasite süresi, o da yoksa ERP rotası. TK1 Ana Veri'de DEĞİL: orada planlama
+        süresi önce kalır (tel süreleri Forge'da adım bazlı, kök toplamı eksik olur)."""
+        if b == FASON:
+            return 0.0, ''
+        k = kap.get((n, tesis, b)) or kap.get((_kok(kod), tesis, b))
+        ks = (kdb.get(n) or {}).get('saatlik')
+        if (tesis == 'TK2' or b in SURE_EXCEL_DISI) and forge_sn > 0:
+            k, ks = None, None
+        if k:
+            return k, 'kapasite Excel'
+        if ks:
+            return 3600.0 / ks, 'kapasite Excel'
+        if forge_sn > 0:
+            return forge_sn, 'Ana Veri' if tesis == 'TK2' else 'Forge'
+        if rota.get((n, b)):
+            return rota[(n, b)], 'ERP rota'
+        return 0.0, ''
+
+    # FORGE KARŞILAŞTIRMASI (2026-11-03): aynı ay, Forge'un kendi kayıtlarından (bkz. forge_uretim)
+    import haftalik_uretim as HU
+    f_uretim = forge_uretim(conn, yil, ay)
+    erp_gorulen = set()
     # Kod × tesis birleştir (causal ayrı tutulur)
     kodlar = {}
     depo_ozet = {}
@@ -922,11 +1128,12 @@ def rapor(conn, yil, ay):
         if len(uretim) == 1:
             kodlar[uretim[0]]['COP'] += d['COP']
             del kodlar[(n, tesis)]
-    bolumler, tanimsiz, hammadde, haric, tesis_top = {}, [], [], [], {}
+    bolumler, tanimsiz, hammadde, haric, tesis_top, rapor_disi = {}, [], [], [], {}, {}
     for (n, tesis), d in kodlar.items():
         adet = d['RPR'] + d['CFI']
         cop = d['COP']
         sayilir = 1 if adet > 0 else 0      # ay içinde üretimi olmayan (yalnız COP) kod sayılmaz
+        fa = HU.ref_anahtar(d['kod'])       # Forge eşleşmesi: nokta / boşluk farkı yutulur
         satir = {'kod': d['kod'], 'aciklama': _temiz(acik.get(d['kod'], '')), 'tesis': tesis, 'rpr': round(d['RPR'], 2),
                  'cfi': round(d['CFI'], 2), 'adet': round(adet, 2), 'cop': round(cop, 2),
                  'depolar': ' '.join(f'{k or "?"}:{v:g}' for k, v in d['depolar'].items())}
@@ -938,7 +1145,7 @@ def rapor(conn, yil, ay):
             hammadde.append(satir)
             continue
         # Bölüm: Pull/Pandora fason → Forge (bu tesiste) → kapasite Database → Anaveri → tanımsız
-        hedef, kaynak = {}, ''
+        hedef, kaynak, adim_notu = {}, '', {}
         a_kod = ((tel.get(n) or (tel.get(n[:-1]) if n.endswith('W') else None)) if n.startswith('93.') else None) \
             or ana.get(n) or (ana.get(n[:-1]) if n.endswith('W') else None)
         if _fason_mi(a_kod, True) or _w_teli(n):
@@ -950,8 +1157,10 @@ def rapor(conn, yil, ay):
             t_h, k_h = tam.get(n), kok.get(_kok(d['kod'])) or {}
             # Tel: ERP kodu köktür, Forge'da adım ekli satırlar (KESIM, KAPAMA…) — süre kökte
             # TOPLANIR; eksiz satır süresizse kökün toplamı kullanılır.
-            hedef = ({b: (sn if sn > 0 else k_h.get(b, 0.0)) for b, sn in t_h.items()} if t_h else dict(k_h))
+            hedef = dict.fromkeys(t_h or k_h)
             kaynak = 'forge' if hedef else ''
+            for b in hedef:          # çok adımlı kaynakta ana kod + ara adımlar (bkz. _adimlar)
+                hedef[b], adim_notu[b] = forge_sn_bul(n, d['kod'], tesis, b)
         if not hedef:
             # Kapasite Excel'i Database hattı (planlamanın sınıflaması) — tesis uyuşuyorsa
             m = CALISMA_BOLUM.get((kdb.get(n) or {}).get('hat', ''))
@@ -973,35 +1182,25 @@ def rapor(conn, yil, ay):
             satir['anaveri'] = f"{a['tk']} / {a['hat']}" if a else ''
             tanimsiz.append(satir)
             continue
+        # İşleme + fason rapora dahil DEĞİL (kullanıcı 2026-11-03): kod başka bir bölümde de tanımlıysa
+        # orada sayılmaya devam eder; yalnız bunlardaysa özete / tesis toplamına / performansa girmez.
+        disari = [b for b in hedef if b in RAPOR_DISI]
+        if disari:
+            hedef = {b: v for b, v in hedef.items() if b not in RAPOR_DISI}
+            if not hedef:               # yalnız işleme / fason kodu: tamamen dışarıda (notta sayılır)
+                x = rapor_disi.setdefault(disari[0], {'bolum': BOLUM_AD.get(disari[0], disari[0]), 'kod': 0, 'adet': 0.0})
+                x['kod'] += sayilir
+                x['adet'] += adet
+                continue
         t = tesis_top.setdefault(tesis, {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'cop': 0.0})
-        if FASON in hedef:          # tedarikçinin işi tesis üretimine sayılmaz
-            t = {'adet': 0.0, 'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'cop': 0.0}
         t['adet'] += adet
         t['kod'] += sayilir
         t['rpr'] += d['RPR']
         t['cfi'] += d['CFI']
         t['cop'] += cop
         for b, forge_sn in hedef.items():
-            k = kap.get((n, tesis, b)) or kap.get((_kok(d['kod']), tesis, b))
-            ks = (kdb.get(n) or {}).get('saatlik')
-            # ÖNCE ANA VERİ (kullanıcı 2026-10-13: "önce Ana Veri, yoksa planlama süresi"):
-            # TK2'de Forge süresi = Ana Veri'nin çevrim/kaynak süresi → varsa o; yoksa planlamanın
-            # kapasite süresi, o da yoksa ERP rotası. TK1 Ana Veri'de DEĞİL: orada planlama
-            # süresi önce kalır (tel süreleri Forge'da adım bazlı, kök toplamı eksik olur).
-            if (tesis == 'TK2' or b in SURE_EXCEL_DISI) and forge_sn > 0:
-                k, ks = None, None
-            if b == FASON:
-                k, ks, forge_sn = None, None, 0.0
-            if k:
-                sn, sk = k, 'kapasite Excel'
-            elif ks:
-                sn, sk = 3600.0 / ks, 'kapasite Excel'
-            elif forge_sn > 0:
-                sn, sk = forge_sn, 'Ana Veri' if tesis == 'TK2' else 'Forge'
-            elif rota.get((n, b)):
-                sn, sk = rota[(n, b)], 'ERP rota'
-            else:
-                sn, sk = 0.0, ''
+            sn, sk = sure_sec(n, d['kod'], tesis, b, forge_sn or 0.0)
+            erp_gorulen.add((tesis, b, fa))
             bl = bolumler.setdefault((tesis, b), {'tesis': tesis, 'bolum': b, 'ad': BOLUM_AD.get(b, b), 'adet': 0.0,
                                                   'kod': 0, 'rpr': 0.0, 'cfi': 0.0, 'cop': 0.0, 'teorik_sn': 0.0,
                                                   'sureli_adet': 0.0, 'satirlar': []})
@@ -1014,13 +1213,36 @@ def rapor(conn, yil, ay):
                 bl['teorik_sn'] += adet * sn
                 bl['sureli_adet'] += adet
             bl['satirlar'].append(dict(satir, sure_sn=round(sn, 2) if sn else None, sure_kaynak=sk,
+                                       sure_adim=adim_notu.get(b) if sk in ('Ana Veri', 'Forge') else None,
                                        teorik_saat=round(adet * sn / 3600, 2) if sn and adet > 0 else None,
-                                       sinif=kaynak, cok_bolum=len(hedef) > 1))
+                                       sinif=kaynak, cok_bolum=len(hedef) > 1,
+                                       forge_adet=round(((f_uretim.get((tesis, b)) or {}).get(fa) or {}).get('adet') or 0, 2)))
     calisma, disarida, calisma_bilgi = calisma_haritasi(conn, yil, ay)
+    # Forge tarafı: aynı hariç tutma + aynı birim süre; ERP'de bu bölümde olmayan kodlar ayrıca listelenir
+    f_saat = forge_calisma(conn, yil, ay)
+    f_ozet = {}
+    for (tesis, b), kf in f_uretim.items():
+        o = f_ozet.setdefault((tesis, b), {'adet': 0.0, 'kod': 0, 'teorik_sn': 0.0, 'sureli_adet': 0.0, 'yalniz': []})
+        for fa, x in kf.items():
+            n = _norm(x['kod'])
+            if x['adet'] <= 0 or _haric_bul(n, kurallar) or n.startswith(HAMMADDE_ONEK):
+                continue
+            sn, sk = sure_sec(n, x['kod'], tesis, b, forge_sn_bul(n, x['kod'], tesis, b)[0])
+            o['adet'] += x['adet']
+            o['kod'] += 1
+            if sn > 0:
+                o['teorik_sn'] += x['adet'] * sn
+                o['sureli_adet'] += x['adet']
+            if (tesis, b, fa) not in erp_gorulen:
+                o['yalniz'].append({'kod': x['kod'], 'adet': round(x['adet'], 2), 'sure_sn': round(sn, 2) if sn else None,
+                                    'sure_kaynak': sk, 'teorik_saat': round(x['adet'] * sn / 3600, 2) if sn else None,
+                                    'tur': x['tur']})
+    f_tesis = {}
     ozet = []
     for tesis in ('TK2', 'TK1'):
         sira = BOLUM_SIRA.get(tesis, ())
-        anahtarlar = sorted({b for (t, b) in bolumler if t == tesis} | {b for (t, b) in calisma if t == tesis},
+        anahtarlar = sorted(({b for (t, b) in bolumler if t == tesis} | {b for (t, b) in calisma if t == tesis} |
+                             {b for (t, b) in set(f_ozet) | set(f_saat) if t == tesis and b in sira}) - set(RAPOR_DISI),
                             key=lambda b: (sira.index(b) if b in sira else 99, b))
         for b in anahtarlar:
             bl = bolumler.get((tesis, b)) or {'tesis': tesis, 'bolum': b, 'ad': BOLUM_AD.get(b, b), 'adet': 0.0,
@@ -1031,6 +1253,21 @@ def rapor(conn, yil, ay):
             top = nos + mesai
             teorik = bl['teorik_sn'] / 3600
             fsn = b == FASON
+            fo, fs = f_ozet.get((tesis, b)) or {}, f_saat.get((tesis, b)) or {}
+            f_teorik = (fo.get('teorik_sn') or 0.0) / 3600
+            forge_o = None if fsn else {
+                'adet': round(fo.get('adet', 0.0), 2), 'kod': fo.get('kod', 0), 'teorik_saat': round(f_teorik, 1),
+                'sure_kapsami': round(fo['sureli_adet'] / fo['adet'], 3) if fo.get('adet') else None,
+                'calisma': fs.get('saat', 0.0), 'brut': fs.get('brut', 0.0), 'mola': fs.get('mola', 0.0),
+                'kisi': fs.get('kisi', 0), 'kisi_gun': fs.get('kisi_gun', 0),
+                'performans': round(f_teorik / fs['saat'], 3) if fs.get('saat') else None,
+                'yalniz_sayi': len(fo.get('yalniz', [])), 'yalniz_adet': round(sum(x['adet'] for x in fo.get('yalniz', [])), 2)}
+            if forge_o:
+                ft = f_tesis.setdefault(tesis, {'adet': 0.0, 'teorik_saat': 0.0, 'calisma': 0.0, 'kisi': 0})
+                ft['adet'] += forge_o['adet']
+                ft['teorik_saat'] += forge_o['teorik_saat']
+                ft['calisma'] += forge_o['calisma']
+                ft['kisi'] += forge_o['kisi']
             ozet.append({'fason': fsn, 'tesis': tesis, 'bolum': b, 'ad': bl['ad'], 'adet': round(bl['adet'], 2), 'kod': bl['kod'],
                          'rpr': round(bl['rpr'], 2), 'cfi': round(bl['cfi'], 2),
                          'cop': round(bl['cop'], 2) if cop_okundu else None,
@@ -1041,7 +1278,13 @@ def rapor(conn, yil, ay):
                          'kisi': c.get('kisi', 0), 'calisma_excel': c.get('excel', []),
                          'performans': round(teorik / top, 3) if top else None,
                          'performans_nos': round(teorik / nos, 3) if nos else None,
+                         'forge': forge_o,
+                         'forge_yalniz': sorted(fo.get('yalniz', []), key=lambda x: -x['adet'])[:300],
                          'satirlar': sorted(bl['satirlar'], key=lambda s: -s['adet'])})
+    for ft in f_tesis.values():
+        ft['performans'] = round(ft['teorik_saat'] / ft['calisma'], 3) if ft['calisma'] else None
+        for k in ('adet', 'teorik_saat', 'calisma'):
+            ft[k] = round(ft[k], 1)
     for t in tesis_top.values():
         t['fire'] = round(t['cop'] / t['adet'], 4) if cop_okundu and t['adet'] else None
         for k in ('adet', 'rpr', 'cfi', 'cop'):
@@ -1060,14 +1303,15 @@ def rapor(conn, yil, ay):
                       for k in kurallar]
     return {'yil': yil, 'ay': ay, 'ay_ad': f'{AY_AD[ay]} {yil}', 'olcum': veri['ts'], 'olcan': veri.get('_kullanici', ''),
             'devam_eden': (yil, ay) == (date.today().year, date.today().month),
-            'ozet': ozet, 'tesis': tesis_top, 'tanimsiz': tanimsiz, 'hammadde': hammadde, 'cop_okundu': cop_okundu,
+            'ozet': ozet, 'tesis': tesis_top, 'forge_tesis': f_tesis, 'tanimsiz': tanimsiz, 'hammadde': hammadde, 'cop_okundu': cop_okundu,
             'depolar': sorted(({**o, 'kod': len(o['kod']), 'RPR': round(o['RPR'], 2), 'CFI': round(o['CFI'], 2),
                                 'COP': round(o['COP'], 2)}
                                for o in depo_ozet.values()), key=lambda o: -(o['RPR'] + o['CFI'])),
             'calisma_disarida': disarida, 'calisma_bilgi': calisma_bilgi,
             'tanimsiz_adet': round(sum(s['adet'] for s in tanimsiz), 2),
             'hammadde_adet': round(sum(s['adet'] for s in hammadde), 2),
-            'haric': haric, 'haric_adet': round(sum(s['adet'] for s in haric), 2), 'haric_kurallar': haric_kurallar}
+            'haric': haric, 'haric_adet': round(sum(s['adet'] for s in haric), 2), 'haric_kurallar': haric_kurallar,
+            'rapor_disi': [dict(x, adet=round(x['adet'], 2)) for x in rapor_disi.values()]}
 
 
 # ── EXCEL (yöneticiyle paylaşılacak) ─────────────────────────────────────────
@@ -1151,6 +1395,8 @@ def excel(r):
         "• Bir kod tesisinde birden çok bölümde tanımlıysa (ör. kaynak + montaj) her bölümün işine sayılır; tesis toplamı kodu bir kez sayar.",
         '• Teorik süre = adet × birim süre. Birim süre önceliği: kapasite Excel\'i (Database saatlik adet) → Forge çevrim süresi (tel: adımların toplamı) → ERP rota süresi. '
         '"Süre kapsamı" = birim süresi bilinen adetin payı; süresiz kodlar teorik süreye girmez.',
+        "• Çok adımlı kaynak: ara operasyonlar ('KOD 1. op', 'KOD(hazırlık)') teyit almaz; süreleri teyidi alan ana kodun "
+        "birim süresine eklenir (Bölüm Kapasitesi ile aynı kural) — 'Süre kaynağı'nda adım dökümü.",
         '• Performans = teorik süre ÷ toplam çalışma saati (NçS + mesai). Son sütun, eski planlama tablosu gibi yalnız NçS\'ye böler.',
         f"• Tanımsız (Forge'da ve Anaveri'de bölümü olmayan) kodlar: {len(r['tanimsiz'])} kod, {r['tanimsiz_adet']:,.0f} adet — "
         "'Tanımsız kodlar' sayfası; özete girmez.",
@@ -1158,8 +1404,11 @@ def excel(r):
         ("• COP (hurda): ayın COP hareketleri, kodun üretimiyle aynı bölüme yazılır; üretilen adede girmez. "
          "Fire % = COP ÷ üretilen adet (RPR + CFI)." if r.get('cop_okundu') else
          "• COP (hurda): bu okuma COP hareketlerini içermiyor — panelden 'AS400'den hazırla' ile yeniden okuyun."),
+        "• İşleme ve fason rapora dahil değil: " + (', '.join(f"{x['bolum']} {x['kod']} kod · {x['adet']:,.0f} adet"
+                                                              for x in r.get('rapor_disi') or []) or 'bu ay kod yok') +
+        " (yalnız bu bölümlerde tanımlı kodlar; başka bölümde de tanımlı kod orada sayılır).",
         "• Fason (tedarikçi): Pandora / Pull telleri (Makine 'Pandora'), kodu W ile biten teller ve Anaveri'de 'Fason' işaretli kodlar "
-        "(Forge'da tanımı yoksa) — tesis toplamına ve performansa girmez.",
+        "(Forge'da tanımı yoksa) — rapora dahil edilmez.",
         f"• Rapordan hariç tutulan ({', '.join(k['desen'] + ('…' if k['tur'] == 'onek' else '') for k in r.get('haric_kurallar') or []) or 'kural yok'}): "
         f"{len(r.get('haric') or [])} kod, {r.get('haric_adet') or 0:,.0f} adet — 'Hariç tutulan' sayfası; hiçbir toplama ve performansa girmez.",
     ]
@@ -1184,19 +1433,56 @@ def excel(r):
                    else f"teorik {o['teorik_saat']:,.1f} saat")])
         w['A1'].font = Font(bold=True, size=12)
         b2 = ['Kod', 'Açıklama', 'RPR', 'CFI', 'Toplam adet', 'COP (hurda)', 'Birim süre (sn)', 'Süre kaynağı',
-              'Teorik süre (saat)', 'Sınıflama', 'Depo', 'Not']
+              'Teorik süre (saat)', 'Sınıflama', 'Depo', 'Not', 'Forge adet']
         w.append(b2)
         for i in range(1, len(b2) + 1):
             c = w.cell(row=2, column=i)
             c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
         for s in o['satirlar']:
             w.append([s['kod'], s['aciklama'], s['rpr'] or None, s['cfi'] or None, s['adet'], s.get('cop') or None,
-                      s['sure_sn'], s['sure_kaynak'], s['teorik_saat'], {'forge': 'Forge', 'anaveri': 'Anaveri'}.get(s['sinif'], s['sinif']),
-                      s['depolar'], 'birden çok bölümde tanımlı' if s['cok_bolum'] else ''])
-        for i, wd in enumerate([18, 34, 10, 10, 12, 11, 12, 14, 13, 10, 18, 22], start=1):
+                      s['sure_sn'], s['sure_kaynak'] + (f" ({s['sure_adim']})" if s.get('sure_adim') else ''),
+                      s['teorik_saat'], {'forge': 'Forge', 'anaveri': 'Anaveri'}.get(s['sinif'], s['sinif']),
+                      s['depolar'], 'birden çok bölümde tanımlı' if s['cok_bolum'] else '', s.get('forge_adet') or None])
+        for x in o.get('forge_yalniz') or []:
+            w.append([x['kod'], '', None, None, None, None, x['sure_sn'], x['sure_kaynak'], None, '', '',
+                      "yalnız Forge'da (ERP'de bu bölümde teyit yok)", x['adet']])
+        for i, wd in enumerate([18, 34, 10, 10, 12, 11, 12, 14, 13, 10, 18, 22, 11], start=1):
             w.column_dimensions[get_column_letter(i)].width = wd
         w.freeze_panes = 'B3'
-        w.auto_filter.ref = f'A2:L{w.max_row}'
+        w.auto_filter.ref = f'A2:M{w.max_row}'
+    # FORGE KARŞILAŞTIRMASI (2026-11-03)
+    w = wb.create_sheet('Forge karşılaştırma')
+    w.append([f"ERP / IK ↔ Forge — {r['ay_ad']}: adet (teyitli ↔ Forge bitmiş ürün), çalışma saati (IK ↔ vardiya), performans"])
+    w['A1'].font = Font(bold=True, size=12)
+    bas = ['Tesis', 'Bölüm', 'Adet ERP', 'Adet Forge', 'Fark (Forge − ERP)', 'Teorik saat ERP', 'Teorik saat Forge',
+           'Çalışma IK (NçS+mesai)', 'Çalışma Forge (vardiya − mola)', 'Forge mola', 'Kişi IK', 'Kişi Forge',
+           'Performans ERP ÷ IK', 'Performans Forge ÷ Forge', "Yalnız Forge'da kod", "Yalnız Forge'da adet"]
+    w.append(bas)
+    for i in range(1, len(bas) + 1):
+        c = w.cell(row=2, column=i)
+        c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
+        c.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
+    for o in r['ozet']:
+        f = o.get('forge')
+        if not f:
+            continue
+        w.append([o['tesis'], o['ad'], o['adet'], f['adet'], round(f['adet'] - o['adet'], 2), o['teorik_saat'], f['teorik_saat'],
+                  o['calisma'] or None, f['calisma'] or None, f['mola'] or None, o['kisi'] or None, f['kisi'] or None,
+                  o['performans'], f['performans'], f['yalniz_sayi'] or None, f['yalniz_adet'] or None])
+        for col in (13, 14):
+            w.cell(row=w.max_row, column=col).number_format = '0%'
+    w.append([])
+    for x in ['Forge adet: operatörlerin üretim kayıtları, bitmiş ürün — ara operasyon, tamir / punta / rework, TK1 test cihazı '
+              've işlem eki taşıyan (delme, zımpara, somun…) kayıtlar ayrıca sayılmaz; yalnız işlem kaydı olan parçada en büyük '
+              'işlem, tel\'de kablonun son adımı. İşleme ve fason rapora dahil değil.',
+              'Teorik saat: iki tarafta da aynı birim süre — fark yalnız adetten gelir.',
+              'Forge çalışma: vardiya giriş–çıkış, kişi-gün başına birleşim (paralel vardiya çift sayılmaz), çay / yemek molası '
+              've namaz düşülmüş; setup / fikstür gibi planlı işler çalışma sayılır.']:
+        w.append([x])
+    for i, wd in enumerate([7, 22, 11, 11, 13, 12, 12, 14, 16, 10, 8, 9, 13, 14, 12, 12], start=1):
+        w.column_dimensions[get_column_letter(i)].width = wd
+    w.row_dimensions[2].height = 44
+    w.freeze_panes = 'C3'
     # Tanımsız + hammadde + depo + çalışma saati
     for baslik, liste, kol, kol_bas in (('Tanımsız kodlar', r['tanimsiz'], 'anaveri', 'Anaveri (TK-1/2 / Hat)'),
                                         ('Hariç tutulan', r.get('haric') or [], 'kural', 'Kural'),

@@ -13905,6 +13905,9 @@ window.__I18N_SOZLUK__ = {
                       (yuklu ? ' (Saat yüklü aylar: ' + esc(yuklu) + ')' : '') + '</span>') +
                 '<br>🧾 Bölümü belirsiz: ' + fmt(r.tanimsiz_sayi || 0) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet (özete girmez) · hammadde (20.* / 21.*): ' + fmt(r.hammadde_adet) + ' — adet toplamına girmez' +
                 (r.haric_sayi ? '<br>🚫 Rapordan hariç tutulan: ' + fmt(r.haric_sayi) + ' kod · ' + fmt(r.haric_adet) + ' adet — hiçbir toplama ve performansa girmez' : '') +
+                // İşleme + fason rapora dahil değil (kullanıcı 2026-11-03)
+                ((r.rapor_disi || []).length ? '<br>⛔ Rapora dahil edilmeyen bölümler: ' + r.rapor_disi.map(function (x) { return esc(x.bolum) + ' ' + fmt(x.kod) + ' kod · ' + fmt(Math.round(x.adet)) + ' adet'; }).join(' · ') +
+                    ' <span style="color:var(--dim)">(başka bölümde de tanımlı kod orada sayılır)</span>' : '') +
                 // FİRE (kullanıcı 2026-10-12): COP ÷ üretilen, tesis bazında
                 (r.cop_okundu
                     ? '<br>♻ Fire (COP ÷ üretilen): ' + ['TK2', 'TK1'].filter(function (t) { return (r.tesis || {})[t]; }).map(function (t) {
@@ -13933,28 +13936,88 @@ window.__I18N_SOZLUK__ = {
                         '<td>' + auSayi(o.teorik_saat, 10) + '</td><td>' + auYuzde(o.sure_kapsami) + '</td>' +
                         '<td>' + bos(o.nos) + '</td><td>' + bos(o.mesai) + '</td><td>' + bos(o.calisma) + '</td><td>' + (o.kisi || '') + '</td><td>' + perf + '</td></tr>';
                     if (_au.acik[i]) {
-                        govde += '<tr class="au-acik"><td colspan="15"><table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th>RPR</th><th>CFI</th><th>Adet</th><th>COP</th><th>Birim sn</th><th class="sol">Süre kaynağı</th><th>Teorik saat</th><th></th></tr>' +
+                        govde += '<tr class="au-acik"><td colspan="15"><table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th>RPR</th><th>CFI</th><th>Adet</th>' +
+                            '<th title="Aynı kodun Forge\'daki bitmiş ürün kaydı (ara işlem / tamir / rework hariç)">Forge</th><th>COP</th><th>Birim sn</th><th class="sol">Süre kaynağı</th><th>Teorik saat</th><th></th></tr>' +
                             (o.satirlar || []).map(function (s) {
+                                // Forge ↔ ERP farkı %10'dan büyükse renkli (ERP'den az → kırmızı, fazla → mavi)
+                                var fk = (s.forge_adet || 0) - (s.adet || 0), fr = s.adet ? Math.abs(fk) / s.adet : (s.forge_adet ? 1 : 0);
+                                var frenk = fr > 0.1 ? (fk < 0 ? 'var(--danger)' : '#0284C7') : 'inherit';
                                 return '<tr><td class="sol"><b>' + esc(s.kod) + '</b>' + (s.cok_bolum ? ' <span title="Birden çok bölümde tanımlı" style="color:var(--dim)">⇄</span>' : '') + '</td><td class="sol">' + esc(s.aciklama || '') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) +
-                                    '</td><td>' + (s.cop ? auSayi(s.cop) : '') + '</td><td>' + auSayi(s.sure_sn, 10) + '</td><td class="sol">' + esc(s.sure_kaynak || '—') + '</td><td>' + auSayi(s.teorik_saat, 10) + '</td>' +
+                                    '</td><td style="color:' + frenk + '">' + (s.forge_adet ? auSayi(s.forge_adet) : '—') + '</td>' +
+                                    '<td>' + (s.cop ? auSayi(s.cop) : '') + '</td><td>' + auSayi(s.sure_sn, 10) + '</td><td class="sol">' + esc(s.sure_kaynak || '—') +
+                                    // Çok adımlı kaynak (2026-11-03): ana kod + ara op / hazırlık dökümü
+                                    (s.sure_adim ? '<div style="color:var(--muted);font-size:.72rem" title="Ara operasyonlar teyit almaz; süreleri ana kodun birim süresine eklenir">= ' + esc(s.sure_adim) + '</div>' : '') +
+                                    '</td><td>' + auSayi(s.teorik_saat, 10) + '</td>' +
                                     '<td>' + auCikarBtn(s) + '</td></tr>';
+                            }).join('') +
+                            // Forge'da üretilmiş ama ERP'de bu bölümde teyidi olmayan kodlar (2026-11-03)
+                            (o.forge_yalniz || []).map(function (x) {
+                                return '<tr style="color:var(--muted)"><td class="sol"><b>' + esc(x.kod) + '</b></td><td class="sol"><i>yalnız Forge\'da — ERP\'de bu bölümde teyit yok</i>' +
+                                    (x.tur ? ' <span style="font-size:.72rem">(' + esc(x.tur) + ')</span>' : '') + '</td><td></td><td></td><td></td><td style="color:#0284C7">' + auSayi(x.adet) +
+                                    '</td><td></td><td>' + auSayi(x.sure_sn, 10) + '</td><td class="sol">' + esc(x.sure_kaynak || '—') + '</td><td>' + auSayi(x.teorik_saat, 10) + '</td><td></td></tr>';
                             }).join('') + '</table>' + (o.satir_sayisi > (o.satirlar || []).length ? '<div style="color:var(--muted)">İlk ' + o.satirlar.length + ' kod — tamamı Excel\'de.</div>' : '') + '</td></tr>';
                     }
                 });
                 var tt = (r.tesis || {})[t] || {};
                 var tp = top.cal ? top.teorik / top.cal : null;
                 var bs = function (v) { return v ? auSayi(v, 10) : ''; };
-                govde += '<tr class="au-toplam"><td class="sol">' + t + '</td><td class="sol">TOPLAM <span style="font-weight:400;color:var(--muted)">(kod tekil, fason hariç)</span></td><td>' + auSayi(tt.adet) + '</td><td>' + (tt.kod || '') +
+                govde += '<tr class="au-toplam"><td class="sol">' + t + '</td><td class="sol">TOPLAM <span style="font-weight:400;color:var(--muted)">(kod tekil)</span></td><td>' + auSayi(tt.adet) + '</td><td>' + (tt.kod || '') +
                     '</td><td>' + auSayi(tt.rpr) + '</td><td>' + auSayi(tt.cfi) + '</td><td>' + auSayi(tt.cop) + '</td><td>' + auFire(tt.fire) + '</td><td>' + auSayi(top.teorik, 10) + '</td><td></td><td>' + bs(top.nos) + '</td><td>' + bs(top.mesai) + '</td><td>' + bs(top.cal) +
                     '</td><td>' + (top.kisi || '') + '</td><td>' + (tp === null ? '' : '<span class="au-perf ' + (tp >= 0.9 ? 'iyi' : 'dusuk') + '">' + auYuzde(tp) + '</span>') + '</td></tr>';
             });
-            el.innerHTML = govde ? '<table class="au-tablo"><thead>' + bas + '</thead><tbody>' + govde + '</tbody></table>' : '<span style="color:var(--muted)">Bu ay teyitli üretim yok.</span>';
+            el.innerHTML = (govde ? '<table class="au-tablo"><thead>' + bas + '</thead><tbody>' + govde + '</tbody></table>' : '<span style="color:var(--muted)">Bu ay teyitli üretim yok.</span>') +
+                auForgeKarsilastirma(r);
             var tn = r.tanimsiz || [];
             document.getElementById('au-tanimsiz-bilgi').textContent = fmt(r.tanimsiz_sayi || tn.length) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet — Forge\'da ve Anaveri\'de bölümü yok';
             document.getElementById('au-tanimsiz').innerHTML = tn.length
                 ? '<table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th class="sol">Tesis</th><th>RPR</th><th>CFI</th><th>Adet</th><th>COP</th><th class="sol">Anaveri</th><th></th></tr>' +
                   tn.map(function (s) { return '<tr><td class="sol"><b>' + esc(s.kod) + '</b></td><td class="sol">' + esc(s.aciklama || '') + '</td><td class="sol">' + esc(s.tesis || '?') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) + '</td><td>' + (s.cop ? auSayi(s.cop) : '') + '</td><td class="sol">' + esc(s.anaveri || '') + '</td><td>' + auCikarBtn(s) + '</td></tr>'; }).join('') + '</table>'
                 : '<span style="color:var(--success)">Tüm kodların bölümü belli.</span>';
+        }
+        // ══ ERP / IK ↔ FORGE KARŞILAŞTIRMASI (kullanıcı 2026-11-03) ══
+        // "RPR / CFI'ı AS400'den, NçS'yi IK'dan alıyoruz; aynı verileri Forge'a göre de hesaplayıp görelim."
+        // Birim süre iki tarafta AYNI (fark adetten); Forge çalışma = vardiya (kişi-gün birleşimi) − mola.
+        function auForgeKarsilastirma(r) {
+            var oz = (r.ozet || []).filter(function (o) { return o.forge; });
+            if (!oz.length) return '';
+            var perf = function (v) { return v === null || v === undefined ? '—' : '<span class="au-perf ' + (v >= 0.9 ? 'iyi' : 'dusuk') + '">' + auYuzde(v) + '</span>'; };
+            var bs = function (v) { return v ? auSayi(v, 10) : '—'; };
+            var fark = function (f, e) {
+                var d = (f || 0) - (e || 0);
+                if (!e && !f) return '';
+                var p = e ? Math.round(d / e * 100) : null;
+                return '<span style="color:' + (Math.abs(d) < 0.5 ? 'var(--muted)' : (d < 0 ? 'var(--danger)' : '#0284C7')) + '">' + (d > 0 ? '+' : '') + auSayi(d) +
+                    (p !== null && d ? ' <span style="font-size:.72rem">(' + (p > 0 ? '+' : '') + p + '%)</span>' : '') + '</span>';
+            };
+            var govde = '';
+            ['TK2', 'TK1'].forEach(function (t) {
+                var l = oz.filter(function (o) { return o.tesis === t; });
+                if (!l.length) return;
+                var e = { adet: 0, teorik: 0, cal: 0, kisi: 0 };
+                l.forEach(function (o) {
+                    var f = o.forge;
+                    e.adet += o.adet || 0; e.teorik += o.teorik_saat || 0; e.cal += o.calisma || 0; e.kisi += o.kisi || 0;
+                    govde += '<tr><td class="sol">' + t + '</td><td class="sol"><b>' + esc(o.ad) + '</b></td>' +
+                        '<td>' + auSayi(o.adet) + '</td><td>' + auSayi(f.adet) + '</td><td>' + fark(f.adet, o.adet) + '</td>' +
+                        '<td>' + bs(o.teorik_saat) + '</td><td>' + bs(f.teorik_saat) + '</td>' +
+                        '<td>' + bs(o.calisma) + '</td><td title="Vardiya ' + auSayi(f.brut, 10) + ' sa − mola ' + auSayi(f.mola, 10) + ' sa · ' + f.kisi_gun + ' kişi-gün">' + bs(f.calisma) + '</td><td>' + fark(f.calisma, o.calisma) + '</td>' +
+                        '<td>' + (o.kisi || '—') + '</td><td>' + (f.kisi || '—') + '</td>' +
+                        '<td>' + perf(o.performans) + '</td><td>' + perf(f.performans) + '</td>' +
+                        '<td style="color:var(--muted)">' + (f.yalniz_sayi ? f.yalniz_sayi + ' kod · ' + auSayi(f.yalniz_adet) : '') + '</td></tr>';
+                });
+                var ft = (r.forge_tesis || {})[t] || {};
+                govde += '<tr class="au-toplam"><td class="sol">' + t + '</td><td class="sol">TOPLAM</td><td>' + auSayi(e.adet) + '</td><td>' + auSayi(ft.adet) + '</td><td>' + fark(ft.adet, e.adet) + '</td>' +
+                    '<td>' + bs(e.teorik) + '</td><td>' + bs(ft.teorik_saat) + '</td><td>' + bs(e.cal) + '</td><td>' + bs(ft.calisma) + '</td><td>' + fark(ft.calisma, e.cal) + '</td>' +
+                    '<td>' + (e.kisi || '—') + '</td><td>' + (ft.kisi || '—') + '</td><td>' + perf(e.cal ? e.teorik / e.cal : null) + '</td><td>' + perf(ft.performans) + '</td><td></td></tr>';
+            });
+            return '<div style="margin-top:22px"><b style="font-size:.92rem">⚖️ ERP / IK ↔ Forge karşılaştırması</b>' +
+                '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 8px;line-height:1.6">' +
+                'Forge adet: operatörlerin üretim kayıtları, bitmiş ürün (ara op, tamir / punta / rework, test cihazı ve işlem eki taşıyan kayıtlar — delme, zımpara, somun… — ayrıca sayılmaz; yalnız işlem kaydı olan parçada en büyük işlem, tel\'de kablonun son adımı). ' +
+                'Teorik saat iki tarafta aynı birim süreyle — fark adetten gelir. Forge çalışma: vardiya giriş–çıkışı (aynı kişinin paralel vardiyaları bir kez), çay / yemek molası ve namaz düşülmüş. Kişi = vardiya açan farklı operatör.</div>' +
+                '<table class="au-tablo"><thead><tr><th class="sol">Tesis</th><th class="sol">Bölüm</th><th>Adet ERP</th><th>Adet Forge</th><th>Fark</th>' +
+                '<th>Teorik ERP</th><th>Teorik Forge</th><th>Çalışma IK</th><th>Çalışma Forge</th><th>Fark</th><th>Kişi IK</th><th>Kişi Forge</th>' +
+                '<th title="Teorik (ERP adedi) ÷ IK saati">Perf. ERP÷IK</th><th title="Teorik (Forge adedi) ÷ Forge vardiya saati">Perf. Forge</th><th>Yalnız Forge\'da</th></tr></thead><tbody>' +
+                govde + '</tbody></table></div>';
         }
         function auAcKapat(i) { _au.acik[i] = !_au.acik[i]; auCiz(); }
         // Rapordan hariç tutma: kural (önek / tek kod) tüm aylara uygulanır, kaldırınca kodlar geri girer
