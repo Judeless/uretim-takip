@@ -113,8 +113,11 @@ _GUVENLI_KOD = re.compile(r'^[A-Za-z0-9./\- ]{3,40}$')
 _YASAK_KARAKTER = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
 
 
+_TR_ACIKLAMA = str.maketrans('"£$§°', 'ÜÖİŞÇ')     # EBCDIC(1026)→ODBC bozulması: '$§LEME GR' = 'İŞLEME GR'
+
+
 def _temiz(v):
-    return _YASAK_KARAKTER.sub('', str(v or '')).strip()
+    return _YASAK_KARAKTER.sub('', str(v or '')).strip().translate(_TR_ACIKLAMA)
 
 
 def tablolari_kur(conn):
@@ -968,7 +971,11 @@ def _dakika(s):
 
 
 def forge_calisma(conn, yil, ay):
-    """{(tesis, bölüm): {'saat', 'brut', 'mola', 'kisi', 'kisi_gun'}} — vardiyalardan."""
+    """{(tesis, bölüm): {'saat', 'brut', 'mola', 'kisi', 'kisi_gun', 'durus', 'durus_planli', 'durus_plansiz',
+    'durus_sebep'}} — vardiyalardan. 'saat' = vardiya − mola; DURUŞ (kullanıcı 2026-11-03: "performansı
+    doğru hesaplamak için duruşları da düşmek gerekir") = mola dışındaki planlı + plansız duruşlar
+    (setup, fikstür, arıza, malzeme bekleme…); kişi-gün başına tekil (paralel vardiyada aynı sebep +
+    başlangıç bir kez) ve o günün çalışma süresini aşamaz."""
     bas, bit = _ay_araligi(yil, ay)
     bugun, simdi = date.today().isoformat(), datetime.now()
     araliklar, vk = {}, {}
@@ -990,19 +997,25 @@ def forge_calisma(conn, yil, ay):
         k = (lok, b, op.strip().upper(), t)
         araliklar.setdefault(k, []).append((s, e))
         vk[vid] = k
-    molalar = {}
-    for vid, sebep, ds, sdk in conn.execute(
-            "SELECT d.vardiya_id, d.durus_sebebi, d.baslangic_saati, COALESCE(d.sure_dk,0) FROM duruslar d "
-            "JOIN vardiyalar v ON v.id = d.vardiya_id WHERE v.tarih BETWEEN ? AND ? AND d.durus_tipi = 'planli'",
+    molalar, duruslar = {}, {}
+    for vid, sebep, tip, ds, sdk in conn.execute(
+            "SELECT d.vardiya_id, d.durus_sebebi, COALESCE(d.durus_tipi,''), d.baslangic_saati, COALESCE(d.sure_dk,0) "
+            "FROM duruslar d JOIN vardiyalar v ON v.id = d.vardiya_id WHERE v.tarih BETWEEN ? AND ?",
             (bas.isoformat(), bit.isoformat())):
         s = _kucuk(sebep)
         k = vk.get(vid)
-        if not k or not ('mola' in s or 'namaz' in s):
+        if not k or not sdk:
             continue
-        # Paralel vardiyaların otomatik molaları aynı saatte iki kez yazılır → (sebep, başlangıç) tekil
+        # Paralel vardiyaların otomatik molaları / duruşları aynı saatte iki kez yazılır → (sebep, başlangıç) tekil
         anahtar = (s, ds or f'v{vid}')
-        m = molalar.setdefault(k, {})
-        m[anahtar] = max(m.get(anahtar, 0.0), float(sdk or 0))
+        if tip == 'planli' and ('mola' in s or 'namaz' in s):
+            m = molalar.setdefault(k, {})
+            m[anahtar] = max(m.get(anahtar, 0.0), float(sdk))
+        else:
+            m = duruslar.setdefault(k, {})
+            onceki = m.get(anahtar)
+            if not onceki or float(sdk) > onceki[0]:
+                m[anahtar] = (float(sdk), str(sebep or '?').strip() or '?', 'plansiz' if tip == 'plansiz' else 'planli')
     out = {}
     for k, ar in araliklar.items():
         ar.sort()
@@ -1016,13 +1029,24 @@ def forge_calisma(conn, yil, ay):
                 son_e = max(son_e, e)
         sure += (son_e - son_s) if son_e is not None else 0
         mola = min(sum(molalar.get(k, {}).values()), sure)
-        o = out.setdefault((k[0], k[1]), {'brut': 0.0, 'mola': 0.0, 'kisi': set(), 'kisi_gun': 0})
+        dl = list(duruslar.get(k, {}).values())
+        dtop = sum(x[0] for x in dl)
+        oran = min(1.0, (sure - mola) / dtop) if dtop else 0.0      # duruş o günün çalışmasını aşamaz
+        o = out.setdefault((k[0], k[1]), {'brut': 0.0, 'mola': 0.0, 'kisi': set(), 'kisi_gun': 0,
+                                          'durus': {'planli': 0.0, 'plansiz': 0.0}, 'sebep': {}})
         o['brut'] += sure
         o['mola'] += mola
         o['kisi'].add(k[2])
         o['kisi_gun'] += 1
+        for dk_, sebep, tip in dl:
+            o['durus'][tip] += dk_ * oran
+            o['sebep'][(sebep, tip)] = o['sebep'].get((sebep, tip), 0.0) + dk_ * oran
     return {k: {'saat': round((v['brut'] - v['mola']) / 60, 1), 'brut': round(v['brut'] / 60, 1),
-                'mola': round(v['mola'] / 60, 1), 'kisi': len(v['kisi']), 'kisi_gun': v['kisi_gun']}
+                'mola': round(v['mola'] / 60, 1), 'kisi': len(v['kisi']), 'kisi_gun': v['kisi_gun'],
+                'durus': round((v['durus']['planli'] + v['durus']['plansiz']) / 60, 1),
+                'durus_planli': round(v['durus']['planli'] / 60, 1), 'durus_plansiz': round(v['durus']['plansiz'] / 60, 1),
+                'durus_sebep': [{'sebep': s, 'tip': t, 'saat': round(dk_ / 60, 1)}
+                                for (s, t), dk_ in sorted(v['sebep'].items(), key=lambda x: -x[1])][:12]}
             for k, v in out.items()}
 
 
@@ -1262,12 +1286,37 @@ def rapor(conn, yil, ay):
                 'kisi': fs.get('kisi', 0), 'kisi_gun': fs.get('kisi_gun', 0),
                 'performans': round(f_teorik / fs['saat'], 3) if fs.get('saat') else None,
                 'yalniz_sayi': len(fo.get('yalniz', [])), 'yalniz_adet': round(sum(x['adet'] for x in fo.get('yalniz', [])), 2)}
+            # DURUŞLAR DÜŞÜLMÜŞ (kullanıcı 2026-11-03): Forge'un mola dışı duruşları hem IK saatinden hem
+            # Forge vardiya saatinden düşülür; performans = teorik ÷ net çalışma
+            durus_o = None
             if forge_o:
-                ft = f_tesis.setdefault(tesis, {'adet': 0.0, 'teorik_saat': 0.0, 'calisma': 0.0, 'kisi': 0})
+                d_s = fs.get('durus', 0.0)
+                ik_net = round(top - d_s, 1) if top else 0.0
+                f_net = round(fs.get('saat', 0.0) - d_s, 1)
+                durus_o = {'saat': d_s, 'planli': fs.get('durus_planli', 0.0), 'plansiz': fs.get('durus_plansiz', 0.0),
+                           'sebepler': fs.get('durus_sebep', []), 'ik_net': ik_net, 'forge_net': f_net,
+                           'performans_erp': round(teorik / ik_net, 3) if ik_net > 0 else None,
+                           'performans_forge': round(f_teorik / f_net, 3) if f_net > 0 else None}
+                forge_o['durus'] = d_s
+                ft = f_tesis.setdefault(tesis, {'adet': 0.0, 'teorik_saat': 0.0, 'calisma': 0.0, 'kisi': 0, 'durus': 0.0,
+                                                'ik_net': 0.0, 'teorik_erp': 0.0})
                 ft['adet'] += forge_o['adet']
                 ft['teorik_saat'] += forge_o['teorik_saat']
                 ft['calisma'] += forge_o['calisma']
                 ft['kisi'] += forge_o['kisi']
+                ft['durus'] += d_s
+                if top:
+                    ft['ik_net'] += ik_net
+                    ft['teorik_erp'] += teorik
+            # KOD FARKLARI (kullanıcı 2026-11-03: "aradaki farkların hangi kodlardan kaynaklandığını görmeliyim")
+            farklar = [{'kod': s_['kod'], 'aciklama': s_['aciklama'], 'erp': s_['adet'], 'forge': s_.get('forge_adet') or 0.0,
+                        'sure_sn': s_['sure_sn']} for s_ in bl['satirlar']] + \
+                      [{'kod': x['kod'], 'aciklama': "yalnız Forge'da" + (f" ({x['tur']})" if x.get('tur') else ''), 'erp': 0.0,
+                        'forge': x['adet'], 'sure_sn': x['sure_sn']} for x in fo.get('yalniz', [])]
+            for x in farklar:
+                x['fark'] = round(x['forge'] - x['erp'], 2)
+                x['fark_saat'] = round(x['fark'] * x['sure_sn'] / 3600, 2) if x['sure_sn'] else None
+            farklar = sorted((x for x in farklar if abs(x['fark']) >= 0.5), key=lambda x: (-abs(x['fark']), x['kod']))
             ozet.append({'fason': fsn, 'tesis': tesis, 'bolum': b, 'ad': bl['ad'], 'adet': round(bl['adet'], 2), 'kod': bl['kod'],
                          'rpr': round(bl['rpr'], 2), 'cfi': round(bl['cfi'], 2),
                          'cop': round(bl['cop'], 2) if cop_okundu else None,
@@ -1280,9 +1329,16 @@ def rapor(conn, yil, ay):
                          'performans_nos': round(teorik / nos, 3) if nos else None,
                          'forge': forge_o,
                          'forge_yalniz': sorted(fo.get('yalniz', []), key=lambda x: -x['adet'])[:300],
+                         'durus': durus_o,
+                         'kod_farklari': farklar[:400], 'kod_fark_sayisi': len(farklar),
                          'satirlar': sorted(bl['satirlar'], key=lambda s: -s['adet'])})
     for ft in f_tesis.values():
         ft['performans'] = round(ft['teorik_saat'] / ft['calisma'], 3) if ft['calisma'] else None
+        ft['forge_net'] = round(ft['calisma'] - ft['durus'], 1)
+        ft['performans_forge_net'] = round(ft['teorik_saat'] / ft['forge_net'], 3) if ft['forge_net'] > 0 else None
+        ft['performans_erp_net'] = round(ft['teorik_erp'] / ft['ik_net'], 3) if ft['ik_net'] > 0 else None
+        for k in ('durus', 'ik_net', 'teorik_erp'):
+            ft[k] = round(ft[k], 1)
         for k in ('adet', 'teorik_saat', 'calisma'):
             ft[k] = round(ft[k], 1)
     for t in tesis_top.values():
@@ -1480,6 +1536,37 @@ def excel(r):
               've namaz düşülmüş; setup / fikstür gibi planlı işler çalışma sayılır.']:
         w.append([x])
     for i, wd in enumerate([7, 22, 11, 11, 13, 12, 12, 14, 16, 10, 8, 9, 13, 14, 12, 12], start=1):
+        w.column_dimensions[get_column_letter(i)].width = wd
+    w.row_dimensions[2].height = 44
+    w.freeze_panes = 'C3'
+    # DURUŞLAR DÜŞÜLMÜŞ (2026-11-03)
+    w = wb.create_sheet('Duruş düşülmüş')
+    w.append([f"Duruşlar düşülmüş performans — {r['ay_ad']}: mola dışı planlı + plansız duruşlar (Forge) "
+              "IK saatinden ve Forge vardiya saatinden düşülür"])
+    w['A1'].font = Font(bold=True, size=12)
+    bas = ['Tesis', 'Bölüm', 'Duruş (saat)', 'Planlı', 'Plansız', 'En çok duruş', 'Teorik ERP', 'Çalışma IK', 'IK − duruş',
+           'Performans ERP ÷ IK', 'Performans ERP ÷ (IK − duruş)', 'Teorik Forge', 'Çalışma Forge', 'Forge − duruş',
+           'Performans Forge', 'Performans Forge (duruş düşülmüş)']
+    w.append(bas)
+    for i in range(1, len(bas) + 1):
+        c = w.cell(row=2, column=i)
+        c.font, c.fill = Font(bold=True, color='FFFFFF'), koyu
+        c.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
+    for o in r['ozet']:
+        f, du = o.get('forge'), o.get('durus')
+        if not f or not du:
+            continue
+        w.append([o['tesis'], o['ad'], du['saat'] or None, du['planli'] or None, du['plansiz'] or None,
+                  ' · '.join(f"{x['sebep']} {x['saat']:g}" for x in du['sebepler'][:4]),
+                  o['teorik_saat'], o['calisma'] or None, du['ik_net'] or None, o['performans'], du['performans_erp'],
+                  f['teorik_saat'], f['calisma'] or None, du['forge_net'] or None, f['performans'], du['performans_forge']])
+        for col in (10, 11, 15, 16):
+            w.cell(row=w.max_row, column=col).number_format = '0%'
+    w.append([])
+    w.append(['Duruş: Forge duruş kayıtları — çay / yemek molası ve namaz hariç (onlar çalışma saatinden zaten düşülüyor); '
+              'aynı kişinin paralel vardiyalarında aynı sebep + başlangıç bir kez; bir günün duruşu o günün çalışmasını aşamaz. '
+              'IK saatinden de AYNI Forge duruşu düşülür (IK duruş tutmaz).'])
+    for i, wd in enumerate([7, 22, 10, 9, 9, 46, 11, 11, 11, 13, 15, 11, 12, 12, 12, 15], start=1):
         w.column_dimensions[get_column_letter(i)].width = wd
     w.row_dimensions[2].height = 44
     w.freeze_panes = 'C3'

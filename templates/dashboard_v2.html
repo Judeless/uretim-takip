@@ -7905,7 +7905,7 @@ window.__I18N_SOZLUK__ = {
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">📅 Aylık Üretim Raporu</h2>
                     <p style="font-size:.78rem;color:var(--muted);margin-top:4px">
-                        Ayın teyidi verilmiş üretimi (AS400 RPR + CFI hareketleri) Forge bölümlerine göre; COP = hurda (üretime girmez), fire = COP ÷ üretilen. Teorik süre = adet × birim süre; çalışma saati ve kişi sayısı üretim müdürünün kapasite Excel'inden; performans = teorik süre ÷ çalışma saati (hedef %90).
+                        Ayın teyidi verilmiş üretimi (AS400 RPR + CFI hareketleri) Forge bölümlerine göre; COP = hurda (üretime girmez), fire = COP ÷ üretilen. Teorik süre = adet × birim süre; çalışma saati ve kişi sayısı IK'nın aylık Excel'inden; performans = teorik süre ÷ çalışma saati (hedef %90). İşleme ve fason dahil değil. Sekmelerden Forge karşılaştırması, duruşlar düşülmüş performans ve kod farkları görülür.
                     </p>
                 </div>
                 <div class="panel-card">
@@ -7915,14 +7915,16 @@ window.__I18N_SOZLUK__ = {
                         <span class="adet-info" id="au-bilgi"></span>
                         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
                             <button class="btn btn-outline" id="au-hazirla-btn" onclick="auHazirla()">🔄 AS400'den hazırla</button>
-                            <button class="btn btn-ghost" onclick="document.getElementById('au-kap-dosya').click()" title="Üretim müdürünün 'Kapasite Kullanım Oranı' Excel'i — Çalışma Saati + Database">📥 Çalışma saati yükle</button>
-                            <button class="btn btn-ghost" onclick="auKapasiteKlasor()" title="Sunucu planlama klasörüne erişebiliyorsa en yeni kapasite Excel'i">📂 Klasörden oku</button>
-                            <input type="file" id="au-kap-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="auKapasiteYukle(this)">
+                            <!-- 'Çalışma saati yükle' + 'Klasörden oku' (kapasite Excel'i) kaldırıldı — kullanıcı 2026-11-03:
+                                 saatler artık IK Excel'inden (uçlar /api/aylik_uretim/calisma[_klasor] duruyor) -->
                             <button class="btn btn-ghost" onclick="auIkAc()" title="IK'dan gelen 'Aylık Toplam Çalışma Saati' Excel'i — toplanacak sütunları siz seçersiniz">👥 IK saat Excel'i</button>
                             <button class="btn btn-primary" onclick="auExcel()">⬇️ Excel (yöneticiyle paylaş)</button>
                         </div>
                     </div>
                     <div id="au-not"></div>
+                    <!-- SEKMELER (kullanıcı 2026-11-03: "hesaplamaları alt alta ekleme, sayfanın üst kısmında olsun
+                         tıklayınca oraya geçilsin"): ERP / IK · Forge karşılaştırması · Duruşlar düşülmüş · Kod farkları -->
+                    <div id="au-sekmeler" style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px 0"></div>
                     <div style="padding:10px 20px 16px;overflow-x:auto" id="au-tablo">—</div>
                 </div>
                 <!-- IK ÇALIŞMA SAATİ EXCEL'İ (kullanıcı 2026-11-03): ay başına sayfa, kişi başı satır;
@@ -13620,7 +13622,8 @@ window.__I18N_SOZLUK__ = {
             await spSekmeAcildi();
         }
         // ═══ AYLIK ÜRETİM RAPORU (kullanıcı 2026-10-09) ═══
-        var _au = { veri: null, acik: {}, izleme: null };
+        var _au = { veri: null, acik: {}, izleme: null, sekme: 'erp', fark: '' };
+        try { _au.sekme = localStorage.getItem('au_sekme') || 'erp'; } catch (e) { }
         var AU_AY = ['', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
         function auSayi(v, k) { return (v === null || v === undefined || v === '') ? '' : fmt(Math.round(v * (k || 1)) / (k || 1)); }
         function auYuzde(v) { return (v === null || v === undefined) ? '' : Math.round(v * 100) + '%'; }
@@ -13890,6 +13893,7 @@ window.__I18N_SOZLUK__ = {
             if (!r) {
                 document.getElementById('au-bilgi').textContent = '';
                 document.getElementById('au-not').innerHTML = '';
+                document.getElementById('au-sekmeler').innerHTML = '';
                 el.innerHTML = '<div style="padding:12px 0;color:var(--muted)">' + AU_AY[d.ay] + ' ' + d.yil + ' için henüz AS400 okuması yok. <b>🔄 AS400\'den hazırla</b>\'ya basın (sunucuda, yaklaşık bir dakika).</div>';
                 document.getElementById('au-tanimsiz').innerHTML = '—';
                 return;
@@ -13901,7 +13905,7 @@ window.__I18N_SOZLUK__ = {
             document.getElementById('au-not').innerHTML = '<div class="au-not">' +
                 (cb ? '⏱ Çalışma saati: <b>' + esc(cb.dosya) + '</b> (' + esc(cb.guncellendi) + ')' +
                       (dis ? ' · bölüme atanmamış ' + fmt(Math.round(dis)) + ' saat (' + (r.calisma_disarida || []).map(function (x) { return esc(x.excel_bolum); }).join(', ') + ') — performansa girmez' : '')
-                    : '<span style="color:var(--warn)">⏱ Bu ay için çalışma saati yüklenmedi — performans hesaplanmadı. 👥 IK saat Excel\'ini yükleyin ya da Ana Veri\'nin \'Aylık NçS\' sayfasına bu ayı yazıp Referanslar › Ana Veri Yükle (ya da kapasite Excel\'ini yükleyin).' +
+                    : '<span style="color:var(--warn)">⏱ Bu ay için çalışma saati yüklenmedi — performans hesaplanmadı. 👥 IK saat Excel\'ini yükleyin (ya da Ana Veri\'nin \'Aylık NçS\' sayfasına bu ayı yazıp Referanslar › Ana Veri Yükle).' +
                       (yuklu ? ' (Saat yüklü aylar: ' + esc(yuklu) + ')' : '') + '</span>') +
                 '<br>🧾 Bölümü belirsiz: ' + fmt(r.tanimsiz_sayi || 0) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet (özete girmez) · hammadde (20.* / 21.*): ' + fmt(r.hammadde_adet) + ' — adet toplamına girmez' +
                 (r.haric_sayi ? '<br>🚫 Rapordan hariç tutulan: ' + fmt(r.haric_sayi) + ' kod · ' + fmt(r.haric_adet) + ' adet — hiçbir toplama ve performansa girmez' : '') +
@@ -13965,14 +13969,105 @@ window.__I18N_SOZLUK__ = {
                     '</td><td>' + auSayi(tt.rpr) + '</td><td>' + auSayi(tt.cfi) + '</td><td>' + auSayi(tt.cop) + '</td><td>' + auFire(tt.fire) + '</td><td>' + auSayi(top.teorik, 10) + '</td><td></td><td>' + bs(top.nos) + '</td><td>' + bs(top.mesai) + '</td><td>' + bs(top.cal) +
                     '</td><td>' + (top.kisi || '') + '</td><td>' + (tp === null ? '' : '<span class="au-perf ' + (tp >= 0.9 ? 'iyi' : 'dusuk') + '">' + auYuzde(tp) + '</span>') + '</td></tr>';
             });
-            el.innerHTML = (govde ? '<table class="au-tablo"><thead>' + bas + '</thead><tbody>' + govde + '</tbody></table>' : '<span style="color:var(--muted)">Bu ay teyitli üretim yok.</span>') +
-                auForgeKarsilastirma(r);
+            auSekmeCiz();
+            el.innerHTML = _au.sekme === 'forge' ? auForgeKarsilastirma(r) : _au.sekme === 'durus' ? auDurusTablosu(r) :
+                _au.sekme === 'fark' ? auKodFarklari(r) :
+                (govde ? '<table class="au-tablo"><thead>' + bas + '</thead><tbody>' + govde + '</tbody></table>' : '<span style="color:var(--muted)">Bu ay teyitli üretim yok.</span>');
             var tn = r.tanimsiz || [];
             document.getElementById('au-tanimsiz-bilgi').textContent = fmt(r.tanimsiz_sayi || tn.length) + ' kod · ' + fmt(r.tanimsiz_adet) + ' adet — Forge\'da ve Anaveri\'de bölümü yok';
             document.getElementById('au-tanimsiz').innerHTML = tn.length
                 ? '<table class="au-tablo"><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th class="sol">Tesis</th><th>RPR</th><th>CFI</th><th>Adet</th><th>COP</th><th class="sol">Anaveri</th><th></th></tr>' +
                   tn.map(function (s) { return '<tr><td class="sol"><b>' + esc(s.kod) + '</b></td><td class="sol">' + esc(s.aciklama || '') + '</td><td class="sol">' + esc(s.tesis || '?') + '</td><td>' + auSayi(s.rpr) + '</td><td>' + auSayi(s.cfi) + '</td><td>' + auSayi(s.adet) + '</td><td>' + (s.cop ? auSayi(s.cop) : '') + '</td><td class="sol">' + esc(s.anaveri || '') + '</td><td>' + auCikarBtn(s) + '</td></tr>'; }).join('') + '</table>'
                 : '<span style="color:var(--success)">Tüm kodların bölümü belli.</span>';
+        }
+        // ══ SEKMELER (kullanıcı 2026-11-03): hesaplar alt alta değil, üstteki sekmeyle değişir ══
+        var AU_SEKMELER = [['erp', '📊 ERP / IK', 'AS400 teyidi (RPR + CFI) ve IK çalışma saati'],
+                           ['forge', '⚖️ Forge karşılaştırması', 'Aynı ay Forge kayıtlarıyla: adet, çalışma saati, performans'],
+                           ['durus', '⏸ Duruşlar düşülmüş', 'Mola dışı duruşlar çalışma saatinden düşülerek performans'],
+                           ['fark', '🔍 Kod farkları', 'ERP ↔ Forge adet farkı hangi kodlardan geliyor']];
+        function auSekmeCiz() {
+            var el = document.getElementById('au-sekmeler'); if (!el) return;
+            if (!AU_SEKMELER.some(function (s) { return s[0] === _au.sekme; })) _au.sekme = 'erp';
+            el.innerHTML = AU_SEKMELER.map(function (s) {
+                return '<button class="btn ' + (_au.sekme === s[0] ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 14px;font-size:.8rem" title="' + esc(s[2]) +
+                    '" onclick="auSekme(\'' + s[0] + '\')">' + s[1] + '</button>';
+            }).join('');
+        }
+        function auSekme(s) {
+            _au.sekme = s;
+            try { localStorage.setItem('au_sekme', s); } catch (e) { }
+            auCiz();
+        }
+        function auFarkAc(i) { _au.fark = i; auSekme('fark'); }
+        function auPerf(v) { return v === null || v === undefined ? '—' : '<span class="au-perf ' + (v >= 0.9 ? 'iyi' : 'dusuk') + '">' + auYuzde(v) + '</span>'; }
+        function auFarkHucre(f, e) {
+            var d = (f || 0) - (e || 0);
+            if (!e && !f) return '';
+            var p = e ? Math.round(d / e * 100) : null;
+            return '<span style="color:' + (Math.abs(d) < 0.5 ? 'var(--muted)' : (d < 0 ? 'var(--danger)' : '#0284C7')) + '">' + (d > 0 ? '+' : '') + auSayi(d) +
+                (p !== null && d ? ' <span style="font-size:.72rem">(' + (p > 0 ? '+' : '') + p + '%)</span>' : '') + '</span>';
+        }
+        // ── DURUŞLAR DÜŞÜLMÜŞ: mola dışı Forge duruşları IK saatinden ve Forge vardiya saatinden düşülür ──
+        function auDurusTablosu(r) {
+            var oz = (r.ozet || []).filter(function (o) { return o.forge && o.durus; });
+            if (!oz.length) return '<span style="color:var(--muted)">Bu ay Forge vardiya kaydı yok.</span>';
+            var bs = function (v) { return v ? auSayi(v, 10) : '—'; };
+            var ok = function (a, b) { return '<span style="white-space:nowrap"><span style="color:var(--muted)">' + auPerf(a) + ' →</span> ' + auPerf(b) + '</span>'; };
+            var govde = '';
+            ['TK2', 'TK1'].forEach(function (t) {
+                var l = oz.filter(function (o) { return o.tesis === t; });
+                if (!l.length) return;
+                l.forEach(function (o) {
+                    var f = o.forge, du = o.durus;
+                    var seb = (du.sebepler || []).slice(0, 3).map(function (x) {
+                        return esc(x.sebep) + ' <b>' + auSayi(x.saat, 10) + '</b>' + (x.tip === 'plansiz' ? ' <span style="color:var(--danger);font-size:.68rem">plansız</span>' : '');
+                    }).join(' · ');
+                    govde += '<tr><td class="sol">' + t + '</td><td class="sol"><b>' + esc(o.ad) + '</b></td>' +
+                        '<td><b>' + bs(du.saat) + '</b><div style="color:var(--muted);font-size:.7rem">planlı ' + bs(du.planli) + ' · plansız ' + bs(du.plansiz) + '</div></td>' +
+                        '<td class="sol" style="font-size:.74rem;max-width:300px">' + (seb || '—') + '</td>' +
+                        '<td>' + bs(o.teorik_saat) + '</td><td>' + bs(o.calisma) + '</td><td><b>' + bs(du.ik_net) + '</b></td><td>' + ok(o.performans, du.performans_erp) + '</td>' +
+                        '<td>' + bs(f.teorik_saat) + '</td><td>' + bs(f.calisma) + '</td><td><b>' + bs(du.forge_net) + '</b></td><td>' + ok(f.performans, du.performans_forge) + '</td></tr>';
+                });
+                var ft = (r.forge_tesis || {})[t] || {};
+                var ikTop = l.reduce(function (a, o) { return a + (o.calisma || 0); }, 0);
+                govde += '<tr class="au-toplam"><td class="sol">' + t + '</td><td class="sol">TOPLAM</td><td>' + bs(ft.durus) + '</td><td></td>' +
+                    '<td>' + bs(ft.teorik_erp) + '</td><td>' + bs(ikTop) + '</td><td>' + bs(ft.ik_net) + '</td><td>' + auPerf(ft.performans_erp_net) + '</td>' +
+                    '<td>' + bs(ft.teorik_saat) + '</td><td>' + bs(ft.calisma) + '</td><td>' + bs(ft.forge_net) + '</td><td>' + auPerf(ft.performans_forge_net) + '</td></tr>';
+            });
+            return '<div style="font-size:.74rem;color:var(--muted);margin:2px 0 8px;line-height:1.6">' +
+                'Duruş = Forge duruş kayıtları, çay / yemek molası ve namaz hariç (onlar çalışma saatinden zaten düşülüyor): setup, fikstür / kalıp değişimi, robot programı, arıza, malzeme bekleme… ' +
+                'Aynı kişinin paralel vardiyalarında aynı duruş bir kez; bir günün duruşu o günün çalışmasını aşamaz. IK duruş tutmadığı için IK saatinden de AYNI Forge duruşu düşülür. ' +
+                'Performans sütunlarında soldaki duruşlar düşülmeden, sağdaki düşülmüş.</div>' +
+                '<table class="au-tablo"><thead><tr><th class="sol" rowspan="2">Tesis</th><th class="sol" rowspan="2">Bölüm</th><th rowspan="2">Duruş (saat)</th><th class="sol" rowspan="2">En çok duruş</th>' +
+                '<th colspan="4" style="text-align:center;border-bottom:1px solid var(--border)">ERP adedi + IK saati</th><th colspan="4" style="text-align:center;border-bottom:1px solid var(--border)">Forge adedi + Forge saati</th></tr>' +
+                '<tr><th>Teorik</th><th>Çalışma IK</th><th>IK − duruş</th><th>Performans</th><th>Teorik</th><th>Çalışma</th><th>− duruş</th><th>Performans</th></tr></thead><tbody>' +
+                govde + '</tbody></table>';
+        }
+        // ── KOD FARKLARI: ERP ↔ Forge adet farkı hangi kodlardan ──
+        function auKodFarklari(r) {
+            var oz = (r.ozet || []).filter(function (o) { return o.forge; });
+            if (!oz.length) return '<span style="color:var(--muted)">Karşılaştırılacak bölüm yok.</span>';
+            var anahtar = function (o) { return o.tesis + '-' + o.bolum; };
+            if (!oz.some(function (o) { return anahtar(o) === _au.fark; })) _au.fark = anahtar(oz[0]);
+            var o = oz.filter(function (x) { return anahtar(x) === _au.fark; })[0], f = o.forge, l = o.kod_farklari || [];
+            var cip = oz.map(function (x) {
+                return '<button class="btn ' + (anahtar(x) === _au.fark ? 'btn-primary' : 'btn-ghost') + '" style="padding:3px 10px;font-size:.76rem" onclick="auFarkAc(\'' + anahtar(x) + '\')">' +
+                    x.tesis + ' ' + esc(x.ad) + ' · ' + fmt(x.kod_fark_sayisi || 0) + '</button>';
+            }).join('');
+            var eksi = l.filter(function (x) { return x.fark < 0; }), arti = l.filter(function (x) { return x.fark > 0; });
+            var top = function (a) { return a.reduce(function (t, x) { return t + x.fark; }, 0); };
+            return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' + cip + '</div>' +
+                '<div style="font-size:.8rem;line-height:1.7;margin-bottom:8px"><b>' + o.tesis + ' ' + esc(o.ad) + '</b>: ERP ' + auSayi(o.adet) + ' · Forge ' + auSayi(f.adet) + ' · fark ' + auFarkHucre(f.adet, o.adet) +
+                '<br><span style="color:var(--danger)">Forge\'da az / yok: ' + eksi.length + ' kod · ' + auSayi(top(eksi)) + '</span>' +
+                ' · <span style="color:#0284C7">Forge\'da fazla / yalnız Forge\'da: ' + arti.length + ' kod · +' + auSayi(top(arti)) + '</span>' +
+                (o.kod_fark_sayisi > l.length ? ' · <span style="color:var(--muted)">ilk ' + l.length + ' kod</span>' : '') +
+                '<br><span style="color:var(--muted);font-size:.74rem">Farkın olası sebepleri: üretim Forge\'a başka kodla / ekle yazılmış, aynı ay teyit edilmemiş (ya da önceki ayın üretimi bu ay teyit edilmiş), operatör kaydı eksik.</span></div>' +
+                (l.length ? '<table class="au-tablo"><thead><tr><th class="sol">Kod</th><th class="sol">Açıklama</th><th>ERP</th><th>Forge</th><th>Fark</th><th>Birim sn</th><th title="Fark × birim süre">Fark (teorik saat)</th></tr></thead><tbody>' +
+                    l.map(function (x) {
+                        return '<tr><td class="sol"><b>' + esc(x.kod) + '</b></td><td class="sol">' + esc(x.aciklama || '') + '</td><td>' + (x.erp ? auSayi(x.erp) : '—') + '</td><td>' + (x.forge ? auSayi(x.forge) : '—') +
+                            '</td><td>' + auFarkHucre(x.forge, x.erp) + '</td><td>' + auSayi(x.sure_sn, 10) + '</td><td>' + (x.fark_saat ? auSayi(x.fark_saat, 10) : '') + '</td></tr>';
+                    }).join('') + '</tbody></table>'
+                    : '<span style="color:var(--success)">Bu bölümde ERP ile Forge adetleri kod kod aynı.</span>');
         }
         // ══ ERP / IK ↔ FORGE KARŞILAŞTIRMASI (kullanıcı 2026-11-03) ══
         // "RPR / CFI'ı AS400'den, NçS'yi IK'dan alıyoruz; aynı verileri Forge'a göre de hesaplayıp görelim."
@@ -13997,7 +14092,7 @@ window.__I18N_SOZLUK__ = {
                 l.forEach(function (o) {
                     var f = o.forge;
                     e.adet += o.adet || 0; e.teorik += o.teorik_saat || 0; e.cal += o.calisma || 0; e.kisi += o.kisi || 0;
-                    govde += '<tr><td class="sol">' + t + '</td><td class="sol"><b>' + esc(o.ad) + '</b></td>' +
+                    govde += '<tr class="au-satir" onclick="auFarkAc(\'' + t + '-' + o.bolum + '\')" title="Tıkla: bu bölümün kod farkları"><td class="sol">' + t + '</td><td class="sol"><b>' + esc(o.ad) + '</b> <span style="color:var(--muted);font-size:.72rem">🔍</span></td>' +
                         '<td>' + auSayi(o.adet) + '</td><td>' + auSayi(f.adet) + '</td><td>' + fark(f.adet, o.adet) + '</td>' +
                         '<td>' + bs(o.teorik_saat) + '</td><td>' + bs(f.teorik_saat) + '</td>' +
                         '<td>' + bs(o.calisma) + '</td><td title="Vardiya ' + auSayi(f.brut, 10) + ' sa − mola ' + auSayi(f.mola, 10) + ' sa · ' + f.kisi_gun + ' kişi-gün">' + bs(f.calisma) + '</td><td>' + fark(f.calisma, o.calisma) + '</td>' +
@@ -14010,8 +14105,8 @@ window.__I18N_SOZLUK__ = {
                     '<td>' + bs(e.teorik) + '</td><td>' + bs(ft.teorik_saat) + '</td><td>' + bs(e.cal) + '</td><td>' + bs(ft.calisma) + '</td><td>' + fark(ft.calisma, e.cal) + '</td>' +
                     '<td>' + (e.kisi || '—') + '</td><td>' + (ft.kisi || '—') + '</td><td>' + perf(e.cal ? e.teorik / e.cal : null) + '</td><td>' + perf(ft.performans) + '</td><td></td></tr>';
             });
-            return '<div style="margin-top:22px"><b style="font-size:.92rem">⚖️ ERP / IK ↔ Forge karşılaştırması</b>' +
-                '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 8px;line-height:1.6">' +
+            return '<div>' +
+                '<div style="font-size:.74rem;color:var(--muted);margin:2px 0 8px;line-height:1.6">Bir bölüme tıklayınca farkın hangi kodlardan geldiği açılır (🔍 Kod farkları). ' +
                 'Forge adet: operatörlerin üretim kayıtları, bitmiş ürün (ara op, tamir / punta / rework, test cihazı ve işlem eki taşıyan kayıtlar — delme, zımpara, somun… — ayrıca sayılmaz; yalnız işlem kaydı olan parçada en büyük işlem, tel\'de kablonun son adımı). ' +
                 'Teorik saat iki tarafta aynı birim süreyle — fark adetten gelir. Forge çalışma: vardiya giriş–çıkışı (aynı kişinin paralel vardiyaları bir kez), çay / yemek molası ve namaz düşülmüş. Kişi = vardiya açan farklı operatör.</div>' +
                 '<table class="au-tablo"><thead><tr><th class="sol">Tesis</th><th class="sol">Bölüm</th><th>Adet ERP</th><th>Adet Forge</th><th>Fark</th>' +
