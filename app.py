@@ -14066,13 +14066,27 @@ def _gun_ref_gonderilen(conn, uretim_tarihi, referans):
     return float(r['t'] or 0) if r else 0.0
 
 
+_GUN_URETIM_TTL_SN = 60
+
+
 def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
     """O günün o referans için ÜRETİLEN toplamı (rework hariç).
 
     launch_esle.gun_uretimi ile AYNI kuralları kullanır (rework ayıklama, tesis/
     bölüm kapsamı) — burada ayrı bir SQL yazmak iki kuralın zamanla ayrışması
-    demekti. Gün başına bir kez okunur, sonuç önbelleğe alınır."""
-    if uretim_tarihi not in _onbellek:
+    demekti.
+
+    ÖNBELLEK KISA ÖMÜRLÜ (2026-11-12). Eskiden gün başına SÜREÇ ÖMRÜ BOYUNCA bir kez
+    okunuyordu: günün ilk teyidi (sabah) o anki üretimi önbelleğe koyuyor,
+    üretim akşam 140'a çıksa da fren 10 görmeye devam ediyordu → ertesi gün kalan
+    adetler 'ÜRETİMİ AŞIYOR ... teyidi TAMAMLANMIŞ' diye atlandı (10.130.5046W
+    11-11: 10/140, 10.300.4682W: 15/211, 94.PBL.83/10: 0/151). Artık 60 sn: bir
+    gönderim turunda tekrar tekrar okumaz, gün içinde artan üretimi de kaçırmaz."""
+    _simdi = datetime.now().timestamp()
+    _kayit = _onbellek.get(uretim_tarihi)
+    if _kayit is None or _simdi - _kayit[0] > _GUN_URETIM_TTL_SN:
+        for _eski in [k for k, v in _onbellek.items() if _simdi - v[0] > _GUN_URETIM_TTL_SN]:
+            _onbellek.pop(_eski, None)
         try:
             import sys as _sys
             _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
@@ -14089,11 +14103,11 @@ def _gun_ref_uretim(uretim_tarihi, referans, _onbellek={}):
                     continue
                 _k = getattr(_le, 'birlestirme_anahtari', _le.kanonik)(u.get('referans'))
                 harita[_k] = harita.get(_k, 0) + (u.get('adet') or 0)
-            _onbellek[uretim_tarihi] = harita
         except Exception as e:
             print(f'[_gun_ref_uretim] okunamadi ({uretim_tarihi}): {e}')
-            _onbellek[uretim_tarihi] = None
-    harita = _onbellek.get(uretim_tarihi)
+            harita = None
+        _onbellek[uretim_tarihi] = (_simdi, harita)
+    harita = _onbellek[uretim_tarihi][1]
     if harita is None:
         return None            # okunamadı → çağıran ESKİ (katı) davranışa düşer
     try:
