@@ -217,20 +217,24 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
                 # satır yalnız BİZİM anahtarımızla (MGSTE2 = 'F'+yymmddHHMMSS) son
                 # MUKERRER_PENCERE_DK dakikada yazıldıysa. Günlük toplam mükerrerini app
                 # katmanı (gönderilen / kalan adet) zaten önler.
-                kosul = "MGARCD=? AND MGCACD=? AND MGQTA=? AND (MGSTAT='' OR MGSTAT IS NULL"
-                par = [article, causal, adet_f]
+                # BEKLEYEN SATIR ADETTEN BAĞIMSIZ (2026-11-13; bkz. as400_teyit_import):
+                # aynı kod + causal (+ aşağıda aynı üretim tarihi) için işlenmemiş satır varken
+                # farklı adetli ikinci satır yazılmaz — program açılınca ikisi de işlenirdi.
+                kosul = "MGARCD=? AND MGCACD=? AND ((MGSTAT='' OR MGSTAT IS NULL)"
+                par = [article, causal]
                 if REFERANS_KOLONU in mevcut_kolonlar:
                     esik = 'F' + (datetime.now() - timedelta(minutes=MUKERRER_PENCERE_DK)).strftime('%y%m%d%H%M%S')
-                    kosul += f" OR (MGSTAT='1' AND {REFERANS_KOLONU} LIKE 'F%' AND {REFERANS_KOLONU} >= ?))"
-                    par.append(esik)
+                    kosul += f" OR (MGQTA=? AND MGSTAT='1' AND {REFERANS_KOLONU} LIKE 'F%' AND {REFERANS_KOLONU} >= ?))"
+                    par += [adet_f, esik]
                 else:
-                    kosul += " OR MGSTAT='1')"
+                    kosul += " OR (MGQTA=? AND MGSTAT='1'))"
+                    par.append(adet_f)
                 if 'MGDGGO' in alanlar:
                     kosul += " AND MGDSSO=? AND MGDAAO=? AND MGDMMO=? AND MGDGGO=?"
                     par += list(tarih)
                 # MGSTE2 koşula GİRMEZ: anahtar her denemede yeni; bileşik alanlar
                 # aynı olduğu sürece bu aynı gönderimdir ve yeniden YAZILMAZ.
-                var = cur.execute(f"SELECT RRN(x), MGSTAT FROM {k}.{t} x WHERE {kosul} "
+                var = cur.execute(f"SELECT RRN(x), MGSTAT, MGQTA FROM {k}.{t} x WHERE {kosul} "
                                   f"ORDER BY RRN(x) DESC FETCH FIRST 1 ROW ONLY", par).fetchone()
                 # REDDEDİLEN SATIR AYNI GÜN TEKRAR YAZILMAZ (2026-10-14): program aynı satırı
                 # reddettiyse (MGSTAT 2) değişmeden yeniden yazmak yine reddedilir — 13.10'da
@@ -250,11 +254,15 @@ def hareket_yaz(article, adet, causal='CFI', wh='01D', cp='01D', uretim_tarihi=N
                                 'mesaj': 'aynı satır bugün REDDEDİLDİ — tekrar yazılmadı'}
                 if var:
                     d = _satir_oku(cn, k, t, int(var[0])) or {}
+                    try:
+                        bek_adet = float(var[2] or 0)
+                    except (TypeError, ValueError):
+                        bek_adet = 0.0
                     return {'ok': (d.get('mgstat') == '1'), 'durum': 'mevcut', 'rrn': int(var[0]),
                             'hareket_no': d.get('hareket_no', ''), 'not': d.get('not', ''),
-                            'mgtime': d.get('mgtime', ''), 'alanlar': alanlar,
+                            'mgtime': d.get('mgtime', ''), 'alanlar': alanlar, 'bekleyen_adet': bek_adet,
                             'mesaj': ('aynı satır zaten işlenmiş' if d.get('mgstat') == '1'
-                                      else 'aynı satır kuyrukta bekliyor')}
+                                      else f'bu kodun {bek_adet:g} adetlik satırı kuyrukta bekliyor')}
             kol = ', '.join(alanlar)
             yer = ', '.join('?' * len(alanlar))
             sql = f"INSERT INTO {k}.{t} ({kol}) VALUES ({yer})"

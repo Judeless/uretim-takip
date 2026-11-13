@@ -984,9 +984,18 @@ def uretim_gecmisi(bas_tarih, son_tarih):
 
 
 def ref_uretim_gecmisi(referans, uretim_tarihi, gun=10):
-    """Tek referansin uretim gecmisi (gonderim tarafi dedup icin) — {tarih: {adetler}}."""
+    """Tek referansin uretim gecmisi (gonderim tarafi dedup icin) — {tarih: {adetler}}.
+
+    BUGUNE KADAR okunur, uretim gununde KESILMEZ (2026-11-13, 10.130.3546W): 11.11'in
+    22'lik uretimine ayni gun verilen (erken teyit) ve gec islenen 22'lik hareket,
+    10.11 satiri gonderilirken '10.11'in kismi teyidi' sayildi (gecmis 10.11'de
+    bittigi icin 11.11'in 22'si onu aciklayamiyordu) → kalan 202 yerine 180 dendi.
+    Kuyruk (esle_coklu) zaten pencerenin son gunune kadar okuyor; fren onunla ayni
+    kanitla karar vermeli. Birebir adet esleyen sonraki hareket (kural 1) yine once
+    gelir — 'D'nin ertesi gun verilen teyidi' korunur."""
     bas = (date.fromisoformat(uretim_tarihi) - timedelta(days=gun)).isoformat()
-    return uretim_gecmisi(bas, uretim_tarihi).get(birlestirme_anahtari(referans), {})
+    bit = max(uretim_tarihi, date.today().isoformat())
+    return uretim_gecmisi(bas, bit).get(birlestirme_anahtari(referans), {})
 
 
 def bizim_gonderilenler(tarihler):

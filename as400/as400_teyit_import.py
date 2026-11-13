@@ -274,25 +274,35 @@ def teyit_yaz(emir, adet, flsa='A', referans=None, kutuphane=KUTUPHANE, tablo=TA
             # MUKERRER_PENCERE_DK dakikada yazıldıysa engeller. Aksi hâlde aynı
             # emre ertesi gün verilen gerçek teyit "mevcut" diye reddedilirdi.
             if not zorla:
-                kosul = ("J0RED1=? AND J0RED2=? AND J0RENU=? AND J0QTRI=? "
-                         "AND (J0STAT='' OR J0STAT IS NULL")
-                par = [d1, d2, nu, adet_f]
+                # BEKLEYEN SATIR ADETTEN BAĞIMSIZ ENGELLER (2026-11-13). Eskiden yalnız aynı
+                # adetli bekleyen satır engelliyordu: program kapalıyken (sabah 08:00 TR
+                # öncesi) 67'lik satır beklerken üretim artıp 80 gönderilseydi iki satır da
+                # program açılınca işlenir, ERP'ye 147 girerdi. Bekleyen satır işlenene
+                # kadar aynı emre ikinci satır yazılmaz.
+                kosul = ("J0RED1=? AND J0RED2=? AND J0RENU=? "
+                         "AND ((J0STAT='' OR J0STAT IS NULL)")
+                par = [d1, d2, nu]
                 if REFERANS_KOLONU in mevcut_kolonlar:
                     esik = ANAHTAR_ONEK + (datetime.now() - timedelta(minutes=MUKERRER_PENCERE_DK)
                                            ).strftime('%y%m%d%H%M%S')
-                    kosul += (f" OR (J0STAT IN ('1','3') AND {REFERANS_KOLONU} LIKE "
+                    kosul += (f" OR (J0QTRI=? AND J0STAT IN ('1','3') AND {REFERANS_KOLONU} LIKE "
                               f"'{ANAHTAR_ONEK}%' AND {REFERANS_KOLONU} >= ?))")
-                    par.append(esik)
+                    par += [adet_f, esik]
                 else:
-                    kosul += " OR J0STAT IN ('1','3'))"
-                var = cur.execute(f"SELECT RRN(x), J0STAT FROM {k}.{t} x WHERE {kosul} "
+                    kosul += " OR (J0QTRI=? AND J0STAT IN ('1','3')))"
+                    par.append(adet_f)
+                var = cur.execute(f"SELECT RRN(x), J0STAT, J0QTRI FROM {k}.{t} x WHERE {kosul} "
                                   f"ORDER BY RRN(x) DESC FETCH FIRST 1 ROW ONLY", par).fetchone()
                 if var:
                     d = _satir_oku(cn, k, t, int(var[0])) or {}
+                    try:
+                        bek_adet = float(var[2] or 0)
+                    except (TypeError, ValueError):
+                        bek_adet = 0.0
                     return {'ok': d.get('j0stat') in ('1', '3'), 'durum': 'mevcut',
-                            'rrn': int(var[0]), 'alanlar': alanlar, **d,
+                            'rrn': int(var[0]), 'alanlar': alanlar, **d, 'bekleyen_adet': bek_adet,
                             'mesaj': ('aynı teyit zaten işlenmiş' if d.get('j0stat') in ('1', '3')
-                                      else 'aynı teyit kuyrukta bekliyor')}
+                                      else f'bu emrin {bek_adet:g} adetlik satırı kuyrukta bekliyor')}
             kol = ', '.join(alanlar)
             yer = ', '.join('?' * len(alanlar))
             sql = f"INSERT INTO {k}.{t} ({kol}) VALUES ({yer})"

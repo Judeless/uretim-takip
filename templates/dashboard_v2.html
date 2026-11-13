@@ -8802,7 +8802,12 @@ window.__I18N_SOZLUK__ = {
                             <input type="date" id="as4-tarih" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 9px">
                             <button class="hizli-btn" onclick="as4TekGun()">Göster</button>
                         </span>
+                        <button class="btn btn-ghost" id="as4-haric-btn" onclick="as4HaricAcKapat()" style="padding:4px 12px;font-size:.78rem"
+                                title="Kalıcı 'teyit gerekmez' işaretli referansların tamamı — yanlış işaretleri buradan kaldır">⊘ Teyit gerekmez listesi</button>
                     </div>
+                    <!-- Kalıcı 'teyit gerekmez' işaretleri (2026-11-12): kuyruktaki '↩ geri al' yalnız
+                         ekrandaki günlerde çıkıyor; tüm işaretler burada, kimlikle kaldırılır. -->
+                    <div id="as4-haric-kutu" style="display:none;padding:12px 20px;border-bottom:1px dashed var(--border-subtle)"></div>
                     <div id="as4-mod-rozet" style="display:none;padding:8px 20px;font-size:.8rem;color:var(--muted);border-bottom:1px dashed var(--border-subtle)"></div>
                     <div id="as4-durum-bar" style="display:none;padding:12px 20px;font-size:.86rem;font-weight:600"></div>
                     <div id="as4-icerik" style="padding:6px 20px 20px">
@@ -20219,6 +20224,100 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                     'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" ' +
                     'title="Bu güne özel — referansta ek var; kalıcı işaret ana ürünü de teyit dışı yapardı">⊘ gerek yok</button>';
             return as4IsaretBtn(r, tarih, 'gerek_yok');
+        }
+
+        // ── KALICI 'TEYİT GEREKMEZ' LİSTESİ (2026-11-12) ──
+        // Kuyrukta yalnız ekrandaki günlerin satırları görünüyor; 10.130.4031A-S'nin
+        // eski işareti 03.11 üretimini pencere dışında sessizce teyit dışı bıraktı.
+        // Burada TÜM işaretler: açık launch'ı olan (büyük olasılıkla yanlış) üstte.
+        var _as4Haric = null, _as4HaricAcik = false;
+        function as4HaricAcKapat() {
+            _as4HaricAcik = !_as4HaricAcik;
+            var kutu = document.getElementById('as4-haric-kutu'), btn = document.getElementById('as4-haric-btn');
+            if (btn) btn.classList.toggle('active', _as4HaricAcik);
+            if (!kutu) return;
+            kutu.style.display = _as4HaricAcik ? '' : 'none';
+            if (_as4HaricAcik) as4HaricYukle();
+        }
+        function as4HaricYukle() {
+            var kutu = document.getElementById('as4-haric-kutu');
+            if (!kutu) return;
+            kutu.innerHTML = '<div class="yukleniyor">⏳ İşaretler ve ERP\'deki açık launch\'lar okunuyor…</div>';
+            panelFetch('/api/as400/kalici_isaretler?erp=1')
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (res) {
+                if (!res.ok) throw new Error(res.j.hata || 'Liste alınamadı');
+                _as4Haric = res.j;
+                as4HaricCiz();
+              })
+              .catch(function (e) { kutu.innerHTML = '<div style="color:var(--danger);font-size:.84rem">⚠ ' + esc(e.message || 'Bağlantı hatası') + '</div>'; });
+        }
+        function as4HaricCiz() {
+            var kutu = document.getElementById('as4-haric-kutu');
+            if (!kutu || !_as4Haric) return;
+            var araEl = document.getElementById('as4-haric-ara'), filEl = document.getElementById('as4-haric-filtre');
+            var ara = araEl ? araEl.value : '', fil = filEl ? filEl.value : 'hepsi';
+            var tum = _as4Haric.isaretler || [], erp = _as4Haric.erp;
+            var launchVar = function (i) { return (i.launchlar || []).length > 0; };
+            var nLaunch = tum.filter(launchVar).length;
+            var nUretim = tum.filter(function (i) { return i.sonra_adet > 0; }).length;
+            var q = ara.trim().toUpperCase();
+            var liste = tum.filter(function (i) {
+                if (q && (i.referans + ' ' + (i.bolum || '') + ' ' + (i.olusturan || '') + ' ' + (i.yazimlar || []).join(' ')).toUpperCase().indexOf(q) < 0) return false;
+                if (fil === 'launch') return launchVar(i);
+                if (fil === 'uretim') return i.sonra_adet > 0;
+                if (fil === 'yok') return !i.son_uretim;
+                return true;
+            }).sort(function (a, b) {
+                return (launchVar(b) - launchVar(a)) || ((b.sonra_adet || 0) - (a.sonra_adet || 0)) ||
+                       String(b.created_at || '').localeCompare(String(a.created_at || ''));
+            });
+            var secim = function (v, ad) { return '<option value="' + v + '"' + (fil === v ? ' selected' : '') + '>' + ad + '</option>'; };
+            var bas = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
+                '<b>⊘ Kalıcı "teyit gerekmez" işaretleri (' + tum.length + ')</b>' +
+                '<span style="font-size:.78rem;color:var(--muted)">Robot ve 17:10 koşusu bu kodlara hiçbir gün teyit vermez. ' +
+                (erp ? '<b style="color:var(--danger)">' + nLaunch + '</b> kodun ERP\'de açık launch\'ı var · ' : '') +
+                nUretim + ' kod işaretten sonra da üretilmiş</span>' +
+                '<input id="as4-haric-ara" placeholder="Kod / bölüm / kişi ara" value="' + esc(ara) + '" oninput="as4HaricCiz()" ' +
+                'style="margin-left:auto;font-size:.8rem;padding:5px 8px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text);width:180px">' +
+                '<select id="as4-haric-filtre" onchange="as4HaricCiz()" style="font-size:.8rem;padding:5px 8px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)">' +
+                secim('hepsi', 'Tümü') + secim('launch', 'ERP\'de açık launch\'ı olanlar') + secim('uretim', 'İşaretten sonra üretilenler') + secim('yok', 'Hiç üretilmemiş') + '</select>' +
+                '<button class="btn btn-ghost" style="padding:2px 10px" onclick="as4HaricAcKapat()">✕ Kapat</button></div>' +
+                (_as4Haric.erp_hata ? '<div style="color:var(--danger);font-size:.78rem;margin-bottom:6px">⚠ ' + esc(_as4Haric.erp_hata) + ' — açık launch sütunu boş.</div>' : '');
+            if (!liste.length) { kutu.innerHTML = bas + '<div style="color:var(--muted);font-size:.82rem">Bu filtreyle işaret yok.</div>'; return; }
+            var tarihTR = function (t) { t = String(t || ''); return t ? t.slice(8, 10) + '.' + t.slice(5, 7) + '.' + t.slice(0, 4) : '—'; };
+            kutu.innerHTML = bas + '<div style="max-height:60vh;overflow:auto"><table class="rt-table"><thead><tr>' +
+                '<th>Referans</th><th>Bölüm</th><th>İşaretleyen</th><th>Son üretim</th><th>İşaretten beri üretilen</th>' +
+                (erp ? '<th>ERP açık launch</th>' : '') + '<th>Not</th><th></th></tr></thead><tbody>' +
+                liste.map(function (i) {
+                    var ln = (i.launchlar || []).map(function (l) {
+                        return esc(l.launch) + (l.article && l.article.toUpperCase().replace(/\s+/g, '') !== i.anahtar ? ' (' + esc(l.article) + ')' : '') + ' · kalan ' + fmt(l.kalan);
+                    }).join('<br>');
+                    return '<tr><td><b>' + esc(i.referans) + '</b>' +
+                        ((i.yazimlar || []).length ? '<div style="font-size:.72rem;color:var(--muted)">kapsar: ' + esc(i.yazimlar.join(', ')) + '</div>' : '') + '</td>' +
+                        '<td>' + esc(bolumAdi(i.bolum || '')) + '</td>' +
+                        '<td style="white-space:nowrap">' + esc(i.olusturan || '—') + '<div style="font-size:.72rem;color:var(--muted)">' + tarihTR(i.created_at) + '</div></td>' +
+                        '<td style="white-space:nowrap">' + tarihTR(i.son_uretim) + '</td>' +
+                        '<td>' + (i.sonra_adet > 0 ? '<b>' + fmt(i.sonra_adet) + ' adet</b> · ' + i.sonra_gun + ' gün' : '<span style="color:var(--muted)">—</span>') + '</td>' +
+                        (erp ? '<td style="font-size:.78rem' + (ln ? ';color:var(--danger);font-weight:700' : '') + '">' + (ln || '<span style="color:var(--muted);font-weight:400">yok</span>') + '</td>' : '') +
+                        '<td style="font-size:.76rem;max-width:260px">' + esc(i.aciklama || '') + '</td>' +
+                        '<td style="text-align:right"><button class="btn btn-outline" style="padding:2px 10px;font-size:.76rem;white-space:nowrap" ' +
+                        'onclick="as4HaricKaldir(' + i.id + ')">↩ İşareti kaldır</button></td></tr>';
+                }).join('') + '</tbody></table></div>';
+        }
+        async function as4HaricKaldir(id) {
+            var i = ((_as4Haric && _as4Haric.isaretler) || []).filter(function (x) { return x.id === id; })[0];
+            if (!i) return;
+            if (!confirm('"' + i.referans + '" kalıcı teyit-dışı işareti kaldırılsın mı?\n\nBundan sonra üretimi teyit kuyruğuna gelir ve 17:10 koşusu teyit verir. ' +
+                         'Geçmiş günlerin teyidi kendiliğinden gitmez — o günleri "Geçmiş gün" ile açıp gönderin.')) return;
+            try {
+                var r = await panelFetch('/api/as400/kalici_isaret/' + id, { method: 'DELETE' });
+                var d = await r.json();
+                if (!r.ok) { toast(d.hata || 'Kaldırılamadı', 'err'); return; }
+                _as4Haric.isaretler = _as4Haric.isaretler.filter(function (x) { return x.id !== id; });
+                as4HaricCiz();
+                toast('↩ ' + i.referans + ' artık teyit kuyruğuna gelecek' + (i.son_uretim ? ' — son üretim ' + i.son_uretim : ''), 'ok');
+            } catch (e) { toast('Bağlantı hatası', 'err'); }
         }
 
         // ── 02→01 AÇIK TRANSFERLER (TK1 hayali stok — iptal unutulanlar) ──

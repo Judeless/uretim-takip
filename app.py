@@ -12706,6 +12706,12 @@ def as400_teyit_listesi():
         # DB okunamazsa eski takvim davranışına düşülür (kuyruk hiç boş kalmasın).
         tarihler += (_le.son_uretim_gunleri(gunler) or
                      [(date.today() - timedelta(days=i)).isoformat() for i in range(1, gunler + 1)])
+    # Zaman aşımına düşüp SONRADAN işlenen satırlar log'da 'ok' olsun ki kuyruk onları
+    # yeniden önermesin (2026-11-13). Aday yoksa AS400'e bağlanmaz.
+    try:
+        _gec_islenenleri_esitle(get_db())
+    except Exception as e:
+        print(f'[teyit_listesi] geç işlenen eşitleme atlandı: {e}')
     try:
         coklu = _le.esle_coklu(tarihler)
     except Exception as e:
@@ -12868,6 +12874,84 @@ def as400_teyit_isaret():
         return jsonify({'hata': str(e)}), 400
 
 
+@app.route('/api/as400/kalici_isaretler', methods=['GET'])
+@panel_gerekli(izin='as400-teyit')
+def as400_kalici_isaretler():
+    """Kalıcı 'teyit gerekmez' işaretlerinin TAMAMI (kullanıcı 2026-11-12: "yanlış
+    işaretlenen varsa düzeltmek için hepsini göreyim"). Kuyruktaki '↩ geri al' yalnız
+    ekrandaki günlerin satırlarında çıkıyor; 10.130.4031A-S'nin 14.09'daki işareti
+    03.11 üretimini sessizce teyit dışı bıraktı ve pencerede görünmediği için
+    kaldırılamadı. Her işaret için: kapsadığı üretim yazımları, işaretten beri
+    üretilen, son üretim ve (?erp=1) ERP'de AÇIK launch'ı — açık launch'ı olan
+    kodun işareti büyük olasılıkla yanlıştır."""
+    try:
+        import sys as _sys
+        _d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'as400')
+        if _d not in _sys.path:
+            _sys.path.insert(0, _d)
+        import launch_esle as _le
+    except Exception as e:
+        return jsonify({'hata': f'AS400 modülü yüklenemedi: {e}'}), 424
+    conn = get_db()
+    isaretler = [dict(r) for r in conn.execute(
+        "SELECT id, referans, bolum, aciklama, olusturan, created_at FROM as400_teyit_isaret "
+        "WHERE kapsam='kalici' AND durum='gerek_yok' ORDER BY created_at DESC, id DESC").fetchall()]
+    anahtar = {}
+    for i in isaretler:
+        i['anahtar'] = _le.kanonik(i['referans'])
+        anahtar.setdefault(i['anahtar'], []).append(i)
+    # Üretim: teyit kapsamındaki (tesis, bölüm) kayıtları, işaretin eşleştiği anahtarla
+    _ksql, _kparm = _le._kapsam_where('v')
+    uretim = {}
+    for r in conn.execute(
+            f"SELECT u.referans_kodu ref, v.tarih tarih, COALESCE(v.bolum,'kaynak') bolum, "
+            f"SUM(COALESCE(u.ok_adet,0)) adet FROM uretim_kayitlari u "
+            f"JOIN vardiyalar v ON v.id=u.vardiya_id WHERE {_ksql} "
+            f"GROUP BY u.referans_kodu, v.tarih, v.bolum", _kparm).fetchall():
+        k = _le.kanonik(r['ref'])
+        if k in anahtar:
+            uretim.setdefault(k, []).append(dict(r))
+    erp, erp_hata = None, ''
+    if (request.args.get('erp') or '') in ('1', 'true'):
+        try:
+            tam, gev, _kokm = _le.as400_launchlar()
+            erp = (tam, gev)
+        except Exception as e:
+            erp_hata = f'AS400 okunamadı: {e}'
+    for i in isaretler:
+        ur = uretim.get(i['anahtar'], [])
+        isaret_gunu = str(i['created_at'] or '')[:10]
+        sonra = [u for u in ur if u['tarih'] >= isaret_gunu]
+        i['son_uretim'] = max((u['tarih'] for u in ur), default='')
+        i['sonra_adet'] = sum(u['adet'] or 0 for u in sonra)
+        i['sonra_gun'] = len({u['tarih'] for u in sonra})
+        i['sonra_bolumler'] = sorted({u['bolum'] for u in sonra})
+        i['yazimlar'] = sorted({u['ref'] for u in ur if re.sub(r'\s+', '', u['ref']).upper() != i['anahtar']})[:6]
+        if erp:
+            l = erp[0].get(i['anahtar']) or erp[1].get(_le.gevsek(i['referans'])) or []
+            i['launchlar'] = [{'launch': x['launch'], 'article': x['article'], 'durum': x['durum'],
+                               'kalan': x['kalan']} for x in l][:4]
+    return jsonify({'isaretler': isaretler, 'erp': erp is not None, 'erp_hata': erp_hata})
+
+
+@app.route('/api/as400/kalici_isaret/<int:isaret_id>', methods=['DELETE'])
+@panel_gerekli(izin='as400-teyit')
+def as400_kalici_isaret_kaldir(isaret_id):
+    """Kalıcı işareti KİMLİĞİYLE kaldırır. teyit_isaret'in kaldır yolu (bölüm + kanonik
+    referans) üretim satırının bölümüne bağlı; işaret başka bölümden konmuşsa ya da eski
+    bir yazımla saklanmışsa hiçbir satır silmeden 'başarılı' dönüyordu."""
+    conn = get_db()
+    r = conn.execute("SELECT * FROM as400_teyit_isaret WHERE id=? AND kapsam='kalici'",
+                     (isaret_id,)).fetchone()
+    if not r:
+        return jsonify({'hata': 'İşaret bulunamadı (zaten kaldırılmış olabilir)'}), 404
+    conn.execute("DELETE FROM as400_teyit_isaret WHERE id=?", (isaret_id,))
+    conn.commit()
+    print(f"[TEYIT-ISARET] kalıcı işaret kaldırıldı: {r['referans']} ({r['bolum']}) "
+          f"— koyan {r['olusturan']} {r['created_at']}, kaldıran {g.panel_ku['kullanici_adi']}")
+    return jsonify({'basarili': True, 'referans': r['referans'], 'bolum': r['bolum']})
+
+
 # ── AS400 teyit GÖNDERİMİ (yazma) ──
 # Session B'yi tek seferde tek istek sürebilir (fiziksel tek ekran) → global kilit.
 import threading as _threading
@@ -12921,6 +13005,145 @@ def _import_canli(ad, causal=None):
     if not (c.get('etkin') and c.get('canli_onay')):
         return False
     return causal is None or causal in (c.get('causals') or ['CFI'])
+
+
+def _italya_saati(saat_dilimi='Europe/Rome'):
+    """İtalya'nın şu anki duvar saati (naive). tzdata yoksa AB yaz saati kuralı elle:
+    Mart'ın son pazarı 01:00 UTC → Ekim'in son pazarı 01:00 UTC arası UTC+2, dışı UTC+1."""
+    from datetime import timezone
+    utc = datetime.now(timezone.utc)
+    try:
+        from zoneinfo import ZoneInfo
+        return utc.astimezone(ZoneInfo(saat_dilimi)).replace(tzinfo=None)
+    except Exception:
+        def son_pazar(ay):
+            d = datetime(utc.year, ay, 31, 1, 0, tzinfo=timezone.utc)
+            return d - timedelta(days=(d.weekday() + 1) % 7)
+        yaz = son_pazar(3) <= utc < son_pazar(10)
+        return (utc + timedelta(hours=2 if yaz else 1)).replace(tzinfo=None)
+
+
+def _import_program_kapali():
+    """'' = İtalya'daki import programı çalışma saatinde; değilse gösterilecek gerekçe.
+
+    Program BPRCF0I/BMMAF0I'yi İtalya saatiyle ~06:00'dan itibaren işliyor. Saatten önce
+    yazılan satır 60 sn bekleyip 'işlenmedi' düşüyor, tabloda kalıp program açılınca
+    SONRADAN işleniyordu (13.11 07:21–07:28: 2621GW, 4682W, 2521W). Log 'hata' kaldığı
+    için panel aynı adedi yeniden öneriyor → ikinci gönderim ERP'ye mükerrer girerdi."""
+    c = _oto_config().get('import_program') or {}
+
+    def dk(s):
+        try:
+            h, m = (int(x) for x in str(s).split(':'))
+            return h * 60 + m
+        except (TypeError, ValueError):
+            return None
+    bas, bit = dk(c.get('baslangic')), dk(c.get('bitis'))
+    if bas is None and bit is None:
+        return ''
+    try:
+        it = _italya_saati(c.get('saat_dilimi') or 'Europe/Rome')
+    except Exception:
+        return ''
+    simdi = it.hour * 60 + it.minute
+    if (bas is None or simdi >= bas) and (bit is None or simdi < bit):
+        return ''
+    fark = int(round((datetime.now() - it).total_seconds() / 3600))      # TR − İtalya
+
+    def tr(v):
+        v = (v + fark * 60) % 1440
+        return f'{v // 60:02d}:{v % 60:02d}'
+    aralik_it = (c.get('baslangic') or '00:00') + (f"–{c['bitis']}" if bit is not None else '')
+    aralik_tr = tr(bas or 0) + (f'–{tr(bit)}' if bit is not None else '')
+    return (f"İtalya'daki import programı şu an çalışmıyor (çalışma saati {aralik_tr} TR = "
+            f"{aralik_it} İtalya; İtalya'da saat {it:%H:%M}). Satır tabloya YAZILMADI — "
+            f"program açılınca tekrar gönderin.")
+
+
+_GEC_ISLENEN_RE = re.compile(r'içinde işlenmedi \(RRN (\d+)\)')
+
+
+def _gec_islenenleri_esitle(conn, gun=7):
+    """Zaman aşımına düşen import satırlarını (log: '… işlenmedi (RRN n)') tablodaki SON
+    durumlarıyla eşitler. Döner: güncellenen kayıt sayısı.
+
+    NEDEN (2026-11-13): program kapalıyken yazılan satır tabloda bekliyor, program açılınca
+    işleniyor — ama log 'hata' kalıyordu. Sonuç: (1) panel ve erken teyit aynı adedi
+    yeniden önerip gönderiyor (mükerrer riski), (2) 'bizim gönderdiğimiz' toplamı eksik
+    kaldığından frenler yanlış hesaplıyor (10.130.3546W: 11.11'in geç işlenen 22'si).
+    İşlenmişse log 'ok' olur; reddedildiyse sebebi yazılır; hâlâ bekliyorsa dokunulmaz.
+    Aday yoksa AS400'e HİÇ bağlanılmaz. Satır kimliği RRN + emir/kod + adetle doğrulanır."""
+    adaylar = []
+    for r in conn.execute(
+            "SELECT id, yil, launch_no, article, adet, mesaj FROM as400_teyit_log "
+            "WHERE sonuc='hata' AND mesaj LIKE '%içinde işlenmedi (RRN %' "
+            "AND mesaj NOT LIKE 'Program SONRADAN REDDETT%' "
+            "AND created_at >= datetime('now','localtime', ?)", (f'-{int(gun)} days',)).fetchall():
+        m = _GEC_ISLENEN_RE.search(r['mesaj'] or '')
+        if m:
+            adaylar.append((dict(r), int(m.group(1))))
+    if not adaylar:
+        return 0
+    guncellenen = 0
+    for cfi_mi in (False, True):
+        grup = [(r, rrn) for r, rrn in adaylar if (r['yil'] in ('CF', 'CO')) == cfi_mi]
+        if not grup:
+            continue
+        try:
+            mod = _as400_import_modulu() if cfi_mi else _as400_teyit_import_modulu()
+            k, t = mod._ad(mod.KUTUPHANE, 'kütüphane'), mod._ad(mod.TABLO, 'tablo')
+            cn = mod.baglan()
+        except Exception as e:
+            print(f'[GEC-ISLENEN] {"CFI" if cfi_mi else "teyit"} tablosuna bağlanılamadı: {e}')
+            continue
+        try:
+            cur = cn.cursor()
+            for r, rrn in grup:
+                try:
+                    if cfi_mi:
+                        x = cur.execute(f"SELECT MGARCD, MGQTA, MGSTAT FROM {k}.{t} x WHERE RRN(x)=?",
+                                        (rrn,)).fetchone()
+                        ayni = bool(x) and (str(x[0] or '').strip().upper()
+                                            == str(r['article'] or r['launch_no'] or '').strip().upper())
+                    else:
+                        x = cur.execute(f"SELECT J0RED2, J0RENU, J0QTRI, J0STAT FROM {k}.{t} x WHERE RRN(x)=?",
+                                        (rrn,)).fetchone()
+                        ayni = bool(x) and int(x[0] or 0) == int(r['yil'] or 0) and int(x[1] or 0) == int(r['launch_no'] or 0)
+                    if not ayni or abs(float(x[-2] or 0) - float(r['adet'] or 0)) > 0.001:
+                        continue            # satır silinmiş / RRN başka kayda geçmiş → elle bakılır
+                    d = (mod.hareket_durum(rrn, k, t, cn=cn) if cfi_mi else mod.teyit_durum(rrn, k, t, cn=cn))
+                except Exception as e:
+                    print(f'[GEC-ISLENEN] RRN {rrn} okunamadı: {e}')
+                    continue
+                durum = d.get('durum')
+                if durum not in ('islendi', 'uyarili', 'reddedildi'):
+                    continue                # hâlâ bekliyor
+                if durum == 'reddedildi':
+                    yeni, sonuc = (f"Program SONRADAN REDDETTİ (RRN {rrn}): {d.get('not') or '?'} "
+                                   f"· ilk deneme: {r['mesaj']}"), 'hata'
+                else:
+                    yeni = (f"GEÇ İŞLENDİ — program satırı sonradan işledi (RRN {rrn}"
+                            + (f", hareket {d['hareket_no']}" if d.get('hareket_no') else '') + ')'
+                            + (f" · UYARI: {d.get('not')}" if durum == 'uyarili' else '')
+                            + f" · ilk deneme: {r['mesaj']}")
+                    sonuc = 'ok'
+                conn.execute("UPDATE as400_teyit_log SET sonuc=?, mesaj=? WHERE id=?", (sonuc, yeni, r['id']))
+                try:
+                    conn.execute("UPDATE as400_import_log SET sonuc=?, durum=?, mesaj=?, "
+                                 "hareket_no=COALESCE(NULLIF(?,''), hareket_no) "
+                                 "WHERE rrn=? AND sonuc='hata' AND causal " + ("<>'RPR'" if cfi_mi else "='RPR'"),
+                                 (sonuc, durum, yeni, d.get('hareket_no') or '', rrn))
+                except Exception:
+                    pass
+                conn.commit()
+                guncellenen += 1
+                print(f"[GEC-ISLENEN] log #{r['id']} {r['launch_no']} {r['adet']:g} ad → {durum} (RRN {rrn})")
+        finally:
+            try:
+                cn.close()
+            except Exception:
+                pass
+    return guncellenen
 
 
 def _ekran_robotu_gerekli():
@@ -13338,6 +13561,22 @@ def _teyit_gonder_calistir(conn, satirlar, kullanici, varsayilan_tarih='', zorla
     append noktalarına hiç dokunmadan canlı ilerleme."""
     sonuclar = sonuc_kanal if sonuc_kanal is not None else []
     _bas = len(sonuclar)
+    if _import_canli('teyit_import'):
+        # Program kapalıyken tabloya YAZMA; önce geç işlenen eski satırları eşitle
+        # (log 'ok' olmazsa aşağıdaki frenler gönderileni eksik sayar) — 2026-11-13
+        _kapali = _import_program_kapali()
+        if _kapali:
+            for s in satirlar:
+                sonuclar.append({'yil': str(s.get('yil') or '').strip(), 'no': str(s.get('no') or '').strip(),
+                                 'article': str(s.get('article') or '').strip(),
+                                 'referans': str(s.get('referans') or '').strip(), 'adet': s.get('adet'),
+                                 'uretim_tarihi': str(s.get('uretim_tarihi') or varsayilan_tarih),
+                                 'sonuc': 'atlandi', 'mesaj': _kapali})
+            return sonuclar
+        try:
+            _gec_islenenleri_esitle(conn)
+        except Exception as e:
+            print(f'[TEYIT] geç işlenen eşitleme atlandı: {e}')
     # Session B ön kontrolü (bkz. _as400_oturum_hazirla) — ölü oturumda
     # launch teyitleri de satır satır hata veriyordu. Teyit IMPORT tablosundan
     # gidiyorsa ekran oturumu kullanılmaz → sign-on denemesi YAPILMAZ (2026-10-12).
@@ -14164,8 +14403,9 @@ def _teyit_import_gonder(yil, no, adet, bayrak, imp, zorla=False):
         return 'hata', (f'Tablo REDDETTİ (J0STAT=2): {r.get("not") or "?"} '
                         f'— satır RRN {r.get("rrn")}'), r
     if d == 'mevcut':
-        return 'hata', (f'Aynı teyit kuyrukta ya da işlenmiş (RRN {r.get("rrn")}) '
-                        f'— ikinci satır YAZILMADI'), r
+        return 'hata', (f'Engellendi — {r.get("mesaj") or "aynı teyit kuyrukta ya da işlenmiş"} '
+                        f'(RRN {r.get("rrn")}) — ikinci satır YAZILMADI; program işleyince ERP\'ye '
+                        f'geçer, sonra kalan adet önerilir'), r
     if d == 'zaman_asimi':
         return 'hata', (f'Teyit {imp.get("bekleme_sn") or 60} sn içinde işlenmedi '
                         f'(RRN {r.get("rrn")}) — satır tabloda duruyor, program çalışıyor mu?'), r
@@ -14360,7 +14600,8 @@ def _cfi_import_gonder(article, adet, causal, wh, cp, u_tarih, referans, imp, zo
         return 'hata', (f'Import reddedildi (MGSTAT=2): {r.get("not") or "?"} — satır RRN {r.get("rrn")}'
                         + (' · aynı satır bugün zaten reddedilmişti, YENİDEN YAZILMADI' if r.get('tekrar_yazilmadi') else '')), r
     if d == 'mevcut':
-        return 'hata', f'Aynı satır kuyrukta bekliyor (RRN {r.get("rrn")}) — program işlemedi, tekrar yazılmadı', r
+        return 'hata', (f'Engellendi — {r.get("mesaj") or "aynı satır kuyrukta bekliyor"} (RRN {r.get("rrn")}) '
+                        f'— program işlemedi, ikinci satır yazılmadı; işlenince kalan adet önerilir'), r
     if d == 'zaman_asimi':
         return 'hata', f'Import {imp.get("bekleme_sn") or 60} sn içinde işlenmedi (RRN {r.get("rrn")}) — program çalışıyor mu? Satır tabloda duruyor', r
     return 'hata', f'Import: {r.get("not") or d}', r
@@ -14411,6 +14652,19 @@ def _cfi_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
     if _d not in _sys.path:
         _sys.path.insert(0, _d)
     import launch_esle as _le
+    if _import_canli('cfi_import', 'CFI'):
+        _kapali = _import_program_kapali()          # bkz. _teyit_gonder_calistir (2026-11-13)
+        if _kapali:
+            for s in satirlar:
+                sonuclar.append({'referans': str(s.get('referans') or '').strip(),
+                                 'article': str(s.get('article') or '').strip(), 'adet': s.get('adet'),
+                                 'uretim_tarihi': str(s.get('uretim_tarihi') or ''),
+                                 'sonuc': 'atlandi', 'mesaj': _kapali})
+            return sonuclar
+        try:
+            _gec_islenenleri_esitle(conn)
+        except Exception as e:
+            print(f'[CFI] geç işlenen eşitleme atlandı: {e}')
     # Session B ön kontrolü — ölü oturumda her satır tek tek hata verirdi.
     # CFI import tablosundan gidiyorsa ekran kullanılmaz → sign-on YOK (2026-10-12).
     if not _import_canli('cfi_import', 'CFI'):
@@ -14690,6 +14944,15 @@ def _cop_gonder_calistir(conn, satirlar, kullanici, zorla=False, sonuc_kanal=Non
     07>01>F1 ekranında kalır (alanlar kalıcı — hızlı).
     sonuc_kanal: bkz. _teyit_gonder_calistir (canlı ilerleme kanalı)."""
     sonuclar = sonuc_kanal if sonuc_kanal is not None else []
+    if _import_canli('cfi_import', 'COP'):
+        _kapali = _import_program_kapali()          # bkz. _teyit_gonder_calistir (2026-11-13)
+        if _kapali:
+            for s in satirlar:
+                sonuclar.append({'referans': str(s.get('referans') or '').strip(),
+                                 'article': str(s.get('article') or '').strip(), 'adet': s.get('adet'),
+                                 'uretim_tarihi': str(s.get('uretim_tarihi') or ''), 'bayrak': 'COP',
+                                 'sonuc': 'atlandi', 'mesaj': _kapali})
+            return sonuclar
     for idx, s in enumerate(satirlar):
         if _AS400_DURDUR.is_set():
             for kalan in satirlar[idx:]:
@@ -17076,6 +17339,12 @@ _OTO_VARSAYILAN = {
     # tarihine kadar TEST veritabanına (COFLETKPR) bakıyordu; o saatten önce
     # açılırsa teyit canlı ERP'ye DÜŞMEZ ve satırlar '01E' ile reddedilir.
     'teyit_import':   {'etkin': False, 'canli_onay': False, 'bekleme_sn': 60},
+    # İTALYA'DAKİ IMPORT PROGRAMININ ÇALIŞMA SAATİ (2026-11-13): BPRCF0I/BMMAF0I'yi
+    # işleyen iş İtalya saatiyle ~06:00'da başlıyor. 25.10'daki saat değişiminden
+    # beri bu TR 08:00 (önce 07:00) — 07:xx gönderimleri 60 sn bekleyip 'işlenmedi'
+    # düşüyor, satır tabloda kalıp program açılınca SONRADAN işleniyordu. Bu saatten
+    # önce tabloya yazılmaz. bitis boş = sınır yok (akşam sınırı henüz bilinmiyor).
+    'import_program': {'baslangic': '06:00', 'bitis': '', 'saat_dilimi': 'Europe/Rome'},
     # KAYNAK PLANI (kullanıcı 2026-09-30): AS400'den kur + stokları yenile günde
     # iki kez OTOMATİK; üretilebilir adedi ARTAN ve emir açılması gereken
     # referanslar push (operatör adı) ve/veya mail ile duyurulur. Alıcılar
@@ -17910,6 +18179,8 @@ def erken_teyit_job():
         return
     if _ekran_robotu_gerekli() and not _teyit_agent_var():
         return          # robot yolu gerekli ama agent yok — sessiz geç (import canlıysa agent aranmaz)
+    if (_import_canli('teyit_import') or _import_canli('cfi_import', 'CFI')) and _import_program_kapali():
+        return          # İtalya'daki program henüz açılmadı (TR 08:00 öncesi) — 2 dk'da bir boşuna yazma (2026-11-13)
     bugun = date.today().isoformat()
     conn = db_connect()
     try:
