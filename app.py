@@ -252,6 +252,9 @@ PANEL_SAYFALAR = [
     # 2026-10-26: Kod Sorgu (AS400 07-10-01 telefondan). Plan / teyit izni olan zaten
     # görür (_KOD_SORGU_IZIN); başkasına yönetici tek tek verir.
     'kod-sorgu',
+    # 2026-11-16: Eksik Analizi (satış listesi → satın alma / üretim eksikleri). Plan/kod
+    # sorgu izni olan zaten görür (_EKSIK_IZIN); başkasına yönetici tek tek verir.
+    'eksik-analizi',
 ]
 
 # KURULUM PROFİLİ: kapalı modülün sayfası izin listesine (kullanıcı yönetimi
@@ -262,7 +265,7 @@ _SAYFA_MODUL = {
     'satis-plani': 'as400', 'tel-plani': 'planlar', 'aylik-uretim': 'as400',
     'proje-takip': 'proje', 'proje-yonetim': 'proje', 'saha-cihazlari': 'sayac',
     'sinyal-analizi': 'sayac', 'andon-ayarlari': 'andon', 'is-yonetimi': 'is_yonetimi',
-    'kod-sorgu': 'as400',
+    'kod-sorgu': 'as400', 'eksik-analizi': 'as400',
 }
 
 
@@ -15546,6 +15549,120 @@ def kod_sorgu_api():
     return jsonify(sonuc)
 
 
+# ══ EKSİK ANALİZİ (kullanıcı 2026-11-16) ═══════════════════════════════════════
+# Satıştan gelen acil liste (mail tablosu / Excel) → her ürünün eksikleri SATIN ALMA ve
+# ÜRETİM olarak; üretim eksiği olan P parçanın da alt eksiklerine inilir. Motor:
+# eksik_analizi.py (ERP'yi yalnız OKUR). Kendi izni + AS400 verisiyle çalışan plan izinleri.
+_EKSIK_IZIN = ('eksik-analizi', 'kod-sorgu', 'kaynak-plan', 'montaj-plan', 'metal-plan', 'as400-teyit')
+# TK1 alt parça depoları (TK2 = montaj planının alt depoları). Kullanıcı teyidi bekliyor —
+# oto_config 'eksik_analizi' → {'tk1_depolar': [...], 'tk1_eksi_dusulen': [...]} ile değişir.
+_EKSIK_TK1_DEPOLAR = ('01', '02', 'CF')
+
+
+def _eksik_yetki(fn):
+    @wraps(fn)
+    def sarmal(*args, **kwargs):
+        ku = panel_kullanici()
+        if not ku:
+            return jsonify({'hata': 'Oturum gerekli', 'giris_gerekli': True}), 401
+        if not ku['admin'] and not any(i in ku['izinler'] for i in _EKSIK_IZIN):
+            return jsonify({'hata': 'Bu sayfa için yetkiniz yok (eksik-analizi)'}), 403
+        g.panel_ku = ku
+        return fn(*args, **kwargs)
+    return sarmal
+
+
+def _eksik_kod_coz(conn, satirlar):
+    """Kısa / küçük harfli yazımı tam koda çevirir (LTK.733 → 94.LTK.733, 300.5200 → 10.300.5200)
+    ve boş tesisi Forge'dan doldurur. Yerel kapasite_urun (BARTF0 kopyası) — ERP'ye gitmez.
+    Tam eşleşme yoksa SONU uyan TEK kod alınır; birden çoksa kod olduğu gibi kalır (analiz
+    'AS400'de bulunamadı' der, satırda yazım görünür)."""
+    for s in satirlar:
+        k = s.get('kod')
+        if not k:
+            continue
+        try:
+            var = conn.execute("SELECT 1 FROM kapasite_urun WHERE UPPER(REPLACE(kod,' ',''))=? LIMIT 1", (k,)).fetchone()
+            if not var:
+                aday = [r[0] for r in conn.execute(
+                    "SELECT kod FROM kapasite_urun WHERE COALESCE(iptal,0)=0 AND UPPER(REPLACE(kod,' ','')) LIKE ? LIMIT 3",
+                    ('%.' + k,)).fetchall()]
+                if len(aday) == 1:
+                    s['yazim'], s['kod'] = k, str(aday[0]).strip().upper().replace(' ', '')
+        except Exception:
+            pass
+        if not s.get('tesis'):
+            r = conn.execute("SELECT GROUP_CONCAT(DISTINCT COALESCE(lokasyon,'TK2')) l FROM referans_listesi "
+                             "WHERE UPPER(REPLACE(referans_kodu,' ',''))=?", (s['kod'],)).fetchone()
+            loklar = ((r['l'] if r else '') or '').split(',')
+            s['tesis'] = 'TK1' if loklar == ['TK1'] else 'TK2'
+    return satirlar
+
+
+@app.route('/api/eksik_analizi', methods=['POST'])
+@_eksik_yetki
+def eksik_analizi_api():
+    """Gövde: multipart 'dosya' (.xlsx — ilk sayfa) ya da JSON {'metin': yapıştırılan tablo}.
+    Seçenek: 'derinlik' (1–6, vars. 4). Döner: satırlar (liste SIRASIYLA, kopya hücreleri
+    dahil), özet (satın alınacak / üretilecek toplamları), kullanılan depolar."""
+    import eksik_analizi as EA
+    t0 = datetime.now()
+    try:
+        if request.files.get('dosya'):
+            tablo, sayfa = EA.excelden_tablo(request.files['dosya'].read())
+            kaynak_ad = f"{request.files['dosya'].filename} · {sayfa}"
+            secenek = request.form
+        else:
+            d = request.get_json(silent=True) or {}
+            tablo, kaynak_ad, secenek = EA.metinden_tablo(d.get('metin') or ''), 'yapıştırılan tablo', d
+    except Exception as e:
+        return jsonify({'hata': f'Liste okunamadı: {e}'}), 400
+    satirlar, bilgi = EA.satirlari_ayikla(tablo)
+    if not any(s['kod'] for s in satirlar):
+        return jsonify({'hata': 'Listede kod bulunamadı — ilk sütunda Cofle kodu, yanında ihtiyaç adedi olmalı.',
+                        'bilgi': bilgi}), 400
+    if len(satirlar) > 600:
+        return jsonify({'hata': f'{len(satirlar)} satır çok fazla — en fazla 600'}), 400
+    try:
+        derinlik = max(1, min(6, int(secenek.get('derinlik') or 4)))
+    except (TypeError, ValueError):
+        derinlik = 4
+    conn = get_db()
+    _eksik_kod_coz(conn, satirlar)
+    pf = KP_PROFILLER['montaj']
+    _ref, tk2_depo, _g = _kp_depolar(pf)
+    ecfg = _oto_config().get('eksik_analizi') or {}
+    tk1_depo = tuple(str(x).strip().upper() for x in (ecfg.get('tk1_depolar') or _EKSIK_TK1_DEPOLAR))
+    tk1_eksi = tuple(str(x).strip().upper() for x in (ecfg.get('tk1_eksi_dusulen') or ('REP',)))
+    ayar = {'depolar': {'TK2': (tuple(tk2_depo), tuple(_kp_eksi_depolar(pf))), 'TK1': (tk1_depo, tk1_eksi)},
+            'acilmayan': {'TK2': tuple(pf.get('kontrol_disi_onek') or ()), 'TK1': ()},
+            'kisit_disi': tuple(_kp_kisit_disi(pf)), 'azami_derinlik': derinlik, 'varsayilan_tesis': 'TK2'}
+    kp = _kp_modul()
+    try:
+        cn = kp.erp_baglan()
+    except Exception as e:
+        return jsonify({'hata': f'AS400 bağlantısı kurulamadı: {e}'}), 500
+    try:
+        sonuc = EA.analiz(EA.ErpKaynak(cn), satirlar, ayar)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'hata': f'AS400 sorgusu başarısız: {e}'}), 500
+    finally:
+        try:
+            cn.close()
+        except Exception:
+            pass
+    for r in sonuc['satirlar']:
+        # İki yazım da gider: 'Kısa kod' kutusu ERP'ye yeniden gitmeden çevrilsin
+        r['kopya'] = {'kisa': EA.kopya_hucreleri(r, True), 'uzun': EA.kopya_hucreleri(r, False)}
+        r['yazim'] = next((s.get('yazim') for s in satirlar if s['sira'] == r['sira']), None)
+    print(f"[EKSIK] {g.panel_ku['kullanici_adi']}: {kaynak_ad} · {len(satirlar)} satır · "
+          f"{(datetime.now() - t0).total_seconds():.1f} sn")
+    return jsonify({**sonuc, 'bilgi': bilgi, 'kaynak': kaynak_ad, 'derinlik': derinlik,
+                    'depolar': {'TK2': list(ayar['depolar']['TK2'][0]), 'TK1': list(tk1_depo)},
+                    'sure_sn': round((datetime.now() - t0).total_seconds(), 1)})
+
+
 def _kp_satirlar(conn, pf=None):
     """Aktif plan satırları + türetilmiş alanlar. Liste, Excel ve bildirim maili
     AYNI kaynaktan beslenir — üçünün birbirinden sapmaması için tek yer."""
@@ -17807,7 +17924,9 @@ def _oto_kuyruk_olustur(conn, tarihler):
 
     def isr(t, r):
         d = gun_isaret.get(t, {}).get(_le.kanonik(r.get('referans', '')), '')
-        return 'kontrol' if d == 'hata' else d       # gönderim hatası → otomatik tekrar YOK
+        # gönderim hatası → otomatik tekrar YOK; 'gerek_yok' = BU SEFERLİK teyit gerekmez
+        # (kullanıcı 2026-11-13) → o gün dokunulmaz, sonraki günler normal akar
+        return 'kontrol' if d in ('hata', 'gerek_yok') else d
 
     def sabaha(tip, t, r, neden, launch=''):
         sabah.append({'tip': tip, 'tarih': t, 'bolum': r.get('bolum', ''),
@@ -17949,6 +18068,8 @@ def _oto_kuyruk_olustur(conn, tarihler):
                     continue
                 if f"{t}|{_le.kanonik(r.get('referans', ''))}" in cop_yoksay:
                     continue        # panelden 'yoksay' işaretli hurda (2026-09-14)
+                if gun_isaret.get(t, {}).get(_le.kanonik(r.get('referans', ''))) == 'gerek_yok':
+                    continue        # bu seferlik teyit gerekmez = o gün kalıcı işaret gibi: COP da yok
                 ls = r.get('launchlar') or []
                 if kat == 'SUPHELI':
                     sabaha('cop_supheli', t, r, f'Hurda {h} adet: varyant eşleşme — COP kodunu doğrulayıp elle gönderin')

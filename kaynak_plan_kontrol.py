@@ -516,6 +516,16 @@ def stok_ggi(cn, kodlar):
             for k, v in ham.items()}
 
 
+def eldeki_stok(depolar, sayilan, eksi_dusulen):
+    """Bir parçanın SERBEST stoğu — {depo: bakiye} → adet. Kural açıklaması hesapla() içinde
+    (CF2 ayrı, diğer sayılanlar 01D ile netleşir, REP/02 eksisi düşülür). Eksik analizi de
+    (eksik_analizi.py) aynı kuralı kullanır — tek yerde dursun (2026-11-16)."""
+    tuketilmis = sum(min(0.0, depolar.get(d, 0)) for d in eksi_dusulen if d not in sayilan)
+    return (max(0.0, sum(depolar.get(d, 0) for d in sayilan if d not in AYRI_SAYILAN_DEPOLAR)
+                + tuketilmis)
+            + sum(max(0.0, depolar.get(d, 0)) for d in sayilan if d in AYRI_SAYILAN_DEPOLAR))
+
+
 def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, iz=None,
             kisit_disi=None, eksi_dusulen=None):
     """Her plan satırına üretilebilir adet ve kısıtlayan parçayı ekler.
@@ -587,12 +597,7 @@ def hesapla(satirlar, agac, stok, ref_stok=None, sayilan=None, gosterilen=None, 
             # KULLANILMIŞ, stokta bulunmamakta. Bu kod launch alınabilir gibi
             # görünmemeli." Tüketim REP/02'den düşülmüş, mal kaydı hâlâ 01D'de. Bu
             # depoların ARTI bakiyesi sayılmaz (REP artısı başka emre rezerve).
-            tuketilmis = sum(min(0.0, depolar.get(d, 0)) for d in eksi_dusulen
-                             if d not in sayilan)
-            eldeki = (max(0.0, sum(depolar.get(d, 0) for d in sayilan
-                               if d not in AYRI_SAYILAN_DEPOLAR) + tuketilmis)
-                      + sum(max(0.0, depolar.get(d, 0)) for d in sayilan
-                            if d in AYRI_SAYILAN_DEPOLAR))
+            eldeki = eldeki_stok(depolar, sayilan, eksi_dusulen)
             _iz = (iz.get(s['kaynak_kod']) or {}).get(alt) or {}
             _muaf = _kisit_disi_mi(alt)
             if _iz.get('hayali') or _muaf:

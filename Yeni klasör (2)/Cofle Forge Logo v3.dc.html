@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #0f1025; }
+  * { box-sizing: border-box; }
+  a { color: #a78bfa; text-decoration: none; }
+  a:hover { color: #c4b5fd; }
+  @keyframes cfgGlow { 0%, 100% { opacity: 0.12 } 50% { opacity: 0.34 } }
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="cfgGradV3" gradientUnits="userSpaceOnUse" x1="10" y1="54" x2="50" y2="8">
+      <stop offset="0" stop-color="#7c3aed" style="stop-color: {{ brandStart }}"></stop>
+      <stop offset="1" stop-color="#a78bfa" style="stop-color: {{ brandEnd }}"></stop>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div style="min-height: 100vh; background: #0f1025; color: #f5f5fa; font-family: Archivo, Helvetica, Arial, sans-serif; padding: 56px 48px 80px; display: flex; flex-direction: column; align-items: center">
+ <div style="width: 100%; max-width: 1240px; display: flex; flex-direction: column; gap: 20px">
+
+  <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid rgba(167,139,250,0.16); padding-bottom: 14px; margin-bottom: 16px">
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(245,245,250,0.5)">Cofle Forge / identity v3</div>
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(167,139,250,0.72)">Anvil · rising pulse</div>
+  </div>
+
+  <section style="position: relative; border: 1px solid rgba(167,139,250,0.14); background: radial-gradient(58% 92% at 46% 46%, rgba(124,58,237,0.16) 0%, rgba(15,16,37,0) 72%); padding: 92px 56px; display: flex; align-items: center; justify-content: center">
+    <div style="position: absolute; top: 16px; left: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(245,245,250,0.36)">01 — primary lockup</div>
+    <div style="display: flex; align-items: center; gap: 34px; flex-wrap: wrap; justify-content: center">
+      <svg viewBox="0 0 64 64" width="128" height="128" fill="none" role="img" aria-label="Cofle Forge anvil-pulse mark">
+        <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="url(#cfgGradV3)"></path>
+        <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="url(#cfgGradV3)" stroke-width="4" stroke-miterlimit="2"></path>
+        <circle cx="52.5" cy="9" r="6.2" fill="#a78bfa" opacity="0.16" style="animation: cfgGlow 2.8s ease-in-out infinite; animation-play-state: {{ glowPlay }}; opacity: {{ glowOpacity }}; fill: {{ brandEnd }}"></circle>
+        <circle cx="52.5" cy="9" r="2.8" fill="#a78bfa" style="fill: {{ brandEnd }}"></circle>
+      </svg>
+      <div style="display: flex; flex-direction: column; gap: 15px">
+        <div style="display: flex; align-items: baseline; gap: 0.22em; font-size: 60px; line-height: 0.88; color: #f7f7fb">
+          <span style="font-weight: 700; letter-spacing: -0.014em">COFLE</span>
+          <span style="font-weight: 300; letter-spacing: 0.004em">FORGE</span>
+        </div>
+        <div style="font-size: 17px; font-weight: 500; font-variant-caps: all-small-caps; letter-spacing: 0.17em; color: rgba(196,181,253,0.86); display: {{ taglineDisplay }}">Forging Data, Powering Performance</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px">
+    <div style="border: 1px solid rgba(167,139,250,0.14); background: rgba(255,255,255,0.018); padding: 36px 24px 22px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 30px; min-height: 258px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 18px">
+        <svg viewBox="0 0 64 64" width="74" height="74" fill="none" role="img" aria-label="stacked lockup">
+          <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="url(#cfgGradV3)"></path>
+          <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="url(#cfgGradV3)" stroke-width="4" stroke-miterlimit="2"></path>
+          <circle cx="52.5" cy="9" r="2.8" fill="#a78bfa" style="fill: {{ brandEnd }}"></circle>
+        </svg>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 9px">
+          <div style="display: flex; align-items: baseline; gap: 0.22em; font-size: 29px; line-height: 0.88; color: #f7f7fb">
+            <span style="font-weight: 700; letter-spacing: -0.014em">COFLE</span>
+            <span style="font-weight: 300">FORGE</span>
+          </div>
+          <div style="font-size: 10.5px; font-weight: 500; font-variant-caps: all-small-caps; letter-spacing: 0.16em; color: rgba(196,181,253,0.8); display: {{ taglineDisplay }}">Forging Data, Powering Performance</div>
+        </div>
+      </div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(245,245,250,0.36)">Stacked</div>
+    </div>
+
+    <div style="border: 1px solid rgba(167,139,250,0.14); background: #f2f2f7; padding: 36px 24px 22px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 30px; min-height: 258px">
+      <div style="display: flex; align-items: center; gap: 16px">
+        <svg viewBox="0 0 64 64" width="66" height="66" fill="none" role="img" aria-label="mark on light ground">
+          <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="url(#cfgGradV3)"></path>
+          <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="url(#cfgGradV3)" stroke-width="4" stroke-miterlimit="2"></path>
+          <circle cx="52.5" cy="9" r="2.8" fill="#7c3aed" style="fill: {{ brandStart }}"></circle>
+        </svg>
+        <div style="display: flex; flex-direction: column; gap: 9px">
+          <div style="display: flex; align-items: baseline; gap: 0.22em; font-size: 28px; line-height: 0.88; color: #14122b">
+            <span style="font-weight: 700; letter-spacing: -0.014em">COFLE</span>
+            <span style="font-weight: 300">FORGE</span>
+          </div>
+          <div style="font-size: 10px; font-weight: 500; font-variant-caps: all-small-caps; letter-spacing: 0.16em; color: rgba(20,18,43,0.66); display: {{ taglineDisplay }}">Forging Data, Powering Performance</div>
+        </div>
+      </div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(20,18,43,0.42)">Light ground</div>
+    </div>
+
+    <div style="border: 1px solid rgba(167,139,250,0.14); background: rgba(255,255,255,0.018); padding: 36px 24px 22px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 30px; min-height: 258px">
+      <div style="display: flex; align-items: center; gap: 16px">
+        <svg viewBox="0 0 64 64" width="66" height="66" fill="none" role="img" aria-label="mark, one colour">
+          <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="#f7f7fb"></path>
+          <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="#f7f7fb" stroke-width="4" stroke-miterlimit="2"></path>
+          <circle cx="52.5" cy="9" r="2.8" fill="#f7f7fb"></circle>
+        </svg>
+        <div style="display: flex; flex-direction: column; gap: 9px">
+          <div style="display: flex; align-items: baseline; gap: 0.22em; font-size: 28px; line-height: 0.88; color: #f7f7fb">
+            <span style="font-weight: 700; letter-spacing: -0.014em">COFLE</span>
+            <span style="font-weight: 300">FORGE</span>
+          </div>
+          <div style="font-size: 10px; font-weight: 500; font-variant-caps: all-small-caps; letter-spacing: 0.16em; color: rgba(247,247,251,0.62); display: {{ taglineDisplay }}">Forging Data, Powering Performance</div>
+        </div>
+      </div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(245,245,250,0.36)">One colour</div>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px">
+    <div style="border: 1px solid rgba(167,139,250,0.14); background: rgba(255,255,255,0.018); padding: 26px 26px 22px; display: flex; flex-direction: column; gap: 22px">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(245,245,250,0.36)">02 — app icon &amp; favicon scale</div>
+      <div style="display: flex; align-items: flex-end; gap: 22px; flex-wrap: wrap">
+        <div style="width: 112px; height: 112px; border-radius: 24px; background: radial-gradient(78% 78% at 30% 22%, #1b1c42 0%, #0f1025 68%); border: 1px solid rgba(167,139,250,0.22); display: flex; align-items: center; justify-content: center; flex: none">
+          <svg viewBox="0 0 64 64" width="78" height="78" fill="none" role="img" aria-label="app icon">
+            <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="url(#cfgGradV3)"></path>
+            <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="url(#cfgGradV3)" stroke-width="4" stroke-miterlimit="2"></path>
+            <circle cx="52.5" cy="9" r="6.2" fill="#a78bfa" opacity="0.16" style="animation: cfgGlow 2.8s ease-in-out infinite; animation-play-state: {{ glowPlay }}; opacity: {{ glowOpacity }}; fill: {{ brandEnd }}"></circle>
+            <circle cx="52.5" cy="9" r="2.8" fill="#a78bfa" style="fill: {{ brandEnd }}"></circle>
+          </svg>
+        </div>
+        <div style="display: flex; align-items: flex-end; gap: 24px">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 11px">
+            <svg viewBox="0 0 64 64" width="48" height="48" fill="none" role="img" aria-label="mark at 48 pixels">
+              <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="url(#cfgGradV3)"></path>
+              <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="url(#cfgGradV3)" stroke-width="4" stroke-miterlimit="2"></path>
+              <circle cx="52.5" cy="9" r="2.8" fill="#a78bfa" style="fill: {{ brandEnd }}"></circle>
+            </svg>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.14em; color: rgba(245,245,250,0.42)">48</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 11px">
+            <svg viewBox="0 0 64 64" width="28" height="28" fill="none" role="img" aria-label="mark at 28 pixels">
+              <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="url(#cfgGradV3)"></path>
+              <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="url(#cfgGradV3)" stroke-width="4" stroke-miterlimit="2"></path>
+              <circle cx="52.5" cy="9" r="2.8" fill="#a78bfa" style="fill: {{ brandEnd }}"></circle>
+            </svg>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.14em; color: rgba(245,245,250,0.42)">28</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 11px">
+            <svg viewBox="0 0 64 64" width="16" height="16" fill="none" role="img" aria-label="mark at 16 pixels, favicon">
+              <path d="M4 30 L58 30 L58 39 L40 39 L37 47 L44 47 L50 55 L16 55 L22 47 L29 47 L26 39 L18 39 Z" fill="url(#cfgGradV3)"></path>
+              <path d="M12 24 L19 24 L24 14 L30 27 L35 17 L42 17 L48 11" stroke="url(#cfgGradV3)" stroke-width="4" stroke-miterlimit="2"></path>
+              <circle cx="52.5" cy="9" r="2.8" fill="#a78bfa" style="fill: {{ brandEnd }}"></circle>
+            </svg>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.14em; color: rgba(245,245,250,0.42)">16 · favicon</span>
+          </div>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 12.5px; line-height: 1.55; font-weight: 300; color: rgba(245,245,250,0.55); text-wrap: pretty">The anvil reads as one solid silhouette at 16px; the pulse simplifies to a single rising gesture with the node as its brightest point. Floor: 16px mark, 120px lockup.</p>
+    </div>
+
+    <div style="border: 1px solid rgba(167,139,250,0.14); background: rgba(255,255,255,0.018); padding: 26px 26px 22px; display: flex; flex-direction: column; gap: 22px">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(245,245,250,0.36)">03 — palette &amp; type</div>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px">
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 56px; background: #7c3aed"></div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.08em; color: rgba(245,245,250,0.6)">#7C3AED</div></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 56px; background: #a78bfa"></div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.08em; color: rgba(245,245,250,0.6)">#A78BFA</div></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 56px; background: #f7f7fb"></div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.08em; color: rgba(245,245,250,0.6)">#F7F7FB</div></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 56px; background: #0f1025; border: 1px solid rgba(167,139,250,0.22)"></div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.08em; color: rgba(245,245,250,0.6)">#0F1025</div></div>
+      </div>
+      <div style="display: flex; gap: 30px; flex-wrap: wrap; align-items: baseline">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 24px; font-weight: 700; letter-spacing: -0.014em; color: #f7f7fb">COFLE <span style="font-weight: 300">FORGE</span></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.16em; color: rgba(245,245,250,0.44)">ARCHIVO 700 / 300 · −1.4%</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 15px; font-weight: 500; font-variant-caps: all-small-caps; letter-spacing: 0.17em; color: rgba(196,181,253,0.86)">Forging Data, Powering Performance</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.16em; color: rgba(245,245,250,0.44)">ARCHIVO 500 SMALL CAPS · +17%</div>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 12.5px; line-height: 1.55; font-weight: 300; color: rgba(245,245,250,0.55); text-wrap: pretty">Anvil and pulse share one violet gradient, deep at the base and brightest at the node — every strike becomes a signal. Text stays solid, no gradients.</p>
+    </div>
+  </section>
+
+ </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;brandStart&quot;: {&quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#7c3aed&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Mark&quot;, &quot;options&quot;: [&quot;#7c3aed&quot;, &quot;#4f46e5&quot;, &quot;#0891b2&quot;, &quot;#be123c&quot;]},
+  &quot;brandEnd&quot;: {&quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#a78bfa&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Mark&quot;, &quot;options&quot;: [&quot;#a78bfa&quot;, &quot;#818cf8&quot;, &quot;#67e8f9&quot;, &quot;#fb7185&quot;]},
+  &quot;glowMode&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;Pulsing&quot;, &quot;options&quot;: [&quot;Pulsing&quot;, &quot;Static&quot;, &quot;Off&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Mark&quot;},
+  &quot;showTagline&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Lockup&quot;}
+}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const glow = p.glowMode ?? 'Pulsing';
+    return {
+      brandStart: p.brandStart ?? '#7c3aed',
+      brandEnd: p.brandEnd ?? '#a78bfa',
+      glowOpacity: glow === 'Off' ? 0 : 0.16,
+      glowPlay: glow === 'Pulsing' ? 'running' : 'paused',
+      taglineDisplay: (p.showTagline ?? true) ? 'block' : 'none'
+    };
+  }
+}
+</script>
+</body>
+</html>

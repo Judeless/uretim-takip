@@ -6110,6 +6110,9 @@ window.__I18N_SOZLUK__ = {
                 <!-- KOD SORGU (2026-10-26): AS400 07-10-01 ekranı telefondan -->
                 <a class="nav-item" data-sayfa="kod-sorgu" onclick="sayfaAc('kod-sorgu')">
                     <span class="nav-icon">🔎</span> Kod Sorgu</a>
+                <!-- EKSİK ANALİZİ (2026-11-16): satış listesi → satın alma / üretim eksikleri -->
+                <a class="nav-item" data-sayfa="eksik-analizi" onclick="sayfaAc('eksik-analizi')">
+                    <span class="nav-icon">🧮</span> Eksik Analizi</a>
                 <a class="nav-item" data-sayfa="as400-teyit" onclick="sayfaAc('as400-teyit')">
                     <span class="nav-icon">🔁</span> Launch Kapama / Teyit</a>
                 <a class="nav-item" data-sayfa="as400-transfer" onclick="sayfaAc('as400-transfer')">
@@ -9083,6 +9086,34 @@ window.__I18N_SOZLUK__ = {
                 <div id="ks-sonuc"></div>
             </section>
 
+            <!-- EKSİK ANALİZİ (2026-11-16): satıştan gelen acil liste yapıştırılır ya da Excel'i
+                 yüklenir → her ürünün eksikleri (satın alma / üretim, P parçanın alt eksikleri dahil)
+                 liste SIRASIYLA kopyalanıp Excel'de ürünlerin yanına yapıştırılır. -->
+            <section class="page" id="page-eksik-analizi">
+                <div style="margin-bottom:12px">
+                    <h2 style="font-size:1.1rem;font-weight:800;margin:0">🧮 Eksik Analizi</h2>
+                    <p style="font-size:.78rem;color:var(--muted);margin-top:4px;max-width:900px">Satıştan gelen listeyi (mail tablosu ya da Excel) yapıştırın veya Excel'i yükleyin. Her ürünün ağacı açılır, alt parça stoğu liste sırasıyla dağıtılır; eksikler <b>satın alma</b> ve <b>üretim</b> olarak ayrılır. Üretim eksiği olan P parçanın kendi alt eksiklerine de inilir (300.5200 ← 300.2278). Sonuç aynı satır sırasıyla kopyalanır.</p>
+                </div>
+                <div class="panel-card" style="margin-bottom:14px">
+                    <div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">
+                        <textarea id="ea-metin" rows="7" spellcheck="false" placeholder="Excel ya da mail tablosundan satırları kopyalayıp buraya yapıştırın (başlık satırıyla birlikte olabilir).&#10;Örnek:  94.LTK.733   -12&#10;Kısa yazım da olur: LTK.733 12 · 300.5200 5"
+                                  style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:.8rem;padding:10px;border-radius:10px;border:1px solid var(--border-input);background:var(--bg);color:var(--text);resize:vertical"></textarea>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                            <button class="btn btn-primary" id="ea-btn" onclick="eaAnaliz()">🧮 Eksikleri çıkar</button>
+                            <label class="btn btn-ghost" style="cursor:pointer">📂 Excel yükle
+                                <input type="file" id="ea-dosya" accept=".xlsx,.xlsm" style="display:none" onchange="eaAnaliz(this.files[0]); this.value=''"></label>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);cursor:pointer">
+                                <input type="checkbox" id="ea-kisa" checked onchange="eaCiz()" style="width:15px;height:15px"> Kısa kod (10. önekini yazma)</label>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">Alt eksik derinliği
+                                <select id="ea-derinlik" style="font-size:.8rem;padding:4px 6px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)">
+                                    <option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="6">6</option></select></label>
+                            <span style="font-size:.74rem;color:var(--dim)">İhtiyaç = listedeki eksi adedin mutlağı (Final availab. / Minimum ihtiyaç). ERP'den yalnız okunur.</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="ea-sonuc"></div>
+            </section>
+
             <section class="page" id="page-talepler">
                 <div style="margin-bottom:18px">
                     <h2 style="font-size:1.1rem;font-weight:800;margin:0">💬 Talep &amp; Öneri</h2>
@@ -10280,6 +10311,7 @@ window.__I18N_SOZLUK__ = {
                         : (sayfa === 'talepler') ? 'page-talepler'
                         : (sayfa === 'bolum-kapasite') ? 'page-bolum-kapasite'
                         : (sayfa === 'kod-sorgu') ? 'page-kod-sorgu'
+                        : (sayfa === 'eksik-analizi') ? 'page-eksik-analizi'
                         : 'page-ozet';   // bilinmeyen değer → güvenli varsayılan (özet)
             document.querySelectorAll('.page').forEach(function (p) {
                 p.classList.toggle('active', p.id === hedefId);
@@ -10326,6 +10358,7 @@ window.__I18N_SOZLUK__ = {
             if (sayfa === 'talepler') tlSekmeAcildi();
             if (sayfa === 'bolum-kapasite') bkSekmeAcildi();
             if (sayfa === 'kod-sorgu') ksSekmeAcildi();
+            if (sayfa === 'eksik-analizi') eaSekmeAcildi();
             if (sayfa === 'durus-analizi') daSekmeAcildi();
             if (sayfa === 'kapasite') kapSekmeAcildi();
             if (sayfa === 'satis-plani') spSekmeAcildi();
@@ -10425,6 +10458,8 @@ window.__I18N_SOZLUK__ = {
                 bc.innerHTML = 'Kapasite ▸ <b>Bölüm Kapasitesi</b>';
             } else if (aktifSayfa === 'kod-sorgu') {
                 bc.innerHTML = 'AS400 ▸ <b>Kod Sorgu</b>';
+            } else if (aktifSayfa === 'eksik-analizi') {
+                bc.innerHTML = 'AS400 ▸ <b>Eksik Analizi</b>';
             } else {
                 bc.innerHTML = '<b>' + esc(aktifSayfa) + '</b>';
             }
@@ -10494,6 +10529,137 @@ window.__I18N_SOZLUK__ = {
             if (ios && m && m.content.indexOf('maximum-scale') === -1) m.setAttribute('content', m.content + ', maximum-scale=1');
             if (navigator.standalone) document.documentElement.classList.add('pwa');   // eski iOS
         })();
+
+        // ══ EKSİK ANALİZİ (kullanıcı 2026-11-16) ══════════════════════════════════
+        // Liste (yapıştırma / Excel) → /api/eksik_analizi → satır satır satın alma + üretim
+        // eksikleri. Kopya, girişteki satır SIRASIYLA (boş satırlar dahil) — Excel'de ürünlerin
+        // yanına yapıştırılır. 'Kısa kod' ERP'ye yeniden gitmeden çevrilir (sunucu iki yazımı da yollar).
+        var _ea = null;
+        var EA_DURUM = { eksik: ['Eksik var', 'var(--danger)'], tamam: ['Eksik yok', 'var(--success)'],
+                         satin_alinan: ['Satın alınan ürün', 'var(--b-kaynak)'], agac_yok: ['Ürün ağacı yok', 'var(--lg-slate)'],
+                         bulunamadi: ["AS400'de yok", 'var(--danger)'], ihtiyac_yok: ['İhtiyaç yok', 'var(--muted)'],
+                         kod_yok: ['', 'var(--muted)'] };
+        function eaSekmeAcildi() {
+            var t = document.getElementById('ea-metin');
+            if (t && !_ea && !mobilMi()) t.focus();
+        }
+        function eaKisa() { var c = document.getElementById('ea-kisa'); return !c || c.checked; }
+        function eaKod(k) { return eaKisa() && String(k || '').indexOf('10.') === 0 ? String(k).slice(3) : String(k || ''); }
+        function eaAdet(x) { return (Math.abs(x - Math.round(x)) < 1e-6) ? fmt(Math.round(x)) : (Math.round(x * 100) / 100).toLocaleString('tr-TR'); }
+        async function eaAnaliz(dosya) {
+            var btn = document.getElementById('ea-btn'), el = document.getElementById('ea-sonuc');
+            var derinlik = document.getElementById('ea-derinlik').value;
+            var opts;
+            if (dosya) {
+                var fd = new FormData();
+                fd.append('dosya', dosya); fd.append('derinlik', derinlik);
+                opts = { method: 'POST', body: fd };
+            } else {
+                var metin = document.getElementById('ea-metin').value;
+                if (!metin.trim()) { toast('Önce listeyi yapıştırın ya da Excel yükleyin', 'err'); return; }
+                opts = { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                         body: JSON.stringify({ metin: metin, derinlik: derinlik }) };
+            }
+            btn.disabled = true;
+            el.innerHTML = '<div class="yukleniyor" style="padding:26px 0">⏳ Ürün ağaçları ve stoklar AS400\'den okunuyor… (liste uzunsa 1 dakikayı bulabilir)</div>';
+            try {
+                var r = await panelFetch('/api/eksik_analizi', opts);
+                var d = await r.json();
+                if (!r.ok) throw new Error(d.hata || ('HTTP ' + r.status));
+                _ea = d;
+                eaCiz();
+            } catch (e) {
+                el.innerHTML = '<div class="panel-card" style="padding:14px 20px;color:var(--danger);font-size:.85rem">⚠ ' + esc(e.message) + '</div>';
+            } finally { btn.disabled = false; }
+        }
+        function eaHucre(r) { return (r.kopya || {})[eaKisa() ? 'kisa' : 'uzun'] || ['', '', '']; }
+        function eaCiz() {
+            var el = document.getElementById('ea-sonuc');
+            if (!el || !_ea) return;
+            var d = _ea, sat = d.satirlar || [], oz = d.ozet || {}, du = oz.durumlar || {};
+            var rozet = Object.keys(EA_DURUM).filter(function (k) { return du[k] && EA_DURUM[k][0]; }).map(function (k) {
+                return '<span style="font-size:.76rem;font-weight:700;color:' + EA_DURUM[k][1] + ';margin-right:12px">' + EA_DURUM[k][0] + ': ' + du[k] + '</span>';
+            }).join('');
+            var h = '<div class="panel-card" style="margin-bottom:14px"><div class="panel-header" style="flex-wrap:wrap;gap:8px">' +
+                '<h3>📋 Ürün bazında eksikler</h3><span class="adet-info">' + esc(d.kaynak || '') + ' · ' + sat.length + ' satır · ' + d.sure_sn + ' sn</span>' +
+                '<span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' +
+                '<button class="btn btn-primary" style="padding:4px 12px;font-size:.78rem" onclick="eaKopyala(\'tek\')" title="Her satır tek hücre: Satınalma: … | Üretim: … — Excel\'deki Eksikler sütununa yapıştırın">📋 Tek sütun kopyala</button>' +
+                '<button class="btn btn-ghost" style="padding:4px 12px;font-size:.78rem" onclick="eaKopyala(\'iki\')" title="İki hücre: satın alma ⇥ üretim">📋 İki sütun kopyala</button></span></div>' +
+                '<div style="padding:8px 20px 4px;font-size:.76rem;color:var(--muted)">' + rozet +
+                '<span style="color:var(--dim)">Sayılan depolar — TK2: ' + esc((d.depolar.TK2 || []).join('+')) + ' · TK1: ' + esc((d.depolar.TK1 || []).join('+')) +
+                ' · alt eksik derinliği ' + d.derinlik + '. Stok liste sırasıyla dağıtılır (üstteki satır önce alır).</span></div>' +
+                '<div class="table-wrap" style="padding:0 20px 14px;max-height:65vh;overflow:auto"><table class="admin-table"><thead><tr>' +
+                '<th>#</th><th>Kod</th><th style="text-align:right">İhtiyaç</th><th style="text-align:right" title="Ürünün açık launch\'ı — alt parçaları REP\'e çekilmiş, ihtiyaçtan düşülür">Launch</th>' +
+                '<th style="text-align:right" title="Liste sırasıyla dağıtılan stokla bu üründen kaç adet yapılabilir">Yapılabilir</th>' +
+                '<th>Satın alma eksikleri</th><th>Üretim eksikleri <span style="font-weight:400;color:var(--dim)">(← = onu üretmek için eksik)</span></th><th>Durum</th></tr></thead><tbody>' +
+                sat.map(function (r) {
+                    var c = eaHucre(r), dr = EA_DURUM[r.durum] || ['', 'var(--muted)'];
+                    if (!r.kod) return '<tr style="opacity:.5"><td>' + r.sira + '</td><td colspan="7" style="font-size:.74rem;color:var(--dim)">' + esc(r.ham || '') + '</td></tr>';
+                    return '<tr><td style="color:var(--dim)">' + r.sira + '</td>' +
+                        '<td style="font-weight:700;white-space:nowrap">' + esc(r.kod) +
+                            (r.yazim ? '<div style="font-size:.68rem;color:var(--primary)">↳ yazılan: ' + esc(r.yazim) + '</div>' : '') +
+                            (r.aciklama ? '<div style="font-size:.68rem;color:var(--muted);font-weight:400">' + esc(r.aciklama) + '</div>' : '') + '</td>' +
+                        '<td style="text-align:right">' + (r.ihtiyac != null ? eaAdet(r.ihtiyac) : '—') + '</td>' +
+                        '<td style="text-align:right">' + (r.launch ? eaAdet(r.launch) : '') + '</td>' +
+                        '<td style="text-align:right">' + (r.yapilabilir != null ? eaAdet(r.yapilabilir) : '') + '</td>' +
+                        '<td style="font-size:.78rem;max-width:340px">' + esc(c[0]) + '</td>' +
+                        '<td style="font-size:.78rem;max-width:380px">' + esc(c[1]) + ((r.notlar || []).length ? '<div style="color:var(--dim)">' + esc(r.notlar.join(' · ')) + '</div>' : '') + '</td>' +
+                        '<td style="font-size:.74rem;font-weight:700;white-space:nowrap;color:' + dr[1] + '">' + esc(dr[0] || (c[2] || '')) + '</td></tr>';
+                }).join('') + '</tbody></table></div></div>';
+            // Liste geneli: satın alınacaklar / üretilecekler
+            var sa = oz.satin_alma || [], ur = oz.uretim || [];
+            h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px">';
+            h += '<div class="panel-card"><div class="panel-header"><h3>🛒 Satın alınacaklar (' + sa.length + ')</h3>' +
+                (sa.length ? '<button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;font-size:.76rem" onclick="eaOzetKopyala(\'sa\')">📋 Kopyala</button>' : '') + '</div>' +
+                '<div class="table-wrap" style="padding:0 20px 14px;max-height:50vh;overflow:auto">' + (sa.length ? '<table class="admin-table"><thead><tr><th>Kod</th><th style="text-align:right">Eksik</th><th style="text-align:right" title="Tedarikçide açık sipariş (BSMAF0 ordered)">Siparişte</th><th>Ürünler</th></tr></thead><tbody>' +
+                sa.map(function (x) {
+                    return '<tr><td style="font-weight:700">' + esc(eaKod(x.kod)) + (x.aciklama ? '<div style="font-size:.68rem;color:var(--muted);font-weight:400">' + esc(x.aciklama) + '</div>' : '') + '</td>' +
+                        '<td style="text-align:right;font-weight:800;color:var(--danger)">' + eaAdet(x.eksik) + (x.um && ['AD', 'NR', 'PZ', 'PC', 'PCS'].indexOf(x.um) < 0 ? ' ' + esc(x.um.toLowerCase()) : '') + '</td>' +
+                        '<td style="text-align:right">' + (x.siparis ? eaAdet(x.siparis) : '<span style="color:var(--dim)">—</span>') + '</td>' +
+                        '<td style="font-size:.74rem">' + esc((x.urunler || []).map(eaKod).join(', ')) + '</td></tr>';
+                }).join('') + '</tbody></table>' : '<div style="color:var(--muted);font-size:.82rem;padding:8px 0">Satın alma eksiği yok.</div>') + '</div></div>';
+            h += '<div class="panel-card"><div class="panel-header"><h3>🏭 Üretilecekler (' + ur.length + ')</h3>' +
+                (ur.length ? '<button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;font-size:.76rem" onclick="eaOzetKopyala(\'ur\')">📋 Kopyala</button>' : '') + '</div>' +
+                '<div class="table-wrap" style="padding:0 20px 14px;max-height:50vh;overflow:auto">' + (ur.length ? '<table class="admin-table"><thead><tr><th>Kod</th><th style="text-align:right">Eksik</th><th style="text-align:right" title="Açık launch\'ın karşıladığı kısım">Launch</th><th>Hangi parça için</th><th>Ürünler</th></tr></thead><tbody>' +
+                ur.map(function (x) {
+                    return '<tr><td style="font-weight:700">' + esc(eaKod(x.kod)) + (x.aciklama ? '<div style="font-size:.68rem;color:var(--muted);font-weight:400">' + esc(x.aciklama) + '</div>' : '') + '</td>' +
+                        '<td style="text-align:right;font-weight:800;color:var(--danger)">' + eaAdet(x.eksik) + '</td>' +
+                        '<td style="text-align:right">' + (x.launch ? eaAdet(x.launch) : '') + '</td>' +
+                        '<td style="font-size:.74rem">' + esc((x.ust || []).map(eaKod).join(', ') || 'doğrudan ürün') + '</td>' +
+                        '<td style="font-size:.74rem">' + esc((x.urunler || []).map(eaKod).join(', ')) + '</td></tr>';
+                }).join('') + '</tbody></table>' : '<div style="color:var(--muted);font-size:.82rem;padding:8px 0">Üretim eksiği yok.</div>') + '</div></div></div>';
+            el.innerHTML = h;
+        }
+        function eaPanoya(metin, mesaj) {
+            var bitti = function () { toast(mesaj, 'ok'); };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(metin).then(bitti, function () { tlKopyalaYedek(metin, bitti); });
+            } else {
+                tlKopyalaYedek(metin, bitti);
+            }
+        }
+        function eaKopyala(tip) {
+            if (!_ea) return;
+            // Girişteki HER satır bir satır (boşlar dahil) — Excel'de aynı aralığın yanına yapıştırılır
+            var satirlar = (_ea.satirlar || []).map(function (r) {
+                var c = eaHucre(r);
+                return tip === 'iki' ? (c[0] + '\t' + c[1]) : c[2];
+            });
+            eaPanoya(satirlar.join('\n'), satirlar.length + ' satır kopyalandı — Excel\'de ilk ürün satırının yanına yapıştırın');
+        }
+        function eaOzetKopyala(tur) {
+            if (!_ea) return;
+            var oz = _ea.ozet || {}, L = tur === 'sa' ? (oz.satin_alma || []) : (oz.uretim || []);
+            var bas = tur === 'sa' ? ['Kod', 'Açıklama', 'Eksik', 'Birim', 'Siparişte', 'Ürünler']
+                                   : ['Kod', 'Açıklama', 'Eksik', 'Launch', 'Hangi parça için', 'Ürünler'];
+            var satirlar = [bas.join('\t')].concat(L.map(function (x) {
+                var urn = (x.urunler || []).map(eaKod).join(', ');
+                return (tur === 'sa'
+                    ? [eaKod(x.kod), x.aciklama || '', eaAdet(x.eksik), x.um || '', x.siparis ? eaAdet(x.siparis) : '', urn]
+                    : [eaKod(x.kod), x.aciklama || '', eaAdet(x.eksik), x.launch ? eaAdet(x.launch) : '', (x.ust || []).map(eaKod).join(', '), urn]).join('\t');
+            }));
+            eaPanoya(satirlar.join('\n'), L.length + ' kalem kopyalandı');
+        }
 
         // ══ KOD SORGU (kullanıcı 2026-10-26) — AS400 07-10-01 telefondan ════════════
         // Kod → ürün kartı, depo stokları, açık emirler, alt parçalar (kısıt sırasıyla).
@@ -20179,6 +20345,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                 toast(kaldir ? (kapsam === 'cop' ? '↺ Hurda yeniden COP kuyruğunda' : 'İşaret kaldırıldı')
                       : (kapsam === 'cop' ? '⊘ Hurda yoksayıldı — COP gönderilmeyecek'
                       : (kapsam === 'kalici' ? 'Kalıcı teyit-dışı işaretlendi'
+                         : durum === 'gerek_yok' ? '⊘ Bu seferlik teyit gerekmez — yalnız bu günün üretimi atlanacak'
                          : durum === 'teyit_ver' ? '➕ Teyit kuyruğuna eklendi — gönderim kuyruğunda görünecek'
                          : 'Kontrol edildi işaretlendi')), 'ok');
                 as4Yukle();
@@ -20217,13 +20384,47 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                     'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'teyit_ver\',this.dataset.tar,true)" ' +
                     'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" ' +
                     'title="Ara operasyon — ➕ teyit ver işaretini kaldırır, teyit gönderilmez">⊘ gerek yok</button>';
+            // SEÇENEKLİ (kullanıcı 2026-11-13): "bu seferlik gerekmez" (yalnız o gün) ya da
+            // "kalıcı olarak gerekmez" (her gün). Ekli referansta kalıcı seçenek kapalı.
             var ekli = /\([^)]*\)/.test(r.referans || '') || /\d+\.?\s*(op|ist)\.?\s*$/i.test(r.referans || '');
-            if (ekli)
-                return '<button class="btn btn-ghost" style="' + stil + '" ' +
-                    'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'kontrol\',this.dataset.tar)" ' +
-                    'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" ' +
-                    'title="Bu güne özel — referansta ek var; kalıcı işaret ana ürünü de teyit dışı yapardı">⊘ gerek yok</button>';
-            return as4IsaretBtn(r, tarih, 'gerek_yok');
+            return '<button class="btn btn-ghost" style="' + stil + '" onclick="as4GerekYokMenu(this)" ' +
+                'data-ref="' + ref + '" data-bol="' + bol + '" data-tar="' + tar + '" data-ekli="' + (ekli ? '1' : '') + '" ' +
+                'title="Teyit gerekmiyor — bu seferlik mi, kalıcı mı?">⊘ gerek yok ▾</button>';
+        }
+
+        function as4GerekYokMenu(btn) {
+            var eski = document.getElementById('as4-gy-menu');
+            if (eski) { var ayni = eski._btn === btn; eski.remove(); if (ayni) return; }
+            var ref = btn.dataset.ref, bol = btn.dataset.bol, tar = btn.dataset.tar, ekli = btn.dataset.ekli === '1';
+            var m = document.createElement('div');
+            m.id = 'as4-gy-menu'; m._btn = btn;
+            m.style.cssText = 'position:absolute;z-index:9999;background:var(--card);border:1px solid var(--card-border);border-radius:10px;' +
+                'box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;width:270px;font-size:.8rem';
+            var satir = 'display:block;width:100%;text-align:left;padding:7px 9px;border-radius:8px;white-space:normal;line-height:1.35';
+            m.innerHTML =
+                '<button class="btn btn-ghost" style="' + satir + '" data-secim="gun"><b>⊘ Bu seferlik gerekmez</b>' +
+                '<div style="font-size:.72rem;color:var(--muted)">Yalnız ' + esc(as4GunEtiket(tar)) + ' üretimi atlanır; sonraki üretimler yine teyit alır</div></button>' +
+                '<button class="btn btn-ghost" style="' + satir + (ekli ? ';opacity:.5;cursor:not-allowed' : '') + '" data-secim="kalici"' + (ekli ? ' disabled' : '') + '>' +
+                '<b>⊘ Kalıcı olarak gerekmez</b><div style="font-size:.72rem;color:var(--muted)">' +
+                (ekli ? 'Referansta ek var — kalıcı işaret ana ürünü de her gün teyit dışı bırakırdı'
+                      : 'Her gün teyit dışı; robot ve 17:10 koşusu bu koda hiç dokunmaz') + '</div></button>';
+            m.querySelectorAll('button[data-secim]').forEach(function (b) {
+                b.onclick = function () {
+                    m.remove();
+                    if (b.dataset.secim === 'gun') as4Isaret(ref, bol, 'gun', 'gerek_yok', tar);
+                    else as4Isaret(ref, bol, 'kalici', 'gerek_yok');
+                };
+            });
+            document.body.appendChild(m);
+            var k = btn.getBoundingClientRect();
+            m.style.top = (k.bottom + window.scrollY + 4) + 'px';
+            m.style.left = Math.max(8, Math.min(k.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - 280)) + 'px';
+            setTimeout(function () {
+                document.addEventListener('click', function kapat(e) {
+                    if (!m.contains(e.target) && e.target !== btn) { m.remove(); document.removeEventListener('click', kapat); }
+                    else if (!document.body.contains(m)) document.removeEventListener('click', kapat);
+                });
+            }, 0);
         }
 
         // ── KALICI 'TEYİT GEREKMEZ' LİSTESİ (2026-11-12) ──
@@ -20652,6 +20853,12 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                 ['ACIK', 'SUPHELI', 'OPR10', 'YOK', 'KAPALI', 'ARAOP'].forEach(function (kat) {
                     if (!L[kat] || !L[kat].length) return;
                     L[kat] = L[kat].filter(function (r) {
+                        // BU SEFERLİK GEREKMEZ (2026-11-13): o gün kalıcı işaret gibi davranır —
+                        // hiçbir kuyruğa (launch/CFI/COP) girmez, 'teyit gerekmez' listesinde durur
+                        if (r.isaret && r.isaret.durum === 'gerek_yok') {
+                            haricList.push({ tarih: g.tarih, r: r, gunluk: true });
+                            return false;
+                        }
                         // GÖNDERİM HATASI (2026-10-14): hata alan satır otomatik tekrar
                         // denenmez — Dikkat'e ayrılır; '↻ tekrar dene' ya da '➕ teyit ver'
                         if (r.isaret && r.isaret.durum === 'hata') {
@@ -20939,7 +21146,8 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                         '<td><input type="checkbox" id="as4-cb-' + i + '"' + (b.bugunMu ? '' : ' checked') + ' style="width:17px;height:17px;cursor:pointer"></td>' +
                         '<td style="white-space:nowrap;font-size:.78rem">' + esc(as4GunEtiket(b.tarih)) + gunU + '</td>' +
                         '<td>' + esc(bolumAdi(r.bolum, r.tesis)) + '</td>' +
-                        '<td style="font-weight:700">' + esc(r.referans) + orj + '</td>' +
+                        '<td style="font-weight:700">' + esc(r.referans) + orj +
+                            (b.parcaNo > 1 ? '' : '<div style="margin-top:3px">' + as4GerekYokBtn(r, b.tarih, false) + '</div>') + '</td>' +
                         '<td style="text-align:right;font-weight:800;color:var(--success)">' + fmt(r.adet) + '</td>' +
                         '<td style="font-size:.8rem">' + lsHtml + '</td>' +
                         '<td style="text-align:right">' + fmt(l0.qty) + '</td>' +
@@ -21201,7 +21409,13 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                         // sebeplerde kaldırılacak bir işaret yok, buton yanıltırdı.
                         var sbp = x.r.haric_sebep || '';
                         sBilgi += '<div style="padding:2px 0">' + esc(as4GunEtiket(x.tarih)) + ' · ' + esc(bolumAdi(x.r.bolum, x.r.tesis)) + ' · <b>' + esc(x.r.referans) + '</b> (' + fmt(x.r.adet) + ' adet) ' +
-                            (sbp
+                            (x.gunluk
+                              ? '<span style="color:var(--muted);font-size:.78rem">— bu seferlik (yalnız bu gün)</span>' +
+                                '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
+                                'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'gun\',\'gerek_yok\',this.dataset.tar,true)" ' +
+                                'data-ref="' + esc(x.r.referans) + '" data-bol="' + esc(x.r.bolum || '') + '" data-tar="' + esc(x.tarih || '') + '" ' +
+                                'title="Bu günkü işareti kaldır — satır tekrar teyit kuyruğuna gelsin">↩ geri al</button>'
+                              : sbp
                                 ? '<span style="color:var(--muted);font-size:.78rem">— ' + esc(sbp) + '</span>'
                                 : '<button class="btn btn-ghost" style="padding:1px 6px;font-size:.68rem;margin-left:5px" ' +
                                   'onclick="as4Isaret(this.dataset.ref,this.dataset.bol,\'kalici\',\'gerek_yok\',\'\',true)" ' +
@@ -21856,6 +22070,7 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
         // Sayfa anahtarı → görünen ad (Kullanıcılar tablosu + izin kutucukları)
         var PANEL_SAYFA_ETIKET = {
             'kod-sorgu': 'Kod Sorgu (AS400 07-10-01: stok, açık emir, alt parça kısıtı — plan/teyit izni olan zaten görür)',
+            'eksik-analizi': 'Eksik Analizi (satış listesi → satın alma / üretim eksikleri — plan/kod sorgu izni olan zaten görür)',
             'ozet': 'Fabrika Özeti', 'bolum': 'Üretim & OEE', 'kayitlar': 'Kayıtlar',
             'is-yonetimi': 'İş Yönetimi', 'fikstur': 'Fikstür', 'referanslar': 'Referanslar',
             'operatorler': 'Operatörler', 'saha-cihazlari': 'Saha Cihazları',
@@ -23962,6 +24177,9 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
             // Kod Sorgu: kendi izni ya da AS400 verisiyle çalışan plan/teyit izinleri (app._KOD_SORGU_IZIN)
             if (sayfa === 'kod-sorgu' && window.PANEL_KU && !panelAdmin() &&
                 ['kaynak-plan', 'montaj-plan', 'metal-plan', 'as400-teyit'].some(function (i) { return panelIzinler().indexOf(i) !== -1; })) return true;
+            // Eksik Analizi: kendi izni ya da plan / kod sorgu / teyit izinleri (app._EKSIK_IZIN)
+            if (sayfa === 'eksik-analizi' && window.PANEL_KU && !panelAdmin() &&
+                ['kod-sorgu', 'kaynak-plan', 'montaj-plan', 'metal-plan', 'as400-teyit'].some(function (i) { return panelIzinler().indexOf(i) !== -1; })) return true;
             if (!window.PANEL_KU) return sayfa !== 'kullanicilar'; // eski backend (gate yok) → kısıtlama yok
             if (panelAdmin()) return true;
             if (sayfa === 'kullanicilar') return false;      // yalnız admin
