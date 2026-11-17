@@ -14286,21 +14286,21 @@ window.__I18N_SOZLUK__ = {
                         '<td>' + bs(o.teorik_saat) + '</td><td>' + bs(f.teorik_saat) + '</td>' +
                         '<td>' + bs(o.calisma) + '</td><td title="Vardiya ' + auSayi(f.brut, 10) + ' sa − mola ' + auSayi(f.mola, 10) + ' sa · ' + f.kisi_gun + ' kişi-gün">' + bs(f.calisma) + '</td><td>' + fark(f.calisma, o.calisma) + '</td>' +
                         '<td>' + (o.kisi || '—') + '</td><td>' + (f.kisi || '—') + '</td>' +
-                        '<td>' + perf(o.performans) + '</td><td>' + perf(f.performans) + '</td>' +
+                        '<td>' + perf(o.performans) + '</td><td>' + perf(f.calisma ? (o.teorik_saat || 0) / f.calisma : null) + '</td>' +
                         '<td style="color:var(--muted)">' + (f.yalniz_sayi ? f.yalniz_sayi + ' kod · ' + auSayi(f.yalniz_adet) : '') + '</td></tr>';
                 });
                 var ft = (r.forge_tesis || {})[t] || {};
                 govde += '<tr class="au-toplam"><td class="sol">' + t + '</td><td class="sol">TOPLAM</td><td>' + auSayi(e.adet) + '</td><td>' + auSayi(ft.adet) + '</td><td>' + fark(ft.adet, e.adet) + '</td>' +
                     '<td>' + bs(e.teorik) + '</td><td>' + bs(ft.teorik_saat) + '</td><td>' + bs(e.cal) + '</td><td>' + bs(ft.calisma) + '</td><td>' + fark(ft.calisma, e.cal) + '</td>' +
-                    '<td>' + (e.kisi || '—') + '</td><td>' + (ft.kisi || '—') + '</td><td>' + perf(e.cal ? e.teorik / e.cal : null) + '</td><td>' + perf(ft.performans) + '</td><td></td></tr>';
+                    '<td>' + (e.kisi || '—') + '</td><td>' + (ft.kisi || '—') + '</td><td>' + perf(e.cal ? e.teorik / e.cal : null) + '</td><td>' + perf(ft.calisma ? e.teorik / ft.calisma : null) + '</td><td></td></tr>';
             });
             return '<div>' +
                 '<div style="font-size:.74rem;color:var(--muted);margin:2px 0 8px;line-height:1.6">Bir bölüme tıklayınca farkın hangi kodlardan geldiği açılır (🔍 Kod farkları). ' +
-                'Forge adet: operatörlerin üretim kayıtları, bitmiş ürün (ara op, tamir / punta / rework, test cihazı ve işlem eki taşıyan kayıtlar — delme, zımpara, somun… — ayrıca sayılmaz; yalnız işlem kaydı olan parçada en büyük işlem, tel\'de kablonun son adımı). ' +
-                'Teorik saat iki tarafta aynı birim süreyle — fark adetten gelir. Forge çalışma: vardiya giriş–çıkışı (aynı kişinin paralel vardiyaları bir kez), çay / yemek molası ve namaz düşülmüş. Kişi = vardiya açan farklı operatör.</div>' +
+                'Forge adet: operatörlerin üretim kayıtları, bitmiş ürün (ara op, tamir / punta / rework, test cihazı ve işlem eki taşıyan kayıtlar — delme, zımpara, somun… — ayrıca sayılmaz; yalnız işlem kaydı olan parçada en büyük işlem, tel\'de yalnız hidrolik pres adedi). ' +
+                'Teorik saat iki tarafta aynı birim süreyle — fark adetten gelir. Forge çalışma: vardiya giriş–çıkışı (aynı kişinin paralel vardiyaları bir kez), çay / yemek molası ve namaz düşülmüş. Kişi = vardiya açan farklı operatör. Perf. ERP÷Forge = Teorik ERP ÷ Çalışma Forge.</div>' +
                 '<table class="au-tablo"><thead><tr><th class="sol">Tesis</th><th class="sol">Bölüm</th><th>Adet ERP</th><th>Adet Forge</th><th>Fark</th>' +
                 '<th>Teorik ERP</th><th>Teorik Forge</th><th>Çalışma IK</th><th>Çalışma Forge</th><th>Fark</th><th>Kişi IK</th><th>Kişi Forge</th>' +
-                '<th title="Teorik (ERP adedi) ÷ IK saati">Perf. ERP÷IK</th><th title="Teorik (Forge adedi) ÷ Forge vardiya saati">Perf. Forge</th><th>Yalnız Forge\'da</th></tr></thead><tbody>' +
+                '<th title="Teorik (ERP adedi) ÷ IK saati">Perf. ERP÷IK</th><th title="Teorik (ERP adedi) ÷ Forge vardiya saati">Perf. ERP÷Forge</th><th>Yalnız Forge\'da</th></tr></thead><tbody>' +
                 govde + '</tbody></table></div>';
         }
         function auAcKapat(i) { _au.acik[i] = !_au.acik[i]; auCiz(); }

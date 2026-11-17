@@ -1294,6 +1294,9 @@ def rapor(conn, yil, ay):
                 'calisma': fs.get('saat', 0.0), 'brut': fs.get('brut', 0.0), 'mola': fs.get('mola', 0.0),
                 'kisi': fs.get('kisi', 0), 'kisi_gun': fs.get('kisi_gun', 0),
                 'performans': round(f_teorik / fs['saat'], 3) if fs.get('saat') else None,
+                # PERF. ERP ÷ FORGE (kullanıcı 2026-11-17): "forge karşılaştırmasında performansı teorik
+                # ERP ile çalışma Forge'u kıyaslayıp hesaplayalım" — teyitli üretim ÷ vardiya saati
+                'performans_erp': round(teorik / fs['saat'], 3) if fs.get('saat') and not fsn else None,
                 'yalniz_sayi': len(fo.get('yalniz', [])), 'yalniz_adet': round(sum(x['adet'] for x in fo.get('yalniz', [])), 2)}
             # DURUŞLAR DÜŞÜLMÜŞ (kullanıcı 2026-11-03): Forge'un mola dışı duruşları hem IK saatinden hem
             # Forge vardiya saatinden düşülür; performans = teorik ÷ net çalışma
@@ -1521,7 +1524,7 @@ def excel(r):
     w['A1'].font = Font(bold=True, size=12)
     bas = ['Tesis', 'Bölüm', 'Adet ERP', 'Adet Forge', 'Fark (Forge − ERP)', 'Teorik saat ERP', 'Teorik saat Forge',
            'Çalışma IK (NçS+mesai)', 'Çalışma Forge (vardiya − mola)', 'Forge mola', 'Kişi IK', 'Kişi Forge',
-           'Performans ERP ÷ IK', 'Performans Forge ÷ Forge', "Yalnız Forge'da kod", "Yalnız Forge'da adet"]
+           'Performans ERP ÷ IK', 'Performans ERP ÷ Forge', "Yalnız Forge'da kod", "Yalnız Forge'da adet"]
     w.append(bas)
     for i in range(1, len(bas) + 1):
         c = w.cell(row=2, column=i)
@@ -1533,14 +1536,15 @@ def excel(r):
             continue
         w.append([o['tesis'], o['ad'], o['adet'], f['adet'], round(f['adet'] - o['adet'], 2), o['teorik_saat'], f['teorik_saat'],
                   o['calisma'] or None, f['calisma'] or None, f['mola'] or None, o['kisi'] or None, f['kisi'] or None,
-                  o['performans'], f['performans'], f['yalniz_sayi'] or None, f['yalniz_adet'] or None])
+                  o['performans'], f.get('performans_erp'), f['yalniz_sayi'] or None, f['yalniz_adet'] or None])
         for col in (13, 14):
             w.cell(row=w.max_row, column=col).number_format = '0%'
     w.append([])
     for x in ['Forge adet: operatörlerin üretim kayıtları, bitmiş ürün — ara operasyon, tamir / punta / rework, TK1 test cihazı '
               've işlem eki taşıyan (delme, zımpara, somun…) kayıtlar ayrıca sayılmaz; yalnız işlem kaydı olan parçada en büyük '
-              'işlem, tel\'de kablonun son adımı. İşleme ve fason rapora dahil değil.',
+              'işlem, tel\'de yalnız hidrolik pres adedi. İşleme ve fason rapora dahil değil.',
               'Teorik saat: iki tarafta da aynı birim süre — fark yalnız adetten gelir.',
+              'Performans ERP ÷ Forge: teorik saat ERP ÷ çalışma Forge.',
               'Forge çalışma: vardiya giriş–çıkış, kişi-gün başına birleşim (paralel vardiya çift sayılmaz), çay / yemek molası '
               've namaz düşülmüş; setup / fikstür gibi planlı işler çalışma sayılır.']:
         w.append([x])
