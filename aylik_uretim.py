@@ -620,6 +620,12 @@ def ik_tablolari_kur(conn):
         sicil TEXT PRIMARY KEY, isim TEXT DEFAULT '', hedef TEXT DEFAULT '', kaynak TEXT DEFAULT '',
         kullanici TEXT DEFAULT '', guncellendi TEXT DEFAULT '')""")
     conn.execute("CREATE TABLE IF NOT EXISTS aylik_ayar (anahtar TEXT PRIMARY KEY, deger TEXT)")
+    # KİŞİ BAŞI IK SAATİ (kullanıcı 2026-11-17: "çalışma IK ve çalışma Forge farklarının hangi
+    # operatörlerden geldiğini göreyim") — ik_kaydet ayın satırlarını yazar; 'dosya' aylik_calisma
+    # ile aynı kaynak adı: ay sonradan Ana Veri NçS'den yazılırsa kişi saatleri geçersiz sayılır.
+    conn.execute("""CREATE TABLE IF NOT EXISTS ik_saat_kisi (
+        yil INTEGER, ay INTEGER, sicil TEXT, isim TEXT DEFAULT '', hedef TEXT DEFAULT '',
+        nos REAL DEFAULT 0, mesai REAL DEFAULT 0, dosya TEXT DEFAULT '', PRIMARY KEY (yil, ay, sicil))""")
 
 
 def _harf_indeks(h):
@@ -826,9 +832,157 @@ def ik_kaydet(conn, yol, dosya_adi, sayfa, nos, mesai, atamalar, kullanici, yil=
         [(k['sicil'], k['isim'], k['hedef'], 'elle' if k['kaynak'] == 'elle' else (k['kaynak'] or ''), kullanici, simdi)
          for k in o['kisiler'] if k['hedef'] and k['kaynak'] != 'kayıtlı'])
     saatler, atanmamis, disi = ik_toplam(o['kisiler'])
-    ncs_yaz(conn, yil, ay, saatler, kullanici, dosya=f'IK › {dosya_adi} · {sayfa}')
+    kaynak = f'IK › {dosya_adi} · {sayfa}'
+    _ik_kisi_yaz(conn, yil, ay, o['kisiler'], kaynak)
+    ncs_yaz(conn, yil, ay, saatler, kullanici, dosya=kaynak)
     return {'yil': yil, 'ay': ay, 'ay_ad': f'{AY_AD[ay]} {yil}', 'bolum': len(saatler), 'toplam': o['toplam'],
             'atanmamis': atanmamis, 'disi': disi}
+
+
+def _ik_kisi_yaz(conn, yil, ay, kisiler, kaynak):
+    conn.execute("DELETE FROM ik_saat_kisi WHERE yil=? AND ay=?", (yil, ay))
+    conn.executemany("INSERT OR REPLACE INTO ik_saat_kisi (yil, ay, sicil, isim, hedef, nos, mesai, dosya) "
+                     "VALUES (?,?,?,?,?,?,?,?)",
+                     [(yil, ay, k['sicil'], k.get('isim') or '', k.get('hedef') or '', k['nos'], k['mesai'], kaynak)
+                      for k in kisiler])
+
+
+def ik_kisi_saatleri(conn, yil, ay):
+    """→ (kişiler [{sicil, isim, hedef, nos, mesai}] | None, not). Ayın saati IK Excel'inden değilse None.
+    Tablo bu özellikten (2026-11-17) önce kaydedilmiş aylarda boştur → sunucuda saklanan IK dosyası
+    (data/ik_saat, aynı ad) bugünkü sütun ayarı + sicil eşlemesiyle BİR KEZ okunup yazılır."""
+    ik_tablolari_kur(conn)
+    tablolari_kur(conn)
+    r = conn.execute("SELECT dosya FROM aylik_calisma WHERE yil=? AND ay=? AND dosya LIKE 'IK %' LIMIT 1",
+                     (yil, ay)).fetchone()
+    if not r:
+        return None, "Bu ayın çalışma saati IK Excel'inden yüklenmemiş — kişi bazında IK saati yok."
+    kaynak = r[0]
+    satir = conn.execute("SELECT sicil, isim, hedef, nos, mesai FROM ik_saat_kisi WHERE yil=? AND ay=? AND dosya=?",
+                         (yil, ay, kaynak)).fetchall()
+    if satir:
+        return [{'sicil': x[0], 'isim': x[1], 'hedef': x[2], 'nos': x[3] or 0.0, 'mesai': x[4] or 0.0} for x in satir], ''
+    m = re.match(r'^IK › (.+) · (.*)$', kaynak)
+    if m and os.path.isdir(IK_KLASOR):
+        dosya, sayfa = m.group(1), m.group(2).strip()
+        adaylar = sorted(f for f in os.listdir(IK_KLASOR)
+                         if len(f.split('_', 2)) == 3 and f.split('_', 2)[2] == dosya)
+        ayar = ik_ayar(conn)
+        for f in reversed(adaylar):
+            try:
+                ok = ik_oku(os.path.join(IK_KLASOR, f), sayfa if sayfa and sayfa != 'None' else None)
+                kisiler = ik_eslestir(conn, ik_kisiler(ok, sutun_listesi(ayar['nos']), sutun_listesi(ayar['mesai'])))
+            except Exception:
+                continue
+            _ik_kisi_yaz(conn, yil, ay, kisiler, kaynak)
+            conn.commit()
+            return kisiler, ''
+    return None, "IK Excel'i sunucuda bulunamadı — kişi saatleri için Excel'i yeniden yükleyip kaydedin."
+
+
+def _jetonlar(ad):
+    return [t for t in re.findall(r'[A-Z]+', str(ad or '').translate(_TR_ASCII).upper()) if len(t) > 1]
+
+
+def kisi_farklari(conn, yil, ay, f_saat):
+    """{(tesis, bölüm): {'satirlar': [...], 'ozet': {...}}, 'not': str} — IK kişi saati ↔ Forge vardiya
+    saati, AD ile eşleşir (IK'da sicil, Forge'da operatör adı: harf dışı / Türkçe karakter yutulur; tam
+    tutmazsa en az iki ad parçası ortak ve TEK aday). Kişi bölümü IK'da sicil eşlemesinden, Forge'da
+    vardiyanın bölümünden — yardıma giden kişi IK'da kendi bölümünde, Forge'da gittiği bölümde görünür."""
+    ik, ik_not = ik_kisi_saatleri(conn, yil, ay)
+    saatsiz = ik is None
+    if saatsiz:                                   # yalnız kim hangi bölümde: kalıcı sicil eşlemesi
+        ik = [{'sicil': x[0], 'isim': x[1], 'hedef': x[2], 'nos': None, 'mesai': None}
+              for x in conn.execute("SELECT sicil, isim, hedef FROM ik_personel WHERE COALESCE(hedef,'')<>''")]
+    ik = [k for k in ik if saatsiz or (k['nos'] or 0) + (k['mesai'] or 0) > 0]
+    for k in ik:
+        k['_j'] = _jetonlar(k['isim'])
+    tam = {}
+    for i, k in enumerate(ik):
+        tam.setdefault(''.join(k['_j']), []).append(i)
+
+    def bul(ad):
+        j = _jetonlar(ad)
+        if not j:
+            return None
+        a = tam.get(''.join(j)) or []
+        if len(a) == 1:
+            return a[0]
+        js = set(j)
+        a = [i for i, k in enumerate(ik) if len(js & set(k['_j'])) >= 2 and (js <= set(k['_j']) or set(k['_j']) <= js)]
+        return a[0] if len(a) == 1 else None
+
+    def etiket(h):
+        if h == IK_DISI:
+            return 'üretim dışı'
+        p = tuple(str(h or '').split('/', 1))
+        return f"{p[0]} · {NCS_BOLUM_AD.get(p, p[-1])}" if len(p) == 2 else 'atanmamış'
+
+    ops = {}                                      # OP → {'ad', 'ik': i | None, 'b': {(t, b): {saat, gun}}}
+    for tb, v in f_saat.items():
+        for op, x in (v.get('kisiler') or {}).items():
+            o = ops.setdefault(op, {'ad': x['ad'], 'b': {}})
+            o['b'][tb] = x
+    for o in ops.values():
+        o['ik'] = bul(o['ad'])
+    ik_op = {}
+    for op, o in ops.items():
+        if o['ik'] is not None:
+            ik_op.setdefault(o['ik'], []).append(op)
+
+    out = {}
+    bolumler = set(f_saat) | {tuple(k['hedef'].split('/', 1)) for k in ik if '/' in str(k['hedef'] or '')}
+    for tb in bolumler:
+        satirlar = []
+        hedef = f'{tb[0]}/{tb[1]}'
+        gorulen = set()
+        for i, k in enumerate(ik):
+            if k['hedef'] != hedef:
+                continue
+            f_saat_ = f_gun = 0.0
+            diger = {}
+            for op in ik_op.get(i, []):
+                gorulen.add(op)
+                for tb2, x in ops[op]['b'].items():
+                    if tb2 == tb:
+                        f_saat_ += x['saat']
+                        f_gun += x['gun']
+                    else:
+                        d = diger.setdefault(tb2, {'saat': 0.0, 'gun': 0})
+                        d['saat'] += x['saat']
+                        d['gun'] += x['gun']
+            ik_s = None if saatsiz else round((k['nos'] or 0) + (k['mesai'] or 0), 1)
+            fad = ', '.join(sorted({ops[op]['ad'] for op in ik_op.get(i, [])}))
+            satirlar.append({'isim': k['isim'], 'sicil': k['sicil'], 'ik_saat': ik_s, 'ik_bolum': '',
+                             'forge_saat': round(f_saat_, 1), 'forge_gun': int(f_gun),
+                             'forge_ad': fad if fad and _jetonlar(fad) != k['_j'] else '',
+                             'diger': [{'bolum': etiket(f'{a}/{b}'), 'saat': round(d['saat'], 1), 'gun': d['gun']}
+                                       for (a, b), d in sorted(diger.items(), key=lambda x: -x[1]['saat'])],
+                             'durum': 'ikisi' if f_gun else 'yalniz_ik'})
+        for op, o in ops.items():
+            if tb not in o['b'] or op in gorulen:
+                continue
+            x = o['b'][tb]
+            k = ik[o['ik']] if o['ik'] is not None else None
+            satirlar.append({'isim': k['isim'] if k else o['ad'], 'sicil': k['sicil'] if k else '', 'ik_saat': None,
+                             'ik_bolum': etiket(k['hedef']) if k else '', 'forge_saat': round(x['saat'], 1),
+                             'forge_gun': x['gun'], 'forge_ad': o['ad'] if k and _jetonlar(o['ad']) != k['_j'] else '',
+                             'diger': [{'bolum': etiket(f'{a}/{b}'), 'saat': round(d['saat'], 1), 'gun': d['gun']}
+                                       for (a, b), d in sorted(o['b'].items(), key=lambda y: -y[1]['saat']) if (a, b) != tb],
+                             'durum': 'yardim' if k else 'ik_yok'})
+        for s in satirlar:
+            s['fark'] = round(s['forge_saat'] - (s['ik_saat'] or 0), 1) if not saatsiz else None
+        satirlar.sort(key=lambda s: (-(abs(s['fark']) if s['fark'] is not None else s['forge_saat']), s['isim']))
+        oz = {}
+        for s in satirlar:
+            g = oz.setdefault(s['durum'], {'kisi': 0, 'ik': 0.0, 'forge': 0.0})
+            g['kisi'] += 1
+            g['ik'] = round(g['ik'] + (s['ik_saat'] or 0), 1)
+            g['forge'] = round(g['forge'] + s['forge_saat'], 1)
+        out[tb] = {'satirlar': satirlar, 'ozet': oz}
+    if saatsiz:
+        ik_not = (ik_not + ' ' if ik_not else '') + 'IK sütununda kişiler sicil eşlemesinden (ik_personel), saatsiz.'
+    return out, ik_not, not saatsiz
 
 
 def calisma_haritasi(conn, yil, ay):
@@ -987,7 +1141,7 @@ def forge_calisma(conn, yil, ay):
     başlangıç bir kez) ve o günün çalışma süresini aşamaz."""
     bas, bit = _ay_araligi(yil, ay)
     bugun, simdi = date.today().isoformat(), datetime.now()
-    araliklar, vk = {}, {}
+    araliklar, vk, adlar = {}, {}, {}
     for vid, t, lok, b, op, bs, bt, dk in conn.execute(
             "SELECT id, tarih, COALESCE(lokasyon,'TK2'), COALESCE(bolum,'kaynak'), COALESCE(operator_adi,''), "
             "baslangic_saati, bitis_saati, COALESCE(toplam_sure_dk,0) FROM vardiyalar WHERE tarih BETWEEN ? AND ?",
@@ -1005,6 +1159,7 @@ def forge_calisma(conn, yil, ay):
             e += 1440                          # gece yarısını geçen vardiya
         k = (lok, b, op.strip().upper(), t)
         araliklar.setdefault(k, []).append((s, e))
+        adlar.setdefault(k[2], op.strip())
         vk[vid] = k
     molalar, duruslar = {}, {}
     for vid, sebep, tip, ds, sdk in conn.execute(
@@ -1042,11 +1197,14 @@ def forge_calisma(conn, yil, ay):
         dtop = sum(x[0] for x in dl)
         oran = min(1.0, (sure - mola) / dtop) if dtop else 0.0      # duruş o günün çalışmasını aşamaz
         o = out.setdefault((k[0], k[1]), {'brut': 0.0, 'mola': 0.0, 'kisi': set(), 'kisi_gun': 0,
-                                          'durus': {'planli': 0.0, 'plansiz': 0.0}, 'sebep': {}})
+                                          'durus': {'planli': 0.0, 'plansiz': 0.0}, 'sebep': {}, 'op': {}})
         o['brut'] += sure
         o['mola'] += mola
         o['kisi'].add(k[2])
         o['kisi_gun'] += 1
+        ko = o['op'].setdefault(k[2], [0.0, 0])               # operatör farkları (kisi_farklari)
+        ko[0] += sure - mola
+        ko[1] += 1
         for dk_, sebep, tip in dl:
             o['durus'][tip] += dk_ * oran
             o['sebep'][(sebep, tip)] = o['sebep'].get((sebep, tip), 0.0) + dk_ * oran
@@ -1055,7 +1213,8 @@ def forge_calisma(conn, yil, ay):
                 'durus': round((v['durus']['planli'] + v['durus']['plansiz']) / 60, 1),
                 'durus_planli': round(v['durus']['planli'] / 60, 1), 'durus_plansiz': round(v['durus']['plansiz'] / 60, 1),
                 'durus_sebep': [{'sebep': s, 'tip': t, 'saat': round(dk_ / 60, 1)}
-                                for (s, t), dk_ in sorted(v['sebep'].items(), key=lambda x: -x[1])][:12]}
+                                for (s, t), dk_ in sorted(v['sebep'].items(), key=lambda x: -x[1])][:12],
+                'kisiler': {op: {'ad': adlar.get(op, op), 'saat': x[0] / 60, 'gun': x[1]} for op, x in v['op'].items()}}
             for k, v in out.items()}
 
 
@@ -1253,6 +1412,7 @@ def rapor(conn, yil, ay):
     calisma, disarida, calisma_bilgi = calisma_haritasi(conn, yil, ay)
     # Forge tarafı: aynı hariç tutma + aynı birim süre; ERP'de bu bölümde olmayan kodlar ayrıca listelenir
     f_saat = forge_calisma(conn, yil, ay)
+    k_fark, k_fark_not, k_fark_saatli = kisi_farklari(conn, yil, ay, f_saat)
     f_ozet = {}
     for (tesis, b), kf in f_uretim.items():
         o = f_ozet.setdefault((tesis, b), {'adet': 0.0, 'kod': 0, 'teorik_sn': 0.0, 'sureli_adet': 0.0, 'yalniz': []})
@@ -1342,6 +1502,7 @@ def rapor(conn, yil, ay):
                          'forge': forge_o,
                          'forge_yalniz': sorted(fo.get('yalniz', []), key=lambda x: -x['adet'])[:300],
                          'durus': durus_o,
+                         'kisi_farki': k_fark.get((tesis, b)) if forge_o else None,
                          'kod_farklari': farklar[:400], 'kod_fark_sayisi': len(farklar),
                          'satirlar': sorted(bl['satirlar'], key=lambda s: -s['adet'])})
     for ft in f_tesis.values():
@@ -1371,6 +1532,7 @@ def rapor(conn, yil, ay):
                       for k in kurallar]
     return {'yil': yil, 'ay': ay, 'ay_ad': f'{AY_AD[ay]} {yil}', 'olcum': veri['ts'], 'olcan': veri.get('_kullanici', ''),
             'devam_eden': (yil, ay) == (date.today().year, date.today().month),
+            'kisi_fark_not': k_fark_not, 'kisi_fark_saatli': k_fark_saatli,
             'ozet': ozet, 'tesis': tesis_top, 'forge_tesis': f_tesis, 'tanimsiz': tanimsiz, 'hammadde': hammadde, 'cop_okundu': cop_okundu,
             'depolar': sorted(({**o, 'kod': len(o['kod']), 'RPR': round(o['RPR'], 2), 'CFI': round(o['CFI'], 2),
                                 'COP': round(o['COP'], 2)}
