@@ -15592,6 +15592,11 @@ def _eksik_kod_coz(conn, satirlar):
         except Exception:
             pass
         if not s.get('tesis'):
+            if s['kod'].startswith('93.'):
+                # TEL ürünü TK1'de (ya da fasonda) üretilir; TK2'de yalnız alt parça olarak
+                # kullanılır (montaj profili notu) → alt parça stoğu TK1 depolarından
+                s['tesis'] = 'TK1'
+                continue
             r = conn.execute("SELECT GROUP_CONCAT(DISTINCT COALESCE(lokasyon,'TK2')) l FROM referans_listesi "
                              "WHERE UPPER(REPLACE(referans_kodu,' ',''))=?", (s['kod'],)).fetchone()
             loklar = ((r['l'] if r else '') or '').split(',')
@@ -15627,6 +15632,10 @@ def eksik_analizi_api():
         derinlik = max(1, min(6, int(secenek.get('derinlik') or 4)))
     except (TypeError, ValueError):
         derinlik = 4
+    try:            # adet sütunu olmayan satırlar için (yalnız kod kopyalanmış liste)
+        vars_adet = max(0.0, min(99999.0, float(str(secenek.get('varsayilan_adet', 1)).replace(',', '.') or 0)))
+    except (TypeError, ValueError):
+        vars_adet = 1.0
     conn = get_db()
     _eksik_kod_coz(conn, satirlar)
     pf = KP_PROFILLER['montaj']
@@ -15636,7 +15645,8 @@ def eksik_analizi_api():
     tk1_eksi = tuple(str(x).strip().upper() for x in (ecfg.get('tk1_eksi_dusulen') or ('REP',)))
     ayar = {'depolar': {'TK2': (tuple(tk2_depo), tuple(_kp_eksi_depolar(pf))), 'TK1': (tk1_depo, tk1_eksi)},
             'acilmayan': {'TK2': tuple(pf.get('kontrol_disi_onek') or ()), 'TK1': ()},
-            'kisit_disi': tuple(_kp_kisit_disi(pf)), 'azami_derinlik': derinlik, 'varsayilan_tesis': 'TK2'}
+            'kisit_disi': tuple(_kp_kisit_disi(pf)), 'azami_derinlik': derinlik, 'varsayilan_tesis': 'TK2',
+            'varsayilan_adet': vars_adet}
     kp = _kp_modul()
     try:
         cn = kp.erp_baglan()
@@ -15658,7 +15668,7 @@ def eksik_analizi_api():
         r['yazim'] = next((s.get('yazim') for s in satirlar if s['sira'] == r['sira']), None)
     print(f"[EKSIK] {g.panel_ku['kullanici_adi']}: {kaynak_ad} · {len(satirlar)} satır · "
           f"{(datetime.now() - t0).total_seconds():.1f} sn")
-    return jsonify({**sonuc, 'bilgi': bilgi, 'kaynak': kaynak_ad, 'derinlik': derinlik,
+    return jsonify({**sonuc, 'bilgi': bilgi, 'kaynak': kaynak_ad, 'derinlik': derinlik, 'varsayilan_adet': vars_adet,
                     'depolar': {'TK2': list(ayar['depolar']['TK2'][0]), 'TK1': list(tk1_depo)},
                     'sure_sn': round((datetime.now() - t0).total_seconds(), 1)})
 

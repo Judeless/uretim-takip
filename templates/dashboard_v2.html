@@ -9107,6 +9107,8 @@ window.__I18N_SOZLUK__ = {
                             <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">Alt eksik derinliği
                                 <select id="ea-derinlik" style="font-size:.8rem;padding:4px 6px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)">
                                     <option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="6">6</option></select></label>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)" title="Listede ihtiyaç adedi olmayan satırlar (yalnız kod kopyalanmışsa) bu adet üzerinden hesaplanır">Adet yoksa
+                                <input type="number" id="ea-vars-adet" value="1" min="0" step="1" style="width:64px;font-size:.8rem;padding:4px 6px;border-radius:8px;border:1px solid var(--border-input);background:var(--bg);color:var(--text)"></label>
                             <span style="font-size:.74rem;color:var(--dim)">İhtiyaç = listedeki eksi adedin mutlağı (Final availab. / Minimum ihtiyaç). ERP'den yalnız okunur.</span>
                         </div>
                     </div>
@@ -10553,12 +10555,14 @@ window.__I18N_SOZLUK__ = {
             if (dosya) {
                 var fd = new FormData();
                 fd.append('dosya', dosya); fd.append('derinlik', derinlik);
+                fd.append('varsayilan_adet', document.getElementById('ea-vars-adet').value || '0');
                 opts = { method: 'POST', body: fd };
             } else {
                 var metin = document.getElementById('ea-metin').value;
                 if (!metin.trim()) { toast('Önce listeyi yapıştırın ya da Excel yükleyin', 'err'); return; }
                 opts = { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                         body: JSON.stringify({ metin: metin, derinlik: derinlik }) };
+                         body: JSON.stringify({ metin: metin, derinlik: derinlik,
+                                                varsayilan_adet: document.getElementById('ea-vars-adet').value || '0' }) };
             }
             btn.disabled = true;
             el.innerHTML = '<div class="yukleniyor" style="padding:26px 0">⏳ Ürün ağaçları ve stoklar AS400\'den okunuyor… (liste uzunsa 1 dakikayı bulabilir)</div>';
@@ -10573,6 +10577,16 @@ window.__I18N_SOZLUK__ = {
             } finally { btn.disabled = false; }
         }
         function eaHucre(r) { return (r.kopya || {})[eaKisa() ? 'kisa' : 'uzun'] || ['', '', '']; }
+        // Adetsiz satır uyarısı: yalnız kod kopyalanmışsa eksikler varsayılan adet içindir
+        function eaAdetUyarisi(d) {
+            var b = d.bilgi || {}, n = (b.kodlu || 0) - (b.adetli || 0);
+            if (n <= 0) return '';
+            return '<div style="margin:2px 0 8px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--lg-amber) 55%,transparent);border-radius:10px;color:var(--text);font-size:.8rem">' +
+                '⚠ <b>' + n + ' satırda ihtiyaç adedi yok</b> — ' + (d.varsayilan_adet
+                    ? 'bu satırlar <b>' + eaAdet(d.varsayilan_adet) + ' adet</b> üzerinden hesaplandı (İhtiyaç sütununda <b>*</b>).'
+                    : 'bu satırlara bakılmadı ("Adet yoksa" 0).') +
+                ' Gerçek eksik adetleri için listeyi ihtiyaç sütunuyla birlikte kopyalayın (ör. <i>MİNİMUM İHTİYAÇ ADETİ</i> / <i>Final availab.</i>). "Stokla en fazla" sütunu adetten bağımsızdır.</div>';
+        }
         function eaCiz() {
             var el = document.getElementById('ea-sonuc');
             if (!el || !_ea) return;
@@ -10586,22 +10600,26 @@ window.__I18N_SOZLUK__ = {
                 '<button class="btn btn-primary" style="padding:4px 12px;font-size:.78rem" onclick="eaKopyala(\'tek\')" title="Her satır tek hücre: Satınalma: … | Üretim: … — Excel\'deki Eksikler sütununa yapıştırın">📋 Tek sütun kopyala</button>' +
                 '<button class="btn btn-ghost" style="padding:4px 12px;font-size:.78rem" onclick="eaKopyala(\'iki\')" title="İki hücre: satın alma ⇥ üretim">📋 İki sütun kopyala</button></span></div>' +
                 '<div style="padding:8px 20px 4px;font-size:.76rem;color:var(--muted)">' + rozet +
+                eaAdetUyarisi(d) +
                 '<span style="color:var(--dim)">Sayılan depolar — TK2: ' + esc((d.depolar.TK2 || []).join('+')) + ' · TK1: ' + esc((d.depolar.TK1 || []).join('+')) +
                 ' · alt eksik derinliği ' + d.derinlik + '. Stok liste sırasıyla dağıtılır (üstteki satır önce alır).</span></div>' +
                 '<div class="table-wrap" style="padding:0 20px 14px;max-height:65vh;overflow:auto"><table class="admin-table"><thead><tr>' +
                 '<th>#</th><th>Kod</th><th style="text-align:right">İhtiyaç</th><th style="text-align:right" title="Ürünün açık launch\'ı — alt parçaları REP\'e çekilmiş, ihtiyaçtan düşülür">Launch</th>' +
-                '<th style="text-align:right" title="Liste sırasıyla dağıtılan stokla bu üründen kaç adet yapılabilir">Yapılabilir</th>' +
+                '<th style="text-align:right" title="Liste sırasıyla dağıtılan stokla bu üründen kaç adet yapılabilir (ihtiyaçla sınırlı)">Yapılabilir</th>' +
+                '<th style="text-align:right" title="Listedeki diğer ürünlerden bağımsız: serbest stokla bu üründen en fazla kaç adet çıkar">Stokla en fazla</th>' +
                 '<th>Satın alma eksikleri</th><th>Üretim eksikleri <span style="font-weight:400;color:var(--dim)">(← = onu üretmek için eksik)</span></th><th>Durum</th></tr></thead><tbody>' +
                 sat.map(function (r) {
                     var c = eaHucre(r), dr = EA_DURUM[r.durum] || ['', 'var(--muted)'];
-                    if (!r.kod) return '<tr style="opacity:.5"><td>' + r.sira + '</td><td colspan="7" style="font-size:.74rem;color:var(--dim)">' + esc(r.ham || '') + '</td></tr>';
+                    if (!r.kod) return '<tr style="opacity:.5"><td>' + r.sira + '</td><td colspan="8" style="font-size:.74rem;color:var(--dim)">' + esc(r.ham || '') + '</td></tr>';
                     return '<tr><td style="color:var(--dim)">' + r.sira + '</td>' +
                         '<td style="font-weight:700;white-space:nowrap">' + esc(r.kod) +
                             (r.yazim ? '<div style="font-size:.68rem;color:var(--primary)">↳ yazılan: ' + esc(r.yazim) + '</div>' : '') +
                             (r.aciklama ? '<div style="font-size:.68rem;color:var(--muted);font-weight:400">' + esc(r.aciklama) + '</div>' : '') + '</td>' +
-                        '<td style="text-align:right">' + (r.ihtiyac != null ? eaAdet(r.ihtiyac) : '—') + '</td>' +
+                        '<td style="text-align:right">' + (r.ihtiyac != null ? eaAdet(r.ihtiyac) : '—') +
+                            (r.adet_varsayilan ? '<span style="color:var(--lg-amber);font-weight:800" title="Listede adet yok — varsayılan adetle bakıldı">*</span>' : '') + '</td>' +
                         '<td style="text-align:right">' + (r.launch ? eaAdet(r.launch) : '') + '</td>' +
                         '<td style="text-align:right">' + (r.yapilabilir != null ? eaAdet(r.yapilabilir) : '') + '</td>' +
+                        '<td style="text-align:right;color:var(--muted)">' + (r.stokla_en_fazla != null ? eaAdet(r.stokla_en_fazla) : '') + '</td>' +
                         '<td style="font-size:.78rem;max-width:340px">' + esc(c[0]) + '</td>' +
                         '<td style="font-size:.78rem;max-width:380px">' + esc(c[1]) + ((r.notlar || []).length ? '<div style="color:var(--dim)">' + esc(r.notlar.join(' · ')) + '</div>' : '') + '</td>' +
                         '<td style="font-size:.74rem;font-weight:700;white-space:nowrap;color:' + dr[1] + '">' + esc(dr[0] || (c[2] || '')) + '</td></tr>';

@@ -111,6 +111,10 @@ def satirlari_ayikla(tablo):
             tes_s = next((j for j, c in enumerate(hucre) if c and BASLIK_TESIS.search(c)), None)
             bas = i + 1
             break
+    # 'Final availab.' bir MÜSAİTLİK sütunu: eksi = ihtiyaç, artı = fazlası var (ihtiyaç 0).
+    # 'MİNİMUM İHTİYAÇ ADETİ' gibi ihtiyaç sütununda işaret ne olursa olsun mutlak değer.
+    musaitlik = iht_s is not None and bool(re.search(r'(availab|final|müsait|musait)',
+                                                     _baslik(tablo[bas - 1][iht_s])))
     satirlar = []
     for r in tablo[bas:]:
         hucre = list(r)
@@ -126,9 +130,13 @@ def satirlari_ayikla(tablo):
         if not kod and kod_s is None:
             kod = next((c for c in metin if _kod_mu(c)), '')
         ihtiyac = None
-        if iht_s is not None and iht_s < len(hucre):
-            ihtiyac = _sayi(hucre[iht_s])
-        if ihtiyac is None:
+        if iht_s is not None:
+            # Başlıkta ihtiyaç sütunu VARSA yalnız ona bakılır: boşsa başka sayıya kaçılmaz —
+            # mail tablosunda tarih sütunlarındaki plan adetleri (19, 5) ihtiyaç sanılırdı
+            ihtiyac = _sayi(hucre[iht_s]) if iht_s < len(hucre) else None
+            if ihtiyac is not None and musaitlik:
+                ihtiyac = max(0.0, -ihtiyac)        # 'Final availab.' artıysa ihtiyaç yok
+        else:
             sayilar = [_sayi(c) for j, c in enumerate(hucre) if j != kod_s and str(c or '').strip() != kod]
             sayilar = [x for x in sayilar if x is not None]
             eksi = [x for x in sayilar if x < 0]
@@ -139,7 +147,9 @@ def satirlari_ayikla(tablo):
                          'tesis': tesis, 'ham': ' · '.join(c for c in metin if c)[:160]})
     while satirlar and not satirlar[-1]['ham']:          # sondaki boş satırlar (Excel'in fazlası)
         satirlar.pop()
-    bilgi = {'baslik': bas > 0, 'kod_sutun': kod_s, 'ihtiyac_sutun': iht_s, 'tesis_sutun': tes_s}
+    bilgi = {'baslik': bas > 0, 'kod_sutun': kod_s, 'ihtiyac_sutun': iht_s, 'tesis_sutun': tes_s,
+             'kodlu': sum(1 for x in satirlar if x['kod']),
+             'adetli': sum(1 for x in satirlar if x['kod'] and x['ihtiyac'] is not None)}
     return satirlar, bilgi
 
 
@@ -235,6 +245,7 @@ def analiz(kaynak, satirlar, ayar):
     derin = int(ayar.get('azami_derinlik') or 4)
     kisit_disi = tuple(ayar.get('kisit_disi') or ())
     vars_tesis = ayar.get('varsayilan_tesis') or 'TK2'
+    vars_adet = float(ayar.get('varsayilan_adet') or 0) or None
 
     def depo(tesis):
         return ayar['depolar'].get(tesis) or ayar['depolar'][vars_tesis]
@@ -247,21 +258,39 @@ def analiz(kaynak, satirlar, ayar):
     launch = kaynak.launchlar([s['kod'] for s in urunler if (kart.get(s['kod']) or {}).get('prov') == 'P'])
 
     havuz, launch_havuz = {}, {}            # (tesis, kod) → kalan serbest stok / kalan launch
+    agac_onb = {}                           # (tesis, kod) → (parçalar, iz)
 
-    def serbest(tesis, kod, depolar):
-        k = (tesis, kod)
-        if k not in havuz:
-            sayilan, eksi = depo(tesis)
-            havuz[k] = kp.eldeki_stok(depolar.get(kod, {}), sayilan, eksi)
-        return havuz[k]
+    def agac_al(tesis, kodlar):
+        """Ağaç + alt parçaların kart / stok / sipariş / launch'ı — TOPLU ve önbellekli."""
+        yeni = [k for k in dict.fromkeys(kodlar) if (tesis, k) not in agac_onb]
+        if yeni:
+            ag = kaynak.agac(yeni, acilmayan(tesis))
+            for k in yeni:
+                agac_onb[(tesis, k)] = ag.get(k) or ([], {})
+            altlar = sorted({a for k in yeni for a, _q, _u in agac_onb[(tesis, k)][0]})
+            if altlar:
+                kk = kaynak.kartlar(altlar)
+                kaynak.stoklar(altlar)
+                kaynak.siparisler(altlar)
+                kaynak.launchlar([a for a in altlar if (kk.get(a) or {}).get('prov') == 'P'])
+        return {k: agac_onb[(tesis, k)] for k in kodlar}
+
+    def ilk_serbest(tesis, kod):
+        return kp.eldeki_stok(kaynak.stoklar([kod]).get(kod, {}), *depo(tesis))
+
+    def serbest(tesis, kod):
+        if (tesis, kod) not in havuz:
+            havuz[(tesis, kod)] = ilk_serbest(tesis, kod)
+        return havuz[(tesis, kod)]
 
     sonuc = []
-    talepler = []                            # (satır, kod, adet, tesis, derinlik, düğüm)
+    kokler = []                              # (satır, tesis, net, kök düğüm) — liste sırasıyla
     for s in satirlar:
         r = {'sira': s['sira'], 'kod': s.get('kod') or '', 'ihtiyac': s.get('ihtiyac'),
              'ham': s.get('ham', ''), 'tesis': s.get('tesis') or vars_tesis,
              'satin_alma': {}, 'uretim': [], 'notlar': [], 'durum': 'tamam',
-             'aciklama': '', 'prov': '', 'launch': 0.0, 'net': None, 'yapilabilir': None}
+             'aciklama': '', 'prov': '', 'launch': 0.0, 'net': None, 'yapilabilir': None,
+             'stokla_en_fazla': None, 'adet_varsayilan': False}
         sonuc.append(r)
         if not r['kod']:
             r['durum'] = 'kod_yok'
@@ -271,6 +300,10 @@ def analiz(kaynak, satirlar, ayar):
             r['durum'] = 'bulunamadi'
             continue
         r['aciklama'], r['prov'] = k.get('aciklama', ''), k.get('prov', '')
+        # ADET VERİLMEMİŞ SATIR (yalnız kod kopyalanmış, kullanıcı 2026-11-16): sessizce
+        # 'ihtiyaç yok' demek yerine varsayılan adetle bakılır ve satırda belirtilir
+        if r['ihtiyac'] is None and vars_adet:
+            r['ihtiyac'], r['adet_varsayilan'] = vars_adet, True
         if not r['ihtiyac']:
             r['durum'] = 'ihtiyac_yok'
             continue
@@ -284,76 +317,91 @@ def analiz(kaynak, satirlar, ayar):
         if r['net'] <= 0:
             r['notlar'].append(f"açık launch ({r['launch']:g}) ihtiyacı karşılıyor")
             continue
-        kok_dugum = {'kod': r['kod'], 'eksik': r['net'], 'cocuk': []}
-        r['_kok'] = kok_dugum
-        talepler.append((r, r['kod'], r['net'], r['tesis'], 0, kok_dugum))
+        r['_kok'] = {'kod': r['kod'], 'eksik': r['net'], 'cocuk': []}
+        kokler.append((r, r['tesis'], r['net'], r['_kok']))
 
-    for seviye in range(derin + 1):
-        if not talepler:
+    # 1) ÖN OKUMA (seviye seviye, TOPLU): diğer satırlar hiç yokmuş gibi eksik çıkacak P
+    #    parçaların ağaçları baştan okunur. Asıl hesap (2) bunları önbellekten kullanır;
+    #    satırlar arası paylaşım yüzünden ortaya çıkan birkaç ek düğüm orada tek tek okunur.
+    seviye = [(t, r['kod'], adet) for r, t, adet, _d in kokler]
+    for _d in range(derin + 1):
+        if not seviye:
             break
-        # Bu seviyede açılacak kodların ağacı (tesise göre '93.' açılmaz), alt parçaların
-        # kartı / stoğu / launch'ı TOPLU okunur
-        agaclar = {}
-        for tesis in {t[3] for t in talepler}:
-            agaclar[tesis] = kaynak.agac([t[1] for t in talepler if t[3] == tesis], acilmayan(tesis))
-        altlar = sorted({a for tesis, ag in agaclar.items() for lst, _iz in ag.values() for a, _q, _u in lst})
-        akart = kaynak.kartlar(altlar) if altlar else {}
-        astok = kaynak.stoklar(altlar) if altlar else {}
-        asip = kaynak.siparisler(altlar) if altlar else {}
-        alaunch = kaynak.launchlar([a for a in altlar if (akart.get(a) or {}).get('prov') == 'P']) if altlar else {}
+        for tesis in {t for t, _k, _a in seviye}:
+            agac_al(tesis, [k for t, k, _a in seviye if t == tesis])
         sonraki = []
-        for r, kod, adet, tesis, d, dugum in talepler:
-            parcalar, iz = agaclar[tesis].get(kod, ([], {}))
-            if not parcalar:
-                if d == 0:
-                    r['durum'] = 'agac_yok'
-                else:
-                    dugum['not'] = 'ürün ağacı yok'
-                continue
-            yapilabilir = None
-            for alt, birim, um in sorted(parcalar):
-                if birim <= 0 or _kisit_disi_mi(alt, kisit_disi) or (iz.get(alt) or {}).get('hayali'):
-                    continue                # hayali (stoksuz) / kısıt dışı: plan modülleriyle aynı
-                gerek = adet * birim
-                eldeki = serbest(tesis, alt, astok)
-                al = min(eldeki, gerek)
-                havuz[(tesis, alt)] = eldeki - al
-                if d == 0:
-                    kac = int(al // birim + 1e-9)
-                    yapilabilir = kac if yapilabilir is None else min(yapilabilir, kac)
-                eksik = gerek - al
-                if eksik <= 1e-6:
+        for tesis, kod, adet in seviye:
+            for alt, birim, _um in agac_onb[(tesis, kod)][0]:
+                ak = kaynak.kartlar([alt]).get(alt) or {}
+                if ak.get('prov') != 'P' or birim <= 0 or alt.startswith(acilmayan(tesis)):
                     continue
-                ak = akart.get(alt) or {}
-                um = (um or '').strip().upper()
-                if ak.get('prov') == 'P':
-                    lk = (tesis, alt)
-                    if lk not in launch_havuz:
-                        launch_havuz[lk] = alaunch.get(alt, 0.0)
-                    kapsar = min(launch_havuz[lk], eksik)
-                    launch_havuz[lk] -= kapsar
-                    cocuk = {'kod': alt, 'eksik': eksik, 'um': um, 'launch': kapsar,
-                             'aciklama': ak.get('aciklama', ''), 'cocuk': []}
-                    dugum['cocuk'].append(cocuk)
-                    kalan = eksik - kapsar
-                    if alt.startswith(acilmayan(tesis)):
-                        cocuk['not'] = 'TK1 / fason (ağacına inilmedi)'
-                    elif kalan > 1e-6:
-                        if d + 1 <= derin:
-                            sonraki.append((r, alt, kalan, tesis, d + 1, cocuk))
-                        else:
-                            cocuk['not'] = 'derinlik sınırı — alt parçalarına bakılmadı'
-                else:
-                    sa = r['satin_alma'].setdefault(alt, {'kod': alt, 'eksik': 0.0, 'um': um,
-                                                         'siparis': asip.get(alt, 0.0), 'ust': set(),
-                                                         'aciklama': ak.get('aciklama', ''),
-                                                         'tanimsiz': not ak.get('prov')})
-                    sa['eksik'] += eksik
-                    if kod != r['kod']:
-                        sa['ust'].add(kod)
+                kalan = adet * birim - ilk_serbest(tesis, alt) - kaynak.launchlar([alt]).get(alt, 0.0)
+                if kalan > 1e-6:
+                    sonraki.append((tesis, alt, kalan))
+        seviye = sonraki
+
+    # 2) ASIL HESAP — LİSTE SIRASIYLA, her satır DERİNLEMESİNE: üstteki satır alt montajlarının
+    #    malzemesi dahil önce alır ("listedeki sıra = aciliyet"). Seviye seviye gitmek, alttaki
+    #    satırın doğrudan parçasını üstteki satırın alt montajından ÖNCE besliyordu.
+    def coz(r, kod, adet, tesis, d, dugum):
+        parcalar, iz = agac_al(tesis, [kod])[kod]
+        if not parcalar:
             if d == 0:
-                r['yapilabilir'] = yapilabilir
-        talepler = sonraki
+                r['durum'] = 'agac_yok'
+            else:
+                dugum['not'] = 'ürün ağacı yok'
+            return
+        altlar = [a for a, _q, _u in parcalar]
+        akart, asip = kaynak.kartlar(altlar), kaynak.siparisler(altlar)
+        alaunch = kaynak.launchlar([a for a in altlar if (akart.get(a) or {}).get('prov') == 'P'])
+        yapilabilir = en_fazla = None
+        for alt, birim, um in sorted(parcalar):
+            if birim <= 0 or _kisit_disi_mi(alt, kisit_disi) or (iz.get(alt) or {}).get('hayali'):
+                continue                    # hayali (stoksuz) / kısıt dışı: plan modülleriyle aynı
+            gerek = adet * birim
+            eldeki = serbest(tesis, alt)
+            al = min(eldeki, gerek)
+            havuz[(tesis, alt)] = eldeki - al
+            if d == 0:
+                kac = int(al // birim + 1e-9)
+                yapilabilir = kac if yapilabilir is None else min(yapilabilir, kac)
+                # STOKLA EN FAZLA: listedeki diğer satırlardan BAĞIMSIZ, serbest stokla kaç adet
+                k0 = int(ilk_serbest(tesis, alt) // birim + 1e-9)
+                en_fazla = k0 if en_fazla is None else min(en_fazla, k0)
+            eksik = gerek - al
+            if eksik <= 1e-6:
+                continue
+            ak = akart.get(alt) or {}
+            um = (um or '').strip().upper()
+            if ak.get('prov') == 'P':
+                lk = (tesis, alt)
+                if lk not in launch_havuz:
+                    launch_havuz[lk] = alaunch.get(alt, 0.0)
+                kapsar = min(launch_havuz[lk], eksik)
+                launch_havuz[lk] -= kapsar
+                cocuk = {'kod': alt, 'eksik': eksik, 'um': um, 'launch': kapsar,
+                         'aciklama': ak.get('aciklama', ''), 'cocuk': []}
+                dugum['cocuk'].append(cocuk)
+                kalan = eksik - kapsar
+                if alt.startswith(acilmayan(tesis)):
+                    cocuk['not'] = 'TK1 / fason (ağacına inilmedi)'
+                elif kalan > 1e-6:
+                    if d + 1 <= derin:
+                        coz(r, alt, kalan, tesis, d + 1, cocuk)
+                    else:
+                        cocuk['not'] = 'derinlik sınırı — alt parçalarına bakılmadı'
+            else:
+                sa = r['satin_alma'].setdefault(alt, {'kod': alt, 'eksik': 0.0, 'um': um,
+                                                     'siparis': asip.get(alt, 0.0), 'ust': set(),
+                                                     'aciklama': ak.get('aciklama', ''),
+                                                     'tanimsiz': not ak.get('prov')})
+                sa['eksik'] += eksik
+                sa['ust'].add('' if kod == r['kod'] else kod)    # '' = doğrudan ürünün ağacında
+        if d == 0:
+            r['yapilabilir'], r['stokla_en_fazla'] = yapilabilir, en_fazla
+
+    for r, tesis, net, kok in kokler:
+        coz(r, r['kod'], net, tesis, 0, kok)
 
     for r in sonuc:
         kok = r.pop('_kok', None)
@@ -398,8 +446,9 @@ def satin_alma_metni(liste, kisa=True):
             out.append(f"ürünün kendisi ({_adet(x['eksik'])})")
             continue
         ek = [_adet(x['eksik'], x.get('um'))]
-        if x.get('ust'):
-            ek.append(', '.join(kisa_kod(u, kisa) for u in x['ust']) + ' için')
+        ust = [u for u in (x.get('ust') or []) if u]
+        if ust:                         # '' = doğrudan ürünün kendi ağacında
+            ek.append(', '.join((['ürün'] if '' in x['ust'] else []) + [kisa_kod(u, kisa) for u in ust]) + ' için')
         if x.get('siparis'):
             ek.append(f"siparişte {_adet(x['siparis'])}")
         out.append(f"{kisa_kod(x['kod'], kisa)} ({'; '.join(ek)})")
