@@ -900,8 +900,8 @@ def _adimlar(conn):
 #  bilmek için aynı verileri Forge'a göre de hesaplayıp raporda görelim."
 #  · Adet: operatörlerin üretim kayıtları, BİTMİŞ ÜRÜN (haftalik_uretim kuralı — ara op, tamir /
 #    punta / rework, TK1 test cihazı sayılmaz; son op ana koda yazılır). TEL: her adım ayrı kayıt
-#    ('93.TK.464 KAPAMA') → kablo başına TEK adım: hidrolik pres (Kapama), yoksa son adım
-#    (adım sayısı kadar katlanmasın; bkz. TEL_SAYILAN_ADIM).
+#    ('93.TK.464 KAPAMA') → kablo başına YALNIZ hidrolik pres (Kapama) adımı; diğer adımlar
+#    (kesim, soyma, otomat, son montaj) sayılmaz (bkz. TEL_SAYILAN_ADIM).
 #  · Teorik süre: ERP tarafıyla AYNI birim süre (aynı ürüne aynı çarpan; fark yalnız adetten gelir).
 #  · Çalışma saati: vardiya giriş–çıkış; kişi-gün başına aralıkların BİRLEŞİMİ (aynı kişi iki robota
 #    paralel vardiya açabiliyor — toplanırsa saat ikiye katlanır), çay / yemek molası ve namaz
@@ -910,8 +910,9 @@ FAALIYET = ('depo', 'kalite')
 
 # TEL ADEDİ = HİDROLİK PRES (kullanıcı 2026-11-17): "son montaj adımının adeti geliyor, hatalı
 # görünüyor — 93.01.1336/10'da 426 son montaj, 995 hidrolik pres; 995 daha doğru". Hidrolik
-# presler ('Hidrolik Pres N') tel_proses'te Kapama adımıdır (ek KAPAMA). Prese girmeyen kablo
-# (Ekim: 499 kablonun 334'ü) eskisi gibi girdiği son adımla sayılır.
+# presler ('Hidrolik Pres N') tel_proses'te Kapama adımıdır (ek KAPAMA). YALNIZ PRES (kullanıcı
+# aynı gün: "forge karşılaştırmasında sadece presler olsun, kesim vs diğer bölümler olmasın") —
+# prese girmeyen kablo (Ekim: 499 kablonun 334'ü, yalnız kesim/soyma…) Forge adedine hiç girmez.
 TEL_SAYILAN_ADIM = 'Kapama'
 
 
@@ -936,9 +937,8 @@ def forge_uretim(conn, yil, ay):
     """{(tesis, bölüm): {ANAHTAR: {'kod', 'adet', 'tur'}}} — Forge'un bitmiş ürün adedi. ANAHTAR nokta /
     boşluk farkını yutar (haftalik_uretim.ref_anahtar: '10 300 0609' = '10.300.0609' = '10.3000609').
     Kodun YALIN kaydı varsa adet odur (işlem ekli kayıtlar ara işlemdir, süresi birim süreye girer);
-    yalnız işlem ekli kayıt varsa her işlem aynı parçaları işlediği için EN BÜYÜĞÜ; tel'de HİDROLİK
-    PRES (Kapama) adedi, kablo prese hiç girmediyse girdiği SON adım (kesim parça sayar — en büyük
-    adım kesim olurdu)."""
+    yalnız işlem ekli kayıt varsa her işlem aynı parçaları işlediği için EN BÜYÜĞÜ; tel'de YALNIZ
+    HİDROLİK PRES (Kapama) adedi — prese girmemiş kablo hiç sayılmaz (bkz. TEL_SAYILAN_ADIM)."""
     import haftalik_uretim as HU
     import tel_proses as TP
     bas, bit = _ay_araligi(yil, ay)
@@ -964,11 +964,10 @@ def forge_uretim(conn, yil, ay):
     for (lok, b, a), g in gruplar.items():
         if g['yalin'] is not None:
             adet, tur = g['yalin'], ''
-        elif b == 'tel' and TEL_SAYILAN_ADIM in g['islem']:
-            adet, tur = g['islem'][TEL_SAYILAN_ADIM], 'hidrolik pres (Kapama)'
         elif b == 'tel':
-            son = max(g['islem'], key=lambda x: TP.TEL_ADIM_SIRA.get(x, 0))
-            adet, tur = g['islem'][son], f'son adım: {son}'
+            if TEL_SAYILAN_ADIM not in g['islem']:
+                continue                        # prese girmemiş kablo Forge tarafında sayılmaz
+            adet, tur = g['islem'][TEL_SAYILAN_ADIM], 'hidrolik pres'
         else:
             adet, tur = max(g['islem'].values()), 'işlem kayıtlarının en büyüğü'
         out.setdefault((lok, b), {})[a] = {'kod': g['kod'], 'adet': adet, 'tur': tur}
