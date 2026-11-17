@@ -14198,46 +14198,77 @@ window.__I18N_SOZLUK__ = {
             if (!oz.length) return '<span style="color:var(--muted)">Karşılaştırılacak bölüm yok.</span>';
             var anahtar = function (o) { return o.tesis + '-' + o.bolum; };
             if (!oz.some(function (o) { return anahtar(o) === _au.kisi; })) _au.kisi = anahtar(oz[0]);
-            var o = oz.filter(function (x) { return anahtar(x) === _au.kisi; })[0], kf = o.kisi_farki, l = kf.satirlar || [], g = kf.ozet || {};
+            var o = oz.filter(function (x) { return anahtar(x) === _au.kisi; })[0], kf = o.kisi_farki, l = kf.satirlar || [], g = kf.ozet || {}, f = o.forge || {};
             var saatli = !!r.kisi_fark_saatli;
             var bs = function (v) { return v === null || v === undefined ? '—' : auSayi(v, 10); };
             var DURUM = {
-                yalniz_ik: ['Forge\'da bu bölümde vardiyası yok', 'var(--danger)'],
-                yardim: ['Başka bölümün personeli (IK\'da orada)', '#0284C7'],
+                ikisi: ['Vardiyası var', 'var(--text)'],
+                vardiyasiz: ['Forge\'da tanımlı, bu ay vardiyası yok', 'var(--danger)'],
                 ik_yok: ['IK listesinde bulunamadı', '#7C3AED'],
-                ikisi: ['İkisinde de var', 'var(--text)']
+                tanimsiz: ['Forge\'da tanımsız — üretim dışı sayıldı', 'var(--muted)'],
+                haric: ['Hariç tutuldu', 'var(--muted)']
             };
+            var ikS = f.ik_uretim !== null && f.ik_uretim !== undefined ? f.ik_uretim : null;
             var cip = oz.map(function (x) {
+                var xf = x.forge || {}, xi = xf.ik_uretim !== null && xf.ik_uretim !== undefined ? xf.ik_kisi : x.kisi;
                 return '<button class="btn ' + (anahtar(x) === _au.kisi ? 'btn-primary' : 'btn-ghost') + '" style="padding:3px 10px;font-size:.76rem" onclick="auKisiAc(\'' + anahtar(x) + '\')">' +
-                    x.tesis + ' ' + esc(x.ad) + ' · IK ' + (x.kisi || 0) + ' / Forge ' + ((x.forge || {}).kisi || 0) + '</button>';
+                    x.tesis + ' ' + esc(x.ad) + ' · IK ' + (xi || 0) + ' / Forge ' + (xf.kisi || 0) + '</button>';
             }).join('');
-            var grup = ['yalniz_ik', 'yardim', 'ik_yok', 'ikisi'].filter(function (k) { return g[k]; }).map(function (k) {
-                var x = g[k];
+            var grup = ['vardiyasiz', 'ik_yok', 'tanimsiz', 'haric', 'ikisi'].filter(function (k) { return g[k]; }).map(function (k) {
+                var x = g[k], sayilmaz = k === 'tanimsiz' || k === 'haric';
                 return '<span style="color:' + DURUM[k][1] + '">' + DURUM[k][0] + ': <b>' + x.kisi + ' kişi</b>' +
-                    (saatli && x.ik ? ' · IK ' + auSayi(x.ik, 10) + ' sa' : '') + (x.forge ? ' · Forge ' + auSayi(x.forge, 10) + ' sa' : '') + '</span>';
+                    (saatli && (sayilmaz ? x.ik_toplam : x.ik) ? ' · IK ' + auSayi(sayilmaz ? x.ik_toplam : x.ik, 10) + ' sa' + (sayilmaz ? ' (sayılmadı)' : '') : '') +
+                    (x.forge || x.forge_ham ? ' · Forge ' + auSayi(sayilmaz ? x.forge_ham : x.forge, 10) + ' sa' + (sayilmaz && x.forge_ham ? ' (sayılmadı)' : '') : '') + '</span>';
             }).join('<br>');
+            var SECIM = [['oto', 'Otomatik'], ['ik', 'IK süresini dahil et'], ['haric', 'Hariç (üretim dışı)']];
             var tIk = 0, tF = 0;
             var govde = l.map(function (s) {
-                tIk += s.ik_saat || 0; tF += s.forge_saat || 0;
+                if (s.sayilir) { tIk += s.ik_saat || 0; tF += s.forge_saat || 0; }
                 var d = DURUM[s.durum] || ['', 'var(--text)'];
                 var diger = (s.diger || []).map(function (x) { return esc(x.bolum) + ' <b>' + auSayi(x.saat, 10) + '</b> sa (' + x.gun + ' gün)'; }).join(' · ');
-                return '<tr><td class="sol"><b>' + esc(s.isim) + '</b>' + (s.forge_ad ? '<div style="color:var(--muted);font-size:.7rem">Forge\'da: ' + esc(s.forge_ad) + '</div>' : '') + '</td>' +
+                var sec = '<select style="font-size:.74rem;padding:2px 4px" data-anahtar="' + esc(s.anahtar) + '" data-isim="' + esc(s.isim) + '" onchange="auKisiSecim(this)" title="' +
+                    (s.secim_ay ? esc('Seçim ' + s.secim_ay + ' ayında yapıldı, sonraki aylara taşınır') : 'Seçim sonraki aylara da taşınır') + '">' +
+                    SECIM.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === s.secim ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>';
+                var ikH = s.ik_saat === null || s.ik_saat === undefined ? '—'
+                    : (s.sayilir ? bs(s.ik_saat) : '<span style="color:var(--muted);text-decoration:line-through">' + bs(s.ik_toplam) + '</span>') +
+                      (s.ik_oran ? '<div style="color:var(--muted);font-size:.68rem">' + auSayi(s.ik_toplam, 10) + ' sa × %' + Math.round(s.ik_oran * 100) + '</div>' : '');
+                var fH = !s.sayilir ? (s.forge_ham ? '<span style="color:var(--muted);text-decoration:line-through">' + bs(s.forge_ham) + '</span>' : '—')
+                    : (s.forge_saat ? bs(s.forge_saat) : '—') + (s.ik_eklenen ? '<div style="color:var(--muted);font-size:.68rem">vardiya ' + bs(s.forge_ham) + ' + IK ' + bs(s.ik_eklenen) + '</div>' : '');
+                return '<tr' + (s.sayilir ? '' : ' style="opacity:.6"') + '><td class="sol"><b>' + esc(s.isim) + '</b>' +
+                    (s.forge_ad ? '<div style="color:var(--muted);font-size:.7rem">Forge\'da: ' + esc(s.forge_ad) + '</div>' : '') + '</td>' +
                     '<td class="sol" style="color:var(--muted)">' + esc(s.sicil || '') + '</td>' +
-                    '<td class="sol" style="color:' + d[1] + ';font-size:.76rem">' + d[0] + (s.ik_bolum ? '<div style="color:var(--muted)">IK: ' + esc(s.ik_bolum) + '</div>' : '') + '</td>' +
-                    '<td>' + (s.ik_bolum ? '—' : bs(s.ik_saat)) + '</td><td>' + (s.forge_gun ? bs(s.forge_saat) : '—') + '</td><td>' + (s.forge_gun || '—') + '</td>' +
+                    '<td class="sol" style="color:' + d[1] + ';font-size:.76rem">' + d[0] +
+                    (s.tanim ? '<div style="color:var(--muted)">Forge tanımı: ' + esc(s.tanim) + '</div>' : '') +
+                    (s.ik_hedef ? '<div style="color:var(--muted)">IK eşlemesinde: ' + esc(s.ik_hedef) + '</div>' : '') + '</td>' +
+                    '<td class="sol">' + sec + '</td>' +
+                    '<td>' + ikH + '</td><td>' + fH + '</td><td>' + (s.forge_gun || '—') + '</td>' +
                     '<td>' + (s.fark === null || s.fark === undefined ? '—' : auFarkHucre(s.forge_saat, s.ik_saat || 0)) + '</td>' +
                     '<td class="sol" style="font-size:.74rem">' + (diger || '') + '</td></tr>';
             }).join('');
-            var f = o.forge || {};
             return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' + cip + '</div>' +
-                '<div style="font-size:.8rem;line-height:1.7;margin-bottom:8px"><b>' + o.tesis + ' ' + esc(o.ad) + '</b>: Çalışma IK ' + bs(o.calisma) + ' sa (' + (o.kisi || 0) + ' kişi) · Forge ' + bs(f.calisma) + ' sa (' + (f.kisi || 0) + ' kişi) · fark ' + auFarkHucre(f.calisma, o.calisma) +
+                '<div style="font-size:.8rem;line-height:1.7;margin-bottom:8px"><b>' + o.tesis + ' ' + esc(o.ad) + '</b>: Çalışma IK (üretim) ' + (ikS === null ? '—' : bs(ikS) + ' sa (' + (f.ik_kisi || 0) + ' kişi)') +
+                ' · Forge ' + bs(f.calisma) + ' sa (' + (f.kisi || 0) + ' kişi)' + (ikS === null ? '' : ' · fark ' + auFarkHucre(f.calisma, ikS)) +
+                ' <span style="color:var(--muted)">· IK Excel bölüm toplamı ' + bs(o.calisma) + ' sa (' + (o.kisi || 0) + ' kişi, üretim dışı dahil)</span>' +
                 '<br>' + grup +
-                '<br><span style="color:var(--muted);font-size:.74rem">Eşleşme adla: IK listesi (sicil → bölüm eşlemesi) ↔ Forge vardiyasındaki operatör adı. IK saati = NçS + mesai; Forge saati = vardiya giriş–çıkış − mola. ' +
-                'Yardıma giden kişi IK\'da kendi bölümünde, Forge\'da vardiya açtığı bölümde sayılır — son sütun aynı kişinin başka bölümlerdeki Forge saati.</span>' +
+                '<br><span style="color:var(--muted);font-size:.74rem">Üretim personeli = Forge\'da operatör olarak tanımlı ya da bu ay vardiyası olan kişi (IK listesiyle adla eşleşir; tek harf yazım farkı tolere edilir). ' +
+                'Kişinin IK saati o ay vardiya açtığı bölümlere vardiya saati oranında dağılır — IK\'daki bölüm eşlemesi kullanılmaz; vardiyası yoksa Forge\'daki tanımlı bölümüne yazılır. ' +
+                '<b>Seçim</b>: "IK süresini dahil et" = vardiyası eksik / hiç açılmamış kişide Forge tarafına IK saati yazılır; "Hariç" = üretim dışı, iki taraftan da çıkar. Seçim o aydan itibaren sonraki aylara taşınır.</span>' +
                 (r.kisi_fark_not ? '<br><span style="color:var(--danger);font-size:.76rem">' + esc(r.kisi_fark_not) + '</span>' : '') + '</div>' +
-                (l.length ? '<table class="au-tablo"><thead><tr><th class="sol">Kişi</th><th class="sol">Sicil</th><th class="sol">Durum</th><th>Çalışma IK</th><th>Çalışma Forge</th><th>Gün (Forge)</th><th>Fark</th><th class="sol">Forge\'da başka bölümde</th></tr></thead><tbody>' +
-                    govde + '<tr class="au-toplam"><td class="sol">TOPLAM</td><td></td><td></td><td>' + (saatli ? bs(tIk) : '—') + '</td><td>' + bs(tF) + '</td><td></td><td>' + (saatli ? auFarkHucre(tF, tIk) : '') + '</td><td></td></tr></tbody></table>'
+                (l.length ? '<table class="au-tablo"><thead><tr><th class="sol">Kişi</th><th class="sol">Sicil</th><th class="sol">Durum</th><th class="sol">Seçim</th><th title="Kişinin IK saatinden bu bölüme düşen">Çalışma IK</th><th>Çalışma Forge</th><th>Gün (Forge)</th><th>Fark</th><th class="sol">Forge\'da başka bölümde</th></tr></thead><tbody>' +
+                    govde + '<tr class="au-toplam"><td class="sol">TOPLAM (sayılan)</td><td></td><td></td><td></td><td>' + (saatli ? bs(tIk) : '—') + '</td><td>' + bs(tF) + '</td><td></td><td>' + (saatli ? auFarkHucre(tF, tIk) : '') + '</td><td></td></tr></tbody></table>'
                     : '<span style="color:var(--muted)">Bu bölümde kişi kaydı yok.</span>');
+        }
+        async function auKisiSecim(sel) {
+            var s = auSecili();
+            sel.disabled = true;
+            try {
+                var r = await panelFetch('/api/aylik_uretim/kisi_secim', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ yil: s.yil, ay: s.ay, anahtar: sel.getAttribute('data-anahtar'), secim: sel.value, isim: sel.getAttribute('data-isim') || '' }) });
+                var d = await spJson(r);
+                if (!r.ok) { toast(d.hata || ('HTTP ' + r.status), 'err'); sel.disabled = false; return; }
+                toast((sel.getAttribute('data-isim') || '') + ': ' + sel.options[sel.selectedIndex].text, 'ok');
+                auYukle();
+            } catch (e) { toast(e.message, 'err'); sel.disabled = false; }
         }
         function auPerf(v) { return v === null || v === undefined ? '—' : '<span class="au-perf ' + (v >= 0.9 ? 'iyi' : 'dusuk') + '">' + auYuzde(v) + '</span>'; }
         function auFarkHucre(f, e) {
@@ -14332,13 +14363,23 @@ window.__I18N_SOZLUK__ = {
                 l.forEach(function (o) {
                     var f = o.forge;
                     var kh = ' style="cursor:pointer" onclick="auKisiAc(\'' + t + '-' + o.bolum + '\', event)"';   // çalışma / kişi → operatör farkları
-                    e.adet += o.adet || 0; e.teorik += o.teorik_saat || 0; e.cal += o.calisma || 0; e.kisi += o.kisi || 0;
+                    // ÜRETİM PERSONELİ (kullanıcı 2026-11-17): IK = yalnız Forge'da tanımlı / vardiyalı kişilerin IK
+                    // saati, vardiya bölümlerine dağıtılmış; yoksa (kişi saati okunmamış) IK Excel'inin bölüm toplamı
+                    var uret = f.ik_uretim !== null && f.ik_uretim !== undefined;
+                    var ikS = uret ? f.ik_uretim : o.calisma, ikK = uret ? f.ik_kisi : o.kisi;
+                    var ikT = uret ? 'IK Excel bölüm toplamı ' + auSayi(o.calisma, 10) + ' sa · ' + (o.kisi || 0) + ' kişi (üretim dışı personel dahil) · tıkla: operatör farkları'
+                                   : 'Kişi bazında IK saati yok — IK Excel bölüm toplamı (üretim dışı personel dahil olabilir)';
+                    var fT = 'Vardiya ' + auSayi(f.calisma_vardiya, 10) + ' sa (giriş–çıkış ' + auSayi(f.brut, 10) + ' − mola ' + auSayi(f.mola, 10) + ')' +
+                        (f.ik_eklenen ? ' + IK\'dan eklenen ' + auSayi(f.ik_eklenen, 10) : '') + (f.haric_saat ? ' − hariç ' + auSayi(f.haric_saat, 10) : '') +
+                        ' · ' + f.kisi_gun + ' kişi-gün · tıkla: operatör farkları';
+                    e.adet += o.adet || 0; e.teorik += o.teorik_saat || 0; e.cal += ikS || 0; e.kisi += ikK || 0;
                     govde += '<tr class="au-satir" onclick="auFarkAc(\'' + t + '-' + o.bolum + '\')" title="Tıkla: bu bölümün kod farkları"><td class="sol">' + t + '</td><td class="sol"><b>' + esc(o.ad) + '</b> <span style="color:var(--muted);font-size:.72rem">🔍</span></td>' +
                         '<td>' + auSayi(o.adet) + '</td><td>' + auSayi(f.adet) + '</td><td>' + fark(f.adet, o.adet) + '</td>' +
                         '<td>' + bs(o.teorik_saat) + '</td><td>' + bs(f.teorik_saat) + '</td>' +
-                        '<td' + kh + '>' + bs(o.calisma) + '</td><td' + kh + ' title="Vardiya ' + auSayi(f.brut, 10) + ' sa − mola ' + auSayi(f.mola, 10) + ' sa · ' + f.kisi_gun + ' kişi-gün · tıkla: operatör farkları">' + bs(f.calisma) + '</td><td' + kh + '>' + fark(f.calisma, o.calisma) + '</td>' +
-                        '<td' + kh + '>' + (o.kisi || '—') + '</td><td' + kh + '>' + (f.kisi || '—') + ' <span style="font-size:.7rem">👥</span></td>' +
-                        '<td>' + perf(o.performans) + '</td><td>' + perf(f.calisma ? (o.teorik_saat || 0) / f.calisma : null) + '</td>' +
+                        '<td' + kh + ' title="' + esc(ikT) + '">' + bs(ikS) + (uret ? '' : '<span style="color:var(--danger)">*</span>') + '</td><td' + kh + ' title="' + esc(fT) + '">' + bs(f.calisma) +
+                        (f.ik_eklenen ? '<div style="color:var(--muted);font-size:.68rem">+' + auSayi(f.ik_eklenen, 10) + ' IK</div>' : '') + '</td><td' + kh + '>' + fark(f.calisma, ikS) + '</td>' +
+                        '<td' + kh + '>' + (ikK || '—') + '</td><td' + kh + '>' + (f.kisi || '—') + ' <span style="font-size:.7rem">👥</span></td>' +
+                        '<td>' + perf(ikS ? (o.teorik_saat || 0) / ikS : null) + '</td><td>' + perf(f.calisma ? (o.teorik_saat || 0) / f.calisma : null) + '</td>' +
                         '<td style="color:var(--muted)">' + (f.yalniz_sayi ? f.yalniz_sayi + ' kod · ' + auSayi(f.yalniz_adet) : '') + '</td></tr>';
                 });
                 var ft = (r.forge_tesis || {})[t] || {};
@@ -14349,10 +14390,13 @@ window.__I18N_SOZLUK__ = {
             return '<div>' +
                 '<div style="font-size:.74rem;color:var(--muted);margin:2px 0 8px;line-height:1.6">Bir bölüme tıklayınca farkın hangi kodlardan geldiği açılır (🔍 Kod farkları); çalışma / kişi sütunlarına tıklayınca hangi operatörlerden geldiği (👥 Operatör farkları). ' +
                 'Forge adet: operatörlerin üretim kayıtları, bitmiş ürün (ara op, tamir / punta / rework, test cihazı ve işlem eki taşıyan kayıtlar — delme, zımpara, somun… — ayrıca sayılmaz; yalnız işlem kaydı olan parçada en büyük işlem, tel\'de yalnız hidrolik pres adedi). ' +
-                'Teorik saat iki tarafta aynı birim süreyle — fark adetten gelir. Forge çalışma: vardiya giriş–çıkışı (aynı kişinin paralel vardiyaları bir kez), çay / yemek molası ve namaz düşülmüş. Kişi = vardiya açan farklı operatör. Perf. ERP÷Forge = Teorik ERP ÷ Çalışma Forge.</div>' +
+                'Teorik saat iki tarafta aynı birim süreyle — fark adetten gelir. ' +
+                '<b>Çalışma IK</b>: yalnız üretim personeli — Forge\'da operatör olarak tanımlı ya da vardiyası olan kişilerin IK saati (NçS + mesai); kişinin saati o ay vardiya açtığı bölümlere vardiya saati oranında dağıtılır (bakım, kalite, depo personeli girmez). ' +
+                '<b>Çalışma Forge</b>: vardiya giriş–çıkışı (aynı kişinin paralel vardiyaları bir kez), çay / yemek molası ve namaz düşülmüş; 👥 Operatör farkları\'nda "IK süresini dahil et" seçilen kişide IK saatine tamamlanır, "Hariç" seçilen iki taraftan çıkar. ' +
+                'Perf. = Teorik ERP ÷ ilgili çalışma saati.' + (r.kisi_fark_saatli ? '' : ' <span style="color:var(--danger)">* Kişi bazında IK saati yok: ' + esc(r.kisi_fark_not || '') + '</span>') + '</div>' +
                 '<table class="au-tablo"><thead><tr><th class="sol">Tesis</th><th class="sol">Bölüm</th><th>Adet ERP</th><th>Adet Forge</th><th>Fark</th>' +
-                '<th>Teorik ERP</th><th>Teorik Forge</th><th>Çalışma IK</th><th>Çalışma Forge</th><th>Fark</th><th>Kişi IK</th><th>Kişi Forge</th>' +
-                '<th title="Teorik (ERP adedi) ÷ IK saati">Perf. ERP÷IK</th><th title="Teorik (ERP adedi) ÷ Forge vardiya saati">Perf. ERP÷Forge</th><th>Yalnız Forge\'da</th></tr></thead><tbody>' +
+                '<th>Teorik ERP</th><th>Teorik Forge</th><th title="Üretim personelinin IK saati">Çalışma IK</th><th>Çalışma Forge</th><th>Fark</th><th>Kişi IK</th><th>Kişi Forge</th>' +
+                '<th title="Teorik (ERP adedi) ÷ IK saati (üretim personeli)">Perf. ERP÷IK</th><th title="Teorik (ERP adedi) ÷ Forge vardiya saati">Perf. ERP÷Forge</th><th>Yalnız Forge\'da</th></tr></thead><tbody>' +
                 govde + '</tbody></table></div>';
         }
         function auAcKapat(i) { _au.acik[i] = !_au.acik[i]; auCiz(); }

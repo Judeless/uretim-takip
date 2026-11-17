@@ -884,105 +884,201 @@ def _jetonlar(ad):
     return [t for t in re.findall(r'[A-Z]+', str(ad or '').translate(_TR_ASCII).upper()) if len(t) > 1]
 
 
-def kisi_farklari(conn, yil, ay, f_saat):
-    """{(tesis, bölüm): {'satirlar': [...], 'ozet': {...}}, 'not': str} — IK kişi saati ↔ Forge vardiya
-    saati, AD ile eşleşir (IK'da sicil, Forge'da operatör adı: harf dışı / Türkçe karakter yutulur; tam
-    tutmazsa en az iki ad parçası ortak ve TEK aday). Kişi bölümü IK'da sicil eşlemesinden, Forge'da
-    vardiyanın bölümünden — yardıma giden kişi IK'da kendi bölümünde, Forge'da gittiği bölümde görünür."""
-    ik, ik_not = ik_kisi_saatleri(conn, yil, ay)
-    saatsiz = ik is None
-    if saatsiz:                                   # yalnız kim hangi bölümde: kalıcı sicil eşlemesi
-        ik = [{'sicil': x[0], 'isim': x[1], 'hedef': x[2], 'nos': None, 'mesai': None}
-              for x in conn.execute("SELECT sicil, isim, hedef FROM ik_personel WHERE COALESCE(hedef,'')<>''")]
-    ik = [k for k in ik if saatsiz or (k['nos'] or 0) + (k['mesai'] or 0) > 0]
-    for k in ik:
-        k['_j'] = _jetonlar(k['isim'])
+def _ad_eslestirici(liste):
+    """liste: [jetonlar] → bul(ad) → indeks | None. Sıra: birleşik ad AYNI → en az iki parça ortak ve
+    biri ötekini kapsıyor ('NEBİYE BAŞTÜRK YALÇIN' ↔ 'NEBİYE YALÇIN') → TEK HARF yazım farkı (IK
+    'MESUT ARACI' ↔ Forge 'MESUT ARICI'; parça sayısı ve uzunluğu aynı, yalnız bir parçada bir harf —
+    'MEHMET' ↔ 'AHMET' gibi farklı adlar tutmaz). Her adımda aday TEK olmalı."""
     tam = {}
-    for i, k in enumerate(ik):
-        tam.setdefault(''.join(k['_j']), []).append(i)
+    for i, j in enumerate(liste):
+        tam.setdefault(''.join(j), []).append(i)
+    onb = {}
 
     def bul(ad):
+        if ad in onb:
+            return onb[ad]
         j = _jetonlar(ad)
-        if not j:
-            return None
-        a = tam.get(''.join(j)) or []
-        if len(a) == 1:
-            return a[0]
-        js = set(j)
-        a = [i for i, k in enumerate(ik) if len(js & set(k['_j'])) >= 2 and (js <= set(k['_j']) or set(k['_j']) <= js)]
-        return a[0] if len(a) == 1 else None
+        sonuc = None
+        if j:
+            a = tam.get(''.join(j)) or []
+            if len(a) > 1:
+                a = []
+            elif not a:
+                js = set(j)
+                a = [i for i, k in enumerate(liste) if len(js & set(k)) >= 2 and (js <= set(k) or set(k) <= js)]
+                if not a:
+                    def bir_harf(k):
+                        if len(k) != len(j):
+                            return False
+                        fark = [(x, y) for x, y in zip(j, k) if x != y]
+                        return len(fark) == 1 and len(fark[0][0]) == len(fark[0][1]) and \
+                            sum(c1 != c2 for c1, c2 in zip(*fark[0])) == 1
+                    a = [i for i, k in enumerate(liste) if bir_harf(k)]
+            sonuc = a[0] if len(a) == 1 else None
+        onb[ad] = sonuc
+        return sonuc
+    return bul
 
-    def etiket(h):
-        if h == IK_DISI:
-            return 'üretim dışı'
-        p = tuple(str(h or '').split('/', 1))
-        return f"{p[0]} · {NCS_BOLUM_AD.get(p, p[-1])}" if len(p) == 2 else 'atanmamış'
 
-    ops = {}                                      # OP → {'ad', 'ik': i | None, 'b': {(t, b): {saat, gun}}}
+# ── KİŞİ SEÇİMİ (kullanıcı 2026-11-17) ──────────────────────────────────────────────
+# "Forge'da çalışma süresi hiç dahil edilmeyen ya da eksik dahil edilen operatörlerin sürelerini
+#  vardiyanın içerisine dahil edebilelim (Mustafa Kuş vardiyayı 12:30'da açmış, IK'da 07:00)" +
+# "Burak Atamer elektronik bölümü çalışanı, dahil etmeyelim". Kişi başına:
+#   oto   — IK saati üretim personeliyse sayılır; Forge = vardiya saati
+#   ik    — Forge tarafında IK saati kullanılır (vardiya bundan azsa tamamlanır)
+#   haric — üretim dışı: iki tarafa da girmez
+# Seçim SONRAKİ AYLARA TAŞINIR (kişinin o aya kadarki en son seçimi) — her ay yeniden yapılmaz.
+KISI_SECIMLER = ('oto', 'ik', 'haric')
+
+
+def kisi_secim_kur(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS aylik_kisi_secim (
+        yil INTEGER, ay INTEGER, anahtar TEXT, secim TEXT, isim TEXT DEFAULT '', kullanici TEXT DEFAULT '',
+        guncellendi TEXT DEFAULT '', PRIMARY KEY (yil, ay, anahtar))""")
+
+
+def kisi_secimleri(conn, yil, ay):
+    """{anahtar: (seçim, 'YYYY-MM')} — kişinin bu aya kadarki EN SON seçimi."""
+    kisi_secim_kur(conn)
+    out = {}
+    for a, s, y, m in conn.execute("SELECT anahtar, secim, yil, ay FROM aylik_kisi_secim WHERE yil * 100 + ay <= ? "
+                                   "ORDER BY yil, ay", (yil * 100 + ay,)):
+        out[a] = (s, f'{y}-{m:02d}')
+    return out
+
+
+def kisi_secim_yaz(conn, yil, ay, anahtar, secim, isim, kullanici):
+    if secim not in KISI_SECIMLER:
+        raise ValueError('Geçersiz seçim')
+    if not re.fullmatch(r'[SF]:[\w-]{1,80}', str(anahtar or '')):
+        raise ValueError('Geçersiz kişi anahtarı')
+    kisi_secim_kur(conn)
+    conn.execute("INSERT OR REPLACE INTO aylik_kisi_secim (yil, ay, anahtar, secim, isim, kullanici, guncellendi) "
+                 "VALUES (?,?,?,?,?,?,?)", (yil, ay, anahtar, secim, str(isim or '')[:120], kullanici or '',
+                                            datetime.now().strftime('%Y-%m-%d %H:%M')))
+    conn.commit()
+
+
+def kisi_farklari(conn, yil, ay, f_saat):
+    """Üretim personeli bazında IK ↔ Forge çalışma saati (kullanıcı 2026-11-17: "çalışma IK'ya bakım,
+    kalite, depo personeli de giriyor, karşılaştırma yanlış oluyor. Forge'da adı tanımlı operatörler
+    üzerinden ilerleyelim; üretim harici personel Forge'da tanımlı değil. Bir operatör ay içinde farklı
+    bölümlerde çalışmış olabilir, bölümlerde çalıştığı saatler kadar eklensin").
+      · Üretim personeli = IK listesinde olup Forge'da VARDİYASI olan ya da operatör olarak TANIMLI kişi
+        (eşleşme adla — _ad_eslestirici). Ikisi de yoksa üretim dışı sayılır (IK eşlemesindeki bölümde
+        gri satır olarak görünür).
+      · IK saati bölümlere kişinin o ayki Forge VARDİYA saatleri oranında dağılır (IK eşlemesindeki
+        bölüm değil: IK'da TK1 montajda görünen Mesut Arıcı'nın vardiyaları TK2 montajda). Vardiyası
+        yoksa Forge'daki tanımlı bölüm(ler)ine eşit.
+      · Forge = vardiya saati (+ 'ik' seçiminde IK saatine tamamlanır; 'haric' iki taraftan çıkar).
+    → ({(tesis, bölüm): {'satirlar', 'toplam', 'ozet'}}, not, saatli)."""
+    ik, ik_not = ik_kisi_saatleri(conn, yil, ay)
+    saatli = ik is not None
+    if not saatli:                                # yalnız kim kimdir: kalıcı sicil eşlemesi (saatsiz)
+        ik = [{'sicil': x[0], 'isim': x[1], 'hedef': x[2], 'nos': None, 'mesai': None}
+              for x in conn.execute("SELECT sicil, isim, hedef FROM ik_personel")]
+    secim = kisi_secimleri(conn, yil, ay)
+    kisiler = []
+    for k in ik:
+        saat = round((k['nos'] or 0) + (k['mesai'] or 0), 2) if saatli else None
+        if saatli and saat <= 0:
+            continue
+        kisiler.append({'anahtar': f"S:{k['sicil']}", 'isim': k['isim'], 'sicil': k['sicil'], 'ik': saat,
+                        'ik_hedef': k.get('hedef') or '', 'f': {}, 'tanim': set(), 'f_adlar': set(), 'ik_yok': False})
+    bul = _ad_eslestirici([_jetonlar(p['isim']) for p in kisiler])
+    yalniz_forge = {}
     for tb, v in f_saat.items():
-        for op, x in (v.get('kisiler') or {}).items():
-            o = ops.setdefault(op, {'ad': x['ad'], 'b': {}})
-            o['b'][tb] = x
-    for o in ops.values():
-        o['ik'] = bul(o['ad'])
-    ik_op = {}
-    for op, o in ops.items():
-        if o['ik'] is not None:
-            ik_op.setdefault(o['ik'], []).append(op)
+        for x in (v.get('kisiler') or {}).values():
+            i = bul(x['ad'])
+            if i is None:
+                a = 'F:' + (''.join(_jetonlar(x['ad'])) or 'X')[:80]
+                p = yalniz_forge.setdefault(a, {'anahtar': a, 'isim': x['ad'], 'sicil': '', 'ik': None, 'ik_hedef': '',
+                                                'f': {}, 'tanim': set(), 'f_adlar': set(), 'ik_yok': True})
+            else:
+                p = kisiler[i]
+            d = p['f'].setdefault(tb, {'saat': 0.0, 'gun': 0})
+            d['saat'] += x['saat']
+            d['gun'] += x['gun']
+            p['f_adlar'].add(x['ad'])
+    for ad, bolum, lok in conn.execute("SELECT ad, COALESCE(bolum,'kaynak'), COALESCE(lokasyon,'TK2') FROM operatorler"):
+        i = bul(ad)
+        if i is not None and (lok, bolum) in NCS_BOLUM_AD:
+            kisiler[i]['tanim'].add((lok, bolum))
+
+    def etiket(tb):
+        return f"{tb[0]} · {NCS_BOLUM_AD.get(tb, tb[-1])}"
 
     out = {}
-    bolumler = set(f_saat) | {tuple(k['hedef'].split('/', 1)) for k in ik if '/' in str(k['hedef'] or '')}
-    for tb in bolumler:
-        satirlar = []
-        hedef = f'{tb[0]}/{tb[1]}'
-        gorulen = set()
-        for i, k in enumerate(ik):
-            if k['hedef'] != hedef:
-                continue
-            f_saat_ = f_gun = 0.0
-            diger = {}
-            for op in ik_op.get(i, []):
-                gorulen.add(op)
-                for tb2, x in ops[op]['b'].items():
-                    if tb2 == tb:
-                        f_saat_ += x['saat']
-                        f_gun += x['gun']
-                    else:
-                        d = diger.setdefault(tb2, {'saat': 0.0, 'gun': 0})
-                        d['saat'] += x['saat']
-                        d['gun'] += x['gun']
-            ik_s = None if saatsiz else round((k['nos'] or 0) + (k['mesai'] or 0), 1)
-            fad = ', '.join(sorted({ops[op]['ad'] for op in ik_op.get(i, [])}))
-            satirlar.append({'isim': k['isim'], 'sicil': k['sicil'], 'ik_saat': ik_s, 'ik_bolum': '',
-                             'forge_saat': round(f_saat_, 1), 'forge_gun': int(f_gun),
-                             'forge_ad': fad if fad and _jetonlar(fad) != k['_j'] else '',
-                             'diger': [{'bolum': etiket(f'{a}/{b}'), 'saat': round(d['saat'], 1), 'gun': d['gun']}
-                                       for (a, b), d in sorted(diger.items(), key=lambda x: -x[1]['saat'])],
-                             'durum': 'ikisi' if f_gun else 'yalniz_ik'})
-        for op, o in ops.items():
-            if tb not in o['b'] or op in gorulen:
-                continue
-            x = o['b'][tb]
-            k = ik[o['ik']] if o['ik'] is not None else None
-            satirlar.append({'isim': k['isim'] if k else o['ad'], 'sicil': k['sicil'] if k else '', 'ik_saat': None,
-                             'ik_bolum': etiket(k['hedef']) if k else '', 'forge_saat': round(x['saat'], 1),
-                             'forge_gun': x['gun'], 'forge_ad': o['ad'] if k and _jetonlar(o['ad']) != k['_j'] else '',
-                             'diger': [{'bolum': etiket(f'{a}/{b}'), 'saat': round(d['saat'], 1), 'gun': d['gun']}
-                                       for (a, b), d in sorted(o['b'].items(), key=lambda y: -y[1]['saat']) if (a, b) != tb],
-                             'durum': 'yardim' if k else 'ik_yok'})
-        for s in satirlar:
-            s['fark'] = round(s['forge_saat'] - (s['ik_saat'] or 0), 1) if not saatsiz else None
-        satirlar.sort(key=lambda s: (-(abs(s['fark']) if s['fark'] is not None else s['forge_saat']), s['isim']))
+    for p in kisiler + list(yalniz_forge.values()):
+        sec, sec_ay = secim.get(p['anahtar'], ('oto', ''))
+        F = sum(x['saat'] for x in p['f'].values())
+        G = sum(x['gun'] for x in p['f'].values())
+        hedef_tb = tuple(p['ik_hedef'].split('/', 1)) if '/' in p['ik_hedef'] else None
+        if p['f']:
+            pay = {tb: (x['saat'] / F if F > 0 else x['gun'] / G if G else 1 / len(p['f'])) for tb, x in p['f'].items()}
+            neden = 'vardiya'
+        elif p['tanim']:
+            pay = {tb: 1 / len(p['tanim']) for tb in p['tanim']}
+            neden = 'tanim'
+        elif sec == 'ik' and hedef_tb in NCS_BOLUM_AD:
+            pay, neden = {hedef_tb: 1.0}, 'ik_esleme'          # tanımsız ama elle dahil edildi
+        else:
+            pay, neden = {}, 'tanimsiz'
+        sayilir = bool(pay) and sec != 'haric'
+        goster = dict(pay) if pay else ({hedef_tb: 0.0} if hedef_tb in NCS_BOLUM_AD else {})
+        for tb, oran in goster.items():
+            fx = p['f'].get(tb) or {'saat': 0.0, 'gun': 0}
+            ik_pay = (p['ik'] or 0) * oran if (saatli and not p['ik_yok']) else None
+            f_ham = fx['saat']
+            if not sayilir:
+                f_son = 0.0
+            elif sec == 'ik' and ik_pay is not None:
+                f_son = max(f_ham, ik_pay)
+            else:
+                f_son = f_ham
+            durum = ('haric' if sec == 'haric' else 'tanimsiz' if not pay else 'ik_yok' if p['ik_yok']
+                     else 'vardiyasiz' if neden != 'vardiya' else 'ikisi')
+            fad = ', '.join(sorted(p['f_adlar']))
+            satir = {'anahtar': p['anahtar'], 'isim': p['isim'], 'sicil': p['sicil'], 'durum': durum,
+                     'secim': sec, 'secim_ay': sec_ay, 'sayilir': sayilir,
+                     'ik_toplam': None if p['ik'] is None else round(p['ik'], 1),
+                     'ik_saat': None if ik_pay is None else round(ik_pay if sayilir else 0.0, 1),
+                     'ik_oran': round(oran, 3) if neden == 'vardiya' and len(pay) > 1 else None,
+                     'ik_hedef': etiket(hedef_tb) if hedef_tb in NCS_BOLUM_AD and hedef_tb != tb else
+                                 ('üretim dışı' if p['ik_hedef'] == IK_DISI else ''),
+                     'forge_ham': round(f_ham, 1), 'forge_saat': round(f_son, 1),
+                     'ik_eklenen': round(f_son - f_ham, 1) if sayilir and f_son > f_ham else 0.0,
+                     'forge_gun': fx['gun'],
+                     'forge_ad': fad if fad and _jetonlar(fad) != _jetonlar(p['isim']) else '',
+                     'tanim': ', '.join(etiket(t) for t in sorted(p['tanim'])) if neden == 'tanim' else '',
+                     'diger': [{'bolum': etiket(t), 'saat': round(x['saat'], 1), 'gun': x['gun']}
+                               for t, x in sorted(p['f'].items(), key=lambda y: -y[1]['saat']) if t != tb]}
+            satir['fark'] = round(satir['forge_saat'] - satir['ik_saat'], 1) if satir['ik_saat'] is not None and sayilir else None
+            out.setdefault(tb, []).append(satir)
+    sonuc = {}
+    for tb, satirlar in out.items():
+        satirlar.sort(key=lambda s: (not s['sayilir'], -(abs(s['fark']) if s['fark'] is not None else s['forge_saat']),
+                                     s['isim']))
+        say = [s for s in satirlar if s['sayilir']]
+        t = {'ik': round(sum(s['ik_saat'] or 0 for s in say), 1) if saatli else None,
+             'ik_kisi': sum(1 for s in say if s['durum'] != 'ik_yok' and (not saatli or (s['ik_saat'] or 0) > 0)),
+             'forge': round(sum(s['forge_saat'] for s in say), 1),
+             'forge_kisi': sum(1 for s in say if s['forge_saat'] > 0),
+             'forge_vardiya': round(sum(s['forge_ham'] for s in satirlar), 1),
+             'ik_eklenen': round(sum(s['ik_eklenen'] for s in say), 1),
+             'haric_saat': round(sum(s['forge_ham'] for s in satirlar if not s['sayilir']), 1)}
         oz = {}
         for s in satirlar:
-            g = oz.setdefault(s['durum'], {'kisi': 0, 'ik': 0.0, 'forge': 0.0})
+            g = oz.setdefault(s['durum'], {'kisi': 0, 'ik': 0.0, 'ik_toplam': 0.0, 'forge': 0.0, 'forge_ham': 0.0})
             g['kisi'] += 1
             g['ik'] = round(g['ik'] + (s['ik_saat'] or 0), 1)
+            g['ik_toplam'] = round(g['ik_toplam'] + ((s['ik_toplam'] or 0) if not s['sayilir'] else 0), 1)
             g['forge'] = round(g['forge'] + s['forge_saat'], 1)
-        out[tb] = {'satirlar': satirlar, 'ozet': oz}
-    if saatsiz:
-        ik_not = (ik_not + ' ' if ik_not else '') + 'IK sütununda kişiler sicil eşlemesinden (ik_personel), saatsiz.'
-    return out, ik_not, not saatsiz
+            g['forge_ham'] = round(g['forge_ham'] + s['forge_ham'], 1)
+        sonuc[tb] = {'satirlar': satirlar, 'toplam': t, 'ozet': oz}
+    if not saatli:
+        ik_not = (ik_not + ' ' if ik_not else '') + 'Kişiler sicil eşlemesinden (ik_personel), IK saatleri olmadan.'
+    return sonuc, ik_not, saatli
 
 
 def calisma_haritasi(conn, yil, ay):
@@ -1448,15 +1544,25 @@ def rapor(conn, yil, ay):
             fsn = b == FASON
             fo, fs = f_ozet.get((tesis, b)) or {}, f_saat.get((tesis, b)) or {}
             f_teorik = (fo.get('teorik_sn') or 0.0) / 3600
+            # ÜRETİM PERSONELİ BAZINDA SAAT (kisi_farklari): Forge = vardiya (+ 'IK süresini dahil et'
+            # seçilenlerde IK'ya tamamlanır, 'hariç' çıkar); IK = yalnız üretim personelinin IK saati,
+            # kişinin vardiya bölümlerine dağıtılmış. Kişi verisi yoksa eski değerler.
+            kt = (k_fark.get((tesis, b)) or {}).get('toplam') or {}
+            f_cal = kt['forge'] if kt else fs.get('saat', 0.0)
+            ik_u = kt.get('ik') if kt else None
             forge_o = None if fsn else {
                 'adet': round(fo.get('adet', 0.0), 2), 'kod': fo.get('kod', 0), 'teorik_saat': round(f_teorik, 1),
                 'sure_kapsami': round(fo['sureli_adet'] / fo['adet'], 3) if fo.get('adet') else None,
-                'calisma': fs.get('saat', 0.0), 'brut': fs.get('brut', 0.0), 'mola': fs.get('mola', 0.0),
-                'kisi': fs.get('kisi', 0), 'kisi_gun': fs.get('kisi_gun', 0),
-                'performans': round(f_teorik / fs['saat'], 3) if fs.get('saat') else None,
+                'calisma': round(f_cal, 1), 'calisma_vardiya': fs.get('saat', 0.0),
+                'ik_eklenen': kt.get('ik_eklenen', 0.0), 'haric_saat': kt.get('haric_saat', 0.0),
+                'brut': fs.get('brut', 0.0), 'mola': fs.get('mola', 0.0),
+                'kisi': kt.get('forge_kisi', fs.get('kisi', 0)), 'kisi_gun': fs.get('kisi_gun', 0),
+                'ik_uretim': ik_u, 'ik_kisi': kt.get('ik_kisi') if ik_u is not None else None,
+                'performans_ik_uretim': round(teorik / ik_u, 3) if ik_u and not fsn else None,
+                'performans': round(f_teorik / f_cal, 3) if f_cal else None,
                 # PERF. ERP ÷ FORGE (kullanıcı 2026-11-17): "forge karşılaştırmasında performansı teorik
                 # ERP ile çalışma Forge'u kıyaslayıp hesaplayalım" — teyitli üretim ÷ vardiya saati
-                'performans_erp': round(teorik / fs['saat'], 3) if fs.get('saat') and not fsn else None,
+                'performans_erp': round(teorik / f_cal, 3) if f_cal and not fsn else None,
                 'yalniz_sayi': len(fo.get('yalniz', [])), 'yalniz_adet': round(sum(x['adet'] for x in fo.get('yalniz', [])), 2)}
             # DURUŞLAR DÜŞÜLMÜŞ (kullanıcı 2026-11-03): Forge'un mola dışı duruşları hem IK saatinden hem
             # Forge vardiya saatinden düşülür; performans = teorik ÷ net çalışma
@@ -1464,14 +1570,17 @@ def rapor(conn, yil, ay):
             if forge_o:
                 d_s = fs.get('durus', 0.0)
                 ik_net = round(top - d_s, 1) if top else 0.0
-                f_net = round(fs.get('saat', 0.0) - d_s, 1)
+                f_net = round(f_cal - d_s, 1)
                 durus_o = {'saat': d_s, 'planli': fs.get('durus_planli', 0.0), 'plansiz': fs.get('durus_plansiz', 0.0),
                            'sebepler': fs.get('durus_sebep', []), 'ik_net': ik_net, 'forge_net': f_net,
                            'performans_erp': round(teorik / ik_net, 3) if ik_net > 0 else None,
                            'performans_forge': round(f_teorik / f_net, 3) if f_net > 0 else None}
                 forge_o['durus'] = d_s
                 ft = f_tesis.setdefault(tesis, {'adet': 0.0, 'teorik_saat': 0.0, 'calisma': 0.0, 'kisi': 0, 'durus': 0.0,
-                                                'ik_net': 0.0, 'teorik_erp': 0.0})
+                                                'ik_net': 0.0, 'teorik_erp': 0.0, 'ik_uretim': None, 'ik_kisi': 0})
+                if ik_u is not None:
+                    ft['ik_uretim'] = (ft['ik_uretim'] or 0.0) + ik_u
+                    ft['ik_kisi'] += forge_o['ik_kisi'] or 0
                 ft['adet'] += forge_o['adet']
                 ft['teorik_saat'] += forge_o['teorik_saat']
                 ft['calisma'] += forge_o['calisma']
@@ -1514,6 +1623,8 @@ def rapor(conn, yil, ay):
             ft[k] = round(ft[k], 1)
         for k in ('adet', 'teorik_saat', 'calisma'):
             ft[k] = round(ft[k], 1)
+        if ft.get('ik_uretim') is not None:
+            ft['ik_uretim'] = round(ft['ik_uretim'], 1)
     for t in tesis_top.values():
         t['fire'] = round(t['cop'] / t['adet'], 4) if cop_okundu and t['adet'] else None
         for k in ('adet', 'rpr', 'cfi', 'cop'):
@@ -1685,7 +1796,7 @@ def excel(r):
     w.append([f"ERP / IK ↔ Forge — {r['ay_ad']}: adet (teyitli ↔ Forge bitmiş ürün), çalışma saati (IK ↔ vardiya), performans"])
     w['A1'].font = Font(bold=True, size=12)
     bas = ['Tesis', 'Bölüm', 'Adet ERP', 'Adet Forge', 'Fark (Forge − ERP)', 'Teorik saat ERP', 'Teorik saat Forge',
-           'Çalışma IK (NçS+mesai)', 'Çalışma Forge (vardiya − mola)', 'Forge mola', 'Kişi IK', 'Kişi Forge',
+           'Çalışma IK (üretim personeli)', 'Çalışma Forge (vardiya − mola)', 'Forge mola', 'Kişi IK', 'Kişi Forge',
            'Performans ERP ÷ IK', 'Performans ERP ÷ Forge', "Yalnız Forge'da kod", "Yalnız Forge'da adet"]
     w.append(bas)
     for i in range(1, len(bas) + 1):
@@ -1696,9 +1807,12 @@ def excel(r):
         f = o.get('forge')
         if not f:
             continue
+        iku = f.get('ik_uretim')
         w.append([o['tesis'], o['ad'], o['adet'], f['adet'], round(f['adet'] - o['adet'], 2), o['teorik_saat'], f['teorik_saat'],
-                  o['calisma'] or None, f['calisma'] or None, f['mola'] or None, o['kisi'] or None, f['kisi'] or None,
-                  o['performans'], f.get('performans_erp'), f['yalniz_sayi'] or None, f['yalniz_adet'] or None])
+                  (iku if iku is not None else o['calisma']) or None, f['calisma'] or None, f['mola'] or None,
+                  (f.get('ik_kisi') if iku is not None else o['kisi']) or None, f['kisi'] or None,
+                  f.get('performans_ik_uretim') if iku is not None else o['performans'], f.get('performans_erp'),
+                  f['yalniz_sayi'] or None, f['yalniz_adet'] or None])
         for col in (13, 14):
             w.cell(row=w.max_row, column=col).number_format = '0%'
     w.append([])
@@ -1707,6 +1821,10 @@ def excel(r):
               'işlem, tel\'de yalnız hidrolik pres adedi. İşleme ve fason rapora dahil değil.',
               'Teorik saat: iki tarafta da aynı birim süre — fark yalnız adetten gelir.',
               'Performans ERP ÷ Forge: teorik saat ERP ÷ çalışma Forge.',
+              "Çalışma IK (üretim personeli): yalnız Forge'da tanımlı / vardiyası olan kişilerin IK saati (NçS + mesai), "
+              'kişinin o ayki vardiya saatleri oranında bölümlere dağıtılmış — bakım, kalite, depo gibi personel girmez. '
+              'Çalışma Forge: vardiya saati; panelde "IK süresini dahil et" seçilen kişilerde IK saatine tamamlanır, '
+              '"hariç" seçilenler iki taraftan çıkar.',
               'Forge çalışma: vardiya giriş–çıkış, kişi-gün başına birleşim (paralel vardiya çift sayılmaz), çay / yemek molası '
               've namaz düşülmüş; setup / fikstür gibi planlı işler çalışma sayılır.']:
         w.append([x])

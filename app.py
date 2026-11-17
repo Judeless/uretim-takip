@@ -8768,6 +8768,22 @@ def aylik_uretim_haric_ekle():
     return jsonify({'ok': True, 'id': kid})
 
 
+@app.route('/api/aylik_uretim/kisi_secim', methods=['POST'])
+@panel_gerekli(izin='aylik-uretim')
+def aylik_uretim_kisi_secim():
+    """Operatör farkları: kişi başına {yil, ay, anahtar, secim: oto | ik | haric, isim} — sonraki aylara
+    taşınır (aylik_uretim.kisi_secimleri). 'ik' = Forge tarafında IK süresi, 'haric' = üretim dışı."""
+    import aylik_uretim as AU
+    d = request.get_json(silent=True) or {}
+    yil, ay = _au_ay(d)
+    try:
+        AU.kisi_secim_yaz(get_db(), yil, ay, d.get('anahtar'), d.get('secim'), d.get('isim'),
+                          g.panel_ku['kullanici_adi'])
+    except ValueError as e:
+        return jsonify({'hata': str(e)}), 400
+    return jsonify({'ok': True})
+
+
 @app.route('/api/aylik_uretim/haric/<int:kid>', methods=['DELETE'])
 @panel_gerekli(izin='aylik-uretim')
 def aylik_uretim_haric_sil(kid):
