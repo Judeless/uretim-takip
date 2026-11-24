@@ -15322,7 +15322,7 @@ def _kp_modul():
 #   ref_depolar   : ürünün KENDİ stoğu (GEREKEN = ihtiyaç − bu depolardaki stok)
 #   alt_depolar   : alt parça stoğunda SAYILAN depolar (üretilebilir adet bundan)
 #   hayali_seviye : hayali (fictitious, BARTF0.A0PROD='2') alt parçalar kaç seviye
-#                   açılır — 0 = açma (kaynak: sac parçalar tek seviye)
+#                   açılır — 0 = açma
 # Depolar oto_config'te aynı adlı anahtarla EZİLEBİLİR (panelden değiştirilir).
 #
 # SAYILMAYAN DEPOLAR — kullanıcı 2026-09-30, bu kuralı bozmadan önce oku:
@@ -15341,7 +15341,11 @@ KP_PROFILLER = {
         'ref_depolar': ('01D', 'MDT'),          # ERP ekranındaki G GI
         'alt_depolar': ('01D', 'CF2'),
         'gosterilen': ('01D', 'CF2', '01W', 'REP', '02', 'MDT', 'MK2', 'MT2'),
-        'hayali_seviye': 0, 'excel_yukleme': True, 'kontrol_disi_onek': (),
+        # HAYALİ AÇILIM (kullanıcı 2026-11-24): kaynakta da fictitious ara kod olur —
+        # 10.300.5146W'nin altındaki 10.300.1410B (Product.Explos. 2) stoksuzdu ve
+        # ürünü 'malzeme yok' gösteriyordu; asıl parçalar onun altındaki 1410BA /
+        # 1410BB (ikisi de stokta). Montaj/metal ile aynı kural: 3 seviyeye kadar aç.
+        'hayali_seviye': 3, 'excel_yukleme': True, 'kontrol_disi_onek': (),
         'haric_onek': (), 'kisit_disi_parcalar': (),
         # Stoğu sayılmayan ama EKSİ bakiyesi serbest stoktan düşülen depolar.
         'eksi_dusulen': ('REP', '02'),
@@ -15872,7 +15876,7 @@ def _kaynak_plan_olc(conn, kodlar=None, ufuk=None, pf=None):
     cn = kp.erp_baglan()
     try:
         # HAYALİ (fictitious) alt parçalar profilde istenen derinliğe kadar açılır
-        # (montaj: 3 seviye); kaynakta sac parçalar tek seviye, açılım yok.
+        # (üç planda da 3 seviye — kaynak 2026-11-24'e kadar açmıyordu).
         _muaf = tuple(pf.get('kontrol_disi_onek') or ())
         _kodlar = [s['kaynak_kod'] for s in satirlar
                    if not (_muaf and s['kaynak_kod'].startswith(_muaf))]
