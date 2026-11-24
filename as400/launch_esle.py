@@ -176,6 +176,15 @@ def op_kurali_uygula(rows):
             continue
         kb = kanonik(base)
         son_op = max(liste_son.get(kb, 0), gun_son.get(kb, 0))
+        # 1. OP HİÇBİR ZAMAN SON OPERASYON DEĞİL (kullanıcı 2026-11-24: "4664 için operatör 1.opr
+        # yazmasına rağmen neden teyit verildi"). '1. op' sonrasında bir işlem olduğunu söyler; son
+        # işlem çoğunlukla NUMARASIZ yazılır (10.300.4664(1.Opr) → 4664W, 2934(1.Opr) → 2934W,
+        # 5102GRW 1. op → 5102GRW). Listede 2. op TANIMLI DEĞİLSE eski kural 1'i 'en yüksek op' sayıp
+        # ana koda CFI veriyordu: 4664 · 2934 (2 gün) · 4474 · 5749 · 5102GRW · 1522W.
+        # Gerçekten tek operasyonsa satır ARA OP listesinde görünür, panelden 'teyit ver' ile verilir.
+        if op == 1:
+            ara.append({**r, 'son_op': str(son_op) if son_op > 1 else "2. op ya da W'lu / eksiz yazım"})
+            continue
         if op >= son_op:
             yeni = dict(r)
             yeni['orijinal_referans'] = r['referans']

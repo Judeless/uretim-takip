@@ -12,7 +12,8 @@ $ErrorActionPreference = 'SilentlyContinue'
 $dir = 'C:\cofle\logs\saglik'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $simdi = Get-Date
-$csv = Join-Path $dir ("saglik_{0:yyyy-MM}.csv" -f $simdi)
+# v2 (2026-11-24): suphelilerin sutunlari eklendi -> ayri dosya (Export-Csv -Append eski basliga eklenemez)
+$csv = Join-Path $dir ("saglik_v2_{0:yyyy-MM}.csv" -f $simdi)
 
 $os = Get-CimInstance Win32_OperatingSystem
 $m  = Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory
@@ -31,6 +32,13 @@ $bellek    = Ilk ($p | Sort-Object PrivateMemorySize64 -Descending |
 $handle    = Ilk ($p | Sort-Object HandleCount -Descending | ForEach-Object { "{0}={1}" -f $_.ProcessName, $_.HandleCount }) 3
 $python    = ($p | Where-Object { $_.ProcessName -like 'python*' } | Measure-Object PrivateMemorySize64 -Sum).Sum / 1MB
 $cfd       = ($p | Where-Object { $_.ProcessName -like 'cloudflared*' } | Measure-Object PrivateMemorySize64 -Sum).Sum / 1MB
+# SUPHELILER (Ariza_Teshis 2026-11-24, acilistan 4 gun sonra): ProManage SrvcOlay 77.652 handle,
+# NetPC 706 CLOSE_WAIT + 3,7 GB. Ikisi de kilitlenmeden once buyuyor mu -> egim buradan okunur.
+function Surec($ad) { $p | Where-Object { $_.ProcessName -eq $ad } }
+$so = Surec 'SrvcOlay'; $np = Surec 'NetPC'; $or = Surec 'oracle'
+$np_ids = @($np | ForEach-Object { $_.Id })
+$np_cw = @($tcp | Where-Object { $_.State -eq 'CloseWait' -and $np_ids -contains $_.OwningProcess }).Count
+$en_handle = $p | Sort-Object HandleCount -Descending | Select-Object -First 1
 
 $satir = [pscustomobject]@{
     zaman          = $simdi.ToString('yyyy-MM-dd HH:mm')
@@ -52,6 +60,12 @@ $satir = [pscustomobject]@{
     handle_en_cok  = $handle
     python_mb      = [Math]::Round($python)
     cloudflared_mb = [Math]::Round($cfd)
+    srvcolay_handle = ($so | Measure-Object HandleCount -Sum).Sum
+    srvcolay_mb    = [Math]::Round(($so | Measure-Object PrivateMemorySize64 -Sum).Sum / 1MB)
+    netpc_handle   = ($np | Measure-Object HandleCount -Sum).Sum
+    netpc_mb       = [Math]::Round(($np | Measure-Object PrivateMemorySize64 -Sum).Sum / 1MB)
+    netpc_closewait = $np_cw
+    oracle_mb      = [Math]::Round(($or | Measure-Object PrivateMemorySize64 -Sum).Sum / 1MB)
 }
 $satir | Export-Csv -Path $csv -Append -NoTypeInformation -Encoding UTF8
 
@@ -62,7 +76,8 @@ if ($satir.commit_yuzde -ge 90)        { $uyari += "commit %$($satir.commit_yuzd
 if ($satir.nonpaged_mb -ge 1024)       { $uyari += "nonpaged havuz $($satir.nonpaged_mb) MB" }
 if ($satir.tcp_toplam -ge 10000)       { $uyari += "TCP $($satir.tcp_toplam) baglanti ($tcp_surec)" }
 if ($satir.tcp_timewait -ge 5000)      { $uyari += "TIME_WAIT $($satir.tcp_timewait) ($tw_surec)" }
-if ($satir.tcp_closewait -ge 500)      { $uyari += "CLOSE_WAIT $($satir.tcp_closewait) ($tw_surec)" }
+if ($satir.tcp_closewait -ge 3000)     { $uyari += "CLOSE_WAIT $($satir.tcp_closewait) ($tw_surec)" }
+if ($en_handle.HandleCount -ge 250000) { $uyari += "tek surec handle: $($en_handle.ProcessName)=$($en_handle.HandleCount)" }
 if ($satir.handle_toplam -ge 500000)   { $uyari += "toplam handle $($satir.handle_toplam) ($handle)" }
 if ($uyari.Count) {
     ("{0}  {1}" -f $satir.zaman, ($uyari -join ' | ')) | Out-File -FilePath (Join-Path $dir 'UYARI.txt') -Append -Encoding utf8
