@@ -15339,7 +15339,10 @@ KP_PROFILLER = {
         'bolum': 'kaynak', 'lokasyon': None, 'eski_kodlar': True,
         'config': 'kaynak_plan', 'izin': 'kaynak-plan',
         'ref_depolar': ('01D', 'MDT'),          # ERP ekranındaki G GI
-        'alt_depolar': ('01D', 'CF2'),
+        # MT2 (kullanıcı 2026-11-24): 10.300.1662A'nın 380 adedi MT2'de duruyordu,
+        # 01D 0 → 1662W 'malzeme yok' görünüyordu. MT2 montaj/metalde de sayılır;
+        # 01D eksisiyle netleşir (CF2 gibi ayrı sayılmaz — eldeki_stok kuralı).
+        'alt_depolar': ('01D', 'CF2', 'MT2'),
         'gosterilen': ('01D', 'CF2', '01W', 'REP', '02', 'MDT', 'MK2', 'MT2'),
         # HAYALİ AÇILIM (kullanıcı 2026-11-24): kaynakta da fictitious ara kod olur —
         # 10.300.5146W'nin altındaki 10.300.1410B (Product.Explos. 2) stoksuzdu ve
