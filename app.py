@@ -19520,6 +19520,159 @@ def ariza_bakim_makineleri():
                      'lokasyon': m['lokasyon']} for m in liste])
 
 
+# ── MAKİNE EŞLEŞTİRME PANELİ (kullanıcı 2026-11-27) ──────────────────────
+# "Forge'dan bir panel oluştur, bizdeki makine listesi ile bakım programındaki
+#  makineleri eşleştireyim." Bakım API'si yalnız KENDİ kodunu tanır (TKRK01);
+# operatör Forge makinesinde (ABB1, Hidrolik Pres 12, M5) vardiya açar. Otonom
+# özet/form ve arıza talebi bu çeviriyle gider — çevirisi olmayan makine için
+# bakıma HİÇBİR ŞEY gitmez (2026-11-26 sayımı: 75 aktif makinenin 37'si).
+# Panel eşleşmesi bakim_makine_eslesme'ye yazılır ve config'ten ÖNCE gelir.
+# SEÇİM GRUBU (hidrolik pres / kesim) BURADA YAZILABİLİR: arıza onayındaki
+# otomatik yazım o gruplarda kapalı (her talepte makine değişiyor), ama bu
+# ekranda kullanıcı sahadaki makineyi bilerek eşliyor. Eşlenen makinede arıza
+# formu artık "hangi pres?" diye sormaz, doğrudan bu kodu kullanır.
+ESLESME_GUN = 60           # makine listesi: son N günde vardiya/kayıt görülenler — 120'de
+                           # sabit hata geçişten önceki eski hat adları (LF-LFP, TK1-M2) da makine gibi görünüyordu
+
+
+def _eslesme_forge_makineleri(conn, lok):
+    """Forge'un bildiği makineler → {ad: {'bolum', 'kullanim', 'son'}}.
+
+    Kaynaklar: (1) son ESLESME_GUN günün vardiya hat adları (kaynak/metal/TK2
+    montaj/işleme: hat = makine); (2) sabit hatlı bölümlerin makine listeleri
+    (tel, plastik, pres, TK1 montaj, lazer) — kullanım, kaydın istasyonundan;
+    (3) eşleşmesi tanımlı ama son dönemde kullanılmamış makineler."""
+    out = {}
+
+    def ekle(ad, bolum, n=0, son=''):
+        ad = str(ad or '').strip()
+        if not ad or ad in GIZLI_HATLAR:
+            return
+        d = out.setdefault(ad, {'bolum': bolum or '', 'kullanim': 0, 'son': ''})
+        d['bolum'] = d['bolum'] or (bolum or '')
+        d['kullanim'] += int(n or 0)
+        if son and son > d['son']:
+            d['son'] = son
+    sinir = f'-{ESLESME_GUN} day'
+    for r in conn.execute(
+            "SELECT robot_no, bolum, COUNT(*) n, MAX(tarih) son FROM vardiyalar "
+            "WHERE COALESCE(lokasyon,'TK2')=? AND robot_no IS NOT NULL AND robot_no<>'' "
+            "  AND tarih >= date('now','localtime',?) GROUP BY robot_no, bolum", (lok, sinir)):
+        hat = str(r['robot_no']).strip()
+        if _otonom_hat_makineleri(hat):
+            continue                      # sabit hat adı ('Tel Üretimi') makine değil
+        ekle(hat, r['bolum'], r['n'], r['son'])
+    hatlar = [(hat, kb) for (kl, kb), hat in KAYITTA_HAT.items() if kl == lok]
+    if lok == 'TK2':
+        hatlar += [(h, 'lazer') for h in OTONOM_EK_HATLAR]
+    for hat, kb in hatlar:
+        mak = _otonom_hat_makineleri(hat)
+        for m in mak:
+            ekle(m, kb)
+        for r in conn.execute(
+                "SELECT u.istasyon, COUNT(*) n, MAX(v.tarih) son FROM uretim_kayitlari u "
+                "JOIN vardiyalar v ON v.id=u.vardiya_id WHERE v.robot_no=? "
+                "  AND COALESCE(v.lokasyon,'TK2')=? AND v.tarih >= date('now','localtime',?) "
+                "GROUP BY u.istasyon", (hat, lok, sinir)):
+            try:
+                i = int(r['istasyon'] or 0)
+            except (TypeError, ValueError):
+                i = 0
+            if 1 <= i <= len(mak):
+                ekle(mak[i - 1], kb, r['n'], r['son'])
+    for r in conn.execute("SELECT forge_makine FROM bakim_makine_eslesme WHERE lokasyon=?", (lok,)):
+        ekle(r['forge_makine'], '')
+    return out
+
+
+@app.route('/api/bakim/eslesme', methods=['GET'])
+@panel_gerekli(izin='ariza-onay')
+def bakim_eslesme_liste():
+    """Eşleştirme paneli (?tesis=TK1|TK2): Forge makineleri + bakım karşılığı +
+    bakım kataloğu. 'tesis' BİLEREK 'lokasyon' değil: panelFetch her isteğe
+    üstteki TK1/TK2 anahtarının lokasyon= değerini ekliyor."""
+    lok = (request.args.get('tesis') or request.args.get('lokasyon') or 'TK2').strip().upper()
+    if lok not in ('TK1', 'TK2'):
+        lok = 'TK2'
+    conn = get_db()
+    cfg = _bakim_config()
+    katalog = {r['kod']: dict(r) for r in conn.execute(
+        "SELECT kod, ad, yol, durum, lokasyon FROM bakim_makineleri")}
+    panel = {r['forge_makine'].strip().lower(): dict(r) for r in conn.execute(
+        "SELECT forge_makine, bakim_kodu, tanimlayan, tanim_ts FROM bakim_makine_eslesme WHERE lokasyon=?",
+        (lok,))}
+    cfg_es = {str(k).strip().lower(): str(v or '').strip().upper()
+              for k, v in (cfg.get('makine_eslesme') or {}).items()}
+    otonom = {}
+    try:
+        for r in conn.execute(
+                "SELECT bakim_kodu, COUNT(DISTINCT tarih) gun, MAX(form_bekleniyor) fb FROM otonom_uretim "
+                "WHERE tarih >= date('now','localtime','-30 day') GROUP BY bakim_kodu"):
+            otonom[r['bakim_kodu']] = (r['gun'], bool(r['fb']))
+    except Exception:
+        pass                              # otonom tablosu henüz yoksa
+    makineler = []
+    for ad, d in _eslesme_forge_makineleri(conn, lok).items():
+        p = panel.get(ad.lower())
+        if p and p['bakim_kodu']:
+            kod, kaynak = p['bakim_kodu'].strip().upper(), 'panel'
+        elif cfg_es.get(ad.lower()):
+            kod, kaynak, p = cfg_es[ad.lower()], 'ayar', None
+        else:
+            kod, kaynak, p = '', '', None
+        k = katalog.get(kod) or {}
+        gun, fb = otonom.get(kod, (0, False))
+        makineler.append({
+            'ad': ad, 'bolum': d['bolum'], 'kullanim': d['kullanim'], 'son': d['son'],
+            'bakim_kodu': kod, 'kaynak': kaynak,
+            'tanimlayan': (p or {}).get('tanimlayan') or '', 'tanim_ts': (p or {}).get('tanim_ts') or '',
+            'bakim_ad': k.get('ad') or '', 'bakim_yer': (k.get('yol') or '').split('›')[-1].strip(),
+            'bakim_durum': (k.get('durum') or ('yok' if kod else '')),
+            'otonom_gun': gun, 'form_bekleniyor': fb,
+            'secim_grubu': bool(_ariza_secim_grubu(ad)),
+        })
+    makineler.sort(key=lambda m: (m['bolum'], -m['kullanim'], m['ad']))
+    kat = [{'kod': r['kod'], 'ad': r['ad'], 'yer': (r['yol'] or '').split('›')[-1].strip()}
+           for r in _bakim_katalog(conn, lok)]
+    return jsonify({'tesis': lok, 'makineler': makineler, 'katalog': kat,
+                    'gun': ESLESME_GUN, 'bakim_hazir': _bakim_hazir(cfg)})
+
+
+@app.route('/api/bakim/eslesme', methods=['POST'])
+@panel_gerekli(izin='ariza-onay')
+def bakim_eslesme_kaydet():
+    """{makine, tesis, bakim_kodu} — kod boşsa panel eşleşmesi SİLİNİR (varsa
+    ayar dosyasındaki eşleşmeye döner). Kod bakım kataloğunda AKTİF olmalı."""
+    d = request.get_json(silent=True) or {}
+    makine = ' '.join(str(d.get('makine') or '').split())[:80]
+    lok = str(d.get('tesis') or d.get('lokasyon') or '').strip().upper()
+    kod = str(d.get('bakim_kodu') or '').strip().upper()
+    if not makine or lok not in ('TK1', 'TK2'):
+        return jsonify({'hata': 'makine ve tesis (TK1/TK2) zorunlu'}), 400
+    conn = get_db()
+    kim = (getattr(g, 'panel_ku', None) or {}).get('kullanici_adi') or ''
+    if not kod:
+        conn.execute("DELETE FROM bakim_makine_eslesme WHERE lower(forge_makine)=lower(?) AND lokasyon=?",
+                     (makine, lok))
+        conn.commit()
+        print(f'[BAKIM] eşleşme kaldırıldı (panel): {makine} ({lok}) · {kim}')
+        return jsonify({'ok': True, 'makine': makine, 'bakim_kodu': ''})
+    r = conn.execute("SELECT kod, ad, durum, lokasyon FROM bakim_makineleri WHERE kod=?", (kod,)).fetchone()
+    if not r:
+        return jsonify({'hata': f'{kod} bakım kataloğunda yok — önce "Makine listesini tazele"'}), 400
+    if (r['durum'] or '') != 'aktif':
+        return jsonify({'hata': f'{kod} bakım kataloğunda {r["durum"]} — aktif bir makine seçin'}), 400
+    if r['lokasyon'] and r['lokasyon'] != lok:
+        return jsonify({'hata': f'{kod} {r["lokasyon"]} makinesi — {lok} makinesiyle eşlenemez'}), 400
+    conn.execute("DELETE FROM bakim_makine_eslesme WHERE lower(forge_makine)=lower(?) AND lokasyon=?",
+                 (makine, lok))
+    conn.execute("INSERT INTO bakim_makine_eslesme (forge_makine, lokasyon, bakim_kodu, tanimlayan, tanim_ts) "
+                 "VALUES (?,?,?,?,datetime('now','localtime'))", (makine, lok, kod, kim))
+    conn.commit()
+    print(f'[BAKIM] eşleşme tanımlandı (panel): {makine} ({lok}) → {kod} · {kim}')
+    return jsonify({'ok': True, 'makine': makine, 'bakim_kodu': kod, 'bakim_ad': r['ad']})
+
+
 def _ariza_duzelt_uygula(conn, kayit, d, amir):
     """Gövdedeki düzeltmeleri kayda işler; (degisti, kayit) döner.
 
@@ -20032,17 +20185,35 @@ def _otonom_vardiya_no(vardiya_turu):
     return 1
 
 
+# LAZER (2026-11-25): makine (Lazer 1..6) vardiyada değil ÜRETİM KAYDINDA (istasyon),
+# ama sayaç cihazı olmadığı için HAT_MAKINELERI'nde yok (oradaki liste robot_no →
+# cihaz eşlemesine de girer). Otonom yalnız onu bilmediği için vardiyayı 'Lazer'
+# adıyla arıyor, bakım kodu bulamıyor ve 6 lazer makinesinin hiçbirine üretim özeti
+# gitmiyordu (TKLK02–07 bakımda tanımlı). Ek liste YALNIZ otonom için.
+OTONOM_EK_HATLAR = {'Lazer': [f'Lazer {i}' for i in range(1, 7)]}
+
+
+def _otonom_hat_makineleri(hat):
+    """Sabit hattın makine listesi (istasyon sırasıyla) — otonom için lazer dahil."""
+    return HAT_MAKINELERI.get(hat) or OTONOM_EK_HATLAR.get(hat) or []
+
+
 def _otonom_vardiya_kodlari(conn, cfg, v):
     """Vardiyanın makineleri → {bakim_kodu: forge_makine}. Sabit hatlı
-    bölümlerde (tel, plastik, pres, TK1 montaj) makine ÜRETİM KAYDINDADIR,
+    bölümlerde (tel, plastik, pres, TK1 montaj, lazer) makine ÜRETİM KAYDINDADIR,
     vardiyanın robot_no'su hat adıdır. Bakımda karşılığı olmayan makine atlanır."""
     hat = str(v['robot_no'] or '').strip()
     lok = (v['lokasyon'] or 'TK2').upper()
     adlar = []
-    if HAT_MAKINELERI.get(hat):
+    _hm = _otonom_hat_makineleri(hat)
+    if _hm:
         for r in conn.execute("SELECT DISTINCT istasyon FROM uretim_kayitlari WHERE vardiya_id=?",
                               (v['id'],)):
-            m = kayit_makine_ad(hat, r['istasyon'])
+            try:
+                i = int(r['istasyon'] or 0)
+            except (TypeError, ValueError):
+                i = 0
+            m = _hm[i - 1] if 1 <= i <= len(_hm) else ''
             if m and m not in adlar:
                 adlar.append(m)
     elif hat:
@@ -20084,9 +20255,11 @@ def _otonom_ozet(conn, cfg, kod, tarih, vno):
         ad = str(v['operator_adi'] or '').strip()
         if ad and ad not in operatorler:
             operatorler.append(ad)
-        if HAT_MAKINELERI.get(hat):
+        _hm = _otonom_hat_makineleri(hat)
+        if _hm:
+            _ist = _hm.index(mak) + 1 if mak in _hm else 0
             kayitlar = conn.execute("SELECT * FROM uretim_kayitlari WHERE vardiya_id=? AND istasyon=?",
-                                    (v['id'], kayit_ist_no(hat, mak))).fetchall()
+                                    (v['id'], _ist)).fetchall()
             for k in kayitlar:
                 b = _ts_parse(k['baslangic_ts'])
                 s = _ts_parse(k['bitis_ts']) if k['bitis_ts'] else datetime.now()
@@ -20403,9 +20576,9 @@ def otonom_durum():
     makine = str(request.args.get('makine') or '').strip()
     kod = str(request.args.get('bakim_kodu') or '').strip().upper()
     conn = get_db()
-    if not kod and HAT_MAKINELERI.get(makine):
+    if not kod and _otonom_hat_makineleri(makine):
         liste = []
-        for m in HAT_MAKINELERI[makine]:
+        for m in _otonom_hat_makineleri(makine):
             if m in GIZLI_HATLAR:
                 continue
             k = _bakim_kodu(cfg, m, lok, conn)

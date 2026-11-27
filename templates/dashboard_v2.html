@@ -7059,6 +7059,33 @@ window.__I18N_SOZLUK__ = {
                         <button class="btn btn-ghost" onclick="bakimDeneme()" title="external_id test-1 ile düşük öncelikli deneme talebi açar; bakım yöneticisi reddeder">🧪 Deneme talebi (test-1)</button>
                         <button class="btn btn-ghost" onclick="bakimDenemeDurum()" title="test-1 talebinin bakım tarafındaki durumunu okur (talep açmaz)">🔎 test-1 durumu</button>
                         <button class="btn btn-ghost" onclick="arizaKatalogTazele()" title="Bakım makine listesini bakım sisteminden yeniler (API anahtarı gerekir)">🔧 Makine listesini tazele</button>
+                        <button class="btn btn-ghost" onclick="eslesmeAcKapat()" title="Forge makinelerini bakım programındaki makinelerle eşleştir (otonom bakım ve arıza talebi bu eşleşmeyle gider)">🔗 Makine eşleştirme</button>
+                    </div>
+                    <!-- MAKİNE EŞLEŞTİRME (kullanıcı 2026-11-27): Forge makinesi ↔ bakım makine kodu.
+                         Otonom bakım formu ve arıza talebi bakıma bu çeviriyle gider; eşleşmesi olmayan
+                         makine için bakıma hiçbir şey gitmez. Seçim anında kaydedilir. -->
+                    <div id="es-alan" style="display:none;margin:4px 0 16px;padding:14px 16px;border:1px solid var(--card-border);border-radius:12px">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                            <b style="margin-right:6px">🔗 Forge makinesi ↔ bakım makinesi</b>
+                            <select id="es-tesis" class="rt-row-select" onchange="eslesmeYukle()" style="max-width:120px">
+                                <option value="TK2">TK2</option>
+                                <option value="TK1">TK1</option>
+                            </select>
+                            <select id="es-filtre" class="rt-row-select" onchange="eslesmeCiz()" style="max-width:200px">
+                                <option value="hepsi">Tüm makineler</option>
+                                <option value="eksik">Yalnız eşleşmemiş</option>
+                                <option value="esli">Yalnız eşleşmiş</option>
+                            </select>
+                            <input id="es-ara" type="search" placeholder="makine ya da kod ara…" oninput="eslesmeCiz()" style="max-width:220px;padding:7px 10px;border:1px solid var(--card-border);border-radius:8px;background:transparent;color:inherit">
+                            <span id="es-ozet" style="font-size:.82rem;color:var(--muted)"></span>
+                            <button class="btn btn-ghost" style="margin-left:auto" onclick="eslesmeAcKapat(false)">✕ Kapat</button>
+                        </div>
+                        <div style="font-size:.8rem;color:var(--muted);line-height:1.6;margin-bottom:10px">
+                            Operatör Forge'daki makinede vardiya açar; otonom bakım formu ve arıza talebi bakıma o makinenin
+                            <b>bakım koduyla</b> gider. Eşleşmesi olmayan makine için bakıma hiçbir şey gitmez.
+                            Birden fazla Forge makinesi aynı bakım makinesine bağlanabilir. Seçim anında kaydedilir.
+                        </div>
+                        <div id="es-liste"><div class="yukleniyor">Yükleniyor…</div></div>
                     </div>
                     <div id="ariza-haftalik" style="display:none;margin:2px 0 10px;font-size:.82rem;color:var(--muted);line-height:1.6"></div>
                     <!-- Deneme sonucu: popup engelleyiciye takılmasın diye link BURADA durur -->
@@ -23400,6 +23427,135 @@ Geçmiş vardiya ve üretim kayıtları adıyla kalır.`)) return;
                                 makine: j.machine_code, url: j.url, durum: j.durum_etiketi || j.status,
                                 acildi: j.opened_at });
             }).catch(function () { toast('Bağlantı hatası', 'error'); });
+        }
+
+        // ── MAKİNE EŞLEŞTİRME (kullanıcı 2026-11-27) ──────────────────────────
+        var _es = { veri: null };
+        var ES_BOLUM_AD = { kaynak: 'Kaynak', metal: 'Metal enjeksiyon', montaj: 'Montaj', pres: 'Pres / abkant',
+                            lazer: 'Lazer', isleme: 'İşleme', tel: 'Tel', plastik: 'Plastik' };
+
+        function eslesmeAcKapat(ac) {
+          var el = document.getElementById('es-alan');
+          if (!el) return;
+          var goster = (ac === undefined) ? (el.style.display === 'none') : !!ac;
+          el.style.display = goster ? 'block' : 'none';
+          if (goster) {
+            var t = document.getElementById('es-tesis');
+            if (t && !_es.veri) t.value = (typeof aktifLokasyon !== 'undefined' && aktifLokasyon === 'TK1') ? 'TK1' : 'TK2';
+            eslesmeYukle();
+          }
+        }
+
+        function eslesmeYukle() {
+          var el = document.getElementById('es-liste');
+          if (!el) return;
+          var t = (document.getElementById('es-tesis') || {}).value || 'TK2';
+          el.innerHTML = '<div class="yukleniyor">Yükleniyor…</div>';
+          panelFetch('/api/bakim/eslesme?tesis=' + encodeURIComponent(t))
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { el.innerHTML = '<div class="empty-state">' + esc(res.j.hata || 'Okunamadı') + '</div>'; return; }
+              _es.veri = res.j;
+              eslesmeCiz();
+            }).catch(function () { el.innerHTML = '<div class="empty-state">Bağlantı hatası</div>'; });
+        }
+
+        function _esSecici(i, m, kat) {
+          var h = '<select class="rt-row-select" style="width:100%;max-width:420px" onchange="eslesmeKaydet(' + i + ', this.value)">' +
+                  '<option value="">— eşleşme yok —</option>';
+          var var_mi = false, gruplar = {}, sira = [];
+          kat.forEach(function (k) {
+            if (!gruplar[k.yer]) { gruplar[k.yer] = []; sira.push(k.yer); }
+            gruplar[k.yer].push(k);
+            if (k.kod === m.bakim_kodu) var_mi = true;
+          });
+          if (m.bakim_kodu && !var_mi) {
+            h += '<option value="' + esc(m.bakim_kodu) + '" selected>' + esc(m.bakim_kodu) + ' · ' +
+                 esc(m.bakim_ad || 'katalogda yok') + ' (' + esc(m.bakim_durum || 'yok') + ')</option>';
+          }
+          sira.forEach(function (yer) {
+            h += '<optgroup label="' + esc(yer || 'Diğer') + '">';
+            gruplar[yer].forEach(function (k) {
+              h += '<option value="' + esc(k.kod) + '"' + (k.kod === m.bakim_kodu ? ' selected' : '') + '>' +
+                   esc(k.kod) + ' · ' + esc(k.ad) + '</option>';
+            });
+            h += '</optgroup>';
+          });
+          return h + '</select>';
+        }
+
+        function eslesmeCiz() {
+          var el = document.getElementById('es-liste');
+          if (!el || !_es.veri) return;
+          var f = (document.getElementById('es-filtre') || {}).value || 'hepsi';
+          var q = ((document.getElementById('es-ara') || {}).value || '').toLocaleLowerCase('tr');
+          var ms = _es.veri.makineler || [], kat = _es.veri.katalog || [];
+          var esli = ms.filter(function (m) { return m.bakim_kodu; }).length;
+          var aktifEksik = ms.filter(function (m) { return !m.bakim_kodu && m.kullanim > 0; }).length;
+          var oz = document.getElementById('es-ozet');
+          if (oz) oz.textContent = ms.length + ' makine · ' + esli + ' eşleşmiş · ' + (ms.length - esli) +
+                                   ' eşleşmemiş (' + aktifEksik + ' tanesi son ' + _es.veri.gun + ' günde kullanılmış)';
+          var gruplar = {}, sira = [];
+          ms.forEach(function (m, i) {
+            if (f === 'eksik' && m.bakim_kodu) return;
+            if (f === 'esli' && !m.bakim_kodu) return;
+            if (q && (m.ad + ' ' + m.bakim_kodu + ' ' + m.bakim_ad).toLocaleLowerCase('tr').indexOf(q) === -1) return;
+            var b = m.bolum || 'diğer';
+            if (!gruplar[b]) { gruplar[b] = []; sira.push(b); }
+            gruplar[b].push(i);
+          });
+          if (!sira.length) { el.innerHTML = '<div class="empty-state">Gösterilecek makine yok</div>'; return; }
+          var h = '';
+          sira.forEach(function (b) {
+            h += '<div style="font-weight:800;margin:14px 0 6px">' + esc(ES_BOLUM_AD[b] || b) + '</div>' +
+                 '<div class="table-wrap"><table class="admin-table"><thead><tr>' +
+                 '<th style="width:24%">Forge makinesi</th><th>Bakım makinesi</th><th style="width:22%">Durum</th><th style="width:70px"></th>' +
+                 '</tr></thead><tbody>';
+            gruplar[b].forEach(function (i) {
+              var m = ms[i];
+              var kul = m.kullanim ? (m.kullanim + ' kayıt · son ' + esc((m.son || '').split('-').reverse().join('.'))) : 'son ' + _es.veri.gun + ' günde kullanılmamış';
+              var dur = [];
+              if (!m.bakim_kodu) dur.push('<span style="color:var(--danger);font-weight:700">Eşleşme yok — bakıma gitmez</span>');
+              else {
+                if (m.bakim_durum && m.bakim_durum !== 'aktif')
+                  dur.push('<span style="color:var(--danger);font-weight:700">Bakımda ' + esc(m.bakim_durum) + '</span>');
+                dur.push(m.kaynak === 'panel'
+                  ? '<span style="color:var(--success);font-weight:700">Panelde eşlendi</span>' +
+                    (m.tanimlayan ? ' <span style="color:var(--muted)">· ' + esc(m.tanimlayan) + '</span>' : '')
+                  : '<span style="color:var(--muted)">Ayar dosyasından</span>');
+                dur.push(m.otonom_gun
+                  ? 'Otonom özet: son 30 günde ' + m.otonom_gun + ' gün' + (m.form_bekleniyor ? ' · <b>form bekleniyor</b>' : ' · form beklenmiyor')
+                  : '<span style="color:var(--muted)">Otonom özet henüz yok</span>');
+              }
+              h += '<tr><td><b>' + esc(m.ad) + '</b><div style="font-size:.74rem;color:var(--muted)">' + kul + '</div></td>' +
+                   '<td>' + _esSecici(i, m, kat) + '</td>' +
+                   '<td style="font-size:.78rem;line-height:1.5">' + dur.join('<br>') + '</td>' +
+                   '<td>' + (m.kaynak === 'panel'
+                       ? '<button class="adm-btn sil" title="Panel eşleşmesini kaldır" onclick="eslesmeKaydet(' + i + ', \'\')">Kaldır</button>' : '') +
+                   '</td></tr>';
+            });
+            h += '</tbody></table></div>';
+          });
+          el.innerHTML = h;
+        }
+
+        function eslesmeKaydet(i, kod) {
+          var m = ((_es.veri || {}).makineler || [])[i];
+          if (!m) return;
+          if (!kod && m.kaynak !== 'panel') {
+            toast('Bu eşleşme ayar dosyasından geliyor — başka bir bakım makinesi seçerek değiştirebilirsiniz', 'info');
+            eslesmeCiz();
+            return;
+          }
+          panelFetch('/api/bakim/eslesme', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ makine: m.ad, tesis: _es.veri.tesis, bakim_kodu: kod })
+          }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { toast(res.j.hata || 'Kaydedilemedi', 'error'); eslesmeCiz(); return; }
+              toast(kod ? (m.ad + ' → ' + kod + ' kaydedildi') : (m.ad + ' eşleşmesi kaldırıldı'), 'success');
+              eslesmeYukle();
+            }).catch(function () { toast('Bağlantı hatası', 'error'); eslesmeCiz(); });
         }
 
         function arizaKatalogTazele() {
